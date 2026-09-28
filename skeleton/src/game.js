@@ -148,6 +148,7 @@ export const game = {
   saveVersion: 1,
   migrate(data, fromVersion) { return data; },
   TUNING,
+  experiments: [{ key: 'targetLife', label: 'Target lifetime (s)', min: 0.6, max: 3, step: 0.1 }],
   start: 'menu',
   scenes: { menu, play, over },
 };

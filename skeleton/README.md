@@ -26,6 +26,8 @@ export const game = {
 };
 ```
 
+Optional: `experiments: [{ key: 'juice.bigHitSpeed', label: 'Big hit speed', min: 300, max: 900, step: 10 }]`. When present, the engine shows a TUNE tab on the menu that opens a slider panel. Keys are paths into `TUNING`; values apply live, persist per game, and are shown so a tester can report what felt right. Use it for playtest ranges; remove the entry once a value is decided.
+
 A scene is a plain object. Every method is optional:
 
 ```js
@@ -56,6 +58,7 @@ What the engine gives you (`E`):
 | RNG | `E.rng()` plus `makeRng(seed)` with `.range .int .pick .chance .shuffle`, `E.dailySeed()`, `hashString(s)` |
 | Drawing | `E.text(str, x, y, {size,color,align,weight})`, `E.roundRect(x,y,w,h,r,fill,stroke)`, `E.button(label, cx, cy, opts)` returns a rect, `E.hit(rect, p)` |
 | Toast | `E.toast(msg, onTap)` |
+| Tune panel | declare `experiments` on the game; the engine adds the `tune` scene and the menu tab |
 | Pointers | `E.pointers` (Map of active pointers, for drag and multi-touch), `E.keys` (Set) |
 
 Imports available from `./engine.js`: `makeRng`, `hashString`, `ease`, `clamp`, `lerp`, `dist`.

@@ -176,6 +176,7 @@ export class Engine {
   start() {
     this.resize();
     this.save.update('__opens', (n) => n + 1, 0); // also proves storage works on first launch
+    this._setupTune();
     if (this.game.init) this.game.init(this);
     this.setScene(this.game.start || Object.keys(this.game.scenes)[0]);
     let last = performance.now();
@@ -210,6 +211,11 @@ export class Engine {
     if (this.scene && this.scene.render) this.scene.render(ctx, this);
     this.particles.render(ctx);
     ctx.restore();
+    if (this._tune && this.sceneName === 'menu') {
+      this._tuneTab = { x: this.w - 74, y: this.safe.top + 10, w: 64, h: 32 };
+      this.roundRect(this._tuneTab.x, this._tuneTab.y, 64, 32, 10, '#1f2937', '#475569');
+      this.text('TUNE', this._tuneTab.x + 32, this._tuneTab.y + 16, { size: 13, color: '#9aa4b2' });
+    }
     if (this._flash.t > 0) {
       ctx.globalAlpha = (this._flash.t / this._flash.dur) * 0.6;
       ctx.fillStyle = this._flash.color; ctx.fillRect(0, 0, this.w, this.h); ctx.globalAlpha = 1;
@@ -246,6 +252,62 @@ export class Engine {
     this._toastTimer = setTimeout(() => this._toast.classList.remove('show'), onTap ? 15000 : 2500);
   }
   dailySeed() { const d = new Date(); return hashString(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`); }
+
+  // --- tune panel: playtest experiment variables as sliders ---
+  // A game declares `experiments: [{ key: 'needle.wideScale', label: 'Wide needle', min: 1, max: 2.5, step: 0.05 }]`.
+  // Keys are paths into TUNING. Values are applied live, saved per game, and shown so the tester can report them.
+  _setupTune() {
+    const ex = this.game.experiments;
+    if (!ex || !ex.length) return;
+    this._tune = ex.map((e) => ({ ...e, def: this._getPath(e.key) }));
+    const saved = this.save.get('__tune', {});
+    for (const e of this._tune) if (e.key in saved) this._setPath(e.key, saved[e.key]);
+    const E = this;
+    this.game.scenes.tune = this.game.scenes.tune || {
+      enter() { this.drag = null; },
+      layout() {
+        const top = E.safe.top + 70, rowH = 66, x = 28, w = E.w - 56;
+        return E._tune.map((e, i) => ({ e, x, y: top + i * rowH, w, track: { x, y: top + i * rowH + 34, w, h: 24 } }));
+      },
+      render(ctx) {
+        E.text('Tune', E.w / 2, E.safe.top + 30, { size: 24, weight: '800' });
+        this.back = E.button('Back', 60, E.safe.top + 30, { w: 84, h: 36, size: 15, fill: '#334155' });
+        this.reset = E.button('Reset', E.w - 60, E.safe.top + 30, { w: 84, h: 36, size: 15, fill: '#334155' });
+        for (const r of this.layout()) {
+          const v = E._getPath(r.e.key);
+          E.text(r.e.label || r.e.key, r.x, r.y + 12, { size: 15, align: 'left', color: '#e6e6e6' });
+          E.text(E._fmt(v, r.e.step), r.x + r.w, r.y + 12, { size: 15, align: 'right', color: '#fbbf24' });
+          E.roundRect(r.track.x, r.track.y + 8, r.track.w, 8, 4, '#1f2937');
+          const k = clamp((v - r.e.min) / (r.e.max - r.e.min), 0, 1);
+          E.roundRect(r.track.x, r.track.y + 8, r.track.w * k, 8, 4, '#3b82f6');
+          ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(r.track.x + r.track.w * k, r.track.y + 12, 12, 0, Math.PI * 2); ctx.fill();
+          E.text(E._fmt(r.e.min, r.e.step), r.x, r.y + 60, { size: 11, align: 'left', color: '#64748b' });
+          E.text(E._fmt(r.e.max, r.e.step), r.x + r.w, r.y + 60, { size: 11, align: 'right', color: '#64748b' });
+        }
+      },
+      _set(r, px) {
+        const k = clamp((px - r.track.x) / r.track.w, 0, 1);
+        let v = r.e.min + k * (r.e.max - r.e.min);
+        if (r.e.step) v = Math.round(v / r.e.step) * r.e.step;
+        v = +v.toFixed(6);
+        E._setPath(r.e.key, v);
+        E.save.update('__tune', (t) => ({ ...t, [r.e.key]: v }), {});
+      },
+      onPointerDown(p) {
+        const r = this.layout().find((r) => p.y >= r.track.y - 12 && p.y <= r.track.y + 36 && p.x >= r.x - 16 && p.x <= r.x + r.w + 16);
+        if (r) { this.drag = r; this._set(r, p.x); }
+      },
+      onPointerMove(p) { if (this.drag) this._set(this.drag, p.x); },
+      onPointerUp(p) { this.drag = null; },
+      onTap(p) {
+        if (this.back && E.hit(this.back, p)) E.setScene('menu');
+        else if (this.reset && E.hit(this.reset, p)) { for (const e of E._tune) E._setPath(e.key, e.def); E.save.set('__tune', {}); }
+      },
+    };
+  }
+  _fmt(v, step) { const d = step && step < 1 ? Math.min(3, Math.ceil(-Math.log10(step))) : 0; return Number(v).toFixed(d); }
+  _getPath(key) { return key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), this.T); }
+  _setPath(key, v) { const ks = key.split('.'); let o = this.T; for (const k of ks.slice(0, -1)) { if (o[k] == null) o[k] = {}; o = o[k]; } o[ks[ks.length - 1]] = v; }
 
   // --- drawing helpers (so one-shots share a look) ---
   text(str, x, y, { size = 16, color = '#e6e6e6', align = 'center', baseline = 'middle', weight = '600', font = 'system-ui, sans-serif', alpha = 1 } = {}) {
@@ -305,6 +367,7 @@ export class Engine {
       if (p.isSwipe) p.swipeDir = Math.abs(p.dx) > Math.abs(p.dy) ? (p.dx > 0 ? 'right' : 'left') : (p.dy > 0 ? 'down' : 'up');
       p.cancelled = e.type === 'pointercancel'; // system gesture or palm: scenes must not act on it
       if (p.cancelled) p.isTap = p.isSwipe = false;
+      if (p.isTap && this._tune && this.sceneName === 'menu' && this._tuneTab && this.hit(this._tuneTab, p)) { this.setScene('tune'); return; }
       this.scene && this.scene.onPointerUp && this.scene.onPointerUp(p, this);
       if (p.isTap && this.scene && this.scene.onTap) this.scene.onTap(p, this);
       if (p.isSwipe && this.scene && this.scene.onSwipe) this.scene.onSwipe(p, this);

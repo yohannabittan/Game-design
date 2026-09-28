@@ -47,6 +47,12 @@ Score 1 to 5. Anything at 2 or below gets a comment.
 
 Free-form. What was in your head while playing. What you wished it did. What surprised you. This is the section that writes the next PRD, so be specific and include the moment it happened.
 
+## Tune panel values
+
+If the build has a TUNE tab, the values you settled on, one per line: variable, value that felt right, and the values that felt wrong and why.
+
+-
+
 ## Decision input
 
 - Evolve / pivot / shelve, and the one-line reason.
