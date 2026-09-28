@@ -1,4 +1,4 @@
-// Ink, layers 1 to 3 and the v0.2 dynamic needle: the mechanic, the progression, the juice and a speed-driven ink radius. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
+// Ink, layers 1 to 3 and the v0.2 dynamic needle and the v0.3 needle inertia: the mechanic, the progression, the juice and a speed-driven ink radius with momentum. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
 // Grey box: shapes and four colours only. Ten stencils, authored as data and verified with tools/sim-ink.mjs.
 
 import { clamp, dist, ease } from './engine.js';
@@ -56,6 +56,13 @@ const TUNING = {
   wideScale: 1.8,        // Radius multiplier when slow
   thinScale: 0.65,       // Radius multiplier when fast
   speedWindow: 24,       // Units of travel over which speed is measured (never per frame)
+
+  // v0.3 needle inertia (PRD v0.3 sections A, B, E). Defaults are the Flowy preset. Radius units are design units per second.
+  growRate: 14,          // Radius units per second the ink radius widens toward its target
+  shrinkRate: 30,        // Radius units per second it narrows toward its target
+  floorScale: 0.8,       // The radius never drops below needleR * floorScale
+  physicsStep: 1 / 120,  // Fixed step (seconds) for integrating the radius while the finger holds still
+  holdGap: 0.06,         // Seconds without a movement event before the finger counts as holding still
 
   // Layer 3: feel only. Nothing here touches coverage, slips, the timer, stars or saves. Seconds, screen px and design units as marked.
   juice: {
@@ -304,7 +311,7 @@ function newAttempt(idx) {
     strokes: [], stroke: null, marks: [],
     slips: 0, time: st.timer, started: false, ended: null, holdT: 0,
     pid: null, last: null, lastT: 0, carry: 0, armed: false,
-    finger: null, mode: 'dynamic', r: T.needleR, hist: newHist(),
+    finger: null, mode: 'dynamic', r: T.needleR, hist: newHist(), sT: 0, idle: 0, acc: 0, pushR: 0,
     layer: null, layerK: 0, inkDone: [],
     grey: null, greyK: 0, fx: newFx(),
   });
@@ -320,7 +327,8 @@ function histPush(h, cum, t) {
   h.head = (h.head + 1) % HIST; h.d[h.head] = cum; h.t[h.head] = t; if (h.n < HIST) h.n++;
 }
 // Finger speed over the last speedWindow units of travel, or -1 with no travel yet. With less travel than the window it uses what there is.
-function windowSpeed(h) {
+// `idle` is time spent holding still since the newest sample, so a pause drags the measured speed down.
+function windowSpeed(h, idle = 0) {
   const target = h.cum - Math.min(T.speedWindow, (HIST - 2) * T.sampleSpacing);
   let k = h.head, cnt = 1, d0 = h.d[k], t0 = h.t[k];
   while (cnt < h.n) {
@@ -328,18 +336,25 @@ function windowSpeed(h) {
     if (h.d[prev] <= target) { // interpolate the time at cumulative distance `target` between prev and k
       const span = h.d[k] - h.d[prev], f = span > 0 ? (target - h.d[prev]) / span : 0;
       d0 = target; t0 = h.t[prev] + (h.t[k] - h.t[prev]) * f;
-      return (h.cum - d0) / Math.max(h.t[h.head] - t0, 1e-4);
+      return (h.cum - d0) / Math.max(h.t[h.head] - t0 + idle, 1e-4);
     }
     k = prev; cnt++; d0 = h.d[k]; t0 = h.t[k];
   }
   const dd = h.cum - d0;
-  return dd > 0 ? dd / Math.max(h.t[h.head] - t0, 1e-4) : -1;
+  if (dd > 0) return dd / Math.max(h.t[h.head] - t0 + idle, 1e-4);
+  return idle > 0 ? 0 : -1; // no travel yet: unknown, or stopped if the finger has been holding still
 }
-// Ink radius for a finger speed: needleR in classic mode; in dynamic mode wide when slow, thin when fast, linear between.
+// Target ink radius for a finger speed: wide when slow, thin when fast, linear between; never below the floor. Unknown speed is neutral.
 function radiusFor(speed) {
-  if (S.mode !== 'dynamic' || speed < 0) return T.needleR;
+  if (speed < 0) return T.needleR;
   const u = clamp((speed - T.slowSpeed) / Math.max(T.fastSpeed - T.slowSpeed, 1e-6), 0, 1);
-  return T.needleR * (T.wideScale + (T.thinScale - T.wideScale) * u);
+  return Math.max(T.needleR * (T.wideScale + (T.thinScale - T.wideScale) * u), T.needleR * T.floorScale);
+}
+// Inertia: the radius moves toward its target over dt seconds at growRate while widening and shrinkRate while narrowing (classic mode keeps needleR).
+function stepRadius(dt, speed) {
+  if (S.mode !== 'dynamic') { S.r = T.needleR; return; }
+  const goal = radiusFor(speed);
+  S.r = clamp(S.r < goal ? Math.min(goal, S.r + T.growRate * dt) : Math.max(goal, S.r - T.shrinkRate * dt), T.needleR * T.floorScale, Infinity);
 }
 
 // Lay ink on every inside cell whose centre is within R of (x, y).
@@ -361,7 +376,7 @@ function sample(E, x, y, r) {
   if (pointInShape(S.st.shape, x, y)) {
     S.armed = true;
     if (!S.stroke) { S.stroke = []; S.strokes.push(S.stroke); }
-    S.stroke.push(x, y, r);
+    S.stroke.push(x, y, r); S.pushR = r;
     inkAt(x, y, r);
     fxInk(E);
     if (S.count === S.g.total) finish(E, 'full');
@@ -389,23 +404,44 @@ function checkSlip(E, x, y) {
 function moveNeedle(E, x, y, tm) {
   const h = S.hist;
   if (!S.last) {
-    S.last = { x, y }; S.lastT = tm; S.carry = 0;
+    S.last = { x, y }; S.lastT = tm; S.carry = 0; S.sT = tm; S.idle = 0; S.acc = 0;
     h.n = 0; h.cum = 0; histPush(h, 0, tm);
-    sample(E, x, y, radiusFor(-1));
+    S.r = S.mode === 'dynamic' ? Math.max(T.needleR, T.needleR * T.floorScale) : T.needleR;
+    sample(E, x, y, S.r);
     return;
   }
   const dx = x - S.last.x, dy = y - S.last.y, len = Math.hypot(dx, dy);
   if (len === 0) return;
   const ux = dx / len, uy = dy / len, dt = tm - S.lastT;
+  S.idle = 0; S.acc = 0;
   let t = T.sampleSpacing - S.carry; // distance along this segment to the next sample
   while (t <= len && !S.ended) {
-    h.cum += T.sampleSpacing; histPush(h, h.cum, S.lastT + dt * (t / len));
-    sample(E, S.last.x + ux * t, S.last.y + uy * t, radiusFor(windowSpeed(h)));
+    const ts = S.lastT + dt * (t / len);
+    h.cum += T.sampleSpacing; histPush(h, h.cum, ts);
+    stepRadius(Math.max(0, ts - S.sT), windowSpeed(h)); S.sT = Math.max(S.sT, ts);
+    sample(E, S.last.x + ux * t, S.last.y + uy * t, S.r);
     t += T.sampleSpacing;
   }
   S.carry = T.sampleSpacing - (t - len);
   S.last = { x, y }; S.lastT = tm;
   checkSlip(E, x, y); // the real needle position too, so a reversal apex between samples still counts
+}
+
+// Holding still: the finger sends no events, but time passes. In fixed steps the radius keeps swelling toward the slow size, and the disc it lays
+// grows with it (never past the slow radius). Runs from update, so it is the same code the simulator's holds use.
+function holdStep(E, dt) {
+  if (S.mode !== 'dynamic' || S.pid === null || !S.last || S.ended) return;
+  S.idle += dt;
+  if (S.idle < T.holdGap) return;
+  S.acc += dt;
+  while (S.acc >= T.physicsStep) {
+    S.acc -= T.physicsStep; S.sT += T.physicsStep;
+    stepRadius(T.physicsStep, windowSpeed(S.hist, S.idle));
+  }
+  if (S.stroke && S.r > S.pushR + 0.05 && pointInShape(S.st.shape, S.last.x, S.last.y)) {
+    S.pushR = S.r; S.stroke.push(S.last.x, S.last.y, S.r); inkAt(S.last.x, S.last.y, S.r);
+    if (S.count === S.g.total) finish(E, 'full');
+  }
 }
 
 function finish(E, reason) {
@@ -461,6 +497,7 @@ function syncInk(E, v) {
     if (pts.length === 3) { c.beginPath(); c.arc(pts[0], pts[1], pts[2] * wk, 0, Math.PI * 2); c.fill(); }
     else {
       for (let i = Math.max(3, done); i < pts.length; i += 3) {
+        if (pts[i] === pts[i - 3] && pts[i + 1] === pts[i - 2]) { c.beginPath(); c.arc(pts[i], pts[i + 1], pts[i + 2] * wk, 0, Math.PI * 2); c.fill(); continue; } // a hold: the disc swells in place
         c.lineWidth = (pts[i - 1] + pts[i + 2]) * wk;
         c.beginPath(); c.moveTo(pts[i - 3], pts[i - 2]); c.lineTo(pts[i], pts[i + 1]); c.stroke();
       }
@@ -637,6 +674,7 @@ const menu = {
 const play = {
   enter(E, { stencil = 0 } = {}) { newAttempt(clamp(stencil, 0, STENCILS.length - 1)); S.mode = curMode(E); },
   update(dt, E) {
+    holdStep(E, dt);
     fxUpdate(dt, E);
     if (S.ended) {
       S.holdT -= dt;
@@ -804,18 +842,22 @@ export const game = {
     return data;
   },
   TUNING,
-  // Playtest sliders (TUNE tab on the menu): the four needle values first, three juice values after. All are read from TUNING at use time, so they apply live.
+  // Playtest sliders (TUNE tab on the menu). All are read from TUNING at use time, so they apply live.
   experiments: [
-    { key: 'slowSpeed', label: 'Slow speed (units/s)', min: 60, max: 250, step: 5 },
-    { key: 'fastSpeed', label: 'Fast speed (units/s)', min: 250, max: 700, step: 10 },
+    { key: 'growRate', label: 'Grow rate (radius units/s)', min: 4, max: 80, step: 1 },
+    { key: 'shrinkRate', label: 'Shrink rate (radius units/s)', min: 4, max: 100, step: 1 },
+    { key: 'floorScale', label: 'Floor scale (min radius)', min: 0.5, max: 1, step: 0.05 },
     { key: 'wideScale', label: 'Wide scale (slow)', min: 1, max: 2.5, step: 0.05 },
-    { key: 'thinScale', label: 'Thin scale (fast)', min: 0.3, max: 1, step: 0.05 },
-    { key: 'juice.tickEvery', label: 'Needle tick spacing (units)', min: 10, max: 90, step: 2 },
-    { key: 'juice.vibAmp', label: 'Machine vibration (px)', min: 0, max: 2.5, step: 0.1 },
-    { key: 'juice.slipShake', label: 'Slip shake (px)', min: 0, max: 8, step: 0.5 },
+  ],
+  // Whole feels first, sliders second (TUNE tab). Flowy is the default.
+  presets: [
+    { label: 'Crisp', values: { growRate: 60, shrinkRate: 80, floorScale: 0.65 } },
+    { label: 'Flowy', values: { growRate: 14, shrinkRate: 30, floorScale: 0.8 } },
+    { label: 'Heavy', values: { growRate: 8, shrinkRate: 18, floorScale: 0.9 } },
+    { label: 'Marker', values: { growRate: 25, shrinkRate: 25, floorScale: 0.75 } },
   ],
   start: 'menu',
   scenes: { menu, play, over },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
-  sim: { stencils: STENCILS, percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g },
+  sim: { stencils: STENCILS, percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g, radius: () => S.r },
 };

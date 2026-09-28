@@ -7,7 +7,7 @@
   {
     "slug": "ink",
     "title": "Ink",
-    "status": "v0.2 experiment: dynamic needle toggle, sliders on the TUNE tab"
+    "status": "v0.3 experiment: needle inertia presets (Crisp, Flowy, Heavy, Marker) on the TUNE tab"
   },
   {
     "slug": "recoil",
