@@ -150,10 +150,15 @@ function sample(E, x, y) {
     return;
   }
   S.stroke = null;
-  if (!S.armed) return;
+  checkSlip(E, x, y);
+}
+
+// Count a slip if the needle had been inside and (x, y) is outside past the tolerance. Ink is never laid here.
+function checkSlip(E, x, y) {
+  if (!S.armed || S.ended || pointInShape(S.st.shape, x, y)) return;
   const e = nearestEdge(S.st.shape, x, y);
   if (e.d <= T.slipTolerance) return;
-  S.armed = false;
+  S.armed = false; S.stroke = null;
   S.slips++;
   S.marks.push({ x: e.x, y: e.y });
   E.audio.play('miss');
@@ -170,6 +175,7 @@ function moveNeedle(E, x, y) {
   while (t <= len && !S.ended) { sample(E, S.last.x + ux * t, S.last.y + uy * t); t += T.sampleSpacing; }
   S.carry = T.sampleSpacing - (t - len);
   S.last = { x, y };
+  checkSlip(E, x, y); // the real needle position too, so a reversal apex between samples still counts
 }
 
 function finish(E, reason) {
@@ -296,7 +302,8 @@ const play = {
     E.setScene('over', { idx: S.idx, pct, stars, failed, clean: !failed && S.slips === 0, best });
   },
   onPointerDown(p, E) {
-    if (S.ended || S.pid !== null) return;
+    if (S.ended) return;
+    if (S.pid !== null) { if (E.pointers.has(S.pid)) return; liftFinger(); } // a lost up or cancel must not lock out inking
     S.pid = p.id; S.started = true; S.finger = { x: p.x, y: p.y };
     E.audio.play('tap');
     const n = needleFromPointer(p, E);
@@ -314,15 +321,15 @@ const play = {
     drawMachine(ctx, E);
     const top = E.safe.top + T.hudTop, cx = E.w / 2;
     E.text(`${percent()}%`, cx, top + 30, { size: 60, weight: '800', color: T.textColor });
-    E.text(`${Math.ceil(S.time)}`, 16, top + 24, { size: 34, weight: '800', align: 'left', color: S.time <= 5 && S.started ? T.slipRed : T.textColor });
-    E.text(`${S.slips}/${T.maxSlips}`, E.w - 16, top + 24, { size: 34, weight: '800', align: 'right', color: S.slips ? T.slipRed : T.textColor });
+    E.text(`${Math.ceil(S.time)}`, 16, top + 28, { size: 48, weight: '800', align: 'left', color: S.time <= 5 && S.started ? T.slipRed : T.textColor });
+    E.text(`${S.slips}/${T.maxSlips}`, E.w - 16, top + 28, { size: 26, weight: '800', align: 'right', color: S.slips ? T.slipRed : T.textColor });
   },
 };
 
 const over = {
   enter(E, params) {
     this.p = params;
-    this.btnNext = null; this.btnAgain = null;
+    this.btnMain = null; this.btnMenu = null;
     E.audio.play(params.failed ? 'lose' : 'win');
   },
   render(ctx, E) {
@@ -330,21 +337,21 @@ const over = {
     drawPiece(ctx, E);
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, E.w, E.h);
 
-    const w = Math.min(320, E.w - 32), h = p.failed ? 400 : 336, x = cx - w / 2, y = Math.max(E.safe.top + 16, (E.h - h) / 2);
+    const w = Math.min(320, E.w - 32), h = 392, x = cx - w / 2, y = Math.max(E.safe.top + 16, (E.h - h) / 2);
     E.roundRect(x, y, w, h, 20, T.cardColor, T.stencilBlue);
     E.text(`${p.pct}%`, cx, y + 64, { size: 72, weight: '800', color: T.textColor });
     for (let i = 0; i < 5; i++) drawStar(ctx, cx + (i - 2) * 44, y + 134, 18, i < p.stars);
     if (p.clean) E.text('Clean', cx, y + 180, { size: 22, weight: '800', color: T.stencilBlue });
     E.text(`Best ${p.best}%`, cx, y + 214, { size: 18, color: '#b8a698' });
-    this.btnNext = E.button('Next', cx, y + 272, { w: w - 48, fill: T.buttonFill, size: 22 });
-    this.btnAgain = p.failed ? E.button('Again', cx, y + 342, { w: w - 48, fill: T.buttonAltFill, size: 22 }) : null;
+    // Next on a pass, Again on a fail, never both; Menu always.
+    this.btnMain = E.button(p.failed ? 'Again' : 'Next', cx, y + 270, { w: w - 48, fill: T.buttonFill, size: 22 });
+    this.btnMenu = E.button('Menu', cx, y + 340, { w: w - 48, h: 48, fill: T.buttonAltFill, size: 18 });
   },
   onTap(p, E) {
-    const hitNext = this.btnNext && E.hit(this.btnNext, p), hitAgain = this.btnAgain && E.hit(this.btnAgain, p);
-    if (hitNext || hitAgain) {
+    if (E.hit(this.btnMain, p)) {
       E.audio.play('tap');
-      E.setScene('play', { stencil: hitNext ? 0 : this.p.idx }); // Next restarts the only stencil until layer 2
-    }
+      E.setScene('play', { stencil: this.p.failed ? this.p.idx : 0 }); // Next restarts the only stencil until layer 2
+    } else if (E.hit(this.btnMenu, p)) { E.audio.play('tap'); E.setScene('menu'); }
   },
 };
 
