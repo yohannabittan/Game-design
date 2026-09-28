@@ -28,3 +28,4 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0007](0007-build-in-layers-one-shot-each.md) | Build in layers, one one-shot prompt per layer, game.js is the unit | accepted |
 | [0008](0008-random-setup-deterministic-resolution.md) | Randomness only in setup, never in resolution; all randomness is seeded | accepted |
 | [0009](0009-deploy-via-github-pages.md) | Deploy by pushing to main; GitHub Pages serves the repo root | accepted |
+| [0010](0010-orchestrator-and-worker-models.md) | A top-tier model plans and reviews; cheaper, faster models build layers as sub-agents | accepted |

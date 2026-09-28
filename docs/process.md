@@ -57,7 +57,7 @@ Each layer is one prompt, one session, one file (`src/game.js`). Between layers 
 | 6. Audio | `prompts/06-audio.md` | Synth sound set with identity, or asset hooks | You can name the game from the sounds |
 | 7. Modes | `prompts/07-modes.md` | Daily seed, endless, time attack, zen, challenges | Same mechanic, different session |
 
-How the prompts are used: open a Claude Code session in this repo, paste the layer prompt with the placeholders filled, and let it read the PRD and skeleton itself. The prompt tells it what file to write and what the acceptance list is. After it finishes, run `npm run smoke` and play it on the phone.
+How the prompts are used (ADR-0010): the orchestrator session, the one you talk to, hands the layer prompt to a builder sub-agent on a cheaper, faster model (Sonnet by default, Opus for feel-critical layers). The builder reads the PRD and skeleton itself, writes `game.js`, and runs the smoke test. A reviewer sub-agent with fresh context then checks the output against the PRD, the principles and the repo rules using `prompts/08-review.md`, and reports. The orchestrator accepts, sends the findings back to the builder, or fixes the document. Then you play it on the phone. Builders for different games can run in parallel; layers on one game are sequential because they rewrite one file. You can also run a prompt by hand in a session if you want to watch.
 
 Why layers work for one-shots: each prompt has a small, closed target, a fixed contract (the engine), a spec (the PRD), and testable acceptance. The builder is never asked to invent scope, and a failure is contained to one layer.
 

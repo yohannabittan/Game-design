@@ -33,6 +33,16 @@ This repository is a library of small, touch-first, offline-capable skill games 
 10. **Smoke test before done.** `npm run smoke` must pass. It boots every game at phone size and fails on any console error, missing asset, or service worker failure.
 11. **Deploy hygiene.** Any deploy-worthy change bumps `CACHE_VERSION` in that game's `sw.js` and adds a line to `docs/games/<slug>/CHANGELOG.md`.
 
+## Orchestration (ADR-0010)
+
+The session the designer talks to is the orchestrator. It writes and reviews documents and dispatches builds; it does not write `game.js` itself unless a builder has failed twice.
+
+- **Builder:** an `Agent` on `sonnet` by default, `opus` for feel-critical or high-risk layers. Prompt is the layer file from `prompts/` with placeholders filled, verbatim. Builders read the repo themselves.
+- **Reviewer:** an `Agent` on `sonnet` with fresh context running `prompts/08-review.md`. Reports, never edits.
+- **Escalation:** builder retry with findings, then next model up, then fix the PRD or prompt.
+- **Parallelism:** across games, never across layers of one game.
+- **Log it:** each changelog line names the model that built the layer and whether it passed review first time.
+
 ## Starting a new game
 
 ```
