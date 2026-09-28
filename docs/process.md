@@ -65,6 +65,8 @@ How the prompts are used (ADR-0010): the orchestrator session, the one you talk 
 
 Content layers run as parallel shards once the mechanic has been played (ADR-0012): the orchestrator slices the PRD's content plan, several builders each verify their entries with the game's simulation harness, the orchestrator merges, and one reviewer checks the curve.
 
+A PRD is frozen while a builder is running against it. Amendments found during the build (by the orchestrator, a reviewer or a playtest) are queued and applied between rounds, and the reviewer judges the build against the version the builder read. Otherwise a builder is failed for a rule it never saw, which happened once on Ink.
+
 Why layers work for one-shots: each prompt has a small, closed target, a fixed contract (the engine), a spec (the PRD), and testable acceptance. The builder is never asked to invent scope, and a failure is contained to one layer.
 
 ## Stage 6. Deploy
