@@ -90,7 +90,7 @@ Deferred so it is not accidentally built:
 - Holes 4 to 10: (4) a corridor of two walls; (5) boss: a big well dead centre, the slingshot hole, needs tip 4; (6) a repulsor guarding the hole, needs tip 6; (7) bumper field, three bumpers; (8) two wells in a figure-of-eight, needs tips 3 and 4; (9) a narrow gap at the top with a well below it, needs tip 5 to drop in; (10) boss: a mover wall sweeping across the approach, one well, one bumper, needs timing plus everything before.
 - Difficulty curve: the second half requires tips 4, 5 and 6. The first half is clearable with tips 1 to 3.
 - Field borders: every hole has walls on all four edges of the design space, drawn as part of the field. Hole data does not list them; the physics adds them.
-- Well strength is set by an observable, not by taste: a ball passing a well at 100 units of closest approach at 400 units per second must deflect by at least 25 degrees, and a ball passing at 40 units at 500 units per second must whip around by more than 90 degrees without being captured. The builder verifies both in a harness and adjusts `wellStrength` until they hold.
+- Well strength is set by an observable, not by taste: a ball passing a well at 40 units of closest approach at 500 units per second must whip around by more than 90 degrees and leave the well uncaptured. A ball passing at 100 units at 400 units per second bends visibly (about 15 degrees by closest approach) and is then captured; that is accepted, because the whip is what makes the slingshot holes work. Measured on 2026-09-28: 97 degrees at 40 units with `wellStrength` 5,200,000. Per-hole wells carry a strength multiplier (0.6 gentle on hole 1, 2.5 on boss holes).
 - Boss beat: holes 5 and 10 are named as boss holes on the card and the hole select.
 
 ## 10. Juice list
@@ -162,12 +162,13 @@ Design-space units unless stated. The builder copies these names into `TUNING`.
 | captureR | 44 | Within this distance of the hole centre the cup pulls the ball |
 | captureStrength | 900 | Constant acceleration toward the hole centre inside captureR |
 | friction | 0.28 | Fraction of speed kept per second on the open field; a full-power shot stops in about two seconds |
-| stopSpeed | 6 | Below this speed the ball is at rest |
+| stopSpeed | 50 | Below this speed the ball is at rest; with friction 0.28 this is what makes a full shot rest in about 2.2 s |
+| holdAccel | 250 | A slow ball only comes to rest where the net well pull is below this, so it cannot freeze mid-arc inside a well's pull |
 | dragMax | 150 | Drag distance (screen px) that gives full power |
 | dragDead | 12 | Drag shorter than this cancels the shot |
 | powerMax | 820 | Launch speed at full drag |
 | wallBounce | 0.85 | Fraction of speed kept on a wall or bumper bounce |
-| wellStrength | 8000000 | Acceleration toward a well is strength divided by distance squared; starting value, tuned to the observable in section 9 |
+| wellStrength | 5200000 | Acceleration toward a well is strength divided by distance squared, times the hole's per-well multiplier; tuned to the observable in section 9 |
 | wellMinDist | 28 | Distance below which the pull stops growing, avoids infinite force |
 | wellR | 22 | Visual radius of a well disc |
 | previewFullHoles | 3 | Holes 1 to this show the full preview |
