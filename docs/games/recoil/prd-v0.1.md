@@ -143,7 +143,7 @@ Design-space units unless stated.
 | gunMinY | 40 | Highest gun position |
 | gunMaxY | 300 | Lowest gun position |
 | dragGain | 1.0 | Design units of gun movement per design unit of drag |
-| kickPerShot | 7 | Degrees of barrel climb per shot |
+| kickPerShot | 8 | Degrees of barrel climb per shot (7 failed the one-ring kick check in section 15) |
 | kickMax | 28 | Cap on the barrel angle |
 | kickRecovery | 32 | Degrees per second the barrel settles |
 | zoneR | 6, 14, 24 | Bullseye, inner, outer radii at scale 1 |
