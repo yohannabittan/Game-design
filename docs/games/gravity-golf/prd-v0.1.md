@@ -92,7 +92,7 @@ Deferred so it is not accidentally built:
 - Difficulty curve: the second half requires tips 4, 5 and 6. The first half is clearable with tips 1 to 3.
 - Field borders: every hole has walls on all four edges of the design space, drawn as part of the field and always visible on screen at any phone aspect ratio. Hole data does not list them; the physics adds them.
 - No trap anywhere: from rest at any reachable point on any hole, including inside a well's core, a full-power shot must be able to carry the ball at least 200 units away from that well, and a ball at rest never jitters. The pull inside `wellMinDist` falls off toward the centre (no constant-force pit). The builder verifies with an escape sweep on every hole that has a well.
-- Well strength is set by an observable, not by taste: a ball passing a well at 40 units of closest approach at 500 units per second must whip around by more than 90 degrees and leave the well uncaptured. A ball passing at 100 units at 400 units per second bends visibly (about 15 degrees by closest approach) and is then captured; that is accepted, because the whip is what makes the slingshot holes work. Measured on 2026-09-28: 97 degrees at 40 units with `wellStrength` 5,200,000. Per-hole wells carry a strength multiplier (0.6 gentle on hole 1, 2.5 on boss holes).
+- Well strength is set by an observable, not by taste: a ball passing a well at 40 units of closest approach at 500 units per second must whip around by more than 90 degrees and leave the well uncaptured. A ball passing at 100 units at 400 units per second bends visibly (about 15 degrees by closest approach) and is then captured; that is accepted, because the whip is what makes the slingshot holes work. Measured on 2026-09-28 after the escape rule: 96.5 degrees at 40 units with `wellStrength` 7,000,000 and `wellMinDist` 44. Per-hole wells carry a strength multiplier between 0.45 and 1.0; boss holes differ by layout, not by well size, because a stronger well cannot satisfy the escape rule.
 - Boss beat: holes 5 and 10 are named as boss holes on the card and the hole select.
 
 ## 10. Juice list
@@ -172,8 +172,8 @@ Design-space units unless stated. The builder copies these names into `TUNING`.
 | dragDead | 12 | Drag shorter than this cancels the shot |
 | powerMax | 820 | Launch speed at full drag |
 | wallBounce | 0.85 | Fraction of speed kept on a wall or bumper bounce |
-| wellStrength | 5200000 | Acceleration toward a well is strength divided by distance squared, times the hole's per-well multiplier; tuned to the observable in section 9 |
-| wellMinDist | 28 | Distance below which the pull stops growing, avoids infinite force |
+| wellStrength | 7000000 | Acceleration toward a well is strength divided by distance squared, times the hole's per-well multiplier (never above 1.0, or the escape rule fails); tuned to the observables in section 9 |
+| wellMinDist | 44 | Inside this distance the pull falls off linearly to zero at the centre (soft core), so a ball can always be shot back out |
 | wellR | 22 | Visual radius of a well disc |
 | previewFullHoles | 3 | Holes 1 to this show the full preview |
 | previewFullSeconds | 2.0 | Length of the full preview in simulated seconds |

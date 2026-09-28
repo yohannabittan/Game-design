@@ -18,8 +18,8 @@ const TUNING = {
   dragDead: 12,          // Drag shorter than this cancels the shot
   powerMax: 820,         // Launch speed at full drag
   wallBounce: 0.85,      // Fraction of speed kept on a wall or bumper bounce
-  wellStrength: 5200000, // Acceleration toward a well is strength divided by distance squared
-  wellMinDist: 28,       // Distance below which the pull stops growing
+  wellStrength: 7000000, // Acceleration toward a well is strength divided by distance squared
+  wellMinDist: 44,       // Inside this distance the pull falls off linearly to zero at the centre
   wellR: 22,             // Visual radius of a well disc
   previewFullHoles: 3,   // Holes 1 to this show the full preview
   previewFullSeconds: 2.0,   // Length of the full preview in simulated seconds
@@ -42,6 +42,9 @@ const TUNING = {
   orange: '#f97316',     // Repulsors and full power
   slate: '#475569',      // Walls and bumpers
   slateEdge: '#64748b',
+  borderW: 8,            // Drawn thickness of the edge walls, kept on screen by view()
+  retryW: 64,            // Retry button size (screen px)
+  retryH: 44,
   ballGrabR: 14,         // A touch that starts this close to the ball does not aim
   bounceEventSpeed: 40,  // Impact speed below this is a slide, not a hit (no sound)
   sinkTime: 0.45,        // Seconds the ball takes to drop into the hole before the card
@@ -54,6 +57,7 @@ const TUNING = {
 const T = TUNING;
 const STEP = T.physicsStep;
 const FRIC_STEP = Math.pow(T.friction, STEP);
+const WELL_CORE3 = T.wellMinDist ** 3;
 
 
 // Hole data. Coordinates are design space; the four field edges are walls added by the physics.
@@ -66,7 +70,7 @@ const LEVELS = [
     // Solution: drag (21, 98), one shot; about 12 degrees of aim sink it.
     name: 'First Light', par: 2, boss: false,
     ball: { x: 180, y: 520 }, hole: { x: 180, y: 190 },
-    walls: [], bumpers: [], wells: [{ x: 265, y: 360, strength: 0.6 }],
+    walls: [], bumpers: [], wells: [{ x: 265, y: 360, strength: 0.45 }],
   },
   {
     // Teaches tip 2, the bank: the wall blocks the straight line, so bounce off the left edge.
@@ -76,32 +80,32 @@ const LEVELS = [
     walls: [{ x: 60, y: 310, w: 80, h: 22 }], bumpers: [], wells: [],
   },
   {
-    // Teaches tip 3: the well sits on the line, so aim to one side and let it bend the path around.
-    // Solution: drag (52, 97), one shot, about 80 units clear of the well; about 18 degrees of aim sink it.
+    // Teaches tip 3: the well sits beside the line, so aim to the far side and let it bend the path around.
+    // Solution: drag (49, 87), one shot, about 100 units clear of the well; about 19 degrees of aim sink it.
     name: 'Around the Bend', par: 2, boss: false,
-    ball: { x: 165, y: 480 }, hole: { x: 165, y: 170 },
-    walls: [], bumpers: [], wells: [{ x: 180, y: 310, strength: 1.1 }],
+    ball: { x: 145, y: 480 }, hole: { x: 145, y: 170 },
+    walls: [], bumpers: [], wells: [{ x: 180, y: 310, strength: 0.82 }],
   },
   {
-    // Teaches tip 1, use only the power you need: a corridor is a precision hole, not a power hole.
-    // Solution: drag (-16, 109), straight up the corridor, one shot; about 3 degrees of aim sink it.
+    // Teaches precision: the ball has to run the corridor straight, and the walls punish a crooked aim.
+    // Solution: drag (0, 100), straight up the corridor, one shot; about 11 degrees of aim sink it.
     name: 'Corridor', par: 2, boss: false,
-    ball: { x: 90, y: 520 }, hole: { x: 180, y: 150 },
-    walls: [{ x: 140, y: 290, w: 22, h: 170 }, { x: 200, y: 290, w: 22, h: 170 }], bumpers: [], wells: [],
+    ball: { x: 180, y: 540 }, hole: { x: 180, y: 150 },
+    walls: [{ x: 133, y: 290, w: 22, h: 170 }, { x: 205, y: 290, w: 22, h: 170 }], bumpers: [], wells: [],
   },
   {
-    // BOSS. Introduces tip 4, the slingshot: the big well dead centre eats slow shots, so pass it fast and let it whip the ball round.
-    // Solution: drag (69, 133) (full power), passing about 110 units from the well, one shot; about 9 degrees of aim sink it.
+    // BOSS. Introduces tip 4, the slingshot: the well dead centre eats slow shots, so pass it fast and let it whip the ball round.
+    // Solution: drag (44, 133), passing about 100 units from the well, one shot; about 7 degrees of aim sink it.
     name: 'Event Horizon', par: 3, boss: true,
-    ball: { x: 160, y: 560 }, hole: { x: 160, y: 90 },
-    walls: [], bumpers: [], wells: [{ x: 180, y: 320, strength: 2.5 }],
+    ball: { x: 140, y: 560 }, hole: { x: 140, y: 90 },
+    walls: [], bumpers: [], wells: [{ x: 180, y: 320, strength: 1.0 }],
   },
   {
     // Introduces tip 6: the repulsor beside the hole pushes a fast ball into it, so aim at its flank.
     // Solution: drag (-22, 148) (full power), one shot; about 8 degrees of aim sink it and nothing straight at the hole does.
     name: 'Push Back', par: 3, boss: false,
     ball: { x: 180, y: 500 }, hole: { x: 200, y: 140 },
-    walls: [], bumpers: [], wells: [{ x: 285, y: 178, strength: -0.92 }],
+    walls: [], bumpers: [], wells: [{ x: 285, y: 178, strength: -0.68 }],
   },
   {
     // Bumper field: tip 2 again, off a bumper. The centre bumper blocks the line.
@@ -111,19 +115,19 @@ const LEVELS = [
     walls: [], bumpers: [{ x: 180, y: 400, r: 26 }, { x: 110, y: 310, r: 24 }, { x: 250, y: 310, r: 24 }], wells: [],
   },
   {
-    // Needs tips 3 and 4: whip round the first well close in (about 40 units), then let the second bend the path wide (about 95).
-    // Solution: drag (85, 124) (full power), one shot; about 10 degrees of aim sink it.
+    // Needs tips 3 and 4: sweep past the first well close in (about 55 units), then let the second bend the path wide (about 90).
+    // Solution: drag (-15, 139), one shot; about 9 degrees of aim sink it.
     name: 'Figure Eight', par: 3, boss: false,
     ball: { x: 180, y: 540 }, hole: { x: 180, y: 110 },
-    walls: [], bumpers: [], wells: [{ x: 150, y: 390, strength: 1.1 }, { x: 245, y: 210, strength: 1.1 }],
+    walls: [], bumpers: [], wells: [{ x: 130, y: 438, strength: 0.78 }, { x: 264, y: 217, strength: 0.84 }],
   },
   {
-    // Needs tip 5, the brake: the well below the gap speeds the ball past sink speed, so graze the gap's left wall to bleed it.
-    // Solution: drag (3, 150) (full power), one graze, one shot; about 3 degrees of aim sink it and none without a bounce does.
+    // Needs tip 5, the brake: the well below the gap speeds the ball past sink speed, so graze the gap's wall to bleed it.
+    // Solution: drag (-2, 150) (full power), one graze, one shot; about 6 degrees of aim sink it and none without a bounce does.
     name: 'The Needle', par: 3, boss: false,
-    ball: { x: 211, y: 497 }, hole: { x: 184, y: 120 },
-    walls: [{ x: 0, y: 190, w: 156, h: 22 }, { x: 212, y: 190, w: 148, h: 22 }], bumpers: [],
-    wells: [{ x: 120, y: 251, strength: 2.38 }],
+    ball: { x: 125, y: 490 }, hole: { x: 140, y: 120 },
+    walls: [{ x: 0, y: 190, w: 112, h: 22 }, { x: 168, y: 190, w: 192, h: 22 }], bumpers: [],
+    wells: [{ x: 165, y: 253, strength: 0.91 }],
   },
   {
     // BOSS. Timing plus everything before: the wall sweeps the gate; the well and bumper bend the rest of the way.
@@ -132,20 +136,23 @@ const LEVELS = [
     ball: { x: 180, y: 560 }, hole: { x: 180, y: 100 },
     walls: [{ x: 0, y: 330, w: 100, h: 22 }, { x: 260, y: 330, w: 100, h: 22 }],
     bumpers: [{ x: 95, y: 200, r: 24 }],
-    wells: [{ x: 280, y: 210, strength: 1.2 }],
+    wells: [{ x: 280, y: 210, strength: 0.9 }],
     mover: { w: 90, h: 22, a: { x: 100, y: 286 }, b: { x: 170, y: 286 } },
   },
 ];
 
 // ---------- Physics (one function drives the flight and the preview) ----------
 
+const MOVER = { x: 0, y: 0, w: 0, h: 0 }; // reused: callers use it immediately
 function moverRect(lv, clock) {
   const m = lv.mover;
   const k = 0.5 - 0.5 * Math.cos((2 * Math.PI * clock) / T.moverPeriod);
-  return { x: lerp(m.a.x, m.b.x, k), y: lerp(m.a.y, m.b.y, k), w: m.w, h: m.h };
+  MOVER.x = lerp(m.a.x, m.b.x, k); MOVER.y = lerp(m.a.y, m.b.y, k); MOVER.w = m.w; MOVER.h = m.h;
+  return MOVER;
 }
 
 function reflect(b, nx, ny) {
+  b.touch = true;
   const vn = b.vx * nx + b.vy * ny;
   if (vn >= 0) return;
   b.vx = (b.vx - 2 * vn * nx) * T.wallBounce;
@@ -185,11 +192,12 @@ function bounceCircle(b, c) {
 // otherwise 'sink' | 'rest'. `clock` is the mover clock in seconds.
 function stepBall(lv, b, clock) {
   let wax = 0, way = 0, core = false;
+  b.touch = false;
   for (const w of lv.wells) {
     const dx = w.x - b.x, dy = w.y - b.y;
     const d = Math.hypot(dx, dy) || 1e-6;
-    const dd = Math.max(d, T.wellMinDist); // pull stops growing inside wellMinDist
-    const a = (w.strength * T.wellStrength) / (dd * dd);
+    // Inside wellMinDist the pull falls off linearly to zero at the centre: no pit, no chatter, and a ball can rest there.
+    const a = d >= T.wellMinDist ? (w.strength * T.wellStrength) / (d * d) : (w.strength * T.wellStrength * d) / WELL_CORE3;
     b.vx += (dx / d) * a * STEP;
     b.vy += (dy / d) * a * STEP;
     wax += (dx / d) * a; way += (dy / d) * a;
@@ -219,8 +227,8 @@ function stepBall(lv, b, clock) {
   const speed = Math.hypot(b.vx, b.vy);
   if (speed < T.sinkSpeed && dist(b.x, b.y, lv.hole.x, lv.hole.y) < T.holeR) return 'sink';
   // A slow ball rests unless the cup or a well is pulling it: it turns around and falls in instead of freezing
-  // at the top of its arc. Deep inside a well's core it parks.
-  if (speed < T.stopSpeed && hd >= T.captureR && (core || Math.hypot(wax, way) < T.holdAccel)) return 'rest';
+  // at the top of its arc. In a well's core, or pressed against a wall, it rests.
+  if (speed < T.stopSpeed && hd >= T.captureR && (core || b.touch || Math.hypot(wax, way) < T.holdAccel)) return 'rest';
   return null;
 }
 
@@ -232,19 +240,21 @@ function launchFromDrag(dx, dy) {
   return { vx: (-dx / len) * power * T.powerMax, vy: (-dy / len) * power * T.powerMax, power };
 }
 
-// Same physics as the flight, sampled every previewDotEvery simulated seconds.
+// Same physics as the flight, sampled every previewDotEvery simulated seconds into PV; returns the dot count.
+const PV = Array.from({ length: Math.ceil(Math.max(T.previewFullSeconds, T.previewShortSeconds) / T.previewDotEvery) + 2 }, () => ({ x: 0, y: 0 }));
+const PB = { x: 0, y: 0, vx: 0, vy: 0, hits: 0 };
 function previewPoints(lv, x, y, vx, vy, clock, seconds) {
-  const b = { x, y, vx, vy, hits: 0 };
+  PB.x = x; PB.y = y; PB.vx = vx; PB.vy = vy; PB.hits = 0;
   const every = Math.round(T.previewDotEvery / STEP);
   const steps = Math.round(seconds / STEP);
-  const pts = [];
-  for (let i = 1; i <= steps; i++) {
-    const r = stepBall(lv, b, clock + i * STEP);
-    if (r === 'sink') { pts.push({ x: b.x, y: b.y }); break; }
+  let n = 0;
+  for (let i = 1; i <= steps && n < PV.length; i++) {
+    const r = stepBall(lv, PB, clock + i * STEP);
+    if (r === 'sink') { PV[n].x = PB.x; PV[n++].y = PB.y; break; }
     if (r === 'rest') break;
-    if (i % every === 0) pts.push({ x: b.x, y: b.y });
+    if (i % every === 0) { PV[n].x = PB.x; PV[n++].y = PB.y; }
   }
-  return pts;
+  return n;
 }
 
 // ---------- Helpers ----------
@@ -254,8 +264,9 @@ const STARS = (() => {
   return Array.from({ length: 45 }, () => ({ x: r.range(0, T.designW), y: r.range(0, T.designH), r: r.range(0.6, 1.4), a: r.range(0.15, 0.5) }));
 })();
 
+// The design space plus its edge walls is fitted to the screen, so all four walls are always visible.
 function view(E) {
-  const s = Math.min(E.w / T.designW, E.h / T.designH);
+  const s = Math.min(E.w / (T.designW + 2 * T.borderW), E.h / (T.designH + 2 * T.borderW));
   return { s, ox: (E.w - T.designW * s) / 2, oy: (E.h - T.designH * s) / 2 };
 }
 
@@ -293,8 +304,9 @@ function drawField(ctx) {
 
 // The edge walls sit just outside the field so the ball never overlaps them.
 function drawBorder(ctx) {
-  ctx.strokeStyle = T.slate; ctx.lineWidth = 8;
-  ctx.strokeRect(-4, -4, T.designW + 8, T.designH + 8);
+  const bw = T.borderW;
+  ctx.strokeStyle = T.slate; ctx.lineWidth = bw;
+  ctx.strokeRect(-bw / 2, -bw / 2, T.designW + bw, T.designH + bw);
   ctx.strokeStyle = T.slateEdge; ctx.lineWidth = 1.5;
   ctx.strokeRect(-0.75, -0.75, T.designW + 1.5, T.designH + 1.5);
 }
@@ -309,13 +321,19 @@ function drawBumper(ctx, c) {
   ctx.strokeStyle = T.slateEdge; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x, c.y, c.r - 1, 0, Math.PI * 2); ctx.stroke();
 }
 
+const WELL_GRAD = new WeakMap();
+
 // Purple disc with rings drifting in (pull); orange with rings drifting out (repulsor).
 function drawWell(ctx, w, time) {
   const push = w.strength < 0;
   const col = push ? T.orange : T.purple;
   const r = T.wellR * Math.sqrt(Math.abs(w.strength));
-  const g = ctx.createRadialGradient(w.x, w.y, 0, w.x, w.y, r);
-  g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+  let g = WELL_GRAD.get(w);
+  if (!g) {
+    g = ctx.createRadialGradient(w.x, w.y, 0, w.x, w.y, r);
+    g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    WELL_GRAD.set(w, g);
+  }
   ctx.globalAlpha = 0.95; ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(w.x, w.y, r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = col; ctx.lineWidth = 1.5;
@@ -471,14 +489,14 @@ const play = {
     const aiming = S.phase === 'aim' ? currentLaunch() : null;
     if (aiming) {
       const seconds = S.idx < T.previewFullHoles ? T.previewFullSeconds : T.previewShortSeconds;
-      const pts = previewPoints(lv, b.x, b.y, aiming.vx, aiming.vy, S.clock, seconds);
+      const n = previewPoints(lv, b.x, b.y, aiming.vx, aiming.vy, S.clock, seconds);
       const col = mixToOrange(aiming.power);
       const ux = aiming.vx / (aiming.power * T.powerMax), uy = aiming.vy / (aiming.power * T.powerMax);
       const len = 20 + 60 * aiming.power; // line length shows power
       ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(b.x + ux * (T.ballR + 3), b.y + uy * (T.ballR + 3)); ctx.lineTo(b.x + ux * (T.ballR + 3 + len), b.y + uy * (T.ballR + 3 + len)); ctx.stroke();
       ctx.fillStyle = col;
-      pts.forEach((p, i) => { ctx.globalAlpha = 1 - 0.6 * (i / pts.length); ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2); ctx.fill(); });
+      for (let i = 0; i < n; i++) { ctx.globalAlpha = 1 - 0.6 * (i / n); ctx.beginPath(); ctx.arc(PV[i].x, PV[i].y, 2.2, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 0.3; ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.arc(b.x, b.y, T.ballR + 5, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
@@ -501,14 +519,20 @@ const play = {
     E.text(`Shots ${S.strokes}`, 16, top, { size: 18, align: 'left' });
     E.text(lv.boss ? `Hole ${S.idx + 1} Boss` : `Hole ${S.idx + 1}`, E.w / 2, top, { size: 16, color: '#9aa4b2' });
     E.text(`Par ${lv.par}`, E.w - 16, top, { size: 18, align: 'right', color: T.green });
+    const live = S.phase === 'aim';
+    S.retryRect = E.button('Retry', E.w - 16 - T.retryW / 2, top + 20 + T.retryH / 2, { w: T.retryW, h: T.retryH, size: 16, fill: live ? T.slate : '#141c33', color: live ? '#e6e6e6' : '#475569' });
   },
 
   onPointerDown(p, E) {
     if (S.phase !== 'aim' || S.aim) return;
+    if (S.retryRect && E.hit(S.retryRect, p)) return; // a touch on Retry never starts an aim
     const v = view(E);
     const gx = (p.x - v.ox) / v.s, gy = (p.y - v.oy) / v.s;
     if (dist(gx, gy, S.ball.x, S.ball.y) <= T.ballGrabR) return;
     S.aim = { id: p.id, sx: p.x, sy: p.y, x: p.x, y: p.y };
+  },
+  onTap(p, E) {
+    if (S.phase === 'aim' && S.retryRect && E.hit(S.retryRect, p)) loadHole(S.idx);
   },
   onPointerMove(p) {
     if (S.aim && S.aim.id === p.id) { S.aim.x = p.x; S.aim.y = p.y; }
