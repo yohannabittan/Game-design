@@ -7,7 +7,7 @@ The idea: the best Flash games had one simple mechanic with real depth. Build th
 ## The loop
 
 ```
-idea ──► concept card ──► PRD v0.1 ──► scaffold ──► build in layers ──► deploy ──► playtest ──► evolve / pivot / shelve
+idea ──► synthesis ──► concept card ──► PRD v0.1 ──► scaffold ──► build in layers ──► deploy ──► playtest ──► evolve / pivot / shelve
 ```
 
 Full description in [`docs/process.md`](docs/process.md).
