@@ -84,6 +84,10 @@ Each hole's data carries a comment with the teaching goal, the intended `three` 
 
 Removed: `wellStrength`, `wellMinDist`, `wellR`, `holdAccel`.
 
+## G. Art direction for v0.2 (from the v0.1 juice playtest)
+
+The space motif is the brand. In the art layer: parallax starfield and nebula gradients; planets with bands, craters and rings, each planet visually distinct by mass (bigger mass, more presence); suns with a corona and heat shimmer; moons small and pale. The ball gets character: a highlight, a speed-tied glow trail, a soft shadow, and it stays the highest-contrast object. The aim preview is redesigned as a first-class element: dots that shrink and fade with distance, coloured like the ball, still the honest simulation, and the post-hole-3 short preview must read as deliberate. The range finder's length stays as tuned.
+
 ## F. Scope fence additions
 
 Not in v0.2: black holes, sun gravity, planets with atmospheres or drag, moving holes, portals, collectibles.
