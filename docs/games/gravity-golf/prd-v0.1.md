@@ -16,7 +16,7 @@ Drag to aim, release to launch, and sink the ball in as few shots as you can thr
 
 ## 2. The first ten seconds
 
-The play scene opens directly on hole 1 (the menu is one tap: Play). A dark field with faint stars. A white ball sits in the lower third, a hole with a green ring sits in the upper third, and one slate wall stands between them offset to the left so a dead-straight shot clips its corner and drifts wide, while a shot aimed a hair to the right passes the corner and drops. The player touches anywhere and drags. A dotted preview grows from the ball in the direction opposite the drag, showing the flight, so they can see the clip coming and adjust. They release. The ball passes the corner, slows, and drops into the hole with a green burst and the win chord. A card says "1 shot. Par 2." with three stars popping in and a Next button.
+The play scene opens directly on hole 1 (the menu is one tap: Play). A dark field with faint stars. A white ball sits in the lower third, a hole with a green ring sits in the upper third, and one slate wall stands just left of the line between them, close enough that a shot pulled to the left clips its corner and drifts wide. The player touches anywhere and drags. A dotted preview grows from the ball in the direction opposite the drag, showing the flight, so they can see a clip coming and adjust. They release. The ball passes the corner, slows, and drops into the hole with a green burst and the win chord. A card says "1 shot. Par 2." with three stars popping in and a Next button.
 
 ## 3. Core loop and session shape
 

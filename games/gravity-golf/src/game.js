@@ -29,6 +29,8 @@ const TUNING = {
   moverPeriod: 2.4,      // Seconds for a mover wall to complete one sweep and return
   trailLength: 18,       // Reserved for layer 3 (trail)
   particleCap: 200,      // Reserved for layer 3 (particles)
+  speedMax: 1400,        // Ball speed is clamped here so wells cannot cause tunnelling
+  keyPowerStart: 0.5,    // Starting power fraction for the keyboard fallback
 
   // Layer 1 additions, not in the PRD table.
   bg: '#070b19',         // Letterbox colour (the engine reads this name)
@@ -52,14 +54,14 @@ const FRIC_STEP = Math.pow(T.friction, STEP);
 // Hole data. Coordinates are design space. Layer 2 adds entries.
 const LEVELS = [
   {
-    // Teaches: drag, power, release. The wall's corner sits on the straight line to the hole, so a shot
-    // aimed dead centre clips it and drifts wide; the preview shows this before release.
-    // Solution: aim a hair right of the hole centre to clear the corner, any drag from about 30 to 75 px: hole in one.
+    // Teaches: drag, power, release, and that a wall in the way matters. The wall's corner sits just left of the line,
+    // so aiming more than about 3 degrees left of the hole clips it and drifts wide; the preview shows this before release.
+    // Solution: aim at the hole, any drag from about 30 to 70 px; a window of about 6.9 degrees of aim sinks it.
     name: 'First Light',
     par: 2,
-    ball: { x: 180, y: 480 },
-    hole: { x: 196, y: 190 },
-    walls: [{ x: 60, y: 300, w: 120, h: 22 }],
+    ball: { x: 180, y: 440 },
+    hole: { x: 196, y: 205 },
+    walls: [{ x: 53, y: 300, w: 120, h: 22 }],
     bumpers: [],
     wells: [],
   },
@@ -121,6 +123,8 @@ function stepBall(lv, b, clock) {
     b.vy += (dy / d) * a * STEP;
   }
   b.vx *= FRIC_STEP; b.vy *= FRIC_STEP;
+  const sp = Math.hypot(b.vx, b.vy);
+  if (sp > T.speedMax) { b.vx *= T.speedMax / sp; b.vy *= T.speedMax / sp; }
   b.x += b.vx * STEP; b.y += b.vy * STEP;
 
   // Speed is under one radius per step at full power, so a ball cannot skip a wall.
@@ -240,7 +244,7 @@ function loadHole(idx) {
   S.clock = 0;           // mover clock: runs while aiming, resets when the ball comes to rest
   S.clock0 = 0;
   S.aim = null;          // active pointer aim: { id, sx, sy, x, y }
-  S.key = { on: false, angle: Math.atan2(lv.hole.y - lv.ball.y, lv.hole.x - lv.ball.x), power: 0.5 };
+  S.key = { on: false, angle: Math.atan2(lv.hole.y - lv.ball.y, lv.hole.x - lv.ball.x), power: T.keyPowerStart };
   S.sinkT = 0; S.sinkFrom = null;
   S.oobT = 0;
 }
@@ -314,7 +318,7 @@ const play = {
       S.acc -= STEP; S.steps++;
       const hitsBefore = S.ball.hits;
       let r = stepBall(S.lv, S.ball, S.clock0 + S.steps * STEP);
-      if (S.ball.hits !== hitsBefore) E.audio.play('hit');
+      if (S.ball.hits !== hitsBefore) E.audio.play('hit', 0.3);
       if (!r && S.steps * STEP >= T.maxFlightSeconds) r = 'rest';
       if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: S.ball.x, y: S.ball.y }; }
       else if (r === 'oob') {
@@ -394,6 +398,7 @@ const play = {
   },
   onPointerUp(p) {
     if (!S.aim || S.aim.id !== p.id) return;
+    if (p.cancelled) { S.aim = null; return; }
     S.aim.x = p.x; S.aim.y = p.y;
     const l = currentLaunch();
     if (l) launch(l); else S.aim = null; // inside the dead zone: cancel, no stroke
@@ -404,7 +409,7 @@ const play = {
     else if (key === 'ArrowRight') { S.key.on = true; S.key.angle += T.keyAngleStep; }
     else if (key === 'ArrowUp') { S.key.on = true; S.key.power = Math.min(1, S.key.power + T.keyPowerStep); }
     else if (key === 'ArrowDown') { S.key.on = true; S.key.power = Math.max(T.dragDead / T.dragMax, S.key.power - T.keyPowerStep); }
-    else if (key === ' ') { S.key.on = true; launch(currentLaunch()); }
+    else if (key === ' ') { S.key.on = true; const l = currentLaunch(); if (l) launch(l); }
   },
 };
 
@@ -434,8 +439,12 @@ const over = {
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 1,
-  migrate(data, fromVersion) { return data; },
+  saveVersion: 2,
+  // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map.
+  migrate(data, fromVersion) {
+    if (fromVersion < 2 && (typeof data.best !== 'object' || data.best === null)) delete data.best;
+    return data;
+  },
   TUNING,
   start: 'menu',
   scenes: { menu, play, over },
