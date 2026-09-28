@@ -1,5 +1,5 @@
-// Gravity Golf, layer 1: the mechanic. Slingshot aim, fixed-step ball physics,
-// hole 1, strokes and par, the hole card. Grey box: shapes and three colours only.
+// Gravity Golf, layers 1 and 2: the mechanic and the ten holes. Slingshot aim, fixed-step ball physics,
+// wells, bumpers, a mover, strokes and par, the hole card, hole select. Grey box: shapes and three colours only.
 
 import { makeRng, clamp, lerp, dist } from './engine.js';
 
@@ -8,15 +8,17 @@ const TUNING = {
   designW: 360,          // Design space width
   designH: 640,          // Design space height
   ballR: 9,              // Ball radius
-  holeR: 16,             // Hole radius, ball centre must be inside
-  sinkSpeed: 260,        // Max speed (units per second) at which the ball can sink
-  friction: 0.6,         // Fraction of speed kept per second on the open field
-  stopSpeed: 6,          // Below this speed the ball is at rest
+  holeR: 18,             // Hole radius, ball centre must be inside
+  sinkSpeed: 380,        // Max speed (units per second) at which the ball can sink
+  captureR: 44,          // Within this distance of the hole centre the cup pulls the ball
+  captureStrength: 900,  // Constant acceleration toward the hole centre inside captureR
+  friction: 0.28,        // Fraction of speed kept per second on the open field
+  stopSpeed: 50,         // Below this speed the ball is at rest
   dragMax: 150,          // Drag distance (screen px) that gives full power
   dragDead: 12,          // Drag shorter than this cancels the shot
   powerMax: 820,         // Launch speed at full drag
   wallBounce: 0.85,      // Fraction of speed kept on a wall or bumper bounce
-  wellStrength: 90000,   // Acceleration toward a well is strength divided by distance squared
+  wellStrength: 5200000, // Acceleration toward a well is strength divided by distance squared
   wellMinDist: 28,       // Distance below which the pull stops growing
   wellR: 22,             // Visual radius of a well disc
   previewFullHoles: 3,   // Holes 1 to this show the full preview
@@ -25,7 +27,6 @@ const TUNING = {
   previewDotEvery: 0.05, // Simulated seconds between preview dots
   physicsStep: 1 / 120,  // Fixed physics timestep in seconds
   maxFlightSeconds: 12,  // Safety: a ball still moving after this is stopped where it is
-  oobPenalty: 1,         // Strokes added for out of bounds (on top of the shot's own stroke)
   moverPeriod: 2.4,      // Seconds for a mover wall to complete one sweep and return
   trailLength: 18,       // Reserved for layer 3 (trail)
   particleCap: 200,      // Reserved for layer 3 (particles)
@@ -33,6 +34,7 @@ const TUNING = {
   keyPowerStart: 0.5,    // Starting power fraction for the keyboard fallback
 
   // Layer 1 additions, not in the PRD table.
+  holdAccel: 250,        // A slow ball only rests where the wells pull with less than this (units per s squared)
   bg: '#070b19',         // Letterbox colour (the engine reads this name)
   fieldColor: '#0e1631',
   green: '#22c55e',      // Goal
@@ -43,7 +45,9 @@ const TUNING = {
   ballGrabR: 14,         // A touch that starts this close to the ball does not aim
   bounceEventSpeed: 40,  // Impact speed below this is a slide, not a hit (no sound)
   sinkTime: 0.45,        // Seconds the ball takes to drop into the hole before the card
-  oobNoteTime: 1.5,      // Seconds the out-of-bounds note stays up
+  gridCols: 5,           // Hole select tiles per row
+  tileGap: 8,            // Gap between hole select tiles (screen px)
+  tileH: 68,             // Hole select tile height (screen px)
   keyAngleStep: 0.04,    // Keyboard fallback: radians per arrow press
   keyPowerStep: 0.05,    // Keyboard fallback: fraction of full power per arrow press
 };
@@ -51,19 +55,85 @@ const T = TUNING;
 const STEP = T.physicsStep;
 const FRIC_STEP = Math.pow(T.friction, STEP);
 
-// Hole data. Coordinates are design space. Layer 2 adds entries.
+
+// Hole data. Coordinates are design space; the four field edges are walls added by the physics.
+// well.strength multiplies wellStrength (negative pushes). `boss` holes are named on the card and the select grid.
+// Drag vectors in the comments are screen px (finger moves dx right, dy down); the ball flies the opposite way.
+// Each was verified to sink in the harness, and all neighbouring whole-pixel drags sink too.
 const LEVELS = [
   {
-    // Teaches: drag, power, release, and that a wall in the way matters. The wall's corner sits just left of the line,
-    // so aiming more than about 3 degrees left of the hole clips it and drifts wide; the preview shows this before release.
-    // Solution: aim at the hole, any drag from about 30 to 70 px; a window of about 6.9 degrees of aim sinks it.
-    name: 'First Light',
-    par: 2,
-    ball: { x: 180, y: 440 },
-    hole: { x: 196, y: 205 },
-    walls: [{ x: 53, y: 300, w: 120, h: 22 }],
-    bumpers: [],
-    wells: [],
+    // Teaches: drag, power, release, and that a well bends the flight, so aim off the line and let it curve.
+    // Solution: drag (21, 98), one shot; about 12 degrees of aim sink it.
+    name: 'First Light', par: 2, boss: false,
+    ball: { x: 180, y: 520 }, hole: { x: 180, y: 190 },
+    walls: [], bumpers: [], wells: [{ x: 265, y: 360, strength: 0.6 }],
+  },
+  {
+    // Teaches tip 2, the bank: the wall blocks the straight line, so bounce off the left edge.
+    // Solution: drag (57, 94), one shot; about 14 degrees of aim sink it and no shot without a bounce does.
+    name: 'Bank Shot', par: 2, boss: false,
+    ball: { x: 100, y: 470 }, hole: { x: 100, y: 170 },
+    walls: [{ x: 60, y: 310, w: 80, h: 22 }], bumpers: [], wells: [],
+  },
+  {
+    // Teaches tip 3: the well sits on the line, so aim to one side and let it bend the path around.
+    // Solution: drag (52, 97), one shot, about 80 units clear of the well; about 18 degrees of aim sink it.
+    name: 'Around the Bend', par: 2, boss: false,
+    ball: { x: 165, y: 480 }, hole: { x: 165, y: 170 },
+    walls: [], bumpers: [], wells: [{ x: 180, y: 310, strength: 1.1 }],
+  },
+  {
+    // Teaches tip 1, use only the power you need: a corridor is a precision hole, not a power hole.
+    // Solution: drag (-16, 109), straight up the corridor, one shot; about 3 degrees of aim sink it.
+    name: 'Corridor', par: 2, boss: false,
+    ball: { x: 90, y: 520 }, hole: { x: 180, y: 150 },
+    walls: [{ x: 140, y: 290, w: 22, h: 170 }, { x: 200, y: 290, w: 22, h: 170 }], bumpers: [], wells: [],
+  },
+  {
+    // BOSS. Introduces tip 4, the slingshot: the big well dead centre eats slow shots, so pass it fast and let it whip the ball round.
+    // Solution: drag (69, 133) (full power), passing about 110 units from the well, one shot; about 9 degrees of aim sink it.
+    name: 'Event Horizon', par: 3, boss: true,
+    ball: { x: 160, y: 560 }, hole: { x: 160, y: 90 },
+    walls: [], bumpers: [], wells: [{ x: 180, y: 320, strength: 2.5 }],
+  },
+  {
+    // Introduces tip 6: the repulsor beside the hole pushes a fast ball into it, so aim at its flank.
+    // Solution: drag (-22, 148) (full power), one shot; about 8 degrees of aim sink it and nothing straight at the hole does.
+    name: 'Push Back', par: 3, boss: false,
+    ball: { x: 180, y: 500 }, hole: { x: 200, y: 140 },
+    walls: [], bumpers: [], wells: [{ x: 285, y: 178, strength: -0.92 }],
+  },
+  {
+    // Bumper field: tip 2 again, off a bumper. The centre bumper blocks the line.
+    // Solution: drag (93, 111), one bounce off the left bumper, one shot; about 9 degrees of aim sink it.
+    name: 'Pinball', par: 3, boss: false,
+    ball: { x: 180, y: 540 }, hole: { x: 180, y: 140 },
+    walls: [], bumpers: [{ x: 180, y: 400, r: 26 }, { x: 110, y: 310, r: 24 }, { x: 250, y: 310, r: 24 }], wells: [],
+  },
+  {
+    // Needs tips 3 and 4: whip round the first well close in (about 40 units), then let the second bend the path wide (about 95).
+    // Solution: drag (85, 124) (full power), one shot; about 10 degrees of aim sink it.
+    name: 'Figure Eight', par: 3, boss: false,
+    ball: { x: 180, y: 540 }, hole: { x: 180, y: 110 },
+    walls: [], bumpers: [], wells: [{ x: 150, y: 390, strength: 1.1 }, { x: 245, y: 210, strength: 1.1 }],
+  },
+  {
+    // Needs tip 5, the brake: the well below the gap speeds the ball past sink speed, so graze the gap's left wall to bleed it.
+    // Solution: drag (3, 150) (full power), one graze, one shot; about 3 degrees of aim sink it and none without a bounce does.
+    name: 'The Needle', par: 3, boss: false,
+    ball: { x: 211, y: 497 }, hole: { x: 184, y: 120 },
+    walls: [{ x: 0, y: 190, w: 156, h: 22 }, { x: 212, y: 190, w: 148, h: 22 }], bumpers: [],
+    wells: [{ x: 120, y: 251, strength: 2.38 }],
+  },
+  {
+    // BOSS. Timing plus everything before: the wall sweeps the gate; the well and bumper bend the rest of the way.
+    // Solution: drag (20, 139), released 0.5 to 1.1 s after the ball stops (wall swinging to its right end), one shot through the left gap.
+    name: 'Gatekeeper', par: 3, boss: true,
+    ball: { x: 180, y: 560 }, hole: { x: 180, y: 100 },
+    walls: [{ x: 0, y: 330, w: 100, h: 22 }, { x: 260, y: 330, w: 100, h: 22 }],
+    bumpers: [{ x: 95, y: 200, r: 24 }],
+    wells: [{ x: 280, y: 210, strength: 1.2 }],
+    mover: { w: 90, h: 22, a: { x: 100, y: 286 }, b: { x: 170, y: 286 } },
   },
 ];
 
@@ -112,8 +182,9 @@ function bounceCircle(b, c) {
 }
 
 // Advances the ball one fixed step. Returns null while it is still rolling,
-// otherwise 'sink' | 'oob' | 'rest'. `clock` is the mover clock in seconds.
+// otherwise 'sink' | 'rest'. `clock` is the mover clock in seconds.
 function stepBall(lv, b, clock) {
+  let wax = 0, way = 0, core = false;
   for (const w of lv.wells) {
     const dx = w.x - b.x, dy = w.y - b.y;
     const d = Math.hypot(dx, dy) || 1e-6;
@@ -121,6 +192,13 @@ function stepBall(lv, b, clock) {
     const a = (w.strength * T.wellStrength) / (dd * dd);
     b.vx += (dx / d) * a * STEP;
     b.vy += (dy / d) * a * STEP;
+    wax += (dx / d) * a; way += (dy / d) * a;
+    if (w.strength > 0 && d < T.wellMinDist) core = true;
+  }
+  const hx = lv.hole.x - b.x, hy = lv.hole.y - b.y, hd = Math.hypot(hx, hy);
+  if (hd < T.captureR && hd > 0) { // the cup pulls a slow ball in like a real cup
+    b.vx += (hx / hd) * T.captureStrength * STEP;
+    b.vy += (hy / hd) * T.captureStrength * STEP;
   }
   b.vx *= FRIC_STEP; b.vy *= FRIC_STEP;
   const sp = Math.hypot(b.vx, b.vy);
@@ -132,10 +210,17 @@ function stepBall(lv, b, clock) {
   if (lv.mover) bounceRect(b, moverRect(lv, clock));
   for (const c of lv.bumpers) bounceCircle(b, c);
 
+  // Every hole is walled on all four edges of the design space.
+  if (b.x < T.ballR) { b.x = T.ballR; reflect(b, 1, 0); }
+  else if (b.x > T.designW - T.ballR) { b.x = T.designW - T.ballR; reflect(b, -1, 0); }
+  if (b.y < T.ballR) { b.y = T.ballR; reflect(b, 0, 1); }
+  else if (b.y > T.designH - T.ballR) { b.y = T.designH - T.ballR; reflect(b, 0, -1); }
+
   const speed = Math.hypot(b.vx, b.vy);
   if (speed < T.sinkSpeed && dist(b.x, b.y, lv.hole.x, lv.hole.y) < T.holeR) return 'sink';
-  if (b.x < 0 || b.x > T.designW || b.y < 0 || b.y > T.designH) return 'oob';
-  if (speed < T.stopSpeed) return 'rest';
+  // A slow ball rests unless the cup or a well is pulling it: it turns around and falls in instead of freezing
+  // at the top of its arc. Deep inside a well's core it parks.
+  if (speed < T.stopSpeed && hd >= T.captureR && (core || Math.hypot(wax, way) < T.holdAccel)) return 'rest';
   return null;
 }
 
@@ -155,7 +240,7 @@ function previewPoints(lv, x, y, vx, vy, clock, seconds) {
   const pts = [];
   for (let i = 1; i <= steps; i++) {
     const r = stepBall(lv, b, clock + i * STEP);
-    if (r === 'sink' || r === 'oob') { pts.push({ x: b.x, y: b.y }); break; }
+    if (r === 'sink') { pts.push({ x: b.x, y: b.y }); break; }
     if (r === 'rest') break;
     if (i % every === 0) pts.push({ x: b.x, y: b.y });
   }
@@ -176,6 +261,12 @@ function view(E) {
 
 function starsFor(strokes, par) { return strokes <= par - 1 ? 3 : strokes <= par ? 2 : 1; }
 
+function progress(E) {
+  const best = E.save.get('best', {});
+  const stars = LEVELS.map((lv, i) => (best[i] === undefined ? 0 : starsFor(best[i], lv.par)));
+  return { best, stars, total: stars.reduce((a, b) => a + b, 0), unlocked: clamp(E.save.get('unlocked', 0), 0, LEVELS.length - 1) };
+}
+
 function mixToOrange(t) {
   const c = (a, b) => Math.round(lerp(a, b, t));
   return `rgb(${c(255, 249)},${c(255, 115)},${c(255, 22)})`;
@@ -189,7 +280,7 @@ function drawStar(ctx, cx, cy, R, fill, stroke) {
   }
   ctx.closePath();
   if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
 }
 
 function drawField(ctx) {
@@ -198,6 +289,14 @@ function drawField(ctx) {
   ctx.fillStyle = '#fff';
   for (const s of STARS) { ctx.globalAlpha = s.a; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); }
   ctx.globalAlpha = 1;
+}
+
+// The edge walls sit just outside the field so the ball never overlaps them.
+function drawBorder(ctx) {
+  ctx.strokeStyle = T.slate; ctx.lineWidth = 8;
+  ctx.strokeRect(-4, -4, T.designW + 8, T.designH + 8);
+  ctx.strokeStyle = T.slateEdge; ctx.lineWidth = 1.5;
+  ctx.strokeRect(-0.75, -0.75, T.designW + 1.5, T.designH + 1.5);
 }
 
 function drawWall(ctx, r) {
@@ -217,7 +316,7 @@ function drawWell(ctx, w, time) {
   const r = T.wellR * Math.sqrt(Math.abs(w.strength));
   const g = ctx.createRadialGradient(w.x, w.y, 0, w.x, w.y, r);
   g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.globalAlpha = 0.7; ctx.fillStyle = g;
+  ctx.globalAlpha = 0.95; ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(w.x, w.y, r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = col; ctx.lineWidth = 1.5;
   for (let i = 0; i < 2; i++) {
@@ -229,6 +328,12 @@ function drawWell(ctx, w, time) {
   ctx.globalAlpha = 1;
 }
 
+function drawLock(ctx, cx, cy) {
+  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy - 3, 5, Math.PI, 0); ctx.stroke();
+  ctx.fillStyle = '#64748b'; ctx.fillRect(cx - 7, cy - 3, 14, 11);
+}
+
 // ---------- Play state ----------
 
 const S = {};
@@ -237,16 +342,14 @@ function loadHole(idx) {
   const lv = LEVELS[idx];
   S.idx = idx; S.lv = lv;
   S.ball = { x: lv.ball.x, y: lv.ball.y, vx: 0, vy: 0, hits: 0 };
-  S.start = { x: lv.ball.x, y: lv.ball.y };
   S.strokes = 0;
   S.phase = 'aim';       // aim | fly | sink
   S.acc = 0; S.steps = 0;
-  S.clock = 0;           // mover clock: runs while aiming, resets when the ball comes to rest
+  S.clock = 0;           // mover clock: runs while aiming, restarts when the ball comes to rest
   S.clock0 = 0;
   S.aim = null;          // active pointer aim: { id, sx, sy, x, y }
   S.key = { on: false, angle: Math.atan2(lv.hole.y - lv.ball.y, lv.hole.x - lv.ball.x), power: T.keyPowerStart };
   S.sinkT = 0; S.sinkFrom = null;
-  S.oobT = 0;
 }
 
 // Current aim as a launch, from the pointer drag or the keyboard fallback.
@@ -261,7 +364,6 @@ function currentLaunch() {
 
 function launch(l) {
   S.strokes++;
-  S.start = { x: S.ball.x, y: S.ball.y };
   S.ball.vx = l.vx; S.ball.vy = l.vy;
   S.clock0 = S.clock;
   S.acc = 0; S.steps = 0;
@@ -276,36 +378,55 @@ function comeToRest() {
 }
 
 function finishHole(E) {
-  const strokes = S.strokes, par = S.lv.par, id = String(S.idx);
+  const strokes = S.strokes, lv = S.lv, id = String(S.idx);
   const prev = E.save.get('best', {})[id];
   const best = prev === undefined ? strokes : Math.min(prev, strokes);
   E.save.update('best', (b) => ({ ...b, [id]: best }), {});
-  E.setScene('over', { hole: S.idx, name: S.lv.name, strokes, par, stars: starsFor(strokes, par), best, hasNext: S.idx + 1 < LEVELS.length });
+  const hasNext = S.idx + 1 < LEVELS.length;
+  if (hasNext) E.save.update('unlocked', (u) => Math.max(u, S.idx + 1), 0);
+  E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, par: lv.par, stars: starsFor(strokes, lv.par), best, hasNext });
 }
 
 // ---------- Scenes ----------
 
 const menu = {
-  enter() { this.btnPlay = null; this.btnMute = null; },
+  enter() { this.btnPlay = null; this.btnMute = null; this.tiles = []; },
   render(ctx, E) {
-    const v = view(E);
+    const v = view(E), p = progress(E), cx = E.w / 2;
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx); ctx.restore();
-    E.text('GRAVITY', E.w / 2, E.h * 0.24, { size: 46, weight: '800' });
-    E.text('GOLF', E.w / 2, E.h * 0.24 + 50, { size: 46, weight: '800', color: T.green });
-    this.btnPlay = E.button('Play', E.w / 2, E.h * 0.58, { fill: T.green, color: '#04110a', h: 64, size: 24 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, E.h * 0.58 + 84, { fill: T.slate, w: 170, h: 48, size: 16 });
+    E.text('GRAVITY GOLF', cx, E.h * 0.09, { size: 34, weight: '800' });
+    E.text(`Stars ${p.total} / ${LEVELS.length * 3}`, cx, E.h * 0.09 + 40, { size: 18, color: T.green });
+
+    const m = 16, gap = T.tileGap, cols = T.gridCols;
+    const tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = T.tileH, top = E.h * 0.2;
+    this.tiles = [];
+    LEVELS.forEach((lv, i) => {
+      const x = m + (i % cols) * (tw + gap), y = top + Math.floor(i / cols) * (th + gap);
+      const locked = i > p.unlocked, cleared = p.best[i] !== undefined;
+      E.roundRect(x, y, tw, th, 10, locked ? '#0a1024' : '#16203d', cleared ? T.green : locked ? '#1b2440' : T.slate);
+      E.text(`${i + 1}`, x + tw / 2, y + 19, { size: 20, weight: '800', color: locked ? '#475569' : '#e6e6e6' });
+      if (locked) drawLock(ctx, x + tw / 2, y + th - 24);
+      else {
+        if (lv.boss) E.text('Boss', x + tw / 2, y + 40, { size: 14, color: '#cbd5e1' });
+        for (let s = 0; s < 3; s++) drawStar(ctx, x + tw / 2 + (s - 1) * 15, y + th - 13, 6.5, s < p.stars[i] ? T.green : null, s < p.stars[i] ? null : '#334155');
+      }
+      this.tiles.push({ x, y, w: tw, h: th, hole: i, locked });
+    });
+
+    this.btnPlay = E.button(p.total > 0 || p.unlocked > 0 ? `Play hole ${p.unlocked + 1}` : 'Play', cx, E.h * 0.58, { fill: T.green, color: '#04110a', h: 64, size: 22 });
+    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', cx, E.h * 0.58 + 84, { fill: T.slate, w: 170, h: 48, size: 16 });
   },
   onTap(p, E) {
-    if (E.hit(this.btnPlay, p)) E.setScene('play', { hole: 0 });
-    else if (E.hit(this.btnMute, p)) E.audio.toggleMute();
+    if (E.hit(this.btnPlay, p)) { E.setScene('play', { hole: progress(E).unlocked }); return; }
+    if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); return; }
+    for (const t of this.tiles) if (!t.locked && E.hit(t, p)) { E.setScene('play', { hole: t.hole }); return; }
   },
 };
 
 const play = {
-  enter(E, params) { loadHole((params && params.hole) || 0); },
+  enter(E, params) { loadHole(clamp((params && params.hole) || 0, 0, LEVELS.length - 1)); },
 
   update(dt, E) {
-    if (S.oobT > 0) S.oobT -= dt;
     if (S.phase === 'aim') { S.clock += dt; return; }
     if (S.phase === 'sink') {
       S.sinkT += dt;
@@ -320,14 +441,8 @@ const play = {
       let r = stepBall(S.lv, S.ball, S.clock0 + S.steps * STEP);
       if (S.ball.hits !== hitsBefore) E.audio.play('hit', 0.3);
       if (!r && S.steps * STEP >= T.maxFlightSeconds) r = 'rest';
-      if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: S.ball.x, y: S.ball.y }; }
-      else if (r === 'oob') {
-        E.audio.play('miss');
-        S.strokes += T.oobPenalty;
-        S.ball.x = S.start.x; S.ball.y = S.start.y;
-        S.oobT = T.oobNoteTime;
-        comeToRest();
-      } else if (r === 'rest') comeToRest();
+      if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: S.ball.x, y: S.ball.y }; E.audio.play('win'); }
+      else if (r === 'rest') comeToRest();
     }
   },
 
@@ -335,6 +450,7 @@ const play = {
     const v = view(E), lv = S.lv, b = S.ball;
     ctx.save();
     ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
+    ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, T.designW, T.designH); ctx.clip();
     drawField(ctx);
     for (const w of lv.wells) drawWell(ctx, w, E.time);
@@ -378,12 +494,13 @@ const play = {
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+    drawBorder(ctx);
+    ctx.restore();
 
     const top = E.safe.top + 26;
     E.text(`Shots ${S.strokes}`, 16, top, { size: 18, align: 'left' });
-    E.text(lv.name, E.w / 2, top, { size: 16, color: '#9aa4b2' });
+    E.text(lv.boss ? `Hole ${S.idx + 1} Boss` : `Hole ${S.idx + 1}`, E.w / 2, top, { size: 16, color: '#9aa4b2' });
     E.text(`Par ${lv.par}`, E.w - 16, top, { size: 18, align: 'right', color: T.green });
-    if (S.oobT > 0) E.text(`Out of bounds +${T.oobPenalty}`, E.w / 2, top + 34, { size: 18, color: T.orange });
   },
 
   onPointerDown(p, E) {
@@ -417,6 +534,7 @@ const over = {
   enter(E, params) { this.p = params; this.btnNext = null; this.btnMenu = null; },
   render(ctx, E) {
     const p = this.p, cx = E.w / 2;
+    if (p.boss) E.text('Boss', cx, E.h * 0.12, { size: 18, color: '#cbd5e1' });
     E.text(p.name, cx, E.h * 0.16, { size: 18, color: '#9aa4b2' });
     E.text(`${p.strokes} ${p.strokes === 1 ? 'shot' : 'shots'}`, cx, E.h * 0.24, { size: 44, weight: '800' });
     E.text(`Par ${p.par}`, cx, E.h * 0.24 + 44, { size: 20, color: '#9aa4b2' });
@@ -427,22 +545,27 @@ const over = {
     const line = p.stars === 3 ? (p.strokes === 1 ? 'Hole in one' : 'Under par') : '';
     if (line) E.text(line, cx, E.h * 0.24 + 178, { size: 20, color: T.green });
     E.text(`Best ${p.best}`, cx, E.h * 0.24 + 214, { size: 18, color: '#9aa4b2' });
-    this.btnNext = E.button(p.hasNext ? 'Next' : 'Again', cx, E.h * 0.68, { fill: T.green, color: '#04110a', h: 64, size: 24 });
-    this.btnMenu = E.button('Menu', cx, E.h * 0.68 + 80, { fill: T.slate, w: 150, h: 48, size: 16 });
+    this.btnNext = E.button(p.hasNext ? 'Next' : 'Menu', cx, E.h * 0.68, { fill: T.green, color: '#04110a', h: 64, size: 24 });
+    this.btnMenu = p.hasNext ? E.button('Menu', cx, E.h * 0.68 + 80, { fill: T.slate, w: 150, h: 48, size: 16 }) : null;
   },
   onTap(p, E) {
-    if (E.hit(this.btnNext, p)) E.setScene('play', { hole: this.p.hasNext ? this.p.hole + 1 : this.p.hole });
-    else if (E.hit(this.btnMenu, p)) E.setScene('menu');
+    if (E.hit(this.btnNext, p)) E.setScene(this.p.hasNext ? 'play' : 'menu', { hole: this.p.hole + 1 });
+    else if (this.btnMenu && E.hit(this.btnMenu, p)) E.setScene('menu');
   },
 };
 
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 2,
-  // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map.
+  saveVersion: 3,
+  // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map;
+  // v3 adds `unlocked`, the highest unlocked hole, rebuilt from the holes already cleared.
   migrate(data, fromVersion) {
-    if (fromVersion < 2 && (typeof data.best !== 'object' || data.best === null)) delete data.best;
+    if (typeof data.best !== 'object' || data.best === null) delete data.best;
+    if (data.unlocked === undefined) {
+      const cleared = Object.keys(data.best || {}).map(Number);
+      data.unlocked = Math.min(cleared.length ? Math.max(...cleared) + 1 : 0, LEVELS.length - 1);
+    }
     return data;
   },
   TUNING,
