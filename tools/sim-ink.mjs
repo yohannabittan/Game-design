@@ -1,0 +1,128 @@
+#!/usr/bin/env node
+// sim-ink: run a scripted needle path through Ink's real coverage and slip code (games/ink/src/game.js).
+//
+//   node tools/sim-ink.mjs <stencil.json> <path.json> [--speed 300] [--timer-from-path]
+//   node tools/sim-ink.mjs --index N <path.json> [--speed 300] [--timer-from-path]
+//   node tools/sim-ink.mjs --list
+//
+// stencil.json: one stencil entry exactly as in the STENCILS array of game.js, so it can be pasted there unchanged.
+//   { "name": "Square", "timer": 30, "boss": false, "comment": "teaching goal and intended path",
+//     "shape": [ [[x,y],[x,y],...], [[x,y],...] ] }
+//   `shape` is a list of closed polygons in the 360x640 design space (do not repeat the first point at the end);
+//   a polygon inside another is a hole (even-odd). `polygons` is accepted as an alias for `shape`.
+//
+// path.json: an array of needle positions in DESIGN units (not finger positions; the needle offset is irrelevant to
+//   scoring). Consecutive points are joined by straight segments. A `null` entry is a lift: the finger comes up, and the
+//   next point is a new touch down (with the needle wherever that point is).
+//   [ [180,320], [190,320], null, [50,60], [70,60] ]
+//
+// Output: percentage, slips, path length, time at --speed (default 300 units/s), and whether 99 percent is reached
+// within the stencil's timer. Time to 99 is measured to the moment 99 percent is first reached, and the finger is
+// assumed to travel at --speed during lifts too. Exit code 0 if 99 percent is reached within the timer without a
+// third slip, 1 otherwise. --timer-from-path prints the timer that leaves the PRD section 9 spare fraction
+// (TUNING.timerSpareEarly / Mid / Boss) after reaching 99 percent along this path.
+
+import { readFileSync } from 'node:fs';
+import { game } from '../games/ink/src/game.js';
+
+const T = game.TUNING, sim = game.sim, play = game.scenes.play;
+const args = process.argv.slice(2);
+const flag = (n) => args.includes(n);
+const value = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
+const valueFlags = new Set(['--speed', '--index']);
+const positional = args.filter((a, i) => !a.startsWith('--') && !valueFlags.has(args[i - 1]));
+const die = (msg) => { console.error(`sim-ink: ${msg}`); process.exit(2); };
+const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch (e) { die(`cannot read ${f}: ${e.message}`); } };
+
+if (flag('--list')) {
+  sim.stencils.forEach((s, i) => console.log(`${i}  ${s.name}  timer ${s.timer}s${s.boss ? '  boss' : ''}`));
+  process.exit(0);
+}
+
+const speed = Number(value('--speed') ?? 300);
+if (!(speed > 0)) die('--speed must be a positive number');
+
+let idx, pathFile;
+if (flag('--index')) {
+  idx = Number(value('--index'));
+  if (!Number.isInteger(idx) || idx < 0 || idx >= sim.stencils.length) die(`--index must be 0 to ${sim.stencils.length - 1}`);
+  pathFile = positional[0];
+} else {
+  if (positional.length < 2) die('usage: sim-ink.mjs <stencil.json> <path.json> | --index N <path.json> | --list');
+  const st = readJson(positional[0]);
+  if (st.polygons && !st.shape) st.shape = st.polygons;
+  if (typeof st.name !== 'string' || !(st.timer > 0) || !Array.isArray(st.shape) || !st.shape.length) die('stencil needs name, timer > 0, and shape (list of polygons)');
+  for (const poly of st.shape) {
+    if (!Array.isArray(poly) || poly.length < 3 || !poly.every((p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite))) die('each polygon needs at least 3 [x, y] points');
+    for (const [x, y] of poly) if (x < 0 || x > T.designW || y < 0 || y > T.designH) console.log(`warning: point [${x}, ${y}] is outside the ${T.designW}x${T.designH} design space`);
+  }
+  sim.stencils.push(st);
+  idx = sim.stencils.length - 1;
+  pathFile = positional[1];
+}
+if (!pathFile) die('missing path.json');
+const path = readJson(pathFile);
+if (!Array.isArray(path) || !path.every((p) => p === null || (Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)))) die('path must be an array of [x, y] or null');
+const st = sim.stencils[idx];
+
+// A stand-in engine: only what the play scene touches.
+const E = {
+  w: T.designW, h: T.designH, safe: { top: 0, bottom: 0 }, pointers: new Map(), sounds: [], scene: null,
+  save: { d: {}, get(k, d) { return k in this.d ? this.d[k] : d; }, set(k, v) { this.d[k] = v; } },
+  audio: { muted: false, play(n) { E.sounds.push(n); }, toggleMute() {} },
+  setScene(n, p) { E.scene = n; },
+};
+// At 360x640 the view scale is 1 with no offset, so a design point is a screen point; the finger sits needleOffset below the needle.
+const finger = (x, y) => ({ id: 1, x, y: y + T.needleOffset });
+
+play.enter(E, { stencil: idx });
+
+let length = 0, lifted = 0, travelled = 0, t99 = null, down = false, last = null, ptr = null;
+const step = T.sampleSpacing; // events are cut to this length so time-to-99 is measured finely; the score does not depend on it
+const event = (x, y) => {
+  if (!down) { ptr = finger(x, y); E.pointers.set(1, ptr); play.onPointerDown(ptr, E); down = true; }
+  else { const f = finger(x, y); ptr.x = f.x; ptr.y = f.y; play.onPointerMove(ptr, E); }
+  if (t99 === null && sim.percent() >= 99) t99 = travelled;
+};
+for (const pt of path) {
+  if (sim.ended()) break;
+  if (pt === null) { if (down) { E.pointers.delete(1); play.onPointerUp({ id: 1 }, E); down = false; } continue; }
+  if (last) {
+    const d = Math.hypot(pt[0] - last[0], pt[1] - last[1]);
+    length += d;
+    if (!down) lifted += d;
+  }
+  if (last && down) {
+    const n = Math.max(1, Math.ceil(Math.hypot(pt[0] - last[0], pt[1] - last[1]) / step));
+    for (let i = 1; i <= n && !sim.ended(); i++) {
+      travelled += Math.hypot(pt[0] - last[0], pt[1] - last[1]) / n;
+      event(last[0] + ((pt[0] - last[0]) * i) / n, last[1] + ((pt[1] - last[1]) * i) / n);
+    }
+  } else {
+    if (last) travelled += Math.hypot(pt[0] - last[0], pt[1] - last[1]);
+    event(pt[0], pt[1]);
+  }
+  last = pt;
+}
+
+const pct = sim.percent(), slips = sim.slips(), ruined = sim.ended() === 'ruined';
+const time = length / speed, time99 = t99 === null ? null : t99 / speed;
+const ok = time99 !== null && time99 <= st.timer && !ruined;
+const f1 = (v) => v.toFixed(1);
+console.log(`stencil   ${st.name}  (timer ${st.timer}s)`);
+console.log(`percent   ${pct}%${sim.ended() === 'full' ? '  (100%, ended)' : ''}`);
+console.log(`slips     ${slips}/${T.maxSlips}${ruined ? '  RUINED, stencil ended at the third slip' : ''}`);
+console.log(`length    ${length.toFixed(0)} units${lifted ? ` (${lifted.toFixed(0)} while lifted)` : ''}`);
+console.log(`time      ${f1(time)}s at ${speed} units/s`);
+console.log(time99 === null ? `99%       not reached` : `99%       reached at ${f1(time99)}s, ${f1(st.timer - time99)}s before the timer (${Math.round(((st.timer - time99) / st.timer) * 100)}% spare)`);
+if (slips > 0) console.log('warning   the intended path should be clean: it slips');
+console.log(ok ? `result    OK: 99 percent within the ${st.timer}s timer` : `result    FAIL: 99 percent not reached within the ${st.timer}s timer`);
+
+if (flag('--timer-from-path')) {
+  if (time99 === null) console.log('timer     cannot be set: this path never reaches 99 percent');
+  else for (const [label, spare] of [['stencils 1 to 4', T.timerSpareEarly], ['stencils 5 to 9', T.timerSpareMid], ['stencil 10', T.timerSpareBoss]]) {
+    const t = time99 / (1 - spare);
+    console.log(`timer     ${label}: ${f1(t)}s for ${Math.round(spare * 100)}% spare (round up: ${Math.ceil(t)})`);
+  }
+}
+process.exit(ok ? 0 : 1);
