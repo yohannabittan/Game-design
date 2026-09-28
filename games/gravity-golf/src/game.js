@@ -1,7 +1,7 @@
-// Gravity Golf, layers 1 and 2: the mechanic and the ten holes. Slingshot aim, fixed-step ball physics,
-// wells, bumpers, a mover, strokes and par, the hole card, hole select. Grey box: shapes and three colours only.
+// Gravity Golf, layers 1 to 3: the mechanic, the ten holes and the juice. Slingshot aim, fixed-step ball physics,
+// wells, bumpers, a mover, strokes and par, the hole card, hole select. Shapes and three colours; effects are cosmetic only.
 
-import { makeRng, clamp, lerp, dist } from './engine.js';
+import { makeRng, ease, clamp, lerp, dist } from './engine.js';
 
 // Design-space units unless stated. Names match PRD section 16; the rest are marked.
 const TUNING = {
@@ -28,8 +28,8 @@ const TUNING = {
   physicsStep: 1 / 120,  // Fixed physics timestep in seconds
   maxFlightSeconds: 12,  // Safety: a ball still moving after this is stopped where it is
   moverPeriod: 2.4,      // Seconds for a mover wall to complete one sweep and return
-  trailLength: 18,       // Reserved for layer 3 (trail)
-  particleCap: 200,      // Reserved for layer 3 (particles)
+  trailLength: 18,       // Points kept in the ball's trail
+  particleCap: 200,      // Max live particles
   speedMax: 1400,        // Ball speed is clamped here so wells cannot cause tunnelling
   keyPowerStart: 0.5,    // Starting power fraction for the keyboard fallback
 
@@ -53,8 +53,109 @@ const TUNING = {
   tileH: 68,             // Hole select tile height (screen px)
   keyAngleStep: 0.04,    // Keyboard fallback: radians per arrow press
   keyPowerStep: 0.05,    // Keyboard fallback: fraction of full power per arrow press
+
+  // Layer 3: juice. Cosmetic only; nothing here is read by the physics. Durations in seconds, sizes in design units,
+  // speeds in design units per second, particle drag is per frame.
+  juice: {
+    particleDrag: 0.93,
+    // Drag start
+    glowStart: 0.6,        // Glow strength on the very first frame of a touch (0 to 1)
+    glowInTime: 0.08,      // Seconds to reach full glow while aiming
+    glowOutTime: 0.18,     // Seconds to fade after release or cancel
+    glowR: 12,             // Glow radius beyond the ball at zero power
+    glowRPower: 10,        // Extra glow radius at full power
+    glowAlpha: 0.75,
+    dragPopFrom: 0.72,     // Ball scale at touch, springs to 1 with outBack
+    dragPopTime: 0.2,
+    aimWidth: 3,           // Aim line width at zero power
+    aimWidthPower: 2.5,    // Extra width at full power
+    // Release
+    flashTime: 0.22,       // Ball flash ring and glow
+    flashRing: 2.8,        // Flash ring radius at the end, in ball radii
+    puffCount: 7,
+    puffSpeed: 90,
+    puffLife: 0.35,
+    puffSize: 3.5,
+    puffSpread: 1.1,
+    puffColor: '#cbd5e1',
+    releaseHaptic: 8,
+    // Wall and bumper bounce
+    hitVol: 0.3,
+    bigHitVol: 0.5,
+    bigHitSpeed: 560,      // Impact speed above which a hit is a big hit (burst, shake, louder)
+    sparkCount: 5,
+    sparkBigCount: 13,
+    sparkSpeed: 120,
+    sparkBigSpeed: 210,
+    sparkLife: 0.28,
+    sparkBigLife: 0.42,
+    sparkSize: 2.4,
+    sparkBigSize: 3.2,
+    sparkSpread: 1.9,
+    sparkColor: '#94a3b8', // Slate, one step lighter than the walls so it reads on the navy field
+    sparkBigColor: '#cbd5e1',
+    bigShake: 3,           // Screen px
+    bigShakeTime: 0.12,
+    // Wells
+    wellNearR: 120,        // Within this distance of a well the ball trails and the well's rings speed up
+    ringRate: 0.5,         // Ring cycles per second when the ball is far
+    ringBoost: 2.4,        // Extra cycles per second when the ball is on top of the well
+    trailEvery: 2,         // Physics steps between trail samples
+    trailDecay: 0.03,      // Seconds per trail point when the trail drains at rest
+    trailWidth: 4,
+    trailAlpha: 0.5,
+    bossWell: '#e879f9',   // Boss holes: ring and disc colour for pulling wells
+    // Boss banner
+    bannerTime: 1.5,
+    bannerIn: 0.25,
+    bannerOut: 0.25,
+    bannerH: 68,
+    bannerY: 0.3,          // Fraction of screen height
+    // Sink
+    burstCount: 22,
+    burstBigCount: 46,
+    burstSpeed: 230,
+    burstLife: 0.55,
+    burstSize: 3.6,
+    burstColor: '#22c55e',
+    burstLight: '#bbf7d0',
+    sinkHaptic: 30,
+    sinkRingTime: 0.4,
+    sinkRingR: 34,
+    coinLead: 0.14,        // Three stars: coin, then win after this long
+    threeStarFlash: 0.1,
+    // Hole card
+    cardSlide: 0.42,
+    cardSlideFrac: 0.35,   // Slide distance as a fraction of screen height
+    numDelay: 0.12,
+    numPop: 0.35,
+    starDelay: 0.3,
+    starStagger: 0.16,
+    starPop: 0.32,
+    lineFade: 0.2,
+    buttonGap: 0.15,       // Pause after the last star before the buttons appear
+    buttonPop: 0.22,
+    // HUD and retry
+    shotsPopFrom: 0.55,    // Strokes number scale on change, springs to 1 with outBack
+    shotsPopTime: 0.3,
+    retryTapVol: 0.4,
+    retryFade: 0.35,
+    // Resting far from the hole
+    farRestShots: 3,       // More shots than this on the hole
+    farRestDist: 100,      // and resting farther than this from the hole gives the pulse
+    restPulseTime: 0.6,
+    restPulseR: 3.2,       // In ball radii
+    restPulseColor: '#94a3b8',
+    // Menu
+    menuPopFrom: 0.7,      // Tile scale when the menu opens after a clear
+    menuPopTime: 0.45,
+    menuStarDelay: 0.15,
+    menuStarStagger: 0.12,
+    menuStarPop: 0.3,
+  },
 };
 const T = TUNING;
+const J = T.juice;
 const STEP = T.physicsStep;
 const FRIC_STEP = Math.pow(T.friction, STEP);
 const WELL_CORE3 = T.wellMinDist ** 3;
@@ -323,10 +424,11 @@ function drawBumper(ctx, c) {
 
 const WELL_GRAD = new WeakMap();
 
-// Purple disc with rings drifting in (pull); orange with rings drifting out (repulsor).
-function drawWell(ctx, w, time) {
+// Purple disc with rings drifting in (pull); orange with rings drifting out (repulsor). Boss holes use the boss colour.
+// `phase` is the ring cycle (0 to 1), advanced by the play scene so the rings run faster when the ball is near.
+function drawWell(ctx, w, phase, boss) {
   const push = w.strength < 0;
-  const col = push ? T.orange : T.purple;
+  const col = push ? T.orange : boss ? J.bossWell : T.purple;
   const r = T.wellR * Math.sqrt(Math.abs(w.strength));
   let g = WELL_GRAD.get(w);
   if (!g) {
@@ -338,7 +440,7 @@ function drawWell(ctx, w, time) {
   ctx.beginPath(); ctx.arc(w.x, w.y, r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = col; ctx.lineWidth = 1.5;
   for (let i = 0; i < 2; i++) {
-    const k = (time * 0.5 + i * 0.5) % 1;
+    const k = (phase + i * 0.5) % 1;
     const rr = r * (1 + 1.2 * (push ? k : 1 - k));
     ctx.globalAlpha = 0.6 * (1 - Math.abs(k * 2 - 1) * 0.6);
     ctx.beginPath(); ctx.arc(w.x, w.y, rr, 0, Math.PI * 2); ctx.stroke();
@@ -405,10 +507,182 @@ function finishHole(E) {
   E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, par: lv.par, stars: starsFor(strokes, lv.par), best, hasNext });
 }
 
+// ---------- Juice (cosmetic only: reads the physics state, never writes it) ----------
+
+const FX = { glow: 0, power: 0, pop: 1, flash: 1, rest: 1, sink: 1, retry: 1, shots: 1, banner: 1, bannerTok: null, ring: null, trailT: 0, ghost: false, gx: 0, gy: 0 };
+const TRAIL = { xy: new Float32Array(2 * T.trailLength), n: 0, col: T.purple }; // oldest point first
+const NOOP = () => {};
+let GLOW_G = null;   // unit-radius gradient, drawn scaled and translated so it is built once
+let CHANGED = null;  // { hole, from, to }: the hole whose stars just went up, consumed by the menu
+
+function resetFx() {
+  FX.glow = 0; FX.power = 0; FX.pop = 1; FX.flash = 1; FX.rest = 1; FX.sink = 1; FX.retry = 1; FX.shots = 1;
+  FX.ghost = false; FX.trailT = 0;
+  FX.ring = new Float32Array(S.lv.wells.length);
+  TRAIL.n = 0;
+}
+
+function later(E, sec, fn) { E.tween(sec, NOOP, ease.linear, fn); }
+
+// Engine particles live in screen space, so a design-space point goes through the view. Capped by particleCap.
+function burst(E, x, y, o) {
+  const room = T.particleCap - E.particles.list.length;
+  if (room <= 0) return;
+  const v = view(E);
+  E.particles.emit({
+    x: v.ox + x * v.s, y: v.oy + y * v.s, count: Math.min(o.count, room), color: o.color,
+    speed: o.speed * v.s, life: o.life, size: o.size * v.s, angle: o.angle || 0,
+    spread: o.spread === undefined ? Math.PI * 2 : o.spread, drag: J.particleDrag,
+  });
+}
+
+function trailPush(x, y, col) {
+  if (TRAIL.n === T.trailLength) { TRAIL.xy.copyWithin(0, 2, 2 * TRAIL.n); TRAIL.n--; }
+  TRAIL.xy[2 * TRAIL.n] = x; TRAIL.xy[2 * TRAIL.n + 1] = y; TRAIL.n++; TRAIL.col = col;
+}
+function trailDrop() {
+  if (TRAIL.n > 0) { TRAIL.xy.copyWithin(0, 2, 2 * TRAIL.n); TRAIL.n--; }
+}
+
+// Nearest well within wellNearR of the ball, or null.
+function wellNear(lv, b) {
+  let best = null, bd = J.wellNearR;
+  for (const w of lv.wells) { const d = dist(b.x, b.y, w.x, w.y); if (d < bd) { bd = d; best = w; } }
+  return best;
+}
+function wellColor(lv, w) { return w.strength < 0 ? T.orange : lv.boss ? J.bossWell : T.purple; }
+
+function drawTrail(ctx, bx, by) {
+  const n = TRAIL.n;
+  if (n < 1) return;
+  ctx.strokeStyle = TRAIL.col; ctx.lineCap = 'round';
+  for (let i = 1; i <= n; i++) {
+    const k = i / n;
+    const x1 = i < n ? TRAIL.xy[2 * i] : bx, y1 = i < n ? TRAIL.xy[2 * i + 1] : by;
+    ctx.globalAlpha = J.trailAlpha * k; ctx.lineWidth = J.trailWidth * (0.3 + 0.7 * k);
+    ctx.beginPath(); ctx.moveTo(TRAIL.xy[2 * i - 2], TRAIL.xy[2 * i - 1]); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawGlow(ctx, x, y, r, a) {
+  if (!GLOW_G) {
+    GLOW_G = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    GLOW_G.addColorStop(0, 'rgba(255,255,255,0.9)'); GLOW_G.addColorStop(0.55, 'rgba(255,255,255,0.3)'); GLOW_G.addColorStop(1, 'rgba(255,255,255,0)');
+  }
+  ctx.save(); ctx.translate(x, y); ctx.scale(r, r);
+  ctx.globalAlpha = a; ctx.fillStyle = GLOW_G;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawRing(ctx, x, y, r, w, col, a) {
+  ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = w;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// Per frame: glow follows the touch, well rings speed up near the ball, the trail drains when the ball is not flying.
+function fxUpdate(dt) {
+  const b = S.ball, wells = S.lv.wells;
+  FX.glow = clamp(FX.glow + (S.aim || S.key.on ? dt / J.glowInTime : -dt / J.glowOutTime), 0, 1);
+  for (let i = 0; i < wells.length; i++) {
+    const near = clamp(1 - dist(b.x, b.y, wells[i].x, wells[i].y) / J.wellNearR, 0, 1);
+    FX.ring[i] = (FX.ring[i] + dt * (J.ringRate + J.ringBoost * near)) % 1;
+  }
+  if (S.phase !== 'fly' && TRAIL.n > 0) {
+    FX.trailT += dt;
+    while (FX.trailT >= J.trailDecay && TRAIL.n > 0) { FX.trailT -= J.trailDecay; trailDrop(); }
+  }
+}
+
+function dragStartFx(E) {
+  FX.glow = Math.max(FX.glow, J.glowStart); FX.power = 0;
+  FX.pop = J.dragPopFrom;
+  E.tween(J.dragPopTime, (k) => { FX.pop = lerp(J.dragPopFrom, 1, k); }, ease.outBack);
+}
+
+function popShots(E) {
+  FX.shots = J.shotsPopFrom;
+  E.tween(J.shotsPopTime, (k) => { FX.shots = lerp(J.shotsPopFrom, 1, k); }, ease.outBack);
+}
+
+function releaseFx(E, l) {
+  const b = S.ball, len = Math.hypot(l.vx, l.vy), ux = l.vx / len, uy = l.vy / len;
+  E.audio.play('tap'); E.haptic(J.releaseHaptic);
+  burst(E, b.x - ux * T.ballR, b.y - uy * T.ballR, { count: J.puffCount, color: J.puffColor, speed: J.puffSpeed, life: J.puffLife, size: J.puffSize, angle: Math.atan2(-uy, -ux), spread: J.puffSpread });
+  FX.flash = 0;
+  E.tween(J.flashTime, (k) => { FX.flash = k; }, ease.linear);
+  popShots(E);
+}
+
+// The ball's velocity before and after the step gives the contact normal: post / wallBounce minus pre points off the surface.
+function bounceFx(E, pvx, pvy) {
+  const b = S.ball, speed = Math.hypot(pvx, pvy), big = speed > J.bigHitSpeed;
+  let nx = b.vx / T.wallBounce - pvx, ny = b.vy / T.wallBounce - pvy, d = Math.hypot(nx, ny);
+  if (d < 1e-6) { nx = -pvx; ny = -pvy; d = speed || 1; }
+  nx /= d; ny /= d;
+  E.audio.play('hit', big ? J.bigHitVol : J.hitVol);
+  burst(E, b.x - nx * T.ballR, b.y - ny * T.ballR, {
+    count: big ? J.sparkBigCount : J.sparkCount, color: big ? J.sparkBigColor : J.sparkColor,
+    speed: big ? J.sparkBigSpeed : J.sparkSpeed, life: big ? J.sparkBigLife : J.sparkLife,
+    size: big ? J.sparkBigSize : J.sparkSize, angle: Math.atan2(ny, nx), spread: J.sparkSpread,
+  });
+  if (big) E.shake(J.bigShake, J.bigShakeTime);
+}
+
+function restFx(E) {
+  if (S.strokes <= J.farRestShots || dist(S.ball.x, S.ball.y, S.lv.hole.x, S.lv.hole.y) <= J.farRestDist) return;
+  FX.rest = 0;
+  E.tween(J.restPulseTime, (k) => { FX.rest = k; }, ease.outQuad);
+}
+
+function sinkFx(E) {
+  const lv = S.lv, stars = starsFor(S.strokes, lv.par), three = stars === 3;
+  const prev = E.save.get('best', {})[S.idx];
+  const from = prev === undefined ? 0 : starsFor(prev, lv.par);
+  CHANGED = stars > from ? { hole: S.idx, from, to: stars } : null;
+  burst(E, lv.hole.x, lv.hole.y, { count: three ? J.burstBigCount : J.burstCount, color: J.burstColor, speed: J.burstSpeed * (three ? 1.3 : 1), life: J.burstLife, size: J.burstSize });
+  burst(E, lv.hole.x, lv.hole.y, { count: three ? J.burstBigCount / 2 : J.burstCount / 2, color: J.burstLight, speed: J.burstSpeed * 0.6, life: J.burstLife, size: J.burstSize * 0.7 });
+  E.haptic(J.sinkHaptic);
+  if (three) {
+    E.audio.play('coin'); later(E, J.coinLead, () => E.audio.play('win'));
+    E.flash(T.green, J.threeStarFlash);
+  } else E.audio.play('win');
+  FX.sink = 0;
+  E.tween(J.sinkRingTime, (k) => { FX.sink = k; }, ease.outCubic);
+}
+
+// Retry is instant for the game; only the picture fades: the old ball dissolves where it lay, the ball at the tee fades in.
+function retry(E) {
+  const gx = S.ball.x, gy = S.ball.y, had = S.strokes > 0;
+  const moved = dist(gx, gy, S.lv.ball.x, S.lv.ball.y) > T.ballR;
+  loadHole(S.idx); resetFx();
+  E.audio.play('tap', J.retryTapVol);
+  if (moved) {
+    FX.ghost = true; FX.gx = gx; FX.gy = gy; FX.retry = 0;
+    E.tween(J.retryFade, (k) => { FX.retry = k; }, ease.outQuad, () => { FX.ghost = false; });
+  }
+  if (had) popShots(E);
+}
+
+// Banner for boss holes: slides in, holds, slides out. Position from the tween's linear 0..1.
+function drawBanner(ctx, E) {
+  const tt = FX.banner * J.bannerTime, outAt = J.bannerTime - J.bannerOut;
+  const off = tt < J.bannerIn ? -(1 - ease.outCubic(tt / J.bannerIn)) : tt > outAt ? ease.inQuad((tt - outAt) / J.bannerOut) : 0;
+  const y = E.h * J.bannerY, h = J.bannerH, x = off * E.w;
+  ctx.globalAlpha = 0.92; ctx.fillStyle = '#1a0d2e'; ctx.fillRect(x, y - h / 2, E.w, h);
+  ctx.globalAlpha = 1; ctx.fillStyle = J.bossWell;
+  ctx.fillRect(x, y - h / 2, E.w, 3); ctx.fillRect(x, y + h / 2 - 3, E.w, 3);
+  E.text('BOSS', x + E.w / 2, y - 8, { size: 32, weight: '800', color: J.bossWell });
+  E.text(S.lv.name, x + E.w / 2, y + 20, { size: 14, color: '#cbd5e1' });
+}
+
 // ---------- Scenes ----------
 
 const menu = {
-  enter() { this.btnPlay = null; this.btnMute = null; this.tiles = []; },
+  enter() { this.btnPlay = null; this.btnMute = null; this.tiles = []; this.pop = CHANGED; CHANGED = null; this.t = 0; },
+  update(dt) { if (this.pop) this.t += dt; },
   render(ctx, E) {
     const v = view(E), p = progress(E), cx = E.w / 2;
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx); ctx.restore();
@@ -421,13 +695,23 @@ const menu = {
     LEVELS.forEach((lv, i) => {
       const x = m + (i % cols) * (tw + gap), y = top + Math.floor(i / cols) * (th + gap);
       const locked = i > p.unlocked, cleared = p.best[i] !== undefined;
+      // Only the tile whose stars just went up pops.
+      const pop = this.pop && this.pop.hole === i ? this.pop : null;
+      const ts = pop ? lerp(J.menuPopFrom, 1, ease.outBack(clamp(this.t / J.menuPopTime, 0, 1))) : 1;
+      if (ts !== 1) { ctx.save(); ctx.translate(x + tw / 2, y + th / 2); ctx.scale(ts, ts); ctx.translate(-(x + tw / 2), -(y + th / 2)); }
       E.roundRect(x, y, tw, th, 10, locked ? '#0a1024' : '#16203d', cleared ? T.green : locked ? '#1b2440' : T.slate);
       E.text(`${i + 1}`, x + tw / 2, y + 19, { size: 20, weight: '800', color: locked ? '#475569' : '#e6e6e6' });
       if (locked) drawLock(ctx, x + tw / 2, y + th - 24);
       else {
         if (lv.boss) E.text('Boss', x + tw / 2, y + 40, { size: 14, color: '#cbd5e1' });
-        for (let s = 0; s < 3; s++) drawStar(ctx, x + tw / 2 + (s - 1) * 15, y + th - 13, 6.5, s < p.stars[i] ? T.green : null, s < p.stars[i] ? null : '#334155');
+        for (let s = 0; s < 3; s++) {
+          const sx = x + tw / 2 + (s - 1) * 15, sy = y + th - 13, earned = s < p.stars[i];
+          const k = pop && earned && s >= pop.from ? ease.outBack(clamp((this.t - J.menuStarDelay - (s - pop.from) * J.menuStarStagger) / J.menuStarPop, 0, 1)) : 1;
+          if (!earned || k < 1) drawStar(ctx, sx, sy, 6.5, null, '#334155');
+          if (earned && k > 0) drawStar(ctx, sx, sy, 6.5 * k, T.green);
+        }
       }
+      if (ts !== 1) ctx.restore();
       this.tiles.push({ x, y, w: tw, h: th, hole: i, locked });
     });
 
@@ -441,10 +725,23 @@ const menu = {
   },
 };
 
+// Launch, with the release juice. Both the touch and the keyboard fallback go through here.
+function shoot(E, l) { launch(l); releaseFx(E, l); }
+
 const play = {
-  enter(E, params) { loadHole(clamp((params && params.hole) || 0, 0, LEVELS.length - 1)); },
+  enter(E, params) {
+    loadHole(clamp((params && params.hole) || 0, 0, LEVELS.length - 1));
+    resetFx();
+    FX.banner = 1; FX.bannerTok = null;
+    if (S.lv.boss) {
+      const tok = FX.bannerTok = {};
+      FX.banner = 0;
+      E.tween(J.bannerTime, (k) => { if (FX.bannerTok === tok) FX.banner = k; }, ease.linear);
+    }
+  },
 
   update(dt, E) {
+    fxUpdate(dt);
     if (S.phase === 'aim') { S.clock += dt; return; }
     if (S.phase === 'sink') {
       S.sinkT += dt;
@@ -455,12 +752,16 @@ const play = {
     S.acc += dt;
     while (S.acc >= STEP && S.phase === 'fly') {
       S.acc -= STEP; S.steps++;
-      const hitsBefore = S.ball.hits;
+      const hitsBefore = S.ball.hits, pvx = S.ball.vx, pvy = S.ball.vy;
       let r = stepBall(S.lv, S.ball, S.clock0 + S.steps * STEP);
-      if (S.ball.hits !== hitsBefore) E.audio.play('hit', 0.3);
+      if (S.ball.hits !== hitsBefore) bounceFx(E, pvx, pvy);
+      if (S.steps % J.trailEvery === 0) {
+        const w = wellNear(S.lv, S.ball);
+        if (w) trailPush(S.ball.x, S.ball.y, wellColor(S.lv, w)); else trailDrop();
+      }
       if (!r && S.steps * STEP >= T.maxFlightSeconds) r = 'rest';
-      if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: S.ball.x, y: S.ball.y }; E.audio.play('win'); }
-      else if (r === 'rest') comeToRest();
+      if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: S.ball.x, y: S.ball.y }; sinkFx(E); }
+      else if (r === 'rest') { comeToRest(); restFx(E); }
     }
   },
 
@@ -471,7 +772,7 @@ const play = {
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, T.designW, T.designH); ctx.clip();
     drawField(ctx);
-    for (const w of lv.wells) drawWell(ctx, w, E.time);
+    for (let i = 0; i < lv.wells.length; i++) drawWell(ctx, lv.wells[i], FX.ring[i], lv.boss);
     for (const r of lv.walls) drawWall(ctx, r);
     if (lv.mover) drawWall(ctx, moverRect(lv, S.phase === 'fly' ? S.clock0 + S.steps * STEP : S.clock));
     for (const c of lv.bumpers) drawBumper(ctx, c);
@@ -485,42 +786,61 @@ const play = {
     ctx.beginPath(); ctx.arc(lv.hole.x, lv.hole.y, T.holeR, 0, Math.PI * 2); ctx.stroke();
     if (sinkable) { ctx.globalAlpha = 0.35; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lv.hole.x, lv.hole.y, T.holeR + 6, 0, Math.PI * 2); ctx.stroke(); }
     ctx.globalAlpha = 1;
+    if (FX.sink < 1) drawRing(ctx, lv.hole.x, lv.hole.y, T.holeR + J.sinkRingR * FX.sink, 4, T.green, 1 - FX.sink);
+
+    drawTrail(ctx, b.x, b.y);
 
     const aiming = S.phase === 'aim' ? currentLaunch() : null;
     if (aiming) {
+      FX.power = aiming.power;
       const seconds = S.idx < T.previewFullHoles ? T.previewFullSeconds : T.previewShortSeconds;
       const n = previewPoints(lv, b.x, b.y, aiming.vx, aiming.vy, S.clock, seconds);
       const col = mixToOrange(aiming.power);
       const ux = aiming.vx / (aiming.power * T.powerMax), uy = aiming.vy / (aiming.power * T.powerMax);
       const len = 20 + 60 * aiming.power; // line length shows power
-      ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.strokeStyle = col; ctx.lineWidth = J.aimWidth + J.aimWidthPower * aiming.power; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(b.x + ux * (T.ballR + 3), b.y + uy * (T.ballR + 3)); ctx.lineTo(b.x + ux * (T.ballR + 3 + len), b.y + uy * (T.ballR + 3 + len)); ctx.stroke();
       ctx.fillStyle = col;
       for (let i = 0; i < n; i++) { ctx.globalAlpha = 1 - 0.6 * (i / n); ctx.beginPath(); ctx.arc(PV[i].x, PV[i].y, 2.2, 0, Math.PI * 2); ctx.fill(); }
-      ctx.globalAlpha = 0.3; ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(b.x, b.y, T.ballR + 5, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     }
 
-    let bx = b.x, by = b.y, br = T.ballR;
+    let bx = b.x, by = b.y, br = T.ballR, ba = 1;
     if (S.phase === 'sink') {
       const k = clamp(S.sinkT / T.sinkTime, 0, 1);
       bx = lerp(S.sinkFrom.x, lv.hole.x, k); by = lerp(S.sinkFrom.y, lv.hole.y, k); br = T.ballR * (1 - k);
+    } else {
+      br = T.ballR * FX.pop; ba = FX.retry;
+      if (FX.glow > 0.01) drawGlow(ctx, bx, by, T.ballR + J.glowR + J.glowRPower * FX.power, FX.glow * J.glowAlpha);
+    }
+    if (FX.ghost && FX.retry < 1) {
+      ctx.globalAlpha = 1 - FX.retry; ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(FX.gx, FX.gy, T.ballR, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
     }
     if (br > 0.1) {
+      ctx.globalAlpha = ba;
       ctx.fillStyle = 'rgba(2,4,12,0.55)'; ctx.beginPath(); ctx.arc(bx + 2, by + 3, br, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
     }
+    if (FX.flash < 1) {
+      drawGlow(ctx, bx, by, T.ballR * (1.8 + FX.flash), 1 - FX.flash);
+      drawRing(ctx, bx, by, T.ballR * (1 + (J.flashRing - 1) * FX.flash), 3 * (1 - FX.flash) + 0.5, '#fff', 1 - FX.flash);
+    }
+    if (FX.rest < 1) drawRing(ctx, bx, by, T.ballR * (1 + (J.restPulseR - 1) * FX.rest), 3, J.restPulseColor, 0.8 * (1 - FX.rest));
     ctx.restore();
     drawBorder(ctx);
     ctx.restore();
 
     const top = E.safe.top + 26;
-    E.text(`Shots ${S.strokes}`, 16, top, { size: 18, align: 'left' });
+    ctx.save(); ctx.translate(16, top); ctx.scale(FX.shots, FX.shots);
+    E.text(`Shots ${S.strokes}`, 0, 0, { size: 18, align: 'left' });
+    ctx.restore();
     E.text(lv.boss ? `Hole ${S.idx + 1} Boss` : `Hole ${S.idx + 1}`, E.w / 2, top, { size: 16, color: '#9aa4b2' });
     E.text(`Par ${lv.par}`, E.w - 16, top, { size: 18, align: 'right', color: T.green });
     const live = S.phase === 'aim';
     S.retryRect = E.button('Retry', E.w - 16 - T.retryW / 2, top + 20 + T.retryH / 2, { w: T.retryW, h: T.retryH, size: 16, fill: live ? T.slate : '#141c33', color: live ? '#e6e6e6' : '#475569' });
+    if (FX.banner < 1) drawBanner(ctx, E);
   },
 
   onPointerDown(p, E) {
@@ -530,49 +850,88 @@ const play = {
     const gx = (p.x - v.ox) / v.s, gy = (p.y - v.oy) / v.s;
     if (dist(gx, gy, S.ball.x, S.ball.y) <= T.ballGrabR) return;
     S.aim = { id: p.id, sx: p.x, sy: p.y, x: p.x, y: p.y };
+    dragStartFx(E);
   },
   onTap(p, E) {
-    if (S.phase === 'aim' && S.retryRect && E.hit(S.retryRect, p)) loadHole(S.idx);
+    if (S.phase === 'aim' && S.retryRect && E.hit(S.retryRect, p)) retry(E);
   },
   onPointerMove(p) {
     if (S.aim && S.aim.id === p.id) { S.aim.x = p.x; S.aim.y = p.y; }
   },
-  onPointerUp(p) {
+  onPointerUp(p, E) {
     if (!S.aim || S.aim.id !== p.id) return;
     if (p.cancelled) { S.aim = null; return; }
     S.aim.x = p.x; S.aim.y = p.y;
     const l = currentLaunch();
-    if (l) launch(l); else S.aim = null; // inside the dead zone: cancel, no stroke
+    if (l) shoot(E, l); else S.aim = null; // inside the dead zone: cancel, no stroke
   },
-  onKey(key) {
+  onKey(key, E) {
     if (S.phase !== 'aim') return;
     if (key === 'ArrowLeft') { S.key.on = true; S.key.angle -= T.keyAngleStep; }
     else if (key === 'ArrowRight') { S.key.on = true; S.key.angle += T.keyAngleStep; }
     else if (key === 'ArrowUp') { S.key.on = true; S.key.power = Math.min(1, S.key.power + T.keyPowerStep); }
     else if (key === 'ArrowDown') { S.key.on = true; S.key.power = Math.max(T.dragDead / T.dragMax, S.key.power - T.keyPowerStep); }
-    else if (key === ' ') { S.key.on = true; const l = currentLaunch(); if (l) launch(l); }
+    else if (key === ' ') { S.key.on = true; const l = currentLaunch(); if (l) shoot(E, l); }
   },
 };
 
+// The card slides up, the shot count pops, each star pops in turn with a coin, and only after that beat do the
+// buttons appear. Until then a tap does nothing, and neither does a press that started before the buttons existed.
 const over = {
-  enter(E, params) { this.p = params; this.btnNext = null; this.btnMenu = null; },
+  enter(E, params) {
+    const p = this.p = params;
+    this.t = 0; this.t0 = E.time; this.slide = 0; this.ready = false;
+    this.starK = [0, 0, 0]; this.starDone = [false, false, false];
+    this.beat = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop * 0.6 + J.buttonGap;
+    this.btnNext = null; this.btnMenu = null;
+    E.tween(J.cardSlide, (k) => { this.slide = k; }, ease.outBack);
+  },
+  update(dt, E) {
+    this.t += dt;
+    for (let i = 0; i < this.p.stars; i++) {
+      if (!this.starDone[i] && this.t >= J.starDelay + i * J.starStagger) {
+        this.starDone[i] = true; E.audio.play('coin');
+        E.tween(J.starPop, (k) => { this.starK[i] = k; }, ease.outBack);
+      }
+    }
+    this.ready = this.t >= this.beat;
+  },
   render(ctx, E) {
-    const p = this.p, cx = E.w / 2;
+    const p = this.p, cx = E.w / 2, t = this.t, v = view(E);
+    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx); ctx.restore();
+    ctx.save(); ctx.translate(0, (1 - this.slide) * E.h * J.cardSlideFrac);
+    const pw = Math.min(E.w - 32, 340), py = E.h * 0.085;
+    E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + (p.hasNext ? 80 : 0) + 44 - py, 18, '#0c1330', p.boss ? J.bossWell : T.slateEdge);
     if (p.boss) E.text('Boss', cx, E.h * 0.12, { size: 18, color: '#cbd5e1' });
     E.text(p.name, cx, E.h * 0.16, { size: 18, color: '#9aa4b2' });
-    E.text(`${p.strokes} ${p.strokes === 1 ? 'shot' : 'shots'}`, cx, E.h * 0.24, { size: 44, weight: '800' });
+    const nk = ease.outBack(clamp((t - J.numDelay) / J.numPop, 0, 1));
+    ctx.save(); ctx.translate(cx, E.h * 0.24); ctx.scale(nk, nk);
+    E.text(`${p.strokes} ${p.strokes === 1 ? 'shot' : 'shots'}`, 0, 0, { size: 44, weight: '800' });
+    ctx.restore();
     E.text(`Par ${p.par}`, cx, E.h * 0.24 + 44, { size: 20, color: '#9aa4b2' });
     for (let i = 0; i < 3; i++) {
       const sx = cx + (i - 1) * 64, sy = E.h * 0.24 + 120;
-      if (i < p.stars) drawStar(ctx, sx, sy, 26, T.green); else drawStar(ctx, sx, sy, 26, null, '#334155');
+      drawStar(ctx, sx, sy, 26, null, '#334155');
+      if (i < p.stars && this.starDone[i]) drawStar(ctx, sx, sy, 26 * this.starK[i], T.green);
     }
     const line = p.stars === 3 ? (p.strokes === 1 ? 'Hole in one' : 'Under par') : '';
-    if (line) E.text(line, cx, E.h * 0.24 + 178, { size: 20, color: T.green });
+    if (line) E.text(line, cx, E.h * 0.24 + 178, { size: 20, color: T.green, alpha: clamp((t - J.starDelay - (p.stars - 1) * J.starStagger) / J.lineFade, 0, 1) });
     E.text(`Best ${p.best}`, cx, E.h * 0.24 + 214, { size: 18, color: '#9aa4b2' });
-    this.btnNext = E.button(p.hasNext ? 'Next' : 'Menu', cx, E.h * 0.68, { fill: T.green, color: '#04110a', h: 64, size: 24 });
-    this.btnMenu = p.hasNext ? E.button('Menu', cx, E.h * 0.68 + 80, { fill: T.slate, w: 150, h: 48, size: 16 }) : null;
+    if (this.ready) {
+      const bk = ease.outBack(clamp((t - this.beat) / J.buttonPop, 0, 1)), by = E.h * 0.68;
+      ctx.save(); ctx.translate(cx, by); ctx.scale(bk, bk); ctx.translate(-cx, -by);
+      this.btnNext = E.button(p.hasNext ? 'Next' : 'Menu', cx, by, { fill: T.green, color: '#04110a', h: 64, size: 24 });
+      ctx.restore();
+      if (p.hasNext) {
+        ctx.save(); ctx.translate(cx, by + 80); ctx.scale(bk, bk); ctx.translate(-cx, -(by + 80));
+        this.btnMenu = E.button('Menu', cx, by + 80, { fill: T.slate, w: 150, h: 48, size: 16 });
+        ctx.restore();
+      }
+    }
+    ctx.restore();
   },
   onTap(p, E) {
+    if (!this.ready || !this.btnNext || p.startT < this.t0 + this.beat) return;
     if (E.hit(this.btnNext, p)) E.setScene(this.p.hasNext ? 'play' : 'menu', { hole: this.p.hole + 1 });
     else if (this.btnMenu && E.hit(this.btnMenu, p)) E.setScene('menu');
   },
