@@ -76,7 +76,7 @@ Minimal: highest unlocked stencil (one star unlocks the next), best percentage a
 
 Deferred so it is not accidentally built:
 
-- Needle sizes (bigger fills faster, slips easier) as unlocks that change how you play
+- Tattoo machines as unlocks: skins first (identity only), then properties that change how you play (a wider needle that fills faster but slips easier, a steadier tip with a larger slip tolerance, more ink or time). Never raw score bonuses.
 - Ink colours, skin tones, shape packs
 - The gallery of finished pieces (the collection layer)
 - Freestyle seeded stencils, timed gauntlet, zen, daily stencil
