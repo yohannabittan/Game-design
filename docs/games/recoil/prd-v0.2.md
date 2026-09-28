@@ -21,6 +21,10 @@ A gun is data: `{ name, damage, fireRate, accuracy, kickPerShot, kickRecovery, m
 
 v0.2 ships two guns so the profile is exercised: **Service pistol** (damage 1, fireRate 4, accuracy 1.0, kick 8, recovery 32, mag 12, semi-auto) and **Carbine** (damage 1, fireRate 8, accuracy 0.55, kick 5, recovery 40, mag 20, auto: hold to fire). The gun is chosen on the menu before a challenge. The unlock table (guns gated by points) is the progression layer; in v0.2 both guns are available and the menu shows which one is selected.
 
+## A2. Barrel sway from movement
+
+Moving the gun moves the barrel too, less than a shot does. While the gun's vertical speed is `v` (design units per second), the barrel angle gains `swayPerSpeed * v` degrees in the direction the barrel lags (moving up tilts the barrel down, moving down tilts it up), capped at `swayMax`. When the gun stops, the sway settles at `swayRecovery` degrees per second. Sway adds to the kick; the range finder shows the sum. Deterministic. The effect: settle the left thumb before firing, or fire while the sway is at a known value.
+
 ## B. Target behaviours
 
 Targets are data with a behaviour and hit points:
@@ -56,12 +60,16 @@ Star thresholds by the v0.1 rule (85/55/30 of a scripted perfect run) per gun: t
 - [ ] Skeet targets are reachable: a scripted shot at the apex scores at least inner on every launch of Skeet 1.
 - [ ] The boss sequence enforces order; the core cannot be damaged before all parts are down; both guns can finish Boss 1 within the timer by a scripted run.
 - [ ] Range finder length equals accuracy times the distance to the right edge, and a shot lands where the extended line would.
+- [ ] Sway: dragging the gun at 200 units per second tilts the barrel 4 degrees at the defaults, a shot fired mid-drag lands on that tilted line, and the barrel is back within 0.1 degree of level 0.2 seconds after the drag stops.
 - [ ] Every challenge, both guns: same input log, same score at 30 and 120 fps.
 
 ## F. Tuning additions
 
 | Name | Value | Meaning |
 | --- | --- | --- |
+| swayPerSpeed | 0.02 | Degrees of barrel sway per unit per second of gun movement (a 200 u/s drag sways 4 degrees) |
+| swayMax | 6 | Cap on sway in degrees |
+| swayRecovery | 40 | Degrees per second the sway settles once the gun stops |
 | weaveAmp | 40 | Vertical amplitude of a weave |
 | weavePeriod | 1.4 | Seconds per weave cycle |
 | dodgeRange | 30 | A shot within this of the target centre triggers a dodge |
@@ -74,7 +82,7 @@ Star thresholds by the v0.1 rule (85/55/30 of a scripted perfect run) per gun: t
 | bossCoreHp | 6 | Hit points of the core |
 | bossCoreDrift | 50 | Core drift speed |
 
-Experiments (presets): "Twitchy" (dodgeRange 45, dodgeCooldown 0.8), "Lazy" (dodgeRange 20, dodgeCooldown 1.8), "Fair" (defaults); plus sliders for weaveAmp, skeetSpeed and the carbine's accuracy (0.3 to 1.0).
+Experiments (presets): "Twitchy" (dodgeRange 45, dodgeCooldown 0.8), "Lazy" (dodgeRange 20, dodgeCooldown 1.8), "Fair" (defaults); plus sliders for weaveAmp, skeetSpeed, the carbine's accuracy (0.3 to 1.0), and swayPerSpeed (0 to 0.06) so movement sway can be turned off, felt, or exaggerated.
 
 ## G. Scope fence additions
 
