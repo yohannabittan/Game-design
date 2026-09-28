@@ -6,7 +6,7 @@
 | Version | 0.1 |
 | Pattern | P1 Aim and launch, with L6 boss cadence |
 | Date | 2026-09-28 |
-| Status | draft, awaiting CPO lock |
+| Status | locked for layer 1; amended 2026-09-28 after review (sections 2, 6, 7, 12, 15, 16) |
 
 This document is the one-shot contract. A builder session gets this, the skeleton, and the layer prompt. If something is not in here, the builder should not invent it. Describe behaviour, not implementation.
 
@@ -16,7 +16,7 @@ Drag to aim, release to launch, and sink the ball in as few shots as you can thr
 
 ## 2. The first ten seconds
 
-The play scene opens directly on hole 1 (the menu is one tap: Play). A dark field with faint stars. A white ball sits in the lower third, a hole with a green ring sits in the upper third, and one slate wall stands between them offset to the left so a straight shot clips its corner. The player touches anywhere and drags. A dotted preview grows from the ball in the direction opposite the drag, showing the first part of the flight. They release. The ball flies, glances the wall, slows, and drops into the hole with a green burst and the win chord. A card says "1 shot. Par 2." with three stars popping in and a Next button.
+The play scene opens directly on hole 1 (the menu is one tap: Play). A dark field with faint stars. A white ball sits in the lower third, a hole with a green ring sits in the upper third, and one slate wall stands between them offset to the left so a dead-straight shot clips its corner and drifts wide, while a shot aimed a hair to the right passes the corner and drops. The player touches anywhere and drags. A dotted preview grows from the ball in the direction opposite the drag, showing the flight, so they can see the clip coming and adjust. They release. The ball passes the corner, slows, and drops into the hole with a green burst and the win chord. A card says "1 shot. Par 2." with three stars popping in and a Next button.
 
 ## 3. Core loop and session shape
 
@@ -61,13 +61,13 @@ Occlusion rule: the drag can start anywhere, so the thumb sits wherever the play
 ## 6. Randomness policy
 
 - Random in setup: nothing. All 10 holes are authored.
-- Deterministic in resolution: the same drag vector from the same ball position always produces the same flight. Physics uses a fixed timestep so frame rate does not change outcomes. Moving elements (the boss hole's wall) move on a clock that starts at zero when the hole starts and resets on every shot, so the shot's outcome depends only on when the player releases relative to that clock, which is visible.
+- Deterministic in resolution: the same drag vector from the same ball position always produces the same flight. Physics uses a fixed timestep so frame rate does not change outcomes. Moving elements (the boss hole's wall) move on a clock that starts at zero when the hole starts and restarts from zero each time the ball comes to rest, so the shot's outcome depends only on when the player releases relative to that clock, which is visible. Ball speed is clamped to `speedMax` so a well slingshot can never make the ball skip through a wall.
 - Seed: none in v0.1. The daily course mode later will use `E.dailySeed()`.
 
 ## 7. Goal, fail, score
 
 - A hole is cleared when the ball sinks: its centre is within the hole radius while its speed is below the sink speed. Above the sink speed the ball passes over the hole. This is deterministic and shown: the hole ring brightens when the ball is slow enough to sink.
-- There is no fail. Out of bounds (ball leaves the field) returns the ball to where the shot started and counts one stroke.
+- There is no fail. Out of bounds (ball leaves the field) returns the ball to where the shot started. The shot counts as normal and one penalty stroke is added on top, so an out-of-bounds shot costs two strokes in total, as in golf.
 - Score per hole is strokes. Stars per hole: 3 for strokes at or under par minus one, 2 for par, 1 for more.
 - The hole card shows: strokes, par, stars with a pop, best strokes on this hole, Next (or Menu on hole 10). Nothing else.
 
@@ -111,7 +111,7 @@ Shapes only in v0.1. Dark navy field with faint static stars. Three semantic col
 
 ## 12. Audio
 
-Engine named sounds only: `tap` on release, `hit` on bounces at reduced gain, `win` on sink, `coin` on stars, `miss` on out of bounds. No music in v0.1.
+Engine named sounds only: `tap` on release, `hit` on bounces at volume 0.3, `win` on sink, `coin` on stars, `miss` on out of bounds. No music in v0.1.
 
 ## 13. Modes
 
@@ -136,7 +136,7 @@ Explicitly not in v0.1:
 - [ ] First-time player understands the verb within ten seconds without reading anything
 - [ ] From a sunk ball to aiming the next hole in one tap, under one second
 - [ ] All 10 holes are clearable at or under par by the intended solution in their comment
-- [ ] Hole 1 can be a hole-in-one with a straight shot at moderate power
+- [ ] Hole 1 can be a hole-in-one with a near-straight shot at moderate power, and the window of aim angles that sink it is at least 6 degrees wide, since it is the tutorial hole
 - [ ] Hit and miss (bounce versus out of bounds) are distinguishable with sound off, and with eyes closed
 - [ ] The same drag vector produces the same flight every time, at 30 and at 120 frames per second
 - [ ] No text smaller than 14 px; hole select tiles and buttons at least 44 px
@@ -172,6 +172,8 @@ Design-space units unless stated. The builder copies these names into `TUNING`.
 | maxFlightSeconds | 12 | Safety: a ball still moving after this is stopped where it is |
 | oobPenalty | 1 | Strokes added for out of bounds |
 | moverPeriod | 2.4 | Seconds for the boss hole's wall to complete one sweep and return |
+| speedMax | 1400 | Ball speed is clamped here so wells cannot cause tunnelling |
+| keyPowerStart | 0.5 | Starting power fraction for the keyboard fallback |
 | trailLength | 18 | Points kept in the ball's trail |
 | particleCap | 200 | Max live particles |
 

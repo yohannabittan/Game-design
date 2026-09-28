@@ -35,7 +35,8 @@ const play = {
   update(dt, E) {},      // dt in seconds, clamped to 50 ms
   render(ctx, E) {},     // 2D context, CSS-pixel coordinates, E.w x E.h
   resize(E) {},
-  onPointerDown(p, E) {}, onPointerMove(p, E) {}, onPointerUp(p, E) {},
+  onPointerDown(p, E) {}, onPointerMove(p, E) {},
+  onPointerUp(p, E) {}, // check p.cancelled: a palm or system gesture ends the pointer too, and must not count as a release
   onTap(p, E) {},        // p.x p.y; fired on quick, still release
   onSwipe(p, E) {},      // p.swipeDir: 'left' | 'right' | 'up' | 'down'; p.dx p.dy
   onKey(key, E) {},      // desktop fallback only
@@ -50,7 +51,7 @@ What the engine gives you (`E`):
 | Size and time | `E.w`, `E.h`, `E.time`, `E.frame`, `E.safe.top`, `E.safe.bottom` |
 | Scenes | `E.setScene(name, params)` |
 | Save | `E.save.get(k, def)`, `E.save.set(k, v)`, `E.save.update(k, fn, def)`, `E.save.reset()` |
-| Audio | `E.audio.play('tap'|'hit'|'miss'|'win'|'lose'|'coin'|'boom')`, `E.audio.beep({freq,dur,type,slide})`, `E.audio.noise()`, `E.audio.toggleMute()` |
+| Audio | `E.audio.play(name, vol = 1)` with names `tap hit miss win lose coin boom` (`vol` 0.3 for a quiet version), `E.audio.beep({freq,dur,type,slide,gain})`, `E.audio.noise()`, `E.audio.toggleMute()` |
 | Juice | `E.shake(px, sec)`, `E.flash(color, sec)`, `E.tween(sec, fn, ease.outBack, done)`, `E.haptic(ms)`, `E.particles.emit({x,y,count,color,speed,life,size,gravity})` |
 | RNG | `E.rng()` plus `makeRng(seed)` with `.range .int .pick .chance .shuffle`, `E.dailySeed()`, `hashString(s)` |
 | Drawing | `E.text(str, x, y, {size,color,align,weight})`, `E.roundRect(x,y,w,h,r,fill,stroke)`, `E.button(label, cx, cy, opts)` returns a rect, `E.hit(rect, p)` |
@@ -63,6 +64,6 @@ Imports available from `./engine.js`: `makeRng`, `hashString`, `ease`, `clamp`, 
 
 - All tunable numbers live in `TUNING`. Iteration is number tweaking before it is code.
 - Level and wave data are plain arrays in `game.js`, not code paths.
-- No DOM, no new files, no libraries. If the engine lacks something, add it to `skeleton/src/engine.js` with an ADR and copy it in.
+- No DOM, no new files, no libraries. If the engine lacks something, add it to `skeleton/src/engine.js` (an additive helper or field needs only an entry in the table above; a change to existing behaviour needs an ADR, see ADR-0011) and copy it into the game being worked on.
 - Portrait, one thumb, 44 px minimum touch targets, HUD inside the safe area.
 - Randomness only decides what you face, never whether your input worked.

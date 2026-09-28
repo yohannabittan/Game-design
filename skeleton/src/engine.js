@@ -104,16 +104,18 @@ class Audio {
     const g = this.ctx.createGain(); g.gain.value = gain;
     src.connect(g).connect(this.ctx.destination); src.start(t0);
   }
-  // A few named sounds so one-shot prompts can just say "play 'hit'".
-  play(name) {
+  // A few named sounds so one-shot prompts can just say "play 'hit'". vol scales loudness (0.3 = quiet).
+  play(name, vol = 1) {
+    const b = (o) => this.beep({ ...o, gain: (o.gain ?? 0.15) * vol });
+    const n = (o) => this.noise({ ...o, gain: (o.gain ?? 0.2) * vol });
     const s = {
-      tap: () => this.beep({ freq: 660, dur: 0.05 }),
-      hit: () => { this.beep({ freq: 880, dur: 0.08, slide: 1.5 }); this.noise({ dur: 0.05, gain: 0.08 }); },
-      miss: () => this.beep({ freq: 220, dur: 0.18, type: 'sawtooth', slide: 0.5 }),
-      win: () => [523, 659, 784, 1047].forEach((f, i) => this.beep({ freq: f, dur: 0.12, delay: i * 0.09, type: 'triangle' })),
-      lose: () => [392, 330, 262].forEach((f, i) => this.beep({ freq: f, dur: 0.2, delay: i * 0.15, type: 'sawtooth', gain: 0.12 })),
-      coin: () => { this.beep({ freq: 988, dur: 0.06, type: 'triangle' }); this.beep({ freq: 1319, dur: 0.12, delay: 0.06, type: 'triangle' }); },
-      boom: () => { this.noise({ dur: 0.3, gain: 0.3 }); this.beep({ freq: 120, dur: 0.3, type: 'sine', slide: 0.3, gain: 0.3 }); },
+      tap: () => b({ freq: 660, dur: 0.05 }),
+      hit: () => { b({ freq: 880, dur: 0.08, slide: 1.5 }); n({ dur: 0.05, gain: 0.08 }); },
+      miss: () => b({ freq: 220, dur: 0.18, type: 'sawtooth', slide: 0.5 }),
+      win: () => [523, 659, 784, 1047].forEach((f, i) => b({ freq: f, dur: 0.12, delay: i * 0.09, type: 'triangle' })),
+      lose: () => [392, 330, 262].forEach((f, i) => b({ freq: f, dur: 0.2, delay: i * 0.15, type: 'sawtooth', gain: 0.12 })),
+      coin: () => { b({ freq: 988, dur: 0.06, type: 'triangle' }); b({ freq: 1319, dur: 0.12, delay: 0.06, type: 'triangle' }); },
+      boom: () => { n({ dur: 0.3, gain: 0.3 }); b({ freq: 120, dur: 0.3, type: 'sine', slide: 0.3, gain: 0.3 }); },
     }[name];
     if (s) s();
   }
@@ -214,6 +216,7 @@ export class Engine {
     }
   }
   resize() {
+    this._safe = null;
     this.dpr = Math.min(window.devicePixelRatio || 1, 3);
     this.w = window.innerWidth; this.h = window.innerHeight;
     this.canvas.width = Math.round(this.w * this.dpr);
@@ -268,7 +271,10 @@ export class Engine {
   }
   hit(rect, p) { return p.x >= rect.x && p.x <= rect.x + rect.w && p.y >= rect.y && p.y <= rect.y + rect.h; }
   // Safe area insets (notch, home bar). Games should keep HUD inside these.
-  get safe() { const s = getComputedStyle(document.documentElement); const px = (v) => parseFloat(v) || 0; return { top: px(s.getPropertyValue('--sat')) || 0, bottom: px(s.getPropertyValue('--sab')) || 0 }; }
+  get safe() {
+    if (!this._safe) { const s = getComputedStyle(document.documentElement); const px = (v) => parseFloat(v) || 0; this._safe = { top: px(s.getPropertyValue('--sat')), bottom: px(s.getPropertyValue('--sab')) }; }
+    return this._safe;
+  }
 
   // --- input ---
   _bind() {
@@ -297,7 +303,8 @@ export class Engine {
       p.isTap = moved < 12 && p.dt < 0.35;
       p.isSwipe = moved > 40 && p.dt < 0.5;
       if (p.isSwipe) p.swipeDir = Math.abs(p.dx) > Math.abs(p.dy) ? (p.dx > 0 ? 'right' : 'left') : (p.dy > 0 ? 'down' : 'up');
-      if (e.type === 'pointercancel') p.isTap = p.isSwipe = false;
+      p.cancelled = e.type === 'pointercancel'; // system gesture or palm: scenes must not act on it
+      if (p.cancelled) p.isTap = p.isSwipe = false;
       this.scene && this.scene.onPointerUp && this.scene.onPointerUp(p, this);
       if (p.isTap && this.scene && this.scene.onTap) this.scene.onTap(p, this);
       if (p.isSwipe && this.scene && this.scene.onSwipe) this.scene.onSwipe(p, this);
