@@ -8,5 +8,10 @@
     "slug": "ink",
     "title": "Ink",
     "status": "v0.1: ten stencils with juice; tune panel on the menu"
+  },
+  {
+    "slug": "recoil",
+    "title": "Recoil",
+    "status": "v0.1 layer 1 in progress"
   }
 ]
