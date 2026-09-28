@@ -68,7 +68,7 @@ Entering is generous: touching down with the needle outside the stencil counts n
 - Slip: the needle centre leaves the stencil by more than `slipTolerance` units. One slip per exit; the needle must re-enter before another can count. A slip leaves a permanent red mark at the exit point for that attempt. While outside, no ink is laid.
 - A stencil ends at 100 percent, when the timer reaches zero, or at the third slip.
 - Stars from the final percentage: 70 gives 1, 80 gives 2, 90 gives 3, 95 gives 4, 99 gives 5. Below 70 at the timer is a fail with 0 stars. The third slip is a fail with 0 stars regardless of percentage.
-- The card shows: percentage, stars with a pop, "Clean" if zero slips, best percentage on this stencil, then the buttons: Next on a pass (Menu instead on stencil 10), Again on a fail, and a secondary Menu button always. Nothing else.
+- The card shows: percentage, stars with a pop, "Clean" if zero slips on a pass (never on a fail), best percentage on this stencil, then the buttons: Next on a pass (Menu instead on stencil 10), Again on a fail, and a secondary Menu button always. Nothing else.
 - The timer starts on the first touch down and runs through lifts. Best percentage updates on a timer end or a 100 percent finish, never on a third-slip fail.
 
 ## 8. Progression in v0.1
@@ -135,7 +135,7 @@ Explicitly not in v0.1:
 - [ ] First-time player understands the verb within ten seconds without reading anything
 - [ ] From the card to inking the next stencil in one tap, under one second
 - [ ] All 10 stencils reach 99 percent within their timer by the intended path, verified in a harness with a scripted path
-- [ ] The same finger path gives the same percentage and slip count at 30 and at 120 frames per second
+- [ ] The same sequence of pointer positions gives the same percentage and slip count however it is split into events (30 or 120 per second); a curve sampled at different rates is a different polyline and may differ by a percent
 - [ ] A slip is counted once per exit, never on touch down or lift
 - [ ] The needle and the ink are never under the finger
 - [ ] Ink and slip are distinguishable with sound off, and with eyes closed
