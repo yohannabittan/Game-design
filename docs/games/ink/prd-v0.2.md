@@ -5,7 +5,7 @@
 | Slug | `ink` |
 | Version | 0.2 |
 | Date | 2026-09-28 |
-| Status | locked as an experiment |
+| Status | experiment accepted 2026-09-28; dynamic is the mode; values from the playtest |
 | Answers | playtest 2026-09-28 (v0.1): "fun; the middle is free and the edges are all the skill; try a needle where slow lays more ink and fast lays less" |
 
 Everything in `prd-v0.1.md` stands unless changed here.
@@ -47,10 +47,10 @@ A menu toggle "Needle: classic / dynamic" switches between the v0.1 fixed radius
 | Name | Value | Meaning |
 | --- | --- | --- |
 | needleMode | dynamic | Default mode; the menu toggle overrides and is saved |
-| slowSpeed | 120 | Units per second at or below which the needle is widest |
-| fastSpeed | 450 | Units per second at or above which the needle is thinnest |
-| wideScale | 1.6 | Radius multiplier when slow |
-| thinScale | 0.55 | Radius multiplier when fast |
+| slowSpeed | 175 (playtested; was 120) | Units per second at or below which the needle is widest |
+| fastSpeed | 520 (playtested; was 450) | Units per second at or above which the needle is thinnest |
+| wideScale | 1.8 (playtested; was 1.6) | Radius multiplier when slow |
+| thinScale | 0.65 (playtested; was 0.55) | Radius multiplier when fast |
 | speedWindow | 24 | Units of travel over which speed is measured |
 
 ## F. Decision rule

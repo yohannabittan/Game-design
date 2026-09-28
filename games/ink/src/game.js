@@ -51,10 +51,10 @@ const TUNING = {
 
   // v0.2 dynamic needle (experiment, PRD v0.2 section E). Speeds are design units per second of finger travel.
   needleMode: 'dynamic', // Default mode; the menu toggle overrides it and is saved
-  slowSpeed: 120,        // At or below this speed the ink radius is needleR * wideScale
-  fastSpeed: 450,        // At or above this speed the ink radius is needleR * thinScale
-  wideScale: 1.6,        // Radius multiplier when slow
-  thinScale: 0.55,       // Radius multiplier when fast
+  slowSpeed: 175,        // At or below this speed the ink radius is needleR * wideScale
+  fastSpeed: 520,        // At or above this speed the ink radius is needleR * thinScale
+  wideScale: 1.8,        // Radius multiplier when slow
+  thinScale: 0.65,       // Radius multiplier when fast
   speedWindow: 24,       // Units of travel over which speed is measured (never per frame)
 
   // Layer 3: feel only. Nothing here touches coverage, slips, the timer, stars or saves. Seconds, screen px and design units as marked.
@@ -62,7 +62,7 @@ const TUNING = {
     settleSec: 0.22, settleFrom: 0.82,       // Machine scale pop on touch down (scale about the needle tip, so the tip never moves)
     vibAmp: 0.9, vibHz: 55, vibHold: 0.09,   // Machine body vibration (screen px, Hz, seconds it lingers after the last ink)
     glintHz: 13, glintLen: 4.5,              // Needle tip sparkle rate and half-length (screen px)
-    tickEvery: 34, tickMinGap: 0.085,        // Needle tick: design units of inked travel, and the minimum seconds between ticks
+    tickEvery: 42, tickMinGap: 0.085,        // Needle tick: design units of inked travel, and the minimum seconds between ticks
     tickFreq: 1900, tickFreqAlt: 1500, tickDur: 0.02, tickGain: 0.035,
     sprayMinSpeed: 240, sprayGap: 0.035, sprayCount: 2, spraySpeed: 70, sprayLife: 0.35, spraySize: 1.8, // Tip specks (design units per second for the speed gate)
     inkSheen: '#4a64ad',                     // Second ink tone for bursts

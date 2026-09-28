@@ -254,7 +254,9 @@ export class Engine {
   dailySeed() { const d = new Date(); return hashString(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`); }
 
   // --- tune panel: playtest experiment variables as sliders ---
-  // A game declares `experiments: [{ key: 'needle.wideScale', label: 'Wide needle', min: 1, max: 2.5, step: 0.05 }]`.
+  // A game declares `experiments: [{ key: 'needle.wideScale', label: 'Wide needle', min: 1, max: 2.5, step: 0.05 }]`
+  // and optionally `presets: [{ label: 'Flowy', values: { 'needle.wideScale': 1.8, 'needle.growRate': 4 } }]`,
+  // shown as buttons above the sliders so a tester compares whole feels, not knobs.
   // Keys are paths into TUNING. Values are applied live, saved per game, and shown so the tester can report them.
   _setupTune() {
     const ex = this.game.experiments;
@@ -265,14 +267,25 @@ export class Engine {
     const E = this;
     this.game.scenes.tune = this.game.scenes.tune || {
       enter() { this.drag = null; },
+      presetRow() {
+        const ps = E.game.presets || [];
+        if (!ps.length) return [];
+        const x0 = 20, gap = 8, w = (E.w - 40 - gap * (ps.length - 1)) / ps.length, y = E.safe.top + 58;
+        return ps.map((p, i) => ({ p, x: x0 + i * (w + gap), y, w, h: 40 }));
+      },
       layout() {
-        const top = E.safe.top + 70, rowH = 66, x = 28, w = E.w - 56;
+        const top = E.safe.top + 70 + (E.game.presets && E.game.presets.length ? 56 : 0), rowH = 66, x = 28, w = E.w - 56;
         return E._tune.map((e, i) => ({ e, x, y: top + i * rowH, w, track: { x, y: top + i * rowH + 34, w, h: 24 } }));
       },
       render(ctx) {
         E.text('Tune', E.w / 2, E.safe.top + 30, { size: 24, weight: '800' });
         this.back = E.button('Back', 60, E.safe.top + 30, { w: 84, h: 36, size: 15, fill: '#334155' });
         this.reset = E.button('Reset', E.w - 60, E.safe.top + 30, { w: 84, h: 36, size: 15, fill: '#334155' });
+        for (const b of this.presetRow()) {
+          const active = Object.entries(b.p.values).every(([k, v]) => Math.abs(E._getPath(k) - v) < 1e-9);
+          E.roundRect(b.x, b.y, b.w, b.h, 12, active ? '#3b82f6' : '#1f2937', active ? null : '#475569');
+          E.text(b.p.label, b.x + b.w / 2, b.y + b.h / 2, { size: 14, color: active ? '#fff' : '#cbd5e1' });
+        }
         for (const r of this.layout()) {
           const v = E._getPath(r.e.key);
           E.text(r.e.label || r.e.key, r.x, r.y + 12, { size: 15, align: 'left', color: '#e6e6e6' });
@@ -302,6 +315,11 @@ export class Engine {
       onTap(p) {
         if (this.back && E.hit(this.back, p)) E.setScene('menu');
         else if (this.reset && E.hit(this.reset, p)) { for (const e of E._tune) E._setPath(e.key, e.def); E.save.set('__tune', {}); }
+        else for (const b of this.presetRow()) if (E.hit(b, p)) {
+          for (const [k, v] of Object.entries(b.p.values)) E._setPath(k, v);
+          E.save.update('__tune', (t) => ({ ...t, ...b.p.values }), {});
+          E.audio.play('tap');
+        }
       },
     };
   }

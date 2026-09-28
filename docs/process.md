@@ -79,7 +79,7 @@ Every deploy-worthy change bumps `CACHE_VERSION` in the game's `sw.js` and adds 
 
 `templates/playtest-report.md` into `docs/games/<slug>/playtests/YYYY-MM-DD.md`. Three sessions minimum before deciding anything, at least one in airplane mode, at least one on a day you did not build. The report has a checklist and a commentary section; the commentary is the part that drives the next version. Write it right after playing, before reading the previous report.
 
-Experiment variables: when a change is a number nobody can pick by reasoning (a needle width, a gravity strength, a timer multiplier), the builder declares it in the game's `experiments` list with a range, and the build gets a TUNE tab on its menu with a slider per variable. The designer plays across the range and reports the values that felt right in the playtest report; the PRD's tuning table takes those values and the experiment entry is removed.
+Experiment variables: when a change is a number nobody can pick by reasoning (a needle width, a gravity strength, a timer multiplier), the builder declares it in the game's `experiments` list with a range, and the build gets a TUNE tab on its menu with a slider per variable. Because raw sliders are hard to reason about, every experiment also ships three or four named presets, whole combinations with a feel name, as buttons above the sliders. The designer compares presets first, fine-tunes second, and reports the values that felt right in the playtest report; the PRD's tuning table takes those values and the experiment entry is removed.
 
 ## Stage 8. Decide
 

@@ -26,7 +26,7 @@ export const game = {
 };
 ```
 
-Optional: `experiments: [{ key: 'juice.bigHitSpeed', label: 'Big hit speed', min: 300, max: 900, step: 10 }]`. When present, the engine shows a TUNE tab on the menu that opens a slider panel. Keys are paths into `TUNING`; values apply live, persist per game, and are shown so a tester can report what felt right. Use it for playtest ranges; remove the entry once a value is decided.
+Optional: `experiments: [{ key: 'juice.bigHitSpeed', label: 'Big hit speed', min: 300, max: 900, step: 10 }]`. When present, the engine shows a TUNE tab on the menu that opens a slider panel. Keys are paths into `TUNING`; values apply live, persist per game, and are shown so a tester can report what felt right. Add `presets: [{ label: 'Flowy', values: { key: value, ... } }]` (three or four per experiment) and they appear as buttons above the sliders; testers compare whole feels first and fine-tune second. Remove both once a value is decided.
 
 A scene is a plain object. Every method is optional:
 
