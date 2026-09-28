@@ -1,5 +1,5 @@
-// Ink, layer 1: the mechanic. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
-// Grey box: shapes and four colours only. One stencil, the circle.
+// Ink, layers 1 and 2: the mechanic and the progression. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
+// Grey box: shapes and four colours only. Ten stencil slots; 2 to 10 are placeholders until the content shards are merged.
 
 import { clamp, dist } from './engine.js';
 
@@ -15,9 +15,9 @@ const TUNING = {
   maxSlips: 3,           // Third slip ruins the piece
   starPercents: [70, 80, 90, 95, 99], // Percentage thresholds for 1 to 5 stars
   passPercent: 70,       // Below this at the timer is a fail
-  timerSpareEarly: 0.15, // Reserved for layer 2 (timers of stencils 2 to 4)
-  timerSpareMid: 0.10,   // Reserved for layer 2 (stencils 5 to 9)
-  timerSpareBoss: 0.05,  // Reserved for layer 2 (stencil 10)
+  timerSpareEarly: 0.15, // Fraction of the timer left after the intended path on stencils 1 to 4 (read by tools/sim-ink.mjs)
+  timerSpareMid: 0.10,   // Same for stencils 5 to 9
+  timerSpareBoss: 0.05,  // Same for stencil 10
   inkStrokeWidth: 14,    // Drawn ink stroke width, twice the needle radius
   outlineWidth: 2,       // Stencil outline width
   particleCap: 200,      // Reserved for layer 3 (particles)
@@ -40,13 +40,23 @@ const TUNING = {
   machineGripW: 22,      // Screen px width of the machine at the finger
   machineTubeW: 8,       // Screen px width of the machine near the needle
   circlePoints: 96,      // Vertices of the circle stencil polygon
+
+  // Layer 2 additions.
+  gridCols: 5,           // Stencil select tiles per row
+  gridGap: 8,            // Gap between tiles (screen px)
+  tileH: 92,             // Tile height (screen px, at least 44)
+  lockColor: '#7a6558',
+  inkLayerMaxDpr: 2,     // The cached ink layer is drawn at most this many pixels per CSS pixel
 };
 const T = TUNING;
 
 const circle = (cx, cy, r, n = T.circlePoints) =>
   Array.from({ length: n }, (_, i) => [cx + r * Math.cos((2 * Math.PI * i) / n), cy + r * Math.sin((2 * Math.PI * i) / n)]);
 
+const rect = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+
 // Stencil data. `shape` is a list of closed polygons in the 360x640 design space, even-odd (a polygon inside another is a hole).
+// Entries are pasted from the content shards' JSON (see docs/games/ink/README.md); tools/sim-ink.mjs verifies each one.
 const STENCILS = [
   {
     // Teaches: hold and move, fill the middle fast, the edge is round and forgiving.
@@ -55,6 +65,17 @@ const STENCILS = [
     name: 'Circle', timer: 30, boss: false,
     shape: [circle(180, 320, 125)],
   },
+  // PLACEHOLDERS, entries 2 to 10: the orchestrator replaces each with an authored stencil (name, timer, boss, shape, comment).
+  // Until then they are plain rectangles so progression, the grid and the cards can be played. Stencils 5 and 10 are bosses.
+  { name: 'Stencil 2', timer: 30, boss: false, shape: [rect(110, 220, 140, 200)] },
+  { name: 'Stencil 3', timer: 30, boss: false, shape: [rect(110, 220, 140, 200)] },
+  { name: 'Stencil 4', timer: 30, boss: false, shape: [rect(110, 220, 140, 200)] },
+  { name: 'Stencil 5', timer: 30, boss: true, shape: [rect(110, 220, 140, 200)] },
+  { name: 'Stencil 6', timer: 30, boss: false, shape: [rect(110, 220, 140, 200)] },
+  { name: 'Stencil 7', timer: 30, boss: false, shape: [rect(110, 220, 140, 200)] },
+  { name: 'Stencil 8', timer: 30, boss: false, shape: [rect(110, 220, 140, 200)] },
+  { name: 'Stencil 9', timer: 30, boss: false, shape: [rect(110, 220, 140, 200)] },
+  { name: 'Stencil 10', timer: 30, boss: true, shape: [rect(110, 220, 140, 200)] },
 ];
 
 // ---------- Geometry ----------
@@ -120,6 +141,7 @@ function newAttempt(idx) {
     slips: 0, time: st.timer, started: false, ended: null, holdT: 0,
     pid: null, last: null, carry: 0, armed: false,
     finger: null,
+    layer: null, layerK: 0, inkDone: [],
   });
 }
 
@@ -204,25 +226,41 @@ function shapePath(ctx, shape) {
   }
 }
 
+// The ink lives on an offscreen layer (design space, clipped to the stencil like the score) that only ever receives new
+// segments; each frame just blits it. A resize changes the layer scale, so it is rebuilt from the stored strokes.
+function syncInk(E, v) {
+  const k = v.s * Math.min(E.dpr || 1, T.inkLayerMaxDpr);
+  const w = Math.ceil(T.designW * k), h = Math.ceil(T.designH * k);
+  if (!S.layer || S.layerK !== k) {
+    S.layer = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
+    S.layerK = k; S.inkDone = [];
+    const c = S.layer.getContext('2d');
+    c.setTransform(k, 0, 0, k, 0, 0);
+    shapePath(c, S.st.shape); c.clip('evenodd');
+    c.strokeStyle = T.inkColor; c.fillStyle = T.inkColor;
+    c.lineWidth = T.inkStrokeWidth; c.lineCap = 'round'; c.lineJoin = 'round';
+  }
+  const c = S.layer.getContext('2d');
+  S.strokes.forEach((pts, n) => {
+    const done = S.inkDone[n] || 0;
+    if (done >= pts.length) return;
+    if (pts.length === 2) { c.beginPath(); c.arc(pts[0], pts[1], T.needleR, 0, Math.PI * 2); c.fill(); }
+    else {
+      c.beginPath();
+      c.moveTo(pts[Math.max(0, done - 2)], pts[Math.max(0, done - 2) + 1]);
+      for (let i = Math.max(2, done); i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+      c.stroke();
+    }
+    S.inkDone[n] = pts.length;
+  });
+}
+
 function drawPiece(ctx, E) {
   const v = view(E), shape = S.st.shape;
+  syncInk(E, v);
+  ctx.drawImage(S.layer, v.ox, v.oy, T.designW * v.s, T.designH * v.s);
   ctx.save();
   ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
-  ctx.save();
-  shapePath(ctx, shape); ctx.clip('evenodd'); // ink shows only inside the stencil, like the score
-  ctx.strokeStyle = T.inkColor; ctx.fillStyle = T.inkColor;
-  ctx.lineWidth = T.inkStrokeWidth; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.beginPath();
-  for (const s of S.strokes) {
-    if (s.length === 2) continue;
-    ctx.moveTo(s[0], s[1]);
-    for (let i = 2; i < s.length; i += 2) ctx.lineTo(s[i], s[i + 1]);
-  }
-  ctx.stroke();
-  ctx.beginPath();
-  for (const s of S.strokes) if (s.length === 2) { ctx.moveTo(s[0] + T.needleR, s[1]); ctx.arc(s[0], s[1], T.needleR, 0, Math.PI * 2); }
-  ctx.fill();
-  ctx.restore();
   shapePath(ctx, shape);
   ctx.strokeStyle = T.stencilBlue; ctx.lineWidth = T.outlineWidth; ctx.lineJoin = 'round'; ctx.stroke();
   ctx.strokeStyle = T.slipRed; ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -259,28 +297,74 @@ function drawStar(ctx, cx, cy, R, filled) {
   }
   ctx.closePath();
   if (filled) { ctx.fillStyle = T.starColor; ctx.fill(); }
-  else { ctx.strokeStyle = '#7a6558'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke(); }
+  else { ctx.strokeStyle = T.lockColor; ctx.lineWidth = R > 8 ? 2 : 1; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
+
+function drawLock(ctx, cx, cy) {
+  ctx.fillStyle = T.lockColor; ctx.strokeStyle = T.lockColor; ctx.lineWidth = 3;
+  ctx.fillRect(cx - 9, cy - 2, 18, 14);
+  ctx.beginPath(); ctx.arc(cx, cy - 2, 6, Math.PI, 0); ctx.stroke();
+}
+
+// ---------- Progress (saved) ----------
+// unlocked: highest unlocked stencil index. best: percentage per stencil. stars: best stars per stencil. clean: a zero-slip pass per stencil.
+
+function progress(E) {
+  const best = E.save.get('best', {}), stars = E.save.get('stars', {}), clean = E.save.get('clean', {});
+  const unlocked = clamp(E.save.get('unlocked', 0), 0, STENCILS.length - 1);
+  let total = 0;
+  for (let i = 0; i < STENCILS.length; i++) total += stars[i] || 0;
+  return { best, stars, clean, unlocked, total };
+}
+
+function recordResult(E, idx, { pct, stars, ruined, clean }) {
+  const p = progress(E);
+  if (!ruined && pct > (p.best[idx] || 0)) E.save.set('best', { ...p.best, [idx]: pct });
+  if (stars > (p.stars[idx] || 0)) E.save.set('stars', { ...p.stars, [idx]: stars });
+  if (clean && !p.clean[idx]) E.save.set('clean', { ...p.clean, [idx]: true });
+  if (stars >= 1) E.save.set('unlocked', Math.max(p.unlocked, Math.min(idx + 1, STENCILS.length - 1)));
 }
 
 // ---------- Scenes ----------
 
 const menu = {
-  enter() { this.btnPlay = null; this.btnMute = null; },
+  enter() { this.btnPlay = null; this.btnMute = null; this.tiles = []; },
   render(ctx, E) {
-    const cx = E.w / 2, best = E.save.get('best', {})[0];
-    E.text('INK', cx, E.h * 0.24, { size: 64, weight: '800', color: T.textColor });
-    if (best !== undefined) E.text(`Best ${best}%`, cx, E.h * 0.24 + 56, { size: 20, color: T.stencilBlue });
-    this.btnPlay = E.button('Play', cx, E.h * 0.55, { fill: T.buttonFill, h: 64, size: 24 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', cx, E.h * 0.55 + 84, { fill: T.buttonAltFill, w: 170, h: 48, size: 16 });
+    const cx = E.w / 2, p = progress(E), gap = T.gridGap, cols = T.gridCols;
+    E.text('INK', cx, E.safe.top + E.h * 0.08, { size: 48, weight: '800', color: T.textColor });
+    E.text(`Stars ${p.total} / ${STENCILS.length * T.starPercents.length}`, cx, E.safe.top + E.h * 0.08 + 40, { size: 18, color: T.starColor });
+
+    const m = 16, tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = T.tileH, top = E.safe.top + E.h * 0.08 + 68;
+    this.tiles = [];
+    STENCILS.forEach((st, i) => {
+      const x = m + (i % cols) * (tw + gap), y = top + Math.floor(i / cols) * (th + gap);
+      const locked = i > p.unlocked, cleared = (p.stars[i] || 0) > 0;
+      E.roundRect(x, y, tw, th, 10, locked ? '#3a281f' : T.cardColor, cleared ? T.stencilBlue : locked ? '#4a3428' : T.lockColor);
+      E.text(`${i + 1}`, x + tw / 2, y + 18, { size: 20, weight: '800', color: locked ? T.lockColor : T.textColor });
+      if (locked) drawLock(ctx, x + tw / 2, y + th / 2 + 2);
+      else {
+        if (st.boss) E.text('Boss', x + tw / 2, y + 40, { size: 14, color: T.textColor });
+        if (p.clean[i]) E.text('Clean', x + tw / 2, y + 58, { size: 14, weight: '800', color: T.stencilBlue });
+        const step = (tw - 6) / T.starPercents.length;
+        for (let k = 0; k < T.starPercents.length; k++) drawStar(ctx, x + 3 + step * (k + 0.5), y + th - 12, step * 0.46, k < (p.stars[i] || 0));
+      }
+      this.tiles.push({ x, y, w: tw, h: th, idx: i, locked });
+    });
+
+    const py = top + Math.ceil(STENCILS.length / cols) * (th + gap) + 44;
+    this.btnPlay = E.button(p.unlocked > 0 ? `Play ${p.unlocked + 1}` : 'Play', cx, py, { fill: T.buttonFill, h: 64, size: 24 });
+    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', cx, py + 80, { fill: T.buttonAltFill, w: 170, h: 48, size: 16 });
   },
   onTap(p, E) {
-    if (E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play', { stencil: 0 }); }
-    else if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
+    if (E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play', { stencil: progress(E).unlocked }); return; }
+    if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
+    const t = this.tiles.find((t) => !t.locked && E.hit(t, p));
+    if (t) { E.audio.play('tap'); E.setScene('play', { stencil: t.idx }); }
   },
 };
 
 const play = {
-  enter(E, { stencil = 0 } = {}) { newAttempt(stencil); },
+  enter(E, { stencil = 0 } = {}) { newAttempt(clamp(stencil, 0, STENCILS.length - 1)); },
   update(dt, E) {
     if (S.ended) {
       S.holdT -= dt;
@@ -295,11 +379,9 @@ const play = {
     const pct = percent(), ruined = S.ended === 'ruined';
     const stars = ruined ? 0 : starsFor(pct);
     const failed = ruined || pct < T.passPercent;
-    const saved = E.save.get('best', {});
-    const prev = saved[S.idx] ?? 0;
-    const best = ruined ? prev : Math.max(prev, pct);
-    if (best !== prev) E.save.set('best', { ...saved, [S.idx]: best });
-    E.setScene('over', { idx: S.idx, pct, stars, failed, clean: !failed && S.slips === 0, best });
+    const clean = !failed && S.slips === 0;
+    recordResult(E, S.idx, { pct, stars, ruined, clean });
+    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1 });
   },
   onPointerDown(p, E) {
     if (S.ended) return;
@@ -339,28 +421,47 @@ const over = {
 
     const w = Math.min(320, E.w - 32), h = 392, x = cx - w / 2, y = Math.max(E.safe.top + 16, (E.h - h) / 2);
     E.roundRect(x, y, w, h, 20, T.cardColor, T.stencilBlue);
-    E.text(`${p.pct}%`, cx, y + 64, { size: 72, weight: '800', color: T.textColor });
+    if (p.boss) E.text('Boss', cx, y + 24, { size: 16, weight: '800', color: T.stencilBlue });
+    E.text(`${p.pct}%`, cx, y + 68, { size: 72, weight: '800', color: T.textColor });
     for (let i = 0; i < 5; i++) drawStar(ctx, cx + (i - 2) * 44, y + 134, 18, i < p.stars);
     if (p.clean) E.text('Clean', cx, y + 180, { size: 22, weight: '800', color: T.stencilBlue });
     E.text(`Best ${p.best}%`, cx, y + 214, { size: 18, color: '#b8a698' });
-    // Next on a pass, Again on a fail, never both; Menu always.
-    this.btnMain = E.button(p.failed ? 'Again' : 'Next', cx, y + 270, { w: w - 48, fill: T.buttonFill, size: 22 });
-    this.btnMenu = E.button('Menu', cx, y + 340, { w: w - 48, h: 48, fill: T.buttonAltFill, size: 18 });
+    // Primary: Again on a fail, Next on a pass, Menu on a pass of the last stencil. Secondary Menu always, unless it is already primary.
+    const menuIsPrimary = !p.failed && p.last;
+    this.btnMain = E.button(p.failed ? 'Again' : p.last ? 'Menu' : 'Next', cx, y + 270, { w: w - 48, fill: T.buttonFill, size: 22 });
+    this.btnMenu = menuIsPrimary ? null : E.button('Menu', cx, y + 340, { w: w - 48, h: 48, fill: T.buttonAltFill, size: 18 });
   },
   onTap(p, E) {
     if (E.hit(this.btnMain, p)) {
       E.audio.play('tap');
-      E.setScene('play', { stencil: this.p.failed ? this.p.idx : 0 }); // Next restarts the only stencil until layer 2
-    } else if (E.hit(this.btnMenu, p)) { E.audio.play('tap'); E.setScene('menu'); }
+      const q = this.p;
+      if (q.failed) E.setScene('play', { stencil: q.idx });
+      else if (q.last) E.setScene('menu');
+      else E.setScene('play', { stencil: q.idx + 1 });
+    } else if (this.btnMenu && E.hit(this.btnMenu, p)) { E.audio.play('tap'); E.setScene('menu'); }
   },
 };
 
 export const game = {
   slug: 'ink',
   title: 'Ink',
-  saveVersion: 1,
-  migrate(data, fromVersion) { return data; },
+  saveVersion: 2,
+  // v1 saved only best percentages. Derive stars and the unlock from them.
+  migrate(data, fromVersion) {
+    if (fromVersion < 2) {
+      const best = data.best || {}, stars = {};
+      let unlocked = 0;
+      for (const id of Object.keys(best)) {
+        const n = starsFor(best[id]);
+        if (n) { stars[id] = n; unlocked = Math.max(unlocked, Number(id) + 1); }
+      }
+      data.stars = stars; data.clean = {}; data.unlocked = Math.min(unlocked, STENCILS.length - 1);
+    }
+    return data;
+  },
   TUNING,
   start: 'menu',
   scenes: { menu, play, over },
+  // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
+  sim: { stencils: STENCILS, percent, slips: () => S.slips, ended: () => S.ended },
 };
