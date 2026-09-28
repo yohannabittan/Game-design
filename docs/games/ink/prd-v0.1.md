@@ -90,7 +90,7 @@ Deferred so it is not accidentally built:
 - Stencils 1 to 3 teach, in order: (1) circle: hold and move, fill the middle, the edge is round and forgiving; (2) diamond gem: four sharp corners, lift and place; (3) heart: a concave notch, work along the edge.
 - Every stencil after the first must look like a piece of tattoo flash a person would wear, not a geometry exercise. Its silhouette must read at phone size.
 - Stencils 4 to 10: (4) star, five sharp points, needs tip 3; (5) boss: crescent moon, thin everywhere, needs tip 4; (6) lightning bolt, zigzag edges, needs tips 2 and 3; (7) ring, a shape with a hole, two edges to ride, needs tip 4; (8) four-leaf clover, many curved lobes, needs tip 6; (9) key, thin shaft with teeth, needs tips 4 and 5; (10) boss: snake, a long winding band with a head, needs everything and the timer is tight.
-- Timer per stencil is set from its area and edge length so that the intended path reaches 99 percent with about 15 percent of the time to spare on stencils 1 to 4, 10 percent on 5 to 9, and 5 percent on 10.
+- Timer per stencil is set from the measured time its intended path takes to reach 99 percent at 300 units per second in the harness, times a multiplier: 2.2 on stencils 1 to 4, 1.9 on 6 to 9, 1.7 on boss stencil 5 and 1.6 on boss stencil 10. The multiplier comes from the first phone playtest: a first-time player reached about 90 percent on the circle in roughly twice the perfect-path time, so a 2x timer yields three stars on a first try and five stars only with real edge work. (An earlier rule of 5 to 15 percent spare over the perfect path was replaced before any stencil shipped.)
 - Boss beat: stencils 5 and 10 are named as boss stencils on the card and the select grid.
 
 ## 10. Juice list
@@ -160,9 +160,9 @@ Design-space units unless stated.
 | maxSlips | 3 | Third slip ruins the piece |
 | starPercents | 70, 80, 90, 95, 99 | Percentage thresholds for 1 to 5 stars |
 | passPercent | 70 | Below this at the timer is a fail |
-| timerSpareEarly | 0.15 | Fraction of the timer left after the intended path on stencils 1 to 4 |
-| timerSpareMid | 0.10 | Same for stencils 5 to 9 |
-| timerSpareBoss | 0.05 | Same for stencil 10 |
+| timerMultEarly | 2.2 | Timer is this times the perfect-path time to 99 percent, stencils 1 to 4 |
+| timerMultMid | 1.9 | Same for stencils 6 to 9 |
+| timerMultBoss | 1.7 and 1.6 | Same for boss stencils 5 and 10 |
 | inkStrokeWidth | 14 | Drawn ink stroke width, twice the needle radius |
 | outlineWidth | 2 | Stencil outline width |
 | particleCap | 200 | Max live particles |
