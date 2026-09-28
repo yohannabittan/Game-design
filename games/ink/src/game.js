@@ -1,7 +1,7 @@
-// Ink, layers 1 and 2: the mechanic and the progression. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
+// Ink, layers 1 to 3: the mechanic, the progression and the juice. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
 // Grey box: shapes and four colours only. Ten stencils, authored as data and verified with tools/sim-ink.mjs.
 
-import { clamp, dist } from './engine.js';
+import { clamp, dist, ease } from './engine.js';
 
 // Design-space units unless stated. Names match PRD section 16; the rest are marked.
 const TUNING = {
@@ -21,7 +21,7 @@ const TUNING = {
   timerMultFinal: 1.6,   // Boss stencil 10
   inkStrokeWidth: 14,    // Drawn ink stroke width, twice the needle radius
   outlineWidth: 2,       // Stencil outline width
-  particleCap: 200,      // Reserved for layer 3 (particles)
+  particleCap: 200,      // Max live particles; every emit is trimmed to fit
 
   // Layer 1 additions, not in the PRD table.
   bg: '#5a3a2c',         // Skin field; the engine reads this name and fills the whole screen with it
@@ -48,8 +48,35 @@ const TUNING = {
   tileH: 92,             // Tile height (screen px, at least 44)
   lockColor: '#7a6558',
   inkLayerMaxDpr: 2,     // The cached ink layer is drawn at most this many pixels per CSS pixel
+
+  // Layer 3: feel only. Nothing here touches coverage, slips, the timer, stars or saves. Seconds, screen px and design units as marked.
+  juice: {
+    settleSec: 0.22, settleFrom: 0.82,       // Machine scale pop on touch down (scale about the needle tip, so the tip never moves)
+    vibAmp: 0.9, vibHz: 55, vibHold: 0.09,   // Machine body vibration (screen px, Hz, seconds it lingers after the last ink)
+    glintHz: 13, glintLen: 4.5,              // Needle tip sparkle rate and half-length (screen px)
+    tickEvery: 34, tickMinGap: 0.085,        // Needle tick: design units of inked travel, and the minimum seconds between ticks
+    tickFreq: 1900, tickFreqAlt: 1500, tickDur: 0.02, tickGain: 0.035,
+    sprayMinSpeed: 240, sprayGap: 0.035, sprayCount: 2, spraySpeed: 70, sprayLife: 0.35, spraySize: 1.8, // Tip specks (design units per second for the speed gate)
+    inkSheen: '#4a64ad',                     // Second ink tone for bursts
+    slipFlashSec: 0.45, slipPopSec: 0.3, slipPopFrom: 1.5, // Outline red flash, counter pop
+    slipShake: 2, slipShakeSec: 0.15, slipHaptic: 30, ruinHaptic: 50, slipBurst: 6,
+    pctStepFrom: 1.1, pctStepSec: 0.18,      // Whole-percent step at or past the first star threshold
+    pctThresholdFrom: 1.35, pctThresholdSec: 0.32, pctStarSec: 0.7, // Crossing a star threshold: bigger pop and the number turns star colour
+    timerPulseFrom: 1.18, timerPulseSec: 0.28, timerPulseSecs: 5, // Timer pulse each second in the last few seconds
+    timerTickSecs: 3, timerTickFreq: 700, timerTickDur: 0.03, timerTickGain: 0.05,
+    finishHaptic: 30, finishFlashSec: 0.3, finishFlashAlpha: 0.55, finishFlashColor: '#eaf6ff',
+    burstPoints: 36, burstPer: 3, burstSpeed: 110, burstLife: 0.75, burstSize: 3.6,
+    outlineFadeSec: 0.5, outlineEndAlpha: 0.12, machineFadeSec: 0.25,
+    smearSec: 0.5, smearDrop: 3, smearColor: '#80838c', loseDelay: 0.2,
+    cardSlideSec: 0.45, cardDim: 0.55, cardFrom: 0.5, // Card slide-up and dim; the slide starts this fraction of the screen height below
+    starDelay: 0.2, starStagger: 0.08, starSec: 0.25, starBurst: 5,
+    buttonGap: 0.08, buttonPopSec: 0.18,     // Buttons appear this long after the last star lands, and pop in
+    cleanDelay: 0.1, cleanPopSec: 0.3, cleanSweepSec: 0.7, cleanSweepAlpha: 0.4, cleanSweepColor: '#9bd6ff',
+    menuPopDelay: 0.18, menuPopSec: 0.4, menuPopFrom: 0.8,
+  },
 };
 const T = TUNING;
+const J = T.juice;
 
 const circle = (cx, cy, r, n = T.circlePoints) =>
   Array.from({ length: n }, (_, i) => [cx + r * Math.cos((2 * Math.PI * i) / n), cy + r * Math.sin((2 * Math.PI * i) / n)]);
@@ -134,10 +161,131 @@ function gridFor(idx) {
 // ---------- Play state ----------
 
 const S = {}; // the current attempt; the card reads it to draw the finished piece
+let menuPopIdx = -1; // set by the card when stars went up; the menu pops that tile once
 
 function view(E) {
   const s = Math.min(E.w / T.designW, E.h / T.designH);
   return { s, ox: (E.w - T.designW * s) / 2, oy: (E.h - T.designH * s) / 2 };
+}
+
+// ---------- Juice (layer 3) ----------
+// Cosmetic only: these read the attempt and never write coverage, slips, the timer or the stars. Times are E.time stamps; -9 means long ago.
+// The headless simulator's stand-in engine has no tween, so every effect that needs the engine's helpers is skipped there.
+
+const newFx = () => ({
+  downT: -9, inkT: -9, tickAcc: 0, tickT: -9, tickAlt: 0, sprayT: -9, laid: false, speed: 0, px: 0, py: 0, hasP: false,
+  slipT: -9, slipPopT: -9, pct: 0, pctT: -9, pctFrom: 1, pctStarT: -9, sec: -1, secT: -9,
+  endT: -9, flashT: -9, smear: 0, pendName: null, pendAt: 0,
+});
+
+// Scale that eases from `from` to 1 with an overshoot (outBack); 1 outside [0, dur).
+const pop = (age, dur, from) => (age < 0 || age >= dur ? 1 : from + (1 - from) * ease.outBack(age / dur));
+
+const EMIT = { x: 0, y: 0, count: 0, color: '', speed: 0, life: 0, size: 0, gravity: 0, drag: 0.96, spread: Math.PI * 2, angle: 0 };
+function emit(E, x, y, count, color, speed, life, size, spread = Math.PI * 2, angle = 0) {
+  const room = T.particleCap - E.particles.list.length;
+  if (room <= 0) return;
+  Object.assign(EMIT, { x, y, count: Math.min(count, room), color, speed, life, size, spread, angle });
+  E.particles.emit(EMIT);
+}
+const toScreen = (E, x, y) => { const v = view(E); return [v.ox + x * v.s, v.oy + y * v.s]; };
+
+// One ink sample was laid: note it for the vibration and glint, and tick every tickEvery units of travel, never faster than tickMinGap.
+function fxInk(E) {
+  if (!E.tween) return;
+  const f = S.fx, now = E.time;
+  f.inkT = now; f.laid = true;
+  f.tickAcc += T.sampleSpacing;
+  if (f.tickAcc >= J.tickEvery && now - f.tickT >= J.tickMinGap && E.audio.beep) {
+    f.tickAcc = 0; f.tickT = now; f.tickAlt ^= 1;
+    E.audio.beep({ freq: f.tickAlt ? J.tickFreq : J.tickFreqAlt, dur: J.tickDur, type: 'triangle', gain: J.tickGain });
+  }
+}
+
+function scaledText(ctx, E, str, x, y, k, opts) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+  E.text(str, 0, 0, opts);
+  ctx.restore();
+}
+
+// A few ink specks off the tip while the needle is laying ink fast.
+function sprayTip(E, p) {
+  if (!E.tween) return;
+  const f = S.fx;
+  if (!f.laid || S.ended || f.speed < J.sprayMinSpeed || E.time - f.sprayT < J.sprayGap) return;
+  f.sprayT = E.time;
+  emit(E, p.x, p.y - T.needleOffset, J.sprayCount, T.inkColor, J.spraySpeed, J.sprayLife, J.spraySize);
+}
+
+// A slip was just counted at the exit point (x, y in design units).
+function fxSlip(E, x, y) {
+  if (!E.tween) return;
+  const f = S.fx;
+  f.slipT = f.slipPopT = E.time;
+  E.shake(J.slipShake, J.slipShakeSec);
+  E.haptic(S.slips >= T.maxSlips ? J.ruinHaptic : J.slipHaptic);
+  const [sx, sy] = toScreen(E, x, y);
+  emit(E, sx, sy, J.slipBurst, T.slipRed, 90, 0.35, 2.4);
+}
+
+// The stencil ended: sounds, haptic and the end-of-piece effects. The card follows after endHold.
+function fxFinish(E, reason) {
+  if (!E.tween) return;
+  const f = S.fx, now = E.time;
+  f.endT = now;
+  if (reason === 'full') {
+    E.audio.play('win'); E.haptic(J.finishHaptic);
+    f.flashT = now;
+    fxBurst(E);
+  } else if (reason === 'time') {
+    E.audio.play(percent() >= T.starPercents[0] ? 'win' : 'lose');
+  } else {
+    f.pendName = 'lose'; f.pendAt = now + J.loseDelay; // after the miss sound
+    E.tween(J.smearSec, (k) => { f.smear = k; }, ease.outQuad);
+  }
+}
+
+// Ink specks along the whole outline, evenly spaced.
+function fxBurst(E) {
+  const v = view(E);
+  let len = 0;
+  for (const poly of S.st.shape) for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) len += dist(poly[j][0], poly[j][1], poly[i][0], poly[i][1]);
+  const step = len / J.burstPoints;
+  let next = 0, run = 0, n = 0;
+  for (const poly of S.st.shape) for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const ax = poly[j][0], ay = poly[j][1], bx = poly[i][0], by = poly[i][1], el = dist(ax, ay, bx, by);
+    while (next <= run + el && n < J.burstPoints) {
+      const t = el ? (next - run) / el : 0;
+      emit(E, v.ox + (ax + (bx - ax) * t) * v.s, v.oy + (ay + (by - ay) * t) * v.s, J.burstPer, n % 2 ? J.inkSheen : T.inkColor, J.burstSpeed, J.burstLife, J.burstSize);
+      next += step; n++;
+    }
+    run += el;
+  }
+}
+
+// Per frame while playing: needle speed, whole-percent pops, timer pulse and ticks, delayed sounds.
+function fxUpdate(dt, E) {
+  const f = S.fx, now = E.time;
+  if (S.last) {
+    f.speed = f.hasP ? f.speed + (dist(S.last.x, S.last.y, f.px, f.py) / Math.max(dt, 0.001) - f.speed) * 0.35 : 0;
+    f.px = S.last.x; f.py = S.last.y; f.hasP = true;
+  } else { f.hasP = false; f.speed = 0; }
+  const p = percent();
+  if (p !== f.pct) {
+    let crossed = false;
+    for (const th of T.starPercents) if (f.pct < th && p >= th) crossed = true;
+    f.pct = p;
+    if (p >= T.starPercents[0]) { f.pctT = now; f.pctFrom = crossed ? J.pctThresholdFrom : J.pctStepFrom; }
+    if (crossed) f.pctStarT = now;
+  }
+  if (S.started && !S.ended) {
+    const sec = Math.ceil(S.time);
+    if (sec !== f.sec) {
+      f.sec = sec; f.secT = now;
+      if (sec >= 1 && sec <= J.timerTickSecs) E.audio.beep({ freq: J.timerTickFreq, dur: J.timerTickDur, type: 'sine', gain: J.timerTickGain });
+    }
+  }
+  if (f.pendName && now >= f.pendAt) { E.audio.play(f.pendName); f.pendName = null; }
 }
 
 function newAttempt(idx) {
@@ -150,6 +298,7 @@ function newAttempt(idx) {
     pid: null, last: null, carry: 0, armed: false,
     finger: null,
     layer: null, layerK: 0, inkDone: [],
+    grey: null, greyK: 0, fx: newFx(),
   });
 }
 
@@ -176,6 +325,7 @@ function sample(E, x, y) {
     if (!S.stroke) { S.stroke = []; S.strokes.push(S.stroke); }
     S.stroke.push(x, y);
     inkAt(x, y);
+    fxInk(E);
     if (S.count === S.g.total) finish(E, 'full');
     return;
   }
@@ -192,6 +342,7 @@ function checkSlip(E, x, y) {
   S.slips++;
   S.marks.push({ x: e.x, y: e.y });
   E.audio.play('miss');
+  fxSlip(E, e.x, e.y);
   if (S.slips >= T.maxSlips) finish(E, 'ruined');
 }
 
@@ -213,6 +364,7 @@ function finish(E, reason) {
   S.ended = reason;
   S.holdT = T.endHold;
   S.stroke = null;
+  fxFinish(E, reason);
 }
 
 function needleFromPointer(p, E) {
@@ -263,14 +415,42 @@ function syncInk(E, v) {
   });
 }
 
+// The ruined piece's grey ink: the ink layer's shape filled grey, built once when the smear starts (and again after a resize).
+function syncGrey(v) {
+  if (S.grey && S.greyK === S.layerK) return;
+  S.grey = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(S.layer.width, S.layer.height) : Object.assign(document.createElement('canvas'), { width: S.layer.width, height: S.layer.height });
+  S.greyK = S.layerK;
+  const c = S.grey.getContext('2d');
+  c.drawImage(S.layer, 0, 0);
+  c.globalCompositeOperation = 'source-in';
+  c.fillStyle = J.smearColor; c.fillRect(0, 0, S.grey.width, S.grey.height);
+}
+
 function drawPiece(ctx, E) {
-  const v = view(E), shape = S.st.shape;
+  const v = view(E), shape = S.st.shape, f = S.fx, now = E.time;
   syncInk(E, v);
-  ctx.drawImage(S.layer, v.ox, v.oy, T.designW * v.s, T.designH * v.s);
+  const W = T.designW * v.s, H = T.designH * v.s;
+  ctx.drawImage(S.layer, v.ox, v.oy, W, H);
+  if (f.smear > 0) {
+    syncGrey(v);
+    ctx.globalAlpha = f.smear;
+    ctx.drawImage(S.grey, v.ox, v.oy + f.smear * J.smearDrop * v.s, W, H * (1 + f.smear * 0.01));
+    ctx.globalAlpha = 1;
+  }
   ctx.save();
   ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
+  const flash = 1 - (now - f.flashT) / J.finishFlashSec;
+  if (flash > 0 && flash <= 1) {
+    shapePath(ctx, shape);
+    ctx.globalAlpha = flash * J.finishFlashAlpha; ctx.fillStyle = J.finishFlashColor; ctx.fill('evenodd'); ctx.globalAlpha = 1;
+  }
+  const fade = f.endT > 0 ? clamp((now - f.endT) / J.outlineFadeSec, 0, 1) : 0, a = 1 - (1 - J.outlineEndAlpha) * ease.outQuad(fade);
   shapePath(ctx, shape);
-  ctx.strokeStyle = T.stencilBlue; ctx.lineWidth = T.outlineWidth; ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = a; ctx.strokeStyle = T.stencilBlue; ctx.lineWidth = T.outlineWidth; ctx.stroke();
+  const red = 1 - (now - f.slipT) / J.slipFlashSec;
+  if (red > 0 && red <= 1) { ctx.globalAlpha = red * a; ctx.strokeStyle = T.slipRed; ctx.lineWidth = T.outlineWidth + 1.5; ctx.stroke(); }
+  ctx.globalAlpha = 1;
   ctx.strokeStyle = T.slipRed; ctx.lineWidth = 3; ctx.lineCap = 'round';
   const m = T.slipMarkSize;
   for (const k of S.marks) {
@@ -283,18 +463,38 @@ function drawPiece(ctx, E) {
 }
 
 // The tattoo machine, in screen pixels: grip at the finger, tube, needle, and a ring showing the ink radius at the tip.
+// Drawn relative to the tip so the settle pop never moves the point that inks; the body shivers while ink is being laid.
 function drawMachine(ctx, E) {
   const f = S.finger; if (!f) return;
-  const s = view(E).s, tipY = f.y - T.needleOffset;
-  const gw = T.machineGripW / 2, tw = T.machineTubeW / 2, neck = tipY + 12;
+  const fx = S.fx, now = E.time, s = view(E).s, off = T.needleOffset;
+  const out = fx.endT > 0 ? clamp((now - fx.endT) / J.machineFadeSec, 0, 1) : 0;
+  if (out >= 1) return;
+  const gw = T.machineGripW / 2, tw = T.machineTubeW / 2, neck = 12;
+  const vib = now - fx.inkT < J.vibHold && !S.ended ? Math.sin(now * J.vibHz * 2 * Math.PI) * J.vibAmp : 0;
+  ctx.save();
+  ctx.globalAlpha = 1 - out;
+  ctx.translate(f.x, f.y - off);
+  const sc = pop(now - fx.downT, J.settleSec, J.settleFrom);
+  ctx.scale(sc, sc);
+  ctx.save();
+  ctx.translate(vib, 0);
   ctx.fillStyle = T.machineBody; ctx.strokeStyle = T.machineEdge; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(f.x - gw, f.y); ctx.lineTo(f.x - tw, neck); ctx.lineTo(f.x + tw, neck); ctx.lineTo(f.x + gw, f.y); ctx.closePath();
+  ctx.moveTo(-gw, off); ctx.lineTo(-tw, neck); ctx.lineTo(tw, neck); ctx.lineTo(gw, off); ctx.closePath();
   ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(f.x, neck); ctx.lineTo(f.x, tipY); ctx.lineWidth = 2; ctx.stroke();
-  ctx.beginPath(); ctx.arc(f.x, tipY, T.needleR * s, 0, Math.PI * 2); ctx.lineWidth = 1.5; ctx.globalAlpha = 0.8; ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.moveTo(0, neck); ctx.lineTo(0, 0); ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+  const base = ctx.globalAlpha;
+  ctx.strokeStyle = T.machineEdge;
+  ctx.beginPath(); ctx.arc(0, 0, T.needleR * s, 0, Math.PI * 2); ctx.lineWidth = 1.5; ctx.globalAlpha = base * 0.8; ctx.stroke(); ctx.globalAlpha = base;
   ctx.fillStyle = T.machineEdge;
-  ctx.beginPath(); ctx.arc(f.x, tipY, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+  // Glint: a small four-point sparkle that breathes, brighter and longer while inking.
+  const g = 0.5 + 0.5 * Math.sin(now * J.glintHz), laying = now - fx.inkT < J.vibHold, L = J.glintLen * (0.5 + g) * (laying ? 1.5 : 1);
+  ctx.globalAlpha = base * (laying ? 0.5 + 0.5 * g : 0.25 + 0.35 * g);
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-L, 0); ctx.lineTo(L, 0); ctx.moveTo(0, -L); ctx.lineTo(0, L); ctx.stroke();
+  ctx.restore();
 }
 
 function drawStar(ctx, cx, cy, R, filled) {
@@ -336,7 +536,7 @@ function recordResult(E, idx, { pct, stars, ruined, clean }) {
 // ---------- Scenes ----------
 
 const menu = {
-  enter() { this.btnPlay = null; this.btnMute = null; this.tiles = []; },
+  enter(E) { this.btnPlay = null; this.btnMute = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; },
   render(ctx, E) {
     const cx = E.w / 2, p = progress(E), gap = T.gridGap, cols = T.gridCols;
     E.text('INK', cx, E.safe.top + E.h * 0.08, { size: 48, weight: '800', color: T.textColor });
@@ -347,6 +547,9 @@ const menu = {
     STENCILS.forEach((st, i) => {
       const x = m + (i % cols) * (tw + gap), y = top + Math.floor(i / cols) * (th + gap);
       const locked = i > p.unlocked, cleared = (p.stars[i] || 0) > 0;
+      const k = i === this.popIdx ? pop(E.time - this.popT - J.menuPopDelay, J.menuPopSec, J.menuPopFrom) : 1;
+      ctx.save();
+      if (k !== 1) { ctx.translate(x + tw / 2, y + th / 2); ctx.scale(k, k); ctx.translate(-(x + tw / 2), -(y + th / 2)); }
       E.roundRect(x, y, tw, th, 10, locked ? '#3a281f' : T.cardColor, cleared ? T.stencilBlue : locked ? '#4a3428' : T.lockColor);
       E.text(`${i + 1}`, x + tw / 2, y + 18, { size: 20, weight: '800', color: locked ? T.lockColor : T.textColor });
       if (locked) drawLock(ctx, x + tw / 2, y + th / 2 + 2);
@@ -356,6 +559,7 @@ const menu = {
         const step = (tw - 6) / T.starPercents.length;
         for (let k = 0; k < T.starPercents.length; k++) drawStar(ctx, x + 3 + step * (k + 0.5), y + th - 12, step * 0.46, k < (p.stars[i] || 0));
       }
+      ctx.restore();
       this.tiles.push({ x, y, w: tw, h: th, idx: i, locked });
     });
 
@@ -374,6 +578,7 @@ const menu = {
 const play = {
   enter(E, { stencil = 0 } = {}) { newAttempt(clamp(stencil, 0, STENCILS.length - 1)); },
   update(dt, E) {
+    fxUpdate(dt, E);
     if (S.ended) {
       S.holdT -= dt;
       if (S.holdT <= 0) this.toCard(E);
@@ -388,14 +593,16 @@ const play = {
     const stars = ruined ? 0 : starsFor(pct);
     const failed = ruined || pct < T.passPercent;
     const clean = !failed && S.slips === 0;
+    const starsUp = stars > (progress(E).stars[S.idx] || 0);
     recordResult(E, S.idx, { pct, stars, ruined, clean });
-    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1 });
+    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp });
   },
   onPointerDown(p, E) {
     if (S.ended) return;
     if (S.pid !== null) { if (E.pointers.has(S.pid)) return; liftFinger(); } // a lost up or cancel must not lock out inking
     S.pid = p.id; S.started = true; S.finger = { x: p.x, y: p.y };
     E.audio.play('tap');
+    S.fx.downT = E.time;
     const n = needleFromPointer(p, E);
     moveNeedle(E, n.x, n.y);
   },
@@ -403,50 +610,119 @@ const play = {
     if (p.id !== S.pid || S.ended) return;
     S.finger = { x: p.x, y: p.y };
     const n = needleFromPointer(p, E);
+    S.fx.laid = false;
     moveNeedle(E, n.x, n.y);
+    sprayTip(E, p);
   },
   onPointerUp(p, E) { if (p.id === S.pid) liftFinger(); },
   render(ctx, E) {
     drawPiece(ctx, E);
     drawMachine(ctx, E);
-    const top = E.safe.top + T.hudTop, cx = E.w / 2;
-    E.text(`${percent()}%`, cx, top + 30, { size: 60, weight: '800', color: T.textColor });
-    E.text(`${Math.ceil(S.time)}`, 16, top + 28, { size: 48, weight: '800', align: 'left', color: S.time <= 5 && S.started ? T.slipRed : T.textColor });
-    E.text(`${S.slips}/${T.maxSlips}`, E.w - 16, top + 28, { size: 26, weight: '800', align: 'right', color: S.slips ? T.slipRed : T.textColor });
+    const top = E.safe.top + T.hudTop, cx = E.w / 2, now = E.time, f = S.fx;
+    // Percentage: pops on each whole-percent step from the first star threshold up, harder on a threshold, and glows star colour after one.
+    const pk = pop(now - f.pctT, f.pctFrom === J.pctThresholdFrom ? J.pctThresholdSec : J.pctStepSec, f.pctFrom);
+    const pstr = `${percent()}%`;
+    scaledText(ctx, E, pstr, cx, top + 30, pk, { size: 60, weight: '800', color: T.textColor });
+    const glow = 1 - (now - f.pctStarT) / J.pctStarSec;
+    if (glow > 0 && glow <= 1) scaledText(ctx, E, pstr, cx, top + 30, pk, { size: 60, weight: '800', color: T.starColor, alpha: glow });
+    // Timer: pulses each second in the last few; the colour rule is the old one.
+    const tk = S.started && !S.ended && S.time <= J.timerPulseSecs ? pop(now - f.secT, J.timerPulseSec, J.timerPulseFrom) : 1;
+    scaledText(ctx, E, `${Math.ceil(S.time)}`, 16, top + 28, tk, { size: 48, weight: '800', align: 'left', color: S.time <= 5 && S.started ? T.slipRed : T.textColor });
+    scaledText(ctx, E, `${S.slips}/${T.maxSlips}`, E.w - 16, top + 28, pop(now - f.slipPopT, J.slipPopSec, J.slipPopFrom), { size: 26, weight: '800', align: 'right', color: S.slips ? T.slipRed : T.textColor });
   },
 };
 
+// The card. Timeline (seconds from enter): the card slides up; stars pop in one by one with a coin each; then "Clean" flourishes;
+// the buttons appear only after the beat and only then take taps, so a tap during the animation is never swallowed by a button.
 const over = {
   enter(E, params) {
     this.p = params;
     this.btnMain = null; this.btnMenu = null;
-    E.audio.play(params.failed ? 'lose' : 'win');
+    this.t = 0; this.coins = 0;
+    const n = params.stars;
+    this.starsEnd = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starSec;
+    this.buttonsAt = Math.max(J.cardSlideSec, n ? this.starsEnd : 0) + J.buttonGap; // about 0.75 s with five stars
+    this.sweepAt = params.clean ? this.starsEnd + J.cleanDelay : Infinity;
+  },
+  cardBox(E) {
+    const w = Math.min(320, E.w - 32), h = 392;
+    return { w, h, x: E.w / 2 - w / 2, y: Math.max(E.safe.top + 16, (E.h - h) / 2) };
+  },
+  slideOffset(E) {
+    const b = this.cardBox(E), k = ease.outBack(clamp(this.t / J.cardSlideSec, 0, 1));
+    return (1 - k) * (E.h * J.cardFrom + b.h);
+  },
+  update(dt, E) {
+    this.t += dt;
+    const n = this.p.stars;
+    while (this.coins < n && this.t >= J.starDelay + this.coins * J.starStagger) {
+      const i = this.coins++, b = this.cardBox(E);
+      E.audio.play('coin');
+      emit(E, E.w / 2 + (i - 2) * 44, b.y + 134 + this.slideOffset(E), J.starBurst, T.starColor, 90, 0.4, 2.6);
+    }
   },
   render(ctx, E) {
-    const p = this.p, cx = E.w / 2;
+    const p = this.p, cx = E.w / 2, t = this.t, b = this.cardBox(E), { w, h, x, y } = b;
     drawPiece(ctx, E);
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, E.w, E.h);
+    ctx.fillStyle = `rgba(0,0,0,${J.cardDim * clamp(t / (J.cardSlideSec * 0.5), 0, 1)})`; ctx.fillRect(0, 0, E.w, E.h);
 
-    const w = Math.min(320, E.w - 32), h = 392, x = cx - w / 2, y = Math.max(E.safe.top + 16, (E.h - h) / 2);
+    ctx.save();
+    ctx.translate(0, this.slideOffset(E));
     E.roundRect(x, y, w, h, 20, T.cardColor, T.stencilBlue);
     if (p.boss) E.text('Boss', cx, y + 24, { size: 16, weight: '800', color: T.stencilBlue });
     E.text(`${p.pct}%`, cx, y + 68, { size: 72, weight: '800', color: T.textColor });
-    for (let i = 0; i < 5; i++) drawStar(ctx, cx + (i - 2) * 44, y + 134, 18, i < p.stars);
-    if (p.clean) E.text('Clean', cx, y + 180, { size: 22, weight: '800', color: T.stencilBlue });
+    for (let i = 0; i < 5; i++) {
+      if (i >= p.stars) { drawStar(ctx, cx + (i - 2) * 44, y + 134, 18, false); continue; }
+      const k = clamp((t - (J.starDelay + i * J.starStagger)) / J.starSec, 0, 1);
+      if (k <= 0) { drawStar(ctx, cx + (i - 2) * 44, y + 134, 18, false); continue; }
+      drawStar(ctx, cx + (i - 2) * 44, y + 134, 18 * ease.outBack(k), true);
+    }
+    if (p.clean) {
+      const ck = pop(t - this.sweepAt, J.cleanPopSec, 0);
+      if (t >= this.sweepAt) scaledText(ctx, E, 'Clean', cx, y + 180, ck, { size: 22, weight: '800', color: T.stencilBlue });
+    }
     E.text(`Best ${p.best}%`, cx, y + 214, { size: 18, color: '#b8a698' });
+    ctx.restore();
+
+    if (p.clean && t >= this.sweepAt) this.drawSweep(ctx, E, (t - this.sweepAt) / J.cleanSweepSec);
+
+    this.btnMain = this.btnMenu = null;
+    if (t < this.buttonsAt) return;
     // Primary: Again on a fail, Next on a pass, Menu on a pass of the last stencil. Secondary Menu always, unless it is already primary.
-    const menuIsPrimary = !p.failed && p.last;
+    const menuIsPrimary = !p.failed && p.last, bk = pop(t - this.buttonsAt, J.buttonPopSec, 0.85);
+    ctx.save();
+    const zoom = (cy) => { ctx.translate(cx, cy); ctx.scale(bk, bk); ctx.translate(-cx, -cy); };
+    ctx.save(); zoom(y + 270);
     this.btnMain = E.button(p.failed ? 'Again' : p.last ? 'Menu' : 'Next', cx, y + 270, { w: w - 48, fill: T.buttonFill, size: 22 });
-    this.btnMenu = menuIsPrimary ? null : E.button('Menu', cx, y + 340, { w: w - 48, h: 48, fill: T.buttonAltFill, size: 18 });
+    ctx.restore();
+    if (!menuIsPrimary) { ctx.save(); zoom(y + 340); this.btnMenu = E.button('Menu', cx, y + 340, { w: w - 48, h: 48, fill: T.buttonAltFill, size: 18 }); ctx.restore(); }
+    ctx.restore();
+  },
+  // Clean flourish: a soft blue band sweeps across the piece, clipped to the stencil shape.
+  drawSweep(ctx, E, k) {
+    if (k >= 1) return;
+    const v = view(E);
+    ctx.save();
+    ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
+    shapePath(ctx, S.st.shape); ctx.clip('evenodd');
+    ctx.translate(T.designW / 2, T.designH / 2); ctx.rotate(-0.5);
+    ctx.translate(-480 + 960 * ease.inOut(k), 0);
+    ctx.fillStyle = J.cleanSweepColor;
+    const a = J.cleanSweepAlpha * Math.sin(Math.PI * k);
+    ctx.globalAlpha = a * 0.35; ctx.fillRect(-60, -700, 120, 1400);
+    ctx.globalAlpha = a * 0.5; ctx.fillRect(-32, -700, 64, 1400);
+    ctx.globalAlpha = a; ctx.fillRect(-12, -700, 24, 1400);
+    ctx.restore();
   },
   onTap(p, E) {
+    if (this.t < this.buttonsAt || !this.btnMain) return;
     if (E.hit(this.btnMain, p)) {
       E.audio.play('tap');
       const q = this.p;
       if (q.failed) E.setScene('play', { stencil: q.idx });
-      else if (q.last) E.setScene('menu');
+      else if (q.last) { menuPopIdx = q.starsUp ? q.idx : -1; E.setScene('menu'); }
       else E.setScene('play', { stencil: q.idx + 1 });
-    } else if (this.btnMenu && E.hit(this.btnMenu, p)) { E.audio.play('tap'); E.setScene('menu'); }
+    } else if (this.btnMenu && E.hit(this.btnMenu, p)) { E.audio.play('tap'); menuPopIdx = this.p.starsUp ? this.p.idx : -1; E.setScene('menu'); }
   },
 };
 
@@ -468,6 +744,14 @@ export const game = {
     return data;
   },
   TUNING,
+  // Playtest sliders (TUNE tab on the menu). Every juice number is read from TUNING at use time, so these apply live.
+  experiments: [
+    { key: 'juice.tickEvery', label: 'Needle tick spacing (units)', min: 10, max: 90, step: 2 },
+    { key: 'juice.tickGain', label: 'Needle tick loudness', min: 0, max: 0.1, step: 0.005 },
+    { key: 'juice.vibAmp', label: 'Machine vibration (px)', min: 0, max: 2.5, step: 0.1 },
+    { key: 'juice.slipShake', label: 'Slip shake (px)', min: 0, max: 8, step: 0.5 },
+    { key: 'juice.finishFlashAlpha', label: 'Finish flash strength', min: 0, max: 1, step: 0.05 },
+  ],
   start: 'menu',
   scenes: { menu, play, over },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
