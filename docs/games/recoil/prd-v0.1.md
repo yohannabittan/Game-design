@@ -31,7 +31,7 @@ Landscape, design space 640 by 360. Two thumbs.
 | Gesture | Where | Does |
 | --- | --- | --- |
 | Drag | left half of the screen | Moves the gun vertically by the drag's vertical movement (relative, one to one in screen pixels scaled to design units). The thumb can rest anywhere on the left half. Clamped to the field. |
-| Tap | right half of the screen | Fires one shot along the barrel. |
+| Touch down | right half of the screen | Fires one shot along the barrel on the touch, not on the release, so there is no latency and a rolling thumb still fires (amended after review). |
 | Hold | right half | Nothing in v0.1 (the starting gun is semi-automatic). Later automatic guns fire at their rate while held. |
 | Tap a button | menu, card | Navigation only. |
 

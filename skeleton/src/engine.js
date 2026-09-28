@@ -212,7 +212,7 @@ export class Engine {
     this.particles.render(ctx);
     ctx.restore();
     if (this._tune && this.sceneName === 'menu') {
-      this._tuneTab = { x: this.w - 74, y: this.safe.top + 10, w: 64, h: 32 };
+      this._tuneTab = { x: this.w - 74 - this.safe.right, y: this.safe.top + 10, w: 64, h: 32 };
       this.roundRect(this._tuneTab.x, this._tuneTab.y, 64, 32, 10, '#1f2937', '#475569');
       this.text('TUNE', this._tuneTab.x + 32, this._tuneTab.y + 16, { size: 13, color: '#9aa4b2' });
     }
