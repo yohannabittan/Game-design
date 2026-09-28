@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // sim-ink: run a scripted needle path through Ink's real coverage and slip code (games/ink/src/game.js).
 //
-//   node tools/sim-ink.mjs <stencil.json> <path.json> [--speed 300] [--timer-from-path]
-//   node tools/sim-ink.mjs --index N <path.json> [--speed 300] [--timer-from-path]
+//   node tools/sim-ink.mjs <stencil.json> <path.json> [--speed 300] [--needle classic|dynamic] [--events HZ] [--timer-from-path]
+//   node tools/sim-ink.mjs --index N <path.json> [--speed 300] [--needle classic|dynamic] [--events HZ] [--timer-from-path]
 //   node tools/sim-ink.mjs --list
 //
 // stencil.json: one stencil entry exactly as in the STENCILS array of game.js, so it can be pasted there unchanged.
@@ -15,6 +15,13 @@
 //   scoring). Consecutive points are joined by straight segments. A `null` entry is a lift: the finger comes up, and the
 //   next point is a new touch down (with the needle wherever that point is).
 //   [ [180,320], [190,320], null, [50,60], [70,60] ]
+//   A point may carry a third element, the finger speed in units per second for the segment ENDING at that point:
+//   [x, y, speed]. Missing speed uses --speed. Speed only matters to the dynamic needle (it sets the ink radius) and to the clock.
+//
+// --needle classic|dynamic picks the needle mode (default: the game's own default, TUNING.needleMode, currently dynamic). classic is the
+//   v0.1 fixed radius. The report says which mode ran.
+// --events HZ cuts the finger movement into events HZ times per second of path time (default: events of sampleSpacing units). The score
+//   must not depend on it; use it to check frame-rate independence.
 //
 // Output: percentage, slips, path length, time at --speed (default 300 units/s), and whether 99 percent is reached
 // within the stencil's timer. Time to 99 is measured to the moment 99 percent is first reached, and the finger is
@@ -29,7 +36,7 @@ const T = game.TUNING, sim = game.sim, play = game.scenes.play;
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const value = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
-const valueFlags = new Set(['--speed', '--index']);
+const valueFlags = new Set(['--speed', '--index', '--needle', '--events']);
 const positional = args.filter((a, i) => !a.startsWith('--') && !valueFlags.has(args[i - 1]));
 const die = (msg) => { console.error(`sim-ink: ${msg}`); process.exit(2); };
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch (e) { die(`cannot read ${f}: ${e.message}`); } };
@@ -41,6 +48,10 @@ if (flag('--list')) {
 
 const speed = Number(value('--speed') ?? 300);
 if (!(speed > 0)) die('--speed must be a positive number');
+const needle = value('--needle');
+if (needle !== undefined && needle !== 'classic' && needle !== 'dynamic') die('--needle must be classic or dynamic');
+const eventsHz = value('--events') === undefined ? null : Number(value('--events'));
+if (eventsHz !== null && !(eventsHz > 0)) die('--events must be a positive number');
 
 let idx, pathFile;
 if (flag('--index')) {
@@ -62,13 +73,13 @@ if (flag('--index')) {
 }
 if (!pathFile) die('missing path.json');
 const path = readJson(pathFile);
-if (!Array.isArray(path) || !path.every((p) => p === null || (Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)))) die('path must be an array of [x, y] or null');
+if (!Array.isArray(path) || !path.every((p) => p === null || (Array.isArray(p) && (p.length === 2 || p.length === 3) && p.every(Number.isFinite) && (p.length === 2 || p[2] > 0)))) die('path must be an array of [x, y], [x, y, speed] (speed > 0) or null');
 const st = sim.stencils[idx];
 
 // A stand-in engine: only what the play scene touches.
 const E = {
   w: T.designW, h: T.designH, safe: { top: 0, bottom: 0 }, pointers: new Map(), sounds: [], scene: null,
-  save: { d: {}, get(k, d) { return k in this.d ? this.d[k] : d; }, set(k, v) { this.d[k] = v; } },
+  save: { d: needle ? { needleMode: needle } : {}, get(k, d) { return k in this.d ? this.d[k] : d; }, set(k, v) { this.d[k] = v; } },
   audio: { muted: false, play(n) { E.sounds.push(n); }, toggleMute() {} },
   setScene(n, p) { E.scene = n; },
 };
@@ -77,43 +88,45 @@ const finger = (x, y) => ({ id: 1, x, y: y + T.needleOffset });
 
 play.enter(E, { stencil: idx });
 
-let length = 0, lifted = 0, travelled = 0, t99 = null, down = false, last = null, ptr = null;
-const step = T.sampleSpacing; // events are cut to this length so time-to-99 is measured finely; the score does not depend on it
+let length = 0, lifted = 0, clock = 0, t99 = null, down = false, last = null, ptr = null;
+const step = T.sampleSpacing; // events are cut to this length (or to speed/HZ with --events); the score does not depend on it
 const event = (x, y) => {
-  if (!down) { ptr = finger(x, y); E.pointers.set(1, ptr); play.onPointerDown(ptr, E); down = true; }
-  else { const f = finger(x, y); ptr.x = f.x; ptr.y = f.y; play.onPointerMove(ptr, E); }
-  if (t99 === null && sim.percent() >= 99) t99 = travelled;
+  if (!down) { ptr = finger(x, y); ptr.t = clock; E.pointers.set(1, ptr); play.onPointerDown(ptr, E); down = true; }
+  else { const f = finger(x, y); ptr.x = f.x; ptr.y = f.y; ptr.t = clock; play.onPointerMove(ptr, E); }
+  if (t99 === null && sim.percent() >= 99) t99 = clock;
 };
 for (const pt of path) {
   if (sim.ended()) break;
   if (pt === null) { if (down) { E.pointers.delete(1); play.onPointerUp({ id: 1 }, E); down = false; } continue; }
+  const v = pt[2] ?? speed;
   if (last) {
     const d = Math.hypot(pt[0] - last[0], pt[1] - last[1]);
     length += d;
     if (!down) lifted += d;
   }
   if (last && down) {
-    const n = Math.max(1, Math.ceil(Math.hypot(pt[0] - last[0], pt[1] - last[1]) / step));
+    const d = Math.hypot(pt[0] - last[0], pt[1] - last[1]);
+    const n = Math.max(1, Math.ceil(d / (eventsHz ? v / eventsHz : step)));
     for (let i = 1; i <= n && !sim.ended(); i++) {
-      travelled += Math.hypot(pt[0] - last[0], pt[1] - last[1]) / n;
+      clock += d / n / v;
       event(last[0] + ((pt[0] - last[0]) * i) / n, last[1] + ((pt[1] - last[1]) * i) / n);
     }
   } else {
-    if (last) travelled += Math.hypot(pt[0] - last[0], pt[1] - last[1]);
+    if (last) clock += Math.hypot(pt[0] - last[0], pt[1] - last[1]) / speed; // the finger travels during a lift at --speed
     event(pt[0], pt[1]);
   }
   last = pt;
 }
 
 const pct = sim.percent(), slips = sim.slips(), ruined = sim.ended() === 'ruined';
-const time = length / speed, time99 = t99 === null ? null : t99 / speed;
+const time = clock, time99 = t99, mode = E.save.get('needleMode', T.needleMode) === 'classic' ? 'classic' : 'dynamic';
 const ok = time99 !== null && time99 <= st.timer && !ruined;
 const f1 = (v) => v.toFixed(1);
-console.log(`stencil   ${st.name}  (timer ${st.timer}s)`);
+console.log(`stencil   ${st.name}  (timer ${st.timer}s)  needle ${mode}`);
 console.log(`percent   ${pct}%${sim.ended() === 'full' ? '  (100%, ended)' : ''}`);
 console.log(`slips     ${slips}/${T.maxSlips}${ruined ? '  RUINED, stencil ended at the third slip' : ''}`);
 console.log(`length    ${length.toFixed(0)} units${lifted ? ` (${lifted.toFixed(0)} while lifted)` : ''}`);
-console.log(`time      ${f1(time)}s at ${speed} units/s`);
+console.log(`time      ${f1(time)}s at ${speed} units/s unless a point gives its own speed`);
 console.log(time99 === null ? `99%       not reached` : `99%       reached at ${f1(time99)}s, ${f1(st.timer - time99)}s before the timer (${Math.round(((st.timer - time99) / st.timer) * 100)}% spare)`);
 if (slips > 0) console.log('warning   the intended path should be clean: it slips');
 console.log(ok ? `result    OK: 99 percent within the ${st.timer}s timer` : `result    FAIL: 99 percent not reached within the ${st.timer}s timer`);

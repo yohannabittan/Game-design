@@ -1,4 +1,4 @@
-// Ink, layers 1 to 3: the mechanic, the progression and the juice. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
+// Ink, layers 1 to 3 and the v0.2 dynamic needle: the mechanic, the progression, the juice and a speed-driven ink radius. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
 // Grey box: shapes and four colours only. Ten stencils, authored as data and verified with tools/sim-ink.mjs.
 
 import { clamp, dist, ease } from './engine.js';
@@ -19,7 +19,7 @@ const TUNING = {
   timerMultMid: 1.9,     // Same for stencils 6 to 9
   timerMultBoss: 1.7,    // Boss stencil 5 (stencil 10 uses timerMultFinal)
   timerMultFinal: 1.6,   // Boss stencil 10
-  inkStrokeWidth: 14,    // Drawn ink stroke width, twice the needle radius
+  inkStrokeWidth: 14,    // Drawn ink stroke width at the classic radius (twice needleR); the dynamic needle scales it with the radius
   outlineWidth: 2,       // Stencil outline width
   particleCap: 200,      // Max live particles; every emit is trimmed to fit
 
@@ -48,6 +48,14 @@ const TUNING = {
   tileH: 92,             // Tile height (screen px, at least 44)
   lockColor: '#7a6558',
   inkLayerMaxDpr: 2,     // The cached ink layer is drawn at most this many pixels per CSS pixel
+
+  // v0.2 dynamic needle (experiment, PRD v0.2 section E). Speeds are design units per second of finger travel.
+  needleMode: 'dynamic', // Default mode; the menu toggle overrides it and is saved
+  slowSpeed: 120,        // At or below this speed the ink radius is needleR * wideScale
+  fastSpeed: 450,        // At or above this speed the ink radius is needleR * thinScale
+  wideScale: 1.6,        // Radius multiplier when slow
+  thinScale: 0.55,       // Radius multiplier when fast
+  speedWindow: 24,       // Units of travel over which speed is measured (never per frame)
 
   // Layer 3: feel only. Nothing here touches coverage, slips, the timer, stars or saves. Seconds, screen px and design units as marked.
   juice: {
@@ -295,8 +303,8 @@ function newAttempt(idx) {
     inked: new Uint8Array(g.cols * g.rows), count: 0,
     strokes: [], stroke: null, marks: [],
     slips: 0, time: st.timer, started: false, ended: null, holdT: 0,
-    pid: null, last: null, carry: 0, armed: false,
-    finger: null,
+    pid: null, last: null, lastT: 0, carry: 0, armed: false,
+    finger: null, mode: 'dynamic', r: T.needleR, hist: newHist(),
     layer: null, layerK: 0, inkDone: [],
     grey: null, greyK: 0, fx: newFx(),
   });
@@ -305,9 +313,38 @@ function newAttempt(idx) {
 const percent = () => Math.floor((S.count * 100) / S.g.total);
 const starsFor = (pct) => T.starPercents.filter((p) => pct >= p).length;
 
-// Lay ink on every inside cell whose centre is within needleR of (x, y).
-function inkAt(x, y) {
-  const { g } = S, cs = T.cellSize, R = T.needleR;
+// Speed history for the dynamic needle: cumulative travel and time at the last path samples since touch down (a ring, no allocation per sample).
+const HIST = 64;
+const newHist = () => ({ d: new Float64Array(HIST), t: new Float64Array(HIST), head: 0, n: 0, cum: 0 });
+function histPush(h, cum, t) {
+  h.head = (h.head + 1) % HIST; h.d[h.head] = cum; h.t[h.head] = t; if (h.n < HIST) h.n++;
+}
+// Finger speed over the last speedWindow units of travel, or -1 with no travel yet. With less travel than the window it uses what there is.
+function windowSpeed(h) {
+  const target = h.cum - Math.min(T.speedWindow, (HIST - 2) * T.sampleSpacing);
+  let k = h.head, cnt = 1, d0 = h.d[k], t0 = h.t[k];
+  while (cnt < h.n) {
+    const prev = (k + HIST - 1) % HIST;
+    if (h.d[prev] <= target) { // interpolate the time at cumulative distance `target` between prev and k
+      const span = h.d[k] - h.d[prev], f = span > 0 ? (target - h.d[prev]) / span : 0;
+      d0 = target; t0 = h.t[prev] + (h.t[k] - h.t[prev]) * f;
+      return (h.cum - d0) / Math.max(h.t[h.head] - t0, 1e-4);
+    }
+    k = prev; cnt++; d0 = h.d[k]; t0 = h.t[k];
+  }
+  const dd = h.cum - d0;
+  return dd > 0 ? dd / Math.max(h.t[h.head] - t0, 1e-4) : -1;
+}
+// Ink radius for a finger speed: needleR in classic mode; in dynamic mode wide when slow, thin when fast, linear between.
+function radiusFor(speed) {
+  if (S.mode !== 'dynamic' || speed < 0) return T.needleR;
+  const u = clamp((speed - T.slowSpeed) / Math.max(T.fastSpeed - T.slowSpeed, 1e-6), 0, 1);
+  return T.needleR * (T.wideScale + (T.thinScale - T.wideScale) * u);
+}
+
+// Lay ink on every inside cell whose centre is within R of (x, y).
+function inkAt(x, y, R) {
+  const { g } = S, cs = T.cellSize;
   const i0 = Math.max(0, Math.floor((x - R - g.x0) / cs)), i1 = Math.min(g.cols - 1, Math.floor((x + R - g.x0) / cs));
   const j0 = Math.max(0, Math.floor((y - R - g.y0) / cs)), j1 = Math.min(g.rows - 1, Math.floor((y + R - g.y0) / cs));
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
@@ -318,13 +355,14 @@ function inkAt(x, y) {
 }
 
 // One path sample. Inside: ink. Outside: no ink; a slip counts only if the needle had been inside and is now past the tolerance.
-function sample(E, x, y) {
+function sample(E, x, y, r) {
   if (S.ended) return;
+  S.r = r;
   if (pointInShape(S.st.shape, x, y)) {
     S.armed = true;
     if (!S.stroke) { S.stroke = []; S.strokes.push(S.stroke); }
-    S.stroke.push(x, y);
-    inkAt(x, y);
+    S.stroke.push(x, y, r);
+    inkAt(x, y, r);
     fxInk(E);
     if (S.count === S.g.total) finish(E, 'full');
     return;
@@ -346,16 +384,27 @@ function checkSlip(E, x, y) {
   if (S.slips >= T.maxSlips) finish(E, 'ruined');
 }
 
-// Walk the needle from its last position to (x, y), sampling every sampleSpacing along the way.
-function moveNeedle(E, x, y) {
-  if (!S.last) { S.last = { x, y }; S.carry = 0; sample(E, x, y); return; }
+// Walk the needle from its last position to (x, y) at time tm (seconds), sampling every sampleSpacing along the way.
+// Each sample gets the time it would have had on that straight segment, so the speed window depends on positions and speeds, not on how events were cut.
+function moveNeedle(E, x, y, tm) {
+  const h = S.hist;
+  if (!S.last) {
+    S.last = { x, y }; S.lastT = tm; S.carry = 0;
+    h.n = 0; h.cum = 0; histPush(h, 0, tm);
+    sample(E, x, y, radiusFor(-1));
+    return;
+  }
   const dx = x - S.last.x, dy = y - S.last.y, len = Math.hypot(dx, dy);
   if (len === 0) return;
-  const ux = dx / len, uy = dy / len;
+  const ux = dx / len, uy = dy / len, dt = tm - S.lastT;
   let t = T.sampleSpacing - S.carry; // distance along this segment to the next sample
-  while (t <= len && !S.ended) { sample(E, S.last.x + ux * t, S.last.y + uy * t); t += T.sampleSpacing; }
+  while (t <= len && !S.ended) {
+    h.cum += T.sampleSpacing; histPush(h, h.cum, S.lastT + dt * (t / len));
+    sample(E, S.last.x + ux * t, S.last.y + uy * t, radiusFor(windowSpeed(h)));
+    t += T.sampleSpacing;
+  }
   S.carry = T.sampleSpacing - (t - len);
-  S.last = { x, y };
+  S.last = { x, y }; S.lastT = tm;
   checkSlip(E, x, y); // the real needle position too, so a reversal apex between samples still counts
 }
 
@@ -366,6 +415,9 @@ function finish(E, reason) {
   S.stroke = null;
   fxFinish(E, reason);
 }
+
+// Seconds at which a pointer event happened. The harness stamps p.t; the engine's pointers carry none, so the real clock is read.
+const eventTime = (p) => (typeof p.t === 'number' ? p.t : performance.now() / 1000);
 
 function needleFromPointer(p, E) {
   const v = view(E);
@@ -398,18 +450,20 @@ function syncInk(E, v) {
     c.setTransform(k, 0, 0, k, 0, 0);
     shapePath(c, S.st.shape); c.clip('evenodd');
     c.strokeStyle = T.inkColor; c.fillStyle = T.inkColor;
-    c.lineWidth = T.inkStrokeWidth; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.lineCap = 'round'; c.lineJoin = 'round';
   }
   const c = S.layer.getContext('2d');
+  // Strokes are flat lists of x, y, radius. Each segment is drawn at its own width, so a slow stroke is fat and a fast one thin.
+  const wk = T.inkStrokeWidth / (2 * T.needleR);
   S.strokes.forEach((pts, n) => {
     const done = S.inkDone[n] || 0;
     if (done >= pts.length) return;
-    if (pts.length === 2) { c.beginPath(); c.arc(pts[0], pts[1], T.needleR, 0, Math.PI * 2); c.fill(); }
+    if (pts.length === 3) { c.beginPath(); c.arc(pts[0], pts[1], pts[2] * wk, 0, Math.PI * 2); c.fill(); }
     else {
-      c.beginPath();
-      c.moveTo(pts[Math.max(0, done - 2)], pts[Math.max(0, done - 2) + 1]);
-      for (let i = Math.max(2, done); i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
-      c.stroke();
+      for (let i = Math.max(3, done); i < pts.length; i += 3) {
+        c.lineWidth = (pts[i - 1] + pts[i + 2]) * wk;
+        c.beginPath(); c.moveTo(pts[i - 3], pts[i - 2]); c.lineTo(pts[i], pts[i + 1]); c.stroke();
+      }
     }
     S.inkDone[n] = pts.length;
   });
@@ -486,7 +540,7 @@ function drawMachine(ctx, E) {
   ctx.restore();
   const base = ctx.globalAlpha;
   ctx.strokeStyle = T.machineEdge;
-  ctx.beginPath(); ctx.arc(0, 0, T.needleR * s, 0, Math.PI * 2); ctx.lineWidth = 1.5; ctx.globalAlpha = base * 0.8; ctx.stroke(); ctx.globalAlpha = base;
+  ctx.beginPath(); ctx.arc(0, 0, S.r * s, 0, Math.PI * 2); ctx.lineWidth = 1.5; ctx.globalAlpha = base * 0.8; ctx.stroke(); ctx.globalAlpha = base;
   ctx.fillStyle = T.machineEdge;
   ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
   // Glint: a small four-point sparkle that breathes, brighter and longer while inking.
@@ -515,19 +569,22 @@ function drawLock(ctx, cx, cy) {
 }
 
 // ---------- Progress (saved) ----------
-// unlocked: highest unlocked stencil index. best: percentage per stencil. stars: best stars per stencil. clean: a zero-slip pass per stencil.
+// unlocked: highest unlocked stencil index. bests: percentage per stencil, per needle mode. stars: best stars per stencil. clean: a zero-slip pass per stencil.
+// Stars, clean and the unlock are shared between the two needle modes; only the best percentage is kept apart so the modes can be compared.
+
+const curMode = (E) => (E.save.get('needleMode', T.needleMode) === 'classic' ? 'classic' : 'dynamic');
 
 function progress(E) {
-  const best = E.save.get('best', {}), stars = E.save.get('stars', {}), clean = E.save.get('clean', {});
+  const mode = curMode(E), best = E.save.get('bests', {})[mode] || {}, stars = E.save.get('stars', {}), clean = E.save.get('clean', {});
   const unlocked = clamp(E.save.get('unlocked', 0), 0, STENCILS.length - 1);
   let total = 0;
   for (let i = 0; i < STENCILS.length; i++) total += stars[i] || 0;
-  return { best, stars, clean, unlocked, total };
+  return { best, stars, clean, unlocked, total, mode };
 }
 
 function recordResult(E, idx, { pct, stars, ruined, clean }) {
   const p = progress(E);
-  if (!ruined && pct > (p.best[idx] || 0)) E.save.set('best', { ...p.best, [idx]: pct });
+  if (!ruined && pct > (p.best[idx] || 0)) E.save.update('bests', (b) => ({ ...b, [p.mode]: { ...b[p.mode], [idx]: pct } }), {});
   if (stars > (p.stars[idx] || 0)) E.save.set('stars', { ...p.stars, [idx]: stars });
   if (clean && !p.clean[idx]) E.save.set('clean', { ...p.clean, [idx]: true });
   if (stars >= 1) E.save.set('unlocked', Math.max(p.unlocked, Math.min(idx + 1, STENCILS.length - 1)));
@@ -536,7 +593,7 @@ function recordResult(E, idx, { pct, stars, ruined, clean }) {
 // ---------- Scenes ----------
 
 const menu = {
-  enter(E) { this.btnPlay = null; this.btnMute = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; },
+  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnNeedle = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; },
   render(ctx, E) {
     const cx = E.w / 2, p = progress(E), gap = T.gridGap, cols = T.gridCols;
     E.text('INK', cx, E.safe.top + E.h * 0.08, { size: 48, weight: '800', color: T.textColor });
@@ -565,10 +622,12 @@ const menu = {
 
     const py = top + Math.ceil(STENCILS.length / cols) * (th + gap) + 44;
     this.btnPlay = E.button(p.unlocked > 0 ? `Play ${p.unlocked + 1}` : 'Play', cx, py, { fill: T.buttonFill, h: 64, size: 24 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', cx, py + 80, { fill: T.buttonAltFill, w: 170, h: 48, size: 16 });
+    this.btnNeedle = E.button(`Needle: ${p.mode}`, cx, py + 72, { fill: T.buttonAltFill, w: 220, h: 48, size: 16 });
+    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', cx, py + 132, { fill: T.buttonAltFill, w: 170, h: 48, size: 16 });
   },
   onTap(p, E) {
     if (E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play', { stencil: progress(E).unlocked }); return; }
+    if (E.hit(this.btnNeedle, p)) { E.save.set('needleMode', curMode(E) === 'classic' ? 'dynamic' : 'classic'); E.audio.play('tap'); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
     const t = this.tiles.find((t) => !t.locked && E.hit(t, p));
     if (t) { E.audio.play('tap'); E.setScene('play', { stencil: t.idx }); }
@@ -576,7 +635,7 @@ const menu = {
 };
 
 const play = {
-  enter(E, { stencil = 0 } = {}) { newAttempt(clamp(stencil, 0, STENCILS.length - 1)); },
+  enter(E, { stencil = 0 } = {}) { newAttempt(clamp(stencil, 0, STENCILS.length - 1)); S.mode = curMode(E); },
   update(dt, E) {
     fxUpdate(dt, E);
     if (S.ended) {
@@ -595,7 +654,7 @@ const play = {
     const clean = !failed && S.slips === 0;
     const starsUp = stars > (progress(E).stars[S.idx] || 0);
     recordResult(E, S.idx, { pct, stars, ruined, clean });
-    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp });
+    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, mode: S.mode, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp });
   },
   onPointerDown(p, E) {
     if (S.ended) return;
@@ -604,14 +663,14 @@ const play = {
     E.audio.play('tap');
     S.fx.downT = E.time;
     const n = needleFromPointer(p, E);
-    moveNeedle(E, n.x, n.y);
+    moveNeedle(E, n.x, n.y, eventTime(p));
   },
   onPointerMove(p, E) {
     if (p.id !== S.pid || S.ended) return;
     S.finger = { x: p.x, y: p.y };
     const n = needleFromPointer(p, E);
     S.fx.laid = false;
-    moveNeedle(E, n.x, n.y);
+    moveNeedle(E, n.x, n.y, eventTime(p));
     sprayTip(E, p);
   },
   onPointerUp(p, E) { if (p.id === S.pid) liftFinger(); },
@@ -681,7 +740,7 @@ const over = {
       const ck = pop(t - this.sweepAt, J.cleanPopSec, 0);
       if (t >= this.sweepAt) scaledText(ctx, E, 'Clean', cx, y + 180, ck, { size: 22, weight: '800', color: T.stencilBlue });
     }
-    E.text(`Best ${p.best}%`, cx, y + 214, { size: 18, color: '#b8a698' });
+    E.text(`Best ${p.best}% (${p.mode})`, cx, y + 214, { size: 18, color: '#b8a698' });
     ctx.restore();
 
     if (p.clean && t >= this.sweepAt) this.drawSweep(ctx, E, (t - this.sweepAt) / J.cleanSweepSec);
@@ -729,8 +788,8 @@ const over = {
 export const game = {
   slug: 'ink',
   title: 'Ink',
-  saveVersion: 2,
-  // v1 saved only best percentages. Derive stars and the unlock from them.
+  saveVersion: 3,
+  // v1 saved only best percentages: derive stars and the unlock from them. v2 to v3: bests are kept per needle mode; every v0.1 best was made with the classic needle.
   migrate(data, fromVersion) {
     if (fromVersion < 2) {
       const best = data.best || {}, stars = {};
@@ -741,19 +800,22 @@ export const game = {
       }
       data.stars = stars; data.clean = {}; data.unlocked = Math.min(unlocked, STENCILS.length - 1);
     }
+    if (fromVersion < 3) { data.bests = { classic: data.best || {}, dynamic: {} }; delete data.best; }
     return data;
   },
   TUNING,
-  // Playtest sliders (TUNE tab on the menu). Every juice number is read from TUNING at use time, so these apply live.
+  // Playtest sliders (TUNE tab on the menu): the four needle values first, three juice values after. All are read from TUNING at use time, so they apply live.
   experiments: [
+    { key: 'slowSpeed', label: 'Slow speed (units/s)', min: 60, max: 250, step: 5 },
+    { key: 'fastSpeed', label: 'Fast speed (units/s)', min: 250, max: 700, step: 10 },
+    { key: 'wideScale', label: 'Wide scale (slow)', min: 1, max: 2.5, step: 0.05 },
+    { key: 'thinScale', label: 'Thin scale (fast)', min: 0.3, max: 1, step: 0.05 },
     { key: 'juice.tickEvery', label: 'Needle tick spacing (units)', min: 10, max: 90, step: 2 },
-    { key: 'juice.tickGain', label: 'Needle tick loudness', min: 0, max: 0.1, step: 0.005 },
     { key: 'juice.vibAmp', label: 'Machine vibration (px)', min: 0, max: 2.5, step: 0.1 },
     { key: 'juice.slipShake', label: 'Slip shake (px)', min: 0, max: 8, step: 0.5 },
-    { key: 'juice.finishFlashAlpha', label: 'Finish flash strength', min: 0, max: 1, step: 0.05 },
   ],
   start: 'menu',
   scenes: { menu, play, over },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
-  sim: { stencils: STENCILS, percent, slips: () => S.slips, ended: () => S.ended },
+  sim: { stencils: STENCILS, percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g },
 };

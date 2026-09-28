@@ -25,6 +25,14 @@ One entry, exactly the shape game.js uses:
 
 An array of needle positions in design units. The needle offset is irrelevant to scoring, so these are needle points, not finger points. A `null` is a lift; the next point is a new touch down.
 
+A point may carry a third number, the finger speed in units per second for the segment that ENDS at that point (v0.2, PRD section C):
+
+```json
+[[180,320,300],[190,320,120],[200,330,120],null,[50,60],[70,60,450]]
+```
+
+A point without it uses `--speed`. The first point after a lift has no segment of its own, so its speed is unused. Speed matters to the dynamic needle (it sets the ink radius) and to the clock (time to 99 percent is the sum of segment length over segment speed; a lift travels at `--speed`).
+
 ```json
 [[180,320],[190,320],[200,330],null,[50,60],[70,60]]
 ```
@@ -39,7 +47,16 @@ node tools/sim-ink.mjs stencil.json path.json --speed 300      # finger speed in
 node tools/sim-ink.mjs stencil.json path.json --timer-from-path
 node tools/sim-ink.mjs --index 0 path.json                     # use stencil N of game.js
 node tools/sim-ink.mjs --list                                  # names and timers in game.js
+node tools/sim-ink.mjs --index 0 path.json --needle classic    # the v0.1 fixed-radius needle
+node tools/sim-ink.mjs --index 0 path.json --needle dynamic    # the v0.2 speed-driven radius
+node tools/sim-ink.mjs --index 0 path.json --events 30         # cut finger movement into 30 events per second of path time
 ```
+
+`--needle classic|dynamic` picks the needle mode; without it the game's own default (`TUNING.needleMode`, dynamic) applies. Every report names the mode that ran. To reproduce the v0.1 numbers, pass `--needle classic`: a path without speeds is then scored exactly as before (circle spiral plus lap: 99 percent at 14.9 s; snake: 100 percent at 13.6 s).
+
+`--events HZ` changes only how the movement is cut into pointer events (events per second of path time). Coverage and slips must not change with it; if they do, that is a bug. Without it events are cut every `sampleSpacing` units.
+
+The dynamic needle measures speed over the last `speedWindow` units of travel, using the time each path sample would have had on its straight segment, so what matters is where the finger was and how fast, never how the events were cut. Slow ink (at or below `slowSpeed`) is `wideScale` times `needleR` wide, fast ink (at or above `fastSpeed`) `thinScale` times, linear between. Shard paths written for v0.1 carry no speeds; at the default 300 units/s the dynamic radius is about 1.03 times `needleR`, so they score close to classic. A path meant for the dynamic needle should ride edges slowly and cross the middle at a moderate speed.
 
 Output is the percentage, slips, path length, time, the moment 99 percent is reached and whether that is inside the timer. Exit code 0 means 99 percent within the timer with no ruin; 1 means not. The time counts travel during lifts at the same speed.
 
