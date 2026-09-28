@@ -334,7 +334,7 @@ export class Engine {
   hit(rect, p) { return p.x >= rect.x && p.x <= rect.x + rect.w && p.y >= rect.y && p.y <= rect.y + rect.h; }
   // Safe area insets (notch, home bar). Games should keep HUD inside these.
   get safe() {
-    if (!this._safe) { const s = getComputedStyle(document.documentElement); const px = (v) => parseFloat(v) || 0; this._safe = { top: px(s.getPropertyValue('--sat')), bottom: px(s.getPropertyValue('--sab')) }; }
+    if (!this._safe) { const s = getComputedStyle(document.documentElement); const px = (v) => parseFloat(v) || 0; this._safe = { top: px(s.getPropertyValue('--sat')), bottom: px(s.getPropertyValue('--sab')), left: px(s.getPropertyValue('--sal')), right: px(s.getPropertyValue('--sar')) }; }
     return this._safe;
   }
 

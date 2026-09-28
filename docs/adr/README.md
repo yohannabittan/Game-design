@@ -22,7 +22,7 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0001](0001-record-decisions-as-adrs.md) | Record architecture decisions as ADRs | accepted |
 | [0002](0002-plain-canvas-and-vanilla-js.md) | Plain HTML5 Canvas and vanilla JavaScript, no engine, no build step | accepted |
 | [0003](0003-pwa-offline-first.md) | Deliver as an offline-first web app installed to the home screen | accepted |
-| [0004](0004-touch-first-portrait.md) | Touch-first, portrait, one thumb; keyboard is a fallback | accepted |
+| [0004](0004-touch-first-portrait.md) | Touch-first, portrait, one thumb; keyboard is a fallback | accepted, amended by 0013 |
 | [0005](0005-local-only-persistence.md) | Local-only persistence in localStorage with versioned migrations | accepted |
 | [0006](0006-copy-the-skeleton-per-game.md) | One repo; each game is a copy of the skeleton, not an import | accepted |
 | [0007](0007-build-in-layers-one-shot-each.md) | Build in layers, one one-shot prompt per layer, game.js is the unit | accepted |
@@ -31,3 +31,4 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0010](0010-orchestrator-and-worker-models.md) | A top-tier model plans and reviews; cheaper, faster models build layers as sub-agents | accepted |
 | [0011](0011-engine-change-policy.md) | Additive engine changes need a README entry; behavioural changes need an ADR | accepted |
 | [0012](0012-content-sharding-and-physics-kits.md) | Content layers are built in parallel shards; physics lives in per-family kits with a harness | accepted |
+| [0013](0013-orientation-per-game.md) | Orientation is a per-game PRD decision; portrait is the default | accepted, amends 0004 |

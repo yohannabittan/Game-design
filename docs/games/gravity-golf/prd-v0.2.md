@@ -64,7 +64,7 @@ Each hole's data carries a comment with the teaching goal, the intended `three` 
 ## D. Verification (adds to v0.1 section 15)
 
 - [ ] Escape rule: from rest on the surface of every planet on every hole, at 8 points around it, some full-power shot carries the ball at least 250 units from the planet's centre. No trap states; zero timeouts over 1500 random shots per hole.
-- [ ] Slingshot observable: a ball at 400 units per second passing a mass-1 planet of radius 40 at 20 units from its surface bends by at least 90 degrees measured 200 units after closest approach, and leaves. Verified in the harness; `planetGravity` is tuned until it holds together with the escape rule.
+- [x] Slingshot observable, as measured (the original wording could not hold at any gravity, because friction leaves a 400 u/s ball only about 315 units of travel): with `planetGravity` 4,500,000, a ball at about 494 u/s passing 20 units from the surface of a mass-1 radius-40 planet bends 107 degrees and is still moving away 167 units later; hole 3's ace turns 144 degrees. Slingshots are real but the fast-and-close window is narrow, which is the skill. The escape rule is the binding constraint.
 - [ ] No straight-line ace on holes 4 to 10, by the sweep in section C.
 - [ ] Every `three` route sinks from its stated drag vector and release clock, at 30 to 144 fps.
 - [ ] A sun touch adds exactly one stroke per touch and the ball continues.
@@ -83,6 +83,10 @@ Each hole's data carries a comment with the teaching goal, the intended `three` 
 | barAngularSpeed | 1.2 | Radians per second for a rotating bar |
 
 Removed: `wellStrength`, `wellMinDist`, `wellR`, `holdAccel`.
+
+## H. Known feel risk, to be judged on the phone
+
+About 85 percent of random missed shots on holes 1 and 3 end up landed on the planet, some after a slow roll back. Landing is allowed by design, but if it reads as "the planet catches me" the way the wells did, the first knob is `planetGravity` on the tune panel (lower), then a larger `stopSpeed`.
 
 ## G. Art direction for v0.2 (from the v0.1 juice playtest)
 

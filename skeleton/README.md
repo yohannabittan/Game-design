@@ -50,7 +50,7 @@ What the engine gives you (`E`):
 
 | Area | API |
 | --- | --- |
-| Size and time | `E.w`, `E.h`, `E.time`, `E.frame`, `E.safe.top`, `E.safe.bottom` |
+| Size and time | `E.w`, `E.h`, `E.time`, `E.frame`, `E.safe.top`, `E.safe.bottom`, `E.safe.left`, `E.safe.right` |
 | Scenes | `E.setScene(name, params)` |
 | Save | `E.save.get(k, def)`, `E.save.set(k, v)`, `E.save.update(k, fn, def)`, `E.save.reset()` |
 | Audio | `E.audio.play(name, vol = 1)` with names `tap hit miss win lose coin boom` (`vol` 0.3 for a quiet version), `E.audio.beep({freq,dur,type,slide,gain})`, `E.audio.noise()`, `E.audio.toggleMute()` |
