@@ -194,6 +194,7 @@ const STEP = T.physicsStep;
 //   there until the part knocks it on. A ball that lands on a moon rides it. So keep tees, cups and other objects clear of
 //   those zones, keep orbitR at least parent r + moon r + 2 ball radii, and keep moon orbits clear of walls and suns.
 // Drag vectors in the comments are screen px (finger moves dx right, dy down); the ball flies the opposite way.
+// Entries are pasted from the content shards' JSON (docs/games/gravity-golf/README.md); tools/sim-golf.mjs verifies each one.
 const LEVELS = [
   {
     // Teaches drag, power and release, and that a planet bends the flight: a straight shot curves into it, so aim off the line.
@@ -262,10 +263,13 @@ const LEVELS = [
     walls: [{ x: 0, y: 330, w: 140, h: 22 }, { x: 220, y: 330, w: 140, h: 22 }], planets: [], suns: [], movers: [],
   },
 ];
-for (const lv of LEVELS) {
+// Clamps a hole to the size and mass limits; also applied by tools/sim-golf.mjs to a shard's JSON.
+function prepareLevel(lv) {
   for (const p of lv.planets) p.r = Math.max(p.r, T.planetMinR);
   for (const m of lv.movers) if (m.type === 'moon') m.mass = Math.min(m.mass, T.moonMassMax);
+  return lv;
 }
+LEVELS.forEach(prepareLevel);
 
 // ---------- Physics (one function drives the flight and the preview) ----------
 
@@ -1153,6 +1157,8 @@ export const game = {
     { key: 'powerMax', label: 'Max power', min: 500, max: 1100, step: 10 },
     { key: 'sunPenalty', label: 'Sun penalty', min: 0, max: 3, step: 1 },
   ],
+  // Read by tools/sim-golf.mjs so the simulator runs the real physics.
+  sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt },
   start: 'menu',
   scenes: { menu, play, over },
 };
