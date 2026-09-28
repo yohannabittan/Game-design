@@ -59,6 +59,8 @@ Each layer is one prompt, one session, one file (`src/game.js`). Between layers 
 
 How the prompts are used (ADR-0010): the orchestrator session, the one you talk to, hands the layer prompt to a builder sub-agent on a cheaper, faster model (Sonnet by default, Opus for feel-critical layers). The builder reads the PRD and skeleton itself, writes `game.js`, and runs the smoke test. A reviewer sub-agent with fresh context then checks the output against the PRD, the principles and the repo rules using `prompts/08-review.md`, and reports. The orchestrator accepts, sends the findings back to the builder, or fixes the document. Then you play it on the phone. Builders for different games can run in parallel; layers on one game are sequential because they rewrite one file. You can also run a prompt by hand in a session if you want to watch.
 
+Content layers run as parallel shards once the mechanic has been played (ADR-0012): the orchestrator slices the PRD's content plan, several builders each verify their entries with the game's simulation harness, the orchestrator merges, and one reviewer checks the curve.
+
 Why layers work for one-shots: each prompt has a small, closed target, a fixed contract (the engine), a spec (the PRD), and testable acceptance. The builder is never asked to invent scope, and a failure is contained to one layer.
 
 ## Stage 5. Deploy

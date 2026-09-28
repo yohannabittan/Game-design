@@ -30,3 +30,4 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0009](0009-deploy-via-github-pages.md) | Deploy by pushing to main; GitHub Pages serves the repo root | accepted |
 | [0010](0010-orchestrator-and-worker-models.md) | A top-tier model plans and reviews; cheaper, faster models build layers as sub-agents | accepted |
 | [0011](0011-engine-change-policy.md) | Additive engine changes need a README entry; behavioural changes need an ADR | accepted |
+| [0012](0012-content-sharding-and-physics-kits.md) | Content layers are built in parallel shards; physics lives in per-family kits with a harness | accepted |

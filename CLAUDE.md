@@ -40,7 +40,7 @@ The session the designer talks to is the orchestrator. It writes and reviews doc
 - **Builder:** an `Agent` on `sonnet` by default, `opus` for feel-critical or high-risk layers. Prompt is the layer file from `prompts/` with placeholders filled, verbatim. Builders read the repo themselves.
 - **Reviewer:** an `Agent` on `sonnet` with fresh context running `prompts/08-review.md`. Reports, never edits.
 - **Escalation:** builder retry with findings, then next model up, then fix the PRD or prompt.
-- **Parallelism:** across games, never across layers of one game.
+- **Parallelism:** across games, and within a content layer as data shards merged by the orchestrator (ADR-0012). Never two builders on one game's mechanic.
 - **Log it:** each changelog line names the model that built the layer and whether it passed review first time.
 
 ## Starting a new game
