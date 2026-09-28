@@ -36,6 +36,7 @@ Portrait. One thumb.
 | Drag back to under a small distance, then release | | Cancels the shot. No stroke counted. |
 | Tap while the ball is moving | | Nothing. The ball cannot be interrupted. |
 | Tap a button | menu, hole card | Menu navigation only. |
+| Tap Retry | small button in the HUD, at least 44 px, away from the aiming area | Restarts the current hole from its start with strokes reset. Available only while the ball is at rest. |
 
 Aiming is only possible while the ball is at rest.
 
@@ -89,7 +90,8 @@ Deferred so it is not accidentally built:
 - Holes 1 to 3 teach, in order: (1) drag, power and release, with one well beside the line so the very first shot bends and the preview shows why; the sinking window must stay at least 6 degrees wide; (2) a bank shot, a wall fully blocks the straight line; (3) a well between ball and hole, go around it.
 - Holes 4 to 10: (4) a corridor of two walls; (5) boss: a big well dead centre, the slingshot hole, needs tip 4; (6) a repulsor guarding the hole, needs tip 6; (7) bumper field, three bumpers; (8) two wells in a figure-of-eight, needs tips 3 and 4; (9) a narrow gap at the top with a well below it, needs tip 5 to drop in; (10) boss: a mover wall sweeping across the approach, one well, one bumper, needs timing plus everything before.
 - Difficulty curve: the second half requires tips 4, 5 and 6. The first half is clearable with tips 1 to 3.
-- Field borders: every hole has walls on all four edges of the design space, drawn as part of the field. Hole data does not list them; the physics adds them.
+- Field borders: every hole has walls on all four edges of the design space, drawn as part of the field and always visible on screen at any phone aspect ratio. Hole data does not list them; the physics adds them.
+- No trap anywhere: from rest at any reachable point on any hole, including inside a well's core, a full-power shot must be able to carry the ball at least 200 units away from that well, and a ball at rest never jitters. The pull inside `wellMinDist` falls off toward the centre (no constant-force pit). The builder verifies with an escape sweep on every hole that has a well.
 - Well strength is set by an observable, not by taste: a ball passing a well at 40 units of closest approach at 500 units per second must whip around by more than 90 degrees and leave the well uncaptured. A ball passing at 100 units at 400 units per second bends visibly (about 15 degrees by closest approach) and is then captured; that is accepted, because the whip is what makes the slingshot holes work. Measured on 2026-09-28: 97 degrees at 40 units with `wellStrength` 5,200,000. Per-hole wells carry a strength multiplier (0.6 gentle on hole 1, 2.5 on boss holes).
 - Boss beat: holes 5 and 10 are named as boss holes on the card and the hole select.
 
@@ -140,7 +142,9 @@ Explicitly not in v0.1:
 - [ ] All 10 holes are clearable at or under par by the intended solution in their comment
 - [ ] Hole 1 can be a hole-in-one at moderate power, the well visibly bends the flight, and the window of aim angles that sink it is at least 6 degrees wide, since it is the tutorial hole
 - [ ] A full-power shot on open field comes to rest within about two seconds
-- [ ] The ball never leaves the field
+- [ ] The ball never leaves the field, and all four walls are visible on a 390 by 844 screen and a 390 by 664 screen
+- [ ] Escape sweep: from rest inside every well's core on every hole, some full-power shot carries the ball at least 200 units from the well
+- [ ] Hole 4's sink window is at least 6 degrees and its intended path runs through the corridor
 - [ ] A bounce and a sink are distinguishable with sound off, and with eyes closed
 - [ ] The same drag vector produces the same flight every time, at 30 and at 120 frames per second
 - [ ] No text smaller than 14 px; hole select tiles and buttons at least 44 px
