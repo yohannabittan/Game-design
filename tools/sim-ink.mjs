@@ -20,7 +20,7 @@
 // within the stencil's timer. Time to 99 is measured to the moment 99 percent is first reached, and the finger is
 // assumed to travel at --speed during lifts too. Exit code 0 if 99 percent is reached within the timer without a
 // third slip, 1 otherwise. --timer-from-path prints the timer that leaves the PRD section 9 spare fraction
-// (TUNING.timerSpareEarly / Mid / Boss) after reaching 99 percent along this path.
+// (TUNING.timerMultEarly / Mid / Boss / Final) as a multiple of the time this path takes to reach 99 percent.
 
 import { readFileSync } from 'node:fs';
 import { game } from '../games/ink/src/game.js';
@@ -120,9 +120,9 @@ console.log(ok ? `result    OK: 99 percent within the ${st.timer}s timer` : `res
 
 if (flag('--timer-from-path')) {
   if (time99 === null) console.log('timer     cannot be set: this path never reaches 99 percent');
-  else for (const [label, spare] of [['stencils 1 to 4', T.timerSpareEarly], ['stencils 5 to 9', T.timerSpareMid], ['stencil 10', T.timerSpareBoss]]) {
-    const t = time99 / (1 - spare);
-    console.log(`timer     ${label}: ${f1(t)}s for ${Math.round(spare * 100)}% spare (round up: ${Math.ceil(t)})`);
+  else for (const [label, mult] of [['stencils 1 to 4', T.timerMultEarly], ['stencils 6 to 9', T.timerMultMid], ['boss stencil 5', T.timerMultBoss], ['boss stencil 10', T.timerMultFinal]]) {
+    const t = time99 * mult;
+    console.log(`timer     ${label}: ${f1(t)}s at ${mult}x the perfect path (round up: ${Math.ceil(t)})`);
   }
 }
 process.exit(ok ? 0 : 1);

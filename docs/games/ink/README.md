@@ -43,7 +43,7 @@ node tools/sim-ink.mjs --list                                  # names and timer
 
 Output is the percentage, slips, path length, time, the moment 99 percent is reached and whether that is inside the timer. Exit code 0 means 99 percent within the timer with no ruin; 1 means not. The time counts travel during lifts at the same speed.
 
-`--timer-from-path` prints the timer that leaves the PRD section 9 spare fraction after 99 percent is reached: 15 percent for stencils 1 to 4, 10 percent for 5 to 9, 5 percent for 10. Use the row for your stencil and round up to a whole second.
+`--timer-from-path` prints the timer as a multiple of the time the path takes to reach 99 percent (PRD section 9): 2.2x for stencils 1 to 4, 1.9x for 6 to 9, 1.7x for boss stencil 5 and 1.6x for boss stencil 10. Use the row for your stencil and round up to a whole second.
 
 ## What a shard delivers per stencil
 
