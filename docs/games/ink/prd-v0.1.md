@@ -68,7 +68,8 @@ Entering is generous: touching down with the needle outside the stencil counts n
 - Slip: the needle centre leaves the stencil by more than `slipTolerance` units. One slip per exit; the needle must re-enter before another can count. A slip leaves a permanent red mark at the exit point for that attempt. While outside, no ink is laid.
 - A stencil ends at 100 percent, when the timer reaches zero, or at the third slip.
 - Stars from the final percentage: 70 gives 1, 80 gives 2, 90 gives 3, 95 gives 4, 99 gives 5. Below 70 at the timer is a fail with 0 stars. The third slip is a fail with 0 stars regardless of percentage.
-- The card shows: percentage, stars with a pop, "Clean" if zero slips, best percentage on this stencil, Next (or Menu on stencil 10), Again on a fail. Nothing else.
+- The card shows: percentage, stars with a pop, "Clean" if zero slips, best percentage on this stencil, then the buttons: Next on a pass (Menu instead on stencil 10), Again on a fail, and a secondary Menu button always. Nothing else.
+- The timer starts on the first touch down and runs through lifts. Best percentage updates on a timer end or a 100 percent finish, never on a third-slip fail.
 
 ## 8. Progression in v0.1
 
