@@ -87,7 +87,8 @@ Deferred so it is not accidentally built:
 
 - Count for v0.1: 10 stencils.
 - Authored as: an array of stencil objects in `game.js`. Each has a name, a timer in seconds, and an outline as one or more closed polygons in the 360 by 640 design space (a later polygon inside another is a hole in the shape, even-odd rule). Curves are polygons with enough points to look smooth at phone size. A comment on each states its teaching goal or tip and the intended path in one line. Coordinates are scaled uniformly to the screen and centred.
-- Stencils 1 to 3 teach, in order: (1) circle: hold and move, fill the middle, the edge is round and forgiving; (2) square: corners, lift and place; (3) heart: a concave notch, work along the edge.
+- Stencils 1 to 3 teach, in order: (1) circle: hold and move, fill the middle, the edge is round and forgiving; (2) diamond gem: four sharp corners, lift and place; (3) heart: a concave notch, work along the edge.
+- Every stencil after the first must look like a piece of tattoo flash a person would wear, not a geometry exercise. Its silhouette must read at phone size.
 - Stencils 4 to 10: (4) star, five sharp points, needs tip 3; (5) boss: crescent moon, thin everywhere, needs tip 4; (6) lightning bolt, zigzag edges, needs tips 2 and 3; (7) ring, a shape with a hole, two edges to ride, needs tip 4; (8) four-leaf clover, many curved lobes, needs tip 6; (9) key, thin shaft with teeth, needs tips 4 and 5; (10) boss: snake, a long winding band with a head, needs everything and the timer is tight.
 - Timer per stencil is set from its area and edge length so that the intended path reaches 99 percent with about 15 percent of the time to spare on stencils 1 to 4, 10 percent on 5 to 9, and 5 percent on 10.
 - Boss beat: stencils 5 and 10 are named as boss stencils on the card and the select grid.
