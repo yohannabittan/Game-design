@@ -6,7 +6,7 @@
 | Version | 0.1 |
 | Pattern | P1 Aim and launch, with L6 boss cadence |
 | Date | 2026-09-28 |
-| Status | locked for layer 1; amended 2026-09-28 after review (sections 2, 6, 7, 12, 15, 16) |
+| Status | locked; amended 2026-09-28 after review, and again after the first phone playtest (borders, hole capture, friction, well strength, hole 1 well) |
 
 This document is the one-shot contract. A builder session gets this, the skeleton, and the layer prompt. If something is not in here, the builder should not invent it. Describe behaviour, not implementation.
 
@@ -16,11 +16,11 @@ Drag to aim, release to launch, and sink the ball in as few shots as you can thr
 
 ## 2. The first ten seconds
 
-The play scene opens directly on hole 1 (the menu is one tap: Play). A dark field with faint stars. A white ball sits in the lower third, a hole with a green ring sits in the upper third, and one slate wall stands just left of the line between them, close enough that a shot pulled to the left clips its corner and drifts wide. The player touches anywhere and drags. A dotted preview grows from the ball in the direction opposite the drag, showing the flight, so they can see a clip coming and adjust. They release. The ball passes the corner, slows, and drops into the hole with a green burst and the win chord. A card says "1 shot. Par 2." with three stars popping in and a Next button.
+The play scene opens directly on hole 1 (the menu is one tap: Play). A dark field with faint stars. A white ball sits in the lower third, a hole with a green ring sits in the upper third, and a purple gravity well sits to one side of the line between them, close enough that a straight shot bends visibly toward it. The field is walled on all four sides. The player touches anywhere and drags. A dotted preview grows from the ball in the direction opposite the drag and curves as it passes the well, so they can see the pull and aim off to compensate. They release. The ball bends around the well, slows, and is caught by the hole with a green burst and the win chord. A card says "1 shot. Par 2." with three stars popping in and a Next button.
 
 ## 3. Core loop and session shape
 
-- Loop: drag to set direction and power, release to launch, watch the ball travel under friction, walls and wells, until it stops or sinks. If it stopped, aim again from where it lies. Repeat until it sinks. Then the hole card, then the next hole.
+- Loop: drag to set direction and power, release to launch, watch the ball travel under friction, walls and wells, until it stops or sinks. The field is bordered by walls on all four sides, so the ball never leaves it. If it stopped, aim again from where it lies. Repeat until it sinks. Then the hole card, then the next hole.
 - A hole lasts 10 to 60 seconds. The full run of 10 holes is about 5 minutes.
 - A hole ends when the ball sinks. There is no shot limit and no fail state on a hole.
 - Closing the app mid-hole: the hole restarts from its start on reopen. Highest unlocked hole, best strokes per hole and stars persist. Holes are short, so this is fine.
@@ -66,8 +66,8 @@ Occlusion rule: the drag can start anywhere, so the thumb sits wherever the play
 
 ## 7. Goal, fail, score
 
-- A hole is cleared when the ball sinks: its centre is within the hole radius while its speed is below the sink speed. Above the sink speed the ball passes over the hole. This is deterministic and shown: the hole ring brightens when the ball is slow enough to sink.
-- There is no fail. Out of bounds (ball leaves the field) returns the ball to where the shot started. The shot counts as normal and one penalty stroke is added on top, so an out-of-bounds shot costs two strokes in total, as in golf.
+- The hole catches the ball like a real cup: within `captureR` of the hole centre, the ball is pulled toward the centre with a constant acceleration `captureStrength`, so a slow ball that grazes the rim curls in instead of sliding past. A hole is cleared when the ball's centre is within the hole radius while its speed is below the sink speed. Above the sink speed the ball passes over the hole. This is deterministic and shown: the hole ring brightens when the ball is slow enough to sink.
+- There is no fail and no out of bounds in v0.1. Every hole is walled on all four sides. The ball stops within about two seconds of a full-power shot on open field.
 - Score per hole is strokes. Stars per hole: 3 for strokes at or under par minus one, 2 for par, 1 for more.
 - The hole card shows: strokes, par, stars with a pop, best strokes on this hole, Next (or Menu on hole 10). Nothing else.
 
@@ -86,9 +86,11 @@ Deferred so it is not accidentally built:
 
 - Count for v0.1: 10 holes.
 - Authored as: an array of hole objects in `game.js`. Each has a name, a par, a ball start, a hole position, and lists of walls (axis-aligned rectangles), bumpers (circles the ball bounces off), wells (circles with a strength; negative strength is a repulsor), and optionally one mover (a wall that oscillates between two positions on a fixed period). All coordinates are in a fixed design space of 360 by 640 units that the game scales uniformly to fit the screen, centred, with letterboxing in the background colour. A comment on each hole states its teaching goal or tip and its intended solution in one line.
-- Holes 1 to 3 teach, in order: (1) drag, power and release on a straight shot with a wall to clip; (2) a bank shot, the wall fully blocks the straight line; (3) one well beside the line, curve around it.
+- Holes 1 to 3 teach, in order: (1) drag, power and release, with one well beside the line so the very first shot bends and the preview shows why; the sinking window must stay at least 6 degrees wide; (2) a bank shot, a wall fully blocks the straight line; (3) a well between ball and hole, go around it.
 - Holes 4 to 10: (4) a corridor of two walls; (5) boss: a big well dead centre, the slingshot hole, needs tip 4; (6) a repulsor guarding the hole, needs tip 6; (7) bumper field, three bumpers; (8) two wells in a figure-of-eight, needs tips 3 and 4; (9) a narrow gap at the top with a well below it, needs tip 5 to drop in; (10) boss: a mover wall sweeping across the approach, one well, one bumper, needs timing plus everything before.
 - Difficulty curve: the second half requires tips 4, 5 and 6. The first half is clearable with tips 1 to 3.
+- Field borders: every hole has walls on all four edges of the design space, drawn as part of the field. Hole data does not list them; the physics adds them.
+- Well strength is set by an observable, not by taste: a ball passing a well at 100 units of closest approach at 400 units per second must deflect by at least 25 degrees, and a ball passing at 40 units at 500 units per second must whip around by more than 90 degrees without being captured. The builder verifies both in a harness and adjusts `wellStrength` until they hold.
 - Boss beat: holes 5 and 10 are named as boss holes on the card and the hole select.
 
 ## 10. Juice list
@@ -102,7 +104,7 @@ Minimum feel. Each event gets a distinct response.
 | Wall or bumper bounce | Small spark burst at the contact point in slate | `hit` at low gain | none |
 | Entering a well's pull | Ball leaves a faint trail that bends | none | none |
 | Sink | Green burst from the hole, ball shrinks into it, card slides up | `win` (bigger burst and `coin` first on 3 stars) | 30 ms |
-| Out of bounds | Screen shake, red flash, ball returns with a short fade | `miss` | 30 ms |
+| Ball comes to rest far from the hole (more than 3 shots on a hole) | A soft slate pulse on the ball | none | none |
 | Star pop on card | Each star scales in with `outBack`, staggered | `coin` per star | none |
 
 ## 11. Art direction
@@ -111,7 +113,7 @@ Shapes only in v0.1. Dark navy field with faint static stars. Three semantic col
 
 ## 12. Audio
 
-Engine named sounds only: `tap` on release, `hit` on bounces at volume 0.3, `win` on sink, `coin` on stars, `miss` on out of bounds. No music in v0.1.
+Engine named sounds only: `tap` on release, `hit` on bounces at volume 0.3, `win` on sink, `coin` on stars. No music in v0.1.
 
 ## 13. Modes
 
@@ -136,8 +138,10 @@ Explicitly not in v0.1:
 - [ ] First-time player understands the verb within ten seconds without reading anything
 - [ ] From a sunk ball to aiming the next hole in one tap, under one second
 - [ ] All 10 holes are clearable at or under par by the intended solution in their comment
-- [ ] Hole 1 can be a hole-in-one with a near-straight shot at moderate power, and the window of aim angles that sink it is at least 6 degrees wide, since it is the tutorial hole
-- [ ] Hit and miss (bounce versus out of bounds) are distinguishable with sound off, and with eyes closed
+- [ ] Hole 1 can be a hole-in-one at moderate power, the well visibly bends the flight, and the window of aim angles that sink it is at least 6 degrees wide, since it is the tutorial hole
+- [ ] A full-power shot on open field comes to rest within about two seconds
+- [ ] The ball never leaves the field
+- [ ] A bounce and a sink are distinguishable with sound off, and with eyes closed
 - [ ] The same drag vector produces the same flight every time, at 30 and at 120 frames per second
 - [ ] No text smaller than 14 px; hole select tiles and buttons at least 44 px
 - [ ] Steady frame rate on a mid-range phone on hole 8 (two wells, trail, particles)
@@ -153,15 +157,17 @@ Design-space units unless stated. The builder copies these names into `TUNING`.
 | designW | 360 | Design space width |
 | designH | 640 | Design space height |
 | ballR | 9 | Ball radius |
-| holeR | 16 | Hole radius, ball centre must be inside |
-| sinkSpeed | 260 | Max speed (units per second) at which the ball can sink |
-| friction | 0.6 | Fraction of speed kept per second on the open field |
+| holeR | 18 | Hole radius, ball centre must be inside |
+| sinkSpeed | 380 | Max speed (units per second) at which the ball can sink |
+| captureR | 44 | Within this distance of the hole centre the cup pulls the ball |
+| captureStrength | 900 | Constant acceleration toward the hole centre inside captureR |
+| friction | 0.28 | Fraction of speed kept per second on the open field; a full-power shot stops in about two seconds |
 | stopSpeed | 6 | Below this speed the ball is at rest |
 | dragMax | 150 | Drag distance (screen px) that gives full power |
 | dragDead | 12 | Drag shorter than this cancels the shot |
 | powerMax | 820 | Launch speed at full drag |
 | wallBounce | 0.85 | Fraction of speed kept on a wall or bumper bounce |
-| wellStrength | 90000 | Acceleration toward a well is strength divided by distance squared |
+| wellStrength | 8000000 | Acceleration toward a well is strength divided by distance squared; starting value, tuned to the observable in section 9 |
 | wellMinDist | 28 | Distance below which the pull stops growing, avoids infinite force |
 | wellR | 22 | Visual radius of a well disc |
 | previewFullHoles | 3 | Holes 1 to this show the full preview |
@@ -170,7 +176,6 @@ Design-space units unless stated. The builder copies these names into `TUNING`.
 | previewDotEvery | 0.05 | Simulated seconds between preview dots |
 | physicsStep | 1/120 | Fixed physics timestep in seconds |
 | maxFlightSeconds | 12 | Safety: a ball still moving after this is stopped where it is |
-| oobPenalty | 1 | Strokes added for out of bounds |
 | moverPeriod | 2.4 | Seconds for the boss hole's wall to complete one sweep and return |
 | speedMax | 1400 | Ball speed is clamped here so wells cannot cause tunnelling |
 | keyPowerStart | 0.5 | Starting power fraction for the keyboard fallback |
