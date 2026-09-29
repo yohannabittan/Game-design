@@ -9,7 +9,12 @@
 //                                                     pair at level 1: milestone reach per set, and whether each milestone is reachable
 //                                                     with at most two upgrade levels in total
 //   node tools/sim-launch.mjs --naive [--seeds 200]    random pull angles 20 to 70 degrees, random powers, random boost taps;
-//                                                     then the same at full pull every time
+//                                                     then the same at full pull every time,
+//                                                     and the review's sloppy human (3 degrees of aim noise, a 5-tap burst)
+//   node tools/sim-launch.mjs --camera [--seeds 200] [--up ...]
+//                                                     the game's camera over the expert's flights at 844x390 and 640x360: share of frames
+//                                                     the critter is off screen, share of arcs whose landing is on screen at the arc's top,
+//                                                     the zoom floor that would show 90 percent, and on-screen speed in px per frame
 //   node tools/sim-launch.mjs --fps [--seeds 20]       the same seed and inputs at 30, 60 and 120 fps (and jittery frames) give the same distance
 //   node tools/sim-launch.mjs --check [--seeds 500]    field fairness: a spring before every mud, none further apart than 150 m, no overlaps
 //   node tools/sim-launch.mjs --fly ANGLE,POWER [--seed N] [--pulses T1,T2,...] [--up ...]   one flight with its event log
@@ -145,6 +150,69 @@ function expertBest(seed, up) {
   return tried.reduce((b, t) => (t.m > b.m ? t : b));
 }
 
+// Phone sizes for --camera: CSS size, design scale s, view width in design px (the engine fits 640 x 360 by height here).
+const CAM_SIZES = [{ name: '844x390', w: 844, h: 390 }, { name: '640x360', w: 640, h: 360 }].map((z) => ({ ...z, s: Math.min(z.w / T.designW, z.h / T.designH), vw: z.w / Math.min(z.w / T.designW, z.h / T.designH) }));
+
+function cameraFlight(seed, up) {
+  const b = expertBest(seed, up), R = T.critterR;
+  const r = sim.newRun(seed, { angle: b.angle, power: b.power }, up), ctl = expertCtl(b.plan);
+  const cams = CAM_SIZES.map((sz) => ({ sz, c: sim.newCamera(sz.vw), frames: 0, off: 0, lowFrames: 0, offLow: 0, lifted: 0, arcs: 0, seen: 0, need: [], px: [], apex: null }));
+  let prevVy = r.vy, prevMode = r.mode;
+  while (!r.ended) {
+    ctl(r);
+    sim.stepRun(r);
+    const landed = r.ev.some((e) => ['spring', 'bounce', 'ramp', 'mud'].includes(e.k)) || (prevMode === 'air' && r.mode === 'ground');
+    const bird = r.ev.some((e) => e.k === 'bird');
+    for (const k of cams) {
+      if (k.apex && (landed || bird)) {
+        if (landed) {
+          k.arcs++;
+          const [lx] = sim.toView(k.apex, r.x, 0);
+          if (lx >= 0 && lx <= k.sz.vw) k.seen++;
+          k.need.push(Math.min(1, (k.sz.vw * (1 - T.followXMin) - T.landMargin) / Math.max(1, r.x - k.apex.ax)));
+        }
+        k.apex = null;
+      }
+    }
+    if (r.steps % 2 === 0) for (const k of cams) {
+      sim.cameraStep(k.c, r, k.sz.vw, 1 / 60);
+      const [vx, vy] = sim.toView(k.c, r.x, r.y + R);
+      const out = vx < -R || vx > k.sz.vw + R || vy < -R || vy > T.designH + R;
+      k.frames++; if (out) k.off++;
+      if (r.y < 600 * U) { k.lowFrames++; if (out) k.offLow++; }
+      if (k.c.y > 0) k.lifted++;
+      k.px.push((Math.hypot(r.vx, r.vy) * k.c.z * k.sz.s) / 60);
+    }
+    if (r.mode === 'air' && prevVy > 0 && r.vy <= 0) for (const k of cams) k.apex = { ...k.c, ax: r.x };
+    prevVy = r.vy; prevMode = r.mode;
+  }
+  return { m: sim.metres(r), cams: cams.map(({ sz, c, apex, ...rest }) => rest) };
+}
+
+// The review's sloppy human: aims 40 degrees with 3 degrees of noise (normal), pulls fully, and fires a burst of every
+// pulse 0.15 to 0.4 s apart, starting 0.15 to 0.4 s after the second spring (or after the first plain-ground touch, if that
+// comes first: the player sees the chain is broken).
+function sloppyFlight(seed, up) {
+  const rng = makeRng(seed * 104729 + 7);
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
+  const angle = 40 + 3 * gauss(), gaps = Array.from({ length: 12 }, () => rng.range(0.15, 0.4));
+  const r = sim.newRun(seed, { angle, power: 1 }, up);
+  let springs = 0, fired = false;
+  while (!r.ended) {
+    for (const e of r.ev) {
+      if (e.k === 'spring') springs++;
+      if (!fired && (springs >= 2 || e.k === 'bounce')) {
+        fired = true;
+        let t = r.steps * STEP;
+        for (let i = 0; i < Math.ceil(r.fuel); i++) { t += gaps[i]; sim.queueInput(r, t, 'pulse'); }
+      }
+    }
+    r.ev.length = 0;
+    sim.stepRun(r);
+  }
+  return { m: sim.metres(r), angle };
+}
+
 function naiveFlight(seed, up, full = false) {
   const rng = makeRng(seed * 7919 + 13);
   const angle = rng.range(20, 70), power = full ? 1 : rng.range(0.3, 1);
@@ -161,6 +229,8 @@ if (!isMainThread) {
   const { kind, seeds, up } = workerData;
   const out = seeds.map((s) => {
     if (kind === 'expert') { const b = expertBest(s, up); return { seed: s, m: b.m, angle: b.angle, power: b.power, plan: b.plan.name, springs: b.r.springs, birds: b.r.birds, why: b.r.ended, secs: +(b.r.steps * STEP).toFixed(1) }; }
+    if (kind === 'sloppy') return { seed: s, ...sloppyFlight(s, up) };
+    if (kind === 'camera') return { seed: s, ...cameraFlight(s, up) };
     return { seed: s, ...naiveFlight(s, up, kind === 'naive-full') };
   });
   parentPort.postMessage(out);
@@ -241,6 +311,11 @@ if (flag('--clean')) {
   const runs = (xs, st) => { const out = []; let s = null, prev = null; for (const x of xs) { if (s === null || x - prev > st + 1e-9) { if (s !== null) out.push([s, prev]); s = x; } prev = x; } if (s !== null) out.push([s, prev]); return out.map(([a, b]) => (a === b ? `${a}` : `${a} to ${b}`)).join(', ') || 'none'; };
   console.log(`  window at full power (angles reaching 500 m on all ${seeds.length} seeds): ${runs(angles, 0.5)} deg`);
   console.log(`  window at 40 deg (powers reaching 500 m on all ${seeds.length} seeds): ${runs(powers, 0.01)}`);
+  const count = (a, p) => seeds.filter((s) => sim.metres(flyClean(a, p, s)) >= 500).length;
+  const rows = []; for (let p = 0.8; p <= 1.0001; p += 0.01) rows.push(`${p.toFixed(2)} ${count(40, +p.toFixed(2))}`);
+  console.log(`  seeds of ${seeds.length} reaching 500 m at 40 deg, by power: ${rows.join(', ')}`);
+  const first = []; for (let p = 0.7; p <= 1.0001; p += 0.01) { const r = sim.newRun(1, { angle: 40, power: +p.toFixed(2) }); while (!r.ended && !r.ev.some((e) => e.k === 'spring' || e.k === 'bounce')) sim.stepRun(r); if (r.ev.some((e) => e.k === 'spring')) first.push(+p.toFixed(2)); }
+  console.log(`  powers at 40 deg whose first landing is the teaching spring: ${runs(first, 0.01)}`);
   const grid = []; for (let a = 30; a <= 50; a += 1) for (let p = 0.8; p <= 1.0001; p += 0.02) if (minOver(a, +p.toFixed(2)) >= 500) grid.push(1);
   console.log(`  of the 21 x 11 grid 30 to 50 deg by power 0.80 to 1.00: ${grid.length} cells reach 500 m on every seed`);
 }
@@ -289,6 +364,26 @@ if (flag('--naive')) {
   const full = (await parallel('naive-full', seeds, up)).map((x) => x.m);
   console.log(`the same at full pull every time: ${dist(full)}`);
   console.log(`  seeds reaching each milestone: ${reach(full)}`);
+  const sl = (await parallel('sloppy', seeds, up)).map((x) => x.m);
+  console.log(`sloppy human (40 deg with 3 deg of noise, full pull, a burst of every pulse 0.15 to 0.4 s apart after the second spring): ${dist(sl)}`);
+  console.log(`  seeds reaching each milestone: ${reach(sl)}`);
+}
+
+if (flag('--camera')) {
+  ran = true;
+  // The expert's best flight per seed replayed with the game's camera at 60 frames a second, for each phone size.
+  const up = parseUp(value('--up')), seeds = Array.from({ length: nSeeds(200) }, (_, i) => i + 1);
+  const res = await parallel('camera', seeds, up);
+  for (const [k, name] of CAM_SIZES.map((sz, i) => [i, sz.name])) {
+    const rows = res.map((x) => x.cams[k]), sum = (f) => rows.reduce((a, b) => a + f(b), 0);
+    const frames = sum((c) => c.frames), off = sum((c) => c.off), low = sum((c) => c.lowFrames), offLow = sum((c) => c.offLow);
+    const arcs = sum((c) => c.arcs), seen = sum((c) => c.seen), need = rows.flatMap((c) => c.need).sort((a, b) => a - b);
+    const px = rows.flatMap((c) => c.px).sort((a, b) => a - b), lifted = sum((c) => c.lifted);
+    console.log(`${name}: frames ${frames}; critter off screen ${off} (${((100 * off) / frames).toFixed(2)} %), off screen while under 600 m up ${offLow} of ${low}; ` +
+      `sky panned (critter above what zoom ${T.zoomMin} fits, band pinned) ${((100 * lifted) / frames).toFixed(1)} % of frames`);
+    console.log(`  arcs ${arcs}: landing on screen at the top of the arc ${seen} (${((100 * seen) / arcs).toFixed(1)} %); zoom floor that would show 90 % of them (critter at the left limit) ${need[Math.floor(0.1 * need.length)].toFixed(3)}, 75 %: ${need[Math.floor(0.25 * need.length)].toFixed(3)}`);
+    console.log(`  critter speed on screen (CSS px per 60 Hz frame at the zoom in effect): median ${px[Math.floor(px.length / 2)].toFixed(1)}, p99 ${px[Math.floor(0.99 * px.length)].toFixed(1)}, max ${px[px.length - 1].toFixed(1)}`);
+  }
 }
 
 if (flag('--fps')) {

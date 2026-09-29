@@ -158,3 +158,8 @@ Not in v0.1: skins, badges, missions, daily, multiple critters, obstacles that h
 5. Pull affordance: on the first launch of a fresh save, a faint animated hand-drag hint behind the critter until the first pull begins; a drag under the dead zone shows "Pull further"; a pull at full power shows the band taut (a colour change) so the saturation point is visible.
 6. Power window: the first spring should be reachable from about 0.85 power at 40 degrees, not only 0.97 to 1; move or widen the teaching chunk's first spring accordingly and re-prove the naked 500 m.
 7. Layer hygiene: the unreachable upgrade code stays (it is the harness's upgrade model) but is grouped and commented as the layer 4 shop's model; the extra named sounds stay (the juice layer will own them).
+
+## Decisions after the v2 round (2026-09-30)
+
+- Camera floor stays 0.45x: a 0.39x floor (needed for 90 percent at 844x390) and 0.32x (at 640x360) shrink the world too far to read. The landing-on-screen target is 80 percent of expert arcs at 844x390 (measured 83); above the zoom, the sky pans with the critter while the ground band stays pinned, with a drop line and height label.
+- The first milestone at 500 m is a tutorial beat: a sloppy full-pull player reaches it (198 of 200) and does not reach 1000 m (6 of 200) where an expert always does.

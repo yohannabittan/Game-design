@@ -32,11 +32,12 @@ const TUNING = {
   coinPer10m: 1,
   chainSteps: [1, 1.5, 2, 3], // coin multiplier by consecutive springs or birds
   birdCoins: 5,
-  upgradePrices: [50, 150, 400], // the shop is layer 4
   milestones: [500, 1000, 2000, 3500, 5000], // metres
   milestoneBonus: [25, 50, 100, 200, 400],   // one-time coins, first time each milestone is passed
 
-  // Upgrade levels (the shop is layer 4; the harness sets these) and what a level does.
+  // The layer 4 shop's upgrade model. Nothing in layer 1 can change a level (every flight runs at level 0); it is here so
+  // tools/sim-launch.mjs can fly each upgrade set through the real physics, and the shop will set `upgrades` from the save.
+  upgradePrices: [50, 150, 400], // per level, per upgrade (PRD section 16)
   upgrades: { band: 0, fuel: 0, aero: 0, rocket: 0 },
   bandStep: 0.12,          // launchSpeedMax x (1 + 0.12 per level)
   fuelStep: 2,             // pulses per level
@@ -72,13 +73,24 @@ const TUNING = {
   pullVisual: 40,          // how far the critter moves back in the pocket at full pull (units)
   slingScreen: 0.2,        // slingshot at this fraction of the view width before launch
   followX: 0.3,            // the camera keeps the critter at this fraction of the view width
+  followXMin: 0.1,         // ... or as far left as this when the arc's landing is too far ahead for zoomMin
+  zoomMin: 0.45,           // the camera zooms out to this at most (PRD amendment after layer 1)
+  zoomLook: 1.0,           // seconds of horizontal travel kept in view ahead of the critter
+  zoomOutTime: 0.35,       // smoothing time constants (s): zooming out is quicker than zooming back in
+  zoomInTime: 0.9,
+  landMargin: 30,          // design px kept between the predicted landing and the right edge
+  skyTop: 50,              // design px at the top kept clear for the HUD
+  skyFill: 0.8,            // share of the sky (ground line to skyTop) the critter climbs into before the view zooms or pans
+  spriteMin: 0.65,         // the critter and birds never draw smaller than this zoom
   endDelay: 0.9,           // seconds from the stop to the card
+  cardGrace: 0.4,          // seconds the card ignores taps after it appears
+  nudgeLife: 1.2,          // seconds "Pull further" stays after a too-short drag
   calloutLife: 1.4,
 
   color: {
     sky: '#1f2736', ground: '#394150', groundTop: '#4d5667', tick: '#5b6577',
-    critter: '#ff8a1a', eye: '#1f2736', teal: '#2ec4b6', tealDim: '#1c6f69', mud: '#4a2c17', mudGloss: '#7b4b29',
-    ramp: '#6b7280', rampTop: '#8b93a1', sling: '#8b8f98', band: '#cbd5e1', text: '#e6e6e6', dim: '#9aa4b2', panel: '#141a24',
+    critter: '#ff8a1a', eye: '#1f2736', teal: '#2ec4b6', tealDim: '#1c6f69', mud: '#4a2c17', mudRim: '#d39a62',
+    ramp: '#6b7280', rampTop: '#8b93a1', sling: '#8b8f98', band: '#94a3b8', bandTaut: '#ffffff', text: '#e6e6e6', dim: '#9aa4b2', panel: '#141a24',
   },
 };
 const T = TUNING;
@@ -97,9 +109,9 @@ const DEG = Math.PI / 180;
 const FIRST_CHUNK = {
   name: 'First flight',
   objects: [
-    { kind: 'spring', x: 860, y: 0, w: 130 },
+    { kind: 'spring', x: 670, y: 0, w: 320 },
     { kind: 'bird', x: 1853, y: 192 },
-    { kind: 'spring', x: 1930, y: 0, w: 210 },
+    { kind: 'spring', x: 1500, y: 0, w: 640 },
     { kind: 'spring', x: 2600, y: 0, w: 180 },
     { kind: 'mud', x: 2850, y: 0, w: 120 },
   ],
@@ -203,6 +215,7 @@ const birdX = (b, t) => b.x0 + T.birdSwing * Math.sin((t / T.birdPeriod) * Math.
 
 // ---------- Flight ----------
 
+// A flight's numbers at a set of upgrade levels (the layer 4 shop's model, see TUNING.upgrades).
 function stats(up = T.upgrades) {
   const band = up.band || 0, fuel = up.fuel || 0, aero = up.aero || 0, rocket = up.rocket || 0;
   const airDrag = T.airDrag * Math.max(0, 1 - T.aeroStep * aero);
@@ -404,6 +417,55 @@ function finishFlight(E, r) {
   return { m, best: Math.max(best, m), isNew: m > best, coins: earned, bonus, chainMax: r.chainMax, stars: r.stars.slice(), firsts, seed: r.seed, why: r.ended };
 }
 
+// ---------- Camera ----------
+// The camera zooms out with height, speed and the predicted landing of the current arc, down to zoomMin, so the landing
+// is in view by the top of the arc. The ground band keeps its screen size and position: when even zoomMin cannot fit the
+// critter's height, the sky pans up with the critter and the band stays pinned at the bottom (a drop line and a height
+// label show how far up it is). Everything here is in design px at zoom 1; `vw` is the view width in design px.
+
+// Where the critter comes down if nothing else touches it: gravity and drag only, onto the ground or a ramp.
+function predictLanding(r) {
+  if (r.mode !== 'air') return r.x;
+  let vx = r.vx, vy = r.vy, x = r.x, y = r.y;
+  const h = STEP * 4, k = Math.pow(1 - r.st.airDrag, h);
+  for (let i = 0; i < 6000; i++) {
+    vy -= T.gravity * h; vx *= k; vy *= k; x += vx * h; y += vy * h;
+    if (vy < 0 && y <= surfaceH(groundAt(r.field, x), x)) return x;
+  }
+  return x;
+}
+
+const newCamera = (vw) => ({ x: -vw * T.slingScreen, y: 0, z: 1, a: T.followX });
+const skyRoom = () => (T.groundY - T.skyTop) * T.skyFill; // design px of sky the critter may climb into before the view moves
+
+function cameraStep(c, r, vw, dt) {
+  let zt = 1, at = T.followX;
+  const ahead = vw * (1 - T.followX) - T.landMargin;
+  if (r && !r.ended) {
+    zt = Math.min(zt, skyRoom() / (r.y + 2 * T.critterR));
+    if (r.mode === 'air') {
+      const d = predictLanding(r) - r.x;
+      if (d > 0) {
+        zt = Math.min(zt, ahead / d);
+        // A landing too far for zoomMin: slide the critter toward the left edge to make room ahead.
+        at = clamp(1 - (d * T.zoomMin + T.landMargin) / vw, T.followXMin, T.followX);
+      }
+    }
+    if (r.vx > 1) zt = Math.min(zt, ahead / (r.vx * T.zoomLook));
+  }
+  zt = clamp(zt, T.zoomMin, 1);
+  const k = (tau) => 1 - Math.exp(-dt / tau);
+  c.z += (zt - c.z) * k(zt < c.z ? T.zoomOutTime : T.zoomInTime);
+  c.a += (at - c.a) * k(T.zoomOutTime);
+  const start = -vw * T.slingScreen;
+  c.x = r ? Math.max(start, r.x - (vw * c.a) / c.z) : start;
+  c.y = r ? Math.max(0, r.y + 2 * T.critterR - skyRoom() / c.z) : 0;
+  return c;
+}
+
+// A world point in design px at zoom 1 (the ground band pinned at groundY).
+const toView = (c, wx, wy) => [(wx - c.x) * c.z, T.groundY - (wy - c.y) * c.z];
+
 // ---------- View ----------
 
 function view(E) {
@@ -411,52 +473,58 @@ function view(E) {
   return { s, oy: (E.h - T.designH * s) / 2, vw: E.w / s };
 }
 
-const S = { run: null, cam: 0, seed: 0 };
+const S = { run: null, cam: null, seed: 0 };
 
-function camFor(r, v) {
-  const start = -v.vw * T.slingScreen;
-  return r ? Math.max(start, r.x - v.vw * T.followX) : start;
-}
-
-function drawWorld(ctx, E, v, cam, r, pull) {
-  const C = T.color, s = v.s;
-  const X = (wx) => (wx - cam) * s, Y = (wy) => v.oy + (T.groundY - wy) * s;
+function drawWorld(ctx, E, v, c, r, pull, hint) {
+  const C = T.color, s = v.s, z = c.z;
+  const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - (wy - c.y) * z) * s;
+  const gy = v.oy + T.groundY * s, lift = c.y * z * s; // lift: how far the sky is panned above the pinned band
+  const sprite = Math.max(z, T.spriteMin); // critter and birds shrink less than the world so they still read
   ctx.fillStyle = C.sky; ctx.fillRect(0, 0, E.w, E.h);
-  const gy = Y(0);
   ctx.fillStyle = C.ground; ctx.fillRect(0, gy, E.w, E.h - gy);
   ctx.fillStyle = C.groundTop; ctx.fillRect(0, gy, E.w, 3 * s);
 
   // Distance ticks every 10 m, labels every 50 m.
-  const u10 = 10 * T.unitsPerMetre;
-  for (let wx = Math.floor(cam / u10) * u10; wx < cam + v.vw + u10; wx += u10) {
+  const u10 = 10 * T.unitsPerMetre, span = v.vw / z;
+  for (let wx = Math.floor(c.x / u10) * u10; wx < c.x + span + u10; wx += u10) {
     if (wx < 0) continue;
     const big = wx % (5 * u10) === 0;
     ctx.fillStyle = C.tick; ctx.fillRect(X(wx) - 1, gy + 4 * s, 2, (big ? 12 : 6) * s);
     if (big && wx > 0) E.text(`${wx / T.unitsPerMetre} m`, X(wx), gy + 28 * s, { size: 14, color: C.dim, weight: '600' });
   }
 
-  // Slingshot fork.
-  const fx = X(0), top = Y(T.slingH + 14);
-  ctx.strokeStyle = C.sling; ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(fx, gy); ctx.lineTo(fx, Y(T.slingH - 6));
-  ctx.moveTo(fx, Y(T.slingH - 6)); ctx.lineTo(fx - 9 * s, top); ctx.moveTo(fx, Y(T.slingH - 6)); ctx.lineTo(fx + 9 * s, top); ctx.stroke();
+  // Slingshot fork (on the band).
+  const fx = X(0), fy = (h) => gy - h * z * s, top = fy(T.slingH + 14);
+  ctx.strokeStyle = C.sling; ctx.lineWidth = 5 * s * z; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(fx, gy); ctx.lineTo(fx, fy(T.slingH - 6));
+  ctx.moveTo(fx, fy(T.slingH - 6)); ctx.lineTo(fx - 9 * s * z, top); ctx.moveTo(fx, fy(T.slingH - 6)); ctx.lineTo(fx + 9 * s * z, top); ctx.stroke();
 
   if (r) {
-    const f = r.field, t = flightTime(r), x0 = cam - 300, x1 = cam + v.vw + 300;
+    const f = r.field, t = flightTime(r), x0 = c.x - 400, x1 = c.x + span + 400;
     for (const g of f.ground) {
       if (g.x1 < x0 || g.x0 > x1) continue;
-      if (g.kind === 'spring') drawSpring(ctx, X(g.x0), gy, g.w * s, s, g.spent);
+      if (g.kind === 'spring') drawSpring(ctx, X(g.x0), gy, g.w * z * s, s, g.spent);
       else if (g.kind === 'mud') {
-        ctx.fillStyle = C.mud; roundBlob(ctx, X(g.x0), gy - 5 * s, g.w * s, 12 * s);
-        ctx.fillStyle = C.mudGloss; ctx.fillRect(X(g.x0) + 8 * s, gy - 3 * s, g.w * s * 0.45, 2 * s);
+        ctx.fillStyle = C.mud; roundBlob(ctx, X(g.x0), gy - 5 * s, g.w * z * s, 12 * s);
+        ctx.fillStyle = C.mudRim; roundBlob(ctx, X(g.x0), gy - 6 * s, g.w * z * s, 4 * s); // the light top edge: 3:1 or better on sky and ground
       } else if (g.kind === 'ramp') {
-        ctx.fillStyle = C.ramp; ctx.beginPath(); ctx.moveTo(X(g.x0), gy); ctx.lineTo(X(g.x1), Y(g.h)); ctx.lineTo(X(g.x1), gy); ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = C.rampTop; ctx.lineWidth = 3 * s; ctx.beginPath(); ctx.moveTo(X(g.x0), gy); ctx.lineTo(X(g.x1), Y(g.h)); ctx.stroke();
+        ctx.fillStyle = C.ramp; ctx.beginPath(); ctx.moveTo(X(g.x0), gy); ctx.lineTo(X(g.x1), gy - g.h * z * s); ctx.lineTo(X(g.x1), gy); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = C.rampTop; ctx.lineWidth = 3 * s; ctx.beginPath(); ctx.moveTo(X(g.x0), gy); ctx.lineTo(X(g.x1), gy - g.h * z * s); ctx.stroke();
       }
     }
     for (const b of f.birds) {
       if (b.hit || b.x0 < x0 || b.x0 > x1) continue;
-      drawBird(ctx, X(birdX(b, t)), Y(b.y), s, Math.cos((t / T.birdPeriod) * Math.PI * 2 + b.phase) >= 0);
+      const by = Y(b.y);
+      if (by < gy - 4 * s) drawBird(ctx, X(birdX(b, t)), by, s * sprite, Math.cos((t / T.birdPeriod) * Math.PI * 2 + b.phase) >= 0);
+    }
+  }
+
+  if (hint) { // first launch: a ghost thumb pulling back and down, behind the critter
+    const k = (E.time % 1.6) / 1.2;
+    if (k <= 1) {
+      const hx = X(0) + (90 - 80 * k) * s, hy = gy - (T.slingH + 60) * s + 60 * k * s;
+      ctx.globalAlpha = 0.28 * Math.sin(Math.PI * k); ctx.fillStyle = C.text;
+      ctx.beginPath(); ctx.arc(hx, hy, 16 * s, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
     }
   }
 
@@ -465,21 +533,26 @@ function drawWorld(ctx, E, v, cam, r, pull) {
   if (pull) { cx = pull.px; cy = T.slingH + pull.py; }
   else if (r) { cx = r.x; cy = r.y; }
   else { cx = 0; cy = T.slingH; }
+  const rr = T.critterR * s * sprite, sx = X(cx), sy = Y(cy) - rr;
   if (pull || !r) {
-    ctx.strokeStyle = C.band; ctx.lineWidth = 2.5 * s;
-    ctx.beginPath(); ctx.moveTo(fx - 9 * s, top); ctx.lineTo(X(cx), Y(cy + T.critterR)); ctx.lineTo(fx + 9 * s, top); ctx.stroke();
+    const taut = pull && pull.full;
+    ctx.strokeStyle = taut ? C.bandTaut : C.band; ctx.lineWidth = (taut ? 3.5 : 2.5) * s;
+    ctx.beginPath(); ctx.moveTo(fx - 9 * s, top); ctx.lineTo(sx, sy); ctx.lineTo(fx + 9 * s, top); ctx.stroke();
   }
   if (pull && pull.arc) {
     ctx.fillStyle = C.text;
     for (const [px, py] of pull.arc) { ctx.beginPath(); ctx.arc(X(px), Y(py + T.critterR), 2.4 * s, 0, Math.PI * 2); ctx.fill(); }
   }
-  const sy = Y(cy + T.critterR);
-  if (sy > -T.critterR * s) drawCritter(ctx, X(cx), sy, T.critterR * s, r && !pull ? Math.atan2(-r.vy, r.vx) : 0);
-  return { sx: X(cx), sy, height: cy };
+  if (lift > 0) { // panned sky: a dotted drop line from the critter to the band
+    ctx.strokeStyle = C.dim; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]);
+    ctx.beginPath(); ctx.moveTo(sx, sy + rr + 4); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]);
+  }
+  drawCritter(ctx, sx, sy, rr, r && !pull ? Math.atan2(-r.vy, r.vx) : 0);
+  return { sx, sy, rr, height: cy, lifted: lift > 0 };
 }
 
 function roundBlob(ctx, x, y, w, h) {
-  const rr = h / 2;
+  const rr = Math.min(h / 2, w / 2);
   ctx.beginPath(); ctx.moveTo(x + rr, y); ctx.lineTo(x + w - rr, y); ctx.arc(x + w - rr, y + rr, rr, -Math.PI / 2, Math.PI / 2);
   ctx.lineTo(x + rr, y + h); ctx.arc(x + rr, y + rr, rr, Math.PI / 2, Math.PI * 1.5); ctx.fill();
 }
@@ -512,26 +585,20 @@ function drawCritter(ctx, x, y, r, a) {
   ctx.beginPath(); ctx.arc(x + ex + r * 0.3, y + ey - r * 0.25, r * 0.16, 0, Math.PI * 2); ctx.fill();
 }
 
-// HUD in CSS px, inside all four safe insets.
+// HUD in CSS px, inside all four safe insets. The fuel gauge sits top left, clear of the sling pocket.
 function drawHud(E, r, fuel, fuelMax, info, callout) {
   const C = T.color, sf = E.safe, right = E.w - sf.right - 16, top = sf.top + 12;
   E.text(`${r ? metres(r) : 0} m`, right, top + 16, { size: 28, weight: '800', align: 'right', color: C.text });
   if (r && r.chain > 0) E.text(`Chain x${mult(r)}`, right, top + 46, { size: 16, align: 'right', color: C.teal });
-  // Fuel gauge, bottom left: one pip per pulse.
-  const x0 = sf.left + 16, y0 = E.h - sf.bottom - 26;
-  E.roundRect(x0 - 8, y0 - 32, Math.max(58, fuelMax * 18 + 12), 50, 10, C.panel);
-  E.text('Fuel', x0, y0 - 18, { size: 14, align: 'left', color: C.dim });
+  const x0 = sf.left + 16, y0 = top + 30;
+  E.roundRect(x0 - 8, top - 4, Math.max(58, fuelMax * 18 + 12), 50, 10, C.panel);
+  E.text('Fuel', x0, top + 10, { size: 14, align: 'left', color: C.dim });
   for (let i = 0; i < fuelMax; i++) {
     const k = clamp(fuel - i, 0, 1);
     E.roundRect(x0 + i * 18, y0 - 6, 14, 14, 4, '#2a3342', '#4b5567');
     if (k > 0) E.roundRect(x0 + i * 18 + 2, y0 - 4 + 10 * (1 - k), 10, 10 * k, 3, C.text);
   }
-  // Height marker when the critter is above the screen.
-  if (info && info.sy < 0) {
-    const mx = clamp(info.sx, sf.left + 24, E.w - sf.right - 24), my = sf.top + 6;
-    E.ctx.fillStyle = C.critter; E.ctx.beginPath(); E.ctx.moveTo(mx, my); E.ctx.lineTo(mx - 8, my + 12); E.ctx.lineTo(mx + 8, my + 12); E.ctx.fill();
-    E.text(`${Math.round(info.height / T.unitsPerMetre)} m up`, mx + 14, my + 7, { size: 14, align: 'left', color: C.text });
-  }
+  if (info && info.lifted) E.text(`${Math.round(info.height / T.unitsPerMetre)} m up`, info.sx + info.rr + 8, info.sy, { size: 14, align: 'left', color: C.text });
   if (callout) E.text(callout.text, E.w / 2, sf.top + 60, { size: 24, weight: '800', color: C.text, alpha: clamp(callout.t / 0.3, 0, 1) });
 }
 
@@ -542,7 +609,7 @@ const newSeed = () => (Math.random() * 2 ** 32) >>> 0; // the seed is setup; the
 const menu = {
   render(ctx, E) {
     const C = T.color, v = view(E);
-    drawWorld(ctx, E, v, camFor(null, v), null, null);
+    drawWorld(ctx, E, v, newCamera(v.vw), null, null, false);
     const cy = E.h * 0.26;
     E.text('LAUNCH', E.w / 2, cy, { size: 44, weight: '800', color: C.text });
     E.text(`Best ${E.save.get('best', 0)} m    Coins ${E.save.get('coins', 0)}`, E.w / 2, cy + 40, { size: 16, color: C.dim });
@@ -560,7 +627,8 @@ const play = {
   enter(E, params = {}) {
     S.seed = params.seed ?? newSeed();
     S.run = null; S.pull = null; S.key = null; S.endT = 0; S.callout = null; S.frameReal = performance.now(); S.pid = null; S.spaceDown = false;
-    S.st = stats();
+    S.st = stats(); S.cam = newCamera(view(E).vw); S.nudge = 0;
+    S.hint = E.save.get('flights', 0) === 0 && !S.pulled; // a fresh save's first launch, until the first pull begins
   },
   stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)); },
   launch(E, l) {
@@ -572,6 +640,8 @@ const play = {
     S.frameReal = performance.now();
     const r = S.run;
     if (S.callout) { S.callout.t -= dt; if (S.callout.t <= 0) S.callout = null; }
+    if (S.nudge > 0) S.nudge -= dt;
+    cameraStep(S.cam, r, view(E).vw, dt);
     if (!r) return;
     if (S.spaceDown && !E.keys.has(' ')) { // key repeat is ignored: one pulse per press, a held key is the Rocket's hold
       S.spaceDown = false;
@@ -593,7 +663,7 @@ const play = {
   },
   onPointerDown(p, E) {
     const r = S.run;
-    if (!r) { if (S.pid === null) { S.pid = p.id; S.pull = { sx: p.x, sy: p.y, dx: 0, dy: 0 }; } return; }
+    if (!r) { if (S.pid === null) { S.pid = p.id; S.pull = { sx: p.x, sy: p.y, dx: 0, dy: 0 }; S.hint = false; S.pulled = true; } return; }
     if (r.ended) return;
     const at = this.stamp(r);
     queueInput(r, at, 'pulse');
@@ -612,11 +682,13 @@ const play = {
     if (!pull || p.cancelled) return;
     const l = launchFromDrag(p.x - pull.sx, p.y - pull.sy);
     if (l) this.launch(E, l);
+    else S.nudge = T.nudgeLife;
   },
   onKey(k, E) {
     const r = S.run;
     if (!r) {
       S.key = S.key || { angle: 40, power: 1 };
+      S.hint = false;
       if (k === 'ArrowUp') S.key.angle = Math.min(T.launchAngleMax, S.key.angle + 1);
       else if (k === 'ArrowDown') S.key.angle = Math.max(T.launchAngleMin, S.key.angle - 1);
       else if (k === 'ArrowRight') S.key.power = Math.min(1, +(S.key.power + 0.05).toFixed(2));
@@ -633,28 +705,30 @@ const play = {
   },
   render(ctx, E) {
     const v = view(E), r = S.run;
-    let pull = null;
+    let pull = null, short = false;
     const l = S.pull ? launchFromDrag(S.pull.dx, S.pull.dy) : S.key;
     if (!r && (S.pull || S.key)) {
-      const L = S.pull ? Math.min(Math.hypot(S.pull.dx, S.pull.dy), T.pullMax) / T.pullMax : S.key.power;
-      const a = l ? l.angle * DEG : 0;
-      pull = { px: -Math.cos(a) * L * T.pullVisual, py: Math.max(4 - T.slingH, -Math.sin(a) * L * T.pullVisual), arc: l ? previewArc(l) : null };
+      const raw = S.pull ? Math.hypot(S.pull.dx, S.pull.dy) : S.key.power * T.pullMax;
+      const L = Math.min(raw, T.pullMax) / T.pullMax, a = l ? l.angle * DEG : 0;
+      short = !!S.pull && raw < T.dragDead;
+      pull = { px: -Math.cos(a) * L * T.pullVisual, py: Math.max(4 - T.slingH, -Math.sin(a) * L * T.pullVisual), arc: l ? previewArc(l) : null, full: raw >= T.pullMax };
     }
-    S.cam = camFor(r, v);
-    const info = drawWorld(ctx, E, v, S.cam, r, pull);
+    const info = drawWorld(ctx, E, v, S.cam, r, pull, S.hint && !r && !S.pull);
     drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.st.fuelMax : S.st.fuelMax, r ? info : null, S.callout);
+    if (!r && (short || S.nudge > 0)) E.text('Pull further', info.sx, info.sy - 34, { size: 16, color: T.color.text, alpha: short ? 1 : clamp(S.nudge / 0.3, 0, 1) });
   },
   onPause() { /* a flight is short: closing mid-flight discards it (PRD section 3) */ },
 };
 
 const over = {
   enter(E, p) {
-    this.p = p;
+    this.p = p; this.t0 = E.time;
     if (p.stars.length) E.audio.play('coin', 0.5);
   },
+  ready(E) { return E.time - this.t0 >= T.cardGrace; }, // boost taps still landing must not dismiss the card
   render(ctx, E) {
     const C = T.color, v = view(E), p = this.p, sf = E.safe;
-    if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null);
+    if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null, false);
     ctx.fillStyle = 'rgba(15,17,21,0.55)'; ctx.fillRect(0, 0, E.w, E.h);
     const aw = E.w - sf.left - sf.right, ah = E.h - sf.top - sf.bottom;
     const pw = Math.min(440, aw - 32), ph = Math.min(310, ah - 24), px = sf.left + (aw - pw) / 2, py = sf.top + (ah - ph) / 2;
@@ -675,10 +749,11 @@ const over = {
     this.btnAgain = E.button('Launch Again', cx, py + ph - 42, { w: Math.min(260, pw - 40), h: 56 });
   },
   onTap(p, E) {
+    if (!this.ready(E)) return;
     if (this.btnAgain && E.hit(this.btnAgain, p)) { E.audio.play('tap'); E.setScene('play'); }
     else if (this.btnMenu && E.hit(this.btnMenu, p)) E.setScene('menu');
   },
-  onKey(k, E) { if (k === ' ' || k === 'Enter') E.setScene('play'); },
+  onKey(k, E) { if ((k === ' ' || k === 'Enter') && this.ready(E)) E.setScene('play'); },
 };
 
 export const game = {
@@ -698,7 +773,7 @@ export const game = {
     { key: 'airDrag', label: 'Air drag', min: 0, max: 0.1, step: 0.005 },
   ],
   // Read by tools/sim-launch.mjs so the harness runs the real physics.
-  sim: { STEP, FIRST_CHUNK, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf },
+  sim: { STEP, FIRST_CHUNK, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, predictLanding, newCamera, cameraStep, toView },
   start: 'menu',
   scenes: { menu, play, over },
 };
