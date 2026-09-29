@@ -1,7 +1,7 @@
-// Recoil, v0.3: the mechanic plus guns, barrel sway, moving targets, skeet, a boss, and progression (four guns unlocked by
-// points, nine badges, a gauntlet). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
-// Instant shot lines scored by zone, a combo multiplier, four ladders, stars, points, menu and card. Layer 5: procedural art (four gun
-// silhouettes, paper targets, a range backdrop) from one palette in TUNING.art; no image assets.
+// Recoil, v0.4: the mechanic plus guns, barrel sway, moving targets, skeet with decoys, two bosses, and progression (four guns unlocked by
+// points, thirteen badges, nine gun skins, a gauntlet). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
+// Instant shot lines scored by zone, a combo multiplier, four ladders of five rungs (Skeet has three, Boss two), stars, points, menu and card.
+// Procedural art (four gun silhouettes, paper targets, a range backdrop) from one palette in TUNING.art; no image assets.
 // Landscape, two thumbs (ADR-0013).
 
 import { makeRng, ease, clamp } from './engine.js';
@@ -212,6 +212,7 @@ const TUNING = {
     plate: { shut: 0.45, r: 1.1, inner: 0.86, rivet: 2.2, glow: [1.2, 1.32], dash: 12, ring: 7, pip: 5, pipGap: 8, pipTray: 3 },
     core: { pulse: 5, glow: [7, 14], glowAlpha: [0.22, 0.12], amp: 3, spec: 0.68 },
     pip: { w: 6, h: 9, gap: 11 }, // Combo pips drawn as brass casings
+    intro: { y: 52, hold: 5, fade: 1.5 }, // Boss 2's "Every plate scores" line: design-space height, seconds shown, seconds to fade
     missions: { th: 104, gap: 8, rail: 44, lock: 16, lockGap: 10 }, // Missions tile height, gap, scroll rail width, the Gauntlet padlock's size and its gap to the label
     tile: { pad: 6 }, // Gun tiles on the menu: padding round the silhouette
   },
@@ -307,9 +308,11 @@ const CHALLENGES = [
   },
   { // v0.4. Three launches a volley from alternating sides, one of them a decoy in the player's orange: shot, it costs its zone value and the combo.
     // Goal clays stay cyan. Tests target discrimination under speed. Naked run: leave the decoy, shoot the two cyan ones. Perfect run 2950 (ten bullseyes on the goal clays).
-    // The 0.6 s between launches is 1.2 times the 0.5 s a keyboard-speed perfect path needs to switch clays (at 0.4 s it drops clays and shoots a decoy).
+    // The 0.6 s between launches is 1.5 times the 0.4 s a keyboard-speed perfect path needs to switch clays (at 0.3 s it drops one). The left station sits mid-field
+    // (leftX) and lobs steeply toward the wall, so no clay is launched near the gun; every clay is smaller than Skeet 2's (0.75), so the angle that hits a bullseye is
+    // about Skeet 2's from the left station (4.5 units at 360, against 6 at 512) and tighter from the right (4.5 at 515), and a bot at 1 and 2 degrees does no better here.
     id: 'k3', ladder: 'skeet', level: 3, name: 'Skeet 3', seed: 43003, needStars: 2,
-    skeetEvery: 4.0, volleys: 5, volley: 3, volleyGap: 0.6, skeetMul: 1.0, angle: [56, 66], launchSpread: 30, scale: 1.1,
+    skeetEvery: 4.0, volleys: 5, volley: 3, volleyGap: 0.6, skeetMul: 1.0, angle: [56, 66], launchSpread: 30, leftX: 430, leftAngle: [64, 68], scale: 0.75,
     stars: { one: 890, two: 1620, three: 2510 },
   },
   { // Three parts in order, then a drifting core. Perfect run 3750.
@@ -324,13 +327,14 @@ const CHALLENGES = [
     // plate falls); behind them a core that cannot be hurt until coreOpen plates are down. Tests damage per shot: the rifle one-shots a plate, the pistol needs
     // three centred hits, the shotgun its centre pellet plus two outers on the same plate. Naked run: the pistol clears it with 27 bullseyes.
     // Stars per gun are 30/55/85 percent of the gun's maximum over centred shots (searched, then replayed in the sim): pistol and carbine 9750 (27 bullseyes: six plates
-    // of three, then the core's nine), shotgun 4950 (15), rifle 2550 (9). bossSeconds is 1.6 times the slowest gun's keyboard-speed perfect path (the pistol's 14.9 s), rounded up.
+    // of three, then the core's nine), shotgun 4061 (the best expected score with the aim error a gaussian of 1 unit: any error over 0.86 units lands a second
+    // pellet on the core, which is fewer scoring shots; centred with no error it is 4950), rifle 2550 (9). bossSeconds is 1.6 times the slowest gun's keyboard-speed perfect path (the pistol's 14.9 s), rounded up.
     id: 'b2', ladder: 'boss', level: 2, name: 'Boss 2', seed: 44002, needStars: 2, needGun: 'rifle',
     bossSeconds: 24, scale: 0.85, plateHp: 3, startReveal: 2,
     wall: [[430, 80], [350, 116], [495, 153], [385, 189], [465, 226], [350, 262]], // plate positions: no two share a height band, so a level shot at any plate never crosses another
     coreX: 585, coreBand: [145, 205], coreScale: 0.9, coreBull: 0.6, coreHp: 9, coreDrift: 35,
     stars: { one: 2930, two: 5360, three: 8290 },
-    starsByGun: { shotgun: { one: 1490, two: 2720, three: 4210 }, rifle: { one: 770, two: 1400, three: 2170 } },
+    starsByGun: { shotgun: { one: 1220, two: 2230, three: 3450 }, rifle: { one: 770, two: 1400, three: 2170 } },
   },
 ];
 const LADDERS = [['accuracy', 'Accuracy'], ['speed', 'Speed'], ['skeet', 'Skeet'], ['boss', 'Boss']];
@@ -405,7 +409,8 @@ function build(ch) {
       const decoy = Math.floor(rng() * ch.volley);
       for (let j = 0; j < ch.volley; j++) {
         const side = (v * ch.volley + j) % 2 ? 'L' : 'R';
-        b.push({ at: T.startDelay + v * ch.skeetEvery + j * ch.volleyGap, a: rng.range(lo, hi), side, decoy: j === decoy, x0: side === 'R' ? lg.x1 - rng.range(0, ch.launchSpread) : lg.x0 + rng.range(0, ch.launchSpread) });
+        const left = side === 'L'; // the left station sits mid-field and lobs steeply toward the wall, so no clay is launched close to the gun
+        b.push({ at: T.startDelay + v * ch.skeetEvery + j * ch.volleyGap, a: left ? rng.range(...ch.leftAngle) : rng.range(lo, hi), side, decoy: j === decoy, x0: left ? ch.leftX + rng.range(0, ch.launchSpread) : lg.x1 - rng.range(0, ch.launchSpread) });
       }
     }
   } else if (ch.ladder === 'skeet') {
@@ -549,9 +554,10 @@ function checkEnd(run) {
 }
 
 // The angle offsets of a gun's pellets from the barrel: one line straight ahead, or a fixed fan of shotSpread degrees.
+const FANS = {}; // per gun, built once
 function fanOffsets(g) {
   const n = g.pellets || 1;
-  return Array.from({ length: n }, (_, i) => (n > 1 ? T.shotSpread * (i / (n - 1) - 0.5) : 0));
+  return FANS[g.id] || (FANS[g.id] = Array.from({ length: n }, (_, i) => (n > 1 ? T.shotSpread * (i / (n - 1) - 0.5) : 0)));
 }
 
 // One shot: every pellet flies its own line from the gun and stops at the first target it crosses; then the kick.
@@ -1368,7 +1374,10 @@ function endRun(E) {
   const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, decoyHits: r.decoyHits, gauntletDone: !!(gaunt && gaunt.done), bests: bests(E), bossGuns, have: badgeMap(E) });
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
   const unlocked = fresh.map(skinOfBadge).filter(Boolean).map((k) => `${T.guns[k.gun].short} ${k.skin.name}`); // shown on the card's badge line
-  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id), skins: unlocked });
+  // A Bunker cleared early leaves plates standing; say what they were worth (a full combo, the shots the gun needs per plate).
+  const left = ch.wall && r.cleared ? r.targets.filter((t) => t.kind === 'part').length : 0;
+  const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
+  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id), skins: unlocked });
 }
 
 function meterText(r, ch) {
@@ -1422,6 +1431,14 @@ function menuLayout(E) {
     L.missions = { x: x0, y: by + 58, w: (W - 10) / 2, h: 48 }; L.mute = { x: x0 + (W + 10) / 2, y: by + 58, w: (W - 10) / 2, h: 48 };
   }
   return L;
+}
+
+// The string, or its start with an ellipsis, so that it is no wider than maxW at the given size and weight.
+function fitText(ctx, str, maxW, size, weight) {
+  ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+  if (ctx.measureText(str).width <= maxW) return str;
+  let n = str.length; while (n > 1 && ctx.measureText(`${str.slice(0, n)}…`).width > maxW) n--;
+  return `${str.slice(0, n)}…`;
 }
 
 // Splits text into lines no wider than maxW at the given size.
@@ -1551,8 +1568,8 @@ const missions = {
       const on = !!have[b.id], col = P.tier[b.tier], sk = skinOfBadge(b.id);
       plate(E, x, y, tw, M.th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
       E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: TY.small, align: 'left', color: on ? col : P.textDim });
-      E.text(b.name, x + 12, y + 34, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
-      if (on) drawStar(ctx, x + tw - 24, y + 22, 12, col);
+      E.text(fitText(ctx, b.name, tw - 24, TY.mid, TY.strong), x + 12, y + 34, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
+      if (on) drawStar(ctx, x + tw - 24, y + 14, 9, col); // on the tier row, clear of the name below
       if (sk) drawSkinLine(ctx, E, sk, x + 12, y + 54, on);
       wrapText(ctx, b.cond, tw - 24, TY.small).forEach((ln, k) => E.text(ln, x + 12, y + (sk ? 74 : 56) + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
     });
@@ -1652,6 +1669,10 @@ const play = {
       const k = 1 - f.t / f.max;
       popText(E, f.text, v.ox + f.x * v.s, v.oy + (f.y - 18 - 22 * k) * v.s, f.color, 1 - k * k);
     }
+    if (ch.wall && now < A.intro.hold + A.intro.fade) { // the Bunker's one-line intro: plates 5 and 6 are optional but they score
+      const a = clamp((A.intro.hold + A.intro.fade - now) / A.intro.fade, 0, 1);
+      E.text('Every plate scores', v.ox + (T.designW / 2) * v.s, v.oy + A.intro.y * v.s, { size: TY.small, weight: TY.strong, color: P.text, alpha: a });
+    }
     this.hud(E, v, r, ch);
     if (E.h > E.w) { // portrait: playable, but say what it wants, in the letterbox below the field
       const below = v.oy + v.h + 8 + 34 <= E.h - E.safe.bottom;
@@ -1727,37 +1748,45 @@ const over = {
     const pw = Math.min(E.w - 16, 500);
     plate(E, cx - pw / 2, y0 - 18, pw, H + 30, P.panel, P.panelEdge, 16);
     E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Gauntlet ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 10, { size: TY.small, color: P.textDim });
-    E.text(`${p.score}`, cx, y0 + 56, { size: TY.big + 16, weight: TY.strong, color: P.text });
+    E.text(`${p.score}`, cx, y0 + 46, { size: TY.big + 16, weight: TY.strong, color: P.text });
     if (p.gunId) { // the gun as it was worn, on the left of the score
       const tx = cx - pw / 2 + 14 + 42, ws = skinById(p.gunId, p.skin);
-      drawGunTile(ctx, p.gunId, tx, y0 + 58, 84, 34, p.skin);
-      if (ws.badge) E.text(ws.name, tx, y0 + 86, { size: TY.small, color: P.textDim });
+      drawGunTile(ctx, p.gunId, tx, y0 + 48, 84, 34, p.skin);
+      if (ws.badge) E.text(ws.name, tx, y0 + 74, { size: TY.small, color: P.textDim });
     }
     const age = E.time - this.t0;
     for (let i = 0; i < 3; i++) {
-      const sx = cx + (i - 1) * 60, sy = y0 + 112;
+      const sx = cx + (i - 1) * 60, sy = y0 + 94;
       if (i < p.stars) {
         const k = ease.outBack(clamp((age - i * 0.2) / 0.3, 0, 1));
         if (k > 0) drawStar(ctx, sx, sy, 22 * k, P.brass);
       } else drawStar(ctx, sx, sy, 22, null, P.panelEdge);
     }
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
-    E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 158, { size: TY.mid, color: P.text });
-    E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 182, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
-    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}`, cx, y0 + 206, { size: TY.small, color: P.textDim });
+    E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 134, { size: TY.mid, color: P.text });
+    E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 156, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
+    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}`, cx, y0 + 178, { size: TY.small, color: P.textDim });
+    // Optional lines stack under the thresholds (a cursor, not fixed rows): the Bunker's plates, the badge, its skin, a gauntlet note. The buttons start at y0 + 256;
+    // with all four the last line ends at y0 + 247.
+    let yy = y0 + 178;
+    if (ch.wall) {
+      yy += 20;
+      E.text(p.platesLeft ? `${p.platesLeft} plates left, worth up to ${p.platesValue} more` : 'Every plate scores', cx, yy, { size: TY.small, color: p.platesLeft ? P.cyan : P.textDim });
+    }
     if (p.badges.length) { // a badge pop: the line pops in by transform, from popFrom of its size (never under the small text size), fading up
+      yy += 22;
       const t = clamp((age - 0.5) / 0.35, 0, 1), k = ease.outBack(t), names = p.badges.map((id) => BADGES.find((b) => b.id === id).name).join(', ');
       const col = P.tier[BADGES.find((b) => b.id === p.badges[0]).tier], from = TY.small / TY.mid, sc = from + (1 - from) * k, msg = `Badge earned: ${names}`;
       if (t > 0) {
-        ctx.save(); ctx.translate(cx + 12, y0 + 230); ctx.scale(sc, sc);
+        ctx.save(); ctx.translate(cx + 12, yy); ctx.scale(sc, sc);
         E.text(msg, 0, 0, { size: TY.mid, weight: TY.strong, color: col, alpha: t }); ctx.globalAlpha = t;
         drawStar(ctx, -ctx.measureText(msg).width / 2 - 16, 0, 11, col);
         ctx.restore();
-        if (p.skins && p.skins.length) E.text(`Skin unlocked: ${p.skins.join(', ')}`, cx, y0 + 247, { size: TY.small, color: P.textDim, alpha: t }); // the buttons start at y0 + 256
+        if (p.skins && p.skins.length) E.text(`Skin unlocked: ${p.skins.join(', ')}`, cx, yy + 20, { size: TY.small, color: P.textDim, alpha: t });
       }
-    } else if (g && !g.ok) E.text('Gauntlet over: two stars needed', cx, y0 + 236, { size: TY.mid, color: P.red });
-    else if (g && g.done) E.text('Gauntlet complete', cx, y0 + 236, { size: TY.mid, color: P.cyan });
-    else if (g) E.text('Gauntlet stage passed', cx, y0 + 236, { size: TY.mid, color: P.cyan });
+    } else if (g && !g.ok) E.text('Gauntlet over: two stars needed', cx, yy += 22, { size: TY.mid, color: P.red });
+    else if (g && g.done) E.text('Gauntlet complete', cx, yy += 22, { size: TY.mid, color: P.cyan });
+    else if (g) E.text('Gauntlet stage passed', cx, yy += 22, { size: TY.mid, color: P.cyan });
     const btns = [['Again', P.orange, P.ink, 'again']];
     if (this.canNext) btns.push(['Next', P.cyan, P.ink, 'next']);
     btns.push(['Menu', P.slate, P.text, 'menu']);
