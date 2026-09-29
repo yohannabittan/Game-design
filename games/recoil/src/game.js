@@ -54,17 +54,20 @@ const TUNING = {
   starGrid: 0.25,        // Degrees between the samples of a BARS curve
   starCap: 0.95,         // A bar never exceeds this share of the perfect run, so perfect centred play always earns three stars
   starRound: 10,         // Bars are rounded to this
+  starFallback: { gap: 0.15, shares: [0.30, 0.55, 0.85] }, // v0.5 O: when a gun's three-star bar minus its one-star bar is under `gap` of its perfect run the bars measure no aim, so they become these shares of the perfect run
   slowLife: 0.4,         // Seconds of real time the last kill of a Speed or Skeet run plays in slow motion
   slowScale: 0.25,       // Game speed during it
   tickerLife: 0.9,       // Seconds the card takes to count the score up
   calloutLife: 1.0,      // Seconds a streak call-out stays on the field
-  kickWindow: 0.65,      // v0.5 J, Kickback: six hits in a row within this many seconds (0.5 in the PRD is faster than any gun here can shoot: the pistol's five gaps are 0.54 s)
+  kickWindow: 0.5,       // v0.5 J and O, Kickback: kickCount hits in a row within this many seconds (only the SMG's gaps are short enough: its five are 0.36 s), on at least kickTargets distinct targets
+  kickCount: 6,
+  kickTargets: 2,        // the recoil walking the aim: a held gun on one target does not earn it
   coldRuns: 5,           // v0.5 J, Cold Barrel: runs in a row that open on a bullseye
 
   // v0.5 sections G and L: zombies. A zombie is up to three parts (circles, in units at scale 1, centre `cy` above the feet): legs, body, brain. Legs down: it crawls at `crawl` of its
   // speed and its body drops; body down: it slows to `hunch`; the brain ends it. A zombie whose front (arms, `reach`) touches the fence ends the run. The five types are
   // data (`types`): speed as a share of `base`, size (a multiplier on every radius and height), part hit points, and where the head sits, so no two heads sit at the same height
-  // (Shambler 74, Crawler 22, Hunched 48 under its shield, Brute 122, and the Runner's 74 bobbing by `bob`).
+  // (Shambler 74, Crawler 28, Hunched 48 under its shield, Brute 192, and the Runner's 74 bobbing by `bob`).
   zombie: {
     fenceX: 122,         // the fence stands just in front of the muzzle
     spawnX: 618,         // zombies enter at the right wall, one after another (a wave's `gap` seconds apart)
@@ -79,13 +82,14 @@ const TUNING = {
       s: { name: 'Shambler', speed: 1, size: 1, legs: { hp: 2, r: 17 }, body: { hp: 3, r: 15 }, brain: { hp: 1, r: 8 } },
       r: { name: 'Runner', speed: 1.6, size: 1, bob: 20, legs: { hp: 2, r: 17 }, body: { hp: 3, r: 15 }, brain: { hp: 1, r: 8 } },
       c: { name: 'Crawler', speed: 0.7, size: 1, ground: true, legs: null, body: { hp: 3, r: 15 }, brain: { hp: 1, r: 8 } },
-      b: { name: 'Brute', speed: 0.8, size: 1.65, legs: { hp: 3, r: 17 }, body: { hp: 5, r: 15 }, brain: { hp: 1, r: 5.8 } },
+      b: { name: 'Brute', speed: 0.8, size: 2.6, legs: { hp: 3, r: 17 }, body: { hp: 5, r: 15 }, brain: { hp: 1, r: 3.7 } }, // v0.5 O: tall enough that its head stands at the top of the field band (y about 70 at scale 1)
       h: { name: 'Hunched', speed: 0.9, size: 1, shield: true, legs: { hp: 2, r: 17 }, body: { hp: 3, r: 18 }, brain: { hp: 1, r: 8 } },
     },
     points: { hit: 5, legs: 30, body: 50, brain: 75, bonus: 125 }, // per hit, per part destroyed, and the bonus for the brain that ends it; the multiplier applies to all
     waveGap: 1.5,        // seconds between the last zombie of a wave going down and the next wave entering
+    crawlHead: [-17, 28], // v0.5 O: a crawling zombie's head, forward of its middle and up, in units at scale 1: it clears the top half of the body circle, so legs, then body, then brain is a real order
     hitFlash: 0.14,      // seconds a part shows it was hit
-    endless: { speedStep: 0.04, speedCap: 2.5, hpEvery: 3, mixFrom: 2, mixEvery: 2 }, // each wave raises speed by speedStep; every hpEvery waves every part gains 1 hp; the mix opens a type every mixEvery waves
+    endless: { speedStep: 0.04, speedCap: 2.5, hpEvery: 3, mixFrom: 2, mixEvery: 2, sizeFrom: 2, sizeEvery: 2, sizeCap: 6, forceFrom: 24, forceMin: 9 }, // each wave raises speed by speedStep; every hpEvery waves every part gains 1 hp; the mix opens a type every mixEvery waves; a wave holds sizeFrom zombies and one more every sizeEvery waves up to sizeCap; the next wave is forced forceFrom seconds after one enters, one second sooner per wave, but never under forceMin
   },
 
   // v0.5 N: gun mastery. A gun's mastery is its lifetime bullseyes plus headshots; Marksman at `marksman`, Expert at `expert`, Master at `master` and a lifetime accuracy of at least
@@ -624,60 +628,60 @@ const BARS = {
       q: [1000, 1000, 750, 675, 600, 515, 450, 380, 365, 345, 310, 275, 265, 260, 250, 245, 240, 215, 235, 230, 220] },
   },
   b2: {
-    pistol: { m: [9750, 9479, 8637, 7788, 6973, 6206, 5585, 4996, 4584, 4240, 4025, 3781, 3660, 3412, 3236, 3086, 2946, 2891, 2743, 2685, 2568],
-      q: [9750, 9350, 8400, 7500, 6570, 5775, 5100, 4595, 4105, 3740, 3585, 3345, 3205, 2990, 2805, 2670, 2535, 2450, 2320, 2280, 2180] },
-    carbine: { m: [9750, 9481, 8637, 7786, 6971, 6205, 5575, 4956, 4522, 4109, 3829, 3635, 3418, 3237, 3095, 3014, 2922, 2916, 2834, 2791, 2651],
-      q: [9750, 9350, 8400, 7500, 6570, 5805, 5085, 4455, 4050, 3665, 3380, 3125, 2945, 2750, 2740, 2670, 2575, 2525, 2415, 2350, 2305] },
-    shotgun: { m: [4550, 3268, 2995, 2668, 2400, 2075, 1804, 1543, 1385, 1249, 1114, 996, 881, 807, 729, 690, 669, 635, 599, 563, 533],
-      q: [4550, 2950, 2750, 2385, 2075, 1790, 1465, 1165, 1035, 890, 815, 695, 600, 565, 505, 485, 470, 455, 400, 385, 395] },
-    rifle: { m: [2550, 2454, 2192, 1952, 1750, 1588, 1413, 1233, 1138, 1043, 994, 924, 877, 844, 822, 799, 790, 749, 735, 723, 681],
-      q: [2550, 2350, 2075, 1800, 1575, 1370, 1180, 995, 960, 805, 765, 735, 685, 645, 640, 635, 625, 595, 570, 560, 530] },
-    smg: { m: [9750, 9481, 8637, 7786, 6970, 6219, 5579, 5001, 4576, 4175, 3865, 3592, 3390, 3185, 2987, 2866, 2817, 2803, 2715, 2658, 2553],
-      q: [9750, 9350, 8400, 7500, 6570, 5775, 5080, 4555, 4145, 3760, 3525, 3110, 2915, 2730, 2570, 2455, 2465, 2405, 2300, 2265, 2225] },
-    revolver: { m: [2550, 2454, 2190, 1949, 1747, 1583, 1416, 1263, 1173, 1077, 1020, 948, 897, 852, 823, 788, 766, 731, 714, 704, 653],
-      q: [2550, 2350, 2075, 1800, 1555, 1365, 1180, 1015, 975, 845, 830, 750, 705, 680, 680, 620, 625, 590, 565, 535, 515] },
+    pistol: { m: [9750, 9378, 8205, 7066, 5937, 4904, 4146, 3393, 2923, 2589, 2317, 2203, 2186, 2107, 2064, 2036, 2008, 1848, 1760, 1755, 1663],
+      q: [9750, 9150, 7900, 6715, 5580, 4405, 3645, 2925, 2500, 2230, 1955, 1855, 1895, 1780, 1760, 1750, 1705, 1655, 1565, 1540, 1450] },
+    carbine: { m: [9750, 9370, 8085, 6564, 5343, 4349, 3695, 3227, 2900, 2620, 2449, 2265, 2245, 2155, 2090, 2014, 2029, 1937, 1899, 1858, 1753],
+      q: [9750, 9150, 7750, 6220, 5000, 4010, 3245, 2735, 2370, 2185, 1965, 1880, 1820, 1805, 1740, 1705, 1690, 1730, 1640, 1615, 1510] },
+    shotgun: { m: [4550, 3270, 2873, 2557, 2314, 2057, 1768, 1463, 1241, 1104, 1022, 939, 869, 798, 738, 699, 669, 617, 589, 573, 558],
+      q: [4550, 3150, 2675, 2330, 2035, 1810, 1480, 1110, 875, 770, 730, 670, 635, 570, 520, 485, 475, 440, 425, 415, 390] },
+    rifle: { m: [2550, 2455, 2179, 1931, 1732, 1555, 1362, 1224, 1149, 1063, 999, 935, 901, 880, 837, 816, 801, 785, 765, 724, 710],
+      q: [2550, 2350, 2025, 1785, 1545, 1380, 1135, 985, 925, 840, 810, 730, 715, 680, 670, 620, 600, 605, 615, 570, 555] },
+    smg: { m: [9750, 9424, 8219, 6873, 5515, 4395, 3407, 2691, 2393, 2173, 2082, 1989, 2087, 2081, 2026, 1920, 1905, 1874, 1827, 1767, 1745],
+      q: [9750, 9350, 7950, 6545, 5160, 3985, 2915, 2305, 2000, 1815, 1765, 1695, 1785, 1780, 1700, 1675, 1515, 1610, 1595, 1500, 1475] },
+    revolver: { m: [2550, 2469, 2205, 1902, 1695, 1502, 1364, 1181, 1060, 1015, 901, 856, 818, 803, 768, 753, 732, 694, 702, 671, 656],
+      q: [2550, 2350, 2025, 1725, 1500, 1330, 1170, 915, 850, 835, 700, 630, 605, 605, 615, 570, 580, 560, 545, 535, 490] },
   },
   z1: {
-    pistol: { m: [3362, 3353, 3042, 2645, 2375, 2265, 2194, 2080, 2032, 1997, 1961, 1952, 1939, 1942, 1939, 1938, 1947, 1948, 1934, 1918, 1934],
-      q: [3362, 3362, 2547, 2242, 2072, 2032, 1999, 1942, 1910, 1847, 1866, 1847, 1844, 1839, 1826, 1843, 1856, 1836, 1834, 1811, 1839] },
-    carbine: { m: [3362, 3353, 3042, 2642, 2409, 2254, 2184, 2054, 2028, 2002, 1961, 1963, 1967, 1965, 1945, 1944, 1919, 1918, 1932, 1936, 1938],
-      q: [3362, 3362, 2547, 2242, 2124, 2027, 1962, 1909, 1895, 1894, 1869, 1880, 1877, 1882, 1849, 1842, 1854, 1841, 1850, 1873, 1872] },
-    shotgun: { m: [3542, 3536, 3253, 2953, 2884, 2873, 2874, 2795, 2718, 2743, 2730, 2722, 2734, 2668, 2715, 2752, 2699, 2697, 2669, 2614, 2621],
-      q: [3542, 3542, 2792, 2579, 2570, 2497, 2471, 2494, 2466, 2495, 2451, 2482, 2431, 2402, 2421, 2458, 2424, 2382, 2368, 2361, 2399] },
-    rifle: { m: [3502, 3493, 3170, 2791, 2574, 2437, 2389, 2273, 2256, 2256, 2222, 2241, 2243, 2214, 2200, 2203, 2191, 2181, 2169, 2182, 2191],
-      q: [3502, 3502, 2737, 2402, 2254, 2204, 2172, 2137, 2157, 2149, 2103, 2144, 2113, 2121, 2114, 2114, 2124, 2081, 2074, 2061, 2096] },
-    smg: { m: [3362, 3353, 3044, 2637, 2407, 2251, 2183, 2058, 2030, 2004, 1970, 1949, 1941, 1940, 1949, 1953, 1950, 1926, 1935, 1932, 1936],
-      q: [3362, 3362, 2547, 2237, 2124, 2032, 1944, 1910, 1871, 1882, 1851, 1843, 1844, 1839, 1852, 1849, 1841, 1834, 1829, 1839, 1854] },
-    revolver: { m: [3502, 3493, 3165, 2770, 2575, 2386, 2296, 2265, 2237, 2206, 2167, 2153, 2159, 2135, 2134, 2148, 2103, 2119, 2062, 2035, 2071],
-      q: [3502, 3502, 2635, 2402, 2299, 2147, 2122, 2089, 2088, 2054, 2053, 2069, 2072, 2059, 2039, 2034, 2026, 2028, 1997, 1997, 2014] },
+    pistol: { m: [3362, 3353, 3040, 2641, 2371, 2265, 2174, 2068, 2017, 1994, 1967, 1952, 1926, 1944, 1948, 1949, 1951, 1954, 1953, 1953, 1947],
+      q: [3362, 3362, 2547, 2235, 2055, 2034, 1947, 1931, 1876, 1857, 1861, 1844, 1839, 1844, 1849, 1849, 1852, 1859, 1843, 1849, 1853] },
+    carbine: { m: [3362, 3353, 3042, 2642, 2403, 2257, 2186, 2060, 2032, 1995, 1970, 1967, 1965, 1961, 1943, 1932, 1925, 1921, 1937, 1939, 1940],
+      q: [3362, 3362, 2547, 2242, 2124, 2027, 1962, 1910, 1897, 1883, 1878, 1879, 1880, 1884, 1860, 1854, 1844, 1841, 1863, 1863, 1858] },
+    shotgun: { m: [3554, 3544, 3259, 2958, 2888, 2878, 2880, 2791, 2722, 2748, 2733, 2724, 2740, 2668, 2716, 2757, 2697, 2704, 2674, 2624, 2621],
+      q: [3554, 3554, 2799, 2579, 2580, 2524, 2476, 2494, 2466, 2504, 2460, 2480, 2449, 2394, 2426, 2482, 2430, 2387, 2373, 2369, 2399] },
+    rifle: { m: [3502, 3493, 3170, 2785, 2569, 2437, 2392, 2281, 2266, 2261, 2227, 2256, 2244, 2217, 2206, 2211, 2195, 2185, 2171, 2181, 2185],
+      q: [3502, 3502, 2737, 2402, 2252, 2204, 2172, 2156, 2164, 2137, 2116, 2134, 2107, 2116, 2122, 2127, 2124, 2103, 2066, 2059, 2101] },
+    smg: { m: [3362, 3353, 3044, 2637, 2409, 2248, 2177, 2051, 2026, 2009, 1978, 1954, 1951, 1935, 1944, 1953, 1955, 1936, 1945, 1933, 1941],
+      q: [3362, 3362, 2547, 2237, 2124, 2031, 1944, 1911, 1881, 1884, 1862, 1857, 1844, 1834, 1836, 1841, 1847, 1854, 1848, 1857, 1849] },
+    revolver: { m: [3502, 3493, 3166, 2777, 2569, 2399, 2301, 2264, 2245, 2193, 2170, 2166, 2161, 2128, 2122, 2134, 2141, 2152, 2102, 2067, 2099],
+      q: [3502, 3502, 2737, 2402, 2259, 2157, 2113, 2102, 2101, 2045, 2062, 2064, 2059, 2061, 2059, 2031, 2041, 2054, 2024, 2024, 2041] },
   },
   z2: {
-    pistol: { m: [7002, 6993, 6359, 5540, 5005, 4760, 4533, 4428, 4361, 4257, 4203, 4200, 4151, 4165, 4150, 4121, 4163, 4153, 4141, 4127, 4135],
-      q: [7002, 7002, 6082, 4967, 4624, 4406, 4239, 4227, 4144, 4106, 4073, 4060, 4035, 4043, 4003, 3992, 4020, 4006, 4001, 3995, 4014] },
-    carbine: { m: [7002, 6994, 6481, 5524, 4976, 4698, 4510, 4423, 4333, 4289, 4243, 4178, 4233, 4153, 4151, 4188, 4181, 4168, 4110, 4104, 4015],
-      q: [7002, 7002, 6177, 5142, 4655, 4457, 4304, 4224, 4164, 4101, 4077, 4068, 4088, 4059, 4078, 4039, 4033, 4069, 4037, 4051, 4022] },
-    shotgun: { m: [7512, 7466, 6960, 6134, 5938, 5988, 5891, 5894, 5897, 5921, 5890, 5733, 5733, 5778, 5693, 5610, 5606, 5564, 5569, 5541, 5500],
-      q: [7512, 7431, 6664, 5755, 5558, 5558, 5533, 5495, 5385, 5481, 5356, 5402, 5317, 5411, 5256, 5217, 5198, 5164, 5183, 5131, 5089] },
-    rifle: { m: [7347, 7335, 6655, 5837, 5389, 5176, 5155, 5037, 5000, 4937, 5006, 4910, 4930, 4801, 4626, 4634, 4569, 4410, 4291, 4395, 4315],
-      q: [7347, 7347, 6227, 5337, 5052, 4901, 4914, 4781, 4807, 4711, 4807, 4722, 4719, 4703, 4731, 4652, 4672, 4555, 4548, 4588, 4454] },
-    smg: { m: [7002, 6999, 6469, 5432, 5052, 4787, 4566, 4441, 4359, 4260, 4242, 4189, 4136, 4144, 4141, 4149, 4127, 4127, 4133, 4148, 4124],
-      q: [7002, 7002, 6177, 4954, 4651, 4465, 4257, 4178, 4167, 4090, 4043, 4042, 3984, 4003, 4005, 4004, 4005, 3987, 4006, 4017, 3998] },
-    revolver: { m: [7347, 7340, 6897, 6008, 5577, 5316, 5044, 4991, 4685, 4593, 4393, 4132, 4098, 3627, 3299, 3161, 3043, 2922, 2610, 2385, 2355],
-      q: [7347, 7347, 6472, 5462, 5119, 4975, 4832, 4835, 4742, 4590, 4648, 4205, 4159, 1773, 1281, 1293, 1273, 1323, 1218, 1048, 1013] },
+    pistol: { m: [7002, 6993, 6376, 5546, 5096, 4849, 4539, 4438, 4383, 4272, 4234, 4225, 4160, 4172, 4182, 4174, 4172, 4194, 4184, 4108, 4162],
+      q: [7002, 7002, 6085, 5009, 4721, 4489, 4244, 4174, 4171, 4081, 4068, 4096, 4019, 4044, 4004, 4040, 4038, 4066, 4045, 4015, 4048] },
+    carbine: { m: [7002, 6994, 6481, 5539, 4978, 4770, 4550, 4429, 4369, 4326, 4307, 4289, 4252, 4176, 4200, 4161, 4157, 4234, 4149, 4115, 4053],
+      q: [7002, 7002, 6177, 5072, 4672, 4533, 4304, 4206, 4154, 4096, 4100, 4148, 4088, 4078, 4076, 4051, 4021, 4126, 4053, 4038, 4028] },
+    shotgun: { m: [7556, 7488, 6976, 6162, 5987, 5993, 5934, 5916, 5950, 5938, 5919, 5795, 5747, 5782, 5715, 5669, 5708, 5593, 5584, 5581, 5462],
+      q: [7556, 7458, 6661, 5756, 5571, 5593, 5574, 5512, 5490, 5508, 5418, 5426, 5370, 5352, 5285, 5257, 5267, 5177, 5205, 5170, 5104] },
+    rifle: { m: [7347, 7335, 6685, 5849, 5468, 5281, 5192, 5048, 5067, 4934, 5000, 5053, 4925, 4826, 4665, 4711, 4586, 4474, 4290, 4339, 4218],
+      q: [7347, 7347, 6247, 5407, 5120, 4986, 4928, 4829, 4792, 4725, 4795, 4878, 4779, 4702, 4696, 4732, 4597, 4588, 4403, 4385, 4291] },
+    smg: { m: [7002, 6999, 6484, 5441, 5088, 4785, 4541, 4447, 4346, 4303, 4269, 4195, 4182, 4185, 4236, 4213, 4207, 4182, 4168, 4154, 4163],
+      q: [7002, 7002, 6177, 5059, 4656, 4457, 4229, 4214, 4125, 4108, 4111, 4049, 4041, 4030, 4063, 4094, 4062, 4064, 4053, 4001, 4013] },
+    revolver: { m: [7347, 7340, 6870, 6152, 5523, 5254, 5100, 5027, 4668, 4538, 4323, 4107, 3990, 3732, 3449, 3158, 3091, 2888, 2714, 2509, 2379],
+      q: [7347, 7347, 6472, 5727, 5072, 4897, 4831, 4813, 4668, 4646, 4517, 4113, 3511, 2156, 1384, 1323, 1331, 1273, 1221, 1068, 1043] },
   },
   z3: {
-    pistol: { m: [11250, 11019, 10139, 8732, 7922, 7394, 7200, 7090, 7104, 6949, 6899, 6853, 6884, 6731, 6781, 6783, 6754, 6793, 6682, 6693, 6667],
-      q: [11250, 10745, 9617, 8200, 7499, 7048, 6824, 6786, 6787, 6746, 6666, 6601, 6622, 6566, 6581, 6572, 6563, 6578, 6540, 6553, 6557] },
-    carbine: { m: [11250, 11240, 10319, 8755, 8091, 7495, 7317, 7182, 7051, 6934, 6810, 6790, 6524, 6712, 6573, 6527, 6517, 6134, 6152, 5916, 5644],
-      q: [11250, 11250, 10025, 8315, 7609, 7153, 6991, 6873, 6817, 6682, 6590, 6606, 6483, 6600, 6506, 6494, 6476, 6180, 6305, 5454, 4917] },
-    shotgun: { m: [11490, 11594, 10670, 9666, 9571, 9418, 9505, 9487, 9593, 9358, 9462, 9237, 9185, 9218, 9277, 9202, 9036, 9054, 8957, 8925, 8837],
-      q: [11490, 11490, 10180, 9072, 8962, 8950, 8983, 8910, 9099, 8876, 8941, 8632, 8777, 8732, 8695, 8646, 8521, 8463, 8481, 8452, 8449] },
-    rifle: { m: [11725, 11725, 10892, 9848, 9169, 8973, 8859, 8227, 7414, 6724, 5857, 5002, 4341, 3964, 3627, 3112, 2803, 2628, 2551, 2556, 2413],
-      q: [11725, 11725, 10542, 9305, 8807, 8608, 8655, 8012, 5826, 4534, 3175, 3010, 2787, 2762, 2477, 2029, 2042, 1734, 1584, 1594, 1594] },
-    smg: { m: [11250, 11241, 10273, 8815, 8133, 7681, 7155, 7119, 6990, 6865, 6860, 6751, 6709, 6742, 6670, 6651, 6611, 6612, 6639, 6652, 6639],
-      q: [11250, 11250, 9820, 8095, 7592, 7219, 6796, 6759, 6744, 6679, 6630, 6533, 6492, 6548, 6515, 6515, 6527, 6477, 6509, 6487, 6483] },
-    revolver: { m: [11725, 11707, 10991, 10133, 8600, 6558, 4980, 4201, 4149, 3467, 3302, 2903, 2521, 2354, 2024, 1835, 1821, 1736, 1531, 1481, 1372],
-      q: [11725, 11725, 10477, 9892, 6333, 5402, 2948, 2765, 2550, 2161, 2187, 2072, 1326, 1184, 1134, 1096, 1033, 903, 886, 848, 785] },
+    pistol: { m: [11250, 10989, 10124, 9041, 7987, 7517, 7224, 7119, 7092, 6945, 6963, 6955, 6885, 6860, 6831, 6859, 6845, 6777, 6854, 6741, 6805],
+      q: [11250, 10745, 9715, 8505, 7575, 7119, 6912, 6803, 6816, 6705, 6733, 6761, 6674, 6650, 6663, 6668, 6653, 6577, 6671, 6645, 6610] },
+    carbine: { m: [11250, 11240, 10300, 8898, 8069, 7645, 7346, 7220, 7095, 7008, 6969, 6916, 6783, 6751, 6703, 6692, 6722, 6533, 6040, 6135, 5952],
+      q: [11250, 11250, 9907, 8391, 7485, 7211, 6941, 6930, 6833, 6751, 6762, 6720, 6663, 6690, 6663, 6653, 6586, 6579, 5420, 6059, 6212] },
+    shotgun: { m: [11463, 11626, 10834, 9819, 9597, 9357, 9515, 9582, 9574, 9443, 9609, 9406, 9464, 9276, 9350, 9333, 9181, 9168, 9059, 8973, 9097],
+      q: [11463, 11481, 10461, 9242, 9119, 8981, 9114, 9047, 9001, 8897, 9040, 8932, 8945, 8796, 8833, 8749, 8711, 8568, 8570, 8500, 8486] },
+    rifle: { m: [11725, 11725, 10902, 9868, 9299, 8854, 8655, 8262, 7346, 6517, 5804, 4812, 4027, 3898, 3548, 2917, 2870, 2738, 2597, 2568, 2364],
+      q: [11725, 11725, 10502, 9225, 8925, 8490, 8498, 8277, 6241, 4659, 3115, 2795, 2567, 2650, 2610, 2398, 2323, 2190, 2202, 1902, 1801] },
+    smg: { m: [11250, 11241, 10263, 8930, 8180, 7665, 7291, 7106, 6942, 6975, 6874, 6819, 6855, 6921, 6758, 6829, 6746, 6763, 6769, 6778, 6586],
+      q: [11250, 11250, 9820, 8303, 7764, 7120, 6920, 6806, 6714, 6729, 6612, 6637, 6673, 6686, 6625, 6615, 6575, 6592, 6522, 6620, 6508] },
+    revolver: { m: [11725, 11725, 10906, 9956, 8576, 6240, 5175, 4497, 4154, 3416, 3053, 2914, 2368, 2162, 1912, 1907, 1756, 1554, 1403, 1321, 1187],
+      q: [11725, 11725, 10345, 9677, 6412, 5140, 3045, 2740, 2665, 2242, 2074, 1997, 1281, 1219, 1016, 903, 891, 818, 806, 713, 633] },
   },
 };
 
@@ -691,7 +695,9 @@ function thresholds(ch, gun) {
   if (hit && hit.sig === sig) return hit.b;
   const c = by[key], cap = T.starCap * c.m[0], R = T.starRound, r = (x) => Math.round(Math.min(x, cap) / R) * R;
   const three = r(curveAt(c.m, N.three)), two = Math.min(r(curveAt(c.m, N.two)), three - R), one = Math.min(r(curveAt(c.q, N.one)), two - R);
-  const b = { one: Math.max(R, one), two: Math.max(2 * R, two), three: Math.max(3 * R, three) };
+  let b = { one: Math.max(R, one), two: Math.max(2 * R, two), three: Math.max(3 * R, three) };
+  const F = T.starFallback;
+  if (b.three - b.one < F.gap * c.m[0]) { const [f1, f2, f3] = F.shares.map((k) => Math.round((k * c.m[0]) / R) * R); b = { one: f1, two: f2, three: f3, fallback: true }; } // the bars measure no aim: efficiency instead
   C[key] = { sig, b };
   return b;
 }
@@ -721,7 +727,7 @@ function pickY(rng, lg, band, prev, minDy) {
 const ENDLESS_MIX = ['s', 'c', 'h', 'r', 'b'];
 function endlessWave(k) { // what wave index k (0 first) is made of, apart from the seed
   const E2 = T.zombie.endless;
-  return { n: Math.min(6, 2 + (k >> 1)), mul: Math.min(E2.speedCap, 1 + E2.speedStep * k), hp: Math.floor(k / E2.hpEvery), types: ENDLESS_MIX.slice(0, Math.min(ENDLESS_MIX.length, E2.mixFrom + Math.floor(k / E2.mixEvery))) };
+  return { n: Math.min(E2.sizeCap, E2.sizeFrom + Math.floor(k / E2.sizeEvery)), mul: Math.min(E2.speedCap, 1 + E2.speedStep * k), hp: Math.floor(k / E2.hpEvery), types: ENDLESS_MIX.slice(0, Math.min(ENDLESS_MIX.length, E2.mixFrom + Math.floor(k / E2.mixEvery))) };
 }
 function zombieWave(ch, k) {
   const rng = makeRng((ch.seed ^ Math.imul(k + 1, 2654435761)) >>> 0), Z = T.zombie, w = endlessWave(k), out = [];
@@ -830,7 +836,7 @@ function makeRun(ch, gunId) {
     mag: gun.magSize, reloading: false, reloadStart: 0, reloadEnd: 0, shellNext: 0, shellEach: 0, reloads: 0, // the magazine (v0.5 M)
     cBull: 0, cHead: 0, cPlate: 0, // the run's mastery counters (v0.5 N)
     zs: [], zN: 0, wave: 0, pending: [], calmAt: T.startDelay, forceAt: Infinity, zdown: 0, breach: null, // zombies (v0.5 G)
-    hitTimes: [], kickback: false, lastShotHit: false, firstZone: -1, lateClay: false, hordes: {}, hordeN: 0, walked: false, // counters for the delighter badges
+    hitTimes: [], hitWho: [], hitShots: 0, kickback: false, lastShotHit: false, firstZone: -1, lateClay: false, hordes: {}, hordeN: 0, walked: false, // counters for the delighter badges
   };
 }
 
@@ -959,7 +965,7 @@ for (const [k, d] of Object.entries(T.zombie.types)) {
   const z = d.size, sh = !!d.shield;
   ZTYPES[k] = { id: k, ...d, pose: {
     stand: { legs: [0, 17 * z], body: [0, (sh ? 44 : 50) * z], brain: [sh ? 7 : 0, (sh ? 48 : 74) * z] },
-    crawl: { body: [0, 14 * z], brain: sh ? [3, 20 * z] : [-17 * z, 22 * z] },
+    crawl: { body: [0, 14 * z], brain: sh ? [3, 20 * z] : [T.zombie.crawlHead[0] * z, T.zombie.crawlHead[1] * z] },
     hunch: { brain: [-6 * z, (sh ? 42 : 58) * z] },
     drag: { brain: [-16 * z, 8 * z] },
   } };
@@ -994,7 +1000,7 @@ function startWave(run, t) {
   let at = t;
   specs.forEach((sp, i) => { if (i) at += sp.gap; run.pending.push({ at, spec: sp, wave: run.wave + 1, n: i + 1 }); });
   run.wave++;
-  run.forceAt = t + (ch.endless ? Math.max(9, 24 - run.wave) : ch.force);
+  run.forceAt = t + (ch.endless ? Math.max(T.zombie.endless.forceMin, T.zombie.endless.forceFrom - run.wave) : ch.force);
   run.events.push({ type: 'wave', n: run.wave });
 }
 function killZombie(run, z, now) {
@@ -1115,8 +1121,10 @@ function fire(run, cue) {
     run.streak = zt && !zt.brain && !scored.size ? 0 : run.streak + 1; // v0.5 L: on a zombie only a brain hit steps the multiplier, a hit on anything else resets it
     if (bz === 0) run.bulls++;
     if (run.shots === 0) run.firstZone = bz;
-    run.hitTimes.push(now); if (run.hitTimes.length > 6) run.hitTimes.shift();
-    if (run.streak >= 6 && now - run.hitTimes[0] <= T.kickWindow + 1e-9) run.kickback = true; // six consecutive scoring shots within the window
+    run.hitShots++;
+    run.hitTimes.push(now); run.hitWho.push([...scored.keys(), ...[...hurt].filter((p) => p.kind === 'zpart').map((p) => p.z)]); // who each hit landed on: a zombie counts once
+    if (run.hitTimes.length > T.kickCount) { run.hitTimes.shift(); run.hitWho.shift(); }
+    if (run.streak >= T.kickCount && now - run.hitTimes[0] <= T.kickWindow + 1e-9 && new Set(run.hitWho.flat()).size >= T.kickTargets) run.kickback = true; // consecutive scoring shots within the window, on at least two targets
     Object.assign(ev, { tx: tx / nt, ty: ty / nt, zone: bz, pts, mult, streak: run.streak, lost: was > 0 && run.streak === 0, killed: down.size > 0 || !!(zt && zt.killed), tag: zt ? zt.tag : null });
   } else {
     if (!dodged && !ev.neutral) { run.streak = 0; run.misses++; }
@@ -1298,7 +1306,7 @@ const BADGES = [
   { id: 'sidearm', tier: 'Silver', name: 'Sidearm Only', cond: 'Pistol on Boss 2, two stars', met: (o) => at(o, 'b2') && o.gun === 'pistol' && o.stars >= 2 },
   { id: 'claycarbine', tier: 'Silver', name: 'Clay Carbine', cond: 'Carbine on Skeet 2, three stars', met: (o) => at(o, 'k2') && o.gun === 'carbine' && three(o) },
   // Delighters (PRD v0.5 J): one act, never grind; each pops a ticket on the card
-  { id: 'kickback', tier: 'Trick', name: 'Kickback', cond: 'Six hits in a row within 0.65 s', met: (o) => o.run.kickback },
+  { id: 'kickback', tier: 'Trick', name: 'Kickback', cond: `${T.kickCount} hits in a row in ${T.kickWindow} s, on ${T.kickTargets}+ targets`, met: (o) => o.run.kickback },
   { id: 'lastround', tier: 'Trick', name: 'Last Round', cond: 'Accuracy, three stars, the last bullet the last hit', met: (o) => o.ch.ladder === 'accuracy' && three(o) && o.run.ammo === 0 && o.run.lastShotHit },
   { id: 'coldbarrel', tier: 'Trick', name: 'Cold Barrel', cond: 'A bullseye on the first shot, five runs in a row', met: (o) => o.cold >= T.coldRuns },
   { id: 'claysweep', tier: 'Trick', name: 'Clay Sweep', cond: 'Skeet, every goal clay hit before it peaks', met: (o) => o.ch.ladder === 'skeet' && o.run.misses === 0 && !o.run.lateClay && !o.run.decoyHits && o.run.hits >= o.run.list.filter((e) => !e.decoy).length },
@@ -1329,6 +1337,7 @@ function masteryMap(E) { const m = E.save.get('mastery', {}); return m && typeof
 function masteryOf(E, gun) {
   const e = masteryMap(E)[gun] || {}, o = {};
   for (const k of MASTERY_KEYS) o[k] = Number.isFinite(e[k]) && e[k] > 0 ? Math.floor(e[k]) : 0;
+  o.hits = Math.min(o.hits, o.shots); // v0.5 O: a hit is a shot that hit (a v17 save may hold a sweep of a horde as several)
   return o;
 }
 // The tier a set of counters has reached (0 to 3), the score, the accuracy, the score of the next tier and how far to it. Master also needs the lifetime accuracy.
@@ -1353,7 +1362,9 @@ function deriveMastery(E) {
   for (const e of E.ledger.entries) {
     if (e.k !== 'result' || !e.d || !T.guns[e.d.gun]) continue;
     const m = out[e.d.gun] || (out[e.d.gun] = { shots: 0, hits: 0, bulls: 0, heads: 0, plates: 0 });
-    for (const [key, field] of [['shots', 'shots'], ['hits', 'hits'], ['bulls', 'bulls'], ['heads', 'heads'], ['plates', 'plates']]) if (Number.isFinite(e.d[field])) m[key] += Math.max(0, e.d[field]);
+    for (const [key, field] of [['shots', 'shots'], ['bulls', 'bulls'], ['heads', 'heads'], ['plates', 'plates']]) if (Number.isFinite(e.d[field])) m[key] += Math.max(0, e.d[field]);
+    const hs = Number.isFinite(e.d.hitShots) ? e.d.hitShots : e.d.hits; // older lines counted targets hit, which a sweep makes more than the shots
+    if (Number.isFinite(hs)) m.hits += Math.max(0, Math.min(hs, Number.isFinite(e.d.shots) ? e.d.shots : hs));
   }
   return out;
 }
@@ -2155,7 +2166,7 @@ function endRun(E) {
   const r = S.run, ch = S.ch, gid = r.gun.id, stars = ch.endless ? 0 : starsFor(ch, r.score, gid);
   const prev = ch.endless ? null : bestOf(E, ch, gid), prevStars = ch.endless ? 0 : starsOf(E, ch, gid);
   // Stars are monotonic and kept apart from the best score: a higher score with fewer stars never lowers them. All per gun.
-  let bestWave = 0, isNew = !prev || r.score > prev.score, bestScore = isNew ? r.score : prev ? prev.score : 0, bestStars = Math.max(stars, prevStars), acc = r.shots ? Math.round((100 * r.hits) / r.shots) : 0, day = null;
+  let bestWave = 0, isNew = !prev || r.score > prev.score, bestScore = isNew ? r.score : prev ? prev.score : 0, bestStars = Math.max(stars, prevStars), acc = r.shots ? Math.round((100 * r.hitShots) / r.shots) : 0, day = null;
   if (ch.endless) { // no stars: the day's seed has its own best, and there is an all-time best
     const zz = E.save.get('zend', null), d = zz && typeof zz === 'object' ? zz : {}, today = d.day === E.dailySeed() && d.today ? d.today : { score: 0, wave: 0 }, best = d.best || { score: 0, wave: 0 };
     isNew = r.score > best.score; bestScore = Math.max(best.score, r.score); bestWave = isNew ? r.wave : best.wave;
@@ -2167,17 +2178,17 @@ function endRun(E) {
   const cold = r.firstZone === 0 ? E.save.get('cold', 0) + 1 : 0; // runs in a row that opened on a bullseye, kept across runs
   E.save.set('cold', cold);
   // Gun mastery (v0.5 N): the run's counters join the gun's lifetime ones; a tier reached opens that tier's skin.
-  const m0 = masteryOf(E, gid), m1 = { shots: m0.shots + r.shots, hits: m0.hits + r.hits, bulls: m0.bulls + r.cBull, heads: m0.heads + r.cHead, plates: m0.plates + r.cPlate }, t0 = masteryInfo(m0).tier, t1 = masteryInfo(m1).tier;
+  const m0 = masteryOf(E, gid), m1 = { shots: m0.shots + r.shots, hits: m0.hits + r.hitShots, bulls: m0.bulls + r.cBull, heads: m0.heads + r.cHead, plates: m0.plates + r.cPlate }, t0 = masteryInfo(m0).tier, t1 = masteryInfo(m1).tier;
   E.save.update('mastery', (all) => ({ ...(all && typeof all === 'object' ? all : {}), [gid]: m1 }), {});
   const tierSkins = [];
   for (let t = t0 + 1; t <= t1; t++) {
-    E.ledger.add('mastery', { gun: gid, tier: TIER_NAMES[t], score: m1.bulls + m1.heads });
     for (const sk of A.skins[gid]) if (sk.tier === t && !(skinsHadMap(E)[gid] && skinsHadMap(E)[gid][sk.id])) tierSkins.push(sk);
   }
   const gaunt = S.gauntlet === null ? null : gauntletStep(S.gauntlet, stars);
   const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, decoyHits: r.decoyHits, run: r, cold, gauntletDone: !!(gaunt && gaunt.done), bests: Object.fromEntries(CHALLENGES.map((c) => [c.id, Object.fromEntries(GUN_IDS.map((g) => [g, { stars: starsOf(E, c, g) }]))])), have: badgeMap(E) });
-  E.ledger.add('result', { id: ch.id, gun: gid, score: r.score, accuracy: acc, stars, best: bestStars, time: r.steps * STEP, hits: r.hits, shots: r.shots, bulls: r.cBull, heads: r.cHead, plates: r.cPlate, ...(r.ammo === Infinity ? {} : { ammo: r.ammo }), reloads: r.reloads, ...(ch.ladder === 'zombie' ? { wave: r.wave, down: r.zdown, fence: !!r.breach } : {}), ...(S.gauntlet === null ? {} : { gauntlet: S.gauntlet }) });
+  E.ledger.add('result', { id: ch.id, gun: gid, score: r.score, accuracy: acc, stars, best: bestStars, time: r.steps * STEP, hits: r.hits, hitShots: r.hitShots, shots: r.shots, bulls: r.cBull, heads: r.cHead, plates: r.cPlate, ...(r.ammo === Infinity ? {} : { ammo: r.ammo }), reloads: r.reloads, ...(ch.ladder === 'zombie' ? { wave: r.wave, down: r.zdown, fence: !!r.breach } : {}), ...(S.gauntlet === null ? {} : { gauntlet: S.gauntlet }) });
   for (const id of fresh) E.ledger.add('badge', { id, gun: gid, on: ch.id });
+  for (let t = t0 + 1; t <= t1; t++) E.ledger.add('mastery', { gun: gid, tier: TIER_NAMES[t], score: m1.bulls + m1.heads }); // after the result that earned it
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
   const badgeSkins = fresh.map(skinOfBadge).filter(Boolean);
   const unlocked = badgeSkins.map((k) => `${T.guns[k.gun].short} ${k.skin.name}`).concat(tierSkins.map((k) => `${T.guns[gid].short} ${k.name}`)); // shown on the card's skin line
