@@ -13,37 +13,49 @@ const TUNING = {
   // PRD section 16
   bagsPerShift: 20,
   strikesMax: 3,
-  beltSpeed: [70, 80, 90, 100, 120, 110, 120, 130, 140, 160],           // units/s per shift
+  beltSpeed: [70, 80, 90, 100, 120, 110, 120, 130, 140, 160],           // units/s per shift; 5 and 10 are rush hour
   itemsPerBag: [[4, 5], [4, 6], [5, 6], [5, 7], [6, 8], [6, 7], [6, 8], [7, 8], [7, 9], [8, 9]],
   cleanShare: 0.5,
-  hitMargin: 8,
+  hitMargin: 12,
   minVisible: 0.6,
   catchBase: 100,
   cleanBase: 20,
-  earlyMax: 2,
-  streakSteps: [5, 10, 15],                                             // x2, x3, x4
-  bagGap: 40,
+  earlyMax: 3,                                                          // catch multiplier entering at the top ...
+  earlyMin: 0.5,                                                        // ... falling linearly to this at the bottom edge
+  streakSteps: [4, 8, 12, 16],                                          // x2, x3, x4, x5
+  bagGap: 64,                                                           // PRD 40; raised with bagH so the last shift is at least 40 s long
 
-  // The shift table, columns beyond PRD section 16 (rows are shifts 1 to 10)
-  playableShifts: 1,                                                    // layer 1: only shift 1 can be started
+  // The shift table, columns beyond PRD section 16 (rows are shifts 1 to 10; every shift is playable once the one before it is cleared)
+  //   shift  teaches / needs                                                  intended solution (naked run)
+  //   1      one obvious shape on a sparse bag (knife, scissors, gun)         tap the one contraband item in the top third
+  //   2      clean bags exist and must be left alone; hammer and lighter      scan each bag once; tap the shape, leave the rest
+  //   3      items overlap: read the dense corner, the outline shows through  find the blade or bottle under the clutter by its silhouette
+  //   4      look-alikes (hairdryer, pen, phone...); up to two per bag        judge the silhouette, not the tint; two catches in a bag are worth it
+  //   5      rush hour: faster belt, denser bags                              read the dense corner first, tap as soon as the shape is clear
+  //   6      all ten shapes; slower belt to digest the dense bags             catch early: points fall with the bag
+  //   7      heavier overlap and more pairs                                    scan bag by bag, never linger on a clean one
+  //   8      most look-alikes                                                 a false alarm costs a strike: hesitate on hairdryer, pen, phone, belt
+  //   9      near-full clutter at speed                                       read each bag in one pass, top to bottom
+  //   10     rush hour again: everything at once                              all of the above
+  rush: [5, 10],
   rotMax: [20, 30, 45, 60, 90, 90, 120, 150, 180, 180],                 // item rotation, degrees either way
   maxContraband: [1, 1, 1, 2, 2, 2, 2, 2, 2, 2],                        // per bag
+  twoShare: [0, 0, 0, 0.2, 0.25, 0.25, 0.3, 0.3, 0.3, 0.25],           // share of contraband bags holding two (where two are allowed)
+  overlapBias: [0, 0, 0.35, 0.4, 0.55, 0.45, 0.5, 0.55, 0.55, 0.45],     // chance an item is dropped near another one (clutter), once overlap is on
+  confusableShare: [0, 0, 0, 0.2, 0.35, 0.3, 0.35, 0.4, 0.35, 0.25],       // share of bags holding one harmless look-alike
   newContraband: [['knife', 'scissors', 'gun'], ['hammer', 'lighter'], ['large liquid', 'batteries'], ['fireworks'], ['taser'], ['box cutter'], [], [], [], []],
   opener: { shift: 1, contraband: ['scissors'], harmless: ['shirt', 'phone', 'headphones'] }, // bag 1, then bag 2 is clean
 
   // Packing
   overlapFrom: 3,                // first shift where items may overlap; before it every hit shape stays apart
   packGap: 6,                    // extra clearance between items while overlap is off
-  visSlack: 0.04,                // generation asks minVisible plus this, so the exact measure never dips under minVisible
+  visSlack: 0.04,                // generation asks minVisible plus this (area and outline), so the exact measure never dips under minVisible
   visStep: 3,                    // sample spacing (units) for the visibility measure used while packing
+  edgeStep: 3,                   // spacing along an outline for the outline-visibility samples used while packing
   visFinalStep: 1.5,             // spacing of the fine check a finished bag must pass ...
   visFinalSlack: 0.01,           // ... at minVisible plus this
-  overlapBias: 0.5,              // chance an item is dropped near another one once overlap is on
   packTries: 40,                 // placements tried per item before the bag layout is redrawn
   bagTries: 40,                  // layouts tried per bag
-  twoShare: 0.35,                // share of contraband bags with two items, where two are allowed
-  confusableFrom: 4,
-  confusableBagShare: 0.6,       // share of bags holding one harmless look-alike from confusableFrom on
   confusableNear: 0.5,           // ... and how often it is the look-alike of a contraband item in that bag
   runMax: 4,                     // most clean (or contraband) bags in a row
 
@@ -51,9 +63,9 @@ const TUNING = {
   designW: 360,
   designMinH: 560,               // the view is never scaled down for a shorter screen than this
   bagW: 300,
-  bagH: 230,
+  bagH: 260,
   bagPad: 8,
-  firstBagShow: 0.5,             // share of the first bag already on screen when the shift starts
+  firstBagGap: 8,                // the first bag starts this far below the HUD, fully in view
   hudH: 56,                      // px below the top safe inset
 
   // Timing
@@ -62,7 +74,8 @@ const TUNING = {
   cardDelay: 0.6,                // card ignores taps this long
   fxLife: 0.9,
   flashLife: 0.5,
-  warnFrom: 0.88,                // an uncaught contraband item pulses red below this share of the screen height
+  ghostLife: 1,                  // seconds the ghost of a missed item pulses at the bottom edge
+  cueLift: 14,                   // px the bottom cues sit above the safe inset
 
   // PRD section 11
   colors: {
@@ -99,23 +112,23 @@ const ITEM_DATA = [
   // harmless
   { name: 'shirt', tint: 'organic', shape: [[[-13, -27], [-5, -27], [0, -22], [5, -27], [13, -27], [36, -14], [28, -2], [15, -8], [15, 28], [-15, 28], [-15, -8], [-28, -2], [-36, -14]]] },
   { name: 'shoes', tint: 'organic', shape: [[[-36, 12], [-36, -4], [-28, -14], [-16, -15], [-8, -6], [8, -4], [24, 4], [36, 8], [36, 12]]] },
-  { name: 'phone', tint: 'metal', shape: [rect(-14, -27, 28, 54)] },
+  { name: 'phone', tint: 'metal', confusable: 'lighter', shape: [rect(-14, -27, 28, 54)] },
   { name: 'laptop', tint: 'metal', shape: [rect(-36, -28, 72, 42), [[-44, 14], [44, 14], [40, 22], [-40, 22]]] },
   { name: 'headphones', tint: 'metal', shape: [band(0, 4, 26, 4, 180, 360), rect(-32, 2, 12, 22), rect(20, 2, 12, 22)] },
   { name: 'book', tint: 'organic', shape: [rect(-20, -27, 40, 54)] },
-  { name: 'toothbrush', tint: 'organic', confusable: 'box cutter', shape: [[[-38, -3.5], [8, -3.5], [10, -7], [38, -7], [38, 3], [10, 3], [8, 3.5], [-38, 3.5]]] },
+  { name: 'toothbrush', tint: 'organic', confusable: 'box cutter', shape: [[[-38, -4], [2, -4], [10, -10], [38, -10], [38, 10], [10, 10], [2, 4], [-38, 4]]] },
   { name: 'charger', tint: 'metal', confusable: 'taser', shape: [rect(-16, -14, 32, 28), rect(-9, -24, 4, 10), rect(5, -24, 4, 10), rect(-3, 14, 6, 30)] },
   { name: 'small liquid', tint: 'organic', confusable: 'large liquid', shape: [rect(-12, -6, 24, 32), rect(-4, -12, 8, 6), rect(-6, -19, 12, 7)] },
   { name: 'sunglasses', tint: 'organic', shape: [ell(-17, 0, 13, 10), ell(17, 0, 13, 10), rect(-5, -3, 10, 4)] },
   { name: 'hairdryer', tint: 'metal', confusable: 'gun', shape: [rect(-30, -14, 44, 22), [[14, -14], [26, -17], [26, 11], [14, 8]], [[-16, 8], [-4, 8], [-1, 36], [-13, 36]]] },
-  { name: 'pen', tint: 'metal', confusable: 'knife', shape: [[[-38, -4], [26, -4], [38, 0], [26, 4], [-38, 4]], rect(-30, -7, 22, 3)] },
+  { name: 'pen', tint: 'metal', confusable: 'knife', shape: [[[-38, -8], [24, -8], [38, 0], [24, 8], [-38, 8]], rect(-32, -12, 24, 4)] },
   { name: 'umbrella', tint: 'organic', shape: [[...arc(0, 0, 30, 180, 360, 12)], rect(-1.5, 0, 3, 34), [[-1.5, 32], [1.5, 32], [1.5, 40], [-7, 40], [-7, 36], [-3, 36], [-3, 34], [-1.5, 34]]] },
   { name: 'camera', tint: 'metal', shape: [rect(-26, -17, 52, 34), rect(-22, -24, 16, 7), ell(4, 0, 12, 12), rect(14, -21, 10, 4)] },
   { name: 'wallet', tint: 'organic', shape: [[[-24, -17], [24, -17], [24, -8], [14, -8], [14, 8], [24, 8], [24, 17], [-24, 17]]] },
-  { name: 'keys', tint: 'metal', shape: [ell(-22, 0, 10, 10), rect(-14, -7, 44, 5), rect(20, -2, 4, 5), rect(-14, 3, 38, 5), rect(16, 8, 4, 5)] },
+  { name: 'keys', tint: 'metal', shape: [band(-22, 0, 11, 5, 15, 345), rect(-14, -8, 44, 5), rect(20, -3, 4, 5), rect(-14, 3, 38, 5), rect(16, 8, 4, 5)] },
   { name: 'toy', tint: 'organic', shape: [ell(-4, 8, 22, 14, 14), ell(14, -10, 11, 11), [[24, -12], [34, -9], [24, -6]]] },
   { name: 'water bottle', tint: 'organic', confusable: 'large liquid', shape: [rect(-13, -8, 26, 44), [[-13, -8], [-5, -22], [5, -22], [13, -8]], rect(-6, -30, 12, 8)] },
-  { name: 'belt', tint: 'organic', shape: [rect(-42, -4, 64, 8), rect(20, -10, 24, 20)] },
+  { name: 'belt', tint: 'organic', confusable: 'hammer', shape: [rect(-42, -4, 64, 8), rect(20, -10, 24, 20)] },
   { name: 'snacks', tint: 'organic', shape: [[...crimp(-22, 22, -28, 4, 8), ...crimp(22, -22, 28, -4, 8)]] },
 ];
 
@@ -142,16 +155,43 @@ const shapeDist = (px, py, parts) => {
 };
 const inShape = (px, py, parts) => { for (const poly of parts) if (inPoly(px, py, poly)) return true; return false; };
 
+// Points along an item's outline, leaving out the seams where one of its own parts lies inside another.
+function outlinePoints(def, step, offset) {
+  const pts = [];
+  def.shape.forEach((poly, pi) => {
+    const others = def.shape.filter((_, k) => k !== pi);
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [ax, ay] = poly[j], [bx, by] = poly[i], len = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(len / step));
+      for (let k = 0; k < n; k++) {
+        const t = (k + offset) / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+        if (!others.length || shapeDist(x, y, others) > 0.05) pts.push([x, y]);
+      }
+    }
+  });
+  return pts;
+}
+// Narrowest width of an outline over all directions (the hit shape adds hitMargin on both sides of it).
+function minWidth(shape) {
+  const pts = shape.flat();
+  let best = Infinity;
+  for (let a = 0; a < 180; a++) {
+    const c = Math.cos(a * DEG), s = Math.sin(a * DEG);
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const [x, y] of pts) { const u = x * c - y * s, v = x * s + y * c; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    best = Math.min(best, u1 - u0, v1 - v0);
+  }
+  return best;
+}
 const ITEMS = ITEM_DATA.map((d) => {
   const item = { contraband: false, confusable: null, ...d };
   const xs = item.shape.flat().map((p) => p[0]), ys = item.shape.flat().map((p) => p[1]);
-  const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
-  item.size = Math.max(w, h);                                  // longest extent, design units
-  item.thin = Math.min(w, h);
+  item.size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));   // longest extent, design units
+  item.thin = minWidth(item.shape);                                                             // narrowest width, design units
   item.rad = Math.max(...item.shape.flat().map((p) => Math.hypot(p[0], p[1])));
   item.samples = [];
   for (let y = Math.min(...ys) + T.visStep / 2; y < Math.max(...ys); y += T.visStep)
     for (let x = Math.min(...xs) + T.visStep / 2; x < Math.max(...xs); x += T.visStep) if (inShape(x, y, item.shape)) item.samples.push([x, y]);
+  item.edge = outlinePoints(item, T.edgeStep, 0.5);
   return item;
 });
 const BY_NAME = Object.fromEntries(ITEMS.map((i) => [i.name, i]));
@@ -163,7 +203,7 @@ function instance(def, x, y, rot) {
   const parts = def.shape.map((poly) => poly.map(tr));
   const bb = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
   for (const [px, py] of parts.flat()) { bb.x0 = Math.min(bb.x0, px); bb.x1 = Math.max(bb.x1, px); bb.y0 = Math.min(bb.y0, py); bb.y1 = Math.max(bb.y1, py); }
-  return { def, name: def.name, contraband: def.contraband, x, y, rot, parts, pts: def.samples.map(tr), bb, cov: null, hidden: 0, state: 0 };
+  return { def, name: def.name, contraband: def.contraband, x, y, rot, parts, pts: def.samples.map(tr), epts: def.edge.map(tr), bb, cov: null, ecov: null, hidden: 0, ehidden: 0, state: 0 };
 }
 function extents(def, rot) {
   const c = Math.cos(rot * DEG), s = Math.sin(rot * DEG);
@@ -176,22 +216,28 @@ function covers(px, py, o, margin) {
   if (px < b.x0 - margin || px > b.x1 + margin || py < b.y0 - margin || py > b.y1 + margin) return false;
   return margin > 0 ? shapeDist(px, py, o.parts) <= margin : inShape(px, py, o.parts);
 }
-// Adds `it` to the bag if every item, itself included, keeps its visible share. Visible = not under any other item's shape.
+// Adds `it` to the bag if every item, itself included, keeps its visible share of both its area and its outline.
+// Visible = not under any other item's shape.
 function commit(it, placed, rule) {
-  const n = it.pts.length, cov = new Uint8Array(n), extras = [];
-  let hidden = 0;
+  const chans = [['pts', 'cov', 'hidden'], ['epts', 'ecov', 'ehidden']];
+  const own = chans.map(([pts]) => ({ cov: new Uint8Array(it[pts].length), hidden: 0 })), extras = [];
   for (const p of placed) {
     const a = it.bb, b = p.bb, m = rule.margin;
     if (a.x1 + m < b.x0 || b.x1 + m < a.x0 || a.y1 + m < b.y0 || b.y1 + m < a.y0) continue;
-    for (let i = 0; i < n; i++) if (!cov[i] && covers(it.pts[i][0], it.pts[i][1], p, m)) { cov[i] = 1; hidden++; }
     const ex = [];
-    for (let j = 0; j < p.pts.length; j++) if (!p.cov[j] && covers(p.pts[j][0], p.pts[j][1], it, m)) ex.push(j);
-    if ((p.pts.length - p.hidden - ex.length) / p.pts.length < rule.need) return false;
+    for (let c = 0; c < 2; c++) {
+      const [pts, cov, hid] = chans[c], mine = it[pts], theirs = p[pts];
+      for (let i = 0; i < mine.length; i++) if (!own[c].cov[i] && covers(mine[i][0], mine[i][1], p, m)) { own[c].cov[i] = 1; own[c].hidden++; }
+      const list = [];
+      for (let j = 0; j < theirs.length; j++) if (!p[cov][j] && covers(theirs[j][0], theirs[j][1], it, m)) list.push(j);
+      if ((theirs.length - p[hid] - list.length) / theirs.length < rule.need) return false;
+      ex.push(list);
+    }
     extras.push([p, ex]);
   }
-  if ((n - hidden) / n < rule.need) return false;
-  for (const [p, ex] of extras) { for (const j of ex) p.cov[j] = 1; p.hidden += ex.length; }
-  it.cov = cov; it.hidden = hidden;
+  for (let c = 0; c < 2; c++) if ((it[chans[c][0]].length - own[c].hidden) / it[chans[c][0]].length < rule.need) return false;
+  for (const [p, ex] of extras) for (let c = 0; c < 2; c++) { for (const j of ex[c]) p[chans[c][1]][j] = 1; p[chans[c][2]] += ex[c].length; }
+  for (let c = 0; c < 2; c++) { it[chans[c][1]] = own[c].cov; it[chans[c][2]] = own[c].hidden; }
   return true;
 }
 function tryPlace(rng, def, placed, rule) {
@@ -200,7 +246,7 @@ function tryPlace(rng, def, placed, rule) {
     const x0 = T.bagPad - e.minX, x1 = T.bagW - T.bagPad - e.maxX, y0 = T.bagPad - e.minY, y1 = T.bagH - T.bagPad - e.maxY;
     if (x1 < x0 || y1 < y0) continue;
     let x, y;
-    if (rule.overlap && placed.length && rng.chance(T.overlapBias)) {
+    if (rule.overlap && placed.length && rng.chance(rule.bias)) {
       const a = rng.pick(placed);
       x = clamp(a.x + rng.range(-0.5, 0.5) * a.def.size, x0, x1); y = clamp(a.y + rng.range(-0.5, 0.5) * a.def.size, y0, y1);
     } else { x = rng.range(x0, x1); y = rng.range(y0, y1); }
@@ -211,14 +257,15 @@ function tryPlace(rng, def, placed, rule) {
 }
 function packBag(rng, names, shift) {
   const overlap = shift >= T.overlapFrom;
-  const rule = { overlap, margin: overlap ? 0 : T.packGap, need: overlap ? T.minVisible + T.visSlack : 1, rotMax: T.rotMax[shift - 1] };
+  const rule = { overlap, margin: overlap ? 0 : T.packGap, need: overlap ? T.minVisible + T.visSlack : 1, rotMax: T.rotMax[shift - 1], bias: T.overlapBias[shift - 1] };
   const defs = names.map((n) => BY_NAME[n]).sort((a, b) => b.samples.length - a.samples.length);
   for (let attempt = 0; attempt < T.bagTries; attempt++) {
     const placed = [];
     for (const def of defs) { const it = tryPlace(rng, def, placed, rule); if (!it) break; placed.push(it); }
     // The packing measure is coarse; the finished bag must also pass a fine one.
-    if (placed.length === defs.length && Math.min(...visibility({ items: placed }, T.visFinalStep)) >= T.minVisible + T.visFinalSlack) {
-      for (const it of placed) it.vis = 1 - it.hidden / it.pts.length;
+    const fine = { items: placed };
+    if (placed.length === defs.length && Math.min(...visibility(fine, T.visFinalStep), ...outlineVisibility(fine, T.visFinalStep)) >= T.minVisible + T.visFinalSlack) {
+      for (const it of placed) { it.vis = 1 - it.hidden / it.pts.length; it.evis = 1 - it.ehidden / it.epts.length; }
       return rng.shuffle(placed);
     }
   }
@@ -243,11 +290,11 @@ function bagNames(rng, shift, holds, index) {
   if (T.opener.shift === shift && index === 0) return { contra: T.opener.contraband.slice(), harmless: T.opener.harmless.slice() };
   const [lo, hi] = T.itemsPerBag[shift - 1], total = rng.int(lo, hi);
   const pool = contrabandPool(shift);
-  const k = !holds ? 0 : T.maxContraband[shift - 1] > 1 && rng.chance(T.twoShare) ? 2 : 1;
+  const k = !holds ? 0 : T.maxContraband[shift - 1] > 1 && rng.chance(T.twoShare[shift - 1]) ? 2 : 1;
   const contra = rng.shuffle(pool).slice(0, k);
   const hpool = HARMLESS.filter((h) => !h.confusable);
   const harmless = rng.shuffle(hpool).slice(0, total - k).map((h) => h.name);
-  if (shift >= T.confusableFrom && rng.chance(T.confusableBagShare)) {
+  if (rng.chance(T.confusableShare[shift - 1])) {
     const all = HARMLESS.filter((h) => h.confusable);
     const near = all.filter((h) => contra.includes(h.confusable));
     harmless[harmless.length - 1] = (near.length && rng.chance(T.confusableNear) ? rng.pick(near) : rng.pick(all)).name;
@@ -291,24 +338,42 @@ function visibility(bag, step = 1, offset = 0.5) {
   });
 }
 
+// Share of every item's outline that lies outside all other items' shapes, on points spaced `step` apart along the outline.
+const edgeCache = new Map();
+function outlineVisibility(bag, step = 1, offset = 0.5) {
+  return bag.items.map((it) => {
+    const near = bag.items.filter((o) => o !== it && o.bb.x0 < it.bb.x1 && o.bb.x1 > it.bb.x0 && o.bb.y0 < it.bb.y1 && o.bb.y1 > it.bb.y0);
+    if (!near.length) return 1;
+    const key = `${it.name}|${step}|${offset}`;
+    if (!edgeCache.has(key)) edgeCache.set(key, outlinePoints(it.def, step, offset));
+    const c = Math.cos(it.rot * DEG), s = Math.sin(it.rot * DEG), pts = edgeCache.get(key);
+    let hidden = 0;
+    for (const [px, py] of pts) {
+      const x = it.x + px * c - py * s, y = it.y + px * s + py * c;
+      for (const o of near) if (x >= o.bb.x0 && x <= o.bb.x1 && y >= o.bb.y0 && y <= o.bb.y1 && inShape(x, y, o.parts)) { hidden++; break; }
+    }
+    return 1 - hidden / pts.length;
+  });
+}
+
 // ---------- play state ----------
 let S = null;
 const BAG_X = (T.designW - T.bagW) / 2;
 
 function layout(E) {
   const s = Math.min(E.w / T.designW, E.h / T.designMinH);
-  return { s, ox: (E.w - T.designW * s) / 2, H: E.h / s, hud: E.safe.top + T.hudH };
+  return { s, ox: (E.w - T.designW * s) / 2, H: E.h / s, hud: E.safe.top + T.hudH, bottom: E.h - E.safe.bottom };
 }
 const multiplier = () => 1 + T.streakSteps.filter((n) => S.streak >= n).length;
 
-function startShift(shift, seed) {
-  const g = genShift(seed, shift);
+function startShift(E, shift, seed) {
+  const g = genShift(seed, shift), L = layout(E), first = L.hud / L.s + T.firstBagGap;
   S = {
     shift, seed, time: 0, dist: 0, acc: 0, score: 0, streak: 0, strikes: 0, catches: 0, falseAlarms: 0, misses: 0, passes: 0, resolved: 0,
-    ended: null, endT: 0, finished: false, H: 640, fx: [], flashT: 0, flashColor: '', log: [],
+    ended: null, endT: 0, finished: false, H: L.H, fx: [], ghosts: [], flashT: 0, flashColor: '', log: [],
     bags: g.bags.map((b, i) => ({
-      ...b, idx: i, y0: -T.bagH * T.firstBagShow - i * (T.bagH + T.bagGap), y: 0,
-      pending: b.items.filter((it) => it.contraband).length, touched: false, missed: false, resolved: false, gone: false,
+      ...b, idx: i, y0: first - i * (T.bagH + T.bagGap), y: 0,
+      pending: b.items.filter((it) => it.contraband).length, touched: false, missed: false, resolved: false, settled: false, gone: false,
     })),
   };
   for (const b of S.bags) b.y = b.y0;
@@ -321,7 +386,8 @@ function endShift(E, result) {
   S.ended = result; S.endT = 0;
   const stars = result === 'clear' ? (S.strikes === 0 ? 3 : S.strikes <= 1 ? 2 : 1) : 0;
   const rec = E.save.get('shifts', {})[S.shift] || { best: 0, stars: 0 };
-  S.result = { shift: S.shift, seed: S.seed, result, score: S.score, strikes: S.strikes, stars, best: Math.max(rec.best, S.score), isNew: S.score > rec.best, catches: S.catches, falseAlarms: S.falseAlarms, misses: S.misses };
+  const unlocked = result === 'clear' ? E.save.update('unlocked', (n) => Math.max(n, Math.min(T.beltSpeed.length, S.shift + 1)), 1) : E.save.get('unlocked', 1);
+  S.result = { shift: S.shift, seed: S.seed, unlocked, result, score: S.score, strikes: S.strikes, stars, best: Math.max(rec.best, S.score), isNew: S.score > rec.best, catches: S.catches, falseAlarms: S.falseAlarms, misses: S.misses };
   E.save.update('shifts', (all) => ({ ...all, [S.shift]: { best: S.result.best, stars: Math.max(rec.stars, stars) } }), {});
   if (E.ledger) E.ledger.add('shift', { shift: S.shift, seed: S.seed, result, score: S.score, strikes: S.strikes, stars, catches: S.catches, falseAlarms: S.falseAlarms, misses: S.misses });
   S.log.push({ t: S.time, e: result });
@@ -338,7 +404,7 @@ function bagDone(E, b, correct) {
 
 function catchItem(E, b, it) {
   const f = clamp((b.y + it.y) / S.H, 0, 1);
-  const pts = Math.round(T.catchBase * (1 + (T.earlyMax - 1) * (1 - f)) * multiplier());
+  const pts = Math.round(T.catchBase * (T.earlyMax + (T.earlyMin - T.earlyMax) * f) * multiplier());
   it.state = 1; b.pending--; S.catches++; S.score += pts;
   E.audio.play('hit');
   addFx(`+${pts}`, BAG_X + it.x, b.y + it.y, T.colors.catch);
@@ -355,17 +421,17 @@ function falseAlarm(E, b, it) {
 function missItem(E, b, it) {
   it.state = 3; b.pending--; b.missed = true; S.misses++;
   E.audio.play('miss'); flash(T.colors.catch);
-  addFx('Missed', T.designW / 2, S.H - 44, T.colors.catch);
+  S.ghosts.push({ it, t: 0 });
   S.log.push({ t: S.time, e: 'miss', item: it.name });
   strike(E);
   if (b.pending === 0) bagDone(E, b, false);
 }
 function passBag(E, b) {
-  S.passes++;
+  b.passed = true; S.passes++;
   const pts = T.cleanBase * multiplier();
   S.score += pts;
   flash(T.colors.clean);
-  addFx(`+${pts}`, T.designW / 2, S.H - 44, T.colors.clean);
+  S.fx.push({ text: `+${pts}`, x: T.designW / 2, y: 0, color: T.colors.clean, t: 0, bottom: true });
   S.log.push({ t: S.time, e: 'pass', pts });
   bagDone(E, b, true);
 }
@@ -377,7 +443,9 @@ function step(E) {
     b.y = b.y0 + S.dist;
     if (b.y + b.h < 0) continue;
     if (b.pending > 0) for (const it of b.items) if (it.contraband && it.state === 0 && b.y + it.bb.y0 >= S.H && !S.ended) missItem(E, b, it);
-    if (b.y >= S.H) { b.gone = true; if (b.kind === 'clean' && !S.ended) { if (b.touched) bagDone(E, b, false); else passBag(E, b); } }
+    // A clean bag is settled when its bottom edge reaches the belt's end, while it is still on screen.
+    if (b.kind === 'clean' && !b.settled && b.y + b.h >= S.H && !S.ended) { b.settled = true; if (b.touched) bagDone(E, b, false); else passBag(E, b); }
+    if (b.y >= S.H) b.gone = true;
   }
 }
 
@@ -390,7 +458,7 @@ function tapAt(E, x, y) {
   const px = (x - L.ox) / L.s, py = y / L.s;
   let c = null, cd = Infinity, h = null, hd = Infinity, flagged = false;
   for (const b of S.bags) {
-    if (b.gone || b.y >= S.H || b.y + b.h < 0) continue;
+    if (b.gone || b.settled || b.y >= S.H || b.y + b.h < 0) continue;
     const lx = px - BAG_X, ly = py - b.y;
     for (const it of b.items) {
       const d = shapeDist(lx, ly, it.parts);
@@ -414,11 +482,12 @@ const pathOf = (def) => {
   }
   return def.path;
 };
+const itemColor = (it) => (it.state === 1 ? T.colors.catch : it.state === 2 ? T.colors.falseAlarm : T.colors[it.def.tint]);
 const alpha = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
 function drawItem(ctx, b, it) {
   const C = T.colors;
-  const color = it.state === 1 ? C.catch : it.state === 2 ? C.falseAlarm : C[it.def.tint];
+  const color = itemColor(it);
   ctx.save();
   ctx.translate(BAG_X + it.x, b.y + it.y); ctx.rotate(it.rot * DEG);
   const p = pathOf(it.def);
@@ -427,9 +496,6 @@ function drawItem(ctx, b, it) {
   ctx.lineJoin = 'round';
   ctx.strokeStyle = alpha(color, 0.2); ctx.lineWidth = 6; ctx.stroke(p);
   ctx.strokeStyle = alpha(color, 0.95); ctx.lineWidth = 2; ctx.stroke(p);
-  if (it.contraband && it.state === 0 && (b.y + it.y) / S.H > T.warnFrom) {
-    ctx.strokeStyle = alpha(C.catch, 0.5 + 0.5 * Math.sin(S.time * 16)); ctx.lineWidth = 4; ctx.stroke(p);
-  }
   ctx.restore();
   if (it.state === 1 || it.state === 2) {
     ctx.strokeStyle = it.state === 1 ? C.catch : C.falseAlarm; ctx.lineWidth = 3;
@@ -459,11 +525,13 @@ function drawHud(E, L) {
 
 const play = {
   enter(E, params = {}) {
-    startShift(params.shift || 1, params.seed ?? ((E.rng() * 2 ** 32) >>> 0));
+    startShift(E, params.shift || 1, params.seed ?? ((E.rng() * 2 ** 32) >>> 0));
   },
   update(dt, E) {
     S.H = layout(E).H;
     for (const f of S.fx) f.t += dt;
+    for (const g of S.ghosts) g.t += dt;
+    S.ghosts = S.ghosts.filter((g) => g.t < T.ghostLife);
     S.fx = S.fx.filter((f) => f.t < T.fxLife);
     if (S.flashT > 0) S.flashT -= dt;
     if (S.ended) {
@@ -489,12 +557,22 @@ const play = {
     for (let y = off - 20; y < L.H; y += 20) { ctx.fillRect(3, y, 16, 8); ctx.fillRect(T.designW - 19, y, 16, 8); }
     for (const b of S.bags) {
       if (b.gone || b.y >= L.H || b.y + b.h < 0) continue;
-      E.roundRect(BAG_X, b.y, b.w, b.h, 18, C.bag, b.touched ? C.falseAlarm : C.bagEdge);
+      E.roundRect(BAG_X, b.y, b.w, b.h, 18, C.bag, b.touched ? C.falseAlarm : b.passed ? C.clean : C.bagEdge);
       for (const it of b.items) drawItem(ctx, b, it);
     }
     ctx.restore();
-    if (S.flashT > 0) { ctx.globalAlpha = Math.min(1, S.flashT / T.flashLife) * 0.9; ctx.fillStyle = S.flashColor; ctx.fillRect(0, E.h - 10, E.w, 10); ctx.globalAlpha = 1; }
-    for (const f of S.fx) E.text(f.text, clamp(L.ox + f.x * L.s, 70, E.w - 70), f.y * L.s - 36 * (f.t / T.fxLife), { size: 20, weight: '800', color: f.color, alpha: 1 - (f.t / T.fxLife) ** 2 });
+    if (S.flashT > 0) { ctx.globalAlpha = Math.min(1, S.flashT / T.flashLife) * 0.9; ctx.fillStyle = S.flashColor; ctx.fillRect(0, L.bottom - 10, E.w, 10); ctx.globalAlpha = 1; }
+    // The miss cue: after the strike, the ghost of the missed item pulses at the bottom edge.
+    for (const g of S.ghosts) {
+      const it = g.it, gx = clamp(L.ox + (BAG_X + it.x) * L.s, (it.x - it.bb.x0) * L.s + 8, E.w - (it.bb.x1 - it.x) * L.s - 8), gy = L.bottom - T.cueLift - (it.bb.y1 - it.y) * L.s;
+      const a = (0.35 + 0.65 * Math.abs(Math.sin(g.t * 9))) * Math.min(1, (T.ghostLife - g.t) * 4);
+      const ctx2 = E.ctx;
+      ctx2.save(); ctx2.translate(gx, gy); ctx2.scale(L.s, L.s); ctx2.rotate(it.rot * DEG);
+      ctx2.lineJoin = 'round'; ctx2.strokeStyle = alpha(T.colors.catch, a); ctx2.lineWidth = 3; ctx2.stroke(pathOf(it.def));
+      ctx2.restore();
+      E.text('Missed', clamp(gx, 60, E.w - 60), gy - (it.y - it.bb.y0) * L.s - 16, { size: 20, weight: '800', color: T.colors.catch, alpha: a });
+    }
+    for (const f of S.fx) E.text(f.text, clamp(L.ox + f.x * L.s, 70, E.w - 70), (f.bottom ? L.bottom - 70 : f.y * L.s) - 36 * (f.t / T.fxLife), { size: 20, weight: '800', color: f.color, alpha: 1 - (f.t / T.fxLife) ** 2 });
     drawHud(E, L);
   },
 };
@@ -508,18 +586,31 @@ const drawStar = (ctx, cx, cy, r, on) => {
 };
 
 const menu = {
-  enter() { this.btnPlay = this.btnMute = null; },
+  enter() { this.cells = []; this.btnMute = null; },
   render(ctx, E) {
-    const C = T.colors, rec = E.save.get('shifts', {})[1] || { best: 0, stars: 0 };
-    E.text('CHECKPOINT', E.w / 2, E.h * 0.24, { size: 40, weight: '800', color: C.metal });
-    E.text('Tap the contraband', E.w / 2, E.h * 0.24 + 40, { size: 18, color: C.dim });
-    for (let i = 0; i < 3; i++) drawStar(ctx, E.w / 2 + (i - 1) * 40, E.h * 0.42, 15, i < rec.stars);
-    E.text(`Best ${rec.best}`, E.w / 2, E.h * 0.42 + 40, { size: 18, color: C.organic });
-    this.btnPlay = E.button('Shift 1', E.w / 2, E.h * 0.6);
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, E.h * 0.6 + 80, { fill: '#1f2937', w: 160, h: 44, size: 16 });
+    const C = T.colors, shifts = E.save.get('shifts', {}), unlocked = E.save.get('unlocked', 1);
+    const ty = E.safe.top + Math.max(84, E.h * 0.1);   // clear of the engine's EXPORT tab (top left, 82 x 48)
+    E.text('CHECKPOINT', E.w / 2, ty, { size: 38, weight: '800', color: C.metal });
+    E.text('Tap the contraband', E.w / 2, ty + 34, { size: 16, color: C.dim });
+    const n = T.beltSpeed.length, cols = 2, gap = 12, cw = Math.min(170, (E.w - 40 - gap) / cols), ch = 58, top = ty + 66;
+    const x0 = (E.w - (cw * cols + gap)) / 2;
+    this.cells = [];
+    for (let i = 0; i < n; i++) {
+      const col = i % cols, row = Math.floor(i / cols), x = x0 + col * (cw + gap), y = top + row * (ch + 8), open = i + 1 <= unlocked, rec = shifts[i + 1] || { best: 0, stars: 0 };
+      E.roundRect(x, y, cw, ch, 12, open ? '#12274d' : '#0a1226', open ? C.bagEdge : '#1a2540');
+      E.text(`Shift ${i + 1}`, x + 12, y + 18, { size: 17, weight: '800', align: 'left', color: open ? C.text : '#4a5d80' });
+      if (T.rush.includes(i + 1)) E.text('RUSH', x + cw - 10, y + 18, { size: 14, align: 'right', color: open ? C.organic : '#5a4a30' });
+      if (open) {
+        for (let k = 0; k < 3; k++) drawStar(ctx, x + 20 + k * 20, y + 41, 8, k < rec.stars);
+        if (rec.best) E.text(String(rec.best), x + cw - 10, y + 41, { size: 14, align: 'right', color: C.dim });
+      } else E.text('Locked', x + 12, y + 41, { size: 14, align: 'left', color: '#4a5d80' });
+      this.cells.push({ x, y, w: cw, h: ch, shift: i + 1, open });
+    }
+    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, top + 5 * (ch + 8) + 30, { fill: '#1f2937', w: 160, h: 44, size: 16 });
   },
   onTap(p, E) {
-    if (this.btnPlay && E.hit(this.btnPlay, p)) E.setScene('play', { shift: 1 });
+    const c = this.cells.find((c) => E.hit(c, p));
+    if (c) { if (c.open) E.setScene('play', { shift: c.shift }); }
     else if (this.btnMute && E.hit(this.btnMute, p)) E.audio.toggleMute();
   },
 };
@@ -534,7 +625,7 @@ const over = {
     E.text(r.isNew && r.score > 0 ? 'New best' : `Best ${r.best}`, cx, h * 0.37 + 40, { size: 18, color: C.organic });
     E.text(`Strikes ${r.strikes} of ${T.strikesMax}`, cx, h * 0.37 + 68, { size: 18, color: C.dim });
     E.text(`Seed ${r.seed}`, cx, h * 0.37 + 94, { size: 14, color: C.dim });
-    const next = cleared && r.shift < T.playableShifts;
+    const next = cleared && r.shift < T.beltSpeed.length;
     let y = h * 0.6;
     this.btns = {};
     if (next) { this.btns.next = E.button('Next shift', cx, y); y += 68; }
@@ -560,7 +651,7 @@ export const game = {
   scenes: { menu, play, over },
   // Read by tools/sim-checkpoint.mjs so the harness runs the real generation, tap resolution and scoring.
   sim: {
-    ITEMS, genShift, visibility, layout,
+    ITEMS, genShift, visibility, outlineVisibility, layout,
     state: () => S,
     onScreen(E) {
       const L = layout(E), out = [];

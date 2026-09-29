@@ -144,3 +144,7 @@ Not in v0.1: badges, skins, daily, endless, drag gestures (open bag, rotate), pe
 6. The first bag is fully visible at t=0; a clean pass shows its green edge while the bag is still on screen (when its bottom edge reaches the belt's end); the bottom cues sit above `E.safe.bottom`.
 7. Shift length target is 40 to 120 s; the belt speeds stay as tuned.
 8. The builder's additions (`newContraband` unlock order, `rotMax`, the opener) are adopted into section 16.
+
+## Adopted after layer 2 (2026-09-30)
+
+Section 16 now also holds, as built: `bagH` 260 and `bagGap` 64 (so shift 10 lasts about 40 s), `earlyMin` 0.5, `hitMargin` 12, streak steps at 4, 8, 12, 16 (x2 to x5), per-shift columns `newContraband`, `rotMax`, `maxContraband`, `twoShare`, `overlapBias`, `confusableShare`, and the shift 1 opener. Look-alike pairs: gun and hairdryer, knife and pen, box cutter and toothbrush, taser and charger, large and small liquid, large liquid and water bottle, phone and lighter, belt and hammer.
