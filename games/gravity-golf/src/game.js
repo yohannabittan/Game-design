@@ -53,9 +53,8 @@ const TUNING = {
   hudH: 48,              // HUD stack height below the safe top (screen px); Retry sits below it, the field below both
   hudGap: 6,             // Gap between Retry and the field's edge wall (screen px)
   borderW: 8,            // Drawn thickness of the edge walls, kept on screen by view()
-  retryW: 64,            // Retry button size (screen px)
+  retryW: 96,            // Retry button size (screen px): a circular arrow and the word, so it reads as a button at rest
   retryH: 44,
-  ballGrabR: 14,         // A touch that starts this close to the ball does not aim
   bounceEventSpeed: 40,  // Impact speed below this is a slide, not a hit (no sound)
   sinkTime: 0.45,        // Seconds the ball takes to drop into the hole before the card
   gridCols: 5,           // Hole select tiles per row
@@ -276,6 +275,7 @@ const TUNING = {
       arms: 3, armTurns: 0.7, // Swirl arms: count, and turns from the influence ring in to the horizon
       armOuter: 0.3,          // The arms fade to this alpha at the influence ring
       reachAlpha: 0.75, reachDash: [5, 7], reachW: 1.6, // The influence ring: a dashed circle at `reach` (design units for the dash and width)
+      restAlpha: 0.55, restDash: [2, 6], restW: 1.4, bandAlpha: 0.06, // The rest radius (a slow ball inside it is pulled in): a finer ring, 3:1 or better, over a faint wash of the fade band
       swirlRate: 0.55,        // Radians per second, clockwise
       ringRate: 0.45,         // Inward drifting rings per second
       rings: 3, ringAlpha: 0.55,
@@ -290,7 +290,10 @@ const TUNING = {
       spinMax: 12,            // Radians per second (a marking that turns faster than this only strobes)
       seam: 0.13,
     },
-    ghost: { dotR: 1.3, every: 2 }, // The last shot's ghost: dot radius, and one dot per this many trail samples
+    ghost: { dotR: 1.3, every: 2 },
+    retry: { pad: 14, icon: 7, iconW: 2.2, head: 4.5, gap: 9 }, // The HUD Retry button: left padding, arrow radius, line width, arrowhead size, gap to the word (screen px)
+    hint: { text: 'Drag anywhere away from the ball to aim, release to shoot.', hold: 3, fade: 0.5, y: 0.14, pad: 14, lineH: 20, margin: 28 }, // The first-run hint: shown once on a fresh save (seconds; y as a fraction of the field's height from its top)
+    hudRun: { line1: 12, line2: 32 }, // The run counter and the landed mark, left of Retry: baselines below the HUD (screen px) // The last shot's ghost: dot radius, and one dot per this many trail samples
     trail: {
       minSpeed: 90,           // Below this the trail drains
       speedRef: 700,          // Speed at which the trail is at full strength
@@ -396,13 +399,17 @@ const LEVELS = [
     walls: [{ x: 35, y: 320, w: 165, h: 22 }], planets: [], suns: [], movers: [],
   },
   {
-    // Teaches the slingshot: the wall blocks the straight line, so pass close up the planet's right side and let it
-    // whip the ball over its top and across to the cup on the left.
-    // three: drag (-2, 124), one shot, passing 21 units from the surface and turning 144 degrees; sinks over 4 degrees of aim
-    // and 115 to 134 px of drag. No-straight sweep (0.5 degrees, 5 px, zero bounces, no pass within 80 of the centre): 0 sink.
+    // Teaches the slingshot: the planet sits on the straight line and the wall shuts the low way round, so pass close up
+    // the planet's right side and let it whip the ball over its top and across to the cup on the left.
+    // three: drag (-5, 131), one shot, passing 30 units from the surface; sinks over 7.7 degrees of aim and 111.6 to 145.6 px of
+    // drag (its whole-pixel neighbours at least 7.6 degrees and 32.5 px). A bank off the right edge into the same whip sinks
+    // over 9.5 degrees at full power. No-straight sweep: 0.
+    // v0.5 (PRD v0.5 D0): the cup moves from (125, 225) to (150, 200), a shorter whip, so the route meets the window rule
+    // (v0.4: 4.2 degrees and 17.5 px); the wall ends at x 160 instead of 200, clear of the planet, so no ball wedges in the
+    // corner where the wall used to run into it. two: (-4, 111) rests above the wall end at (165, 315), then (0, 87).
     name: 'Slingshot', boss: false, stars: { three: 1, two: 3 },
-    ball: { x: 300, y: 560 }, hole: { x: 125, y: 225 },
-    walls: [{ x: 0, y: 330, w: 200, h: 22 }], planets: [{ x: 220, y: 300, r: 48, mass: 1 }], suns: [], movers: [],
+    ball: { x: 300, y: 560 }, hole: { x: 150, y: 200 },
+    walls: [{ x: 0, y: 330, w: 160, h: 22 }], planets: [{ x: 220, y: 300, r: 48, mass: 1 }], suns: [], movers: [],
   },
   {
     // Teaches landing: the wall blocks every line from the tee to the cup (and banks), so put the first shot on the planet, then leave its right side and go straight up through the gap on the left. three: drag (86, 28) lands on the planet at (123, 528) (any shot at the planet lands there), then drag (-23, 143) sinks in one flight with 0 bounces. two (3 strokes): (91, 24) rests at (111, 553), (0, 30) rests at (122, 533), (-30, 142) sinks. Sweep from the tee: 0 straight sinks; last-shot aim window 9.6 degrees (-5.8 / +3.8), drag 131.8 px to full power.
@@ -428,14 +435,16 @@ const LEVELS = [
   {
     // Teaches bumper banks: mass 0 planets do not pull, so aim by where the ball rebounds. three: drag (-120, 72), one shot, glancing off the bumper beside the tee, then the floor, then up into the cup (2 bounces); sinks over 5.2 degrees of aim and 135 px to full power. two: (-80, 0) rolls to (294, 592), then (-2, 70). Sweep (0.5 degrees, 5 px): 0 straight sinks.
     // v0.3: a half-sunk floor bumper right of the tee closes the floor-bank ace (an 18 degree cluster around drag (-84, -86)): one-shot sinks that bank off the floor first fell from 320 to 2 (widest 1 degree), all one-shot sinks from 536 to 283; the widest aim cluster is now the route's own bumper bank (8.5 degrees at full power).
+    // v0.5 (PRD v0.5 D0): the cup moves down from (299, 404) to (299, 440), so the bumper bank arrives slower and the route meets the window rule: (-109, 64) sinks over 6.75 degrees and 123.4 px to full power (neighbours at least 6.6 degrees and 26.1 px); v0.4's (-120, 72) had 14.6 px. two: (-111, 54) rests at (308.1, 491.3), then (-5, 39).
     name: "Pinball", boss: false, stars: { three: 1, two: 2 },
-    ball: { x: 122, y: 592 }, hole: { x: 299, y: 404 },
+    ball: { x: 122, y: 592 }, hole: { x: 299, y: 440 },
     walls: [{ x: 0, y: 399, w: 175, h: 22 }], planets: [{ x: 171, y: 527, r: 36, mass: 0 }, { x: 91, y: 151, r: 31, mass: 0 }, { x: 240, y: 247, r: 28, mass: 0 }, { x: 150, y: 640, r: 24, mass: 0 }], suns: [], movers: [],
   },
   {
     // Teaches timing a slingshot: a sliding door hangs in the exit lane and the whip only works while it is raised. three: drag (0, 120) released at clock 1.25 (window about 1.0 to 1.6 s of the 2.4 s cycle), one shot, passing 25 from the surface; sinks over 5.7 degrees of aim and 115 to 127 px. Fired at clock 0 to 0.9 the ball hits the door. two: (-19, 108) at clock 0 lands on the planet, then (-18, 129) at clock 1.25. Sweep at clocks 0, 0.5, 1.0, 1.25, 1.5, 2.0: 0 straight sinks.
+    // v0.5 (PRD v0.5 D0): the tee moves up to (50, 500) and the cup down to (225, 235), a shorter flight, so the route meets the window rule: drag (50, 124) at clock 1.4 banks off the left edge into the planet's pull and whips over its top through the door's lane, sinking over 6.7 degrees and 119.2 px to full power (neighbours at least 6.55 degrees and 29.8 px); it finishes for release clocks 0.95 to 2.05 of the 2.4 s door cycle (23 of 48 tried) and hits the door otherwise. v0.4's (0, 120) had 12 px; no bank-free whip at this size reached 20 px. The cup stays over 101 from the planet's centre, so a ball resting on the planet is never inside the cup's pull (it would never rest). two: (51, 105) rests on the wall top at (190.6, 273.7), then (-44, 37) at any clock (an untimed two-stroke way, as in v0.4).
     name: "Tide", boss: false, stars: { three: 1, two: 3 },
-    ball: { x: 50, y: 560 }, hole: { x: 225, y: 205 },
+    ball: { x: 50, y: 500 }, hole: { x: 225, y: 235 },
     walls: [{ x: 160, y: 330, w: 200, h: 22 }], planets: [{ x: 140, y: 300, r: 48, mass: 1 }], suns: [], movers: [{ type: "slide", w: 22, h: 100, a: { x: 165, y: 58 }, b: { x: 165, y: 130 }, period: 2.4 }],
   },
   {
@@ -453,8 +462,9 @@ const LEVELS = [
   {
     // Teaches timing a crossing comet: the planet and the wall gap force one line up the middle, and a slow, broad comet crosses it just under the door, so let it pass. three: drag (3, 150) released at clock 0.55 (safe from 0.27 to 0.88 s of the 1.2 s cycle; at 0 to 0.26 and 0.89 to 1.19 the comet knocks it back onto the planet), one shot, passing 25 from the planet; aim window 4.85 degrees, drag 138.5 px to full power. two: (0, 60) lands on the planet, then (39, 129) at clock 0.3. Sweep at clocks 0, 0.3, 0.55 and 0.9: 0 straight sinks.
     // v0.3 (v11 review): the comet blocked the route on 13 percent of release clocks (a 440-unit path at 300 u/s); it now runs 110 units under the door at 92 u/s, r 18, 18 below the walls, and blocks 48 percent.
+    // v0.5 (PRD v0.5 D0): the tee moves up from (250, 590) to (260, 480), so the shot no longer needs full power: (15, 133) at clock 0.8 sinks over 7.45 degrees and 118.3 px to full power (neighbours at least 7.3 degrees and 28.5 px) and finishes for release clocks 0.45 to 1.0 of the 1.2 s comet cycle (12 of 24 tried); the comet knocks it back otherwise. v0.4's (3, 150) at 0.55 had 11.5 px. two: (-95, 113) rests on the left wall top at (94.6, 168.0) on most clocks, then (-7, 51).
     name: "Comet Lane", boss: false, stars: { three: 1, two: 3 },
-    ball: { x: 250, y: 590 }, hole: { x: 110, y: 110 },
+    ball: { x: 260, y: 480 }, hole: { x: 110, y: 110 },
     walls: [{ x: 0, y: 177, w: 115, h: 22 }, { x: 265, y: 177, w: 95, h: 22 }], planets: [{ x: 170, y: 380, r: 44, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 245, y: 235 }, b: { x: 135, y: 235 }, period: 1.2, r: 18 }],
   },
   {
@@ -607,13 +617,24 @@ function bounceComet(b, m, i, clock) {
   } else if (b.cometIn & bit && dist(b.x, b.y, c.x, c.y) > m.r + T.ballR + T.cometRearm) b.cometIn &= ~bit;
 }
 
-// How much of a black hole's pull reaches (x, y): 1 inside its influence ring, fading smoothly to 0 at bhFade times the ring.
-function bhInfluence(h, x, y) {
-  const R = h.reach || T.bhReach, R1 = R * T.bhFade, d = dist(x, y, h.x, h.y);
+// How much of a black hole's pull reaches distance d: 1 inside its influence ring R, fading smoothly to 0 at bhFade times R.
+function bhFall(R, d) {
+  const R1 = R * T.bhFade;
   if (d <= R) return 1;
   if (d >= R1) return 0;
   const u = (R1 - d) / (R1 - R);
   return u * u * (3 - 2 * u);
+}
+function bhInfluence(h, x, y) { return bhFall(h.reach || T.bhReach, dist(x, y, h.x, h.y)); }
+
+// The rest radius: beyond it the pull is under restPull(), so a slow ball can stop; inside it, it crawls in and is swallowed.
+// This is the line drawn as the black hole's outer ring (the "you will be pulled in" line).
+function bhRestR(h) {
+  const R = h.reach || T.bhReach, need = restPull(), gm = T.planetGravity * h.mass;
+  if (gm / (R * R) < need) return Math.max(T.bhPullR, Math.sqrt(gm / need));
+  let lo = R, hi = R * T.bhFade;
+  for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if ((gm / (m * m)) * bhFall(R, m) >= need) lo = m; else hi = m; }
+  return lo;
 }
 
 function pull(b, x, y, r, mass) {
@@ -805,7 +826,7 @@ function shots(n) { return `${n} ${n === 1 ? 'shot' : 'shots'}`; }
 function progress(E) {
   const best = E.save.get('best', {}), won = E.save.get('stars', {});
   const stars = LEVELS.map((lv, i) => won[i] || 0);
-  return { best, stars, total: stars.reduce((a, b) => a + b, 0), unlocked: clamp(E.save.get('unlocked', 0), 0, LEVELS.length - 1), badges: E.save.get('badges', {}) };
+  return { best, stars, total: stars.reduce((a, b) => a + b, 0), unlocked: clamp(E.save.get('unlocked', 0), 0, LEVELS.length - 1), badges: E.save.get('badges', {}), prog: E.save.get('prog', {}) };
 }
 
 // ---------- Art (layer 5) ----------
@@ -837,9 +858,26 @@ const BADGES = [
 ];
 const runLimit = () => LEVELS.reduce((a, lv) => a + lv.stars.three, 0) + T.runSlack;
 function badgeText(b) {
-  if (b.kind === 'runNoLand') return `A full run of ${LEVELS.length} holes without resting on a planet`;
-  if (b.kind === 'runStrokes') return `A full run in ${runLimit()} strokes or fewer`;
+  if (b.kind === 'runNoLand') return `Play holes 1 to ${LEVELS.length} in a row with Next, never resting on a planet or moon (a bounce is fine)`;
+  if (b.kind === 'runStrokes') return `Play holes 1 to ${LEVELS.length} in a row with Next in ${runLimit()} strokes or fewer`;
   return b.text;
+}
+// Progress toward a badge for its missions tile (PRD v0.5 A): a count, a best, or where it was lost. `prog` is the saved
+// record finishHole and endRun keep: lands, sunBest, runBest, lastRun { through, landedOn }.
+function badgeProgress(b, p, prog) {
+  const st = (i) => p.stars[i] || 0;
+  if (b.kind === 'threeAny') { const n = LEVELS.filter((lv, i) => st(i) >= 3).length, best = Math.max(0, ...p.stars); return n ? `Three stars on ${n} ${n === 1 ? 'hole' : 'holes'}` : best ? `Best so far: ${best} ${best === 1 ? 'star' : 'stars'}` : 'No hole finished yet'; }
+  if (b.kind === 'ace') return b.holes.map((i) => (p.best[i] === undefined ? `Hole ${i + 1} not finished yet` : `Hole ${i + 1} best: ${shots(p.best[i])}`)).join(', ');
+  if (b.kind === 'three') return b.holes.length === 1 ? `Hole ${b.holes[0] + 1}: ${st(b.holes[0])} of 3 stars` : `Stars so far: ${b.holes.map((i) => `hole ${i + 1}: ${st(i)}`).join(', ')}`;
+  if (b.kind === 'threeAll') return `Three stars on ${LEVELS.filter((lv, i) => st(i) >= 3).length} of ${LEVELS.length} holes`;
+  if (b.kind === 'touchdown') return `Landings so far: ${prog.lands || 0}`;
+  if (b.kind === 'untouched') return prog.sunBest === undefined ? 'No sun hole finished yet' : `Best finish: ${prog.sunBest} sun ${prog.sunBest === 1 ? 'touch' : 'touches'}`;
+  if (b.kind === 'runNoLand') {
+    const r = prog.lastRun;
+    return !r ? 'No run yet' : r.landedOn ? `Last run: landed on hole ${r.landedOn}` : `Last run: no landing through hole ${r.through}`;
+  }
+  if (b.kind === 'runStrokes') return prog.runBest === undefined ? `No full run yet, need ${runLimit()} or fewer` : `Best run ${prog.runBest}, need ${runLimit()} or fewer`;
+  return '';
 }
 // Badges that follow from the saved stars and best strokes alone (also used by the save migration).
 function savedBadge(b, stars, best) {
@@ -858,7 +896,7 @@ function eventBadge(b, ev) {
   if (b.kind === 'runStrokes') return ev.runDone && ev.runStrokes <= runLimit();
   return false;
 }
-const RUN = { on: false, next: 0, strokes: 0, landed: false }; // the full run in progress, if any (not saved: a run is one sitting)
+const RUN = { on: false, next: 0, strokes: 0, landed: false, landedOn: -1 }; // the full run in progress, if any (not saved: a run is one sitting); landedOn: the hole of its first landing
 
 // ---------- Skins (PRD v0.3 C2) ----------
 // Every field filled from the default ball, so the art code reads one shape. A skin counts only while its badge is earned:
@@ -893,6 +931,7 @@ const TX = {
   tileNum: tx(TY.md, P.text, 'center'), tileNumOff: tx(TY.md, P.textOff, 'center'),
   label: tx(TY.sm, P.textDim, 'left'), labelC: tx(TY.sm, P.textDim, 'center'), labelBoss: tx(TY.sm, P.bossAccent, 'center'), labelR: tx(TY.sm, P.textDim, 'right'),
   valueL: tx(TY.md, P.text, 'left'), valueC: tx(TY.md, P.text, 'center'), valueGoalR: tx(TY.md, P.green, 'right'),
+  goalL: tx(TY.sm, P.green, 'left'), btnL: tx(TY.sm, P.text, 'left'), btnOffL: tx(TY.sm, P.textOff, 'left'), runClean: tx(TY.sm, P.green, 'left'), progL: tx(TY.sm, P.amber, 'left'),
   tier: P.tiers.map((c) => tx(TY.sm, c, 'left')), bigL: tx(TY.lg, P.text, 'left', TY.heavy), labelL: tx(TY.sm, P.text, 'left'), dimL: tx(TY.sm, P.textDim, 'left'), offL: tx(TY.md, P.textOff, 'left'),
 };
 // Button styles (engine buttons take these), and their outline colour.
@@ -901,8 +940,8 @@ const BTN = {
   half: { fill: P.slateDark, color: P.text, w: A.menu.missionsW, h: 48, size: TY.sm, edge: P.slate },
   back: { fill: P.slateDark, color: P.text, w: A.missions.backW, h: A.missions.backH, size: TY.md, edge: P.slate },
   secondCard: { fill: P.slateDark, color: P.text, w: 150, h: 48, size: TY.sm, edge: P.slate },
-  retryOn: { w: T.retryW, h: T.retryH, size: TY.sm, fill: P.slateDark, color: P.text, edge: P.slateLight },
-  retryOff: { w: T.retryW, h: T.retryH, size: TY.sm, fill: P.retryOff, color: P.textOff, edge: P.slateDeep },
+  retryOn: { w: T.retryW, h: T.retryH, fill: P.slate, color: P.text, edge: P.slateLight },
+  retryOff: { w: T.retryW, h: T.retryH, fill: P.retryOff, color: P.textOff, edge: P.slateDeep },
 };
 function pill(E, label, cx, cy, o) {
   const r = E.button(label, cx, cy, o);
@@ -1288,6 +1327,13 @@ function drawComet(ctx, m, clock) {
 function drawBlackHole(ctx, h, t, flare) {
   const bh = A.blackhole, r = h.r, f = 1 - flare, q = (h.reach || T.bhReach) / r, arms = spiralArms(ctx, q);
   ctx.save(); ctx.translate(h.x, h.y);
+  if (h.mass !== undefined) { // on the field (not a menu badge): the fade band out to the rest radius, washed faintly, with a finer outer ring
+    const rr = bhRestR(h);
+    ctx.globalAlpha = bh.bandAlpha; ctx.fillStyle = P.bhSwirl;
+    ctx.beginPath(); ctx.arc(0, 0, rr, 0, PI2); ctx.arc(0, 0, q * r, 0, PI2, true); ctx.fill();
+    ctx.setLineDash(bh.restDash); ctx.lineWidth = bh.restW; ctx.strokeStyle = P.bhRim; ctx.globalAlpha = bh.restAlpha;
+    ctx.beginPath(); ctx.arc(0, 0, rr, 0, PI2); ctx.stroke();
+  }
   ctx.setLineDash(bh.reachDash); ctx.lineWidth = bh.reachW; ctx.strokeStyle = P.bhRim; ctx.globalAlpha = bh.reachAlpha; // the influence ring
   ctx.beginPath(); ctx.arc(0, 0, q * r, 0, PI2); ctx.stroke(); ctx.setLineDash(NO_DASH);
   ctx.scale(r, r);
@@ -1457,6 +1503,7 @@ function loadHole(idx) {
   S.aim = null;          // active pointer aim: { id, sx, sy, x, y }
   S.key = { on: false, angle: Math.atan2(lv.hole.y - lv.ball.y, lv.hole.x - lv.ball.x), power: T.keyPowerStart };
   S.sinkT = 0; S.sinkFrom = null;
+  S.time = 0; S.swallows = 0; S.lands = 0; // for the ledger and the badge progress
   ghostClear();
 }
 
@@ -1493,7 +1540,8 @@ function comeToRest() {
   S.clock = 0;
   carry(S.lv, S.ball, 0);
   S.restPlanet = onPlanet(S.lv, S.ball);
-  if (S.restPlanet && RUN.on) RUN.landed = true;
+  if (S.restPlanet) S.lands++;
+  if (S.restPlanet && RUN.on && !RUN.landed) { RUN.landed = true; RUN.landedOn = S.idx; }
 }
 
 // Resting on a planet that pulls, or riding a moon. A bumper (mass 0) is not a planet here.
@@ -1522,24 +1570,40 @@ function finishHole(E) {
   if (inRun) { RUN.strokes += strokes; RUN.next = S.idx + 1; }
   const ev = { touchdown: S.from.planet, untouched: lv.suns.length > 0 && S.ball.sunHits === 0,
     runDone: inRun && !hasNext, runStrokes: RUN.strokes, runLanded: RUN.landed };
-  if (ev.runDone) RUN.on = false;
+  E.ledger.add('hole', { hole: S.idx + 1, strokes, stars, swallows: S.swallows, sun: S.ball.sunHits, landed: S.lands > 0, time: S.time, run: inRun });
+  E.save.update('prog', (g) => {
+    const o = { ...g, lands: (g.lands || 0) + S.lands };
+    if (lv.suns.length) o.sunBest = Math.min(g.sunBest === undefined ? Infinity : g.sunBest, S.ball.sunHits);
+    if (inRun) o.lastRun = { through: S.idx + 1, landedOn: RUN.landedOn + 1 };
+    return o;
+  }, {});
+  if (ev.runDone) endRun(E, true);
   const had = E.save.get('badges', {}), won = E.save.get('stars', {}), bests = E.save.get('best', {});
   const fresh = BADGES.filter((b) => !had[b.id] && (savedBadge(b, won, bests) || eventBadge(b, ev))).map((b) => b.id);
   if (fresh.length) E.save.update('badges', (h) => { const o = { ...h }; for (const k of fresh) o[k] = 1; return o; }, {});
+  for (const id of fresh) E.ledger.add('badge', { id, hole: S.idx + 1 });
   E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh });
+}
+
+// A full run ends: finished (done) or left (a hole played out of order, Menu or Retry from the card, or hole 1 again).
+function endRun(E, done) {
+  if (!RUN.on) return;
+  if (RUN.next > 0 || RUN.strokes > 0) E.ledger.add('run', { done, holes: RUN.next, strokes: RUN.strokes, landed: RUN.landed, landedOn: RUN.landedOn + 1, limit: runLimit() });
+  if (done) E.save.update('prog', (g) => ({ ...g, runBest: Math.min(g.runBest === undefined ? Infinity : g.runBest, RUN.strokes) }), {});
+  RUN.on = false;
 }
 
 // ---------- Juice (cosmetic only: reads the physics state, never writes it) ----------
 
 const FX = { glow: 0, power: 0, pop: 1, flash: 1, rest: 1, sink: 1, retry: 1, shots: 1, banner: 1, bannerTok: null, ring: null, flare: null, bhFlare: null, trailT: 0, ghost: false, gx: 0, gy: 0,
-  spin: 0, trailK: 1, cup: 0, skyKey: '', hudHole: '', hudPar: '', hudN: -1, hudShots: '' };
+  hint: 0, hintT: 0, spin: 0, trailK: 1, cup: 0, skyKey: '', hudHole: '', hudPar: '', hudN: -1, hudShots: '', hudRunN: -1, hudRun: '' };
 const TRAIL = { xy: new Float32Array(2 * T.trailLength), n: 0, col: P.purple }; // oldest point first
 const NOOP = () => {};
 let CHANGED = null;  // { hole, from, to }: the hole whose stars just went up, consumed by the menu
 
 function resetFx() {
   FX.glow = 0; FX.power = 0; FX.pop = 1; FX.flash = 1; FX.rest = 1; FX.sink = 1; FX.retry = 1; FX.shots = 1;
-  FX.ghost = false; FX.trailT = 0; FX.spin = 0; FX.trailK = 1; FX.cup = 0; FX.hudN = -1;
+  FX.ghost = false; FX.trailT = 0; FX.spin = 0; FX.trailK = 1; FX.cup = 0; FX.hudN = -1; FX.hudRunN = -1;
   FX.skyKey = `h${S.idx}`; FX.hudHole = `${S.lv.boss ? 'BOSS' : 'HOLE'} ${S.idx + 1}`; FX.hudPar = `${S.lv.stars.two}`;
   FX.ring = new Float32Array(S.lv.planets.length);
   FX.flare = new Float32Array(S.lv.suns.length).fill(1);
@@ -1780,8 +1844,9 @@ function sinkFx(E) {
 // Retry is instant for the game; only the picture fades: the old ball dissolves where it lay, the ball at the tee fades in.
 function retry(E) {
   const gx = S.ball.x, gy = S.ball.y, had = S.strokes > 0;
+  E.ledger.add('retry', { hole: S.idx + 1, strokes: S.strokes, time: S.time, from: 'hud' });
   const moved = dist(gx, gy, S.lv.ball.x, S.lv.ball.y) > T.ballR;
-  if (RUN.on && S.idx === 0) { RUN.strokes = 0; RUN.landed = false; } // a retry on hole 1 starts the run again
+  if (RUN.on && S.idx === 0) { RUN.strokes = 0; RUN.landed = false; RUN.landedOn = -1; } // a retry on hole 1 starts the run again
   else if (RUN.on) RUN.strokes += S.strokes;                            // elsewhere the abandoned attempt still counts
   loadHole(S.idx); resetFx();
   E.audio.play('tap', J.retryTapVol);
@@ -1790,6 +1855,28 @@ function retry(E) {
     E.tween(J.retryFade, (k) => { FX.retry = k; }, ease.outQuad, () => { FX.ghost = false; });
   }
   if (had) popShots(E);
+}
+
+// The Retry button: a circular arrow and the word on a raised slate pill, so it reads as a button whenever the ball rests.
+function retryButton(ctx, E, cx, cy, o) {
+  const R = A.retry, x = cx - o.w / 2, y = cy - o.h / 2, ix = x + R.pad + R.icon;
+  E.roundRect(x, y, o.w, o.h, A.line.button, o.fill, o.edge);
+  ctx.strokeStyle = o.color; ctx.fillStyle = o.color; ctx.lineWidth = R.iconW; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(ix, cy, R.icon, -0.35 * Math.PI, 1.35 * Math.PI); ctx.stroke();
+  const ax = ix + R.icon * Math.cos(-0.35 * Math.PI), ay = cy + R.icon * Math.sin(-0.35 * Math.PI); // arrowhead at the open end
+  ctx.beginPath(); ctx.moveTo(ax + R.head, ay - R.head * 0.2); ctx.lineTo(ax - R.head * 0.35, ay - R.head); ctx.lineTo(ax - R.head * 0.2, ay + R.head * 0.55); ctx.closePath(); ctx.fill();
+  E.text('Retry', ix + R.icon + R.gap, cy, o === BTN.retryOn ? TX.btnL : TX.btnOffL);
+  return { x, y, w: o.w, h: o.h };
+}
+
+// The one line of tutorial: a plate near the top of the field on a fresh save's first hole, fading after hold seconds.
+function drawHint(ctx, E, v, a) {
+  const H = A.hint, lines = wrapText(ctx, `hint:${E.w}`, H.text, E.w - 2 * H.margin - 2 * H.pad), cx = E.w / 2, y = v.oy + T.designH * v.s * H.y;
+  ctx.font = `600 ${TY.sm}px system-ui, sans-serif`;
+  let w = 0; for (const ln of lines) w = Math.max(w, ctx.measureText(ln).width);
+  w += 2 * H.pad; const h = lines.length * H.lineH + H.pad;
+  ctx.globalAlpha = a; E.roundRect(cx - w / 2, y - h / 2, w, h, A.line.radius, P.bannerBg, P.slateLight); ctx.globalAlpha = 1;
+  for (let i = 0; i < lines.length; i++) E.text(lines[i], cx, y - ((lines.length - 1) * H.lineH) / 2 + i * H.lineH, { size: TY.sm, color: P.text, alpha: a });
 }
 
 // Banner for boss holes: slides in, holds, slides out. Position from the tween's linear 0..1.
@@ -1844,6 +1931,7 @@ const TIER_LABEL = BADGE_TIERS.map((n) => `${n.toUpperCase()} BADGE`);
 // ---------- Scenes ----------
 
 const menu = {
+  titleBox: { x: 0, y: 0, w: 0, h: 0 },
   enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.tiles = []; this.pop = CHANGED; CHANGED = null; this.t = 0; applySkins(E); },
   update(dt) { if (this.pop) this.t += dt; },
   render(ctx, E) {
@@ -1851,6 +1939,8 @@ const menu = {
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0); ctx.restore();
     const ty = Math.max(E.h * 0.09, E.safe.top + M.tabBottom + M.titleGap); // below the engine's TUNE tab on a notched phone
     E.text('GRAVITY GOLF', cx, ty, TX.big);
+    const tw0 = ctx.measureText('GRAVITY GOLF').width + 16, TA = this.titleBox; // release: five taps on the title open TUNE (ADR-0016)
+    TA.x = cx - tw0 / 2; TA.y = ty - TY.lg / 2; TA.w = tw0; TA.h = TY.lg + 4; E.titleArea = TA; // starts below the EXPORT tab's 48 px corner
     E.text(`Stars ${p.total} / ${LEVELS.length * 3}`, cx, ty + M.starsGap, TX.goal);
     drawSkinSample(ctx, cx - 108, ty + M.starsGap, 8, SK.ball, SK.trail, E.time * 1.5);
 
@@ -1903,13 +1993,13 @@ function wrapText(ctx, key, text, width) {
   let lines = WRAP.get(key);
   if (!lines) {
     ctx.font = `600 ${TY.sm}px system-ui, sans-serif`;
-    lines = [text];
-    if (ctx.measureText(text).width > width) {
-      const words = text.split(' ');
-      let i = words.length - 1;
-      while (i > 1 && ctx.measureText(words.slice(0, i).join(' ')).width > width) i--;
-      lines = [words.slice(0, i).join(' '), words.slice(i).join(' ')];
+    lines = [];
+    let line = '';
+    for (const word of text.split(' ')) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(next).width > width) { lines.push(line); line = word; } else line = next;
     }
+    if (line) lines.push(line);
     WRAP.set(key, lines);
   }
   return lines;
@@ -1940,13 +2030,16 @@ const missions = {
       E.text(`${name.toUpperCase()}   ${inTier.filter((b) => p.badges[b.id]).length} / ${inTier.length}`, m + 24, y + M.headH / 2, TX.tier[tier]);
       y += M.headH;
       for (const b of inTier) {
-        const tx0 = m + 24 + 2 * M.medalR, lines = wrapText(ctx, `${b.id}:${w}`, badgeText(b), w - (tx0 - m) - 12), h = M.rowH + (lines.length - 1) * M.lineH;
+        const tx0 = m + 24 + 2 * M.medalR, tw = w - (tx0 - m) - 12, prog = badgeProgress(b, p, p.prog);
+        const lines = wrapText(ctx, `${b.id}:${w}`, badgeText(b), tw), plines = wrapText(ctx, `${b.id}:${w}:${prog}`, prog, tw);
+        const h = M.rowH + (lines.length + plines.length - 1) * M.lineH;
         if (y + h > V.top && y < V.bot) {
           const got = !!p.badges[b.id];
           E.roundRect(m, y, w, h, A.line.radius, got ? P.tile : P.tileLocked, got ? P.tiers[tier] : P.tileLockedEdge);
           drawMedal(ctx, m + 12 + M.medalR, y + h / 2, M.medalR, tier, got);
           E.text(b.name, tx0, y + 19, got ? TX.valueL : TX.offL);
           for (let i = 0; i < lines.length; i++) E.text(lines[i], tx0, y + 39 + i * M.lineH, got ? TX.labelL : TX.dimL);
+          for (let i = 0; i < plines.length; i++) E.text(plines[i], tx0, y + 39 + (lines.length + i) * M.lineH, got ? TX.goalL : TX.progL);
         }
         y += h + M.rowGap; listH += h + M.rowGap;
       }
@@ -1995,6 +2088,7 @@ const missions = {
     const V = this.area(E), sw = p.y >= V.top && p.y <= V.bot && this.swatches.find((s) => E.hit(s, p));
     if (!sw) return;
     if (!sw.owned) { E.toast(`${sw.s.name} ${sw.kind}: earn the ${BADGES.find((b) => b.id === sw.s.badge).name} badge`); return; }
+    if ((sw.kind === 'ball' ? SK.ball : SK.trail) !== sw.s) E.ledger.add('skin', { kind: sw.kind, id: sw.s.id });
     E.save.set('skin', { ...E.save.get('skin', {}), [sw.kind]: sw.s.id });
     applySkins(E); E.audio.play('tap');
   },
@@ -2006,11 +2100,13 @@ function shoot(E, l) { launch(l); releaseFx(E); }
 const play = {
   enter(E, params) {
     const idx = clamp((params && params.hole) || 0, 0, LEVELS.length - 1);
-    if (idx === 0) { RUN.on = true; RUN.next = 0; RUN.strokes = 0; RUN.landed = false; } // hole 1 starts a full run
-    else if (!(params && params.run && RUN.on && RUN.next === idx)) RUN.on = false;       // only Next carries it on
+    if (!(idx > 0 && params && params.run && RUN.on && RUN.next === idx)) endRun(E, false); // only Next carries a run on
+    if (idx === 0) { RUN.on = true; RUN.next = 0; RUN.strokes = 0; RUN.landed = false; RUN.landedOn = -1; } // hole 1 starts a full run
     applySkins(E);
     loadHole(idx);
     resetFx();
+    FX.hint = E.save.get('hintSeen', false) ? 0 : 1; if (FX.hint) E.save.set('hintSeen', true); // the first play of a fresh save, once
+    FX.hintT = 0;
     FX.banner = 1; FX.bannerTok = null;
     if (S.lv.boss) {
       const tok = FX.bannerTok = {};
@@ -2021,6 +2117,7 @@ const play = {
 
   update(dt, E) {
     fxUpdate(dt);
+    S.time += dt; FX.hintT += dt;
     if (S.phase === 'aim') { S.clock += dt; carry(S.lv, S.ball, S.clock); return; }
     if (S.phase === 'sink') {
       S.sinkT += dt;
@@ -2050,7 +2147,7 @@ const play = {
       if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: b.x, y: b.y }; sinkFx(E); }
       else if (r === 'swallow') {
         S.phase = 'swallow'; S.swT = 0; S.swX = b.x; S.swY = b.y; S.swBh = b.bh;
-        S.strokes += T.bhPenalty; swallowFx(E, b.bh);
+        S.strokes += T.bhPenalty; S.swallows++; swallowFx(E, b.bh);
       } else if (r === 'rest') { comeToRest(); restFx(E); }
     }
   },
@@ -2131,17 +2228,21 @@ const play = {
     E.text(lv.name, E.w / 2, top + 10, TX.valueC);
     E.text('PAR', E.w - 16, top - 9, TX.labelR);
     E.text(FX.hudPar, E.w - 16, top + 10, TX.valueGoalR);
-    S.retryRect = pill(E, 'Retry', E.w - 16 - T.retryW / 2, E.safe.top + T.hudH + T.retryH / 2, S.phase === 'aim' ? BTN.retryOn : BTN.retryOff);
+    S.retryRect = retryButton(ctx, E, E.w - 16 - T.retryW / 2, E.safe.top + T.hudH + T.retryH / 2, S.phase === 'aim' ? BTN.retryOn : BTN.retryOff);
+    if (RUN.on && RUN.next === S.idx) { // PRD v0.5 A: the full run's strokes so far, and the live Never Landed mark
+      const n = RUN.strokes + S.strokes, ry = E.safe.top + T.hudH;
+      if (FX.hudRunN !== n) { FX.hudRunN = n; FX.hudRun = `Run: ${n} ${n === 1 ? 'stroke' : 'strokes'}`; }
+      E.text(FX.hudRun, 16, ry + A.hudRun.line1, TX.labelL);
+      E.text(RUN.landed ? `landed on hole ${RUN.landedOn + 1}` : 'no landings yet', 16, ry + A.hudRun.line2, RUN.landed ? TX.dimL : TX.runClean);
+    }
+    if (FX.hint && FX.hintT < A.hint.hold + A.hint.fade) drawHint(ctx, E, v, clamp((A.hint.hold + A.hint.fade - FX.hintT) / A.hint.fade, 0, 1));
     if (FX.banner < 1) drawBanner(ctx, E);
   },
 
   onPointerDown(p, E) {
     if (S.phase !== 'aim' || S.aim) return;
     if (S.retryRect && E.hit(S.retryRect, p)) return; // a touch on Retry never starts an aim
-    const v = view(E);
-    const gx = (p.x - v.ox) / v.s, gy = (p.y - v.oy) / v.s;
-    if (dist(gx, gy, S.ball.x, S.ball.y) <= T.ballGrabR) return;
-    S.aim = { id: p.id, sx: p.x, sy: p.y, x: p.x, y: p.y };
+    S.aim = { id: p.id, sx: p.x, sy: p.y, x: p.x, y: p.y }; // anywhere, the ball included (v0.5: a press on the ball aims too)
     dragStartFx(E);
   },
   onTap(p, E) {
@@ -2157,6 +2258,8 @@ const play = {
     const l = currentLaunch();
     if (l) shoot(E, l); else S.aim = null; // inside the dead zone: cancel, no stroke
   },
+  // The app goes to the background mid-hole: the ledger notes it, since a tester who stops here has quit the hole.
+  onPause(E) { if (S.strokes > 0 && S.phase !== 'sink') E.ledger.add('quit', { hole: S.idx + 1, strokes: S.strokes, time: S.time, run: RUN.on && RUN.next === S.idx }); },
   onKey(key, E) {
     if (S.phase !== 'aim') return;
     if (key === 'ArrowLeft') { S.key.on = true; S.key.angle -= T.keyAngleStep; }
@@ -2175,7 +2278,7 @@ const over = {
     this.t = 0; this.t0 = E.time; this.slide = 0; this.ready = false; this.sky = `h${p.hole}`;
     this.starK = [0, 0, 0]; this.starDone = [false, false, false];
     this.beat = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop * 0.6 + J.buttonGap;
-    this.btnNext = null; this.btnMenu = null;
+    this.btnNext = null; this.btnMenu = null; this.btnRetry = null;
     this.badges = (p.badges || []).map((id) => BADGES.find((b) => b.id === id));
     this.badgeT = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop + J.badgeDelay; // the first badge pops after the stars
     this.badgeOn = -1;
@@ -2199,7 +2302,7 @@ const over = {
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, this.sky, 0, 0); ctx.restore();
     ctx.save(); ctx.translate(0, (1 - this.slide) * E.h * J.cardSlideFrac);
     const pw = Math.min(E.w - 32, 340), py = E.h * 0.085;
-    E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + (p.hasNext ? 80 : 0) + 44 - py, A.line.card, P.card, p.boss ? P.bossAccent : P.slate);
+    E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + 80 + 44 - py, A.line.card, P.card, p.boss ? P.bossAccent : P.slate);
     const tky = Math.max(py, E.safe.top + A.ticket.h / 2 + 4), ly = Math.max(E.h * 0.12, tky + A.ticket.h / 2 + 14), ny = Math.max(E.h * 0.16, ly + 28);
     if (p.boss) E.text('Boss', cx, ly, TX.bossMd); // the label and the name sit below the badge ticket's slot
     E.text(p.name, cx, ny, TX.dim);
@@ -2223,11 +2326,11 @@ const over = {
       ctx.save(); ctx.translate(cx, by); ctx.scale(bk, bk); ctx.translate(-cx, -by);
       this.btnNext = pill(E, p.hasNext ? 'Next' : 'Menu', cx, by, BTN.primary);
       ctx.restore();
-      if (p.hasNext) {
-        ctx.save(); ctx.translate(cx, by + 80); ctx.scale(bk, bk); ctx.translate(-cx, -(by + 80));
-        this.btnMenu = pill(E, 'Menu', cx, by + 80, BTN.secondCard);
-        ctx.restore();
-      }
+      const hx = p.hasNext ? (BTN.secondCard.w + A.menu.rowGap) / 2 : 0; // Retry beside Menu (Retry alone when Menu is the main button)
+      ctx.save(); ctx.translate(cx, by + 80); ctx.scale(bk, bk); ctx.translate(-cx, -(by + 80));
+      this.btnRetry = pill(E, 'Retry', cx - hx, by + 80, BTN.secondCard);
+      if (p.hasNext) this.btnMenu = pill(E, 'Menu', cx + hx, by + 80, BTN.secondCard);
+      ctx.restore();
     }
     if (this.badgeOn >= 0) { // the ticket straddles the card's top edge; each new badge takes the place of the one before
       const k = ease.outBack(clamp((t - this.badgeT - this.badgeOn * J.badgeHold) / J.badgePop, 0, 1));
@@ -2237,8 +2340,12 @@ const over = {
   },
   onTap(p, E) {
     if (!this.ready || !this.btnNext || p.startT < this.t0 + this.beat) return;
-    if (E.hit(this.btnNext, p)) E.setScene(this.p.hasNext ? 'play' : 'menu', { hole: this.p.hole + 1, run: true });
-    else if (this.btnMenu && E.hit(this.btnMenu, p)) E.setScene('menu');
+    if (E.hit(this.btnNext, p)) { if (!this.p.hasNext) endRun(E, false); E.setScene(this.p.hasNext ? 'play' : 'menu', { hole: this.p.hole + 1, run: true }); }
+    else if (this.btnMenu && E.hit(this.btnMenu, p)) { endRun(E, false); E.setScene('menu'); }
+    else if (this.btnRetry && E.hit(this.btnRetry, p)) { // the hole again, outside the run (hole 1 starts a new one)
+      E.ledger.add('retry', { hole: this.p.hole + 1, strokes: this.p.strokes, stars: this.p.stars, from: 'card' });
+      E.audio.play('tap', J.retryTapVol); E.setScene('play', { hole: this.p.hole });
+    }
   },
 };
 
@@ -2248,10 +2355,12 @@ const V01_PAR = [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 5,
+  saveVersion: 6,
   // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map;
   // v3 adds `unlocked`, rebuilt from the holes already cleared; v4 stores stars per hole, because v0.2 judges stars
-  // by per-hole thresholds on re-authored holes: stars won under v0.1 pars are kept as they were; v5 adds badges and the skin choice.
+  // by per-hole thresholds on re-authored holes: stars won under v0.1 pars are kept as they were; v5 adds badges and the skin choice;
+  // v6 adds `prog`, the record behind the missions tiles' progress (landings, fewest sun touches, best run, last run), empty until played,
+  // and `hintSeen`, set once the first-run hint has shown.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (data.unlocked === undefined) {
@@ -2270,6 +2379,7 @@ export const game = {
       for (const b of BADGES) if (savedBadge(b, data.stars || {}, data.best || {})) data.badges[b.id] = 1;
       data.skin = { ...data.skin };
     }
+    if (fromVersion < 6) { data.prog = { ...data.prog }; data.hintSeen = true; } // a save that already exists has played: only a fresh one sees the hint
     return data;
   },
   TUNING,
