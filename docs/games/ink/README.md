@@ -62,7 +62,16 @@ The dynamic needle measures speed over the last `speedWindow` units of travel, u
 
 Output is the percentage, slips, path length, time, the moment 99 percent is reached and whether that is inside the timer. Exit code 0 means 99 percent within the timer with no ruin; 1 means not. The time counts travel during lifts at the same speed.
 
-`--timer-from-path` prints the timer as a multiple of the time the path takes to reach 99 percent (PRD section 9): 2.2x for Circle, Diamond, Heart and Star, 1.9x for Bolt, Halo, Clover and Key, 1.7x for the boss Crescent, 1.6x for the boss Snake and 1.35x for the final boss Skull (the fifteen-stencil order is in PRD v0.5 section A). Use the row for your stencil and round up to a whole second. `--preset Relaxed|Standard|Tight` (default Standard) applies one of the game's timer presets first, so the pass check and these rows use the multipliers that are active; the game's timer for a stencil is its perfect-path time (its `timer` over its `tier`'s standard multiplier) times the tier's active multiplier times `timerGlobalMult`.
+`--timer-from-path` prints the perfect-path time (the time the path takes to reach 99 percent, to two decimals) and then the timer it gives under each multiplier (PRD section 9): 2.2x for Circle, Diamond, Heart and Star, 1.9x for Bolt, Halo, Clover, Key, Dagger, Anchor, Rose and Swallow, 1.7x for the boss Crescent, 1.6x for the boss Snake and 1.35x for the final boss Skull (the fifteen-stencil order is in PRD v0.5 section A). `--preset Relaxed|Standard|Tight` (default Standard) applies one of the game's timer presets first, so the pass check and these rows use the multipliers that are active. In the game, each stencil stores `perfect` (that time, from its intended path, to two decimals), its `tier`, and its standard `timer`; the timer the player gets is `perfect` times the tier's active multiplier times `timerGlobalMult`, rounded up, and the Standard preset reproduces `timer` exactly. Round the timer up to a whole second and store `perfect` rounded to 0.01.
+
+The fifteen intended paths are in `docs/games/ink/paths/<stencil>.json`, in the game's order (circle, diamond, heart, star, bolt, crescent, halo, clover, dagger, anchor, rose, swallow, snake, key, skull). To re-prove every `perfect` from a checkout, run the simulator on each and compare the `perfect` line with the stencil's `perfect` in `game.js`:
+
+```
+i=0; for n in circle diamond heart star bolt crescent halo clover dagger anchor rose swallow snake key skull; do
+  node tools/sim-ink.mjs --index $i docs/games/ink/paths/$n.json --timer-from-path | grep -E '^(perfect|slips|result)'; i=$((i+1)); done
+```
+
+Every path must show 0 slips and an OK result. The paths are the plain intended paths at 300 units per second (the Swallow's is scaled with the stencil); the tighter edge-riding paths used to check spare time are not kept.
 
 ## What a shard delivers per stencil
 

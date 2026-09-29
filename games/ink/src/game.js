@@ -22,7 +22,7 @@ const TUNING = {
   timerMultFinal: 1.6,   // Same for the boss Snake
   timerMultSkull: 1.35,  // Same for the final boss, Skull (PRD v0.5 section A)
   timerGlobalMult: 1,    // v0.5 experiment (PRD section D): scales every timer on top of the five multipliers above; the TUNE presets set all six
-  dailyTimerMult: 1.4,   // v0.5 daily stencil: its timer is this times the stencil's perfect-path time (never longer than the stencil's own timer)
+  dailyTimerMult: 1.4,   // v0.5 daily stencil: its timer is this times the stencil's perfect-path time and the global multiplier (never longer than the stencil's own active timer)
   dailyKeep: 7,          // Days of daily results kept in the save
   dailyVariants: [       // The daily is a stencil from the unlocked ones turned by one of these (about its own centre); all keep the shape, so its perfect path is the same
     { label: 'Mirror', sx: -1, sy: 1 },
@@ -116,19 +116,19 @@ const TUNING = {
     line: { weight: 2, radius: 12, shadowDx: 2, shadowDy: 3, shadowAlpha: 0.32 }, // Line weight, corner radius and drop shadow used by every plate, card and button
     field: {
       extent: [-300, -380, 660, 1240],  // Design-space rectangle the body layer covers
-      bodyScale: 0.9,                   // Body layer pixels per design unit (the shading is soft)
+      bands: 8, bodyScale: 0.9,                   // Body layer pixels per design unit (the shading is soft)
       compMaxDpr: 2, grainMaxDpr: 1.5, tile: 128, grain: 0.15, grainCurve: 1.6, seed: 20260929, // Baked field (drape, body, grain) and grain overlay: max pixels per CSS pixel, noise tile size, peak alpha, curve, seed
       poreDensity: 0.00085, poreR0: 0.5, poreR1: 1.35, poreAlpha0: 0.06, poreAlpha1: 0.2, // Pores per screen px squared, radius range, alpha range
       vignette: 0.6, vigInner: 0.28, vigOuter: 0.72, // Vignette strength, and inner and outer radius as a fraction of the screen diagonal
     },
-    body: { rimWidth: 130, rimSteps: 28, rimAlpha: 0.03, hi: 0.2, shade: 0.5 }, // Soft rim: this many strokes narrowing from this width, each this faint; strength of highlights and shade on every body part
+    body: { rimWidth: 130, rimSteps: 28, rimBatches: 4, rimAlpha: 0.03, hi: 0.2, shade: 0.5 }, // Soft rim: this many strokes (laid in this many batches, one batch per menu frame) narrowing from this width, each this faint; strength of highlights and shade on every body part
     outline: { amp: 0.8, step: 5, lamA: 20, lamB: 32, lam2A: 8, lam2B: 13, edgeAmp: 1.4, edgeOffset: 1.5, edgeWidth: 1.1, edgeAlpha: 0.55, shadowWidth: 3, shadowAlpha: 0.45, alpha: 0.96 }, // Wobble (design units, sample step, wavelengths), the faint second edge, the dark line under it
     ink: { tile: 96, widthTol: 0.8, sheenAlpha: 0.27, haloPad: 3, haloAlpha: 0.06, blitMargin: 8 }, // Sheen pattern size and strength; bleed: how far past a stroke it reaches (design units) and how faint each stamp of it is; margin around the stencil that is blitted
     story: { delay: 0.35, sec: 0.55, facetFrom: 95, facetWidth: 1.8, facetAlpha: 0.9, glintSize: 11, swirlWidth: 2.6, swirlAlpha: 0.9, bannerText: 'LOVE', bannerTilt: -0.07 }, // Card decorations: reveal timing, the percent the gem facets start showing
     machine: { needleLen: 9, needleW: 1.4, nozzleTopW: 3.2, nozzleW: 9, nozzleEnd: 29, bandLen: 3, neckEnd: 46, neckW: 13, gripEnd: 98, gripW: 25, tailEnd: 128, tailW: 15, cableW: 4.5, cableAlpha: 0.85, shadowDx: 3, shadowDy: 4, shadowAlpha: 0.3, knurl: 5 }, // Pen-style machine, screen px from the needle tip down to the cable
     hud: { plateAlpha: 0.5, plateH: 46, timerW: 74, pipGap: 22, pipR: 7, pipW: 3.2 }, // Timer and slip plates
-    menu: { margin: 16, tilt: 0.03, tileWant: 116, tileMin: 100, tileMax: 132, titleMin: 0.55, topPad: 8, rowH: 44, gapTag: 8, gapDaily: 10, dailyH: 52, gapPlay: 10, playH: 52, soundW: 56, missionsW: 124, botPad: 10, warmMs: 3, slackTop: 0.4, numH: 22, badgeW: 46, badgeH: 18, cleanW: 56, pinR: 4.5, cardR: 5, fiberDensity: 0.0032, boardMaxDpr: 1.5, tab: { w: 74, y: 10, h: 32 } }, // Flash-sheet menu: tile heights it wants, its limits and the title's, gaps and button heights (44 px at least), and the engine's TUNE tab it must clear
-    missions: { top: 60, rowH: 60, rowGap: 8, headH: 30, medalR: 18, bottom: 84, backW: 224, backH: 52, scrollBar: 3 }, // Missions screen: the list scrolls between the heading and the Back button
+    menu: { margin: 16, tilt: 0.03, tileWant: 116, tileMin: 100, tileMax: 132, titleMin: 0.55, topPad: 8, rowH: 44, gapTag: 8, gapDaily: 10, dailyH: 52, gapPlay: 10, playH: 52, soundW: 56, missionsW: 124, botPad: 10, warmMs: 3, bootFrames: 5, slackTop: 0.4, numH: 22, badgeW: 46, badgeH: 18, cleanW: 56, pinR: 4.5, cardR: 5, fiberDensity: 0.0032, boardMaxDpr: 1.5, tab: { w: 74, y: 10, h: 32 } }, // Flash-sheet menu: tile heights it wants, its limits and the title's, gaps and button heights (44 px at least), and the engine's TUNE tab it must clear
+    missions: { top: 60, rowH: 60, rowGap: 8, headH: 30, medalR: 18, bottom: 16, backW: 76, backH: 44, scrollBar: 3 }, // Missions screen: the list scrolls under the heading row, which holds Back (top left, clear of the toast at the bottom)
     // Skins (PRD v0.5 section F): data entries, each earned by one badge and never by grind. A machine skin overrides the machine palette and adds one decoration to the same
     // silhouette; an ink skin overrides the ink, its sheen, gloss and bleed halo. Anything a skin leaves out is the default palette. The outline, the hint and the slip colours never change.
     skins: {
@@ -144,7 +144,7 @@ const TUNING = {
         { id: 'blue', name: 'Blue', badge: 'five-stars', ink: '#0a1c66', sheen: '#3a63f0', gloss: '#8fb0ff', halo: '#0a1c66', sheenA: 0.3 },
         { id: 'red', name: 'Red', badge: 'thin-line', ink: '#560c14', sheen: '#a83333', gloss: '#e88a80', halo: '#560c14', sheenA: 0.3 },
         { id: 'green', name: 'Green', badge: 'serpent', ink: '#082b15', sheen: '#237a42', gloss: '#8fdcaa', halo: '#082b15', sheenA: 0.28 },
-        { id: 'gold', name: 'Gold', badge: 'full-sleeve', ink: '#2e2006', sheen: '#b8892a', gloss: '#ffe08a', halo: '#2e2006', sheenA: 0.22 },
+        { id: 'gold', name: 'Gold', badge: 'full-sleeve', ink: '#3a2800', sheen: '#e0aa22', gloss: '#ffe08a', halo: '#3a2800', sheenA: 0.1 },
       ],
       swatch: { size: 52, gap: 12, headH: 24, rowGap: 6, ring: 3, pen: 0.62 }, // The Skins block on the missions screen (swatch size at least 44 px) and the menu pen's scale
     },
@@ -258,7 +258,7 @@ const STD_MULT = { early: T.timerMultEarly, mid: T.timerMultMid, boss: T.timerMu
 const TIER_KEY = { early: 'timerMultEarly', mid: 'timerMultMid', boss: 'timerMultBoss', final: 'timerMultFinal', skull: 'timerMultSkull' };
 const perfectTime = (st) => st.perfect ?? st.timer / STD_MULT[st.tier];
 function timerFor(st) {
-  if (st.fixed || !STD_MULT[st.tier]) return st.timer; // a stencil without a tier (a shard's JSON under test) keeps its own timer
+  if (!STD_MULT[st.tier]) return st.timer; // a stencil without a tier (a shard's JSON under test) keeps its own timer
   return Math.ceil(perfectTime(st) * T[TIER_KEY[st.tier]] * T.timerGlobalMult - 1e-6);
 }
 
@@ -267,17 +267,18 @@ const DAILY_IDX = 1000; // clear of any real index, and of the one tools/sim-ink
 let DAILY_ST = null, DAILY_KEY = '';
 const stOf = (idx) => (idx === DAILY_IDX ? DAILY_ST : STENCILS[idx]);
 const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
-const dailyTimer = (st) => Math.min(st.timer, Math.ceil(perfectTime(st) * T.dailyTimerMult - 1e-6));
+const dailyTimer = (st) => Math.min(timerFor(st), Math.ceil(perfectTime(st) * T.dailyTimerMult * T.timerGlobalMult - 1e-6));
 
 function buildDaily(rec, key) {
   const base = STENCILS[rec.idx], v = T.dailyVariants[rec.vi], b = bboxOf(rec.idx);
   DAILY_KEY = `${key}|${rec.idx}|${rec.vi}`;
   DAILY_ST = {
-    name: base.name, variant: v.label, boss: base.boss, body: base.body, tier: base.tier, base: rec.idx, timer: dailyTimer(base), fixed: true,
+    name: base.name, variant: v.label, boss: base.boss, body: base.body, tier: base.tier, perfect: base.perfect, base: rec.idx, timer: base.timer,
     shape: base.shape.map((poly) => poly.map(([x, y]) => [b.cx + v.sx * (x - b.cx), b.cy + v.sy * (y - b.cy)])),
   };
   delete gridCache[DAILY_IDX]; delete gridBuild[DAILY_IDX]; delete AC.outline[DAILY_IDX]; delete AC.bbox[DAILY_IDX]; delete AC.mini[DAILY_IDX];
   if (AC.blushIdx === DAILY_IDX) AC.blushIdx = -1;
+  if (AC.olIdx === DAILY_IDX) { AC.ol = null; AC.olIdx = -1; } // the outline bitmap of the day before
 }
 
 // Today's daily: chosen once per UTC day from the stencils that are unlocked (so it never stands in for a locked one), seeded by the date, and stored with its result under the
@@ -301,10 +302,11 @@ function dailyToday(E) {
 }
 
 // The first attempt of the day is the daily score; the best of the day is shown beside it.
-function recordDaily(E, key, pct) {
+// A ruined run still is the first attempt (that is the point of a daily) but never raises the best of the day.
+function recordDaily(E, key, pct, ruined) {
   const all = E.save.get('daily', {}), rec = all[key];
   if (!rec) return null;
-  const next = { ...rec, first: rec.first < 0 ? pct : rec.first, best: Math.max(rec.best, pct) };
+  const next = { ...rec, first: rec.first < 0 ? pct : rec.first, best: ruined ? rec.best : Math.max(rec.best, pct) };
   E.save.set('daily', { ...all, [key]: next });
   return next;
 }
@@ -602,7 +604,7 @@ function newAttempt(idx, daily = false) {
     idx, st, g, daily, dailyKey: daily ? utcDay() : '',
     inked: new Uint8Array(g.cols * g.rows), count: 0,
     strokes: [], stroke: null, marks: [],
-    slips: 0, time: timerFor(st), started: false, ended: null, holdT: 0,
+    slips: 0, time: daily ? dailyTimer(st) : timerFor(st), started: false, ended: null, holdT: 0,
     pid: null, last: null, lastT: 0, carry: 0, armed: false,
     finger: null, r: T.needleR, hist: newHist(), sT: 0, idle: 0, acc: 0, pushR: 0,
     layer: null, layerK: 0, inkDone: [],
@@ -783,7 +785,7 @@ const NUM = Array.from({ length: 201 }, (_, i) => `${i}`), PCT = Array.from({ le
 
 // Caches of everything built once. Body layers are per body part; the rest are per size or per stencil.
 const AC = {
-  warm: 0, warmGrid: 0, warmOl: 0, warmBmp: false, order: null, inkTile: {}, mach: {}, body: {}, comp: {}, ol: null, olIdx: -1, olK: 0, grain: null, gw: 0, gh: 0, outline: [], bbox: [], mini: [], blush: null, blushIdx: -1,
+  grainBuild: null, warmGo: false, warm: 0, warmGrid: 0, warmOl: 0, warmBmp: false, boot: 0, order: null, bodyBuild: {}, inkTile: {}, mach: {}, body: {}, comp: {}, ol: null, olIdx: -1, olK: 0, grain: null, gw: 0, gh: 0, outline: [], bbox: [], mini: [], blush: null, blushIdx: -1,
   title: null, titleK: 0, board: null, bw: 0, bh: 0, shapes: null, tilt: null,
 };
 
@@ -832,11 +834,11 @@ function bodyFill(c, path) {
   g.addColorStop(0, P.skinLight); g.addColorStop(0.5, P.skinMid); g.addColorStop(1, P.skinDark);
   path(); c.fillStyle = g; c.fill();
 }
-function bodyRim(c, path) { // wide low-alpha strokes clipped to the silhouette: a soft shaded edge
+function bodyRim(c, path, batch) { // wide low-alpha strokes clipped to the silhouette: a soft shaded edge, laid in rimBatches batches
+  const B = A.body, per = B.rimSteps / B.rimBatches;
   c.save(); path(); c.clip(); c.lineJoin = 'round'; c.strokeStyle = P.skinShade;
-  const B = A.body;
   c.globalAlpha = B.rimAlpha;
-  for (let i = 0; i < B.rimSteps; i++) { c.lineWidth = 4 + B.rimWidth * (1 - i / B.rimSteps); path(); c.stroke(); }
+  for (let i = batch * per; i < (batch + 1) * per; i++) { c.lineWidth = 4 + B.rimWidth * (1 - i / B.rimSteps); path(); c.stroke(); }
   c.restore();
 }
 function crease(c, x0, y0, cx, cy, x1, y1, w, a) {
@@ -846,8 +848,9 @@ function crease(c, x0, y0, cx, cy, x1, y1, w, a) {
 
 const BODY = {
   // A forearm running down the screen: a tapering cylinder, lit from the left.
-  forearm(c) {
+  forearm(c, stage) {
     const B = A.body, path = () => { c.beginPath(); c.moveTo(44, -440); c.bezierCurveTo(24, -200, 2, 80, 8, 300); c.bezierCurveTo(16, 520, 50, 800, 72, 1300); c.lineTo(312, 1300); c.bezierCurveTo(330, 800, 358, 520, 364, 300); c.bezierCurveTo(370, 80, 350, -200, 332, -440); c.closePath(); };
+    if (stage < 0) {
     bodyFill(c, path);
     c.save(); path(); c.clip();
     xband(c, 14, 356, P.skinShade, [[0, B.shade], [0.2, 0], [0.62, 0], [0.86, B.shade * 0.5], [1, B.shade * 1.1]]);
@@ -856,11 +859,12 @@ const BODY = {
     crease(c, 60, 890, 190, 918, 326, 884, 6, 0.16); crease(c, 70, 930, 190, 954, 316, 926, 4, 0.1);
     yband(c, 900, 1300, P.skinShade, [[0, 0], [1, 0.35]]);
     c.restore();
-    bodyRim(c, path);
+    } else bodyRim(c, path, stage);
   },
   // A shoulder: the deltoid dome over an arm falling away at the left, the torso running off to the right.
-  shoulder(c) {
+  shoulder(c, stage) {
     const B = A.body, path = () => { c.beginPath(); c.moveTo(-14, 1300); c.bezierCurveTo(-36, 800, -50, 540, -42, 320); c.bezierCurveTo(-32, 150, 70, 24, 214, 22); c.bezierCurveTo(300, 24, 380, 70, 440, 110); c.lineTo(780, 120); c.lineTo(780, 1300); c.closePath(); };
+    if (stage < 0) {
     bodyFill(c, path);
     c.save(); path(); c.clip();
     glow(c, 150, 230, 230, 270, 0, P.skinHi, B.hi);
@@ -872,11 +876,12 @@ const BODY = {
     c.strokeStyle = P.skinHi; c.globalAlpha = 0.07; c.lineWidth = 10; c.beginPath(); c.moveTo(252, 56); c.quadraticCurveTo(330, 300, 232, 580); c.stroke(); c.restore();
     yband(c, 700, 1300, P.skinShade, [[0, 0], [1, 0.3]]);
     c.restore();
-    bodyRim(c, path);
+    } else bodyRim(c, path, stage);
   },
   // A calf: a bulging leg, knee at the top, ankle at the bottom, two muscle heads with a groove between them.
-  calf(c) {
+  calf(c, stage) {
     const B = A.body, path = () => { c.beginPath(); c.moveTo(80, -440); c.bezierCurveTo(60, -200, -10, 40, -14, 300); c.bezierCurveTo(-14, 540, 40, 720, 84, 1300); c.lineTo(282, 1300); c.bezierCurveTo(324, 720, 376, 540, 376, 300); c.bezierCurveTo(376, 40, 310, -200, 290, -440); c.closePath(); };
+    if (stage < 0) {
     bodyFill(c, path);
     c.save(); path(); c.clip();
     xband(c, 18, 352, P.skinShade, [[0, B.shade * 1.1], [0.22, 0], [0.75, 0], [1, B.shade * 1.1]]);
@@ -887,11 +892,12 @@ const BODY = {
     yband(c, 780, 1300, P.skinShade, [[0, 0], [1, 0.3]]);
     yband(c, -440, -160, P.skinShade, [[0, 0.3], [1, 0]]);
     c.restore();
-    bodyRim(c, path);
+    } else bodyRim(c, path, stage);
   },
   // A back: broad and flat, shoulders sloping away at the top corners, the spine down the middle, a shoulder blade each side.
-  back(c) {
+  back(c, stage) {
     const B = A.body, path = () => { c.beginPath(); c.moveTo(-420, 150); c.bezierCurveTo(-300, 130, -120, 70, 40, 14); c.bezierCurveTo(100, -6, 140, -32, 160, -56); c.lineTo(200, -56); c.bezierCurveTo(220, -32, 260, -6, 320, 14); c.bezierCurveTo(480, 70, 660, 130, 780, 150); c.lineTo(780, 1300); c.lineTo(-420, 1300); c.closePath(); };
+    if (stage < 0) {
     bodyFill(c, path);
     c.save(); path(); c.clip();
     glow(c, 70, 260, 120, 170, -0.3, P.skinHi, B.hi * 0.9);
@@ -902,62 +908,105 @@ const BODY = {
     yband(c, 760, 1300, P.skinShade, [[0, 0], [1, 0.35]]);
     xband(c, -420, -120, P.skinShade, [[0, 0.4], [1, 0]]); xband(c, 480, 780, P.skinShade, [[0, 0], [1, 0.4]]);
     c.restore();
-    bodyRim(c, path);
+    } else bodyRim(c, path, stage);
   },
 };
 
+// A body layer is built in stages (the fill and shading, then the rim in batches) so the menu can lay one stage a frame; bodyLayer finishes whatever is left at once.
+function bodyStep(name) {
+  let b = AC.bodyBuild[name];
+  if (!b) {
+    const F = A.field, [x0, y0, x1, y1] = F.extent, k = F.bodyScale, cv = mk(Math.ceil((x1 - x0) * k), Math.ceil((y1 - y0) * k)), c = cv.getContext('2d');
+    c.setTransform(k, 0, 0, k, -x0 * k, -y0 * k);
+    b = AC.bodyBuild[name] = { cv, c, step: 0 };
+  }
+  const F = A.field, nb = F.bands, k = F.bodyScale, Hpx = b.cv.height, rows = A.body.rimBatches + 1, s = b.step++, stage = Math.floor(s / nb) - 1, band = s % nb;
+  b.c.save(); b.c.beginPath(); b.c.rect(F.extent[0], F.extent[1] + bandRow(Hpx, nb, band) / k, F.extent[2] - F.extent[0], (bandRow(Hpx, nb, band + 1) - bandRow(Hpx, nb, band)) / k); b.c.clip();
+  BODY[name](b.c, stage);
+  b.c.restore();
+  if (s + 1 < rows * nb) return null;
+  delete AC.bodyBuild[name];
+  return (AC.body[name] = b.cv);
+}
 function bodyLayer(name) {
-  if (AC.body[name]) return AC.body[name];
-  const F = A.field, [x0, y0, x1, y1] = F.extent, k = F.bodyScale;
-  const cv = (AC.body[name] = mk(Math.ceil((x1 - x0) * k), Math.ceil((y1 - y0) * k)));
-  const c = cv.getContext('2d');
-  c.setTransform(k, 0, 0, k, -x0 * k, -y0 * k);
-  BODY[name](c);
-  return cv;
+  while (!AC.body[name]) bodyStep(name);
+  return AC.body[name];
 }
 
 // ----- Skin grain, pores and vignette -----
 // One screen-sized overlay, built once per size: fine noise (a repeated tile of light and dark specks), scattered pores, and the vignette.
-function grainLayer(E) {
-  const F = A.field, k = Math.min(E.dpr || 1, F.grainMaxDpr), w = Math.ceil(E.w * k), h = Math.ceil(E.h * k);
+// The rows of a band of a canvas h device pixels tall cut into n bands, on whole pixels (so bands drawn on different frames meet without a seam).
+const bandRow = (h, n, i) => Math.floor((i * h) / n);
+// Built in stages, one small piece per call: the noise tile, the grain in bands, the pores, the vignette in bands. grainLayer finishes whatever is left at once.
+function grainStep(E) {
+  const F = A.field, k = Math.min(E.dpr || 1, F.grainMaxDpr), w = Math.ceil(E.w * k), h = Math.ceil(E.h * k), nb = F.bands;
   if (AC.grain && AC.gw === w && AC.gh === h) return AC.grain;
-  AC.gw = w; AC.gh = h;
-  const cv = (AC.grain = mk(w, h)), c = cv.getContext('2d'), rng = makeRng(F.seed);
-  const N = F.tile, tile = mk(N, N), tc = tile.getContext('2d'), img = tc.createImageData(N, N), d = img.data, dark = rgbOf(P.skinShade), light = rgbOf(P.skinHi);
-  for (let i = 0; i < N * N; i++) {
-    const v = rng() * 2 - 1, col = v < 0 ? dark : light;
-    d[i * 4] = col[0]; d[i * 4 + 1] = col[1]; d[i * 4 + 2] = col[2]; d[i * 4 + 3] = Math.round(Math.pow(Math.abs(v), F.grainCurve) * F.grain * 255);
+  let b = AC.grainBuild;
+  if (!b || b.w !== w || b.h !== h) {
+    const cv = mk(w, h);
+    b = AC.grainBuild = { cv, c: cv.getContext('2d'), rng: makeRng(F.seed), w, h, k, stage: 0, pat: null };
   }
-  tc.putImageData(img, 0, 0);
-  c.fillStyle = c.createPattern(tile, 'repeat'); c.fillRect(0, 0, w, h);
-  c.scale(k, k);
-  c.fillStyle = P.pore;
-  const n = Math.round(E.w * E.h * F.poreDensity);
-  for (let i = 0; i < n; i++) {
-    c.globalAlpha = rng.range(F.poreAlpha0, F.poreAlpha1);
-    c.beginPath(); c.arc(rng() * E.w, rng() * E.h, rng.range(F.poreR0, F.poreR1), 0, TAU); c.fill();
+  const c = b.c, st = b.stage++;
+  if (st === 0) { // the noise tile
+    const N = F.tile, tile = mk(N, N), tc = tile.getContext('2d'), img = tc.createImageData(N, N), d = img.data, dark = rgbOf(P.skinShade), light = rgbOf(P.skinHi);
+    for (let i = 0; i < N * N; i++) {
+      const v = b.rng() * 2 - 1, col = v < 0 ? dark : light;
+      d[i * 4] = col[0]; d[i * 4 + 1] = col[1]; d[i * 4 + 2] = col[2]; d[i * 4 + 3] = Math.round(Math.pow(Math.abs(v), F.grainCurve) * F.grain * 255);
+    }
+    tc.putImageData(img, 0, 0);
+    b.pat = c.createPattern(tile, 'repeat');
+  } else if (st <= nb) { // the grain, a band at a time
+    const y0 = bandRow(h, nb, st - 1), y1 = bandRow(h, nb, st);
+    c.fillStyle = b.pat; c.fillRect(0, y0, w, y1 - y0);
+  } else if (st === nb + 1) { // the pores
+    c.save(); c.scale(k, k); c.fillStyle = P.pore;
+    const n = Math.round(E.w * E.h * F.poreDensity);
+    for (let i = 0; i < n; i++) {
+      c.globalAlpha = b.rng.range(F.poreAlpha0, F.poreAlpha1);
+      c.beginPath(); c.arc(b.rng() * E.w, b.rng() * E.h, b.rng.range(F.poreR0, F.poreR1), 0, TAU); c.fill();
+    }
+    c.restore();
+  } else { // the vignette, a band at a time
+    const i = st - nb - 2, y0 = bandRow(h, nb, i), y1 = bandRow(h, nb, i + 1);
+    if (i === 0) {
+      const cx = E.w / 2, cy = E.h * 0.46, diag = Math.hypot(E.w, E.h), g = c.createRadialGradient(cx * k, cy * k, diag * k * F.vigInner, cx * k, cy * k, diag * k * F.vigOuter);
+      g.addColorStop(0, rgba(P.drape, 0)); g.addColorStop(1, rgba(P.drape, F.vignette)); b.vig = g;
+    }
+    c.fillStyle = b.vig; c.fillRect(0, y0, w, y1 - y0);
+    if (i === nb - 1) { AC.gw = w; AC.gh = h; AC.grainBuild = null; return (AC.grain = b.cv); }
   }
-  c.globalAlpha = 1;
-  const cx = E.w / 2, cy = E.h * 0.46, diag = Math.hypot(E.w, E.h), g = c.createRadialGradient(cx, cy, diag * F.vigInner, cx, cy, diag * F.vigOuter);
-  g.addColorStop(0, rgba(P.drape, 0)); g.addColorStop(1, rgba(P.drape, F.vignette));
-  c.fillStyle = g; c.fillRect(0, 0, E.w, E.h);
+  return null;
+}
+function grainLayer(E) {
+  let cv;
+  while (!(cv = grainStep(E)));
   return cv;
 }
 
 // The field as one screen-sized bitmap: drape, body part and grain baked together for a given view, so a frame is one 1:1 blit. Two slots: the play view and the card's final
 // view (the card eases between them, and until it settles it blits the body and the grain separately). Play keeps one per body part, all built while the menu shows.
-function fieldComp(E, v, slot, name = S.st.body) {
-  const F = A.field, k = Math.min(E.dpr || 1, F.compMaxDpr), w = Math.ceil(E.w * k), h = Math.ceil(E.h * k);
+function compStep(E, v, slot, name) {
+  const F = A.field, k = Math.min(E.dpr || 1, F.compMaxDpr), w = Math.ceil(E.w * k), h = Math.ceil(E.h * k), nb = F.bands;
   const key = slot === 0 ? name : '#card'; // one baked field per body part for play, one for the card's final view
   let c = AC.comp[key];
-  if (c && c.name === name && c.w === w && c.h === h && Math.abs(c.s - v.s) + Math.abs(c.ox - v.ox) + Math.abs(c.oy - v.oy) < 1e-3) return c.cv;
-  if (!c || c.w !== w || c.h !== h) c = AC.comp[key] = { cv: mk(w, h), w, h, name: '', s: 0, ox: 0, oy: 0 };
-  c.name = name; c.s = v.s; c.ox = v.ox; c.oy = v.oy;
-  const g = c.cv.getContext('2d'), ex = F.extent, sc = v.s;
+  if (!c || c.w !== w || c.h !== h) c = AC.comp[key] = { cv: mk(w, h), w, h, name: '', s: 0, ox: 0, oy: 0, step: 0, done: false };
+  if (c.name !== name || Math.abs(c.s - v.s) + Math.abs(c.ox - v.ox) + Math.abs(c.oy - v.oy) >= 1e-3) { c.name = name; c.s = v.s; c.ox = v.ox; c.oy = v.oy; c.step = 0; c.done = false; }
+  if (c.done) return c;
+  // one band of the body part, then (after all bands) one band of the grain, per call
+  const g = c.cv.getContext('2d'), ex = F.extent, sc = v.s, st = c.step++, band = st % nb, y0 = bandRow(h, nb, band) / k, y1 = bandRow(h, nb, band + 1) / k;
   g.setTransform(k, 0, 0, k, 0, 0);
-  g.fillStyle = P.drape; g.fillRect(0, 0, E.w, E.h);
-  g.drawImage(bodyLayer(name), v.ox + ex[0] * sc, v.oy + ex[1] * sc, (ex[2] - ex[0]) * sc, (ex[3] - ex[1]) * sc);
-  g.drawImage(grainLayer(E), 0, 0, E.w, E.h);
+  g.save(); g.beginPath(); g.rect(0, y0, E.w, y1 - y0); g.clip();
+  if (st < nb) {
+    g.fillStyle = P.drape; g.fillRect(0, y0, E.w, y1 - y0);
+    g.drawImage(bodyLayer(name), v.ox + ex[0] * sc, v.oy + ex[1] * sc, (ex[2] - ex[0]) * sc, (ex[3] - ex[1]) * sc);
+  } else g.drawImage(grainLayer(E), 0, 0, E.w, E.h);
+  g.restore();
+  if (c.step >= 2 * nb) c.done = true;
+  return c;
+}
+function fieldComp(E, v, slot, name = S.st.body) {
+  let c;
+  while (!(c = compStep(E, v, slot, name)).done);
   return c.cv;
 }
 
@@ -1423,16 +1472,18 @@ function titleLayer(E) {
   return out;
 }
 
-// Idle work while the menu shows, a small piece per frame, so the first frames of play have almost nothing left to build: the grain, each body part and its baked field,
-// then every stencil's coverage grid (a few milliseconds a frame, the stencil Play would open first) and outline path, and the outline bitmap of that first stencil. Each
-// bitmap is forced to rasterise here (a one-pixel read) rather than on the first play frame.
+// Idle work while the menu shows, one small piece per frame so no frame is long: the grain, each body part (its fill, then its rim in batches) and its baked field (two
+// stages), then every stencil's coverage grid (a few milliseconds a frame, the stencil Play would open first) and outline path, and the outline bitmap of that first
+// stencil. A bitmap stage is forced to rasterise here (a one-pixel read) rather than on the first play frame.
 function warmStep(E, next) {
-  const names = Object.keys(BODY), fixed = 1 + 2 * names.length, flush = (cv) => cv.getContext('2d').getImageData(0, 0, 1, 1);
-  if (AC.warm < fixed) {
-    const st = AC.warm++;
-    if (st === 0) flush(grainLayer(E));
-    else if (st <= names.length) flush(bodyLayer(names[st - 1]));
-    else flush(fieldComp(E, view(E), 0, names[st - 1 - names.length]));
+  const F = A.field, nb = F.bands, names = Object.keys(BODY), first = STENCILS[next].body, order = [first, ...names.filter((n) => n !== first)];
+  const flush = (cv) => cv.getContext('2d').getImageData(0, 0, 1, 1), grainSteps = nb * 2 + 2, bodySteps = (A.body.rimBatches + 1) * nb, compSteps = 2 * nb;
+  const w = AC.warm, total = grainSteps + names.length * (bodySteps + compSteps);
+  if (w < total) {
+    AC.warm++;
+    if (w < grainSteps) { const cv = grainStep(E); flush(cv || AC.grainBuild.cv); return; }
+    const i = w - grainSteps, bi = Math.floor(i / (bodySteps + compSteps)), r = i % (bodySteps + compSteps), name = order[bi];
+    if (r < bodySteps) { const cv = bodyStep(name); flush(cv || AC.bodyBuild[name].cv); } else flush(compStep(E, view(E), 0, name).cv);
     return;
   }
   if (!AC.order) AC.order = [next, ...STENCILS.map((_, i) => i).filter((i) => i !== next)];
@@ -1474,7 +1525,7 @@ function recordResult(E, idx, { pct, stars, ruined, clean }) {
 // ---------- Scenes ----------
 
 const menu = {
-  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnDaily = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; this.daily = dailyToday(E); applySkins(E); },
+  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnDaily = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; this.daily = dailyToday(E); this.dayT = E.time; applySkins(E); },
   // The vertical layout comes from the height there is: the title shrinks first (to titleWant), then the tiles (to tileMin), then the title again (to titleMin). The
   // title also drops below the engine's TUNE tab when its letters would run under it. `out` is filled with the y positions (nothing is allocated per frame).
   layout(E, rows, out) {
@@ -1494,6 +1545,16 @@ const menu = {
   render(ctx, E) {
     const cx = E.w / 2, p = progress(E), gap = T.gridGap, cols = T.gridCols, M = A.menu, L = A.line, rows = Math.ceil(STENCILS.length / cols);
     if (!AC.tilt) { const r = makeRng(A.field.seed + 7); AC.tilt = STENCILS.map(() => (r() * 2 - 1) * M.tilt); }
+    if (E.time - this.dayT > 1) { this.dayT = E.time; this.daily = dailyToday(E); } // the app can stay open across UTC midnight
+    // The first frames of a launch build the board, the title and the tile previews one at a time (plain paper first), so none of them is long.
+    if (AC.boot < A.menu.bootFrames) {
+      const b = AC.boot++;
+      ctx.fillStyle = P.board; ctx.fillRect(0, 0, E.w, E.h);
+      if (b >= 1) ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
+      if (b >= 2) ctx.drawImage(titleLayer(E), E.w / 2 - A.title.w / 2, E.safe.top + A.menu.topPad, A.title.w, A.title.h);
+      if (b === 3) { for (let i = 0; i < STENCILS.length; i++) miniPath(i); machineGfx(ctx, SK.m); }
+      if (b < A.menu.bootFrames - 1) return;
+    }
     ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
 
     const Y = this.layout(E, rows, this.pos || (this.pos = {})), m = M.margin, tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = Y.th;
@@ -1547,12 +1608,11 @@ const menu = {
       this.tiles.push({ x, y, w: tw, h: th, idx: i, locked });
     });
 
-    warmStep(E, p.unlocked);
     this.btnDaily = this.drawDaily(ctx, E, Y.dailyY, m);
     const pw = E.w - 2 * m - M.soundW - 10, px = Math.min(pw, 224);
     this.btnPlay = inkButton(ctx, p.unlocked > 0 ? `Play ${p.unlocked + 1}` : 'Play', cx - (M.soundW + 10) / 2, Y.playY, px, M.playH, true, FONT.big);
     this.btnMute = soundButton(ctx, cx - (M.soundW + 10) / 2 + px / 2 + 10 + M.soundW / 2, Y.playY, M.soundW, M.playH, E.audio.muted);
-    warmStep(E, p.unlocked);
+    if (AC.warmGo) warmStep(E, p.unlocked); else AC.warmGo = true; // the warm-up starts the frame after the first full render
   },
   // The daily strip: today's stencil (turned as the day says), its tight timer, and the score so far.
   drawDaily(ctx, E, cy, m) {
@@ -1566,7 +1626,7 @@ const menu = {
     ctx.restore();
     const tx = x + 12 + box + 12;
     label(ctx, `DAILY  ${st.name.toUpperCase()}`, tx, cy - 11, FONT.small, P.textDark, 'left');
-    label(ctx, rec.first < 0 ? `${st.variant}  ${st.timer} s` : `${st.variant}  ${rec.first}%${rec.best > rec.first ? `  best ${rec.best}%` : ''}`, tx, cy + 10, FONT.small, P.textMute, 'left');
+    label(ctx, rec.first < 0 ? `${st.variant}  ${dailyTimer(st)} s` : `${st.variant}  ${rec.first}%${rec.best > rec.first ? `  best ${rec.best}%` : ''}`, tx, cy + 10, FONT.small, P.textMute, 'left');
     drawPin(ctx, x + w - M.cardR - 12, y + 9, M.pinR);
     return { x, y, w, h };
   },
@@ -1610,7 +1670,7 @@ function drawMedal(ctx, cx, cy, r, tier, earned) {
   else drawLock(ctx, cx, cy - 1, r / 18);
 }
 
-// The missions screen: the badges by tier, earned ones in colour and the rest with how far along they are. The list scrolls by dragging; Back is fixed at the bottom.
+// The missions screen: the badges by tier, earned ones in colour and the rest with how far along they are. The list scrolls by dragging; Back is fixed at the top left, so the engine's toast (bottom of the screen) never covers it.
 const missions = {
   enter(E) { this.scroll = 0; this.drag = null; this.btnBack = null; this.moved = 0; this.swatches = []; applySkins(E); },
   skinsH() { const M = A.missions, W = A.skins.swatch; return M.headH + 2 * (W.headH + W.size + W.rowGap) + 6; },
@@ -1619,7 +1679,7 @@ const missions = {
   render(ctx, E) {
     const M = A.missions, p = progress(E), V = this.view(E), m = A.menu.margin, w = E.w - 2 * m, L = A.line;
     ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
-    label(ctx, 'Missions', E.w / 2, E.safe.top + 30, FONT.big, P.textDark);
+    label(ctx, 'Missions', E.w / 2 + 14, E.safe.top + 30, FONT.big, P.textDark);
     const earned = BADGES.filter((b) => p.badges[b.id]).length;
     label(ctx, `${earned} / ${BADGES.length}`, E.w - m, E.safe.top + 30, FONT.mid, P.textMute, 'right');
     this.scroll = clamp(this.scroll, 0, V.max);
@@ -1651,7 +1711,7 @@ const missions = {
       const tr = V.bot - V.top, bh = Math.max(24, tr * tr / (tr + V.max));
       ctx.globalAlpha = 0.45; ctx.fillStyle = P.ink; ctx.beginPath(); rr(ctx, E.w - 6, V.top + (tr - bh) * (this.scroll / V.max), M.scrollBar, bh, 1.5); ctx.fill(); ctx.globalAlpha = 1;
     }
-    this.btnBack = inkButton(ctx, 'Back', E.w / 2, E.h - E.safe.bottom - 16 - M.backH / 2, M.backW, M.backH, true, FONT.big);
+    this.btnBack = inkButton(ctx, 'Back', m + M.backW / 2, E.safe.top + 30, M.backW, M.backH, true, FONT.mid);
   },
   // The Skins block: a row of machine swatches and a row of ink swatches. An owned swatch picks it (ringed when chosen); a locked one shows the badge that earns it.
   drawSkins(ctx, E, p, y, V, m, w) {
@@ -1733,7 +1793,7 @@ function drawHud(ctx, E) {
 }
 
 const play = {
-  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); },
+  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); },
   update(dt, E) {
     holdStep(E, dt);
     hintStep(dt);
@@ -1753,8 +1813,8 @@ const play = {
     const failed = ruined || pct < T.passPercent;
     const clean = !failed && S.slips === 0;
     if (S.daily) { // the daily counts for the daily only: no stars, unlocks or badges
-      const rec = recordDaily(E, S.dailyKey, pct);
-      E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: rec ? rec.best : pct, boss: S.st.boss, daily: true, last: false, starsUp: false, newBadges: [] });
+      const wasFirst = (E.save.get('daily', {})[S.dailyKey] || { first: -1 }).first < 0, rec = recordDaily(E, S.dailyKey, pct, ruined);
+      E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: rec ? rec.first : pct, boss: S.st.boss, daily: true, ruined, wasFirst, last: false, starsUp: false, newBadges: [] });
       return;
     }
     const starsUp = stars > (progress(E).stars[S.idx] || 0), had = E.save.get('badges', {});
@@ -1819,7 +1879,7 @@ const over = {
     this.t = 0; this.coins = 0; this.box = { x: 0, y: 0, w: 0, h: 0 };
     this.head = params.daily ? `DAILY   ${S.st.name.toUpperCase()}` : `${params.boss ? 'BOSS   ' : ''}No. ${params.idx + 1}   ${S.st.name.toUpperCase()}`;
     this.badgeAt = this.starsEndFor(params.stars) + A.badge.delay; this.badgeDone = false;
-    this.bestStr = `Best ${params.best}%`;
+    this.bestStr = params.daily ? `Score ${params.best}%` : `Best ${params.best}%`; // a daily's best is its first attempt's score here; the menu strip also shows the best of the day
     const n = params.stars;
     this.starsEnd = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starSec;
     this.buttonsAt = Math.max(J.cardSlideSec, n ? this.starsEnd : 0) + J.buttonGap; // about 0.75 s with five stars
@@ -1870,6 +1930,7 @@ const over = {
       drawStar(ctx, sx, y + 134, C.starR * ease.outBack(k), true);
     }
     if (p.clean && t >= this.sweepAt) this.drawStamp(ctx, cx, y + 178, pop(t - this.sweepAt, J.cleanPopSec, 0));
+    if (p.daily && p.ruined && t >= this.starsEnd) label(ctx, `Ruined at ${p.pct}%, ${p.wasFirst ? 'first attempt stands' : 'best unchanged'}`, cx, y + 178, FONT.small, P.textMute);
     ctx.restore();
     if (this.badgeDone) this.drawBadge(ctx, E, y, t - this.badgeAt);
 
@@ -1971,10 +2032,9 @@ export const game = {
       data.unlocked = clamp(Math.max(0, ...map.slice(0, Math.min(u, map.length - 1) + 1)), 0, STENCILS.length - 1);
     }
     if (fromVersion < 6) {
-      // v6 adds cs (best stars of a clean pass), badges and the daily results. A save cannot say whether a clean pass and a five-star pass were the same attempt, so cs takes
-      // the stars of any stencil that has a clean pass; badges are earned from what the save already shows, so nothing is lost or asked for again.
+      // v6 adds cs (best stars of a clean pass), badges and the daily results. A save cannot say whether a clean pass and a five-star pass were the same attempt, so cs starts
+      // empty (Serpent and Bone, and the green ink they unlock, are earned by the next clean five-star run); the other badges are earned from what the save already shows.
       data.cs = {};
-      for (const id of Object.keys(data.clean || {})) if (data.clean[id]) data.cs[id] = (data.stars || {})[id] || 0;
       data.daily = {};
       data.badges = earnedBadges({ stars: data.stars || {}, clean: data.clean || {}, cs: data.cs });
     }
@@ -1997,5 +2057,5 @@ export const game = {
   start: 'menu',
   scenes: { menu, play, over, missions },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
-  sim: { stencils: STENCILS, timerFor, skins: () => ({ machine: SK.m.id, ink: SK.i.id }), percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g, radius: () => S.r, hint: () => S.hint, computeHint },
+  sim: { stencils: STENCILS, timerFor, dailyTimer: () => dailyTimer(DAILY_ST), skins: () => ({ machine: SK.m.id, ink: SK.i.id }), percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g, radius: () => S.r, hint: () => S.hint, computeHint },
 };
