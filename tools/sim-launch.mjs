@@ -15,6 +15,10 @@
 //                                                     the game's camera over the expert's flights at 844x390 and 640x360: share of frames
 //                                                     the critter is off screen, share of arcs whose landing is on screen at the arc's top,
 //                                                     the zoom floor that would show 90 percent, and on-screen speed in px per frame
+//   node tools/sim-launch.mjs --buys [--seeds 40] [--cache FILE] [--limit N]
+//                                                     the expert's median in every upgrade state and the best next buy (median metres per
+//                                                     coin) from each; every upgrade must be the best buy somewhere
+//   node tools/sim-launch.mjs --pacing [--flights 300] the sloppy human from a fresh save buying the cheapest next level: flights to each
 //   node tools/sim-launch.mjs --fps [--seeds 20]       the same seed and inputs at 30, 60 and 120 fps (and jittery frames) give the same distance
 //   node tools/sim-launch.mjs --check [--seeds 500]    field fairness: a spring before every mud, none further apart than 150 m, no overlaps
 //   node tools/sim-launch.mjs --fly ANGLE,POWER [--seed N] [--pulses T1,T2,...] [--up ...]   one flight with its event log
@@ -24,6 +28,7 @@
 // expert reaches the milestone on at least a quarter of the seeds. Seeds are 1..N. Exit code 0 when every check run
 // passes, 1 when one fails, 2 on a usage error.
 
+import { readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { makeRng } from '../games/launch/src/engine.js';
@@ -95,12 +100,13 @@ function expertCtl(plan) {
       const rise = r.vy / T.gravity, cands = [{ n: 0, p: [], hold: null, cost: 0 }];
       for (const f of [0, 0.2, 0.4, 0.6, 0.8]) {
         const t0 = f * rise;
-        if (r.st.hold) {
-          for (const d of [0, 0.15, 0.3, 0.5, 0.8, 1.2]) {
+        if (r.st.hold) { // with the Rocket a press can be held; taps still work too
+          for (const d of [0.15, 0.3, 0.5, 0.8, 1.2, 1.8]) {
             const cost = 1 + d * T.holdFuelRate;
-            if (cost <= r.fuel + 1e-9) cands.push({ n: cost, p: [t0], hold: d ? [t0 + T.holdDelay, t0 + T.holdDelay + d] : null, cost });
+            if (cost <= r.fuel + 1e-9) cands.push({ n: cost, p: [t0], hold: [t0 + T.holdDelay, t0 + T.holdDelay + d], cost });
           }
-        } else for (let n = 1; n <= Math.min(3, Math.floor(r.fuel)); n++) cands.push({ n, p: Array.from({ length: n }, (_, i) => t0 + i * 0.08), hold: null, cost: n });
+        }
+        for (let n = 1; n <= Math.min(3, Math.floor(r.fuel)); n++) cands.push({ n, p: Array.from({ length: n }, (_, i) => t0 + i * 0.08), hold: null, cost: n });
       }
       let best = null, bestScore = -Infinity, base = null;
       for (const c of cands) {
@@ -189,28 +195,31 @@ function cameraFlight(seed, up) {
   return { m: sim.metres(r), cams: cams.map(({ sz, c, apex, ...rest }) => rest) };
 }
 
-// The review's sloppy human: aims 40 degrees with 3 degrees of noise (normal), pulls fully, and fires a burst of every
+// The review's sloppy human: aims 40 degrees with 3 degrees of noise (normal), pulls to the launch speed of a base full pull
+// (with Band levels the arc preview shows a full pull overshooting the first spring), and fires a burst of every
 // pulse 0.15 to 0.4 s apart, starting 0.15 to 0.4 s after the second spring (or after the first plain-ground touch, if that
-// comes first: the player sees the chain is broken).
+// comes first: the player sees the chain is broken). With the Rocket the burst is one press, held until the arc tops out.
 function sloppyFlight(seed, up) {
   const rng = makeRng(seed * 104729 + 7);
   const gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
   const angle = 40 + 3 * gauss(), gaps = Array.from({ length: 12 }, () => rng.range(0.15, 0.4));
-  const r = sim.newRun(seed, { angle, power: 1 }, up);
-  let springs = 0, fired = false;
+  const r = sim.newRun(seed, { angle, power: 1 / (1 + T.bandStep * (up.band || 0)) }, up);
+  let springs = 0, fired = false, holding = false;
   while (!r.ended) {
+    if (holding && r.mode === 'air' && r.vy <= 0) { sim.queueInput(r, r.steps * STEP, 'holdOff'); holding = false; }
     for (const e of r.ev) {
       if (e.k === 'spring') springs++;
       if (!fired && (springs >= 2 || e.k === 'bounce')) {
         fired = true;
-        let t = r.steps * STEP;
-        for (let i = 0; i < Math.ceil(r.fuel); i++) { t += gaps[i]; sim.queueInput(r, t, 'pulse'); }
+        let t = r.steps * STEP + gaps[0];
+        if (r.st.hold) { sim.queueInput(r, t, 'pulse'); sim.queueInput(r, t + T.holdDelay, 'holdOn'); holding = true; } // with the Rocket: one long press
+        else for (let i = 0; i < Math.ceil(r.fuel); i++) { sim.queueInput(r, t, 'pulse'); t += gaps[i + 1]; }
       }
     }
     r.ev.length = 0;
     sim.stepRun(r);
   }
-  return { m: sim.metres(r), angle };
+  return { m: sim.metres(r), angle, coins: sim.coinsOf(r) };
 }
 
 function naiveFlight(seed, up, full = false) {
@@ -365,8 +374,80 @@ if (flag('--naive')) {
   console.log(`the same at full pull every time: ${dist(full)}`);
   console.log(`  seeds reaching each milestone: ${reach(full)}`);
   const sl = (await parallel('sloppy', seeds, up)).map((x) => x.m);
-  console.log(`sloppy human (40 deg with 3 deg of noise, full pull, a burst of every pulse 0.15 to 0.4 s apart after the second spring): ${dist(sl)}`);
+  console.log(`sloppy human (40 deg with 3 deg of noise, full pull at base Band, a burst of every pulse 0.15 to 0.4 s apart after the second spring): ${dist(sl)}`);
   console.log(`  seeds reaching each milestone: ${reach(sl)}`);
+}
+
+if (flag('--buys')) {
+  ran = true;
+  // Every upgrade state (each upgrade 0 to upgradeMax): the expert's median over the seeds, then for each state the next
+  // single level that adds the most median distance per coin.
+  const seeds = Array.from({ length: nSeeds(40) }, (_, i) => i + 1), keys = ['band', 'fuel', 'aero', 'rocket'], M = T.upgradeMax;
+  const states = [];
+  for (let b = 0; b <= M; b++) for (let f = 0; f <= M; f++) for (let a = 0; a <= M; a++) for (let r = 0; r <= M; r++) states.push({ band: b, fuel: f, aero: a, rocket: r });
+  const key = (u) => keys.map((k) => u[k]).join(''), med = new Map(), cache = value('--cache');
+  // --cache FILE keeps the medians (they depend on the physics and the field, not on prices), so prices can be retuned quickly.
+  // The cache is written after every state, so an interrupted run resumes where it stopped.
+  let saved = null;
+  if (cache) { try { saved = JSON.parse(readFileSync(cache, 'utf8')); } catch {} }
+  if (saved && saved.seeds === seeds.length) for (const [k, v] of Object.entries(saved.med)) med.set(k, v);
+  let budget = Number(value('--limit') ?? Infinity); // --limit N: compute at most N new states this run (the cache keeps them)
+  for (const u of states) {
+    if (med.has(key(u))) continue;
+    if (budget-- <= 0) { console.log(`partial: ${med.size} of ${states.length} states cached; run again to continue`); process.exit(0); }
+    const ms = (await parallel('expert', seeds, u)).map((x) => x.m).sort((x, y) => x - y);
+    med.set(key(u), ms[Math.floor(ms.length / 2)]);
+    if (cache) writeFileSync(cache, JSON.stringify({ seeds: seeds.length, med: Object.fromEntries(med) }));
+  }
+  const bestCount = Object.fromEntries(keys.map((k) => [k, 0])), lines = [];
+  const bestBuy = (u) => {
+    let best = null;
+    for (const k of keys) {
+      if (u[k] >= M) continue;
+      const nu = { ...u, [k]: u[k] + 1 }, price = T.upgradePrices[k][u[k]], gain = med.get(key(nu)) - med.get(key(u));
+      const per = (100 * gain) / price;
+      if (!best || per > best.per) best = { k, per, gain, price, nu };
+    }
+    return best;
+  };
+  for (const u of states) {
+    const b = bestBuy(u);
+    if (!b) continue;
+    bestCount[b.k]++;
+    lines.push(`${keys.map((k) => `${k[0]}${u[k]}`).join(' ')}  median ${med.get(key(u))} m  best next: ${b.k} ${b.nu[b.k]} (${b.price} coins, ${b.gain >= 0 ? '+' : ''}${b.gain} m, ${b.per.toFixed(1)} m per 100 coins)`);
+  }
+  console.log(`expert medians over ${seeds.length} seeds for all ${states.length} upgrade states; the best next buy per coin from each:`);
+  for (const l of lines) console.log(`  ${l}`);
+  console.log(`best next buy, count of states: ${keys.map((k) => `${k} ${bestCount[k]}`).join(', ')}`);
+  let u = { band: 0, fuel: 0, aero: 0, rocket: 0 }, path = [];
+  for (let b = bestBuy(u); b; b = bestBuy(u)) { path.push(`${b.k} ${b.nu[b.k]} (${med.get(key(b.nu))} m)`); u = b.nu; }
+  console.log(`the expert's greedy buy order from a fresh save: ${path.join(', ')}`);
+  for (const k of keys) if (!bestCount[k]) fail(`${k} is never the best next buy`);
+}
+
+if (flag('--pacing')) {
+  ran = true;
+  // A fresh save flown by the sloppy human, one seed per flight (1, 2, ...), buying the cheapest next level as soon as it is
+  // affordable; coins are the flight's coins plus the one-time milestone bonuses.
+  const keys = ['band', 'fuel', 'aero', 'rocket'], M = T.upgradeMax, maxFlights = Number(value('--flights') ?? 300);
+  let u = { band: 0, fuel: 0, aero: 0, rocket: 0 }, coins = 0, flights = 0, earned = 0;
+  const reached = new Set(), rows = [], dists = [];
+  const next = () => keys.filter((k) => u[k] < M).map((k) => ({ k, price: T.upgradePrices[k][u[k]] })).sort((a, b) => a.price - b.price)[0];
+  while (next() && flights < maxFlights) {
+    const f = sloppyFlight(++flights, u);
+    let bonus = 0; T.milestones.forEach((m, i) => { if (f.m >= m && !reached.has(m)) { reached.add(m); bonus += T.milestoneBonus[i]; } });
+    coins += f.coins + bonus; earned += f.coins + bonus; dists.push(f.m);
+    for (let n = next(); n && coins >= n.price; n = next()) {
+      coins -= n.price; u = { ...u, [n.k]: u[n.k] + 1 };
+      const recent = dists.slice(-10).sort((a, b) => a - b);
+      rows.push(`| ${rows.length + 1} | ${n.k} ${u[n.k]} | ${n.price} | ${flights} | ${earned} | ${recent[Math.floor(recent.length / 2)]} |`);
+    }
+  }
+  console.log(`sloppy human from a fresh save, cheapest next level first:`);
+  console.log('| buy | upgrade | price | after flight | coins earned so far | median of the last 10 flights (m) |');
+  console.log('| --- | --- | --- | --- | --- | --- |');
+  for (const r of rows) console.log(r);
+  if (next()) console.log(`not finished after ${maxFlights} flights`);
 }
 
 if (flag('--camera')) {

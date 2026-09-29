@@ -35,16 +35,22 @@ const TUNING = {
   milestones: [500, 1000, 2000, 3500, 5000], // metres
   milestoneBonus: [25, 50, 100, 200, 400],   // one-time coins, first time each milestone is passed
 
-  // The layer 4 shop's upgrade model. Nothing in layer 1 can change a level (every flight runs at level 0); it is here so
-  // tools/sim-launch.mjs can fly each upgrade set through the real physics, and the shop will set `upgrades` from the save.
-  upgradePrices: [50, 150, 400], // per level, per upgrade (PRD section 16)
+  // The shop (PRD section 8): four upgrades, three levels each, bought with coins between flights. The play scene flies at
+  // the saved levels; `upgrades` is the harness's default set (tools/sim-launch.mjs flies every set through the real physics).
+  upgradePrices: {         // coins for levels 1, 2, 3 of each upgrade (PRD 50, 150, 400 for all: see the changelog)
+    band: [300, 450, 650],
+    fuel: [1100, 1300, 1500], // Fuel is the strongest buy per level: priced so it is not always the first one
+    aero: [300, 500, 700],
+    rocket: [380, 550, 750],
+  },
+  upgradeMax: 3,
   upgrades: { band: 0, fuel: 0, aero: 0, rocket: 0 },
   bandStep: 0.12,          // launchSpeedMax x (1 + 0.12 per level)
   fuelStep: 2,             // pulses per level
   aeroStep: 0.2,           // airDrag x (1 - 0.2 per level)
-  rocketThrust: 330,       // hold-to-boost acceleration at Rocket 1 (units/s²); 3 pulses of fuel per second = the pulse's efficiency
+  rocketThrust: 330,       // hold-to-boost acceleration at Rocket 1 (units/s²)
   rocketStep: 0.25,        // thrust x (1 + 0.25 per level above 1)
-  holdFuelRate: 3,         // pulses of fuel burned per second of hold
+  holdFuelRate: 1.5,       // pulses of fuel burned per second of hold: 330 / 1.5 = 220 of push per fuel, twice a tap's 110
   holdDelay: 0.15,         // a press held this long becomes a hold (the press itself already fired a pulse)
 
   // Flight rules the PRD states in words
@@ -111,7 +117,7 @@ const FIRST_CHUNK = {
   objects: [
     { kind: 'spring', x: 670, y: 0, w: 320 },
     { kind: 'bird', x: 1853, y: 192 },
-    { kind: 'spring', x: 1500, y: 0, w: 640 },
+    { kind: 'spring', x: 1500, y: 0, w: 820 },
     { kind: 'spring', x: 2600, y: 0, w: 180 },
     { kind: 'mud', x: 2850, y: 0, w: 120 },
   ],
@@ -388,8 +394,8 @@ const metres = (r) => Math.floor(r.maxX / T.unitsPerMetre);
 const coinsOf = (r) => Math.floor(r.coinAcc) + r.birds * T.birdCoins;
 
 // The first previewTime seconds of flight, ignoring the field (the dotted arc).
-function previewArc(launch) {
-  const st = stats(), sp = launch.power * st.launchSpeed, a = launch.angle * DEG, pts = [];
+function previewArc(launch, st) {
+  const sp = launch.power * st.launchSpeed, a = launch.angle * DEG, pts = [];
   let x = 0, y = T.slingH, vx = sp * Math.cos(a), vy = sp * Math.sin(a);
   const n = Math.round(T.previewTime / STEP);
   for (let i = 1; i <= n; i++) {
@@ -400,7 +406,7 @@ function previewArc(launch) {
 }
 
 // ---------- Save ----------
-// { best: metres, coins, ms: [milestone metres ever passed], flights }
+// v3: { best: metres, coins, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket } }
 
 function finishFlight(E, r) {
   const m = metres(r), best = E.save.get('best', 0);
@@ -416,6 +422,60 @@ function finishFlight(E, r) {
   E.ledger.add('flight', { m, why: r.ended, coins: earned, chain: r.chainMax, springs: r.springs, birds: r.birds, pulses: r.pulses, angle: r.launch.angle, power: r.launch.power, seed: r.seed });
   return { m, best: Math.max(best, m), isNew: m > best, coins: earned, bonus, chainMax: r.chainMax, stars: r.stars.slice(), firsts, seed: r.seed, why: r.ended };
 }
+
+// ---------- Shop ----------
+// Save: `up` holds the bought level of each upgrade (0 to upgradeMax); coins are spent from `coins`.
+
+const UPGRADES = [{ id: 'band', name: 'Band' }, { id: 'fuel', name: 'Fuel' }, { id: 'rocket', name: 'Rocket' }, { id: 'aero', name: 'Aero' }];
+const levelsOf = (E) => ({ ...T.upgrades, ...E.save.get('up', {}) });
+
+// What buying level `lvl` (1 to upgradeMax) of an upgrade does, in plain words.
+function effectText(id, lvl) {
+  if (id === 'band') return `+${Math.round(T.bandStep * 100)}% launch speed`;
+  if (id === 'fuel') return `+${T.fuelStep} fuel pulses`;
+  if (id === 'aero') return `${Math.round(T.aeroStep * 100)}% less air drag`;
+  const k = T.rocketThrust / T.holdFuelRate / T.boostPulse;
+  return lvl === 1 ? (Math.abs(k - 2) < 0.01 ? 'Hold to boost: twice the push per fuel' : `Hold to boost: +${Math.round((k - 1) * 100)}% push per fuel`) : `+${Math.round(T.rocketStep * 100)}% hold thrust`;
+}
+
+function buy(E, id) {
+  const up = levelsOf(E), lvl = up[id], price = T.upgradePrices[id][lvl], coins = E.save.get('coins', 0);
+  if (lvl >= T.upgradeMax || coins < price) return false;
+  E.save.set('coins', coins - price);
+  E.save.set('up', { ...up, [id]: lvl + 1 });
+  E.ledger.add('buy', { up: id, level: lvl + 1, price, coins: coins - price });
+  return true;
+}
+
+const shop = {
+  enter(E, p = {}) { this.from = p.from || 'menu'; this.card = p.card || null; this.cells = []; },
+  render(ctx, E) {
+    const C = T.color, sf = E.safe, left = sf.left + 16, right = E.w - sf.right - 16, top = sf.top + 8;
+    ctx.fillStyle = C.sky; ctx.fillRect(0, 0, E.w, E.h);
+    this.btnBack = E.button('Back', left + 40, top + 22, { w: 80, h: 44, size: 15, fill: '#334155' });
+    E.text('Shop', E.w / 2, top + 22, { size: 24, weight: '800', color: C.text });
+    const coins = E.save.get('coins', 0), up = levelsOf(E);
+    E.text(`${coins} coins`, right, top + 22, { size: 18, align: 'right', color: C.text });
+    const gy = top + 56, gap = 12, cw = (right - left - gap) / 2, ch = (E.h - sf.bottom - 12 - gy - gap) / 2;
+    this.cells = UPGRADES.map((u, i) => {
+      const x = left + (i % 2) * (cw + gap), y = gy + Math.floor(i / 2) * (ch + gap), lvl = up[u.id], max = lvl >= T.upgradeMax;
+      const price = max ? 0 : T.upgradePrices[u.id][lvl], can = !max && coins >= price;
+      E.roundRect(x, y, cw, ch, 14, C.panel, '#334155');
+      E.text(u.name, x + 14, y + 22, { size: 18, weight: '800', align: 'left', color: C.text });
+      for (let k = 0; k < T.upgradeMax; k++) E.roundRect(x + cw - 16 - (T.upgradeMax - k) * 22, y + 14, 16, 16, 4, k < lvl ? C.teal : '#2a3342', '#4b5567');
+      E.text(max ? 'Fully upgraded' : `Level ${lvl + 1}: ${effectText(u.id, lvl + 1)}`, x + 14, y + 50, { size: 14, align: 'left', color: max ? C.dim : C.text });
+      if (max) return { u, btn: null };
+      E.text(`${price} coins`, x + 14, y + ch - 26, { size: 16, align: 'left', color: can ? C.text : C.dim });
+      const btn = E.button('Buy', x + cw - 14 - 48, y + ch - 26, { w: 96, h: 44, size: 16, fill: can ? '#3b82f6' : '#2a3342', color: can ? '#fff' : '#6b7587' });
+      return { u, btn };
+    });
+  },
+  onTap(p, E) {
+    if (this.btnBack && E.hit(this.btnBack, p)) { E.setScene(this.from, this.card ? { ...this.card, again: true } : {}); return; }
+    for (const c of this.cells) if (c.btn && E.hit(c.btn, p)) { if (buy(E, c.u.id)) E.audio.play('coin'); else E.audio.play('miss', 0.3); }
+  },
+  onKey(k, E) { if (k === 'Escape') E.setScene(this.from, this.card ? { ...this.card, again: true } : {}); },
+};
 
 // ---------- Camera ----------
 // The camera zooms out with height, speed and the predicted landing of the current arc, down to zoomMin, so the landing
@@ -614,10 +674,12 @@ const menu = {
     E.text('LAUNCH', E.w / 2, cy, { size: 44, weight: '800', color: C.text });
     E.text(`Best ${E.save.get('best', 0)} m    Coins ${E.save.get('coins', 0)}`, E.w / 2, cy + 40, { size: 16, color: C.dim });
     this.btnPlay = E.button('Play', E.w / 2, E.h * 0.58, { w: 220, h: 56 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, E.h * 0.58 + 64, { fill: '#334155', w: 160, h: 44, size: 16 });
+    this.btnShop = E.button('Shop', E.w / 2 - 58, E.h * 0.58 + 64, { fill: '#334155', w: 104, h: 44, size: 16 });
+    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2 + 58, E.h * 0.58 + 64, { fill: '#334155', w: 104, h: 44, size: 15 });
   },
   onTap(p, E) {
     if (this.btnPlay && E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play'); }
+    else if (this.btnShop && E.hit(this.btnShop, p)) { E.audio.play('tap'); E.setScene('shop', { from: 'menu' }); }
     else if (this.btnMute && E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
   },
   onKey(k, E) { if (k === ' ' || k === 'Enter') E.setScene('play'); },
@@ -627,12 +689,12 @@ const play = {
   enter(E, params = {}) {
     S.seed = params.seed ?? newSeed();
     S.run = null; S.pull = null; S.key = null; S.endT = 0; S.callout = null; S.frameReal = performance.now(); S.pid = null; S.spaceDown = false;
-    S.st = stats(); S.cam = newCamera(view(E).vw); S.nudge = 0;
+    S.up = levelsOf(E); S.st = stats(S.up); S.cam = newCamera(view(E).vw); S.nudge = 0;
     S.hint = E.save.get('flights', 0) === 0 && !S.pulled; // a fresh save's first launch, until the first pull begins
   },
   stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)); },
   launch(E, l) {
-    S.run = newRun(S.seed, l);
+    S.run = newRun(S.seed, l, S.up);
     S.pull = null; S.key = null;
     E.audio.play('hit', 0.4);
   },
@@ -711,7 +773,7 @@ const play = {
       const raw = S.pull ? Math.hypot(S.pull.dx, S.pull.dy) : S.key.power * T.pullMax;
       const L = Math.min(raw, T.pullMax) / T.pullMax, a = l ? l.angle * DEG : 0;
       short = !!S.pull && raw < T.dragDead;
-      pull = { px: -Math.cos(a) * L * T.pullVisual, py: Math.max(4 - T.slingH, -Math.sin(a) * L * T.pullVisual), arc: l ? previewArc(l) : null, full: raw >= T.pullMax };
+      pull = { px: -Math.cos(a) * L * T.pullVisual, py: Math.max(4 - T.slingH, -Math.sin(a) * L * T.pullVisual), arc: l ? previewArc(l, S.st) : null, full: raw >= T.pullMax };
     }
     const info = drawWorld(ctx, E, v, S.cam, r, pull, S.hint && !r && !S.pull);
     drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.st.fuelMax : S.st.fuelMax, r ? info : null, S.callout);
@@ -722,8 +784,8 @@ const play = {
 
 const over = {
   enter(E, p) {
-    this.p = p; this.t0 = E.time;
-    if (p.stars.length) E.audio.play('coin', 0.5);
+    this.p = p; this.t0 = p.again ? -Infinity : E.time; // back from the shop: no grace, no sound
+    if (p.stars.length && !p.again) E.audio.play('coin', 0.5);
   },
   ready(E) { return E.time - this.t0 >= T.cardGrace; }, // boost taps still landing must not dismiss the card
   render(ctx, E) {
@@ -746,12 +808,15 @@ const over = {
     });
     E.text(`Seed ${p.seed}`, px + pw - 14, py + 20, { size: 14, align: 'right', color: '#6b7587' });
     this.btnMenu = E.button('Menu', px + 14 + 40, py + 26, { w: 80, h: 44, size: 15, fill: '#334155' });
-    this.btnAgain = E.button('Launch Again', cx, py + ph - 42, { w: Math.min(260, pw - 40), h: 56 });
+    const bw = Math.min(230, pw - 150);
+    this.btnAgain = E.button('Launch Again', px + 20 + bw / 2, py + ph - 42, { w: bw, h: 56 });
+    this.btnShop = E.button(`Shop (${E.save.get('coins', 0)})`, px + pw - 20 - 55, py + ph - 42, { w: 110, h: 56, size: 16, fill: '#334155' });
   },
   onTap(p, E) {
     if (!this.ready(E)) return;
     if (this.btnAgain && E.hit(this.btnAgain, p)) { E.audio.play('tap'); E.setScene('play'); }
     else if (this.btnMenu && E.hit(this.btnMenu, p)) E.setScene('menu');
+    else if (this.btnShop && E.hit(this.btnShop, p)) { E.audio.play('tap'); E.setScene('shop', { from: 'over', card: this.p }); }
   },
   onKey(k, E) { if ((k === ' ' || k === 'Enter') && this.ready(E)) E.setScene('play'); },
 };
@@ -759,10 +824,12 @@ const over = {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 2,
-  // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here.
+  saveVersion: 3,
+  // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
+  // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend).
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
+    if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
     return data;
   },
   TUNING,
@@ -773,7 +840,7 @@ export const game = {
     { key: 'airDrag', label: 'Air drag', min: 0, max: 0.1, step: 0.005 },
   ],
   // Read by tools/sim-launch.mjs so the harness runs the real physics.
-  sim: { STEP, FIRST_CHUNK, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, predictLanding, newCamera, cameraStep, toView },
+  sim: { STEP, FIRST_CHUNK, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, UPGRADES, effectText, predictLanding, newCamera, cameraStep, toView },
   start: 'menu',
-  scenes: { menu, play, over },
+  scenes: { menu, play, over, shop },
 };
