@@ -89,3 +89,19 @@ Every gun has a magazine and a reload time. Empty triggers an automatic reload; 
 | Revolver | 6 | 2.4 s | |
 
 Ammo per challenge stays as it is (Accuracy rungs keep their round counts; the magazine is how many can be fired before a reload). Perfect paths, timers and star bars are regenerated with reloads in; the report states, per rung, where the perfect path reloads. Reload time and magazine sizes are in TUNING. Ledger `result` gains `reloads`.
+
+## N. Menu v2 and gun mastery (from the 2026-09-30 fourth session; build after M)
+
+Findings: the level selector is busy, information everywhere; the little gun under a rung makes no sense; select a gun and see the levels you have with that gun; gun mastery unlocks skins; track headshots and bullseyes.
+
+Menu v2, the gun is the context:
+- Top: the gun rack, six tiles in one row. The selected gun is drawn larger with its name, mastery bar and worn skin; locked guns show only the badge that opens them. Tapping the selected tile opens the stats card; the separate "i" goes away.
+- Below: the selected gun's lanes only. Each rung shows its target art, that gun's stars and a lock if closed. No best-gun silhouette, no hanging tags. One hint line under the lanes: the next thing this gun unlocks and how ("Accuracy 4: two stars on Accuracy 3").
+- Corner buttons: Missions, Endless (with today's best), Sound. The engine's TUNE and EXPORT tabs stay where the engine puts them. Points move into the stats card and the missions screen.
+- Everything at least 44 px and 14 px at 640x360 and 844x390; the first menu frame under 40 ms at 4x throttle.
+
+Gun mastery:
+- Per gun, lifetime counters in the save (v10): shots, hits, bullseyes (Accuracy and Skeet bullseyes, boss core bullseyes), headshots (zombie brains), plates. Ledger `result` lines already carry the per-run numbers; the counters are their sums.
+- Tiers: Marksman at 100 bullseyes plus headshots, Expert at 500, Master at 1500 with lifetime accuracy at least 60 percent. The mastery bar on the rack shows progress to the next tier; the stats card shows the counters.
+- Skins: each gun's second skin unlocks at Marksman and its third at Master (the Legend Gold pistol stays on Legend). Trick-badge skins (SMG Brass and Hazard, revolver Ivory and Frost) stay on their badges. The badge-to-skin table in v0.3 E is retired for the ladder badges; those badges keep their names and conditions and unlock nothing but themselves. Skins already earned are kept on migration (a worn skin is never taken away).
+- Missions screen: badges only, no skin swatches; the skins picker lives on the stats card.
