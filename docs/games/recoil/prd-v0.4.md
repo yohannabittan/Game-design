@@ -17,7 +17,7 @@ The designer's ladder design is five rungs per ladder. v0.3 ships four on Accura
 
 Rules that carry over unchanged: a plate takes damage only while active (no inactive-part farming); the bullseye dot is never red; nothing spawns in the thumb lane; determinism at 30 and 120 fps; every challenge has Menu on its card.
 
-Boss 2 thresholds are per gun, set the same way as Boss 1: search each gun's true maximum run in the simulator, then 30/55/85 percent. The rifle's three-star threshold must not be reachable by the pistol at its own maximum, or the rifle has no niche; if the search shows it is, plate hp goes to 4 (a tuning change, note it in the changelog).
+Boss 2 thresholds are per gun, set the same way as Boss 1 after the v0.3 F amendment: each gun's maximum over centred shots in the simulator, then 30/55/85 percent, so perfect centred play always earns three stars. The rifle's three-star threshold must not be reachable by the pistol at its own maximum, or the rifle has no niche; if the search shows it is, plate hp goes to 4 (a tuning change, note it in the changelog).
 
 ## B. Missions
 

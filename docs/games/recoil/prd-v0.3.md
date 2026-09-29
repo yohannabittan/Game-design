@@ -51,3 +51,13 @@ Handling presets: "Steady" (kickPerShot 5, swayPerSpeed 0.01), "Standard" (curre
 | --- | --- | --- |
 | shotSpread | 10 | Total fan angle of the shotgun's five pellets |
 | unlockPoints | 0, 60, 150, 300 | Points thresholds per gun in order |
+
+## E. Skins (added 2026-09-29, late, after the v8 review; source: docs/plans/2026-09-29-overnight.md "Unlockables")
+
+Gun skins are earned by badges only, never by grind, and are data entries in the art layer: a palette override and one flat decoration inside the existing silhouette. Nine skins, one per badge: pistol Nickel (Marksman I), Blackout (Quick Draw I), Gold (Legend); carbine Desert (Clay I), Arctic (Steady); shotgun Walnut (Storm), Tactical (Double); rifle Carbon (Boss Killer), Ghost (Gauntlet). A Skin swatch row on the menu; locked swatches toast their badge; the chosen skin persists per gun (save v5) and a saved skin whose badge is missing renders as default. The skin shows on the tile, in play and on the card; the missions screen shows the skin next to its badge.
+
+Readability rule (from the v8 review): every skin's body must measure at least 3:1 against the sky bands the gun crosses (y 100 to 170); the Standard skin measures about 4:1. Dark skins keep their name and mood by using a lighter body with dark decorations, not a dark body.
+
+## F. Boss star rule amendment (after the v8 review)
+
+Per-gun Boss thresholds come from the gun's maximum over centred shots: the bot aims at the bullseye centre. A route that needs a deliberately off-centre shot (the shotgun's one-outer-pellet trick on Boss 1) never sets the three-star bar, because perfect play must earn three stars (principle: legible cause of loss). Boss 1 shotgun thresholds therefore become 30/55/85 percent of its centred maximum. The same rule applies to Boss 2 in v0.4.
