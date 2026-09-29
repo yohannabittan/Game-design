@@ -33,7 +33,7 @@ The old Flash tattoo game: fill the shape within a time, limited times you may g
 
 ## Guessed kernel
 
-Verb: hold and move. Skill axis: precision near edges under time pressure. Content: 10 stencils ordered by edge difficulty. A session is one stencil, 20 to 45 seconds. Ends at 100 percent, at the timer, or at the third slip.
+Verb: hold and move. Skill axis: precision near edges under time pressure. Content: 15 stencils ordered by edge difficulty (PRD v0.5 section A), with three bosses. A session is one stencil, 20 to 45 seconds. Ends at 100 percent, at the timer, or at the third slip.
 
 ## Gate
 

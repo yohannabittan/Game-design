@@ -144,7 +144,8 @@ console.log(ok ? `result    OK: 99 percent within the ${timer}s timer` : `result
 
 if (flag('--timer-from-path')) {
   if (time99 === null) console.log('timer     cannot be set: this path never reaches 99 percent');
-  else for (const [label, mult] of [['Circle, Diamond, Heart, Star', T.timerMultEarly], ['Bolt, Halo, Clover, Key, Dagger, Anchor, Rose, Swallow', T.timerMultMid], ['boss Crescent', T.timerMultBoss], ['boss Snake', T.timerMultFinal], ['final boss Skull', T.timerMultSkull]]) {
+  else console.log(`perfect   ${time99.toFixed(2)}s to 99 percent (the stencil's perfectTime is this, rounded to 0.1)`);
+  if (time99 !== null) for (const [label, mult] of [['Circle, Diamond, Heart, Star', T.timerMultEarly], ['Bolt, Halo, Clover, Key, Dagger, Anchor, Rose, Swallow', T.timerMultMid], ['boss Crescent', T.timerMultBoss], ['boss Snake', T.timerMultFinal], ['final boss Skull', T.timerMultSkull]]) {
     const m = mult * T.timerGlobalMult, t = time99 * m;
     console.log(`timer     ${label}: ${f1(t)}s at ${+m.toFixed(3)}x the perfect path (round up: ${Math.ceil(t)})  [${preset.label}]`);
   }
