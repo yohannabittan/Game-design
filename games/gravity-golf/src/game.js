@@ -219,36 +219,35 @@ const LEVELS = [
     ball: { x: 300, y: 560 }, hole: { x: 125, y: 225 },
     walls: [{ x: 0, y: 330, w: 200, h: 22 }], planets: [{ x: 220, y: 300, r: 48, mass: 1 }], suns: [], movers: [],
   },
-  // PLACEHOLDERS, holes 4 to 10: walls and a cup only, so the game stays playable until the content shards replace them.
   {
-    // PLACEHOLDER for hole 4, Landing.
-    name: 'Landing', boss: false, stars: { three: 1, two: 2 },
-    ball: { x: 180, y: 540 }, hole: { x: 180, y: 150 },
-    walls: [{ x: 60, y: 330, w: 90, h: 22 }], planets: [], suns: [], movers: [],
+    // Teaches landing: the wall blocks every line from the tee to the cup (and banks), so put the first shot on the planet, then leave its right side and go straight up through the gap on the left. three: drag (86, 28) lands on the planet at (123, 528) (any shot at the planet lands there), then drag (-23, 143) sinks in one flight with 0 bounces. two (3 strokes): (91, 24) rests at (111, 553), (0, 30) rests at (122, 533), (-30, 142) sinks. Sweep from the tee: 0 straight sinks; last-shot aim window 9.6 degrees (-5.8 / +3.8), drag 131.8 px to full power.
+    name: "Landing", boss: false, stars: { three: 2, two: 3 },
+    ball: { x: 300, y: 590 }, hole: { x: 95, y: 110 },
+    walls: [{ x: 150, y: 300, w: 210, h: 22 }], planets: [{ x: 75, y: 520, r: 40, mass: 1 }], suns: [], movers: [],
   },
   {
-    // PLACEHOLDER for hole 5, Binary (boss).
-    name: 'Binary', boss: true, stars: { three: 1, two: 2 },
-    ball: { x: 180, y: 540 }, hole: { x: 180, y: 120 },
-    walls: [{ x: 0, y: 300, w: 110, h: 22 }, { x: 250, y: 300, w: 110, h: 22 }], planets: [], suns: [], movers: [],
+    // Teaches the double pass between two planets: the lower planet blocks the line to the cup, the upper one sits under it, and the lower right wall shuts the corridor a tee shot would need, so land on the lower planet first, then launch from its top so it bends the ball toward the upper planet, which whips it over its top and down into the cup. three: drag (-7, 50) lands on the lower planet at (155.3, 410.2), then drag (54, 134) sinks with 0 bounces, passing the lower planet at 14.5 and the upper at 38.5. two (4 strokes): (-7, 50), (0, 20) rests (161.2, 404.0), (40, 30) rests (159.8, 405.3), (54, 134) sinks; (-7, 50), (0, 20), (54, 134) sinks in 3. Sweep from the tee: 0 straight sinks; last-shot aim window 7.5 degrees (-3.8 / +3.7), drag 137 px to full power.
+    name: "Binary", boss: true, stars: { three: 2, two: 4 },
+    ball: { x: 228, y: 581 }, hole: { x: 167, y: 110 },
+    walls: [{ x: 73, y: 264, w: 22, h: 196 }, { x: 238, y: 470, w: 122, h: 22 }], planets: [{ x: 188, y: 435, r: 32, mass: 1.1 }, { x: 188, y: 223, r: 36, mass: 1.5 }], suns: [], movers: [],
   },
   {
-    // PLACEHOLDER for hole 6, Solar Flare.
-    name: 'Solar Flare', boss: false, stars: { three: 1, two: 2 },
-    ball: { x: 120, y: 540 }, hole: { x: 240, y: 150 },
-    walls: [{ x: 200, y: 360, w: 160, h: 22 }], planets: [], suns: [], movers: [],
+    // Teaches choosing the safe side: a sun sits in front of the tee and shuts the short near-side lane (no near-side sink at one stroke), so go the long way round the far side with more power. three: drag (-91, 100), one shot, passing 30 from the surface; sinks over 8.9 degrees of aim and 118 to 147 px. two: (-46, 39) lands on the planet, then (-3, 90). Sweep (0.5 degrees, 5 px): 0 straight sinks.
+    name: "Solar Flare", boss: false, stars: { three: 1, two: 3 },
+    ball: { x: 90, y: 570 }, hole: { x: 230, y: 190 },
+    walls: [{ x: 0, y: 300, w: 70, h: 22 }], planets: [{ x: 190, y: 340, r: 40, mass: 1 }], suns: [{ x: 100, y: 470, r: 40 }], movers: [],
   },
   {
-    // PLACEHOLDER for hole 7, Pinball.
-    name: 'Pinball', boss: false, stars: { three: 1, two: 2 },
-    ball: { x: 240, y: 540 }, hole: { x: 120, y: 150 },
-    walls: [{ x: 0, y: 360, w: 160, h: 22 }], planets: [], suns: [], movers: [],
+    // Teaches bumper banks: mass 0 planets do not pull, so aim by where the ball rebounds. three: drag (-120, 72), one shot, glancing off the bumper beside the tee, then the floor, then up into the cup (2 bounces); sinks over 5.8 degrees of aim and 135 px to full power. two: (-60, -67) then (-2, 40). Sweep (0.5 degrees, 5 px): 0 straight sinks.
+    name: "Pinball", boss: false, stars: { three: 1, two: 3 },
+    ball: { x: 122, y: 592 }, hole: { x: 299, y: 404 },
+    walls: [{ x: 0, y: 399, w: 175, h: 22 }], planets: [{ x: 171, y: 527, r: 36, mass: 0 }, { x: 91, y: 151, r: 31, mass: 0 }, { x: 240, y: 247, r: 28, mass: 0 }], suns: [], movers: [],
   },
   {
-    // PLACEHOLDER for hole 8, Tide.
-    name: 'Tide', boss: false, stars: { three: 1, two: 2 },
-    ball: { x: 180, y: 540 }, hole: { x: 180, y: 150 },
-    walls: [{ x: 0, y: 330, w: 130, h: 22 }, { x: 230, y: 330, w: 130, h: 22 }], planets: [], suns: [], movers: [],
+    // Teaches timing a slingshot: a sliding door hangs in the exit lane and the whip only works while it is raised. three: drag (0, 120) released at clock 1.25 (window about 1.0 to 1.6 s of the 2.4 s cycle), one shot, passing 25 from the surface; sinks over 5.7 degrees of aim and 115 to 127 px. Fired at clock 0 to 0.9 the ball hits the door. two: (-19, 108) at clock 0 lands on the planet, then (-18, 129) at clock 1.25. Sweep at clocks 0, 0.5, 1.0, 1.25, 1.5, 2.0: 0 straight sinks.
+    name: "Tide", boss: false, stars: { three: 1, two: 3 },
+    ball: { x: 50, y: 560 }, hole: { x: 225, y: 205 },
+    walls: [{ x: 160, y: 330, w: 200, h: 22 }], planets: [{ x: 140, y: 300, r: 48, mass: 1 }], suns: [], movers: [{ type: "slide", w: 22, h: 100, a: { x: 165, y: 58 }, b: { x: 165, y: 130 }, period: 2.4 }],
   },
   {
     // PLACEHOLDER for hole 9, Windmill.
