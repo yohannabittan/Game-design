@@ -133,3 +133,14 @@ Not in v0.1: badges, skins, daily, endless, drag gestures (open bag, rotate), pe
 
 - Should a bag pause for a beat when fully on screen? Simplest: no; the belt never stops.
 - Does a false alarm remove the bag? Simplest: no; the bag continues and its contraband can still be caught.
+
+## Amendments after the layer 1 review (2026-09-30)
+
+1. The miss cue comes after the strike, never before: no pre-miss pulse on an uncaught contraband item (it handed a non-reading player every answer). A strike fires when the item's outline leaves the bottom edge; at that moment a ghost outline of the missed item pulses at the bottom edge for 1 s with "Missed".
+2. Reward for skill: catch points use an early factor from 3 (entering at the top) to 0.5 (at the bottom); streak steps x2 at 4, x3 at 8, x4 at 12, x5 at 16. Target: a fast clean shift scores about three times a late one-strike shift on the same seed.
+3. Tap targets: `hitMargin` 12, and every item's thinnest dimension at least 16 design units (thicken thin outlines); PRD 15's 44 px means the hit shape's thin dimension at 360x640, and the harness checks it.
+4. Visibility means outline: at least 60 percent of every item's outline perimeter lies outside every other item's polygon; the harness checks both area and outline.
+5. Confusables add phone and lighter, belt and hammer; keys drawn with a hollow ring so they do not read as a small revolver.
+6. The first bag is fully visible at t=0; a clean pass shows its green edge while the bag is still on screen (when its bottom edge reaches the belt's end); the bottom cues sit above `E.safe.bottom`.
+7. Shift length target is 40 to 120 s; the belt speeds stay as tuned.
+8. The builder's additions (`newContraband` unlock order, `rotMax`, the opener) are adopted into section 16.
