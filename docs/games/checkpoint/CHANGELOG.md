@@ -2,3 +2,4 @@
 
 ## v0.1 (unreleased)
 - Created from skeleton.
+- Layer 1 (mechanic), built by Sonnet: grey-box belt for shift 1 (20 seeded bags, tap-to-flag with contraband winning overlaps, catch/clean/false-alarm/miss scoring with early factor and x1 to x4 streak, three strikes, end card with stars and retry, menu with mute), the full 30-item table and the ten-row shift table as data in `TUNING`, and `tools/sim-checkpoint.mjs` (packing, bot and fps-determinism proofs). Open questions resolved with the simplest option: the belt never pauses for a full bag; a false alarm leaves the bag on the belt and its contraband stays catchable. Also chosen: a caught bag keeps riding down (no tray yet); contraband unlocks by shift (3 shapes in shift 1, all 10 from shift 6); shift 1 opens with the PRD's shirt, phone, headphones and scissors bag, then a clean bag; every shift has exactly 10 clean bags of 20 (clean share 0.5); overlap is off in shifts 1 and 2 and on from shift 3. Review: pending
