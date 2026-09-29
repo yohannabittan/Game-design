@@ -54,7 +54,18 @@ A missions screen on the menu shows the tiers, earned badges lit, unearned with 
 
 ## D. Experiment for tomorrow
 
-Field feel presets on the tune panel: "Ice" (friction 0.45, captureStrength 700), "Turf" (current 0.28, 900), "Sand" (0.18, 1100), with sliders for friction and captureStrength. The three-star routes are proven at Turf; the experiment asks which field feels best, not which is fair.
+The review of v0.2 measured that 83 to 90 percent of missed shots on holes 1, 3, 6 and 8 end landed on the planet, and that `planetGravity` 3e6 brings that to 66 to 75 percent, 2e6 to 51 to 60 percent, and `stopSpeed` 80 at 3e6 to about 50 percent. That is the "planet catches me" feel, so the experiment is gravity, not field friction. Presets on the tune panel: "Heavy" (planetGravity 4.5e6, stopSpeed 50, the proven defaults), "Medium" (3e6, 50), "Light" (2e6, 50), "Light and rolling" (3e6, stopSpeed 80); sliders for planetGravity and stopSpeed. The routes are proven at Heavy only; once the designer picks, the routes are re-proven and re-authored where they break, and the pick becomes the default. Field friction presets wait for a later round.
+
+## D2. Fixes from the v0.2 review (do in the same build)
+
+- Hole 7 has a low-skill floor bank ace (an 18.5 degree cluster around drag (-85,-85)); close it with a wall or bumper and re-prove; consider two = 2.
+- Hole 6's sun sits inside the planet's pull so a soft miss stacks 3 to 4 penalties; move it 20 to 30 units farther from the planet and re-prove.
+- The ring system on mass 1.5 planets is drawn to 1.68 radii and reads solid; draw rings to about 1.35 radii or fade them.
+- The Retry button overlaps the field's top-right corner; place it below the HUD from the field top.
+- The range finder is orange by 80 percent power; keep white to amber and reserve orange for full power.
+- Tint the moon cooler so the ball stays the only white sphere.
+- Add `stopSpeed` to the tune panel; fix the changelog (placeholders are gone, cache is v7).
+- Hole 7's bumpers are mass 0; the PRD's "mass 0.3" is amended to mass 0 (no gravity route is the point).
 
 ## E. Tuning additions
 
