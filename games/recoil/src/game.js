@@ -13,7 +13,7 @@ const TUNING = {
   gunX: 70,              // Gun pivot from the left edge
   gunLineX: 110,         // Approaching targets vanish as a miss at this x
   thumbLane: 70,         // Bottom band with no targets
-  gunMinY: 40,           // Highest gun position
+  gunMinY: 60,           // Highest gun position (raised from 40 so the HUD never covers the gun or the range finder)
   gunMaxY: 300,          // Lowest gun position
   dragGain: 1.0,         // Design units of gun movement per design unit of drag
   kickMax: 28,           // Cap on the kick angle (degrees)
@@ -69,6 +69,7 @@ const TUNING = {
   flashLife: 0.07,       // Seconds a muzzle flash shows
   popLife: 0.7,          // Seconds a score number floats
   edgeLife: 0.3,         // Seconds the red edge flash shows
+  breachGap: 0.3,        // Least seconds between two breach sounds and buzzes
   hudPad: 8,             // HUD padding in screen px
   bg: '#0f1115',         // Letterbox colour (the engine reads this name)
   fieldColor: '#141b2d',
@@ -135,21 +136,22 @@ const CHALLENGES = [
   { // Hordes: a column of small targets drifting left, each worth outer-ring points. Perfect run 3630.
     id: 's4', ladder: 'speed', level: 4, name: 'Speed 4', seed: 42004, behaviour: 'horde',
     speedSeconds: 35, spawnEvery: 4.5, speedMul: 0.7, maxTargets: 12, scale: 0.55, yBand: [0, 1], minDy: 60,
+    hordeSpacing: 30, hordeJitterX: 16, hordeJitterY: 3, // column spacing, and how loose the column is (x and y)
     stars: { one: 1090, two: 2000, three: 3090 },
   },
   { // Clay pigeons from the bottom right; only bullseye and inner count. Perfect run 2950.
     id: 'k1', ladder: 'skeet', level: 1, name: 'Skeet 1', seed: 43001,
-    skeetCount: 10, skeetEvery: 2.4, skeetMul: 0.9, pair: false, angle: [58, 68], scale: 1.2,
+    skeetCount: 10, skeetEvery: 2.4, skeetMul: 0.9, pair: false, angle: [58, 68], launchSpread: 30, scale: 1.2,
     stars: { one: 890, two: 1620, three: 2510 },
   },
   { // Two at once. Perfect run 3750.
     id: 'k2', ladder: 'skeet', level: 2, name: 'Skeet 2', seed: 43002,
-    skeetCount: 12, skeetEvery: 2.6, skeetMul: 1.0, pair: true, angle: [56, 66], scale: 1.0,
+    skeetCount: 12, skeetEvery: 2.6, skeetMul: 1.0, pair: true, angle: [56, 66], pairSplit: 0.4, pairDx: 46, scale: 1.0, // the pair's angles come from the low and high 40 percent of the range; the second launches pairDx to the left
     stars: { one: 1130, two: 2060, three: 3190 },
   },
   { // Three parts in order, then a drifting core. Perfect run 3750.
     id: 'b1', ladder: 'boss', level: 1, name: 'Boss 1', seed: 44001,
-    bossSeconds: 40, scale: 1.1, x: [430, 560], coreScale: 0.9, coreBull: 0.6,
+    bossSeconds: 40, scale: 1.1, x: [430, 560], coreX: 520, coreScale: 0.9, coreBull: 0.6,
     stars: { one: 1130, two: 2060, three: 3190 },
   },
 ];
@@ -196,10 +198,10 @@ function build(ch) {
     b = [];
     let prev = null;
     if (ch.behaviour === 'horde') {
-      const sp = 30, span = (T.hordeCount - 1) * sp, lh = { y0: lg.y0 + span / 2 + 3, y1: lg.y1 - span / 2 - 3 };
+      const sp = ch.hordeSpacing, jy = ch.hordeJitterY, span = (T.hordeCount - 1) * sp, lh = { y0: lg.y0 + span / 2 + jy, y1: lg.y1 - span / 2 - jy };
       for (let i = 0; i < n; i++) {
         const cy = pickY(rng, lh, ch.yBand, prev, ch.minDy);
-        b.push({ members: Array.from({ length: T.hordeCount }, (_, k) => ({ dx: -rng.range(0, 16), y: cy - span / 2 + k * sp + rng.range(-3, 3) })) });
+        b.push({ members: Array.from({ length: T.hordeCount }, (_, k) => ({ dx: -rng.range(0, ch.hordeJitterX), y: cy - span / 2 + k * sp + rng.range(-jy, jy) })) });
         prev = cy;
       }
     } else {
@@ -207,20 +209,20 @@ function build(ch) {
     }
   } else if (ch.ladder === 'skeet') {
     b = [];
-    const [lo, hi] = ch.angle, cut = (hi - lo) * 0.4;
+    const [lo, hi] = ch.angle, cut = (hi - lo) * (ch.pairSplit || 0);
     const groups = ch.pair ? ch.skeetCount / 2 : ch.skeetCount;
     for (let i = 0; i < groups; i++) {
       const at = T.startDelay + i * ch.skeetEvery;
       if (ch.pair) {
         b.push({ at, a: rng.range(lo, lo + cut), x0: lg.x1 });
-        b.push({ at, a: rng.range(hi - cut, hi), x0: lg.x1 - 46 });
-      } else b.push({ at, a: rng.range(lo, hi), x0: lg.x1 - rng.range(0, 30) });
+        b.push({ at, a: rng.range(hi - cut, hi), x0: lg.x1 - ch.pairDx });
+      } else b.push({ at, a: rng.range(lo, hi), x0: lg.x1 - rng.range(0, ch.launchSpread) });
     }
   } else {
     const order = rng.shuffle([0, 1, 2]), h = lg.y1 - lg.y0;
     b = {
       parts: order.map((slot) => ({ x: rng.range(ch.x[0], ch.x[1]), y: lg.y0 + (slot + rng.range(0.15, 0.85)) * h / 3 })),
-      core: { x: 520, y: rng.range(lg.y0, lg.y1), dir: rng() < 0.5 ? 1 : -1 },
+      core: { x: ch.coreX, y: rng.range(lg.y0, lg.y1), dir: rng() < 0.5 ? 1 : -1 },
     };
   }
   BUILT.set(ch.id, b);
@@ -332,8 +334,8 @@ function checkEnd(run) {
 function fire(run) {
   if (run.done || run.ammo <= 0) return;
   const g = run.gun, now = run.steps * STEP;
-  if (now < run.nextFire - 1e-9) return;
-  run.nextFire = now + 1 / g.fireRate;
+  if (now < run.nextFire - STEP - 1e-9) return; // one step of slack, so a tap at the nominal interval is not lost to step rounding
+  run.nextFire = Math.max(now, run.nextFire) + 1 / g.fireRate; // held fire keeps the exact rate
   const a = angleOf(run) * DEG, sn = Math.sin(a), cs = Math.cos(a);
   const gx = T.gunX, gy = run.gunY;
   let dodged = false;
@@ -349,24 +351,26 @@ function fire(run) {
     if (along > 0 && perp <= targetRadius(tg) && along < hitAlong) { hit = tg; hitAlong = along; hitPerp = perp; }
   }
   const ev = { type: 'shot', x0: gx + cs * T.barrelLen, y0: gy - sn * T.barrelLen, hit: !!hit, dodged: dodged && !hit };
-  if (hit) {
-    const active = hit.kind !== 'part' || hit.idx === run.stage;
+  if (hit && hit.kind === 'part' && hit.idx !== run.stage) {
+    // A hit on an inactive boss part is neutral: no points, no damage, no combo change, not a hit. It spends the shot.
+    Object.assign(ev, { hit: false, neutral: true, x1: gx + cs * hitAlong, y1: gy - sn * hitAlong, streak: run.streak });
+  } else if (hit) {
     const R = T.zoneR, sc = hit.sc;
-    const z = hit.flat || !active ? 2 : hitPerp <= R[0] * sc * (hit.bullMul || 1) ? 0 : hitPerp <= R[1] * sc ? 1 : 2;
+    const z = hit.flat ? 2 : hitPerp <= R[0] * sc * (hit.bullMul || 1) ? 0 : hitPerp <= R[1] * sc ? 1 : 2;
     const mult = Math.min(T.comboCap, 1 + T.comboStep * run.streak);
     const pts = Math.round(T.zonePoints[z] * mult);
     run.score += pts; run.streak++; run.hits++;
     if (z === 0) run.bulls++;
     let killed = false;
     if (hit.hp === undefined) killed = true;
-    else if (active) { hit.hp -= g.damage; killed = hit.hp <= 0; }
+    else { hit.hp -= g.damage; killed = hit.hp <= 0; }
     if (killed) {
       run.targets.splice(run.targets.indexOf(hit), 1);
       if (run.ch.ladder === 'accuracy') run.nextAt = now + T.accGap;
       if (hit.kind === 'part') { run.stage++; if (run.stage >= run.list.parts.length) spawnCore(run, now); }
       if (hit.kind === 'core') run.cleared = true;
     }
-    Object.assign(ev, { x1: gx + cs * hitAlong, y1: gy - sn * hitAlong, tx: hit.x, ty: hit.y, zone: z, pts, mult, streak: run.streak, killed, damaged: active && hit.hp !== undefined });
+    Object.assign(ev, { x1: gx + cs * hitAlong, y1: gy - sn * hitAlong, tx: hit.x, ty: hit.y, zone: z, pts, mult, streak: run.streak, killed, damaged: hit.hp !== undefined });
   } else {
     if (!dodged) { run.streak = 0; run.misses++; }
     const len = (T.designW - gx) / cs;
@@ -559,7 +563,7 @@ const S = {};
 
 function newRun(ch, id) {
   S.ch = ch; S.gunId = id; S.run = makeRun(ch, id);
-  S.fx = []; S.endT = 0; S.drag = null; S.right = new Set();
+  S.fx = []; S.endT = 0; S.drag = null; S.right = new Set(); S.breachAt = -1;
   S.run.frameReal = performance.now();
 }
 
@@ -576,7 +580,7 @@ function cosmetics(E, ev) {
     }
   } else if (ev.type === 'breach') {
     S.fx.push({ k: 'edge', t: T.edgeLife, max: T.edgeLife });
-    E.audio.play('miss'); E.haptic(30);
+    if (E.time - S.breachAt >= T.breachGap) { S.breachAt = E.time; E.audio.play('miss'); E.haptic(30); } // a horde breaching together sounds once
   }
 }
 
@@ -742,9 +746,10 @@ const play = {
       E.text(f.text, v.ox + f.x * v.s, v.oy + (f.y - 18 - 22 * k) * v.s, { size: 20, weight: '800', color: f.color, alpha: 1 - k * k });
     }
     this.hud(E, v, r, ch);
-    if (E.h > E.w) { // portrait: playable, but say what it wants
-      const by = v.oy + (T.designH - T.thumbLane * 0.5) * v.s;
-      E.roundRect(v.ox + 12, by - 17, v.w - 24, 34, 10, 'rgba(15,17,21,0.85)', T.orange);
+    if (E.h > E.w) { // portrait: playable, but say what it wants, in the letterbox below the field
+      const below = v.oy + v.h + 8 + 34 <= E.h - E.safe.bottom;
+      const by = (below ? v.oy + v.h + 8 : E.h - E.safe.bottom - 38) + 17;
+      E.roundRect(v.ox + 12, by - 17, v.w - 24, 34, 10, 'rgba(15,17,21,0.9)', T.orange);
       E.text('Rotate your phone', v.ox + v.w / 2, by, { size: 16, weight: '800', color: '#ffffff' });
     }
   },
@@ -841,28 +846,34 @@ const over = {
   },
 };
 
+const EXPERIMENTS = [
+  { key: 'weaveAmp', label: 'Weave amplitude', min: 10, max: 80, step: 5 },
+  { key: 'skeetSpeed', label: 'Skeet launch speed', min: 300, max: 480, step: 10 },
+  { key: 'guns.carbine.accuracy', label: 'Carbine accuracy (range finder)', min: 0.3, max: 1, step: 0.05 },
+  { key: 'swayPerSpeed', label: 'Sway per speed', min: 0, max: 0.06, step: 0.005 },
+];
+const PRESETS = [
+  { label: 'Fair', values: { dodgeRange: 30, dodgeCooldown: 1.2 } },
+  { label: 'Twitchy', values: { dodgeRange: 45, dodgeCooldown: 0.8 } },
+  { label: 'Lazy', values: { dodgeRange: 20, dodgeCooldown: 1.8 } },
+];
+const TUNE_KEYS = new Set([...EXPERIMENTS.map((e) => e.key), ...PRESETS.flatMap((p) => Object.keys(p.values))]);
+
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 2,
-  // v2 adds the chosen gun and the new challenges; existing bests and stars carry over unchanged.
+  saveVersion: 3,
+  // v2 added the chosen gun and the new challenges; v3 prunes saved tune values to the declared keys (ADR-0014).
+  // Existing bests and stars carry over unchanged.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (!data.gun) data.gun = 'pistol';
+    if (data.__tune && typeof data.__tune === 'object') data.__tune = Object.fromEntries(Object.entries(data.__tune).filter(([k]) => TUNE_KEYS.has(k)));
     return data;
   },
   TUNING,
-  experiments: [
-    { key: 'weaveAmp', label: 'Weave amplitude', min: 10, max: 80, step: 5 },
-    { key: 'skeetSpeed', label: 'Skeet launch speed', min: 300, max: 480, step: 10 },
-    { key: 'guns.carbine.accuracy', label: 'Carbine accuracy (range finder)', min: 0.3, max: 1, step: 0.05 },
-    { key: 'swayPerSpeed', label: 'Sway per speed', min: 0, max: 0.06, step: 0.005 },
-  ],
-  presets: [
-    { label: 'Fair', values: { dodgeRange: 30, dodgeCooldown: 1.2 } },
-    { label: 'Twitchy', values: { dodgeRange: 45, dodgeCooldown: 0.8 } },
-    { label: 'Lazy', values: { dodgeRange: 20, dodgeCooldown: 1.8 } },
-  ],
+  experiments: EXPERIMENTS,
+  presets: PRESETS,
   start: 'menu',
   scenes: { menu, play, over },
 };
