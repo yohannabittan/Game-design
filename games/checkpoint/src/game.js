@@ -41,6 +41,8 @@ const TUNING = {
     'Tap the contraband. Leave clean bags.', 'Some bags are clean. Do not tap them.', 'Items overlap. Outlines show through.', 'Look-alikes are harmless. Two per bag.',
     'Bags arrive in bursts.', 'All ten shapes. Catch early for points.', 'Same shapes, heavier clutter.', 'Look-alikes everywhere. Be sure.', 'Read each bag in one pass.', 'Everything at once.',
   ],
+  starRule: '3 stars: no strikes. 2: one. 1: clear.',   // the one line on the card that says how stars are earned
+  tips: ['', '', '', '', '', '', 'Dense corner first.', 'Judge shape, not tint.', 'One pass, top to bottom.', 'Early catches pay most.'],   // the middle of the card when no shape is new
   rush: [5, 10],                                                        // rush hour shifts: bags arrive in bursts
   burst: { size: 3, gapIn: 12 },                                        // bags per burst and the belt gap inside one; the gap between bursts keeps the average pitch
   rotMax: [20, 30, 45, 60, 90, 90, 120, 150, 180, 180],                 // item rotation, degrees either way
@@ -92,8 +94,11 @@ const TUNING = {
     rushOff: '#b0701f', button: '#1d4ed8', buttonQuiet: '#334155', buttonMute: '#1f2937', badge: '#0f1c38', badgeHot: '#3a2a08', strikeOn: '#3a0c12',
   },
   // Frame budget: the bloom is measured, not assumed. The first seconds of a shift time the frames; then the level is fixed for the shift.
-  bloom: { probe: 1.5, warm: 12, slowMs: 24, threeShare: 0.08, oneShare: 0.25 },   // frames skipped, a frame slower than slowMs is slow; up to threeShare slow frames keeps 3 passes, up to oneShare 1 pass, else none
-  sprite: { ahead: 320, perFrame: 1 },
+  // The level only ever goes down: a rolling window of recent frames is checked while the first `probe` seconds of a shift run, and a level that is
+  // dropped stays dropped for the session. A frame slower than slowMs is slow; up to threeShare slow frames keeps 3 passes, up to oneShare 1 pass, else none.
+  // A steady frame time near 33 ms (a 30 fps cap, as in Low Power Mode) is healthy, not slow.
+  bloom: { probe: 4, warm: 12, window: 120, minFrames: 40, every: 15, slowMs: 24, threeShare: 0.08, oneShare: 0.25, capMs: [28, 38], capSpread: 8 },
+  sprite: { ahead: 320, perFrame: 1, rebuild: 1 },      // sprites for coming bags a frame; and stale ones repainted (after a downgrade) a frame
   prepMs: 4,                                                 // work per frame spent building the next shift while a card is showing                       // items are painted once into small sprites, this far above the hood, this many a frame
   type: { small: 14, medium: 20, large: 36, weight: '700' },   // the three text sizes and the one weight
   line: { core: 2, glow: 6, halo: 12, ring: 3, edge: 2 },      // outline core, its bloom passes, ring and plate edge widths (design units)
@@ -119,7 +124,7 @@ const TUNING = {
       falseAlarm: [{ freq: 660, dur: 0.09, type: 'square', gain: 0.09 }, { freq: 660, dur: 0.09, type: 'square', gain: 0.09, delay: 0.14 }],   // two blips, an octave above the miss
       miss: { freq: 330, dur: 0.32, type: 'sawtooth', slide: 0.85, gain: 0.16 },   // both sit above the hum (58 to 218 Hz)
       step: { freq: 520, dur: 0.14, type: 'triangle', gain: 0.1, up: 1.19 },
-      rush: { freq: 300, dur: 0.18, type: 'square', gain: 0.05, slide: 1.5 },
+      rush: { freq: 1400, dur: 0.2, type: 'sine', gain: 0.06, slide: 1.3 },   // far above the miss (330) and false alarm (660) pitches
     },
   },
 };
@@ -482,8 +487,8 @@ function startShift(E, shift, seed) {
   for (let i = 1; i < g.bags.length; i++) offsets.push(offsets[i - 1] + T.bagH + (rush ? (i % size === 0 ? gapOut : gapIn) : T.bagGap));
   S = {
     shift, seed, rush, time: 0, dist: 0, acc: 0, score: 0, streak: 0, strikes: 0, catches: 0, falseAlarms: 0, misses: 0, passes: 0, resolved: 0,
-    ended: null, endT: 0, finished: false, H: L.H, fx: [], ghosts: [], ripples: [], stamp: null, flashT: 0, flashColor: '', log: [],
-    bannerT: 0, humT: 0, scorePop: 0, badgePop: 0, lastMult: 1, streakMax: 0, probe: { t: 0, frames: 0, dts: [], done: false },
+    ended: null, endT: 0, finished: false, H: L.H, exitY: L.bottom / L.s, fx: [], ghosts: [], ripples: [], stamp: null, flashT: 0, flashColor: '', log: [],
+    bannerT: 0, humT: 0, scorePop: 0, badgePop: 0, lastMult: 1, streakMax: 0, probe: { t: 0, dts: [], done: false }, frames: 0, timed: 0, slow: 0, capped: false, missNames: [], faNames: [],
     bags: g.bags.map((b, i) => ({
       ...b, idx: i, y0: first - offsets[i], y: 0,
       pending: b.items.filter((it) => it.contraband).length, touched: false, missed: false, resolved: false, settled: false, gone: false,
@@ -512,9 +517,10 @@ function endShift(E, result) {
   const unlocked = clear ? E.save.set('unlocked', Math.max(readUnlocked(E), clampUnlocked(S.shift + 1))) : readUnlocked(E);
   S.result = { shift: S.shift, seed: S.seed, unlocked, result, score: S.score, strikes: S.strikes, stars, best: Math.max(rec.best, S.score), isNew: S.score > rec.best, catches: S.catches, falseAlarms: S.falseAlarms, misses: S.misses, time: S.time };
   E.save.update('shifts', (all) => ({ ...cleanShifts(all), [S.shift]: { best: S.result.best, stars: Math.max(rec.stars, stars) } }), {});
-  if (E.ledger) E.ledger.add('shift', { shift: S.shift, seed: S.seed, result, score: S.score, strikes: S.strikes, missed: S.misses, falseAlarms: S.falseAlarms, stars, catches: S.catches, passes: S.passes, bags: S.resolved, time: +S.time.toFixed(1), streakMax: S.streakMax });
+  if (E.ledger) E.ledger.add('shift', { shift: S.shift, seed: S.seed, result, score: S.score, strikes: S.strikes, missed: S.misses, falseAlarms: S.falseAlarms, stars, catches: S.catches, passes: S.passes, bags: S.resolved, time: +S.time.toFixed(1), streakMax: S.streakMax, bloom: bloomLevel, slow: +(S.slow / Math.max(1, S.timed)).toFixed(3), capped: S.capped ? 1 : 0, dpr: +(E.dpr || 1).toFixed(2), missedItems: S.missNames.join(','), falseItems: S.faNames.join(',') });
   S.log.push({ t: S.time, e: result });
   S.stamp = { text: clear ? 'CLEARED' : 'SHIFT OVER', color: clear ? P.clean : P.catch, t: 0 };
+  prepare(S.shift, S.seed);   // Retry replays this seed: it is built behind the stamp and the card, so an early Retry never stalls
   E.audio.play(clear ? 'win' : 'lose');
   if (clear) E.haptic(J.haptic.clear); else E.shake(...J.shake.over);
 }
@@ -533,7 +539,7 @@ function bagDone(E, b, correct) {
 }
 
 function catchItem(E, b, it) {
-  const L = layout(E), f = clamp((b.y + it.y) / S.H, 0, 1);
+  const L = layout(E), f = clamp((b.y + it.y) / S.exitY, 0, 1);
   const pts = Math.round(T.catchBase * (T.earlyMax + (T.earlyMin - T.earlyMax) * f) * multiplier());
   it.state = 1; it.flagT = 0; b.pending--; S.catches++; S.score += pts;
   const big = pts >= J.bigCatch, [x, y] = itemXY(L, b, it);
@@ -554,7 +560,7 @@ function falseAlarm(E, b, it) {
   E.haptic(J.haptic.falseAlarm); E.shake(...J.shake.falseAlarm); E.flash(P.falseAlarm, J.screenFlash);
   burst(E, x, y, P.falseAlarm, J.burst.falseAlarm, J.burstSpeed * 0.7);
   addFx('False alarm', BAG_X + it.x, b.y + it.y, P.falseAlarm);
-  S.log.push({ t: S.time, e: 'false', item: it.name });
+  S.log.push({ t: S.time, e: 'false', item: it.name }); S.faNames.push(it.name);
   strike(E);
 }
 function missItem(E, b, it) {
@@ -563,7 +569,7 @@ function missItem(E, b, it) {
   tone(E, J.tones.miss); E.haptic(J.haptic.miss); E.shake(...J.shake.miss); flash(P.catch);
   S.ghosts.push({ it, t: 0 });
   burst(E, clamp(L.ox + (BAG_X + it.x) * L.s, 30, E.w - 30), L.bottom - J.cueLift - 20, P.catch, J.burst.miss, J.burstSpeed * 0.5);
-  S.log.push({ t: S.time, e: 'miss', item: it.name });
+  S.log.push({ t: S.time, e: 'miss', item: it.name }); S.missNames.push(it.name);
   strike(E);
   if (b.pending === 0) bagDone(E, b, false);
 }
@@ -584,9 +590,10 @@ function step(E) {
     if (b.gone) continue;
     b.y = b.y0 + S.dist;
     if (b.y + b.h < 0) continue;
-    if (b.pending > 0) for (const it of b.items) if (it.contraband && it.state === 0 && b.y + it.bb.y0 >= S.H && !S.ended) missItem(E, b, it);
-    // A clean bag is settled when its bottom edge reaches the belt's end, while it is still on screen.
-    if (b.kind === 'clean' && !b.settled && b.y + b.h >= S.H && !S.ended) { b.settled = true; if (b.touched) bagDone(E, b, false); else passBag(E, b); }
+    if (b.pending > 0) for (const it of b.items) if (it.contraband && it.state === 0 && b.y + it.bb.y0 >= S.exitY && !S.ended) missItem(E, b, it);
+    // Items resolve their exit at the bottom safe inset (the home-indicator strip is not part of the belt): a missed item when it has left it,
+    // a clean bag when its bottom edge reaches it, while it is still on screen.
+    if (b.kind === 'clean' && !b.settled && b.y + b.h >= S.exitY && !S.ended) { b.settled = true; if (b.touched) bagDone(E, b, false); else passBag(E, b); }
     if (b.y >= S.H) { b.gone = true; for (const it of b.items) it.spr = null; }
   }
 }
@@ -597,7 +604,7 @@ function step(E) {
 function tapAt(E, x, y) {
   if (!S || S.ended) return;
   const L = layout(E);
-  if (y < L.top) return;
+  if (y < L.top || y > L.bottom) return;   // the hood above and the home-indicator strip below are not the belt
   const px = (x - L.ox) / L.s, py = y / L.s;
   let c = null, cd = Infinity, h = null, hd = Infinity, flagged = false;
   for (const b of S.bags) {
@@ -667,7 +674,9 @@ const canSprite = () => typeof OffscreenCanvas === 'function';
 // A finished sprite is frozen into an ImageBitmap where the browser can: copying one onto the belt is much cheaper than copying a canvas.
 const freeze = (cv) => (typeof cv.transferToImageBitmap === 'function' ? cv.transferToImageBitmap() : cv);
 const spriteScale = (E, L) => L.s * (E.dpr || 1);
-const spriteOk = (E, L, it) => !canSprite() || (it.spr && it.spr.k === spriteScale(E, L) && it.spr.epoch === spriteEpoch && it.spr.state === it.state);
+// Usable: right scale and right flag colour (an older bloom level is fine to draw). Fresh: also painted at the current bloom level.
+const spriteUsable = (E, L, it) => !!(it.spr && it.spr.k === spriteScale(E, L) && it.spr.state === it.state);
+const spriteOk = (E, L, it) => !canSprite() || (spriteUsable(E, L, it) && it.spr.epoch === spriteEpoch);
 // The item painted once, bloom and all, into a canvas that is copied onto the belt every frame.
 function makeSprite(E, L, it) {
   const k = spriteScale(E, L), pad = bloomLevel >= 3 ? LN.halo / 2 + 2 : bloomLevel >= 1 ? LN.glow / 2 + 2 : LN.core + 1, w = Math.ceil((it.bb.x1 - it.bb.x0 + 2 * pad) * k), h = Math.ceil((it.bb.y1 - it.bb.y0 + 2 * pad) * k);
@@ -679,16 +688,19 @@ function makeSprite(E, L, it) {
 // A few sprites a frame, for the bags about to come out of the hood.
 function ensureSprites(E, L) {
   if (!canSprite()) return;
-  let n = T.sprite.perFrame;
+  let n = T.sprite.perFrame, r = T.sprite.rebuild;
   for (const b of S.bags) {
     if (b.gone || b.y + b.h < L.top / L.s - T.sprite.ahead) continue;
     if (b.y < -T.sprite.ahead * 4 - b.h * 2) break;
-    for (const it of b.items) { if (n <= 0) return; if (!spriteOk(E, L, it)) { makeSprite(E, L, it); n--; } }
+    for (const it of b.items) {
+      if (!spriteUsable(E, L, it)) { if (n <= 0) continue; makeSprite(E, L, it); n--; }          // missing: paint before it is needed
+      else if (it.spr.epoch !== spriteEpoch) { if (r <= 0) continue; makeSprite(E, L, it); r--; }   // stale after a downgrade: repaint in the background
+    }
   }
 }
 
 function drawItem(ctx, E, L, b, it) {
-  if (canSprite() && it.spr && it.spr.k === spriteScale(E, L) && it.spr.epoch === spriteEpoch && it.spr.state === it.state) {
+  if (canSprite() && spriteUsable(E, L, it)) {
     ctx.imageSmoothingEnabled = b.trayT >= 0;   // a plain copy is exact; the sliding bag is rotated, so it is smoothed
     ctx.drawImage(it.spr.cv, BAG_X + it.bb.x0 - it.spr.pad, b.y + it.bb.y0 - it.spr.pad, it.spr.w / it.spr.k, it.spr.h / it.spr.k);
   } else {
@@ -803,18 +815,24 @@ function drawStamp(E) {
 
 const prune = (list, life) => { for (let i = list.length - 1; i >= 0; i--) if (list[i].t >= life) list.splice(i, 1); };   // in place: nothing is allocated when nothing expires
 
-// Times the first frames of a shift and fixes the bloom for the rest of it: the share of slow frames decides three passes, one pass or none.
+// Watches the frames of a shift. During the first seconds a rolling window of recent frame times can lower the bloom (never raise it); a steady
+// 30 fps cap counts as healthy. The whole shift's slow share is kept for the ledger.
 function probeFrames(dt) {
   const pr = S.probe, B = T.bloom;
+  S.frames++;
+  if (S.frames <= B.warm) return;
+  S.timed++; if (dt * 1000 > B.slowMs) S.slow++;
+  pr.dts.push(dt); if (pr.dts.length > B.window) pr.dts.shift();
   if (pr.done) return;
-  pr.t += dt; pr.frames++;
-  if (pr.frames > B.warm) pr.dts.push(dt);
-  if (pr.t < B.probe || pr.dts.length < 5) return;
-  pr.done = true;
-  const share = pr.dts.filter((d) => d * 1000 > B.slowMs).length / pr.dts.length;
-  const level = share <= B.threeShare ? 3 : share <= B.oneShare ? 1 : 0;
-  S.slowShare = share;
-  if (level !== bloomLevel) { bloomLevel = level; spriteEpoch++; }
+  pr.t += dt;
+  if (pr.t >= B.probe) pr.done = true;
+  if (pr.dts.length < B.minFrames || S.frames % B.every) return;
+  const sorted = pr.dts.slice().sort((x, y) => x - y), q = (p) => sorted[Math.floor(p * (sorted.length - 1))] * 1000;
+  S.capped = q(0.5) >= B.capMs[0] && q(0.5) <= B.capMs[1] && q(0.9) - q(0.1) <= B.capSpread;
+  if (S.capped) return;
+  const share = sorted.filter((d) => d * 1000 > B.slowMs).length / sorted.length;
+  const want = share <= B.threeShare ? 3 : share <= B.oneShare ? 1 : 0;
+  if (want < bloomLevel) { bloomLevel = want; spriteEpoch++; }
 }
 
 const play = {
@@ -823,7 +841,7 @@ const play = {
   },
   update(dt, E) {
     const L = layout(E);
-    S.H = L.H;
+    S.H = L.H; S.exitY = L.bottom / L.s;
     probeFrames(dt);
     ensureSprites(E, L);
     for (const f of S.fx) f.t += dt;
@@ -843,6 +861,7 @@ const play = {
       if (S.rush && !b.shown && b.idx % T.burst.size === 0 && b.y + b.h * 0.4 >= L.top / L.s) { b.shown = true; S.bannerT = J.banner; if (!S.ended) tone(E, J.tones.rush); }
     }
     if (S.ended) {
+      pump(E);
       S.endT += dt;
       if (S.endT >= J.endDelay && !S.finished) { S.finished = true; E.setScene('over', S.result); }
       return;
@@ -975,7 +994,7 @@ const brief = {
     txt(E, T.brief[shift - 1], cx, top + Math.max(84, E.h * 0.11) + (T.rush.includes(shift) ? 62 : 34), TY.small, P.dim);
     const y0 = E.h * 0.42;
     if (fresh.length) {
-      txt(E, 'New today', cx, y0 - 76, TY.medium, P.organic);
+      txt(E, 'New contraband today', cx, y0 - 76, TY.medium, P.organic);
       const cw = Math.min(112, (E.w - 32) / fresh.length);
       fresh.forEach((d, i) => {
         const x = cx + (i - (fresh.length - 1) / 2) * cw, k = Math.min(1.2, 84 / d.size);
@@ -984,6 +1003,10 @@ const brief = {
         ctx.restore();
         txt(E, d.name, x, y0 + 62, TY.small, P.text);
       });
+    }
+    else if (T.tips[shift - 1]) {
+      txt(E, 'Tip', cx, y0 - 30, TY.small, P.dim);
+      txt(E, T.tips[shift - 1], cx, y0, TY.medium, P.text);
     }
     const ready = PREP && PREP.shift === shift && PREP.ready;
     this.btnStart = ready ? button(E, 'Start', cx, E.h * 0.68, { fill: P.button }, this.down === 'start', clamp((E.time - this.t0) / 0.3, 0, 1)) : null;
@@ -1015,11 +1038,12 @@ const over = {
     const shown = Math.round(r.score * ease.outCubic(clamp((k - 0.1) / J.cardCount, 0, 1)));
     txt(E, String(shown), cx, h * 0.37, TY.large, P.text);
     txt(E, r.isNew && r.score > 0 ? 'New best' : `Best ${r.best}`, cx, h * 0.37 + 40, TY.medium, P.organic);
-    txt(E, `Strikes ${r.strikes} of ${T.strikesMax}`, cx, h * 0.37 + 68, TY.medium, P.dim);
+    txt(E, `Missed ${r.misses}, false alarms ${r.falseAlarms}`, cx, h * 0.37 + 68, TY.medium, r.strikes ? P.text : P.dim);
+    txt(E, T.starRule, cx, h * 0.37 + 96, TY.small, P.dim);
     const next = cleared && r.shift < T.beltSpeed.length, grow = clamp((k - J.cardButtons) / 0.3, 0, 1);
     this.btns = {};
     if (grow <= 0) return;   // the buttons come after the beat, so a tap during it is not swallowed by one
-    let y = h * 0.55;
+    let y = h * 0.62;
     if (next) { this.btns.next = button(E, 'Next shift', cx, y, { fill: P.button }, this.down === 'next', grow); y += 68; }
     this.btns.retry = button(E, 'Retry', cx, y, next ? { fill: P.buttonQuiet } : { fill: P.button }, this.down === 'retry', grow); y += 68;
     this.btns.menu = button(E, 'Menu', cx, y, { fill: P.buttonQuiet }, this.down === 'menu', grow);
@@ -1054,7 +1078,7 @@ export const game = {
   scenes: { menu, brief, play, over },
   // Read by tools/sim-checkpoint.mjs so the harness runs the real generation, tap resolution and scoring.
   sim: {
-    ITEMS, genShift, genShiftSteps, prepare, pump, bloom: () => ({ level: bloomLevel, epoch: spriteEpoch }), readShifts, cleanShifts, visibility, outlineVisibility, layout, clampUnlocked,
+    ITEMS, genShift, genShiftSteps, prepare, pump, bloom: () => ({ level: bloomLevel, epoch: spriteEpoch }), setBloom(level) { bloomLevel = level; spriteEpoch++; }, readShifts, cleanShifts, visibility, outlineVisibility, layout, clampUnlocked,
     // Item pairs in a bag whose shapes overlap.
     overlapPairs(bag) {
       const out = [];

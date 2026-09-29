@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'checkpoint-v4';
+const CACHE_VERSION = 'checkpoint-v5';
 const ASSETS = [
   './',
   './index.html',

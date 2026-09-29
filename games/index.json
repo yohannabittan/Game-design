@@ -28,7 +28,7 @@
   {
     "slug": "checkpoint",
     "title": "Checkpoint",
-    "status": "v0.1 in progress: X-ray belt, spot the contraband",
-    "release": false
+    "status": "v0.1: ten shifts of X-ray bags, thirty items, look-alikes, rush hours, a shape card per shift",
+    "release": true
   }
 ]

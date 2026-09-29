@@ -435,7 +435,7 @@ console.log('\nJuice');
 {
   // The card: no buttons during the beat, then Retry reuses the seed and Next does not.
   const e = makeE(); e.time = 5;
-  const r = { shift: 4, seed: 12345, result: 'clear', score: 999, strikes: 0, stars: 3, best: 999, isNew: true };
+  const r = { shift: 4, seed: 12345, result: 'clear', score: 999, strikes: 0, stars: 3, best: 999, isNew: true, misses: 0, falseAlarms: 0 };
   game.scenes.over.enter(e, r);
   recordRender(e, game.scenes.over);
   game.scenes.over.onTap({ x: e.w / 2, y: e.h * 0.55 }, e);
@@ -449,6 +449,10 @@ console.log('\nJuice');
   check(e.scene === 'brief' && e.params.shift === 5, 'Next should open the shift 5 card');
   const texts = recordRender(e, game.scenes.over).filter((x) => x.text).map((x) => x.text);
   check(!texts.some((t) => /^Seed/.test(t)), 'the card no longer shows the seed line');
+  const r2 = { shift: 4, seed: 1, result: 'over', score: 10, strikes: 3, stars: 0, best: 10, isNew: false, misses: 1, falseAlarms: 2 };
+  const e5 = makeE(); e5.time = 9; game.scenes.over.enter(e5, r2); e5.time = 12;
+  const t5 = recordRender(e5, game.scenes.over).filter((x) => x.text).map((x) => x.text);
+  check(t5.includes('Missed 1, false alarms 2') && t5.includes(T.starRule) && /^3 stars: no strikes/.test(T.starRule) && !t5.some((t) => /^Strikes/.test(t)), `the end card should show the split and the star rule (${t5.join(' / ')})`);
   console.log('Card: buttons appear after the beat; Retry reuses the seed, Next starts fresh');
 }
 {
@@ -484,8 +488,7 @@ console.log('\nSprites and bloom');
   const made = []; 
   globalThis.OffscreenCanvas = class { constructor(w, h) { this.w = w; this.h = h; this.log = []; made.push(this); }
     getContext() { const log = this.log; const t = {}; return new Proxy(t, { get: (o, k) => (k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : k === 'measureText' ? () => ({ width: 100 }) : k === 'stroke' || k === 'fill' ? (p) => log.push({ item: p && p.sig ? sigOf[p.sig] : null, style: `${k}:${k === 'stroke' ? o.strokeStyle : o.fillStyle}|w${o.lineWidth}|${o.globalCompositeOperation}` }) : k in o ? o[k] : () => {}), set: (o, k, v) => { o[k] = v; return true; } }); } };
-  const settle = () => { E = makeE(); play.enter(E, { shift: 10, seed: 9 }); for (let f = 0; f < 60 * 3; f++) { play.update(1 / 60, E); E.time += 1 / 60; } };   // a fast shift puts the bloom back to 3 passes
-  settle();
+  sim.setBloom(3);
   E = makeE(); E.dpr = 3; play.enter(E, { shift: 8, seed: hashString('checkpoint-sprites') });
   let draws = 0;
   const S = sim.state();
@@ -507,17 +510,39 @@ console.log('\nSprites and bloom');
   for (const [tint, sigs] of byTint) check(sigs.size === 1, `${tint}: sprites paint with ${sigs.size} different styles`);
   check(made.filter((cv) => cv.log.some((x) => x.item)).every((cv) => cv.log.filter((x) => /source-over/.test(x.style) && /^stroke/.test(x.style)).length === 1 && cv.log.filter((x) => /lighter/.test(x.style)).length >= 2), 'each sprite: additive fill and bloom, then one non-additive core stroke');
   console.log(`  sprite path: ${made.length} sprites painted in 4 s (${first} in the first 3 s), 1 style per tint (${[...byTint.keys()].join(', ')}), core stroke non-additive`);
-  // the bloom decision: made once in the first seconds of a shift, from the median frame time, and never again that shift
-  // A frame pattern with a given share of slow (40 ms) frames among 60 fps ones.
-  const level = (slow) => { settle(); E = makeE(); play.enter(E, { shift: 10, seed: 9 }); const lv = [], dts = []; let acc = 0;
-    for (let f = 0; f < 60 * 4 && !E.scene; f++) { acc += slow; const dt = acc >= 1 ? (acc -= 1, 0.04) : 1 / 60; dts.push(dt); play.update(dt, E); E.time += dt; lv.push(sim.bloom().level); }
-    let t = 0, at = -1; lv.forEach((v, i) => { t += dts[i]; if (i && v !== lv[i - 1] && at < 0) at = t; }); return { lv, at }; };
-  const r0 = level(0), r15 = level(0.15), r40 = level(0.4);
+  // The bloom: a rolling window of frame times in the first seconds of a shift can only lower it; a steady 30 fps cap is healthy.
+  const settle2 = () => sim.setBloom(3);
+  // frames(t) gives the dt of each frame; returns the level after every frame
+  const trial = (frames, seconds = 8) => { settle2(); E = makeE(); play.enter(E, { shift: 10, seed: 9 }); const lv = [], sec = []; let t = 0;
+    for (let f = 0; t < seconds && !E.scene; f++) { const dt = frames(f, t); t += dt; play.update(dt, E); E.time += dt; lv.push(sim.bloom().level); sec.push(t); }
+    return { lv, sec, S: sim.state() }; };
+  const mix = (share, from = 0) => { let acc = 0; return (f, t) => { if (t < from) return 1 / 60; acc += share; return acc >= 1 ? (acc -= 1, 0.04) : 1 / 60; }; };
+  const monotone = (lv) => lv.every((v, i) => !i || v <= lv[i - 1]);
+  const dropAt = (r) => { const i = r.lv.findIndex((v) => v < 3); return i < 0 ? -1 : r.sec[i]; };
+  const r0 = trial(() => 1 / 60), r15 = trial(mix(0.15)), r40 = trial(mix(0.4)), rCap = trial(() => 1 / 30), rLate = trial(mix(0.4, 2.5)), rAfter = trial(mix(0.4, 5));
   check(r0.lv.at(-1) === 3 && r15.lv.at(-1) === 1 && r40.lv.at(-1) === 0, `bloom with 0, 15 and 40 percent slow frames should be 3, 1, 0 passes (got ${r0.lv.at(-1)}, ${r15.lv.at(-1)}, ${r40.lv.at(-1)})`);
-  const changes = (lv) => lv.filter((v, i) => i && v !== lv[i - 1]).length;
-  check(changes(r0.lv) === 0 && changes(r15.lv) === 1 && changes(r40.lv) === 1, 'the bloom level must change at most once in a shift');
-  console.log(`  bloom level: all frames on time stays at ${r0.lv.at(-1)} passes; 15 percent slow frames drop to ${r15.lv.at(-1)} at ${r15.at.toFixed(1)} s; 40 percent drop to ${r40.lv.at(-1)} at ${r40.at.toFixed(1)} s; no flicker afterwards`);
-  settle();
+  check([r0, r15, r40, rCap, rLate, rAfter].every((r) => monotone(r.lv)), 'the bloom level must never go up');
+  check(rCap.lv.at(-1) === 3 && rCap.S.capped, `a steady 30 fps cap should count as healthy (level ${rCap.lv.at(-1)}, capped ${rCap.S.capped})`);
+  check(rLate.lv.at(-1) < 3 && dropAt(rLate) > 2.5 && dropAt(rLate) <= T.bloom.probe + 0.5, `trouble that starts at 2.5 s should still be caught in the probe (dropped at ${dropAt(rLate).toFixed(1)} s)`);
+  check(rAfter.lv.at(-1) === 3, 'after the probe window (about 4 s) the level is left alone for the shift');
+  const nextShift = (() => { sim.setBloom(0); E = makeE(); play.enter(E, { shift: 2, seed: 3 }); for (let f = 0; f < 60 * 8; f++) { play.update(1 / 60, E); E.time += 1 / 60; } return sim.bloom().level; })();
+  check(nextShift === 0, 'a lowered level stays lowered for the session: fast frames in a later shift must not raise it');
+  console.log(`  bloom: on time stays ${r0.lv.at(-1)}; 15% slow drops to ${r15.lv.at(-1)} at ${dropAt(r15).toFixed(1)} s; 40% to ${r40.lv.at(-1)} at ${dropAt(r40).toFixed(1)} s; a steady 30 fps cap stays ${rCap.lv.at(-1)} (healthy); trouble from 2.5 s caught at ${dropAt(rLate).toFixed(1)} s; from 5 s ignored; never goes up, not even in the next shift`);
+  // A downgrade must not fall back to direct paint: stale sprites keep drawing while they are repainted in the background.
+  settle2(); made.length = 0;
+  E = makeE(); E.dpr = 3; play.enter(E, { shift: 8, seed: hashString('checkpoint-rebuild') });
+  const S9 = sim.state(), drawn = () => recordRender(E).filter((r) => r.item).length;
+  for (let f = 0; f < 60 * 3; f++) { play.update(1 / 60, E); E.time += 1 / 60; }
+  const before = made.length; sim.setBloom(1);
+  let direct = 0, framesChecked = 0, stale0 = 0;
+  const onScreen = () => S9.bags.filter((b) => !b.gone && b.y < 640 && b.y + b.h > 90).flatMap((b) => b.items);
+  stale0 = onScreen().filter((i) => i.spr && i.spr.epoch !== sim.bloom().epoch).length;
+  for (let f = 0; f < 60 * 4; f++) { play.update(1 / 60, E); E.time += 1 / 60; if (f % 6 === 0) { direct += drawn(); framesChecked++; } }
+  const staleN = onScreen().filter((i) => !i.spr || i.spr.epoch !== sim.bloom().epoch).length;
+  check(direct === 0, `after a downgrade ${direct} direct item paints happened in ${framesChecked} frames (sprites should carry on)`);
+  check(staleN === 0 && stale0 > 0, `stale sprites should be repainted in the background (${stale0} stale at the change, ${staleN} left after 4 s)`);
+  console.log(`  downgrade in the sprite path: ${stale0} sprites stale at the change, all repainted within 4 s (${made.length - before} paints), ${direct} direct paints in ${framesChecked} sampled frames`);
+  settle2();
   delete globalThis.OffscreenCanvas;
 }
 
@@ -539,6 +564,44 @@ console.log('\nEntering a shift');
   console.log(`  shift 10 whole: ${tFull.toFixed(1)} ms; spread over ${pumps + 1} frames, worst frame ${worst.toFixed(1)} ms; entering play prepared ${tEnter.toFixed(2)} ms, unprepared ${tCold.toFixed(1)} ms (node, unthrottled)`);
 }
 
+// Retry is prepared from endShift, and exits happen at the bottom safe inset.
+console.log('\nRetry and exits');
+{
+  const seed = seedOf('retry', 3, 0), e = makeE();
+  const r = run(3, seed, 60, () => [], null, e);
+  const sig = (g) => g.bags.map((b) => b.kind + ':' + b.items.map((i) => `${i.name}@${i.x.toFixed(2)},${i.y.toFixed(2)},${i.rot.toFixed(1)}`).join('|')).join('/');
+  const ready = sim.prepare(3, r.r.seed).ready;
+  check(ready, 'the shift was over but the retry shift was not ready: it should be built behind the stamp and the card');
+  const t = performance.now(); play.enter(makeE(), { shift: 3, seed: r.r.seed }); const tEnter = performance.now() - t;
+  check(sig({ bags: sim.state().bags }) === sig(sim.genShift(r.r.seed, 3)), 'the prepared retry shift must be the shift its seed makes');
+  console.log(`  retry shift ready when the card appears: ${ready}; entering it ${tEnter.toFixed(2)} ms (the stamp lasts ${T.juice.endDelay} s and the buttons come ${T.juice.cardButtons} s after the card)`);
+}
+{
+  const e = makeE(); e.safe.bottom = 34; play.enter(e, { shift: 3, seed: 21 });
+  const S = sim.state(), L = sim.layout(e);
+  check(S.exitY === undefined || Math.abs(S.exitY - L.bottom / L.s) < 1e-9, 'exit line');
+  const bag = S.bags.find((b) => b.kind === 'contra'), k = bag.items.find((i) => i.contraband);
+  for (const o of S.bags) if (o !== bag) o.gone = true;
+  // a tap in the home-indicator strip does nothing, the same tap above it catches
+  bag.y0 = (e.h - 10) / L.s - k.y - S.dist; bag.y = (e.h - 10) / L.s - k.y;
+  play.update(1 / 120, e);
+  play.onPointerDown({ x: L.ox + (30 + k.x) * L.s, y: e.h - 10 }, e);
+  check(k.state === 0 && S.catches === 0, 'a tap in the bottom safe inset must not count');
+  bag.y0 = (e.h - 60) / L.s - k.y - S.dist; bag.y = (e.h - 60) / L.s - k.y;
+  play.onPointerDown({ x: L.ox + (30 + k.x) * L.s, y: e.h - 60 }, e);
+  check(k.state === 1, 'the same tap above the strip should catch');
+  // a missed item resolves when it has left the belt at the inset, not the screen edge
+  const e2 = makeE(); e2.safe.bottom = 34; play.enter(e2, { shift: 3, seed: 21 });
+  const S2 = sim.state(); let f = 0; while (!S2.log.some((x) => x.e === 'miss') && f++ < 60 * 200) { play.update(1 / 60, e2); e2.time += 1 / 60; }
+  const m = S2.log.find((x) => x.e === 'miss'), mb = S2.bags.find((b) => b.items.some((i) => i.name === m.item && i.state === 3)), mi = mb.items.find((i) => i.name === m.item && i.state === 3);
+  const top = mb.y + mi.bb.y0, speed = T.beltSpeed[2] * T.simStep;
+  check(top >= S2.exitY && top < S2.exitY + 2 * speed && top < S2.H, `a missed item should resolve as it leaves the belt at the inset line (item top ${top.toFixed(1)}, exit ${S2.exitY.toFixed(1)}, screen ${S2.H.toFixed(1)})`);
+  console.log(`  safe inset 34 px: exit line ${S2.exitY.toFixed(1)} units against a screen edge at ${S2.H.toFixed(1)}; a miss fired with the item top at ${top.toFixed(1)}; a tap in the strip does nothing, above it catches`);
+  const J = T.juice, others = [J.tones.miss.freq, J.tones.falseAlarm[0].freq, J.tones.pass[0].freq, J.tones.pass[1].freq, J.tones.step.freq, J.tones.step.freq * J.tones.step.up ** 3, J.hum.base + J.hum.step * J.hum.maxStreak];
+  check(others.every((o) => J.tones.rush.freq / o >= 1.3), `the rush alert (${J.tones.rush.freq} Hz) should sit well away from the other tones (${others.map(Math.round)})`);
+  console.log(`  rush alert ${J.tones.rush.freq} Hz against miss ${J.tones.miss.freq}, false alarm ${J.tones.falseAlarm[0].freq}, chime ${J.tones.pass[0].freq}/${J.tones.pass[1].freq}, streak steps ${Math.round(J.tones.step.freq)} to ${Math.round(J.tones.step.freq * J.tones.step.up ** 3)}, hum up to ${J.hum.base + J.hum.step * J.hum.maxStreak} Hz`);
+}
+
 // ---------- the shift card, labels, toasts, ledger ----------
 console.log('\nCards and labels');
 {
@@ -548,8 +611,9 @@ console.log('\nCards and labels');
     let n = 0; for (; n < 100; n++) { brief.update(1 / 60, e); e.time += 1 / 60; if (sim.prepare(shift, brief.seed).ready) break; }
     const texts = recordRender(e, brief).filter((x) => x.text).map((x) => x.text);
     const want = expect[shift - 1];
-    check(want.every((n2) => texts.includes(n2)) && (want.length === 0 || texts.includes('New today')) && (want.length > 0 || !texts.includes('New today')), `shift ${shift} card should name ${want.join(', ') || 'nothing new'} (shows ${texts.join(' / ')})`);
+    check(want.every((n2) => texts.includes(n2)) && (want.length === 0 || texts.includes('New contraband today')) && (want.length > 0 || !texts.includes('New contraband today')), `shift ${shift} card should name ${want.join(', ') || 'nothing new'} (shows ${texts.join(' / ')})`);
     check(!!brief.btnStart, `shift ${shift}: Start should be ready once the shift is built`);
+    check(want.length > 0 || (T.tips[shift - 1] && texts.includes(T.tips[shift - 1]) && texts.includes('Tip')), `shift ${shift} card should fill its middle with a one-line tip`);
     check(want.length === 0 || e.ledger.entries.some((x) => x.k === 'newshapes' && x.d.shapes === want.join(',')), `shift ${shift}: a newshapes ledger entry`);
     if (shift === 1) {
       brief.onTap({ x: brief.btnStart.x + 5, y: brief.btnStart.y + 5 }, e);
@@ -557,7 +621,7 @@ console.log('\nCards and labels');
     }
     if (shift === 10) console.log(`  shift 10 card: ${texts.filter((x) => x !== 'X-RAY').join(' / ')}`);
   }
-  console.log('  cards: shift 1 knife/scissors/gun, 2 hammer/lighter, 3 large liquid/batteries, 4 fireworks, 5 taser, 6 box cutter, 7 to 10 a note only');
+  console.log('  cards: shift 1 knife/scissors/gun, 2 hammer/lighter, 3 large liquid/batteries, 4 fireworks, 5 taser, 6 box cutter, 7 to 10 a tip');
   // first-timer labels
   E = makeE(); play.enter(E, { shift: 2, seed: 4 });
   const S = sim.state();
@@ -592,11 +656,16 @@ console.log('\nCards and labels');
   // the ledger (ADR-0016): a shift result with every count, a retry, a quit, the shapes seen
   const e = makeE(), r = run(4, seedOf('ledger', 4, 0), 60, centreBot(), null, e);
   const rec = e.ledger.entries.find((x) => x.k === 'shift');
-  const need = ['shift', 'seed', 'result', 'score', 'strikes', 'missed', 'falseAlarms', 'stars', 'catches', 'passes', 'time'];
+  const need = ['shift', 'seed', 'result', 'score', 'strikes', 'missed', 'falseAlarms', 'stars', 'catches', 'passes', 'time', 'bloom', 'slow', 'capped', 'dpr', 'missedItems', 'falseItems'];
   check(rec && need.every((f) => f in rec.d && (typeof rec.d[f] === 'number' || typeof rec.d[f] === 'string')), `the shift ledger entry needs ${need.join(', ')} (has ${rec && Object.keys(rec.d)})`);
   E = makeE(); play.enter(E, { shift: 3, seed: 5 }); play.onPause(E);
   check(E.ledger.entries.some((x) => x.k === 'quit') && E.scene === 'menu', 'leaving mid-shift should write a quit entry and return to the menu');
-  console.log(`  ledger: shift ${JSON.stringify(rec.d)}; quit written on pause`);
+  const e3 = makeE(); e3.dpr = 3; const rr = run(3, seedOf('ledger', 3, 1), 60, tapAllBot(), null, e3), rec3 = e3.ledger.entries.find((x) => x.k === 'shift').d;
+  const sv = sim.state();
+  check(rec3.dpr === 3 && rec3.falseItems === sv.log.filter((x) => x.e === 'false').map((x) => x.item).join(',') && rec3.falseItems.length > 0 && rec3.falseAlarms === sv.log.filter((x) => x.e === 'false').length, `the ledger should name the false-alarmed items (${rec3.falseItems})`);
+  const e4 = makeE(), rn = run(3, seedOf('ledger', 3, 2), 60, () => [], null, e4), rec4 = e4.ledger.entries.find((x) => x.k === 'shift').d;
+  check(rec4.missedItems.split(',').length === rec4.missed && rec4.missedItems.split(',').every((n) => sim.ITEMS.some((i) => i.name === n && i.contraband)), `the ledger should name the missed contraband (${rec4.missedItems})`);
+  console.log(`  ledger: shift ${JSON.stringify(rec.d)}; a tap-all shift adds falseItems=${rec3.falseItems}, dpr=${rec3.dpr}; a never-tap shift adds missedItems=${rec4.missedItems}; quit written on pause`);
 }
 {
   // hardening: malformed saves read as empty; colours meet the contrast floors
