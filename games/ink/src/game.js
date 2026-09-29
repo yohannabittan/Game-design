@@ -84,6 +84,7 @@ const TUNING = {
     slipFlashSec: 0.45, slipPopSec: 0.3, slipPopFrom: 1.5, // Outline red flash, counter pop
     slipShake: 2, slipShakeSec: 0.08, slipHaptic: 20, ruinHaptic: 50, slipBurst: 6, // Screen kick on a slip (px, seconds) and the phone's buzz (ms); the third slip buzzes longer
     flinchAmp: 3, flinchSec: 0.25,           // The body flinches: the piece jolts this many design units away from the needle and settles in this long (one flinch per slip, never stacked)
+    partFreq: 880, partFreqStep: 110, partDur: 0.09, partGain: 0.06, partBurst: 9, // The chime when a part of a stencil in parts is complete (rising with the part's number) and its burst of specks
     thudFreq: 82, thudSlide: 0.55, thudDur: 0.16, thudGain: 0.3, // The low thud under the slip sound
     pctStepFrom: 1.1, pctStepSec: 0.18,      // Whole-percent step at or past the first star threshold
     pctThresholdFrom: 1.35, pctThresholdSec: 0.32, pctStarSec: 0.7, // Crossing a star threshold: bigger pop and the number turns star colour
@@ -134,8 +135,8 @@ const TUNING = {
     ink: { tile: 96, widthTol: 0.8, sheenAlpha: 0.27, haloPad: 3, haloAlpha: 0.06, blitMargin: 8 }, // Sheen pattern size and strength; bleed: how far past a stroke it reaches (design units) and how faint each stamp of it is; margin around the stencil that is blitted
     story: { delay: 0.35, sec: 0.55, facetFrom: 95, facetWidth: 1.8, facetAlpha: 0.9, glintSize: 11, swirlWidth: 2.6, swirlAlpha: 0.9, bannerText: 'LOVE', bannerTilt: -0.07 }, // Card decorations: reveal timing, the percent the gem facets start showing
     machine: { needleLen: 9, needleW: 1.4, nozzleTopW: 3.2, nozzleW: 9, nozzleEnd: 29, bandLen: 3, neckEnd: 46, neckW: 13, gripEnd: 98, gripW: 25, tailEnd: 128, tailW: 15, cableW: 4.5, cableAlpha: 0.85, shadowDx: 3, shadowDy: 4, shadowAlpha: 0.3, knurl: 5 }, // Pen-style machine, screen px from the needle tip down to the cable
-    hud: { plateAlpha: 0.5, plateH: 46, pipGap: 22, pipR: 7, pipW: 3.2, ring: 38, ringW: 4, ringTrack: 0.28, amberAt: 1 / 3, timerBig: 100 }, // The timer's ring (radius, width, faint track alpha), when it turns amber (share of the time left), the slip plate; a timer of timerBig or more seconds uses the smaller numeral
-    menu: { margin: 16, rowsSeen: 3, penHalf: 57, tilt: 0.03, tileWant: 116, tileMin: 100, tileMax: 132, titleMin: 0.55, topPad: 8, rowH: 44, gapTag: 8, gapDaily: 10, dailyH: 52, gapPlay: 10, playH: 52, soundW: 56, missionsW: 124, botPad: 10, warmMs: 3, bootFrames: 5, slackTop: 0.4, numH: 22, badgeW: 46, badgeH: 18, cleanW: 56, pinR: 4.5, cardR: 5, fiberDensity: 0.0032, boardMaxDpr: 1.5, tab: { w: 74, y: 10, h: 32 } }, // Flash-sheet menu: tile heights it wants, its limits and the title's, gaps and button heights (44 px at least), and the engine's TUNE tab it must clear
+    hud: { plateAlpha: 0.5, plateH: 46, pipGap: 22, pipR: 7, pipW: 3.2, ring: 38, ringW: 4, ringTrack: 0.28, amberAt: 1 / 3, ringHide: 0.002, timerBig: 100 }, // The timer's ring (radius, width, faint track alpha), when it turns amber (share of the time left), the slip plate; a timer of timerBig or more seconds uses the smaller numeral
+    menu: { margin: 16, rowsSeen: 3, penHalf: 57, penMin: 0.25, hintSwW: 30, hintSwH: 14, hintSwDy: 8, hintLabelDy: 8, tilt: 0.03, tileWant: 116, tileMin: 100, tileMax: 132, titleMin: 0.55, topPad: 8, rowH: 44, gapTag: 8, gapDaily: 10, dailyH: 52, gapPlay: 10, playH: 52, soundW: 56, missionsW: 124, botPad: 10, warmMs: 3, bootFrames: 5, slackTop: 0.4, numH: 22, badgeW: 46, badgeH: 18, cleanW: 56, pinR: 4.5, cardR: 5, fiberDensity: 0.0032, boardMaxDpr: 1.5, tab: { w: 74, y: 10, h: 32 } }, // Flash-sheet menu: tile heights it wants, its limits and the title's, gaps and button heights (44 px at least), and the engine's TUNE tab it must clear
     missions: { top: 60, rowH: 60, rowGap: 8, headH: 30, medalR: 18, bottom: 16, backW: 76, backH: 44, scrollBar: 3 }, // Missions screen: the list scrolls under the heading row, which holds Back (top left, clear of the toast at the bottom)
     // Skins (PRD v0.5 section F): data entries, each earned by one badge and never by grind. A machine skin overrides the machine palette and adds one decoration to the same
     // silhouette; an ink skin overrides the ink, its sheen, gloss and bleed halo. Anything a skin leaves out is the default palette. The outline, the hint and the slip colours never change.
@@ -158,7 +159,8 @@ const TUNING = {
     },
     badge: { h: 32, w: 320, popSec: 0.3, delay: 0.25, medalR: 11, max: 3, gap: 4, stagger: 0.12 }, // The badge tickets over the result card: up to max, stacked upward, highest tier first
     title: { size: 92, w: 280, h: 130, glyphHalf: 100, glyphTop: 22, seed: 4242, passes: 18, jitter: 1.7, edge: 2.4, edgePasses: 7, streaks: 90, streakMin: 14, streakMax: 64, shadowDx: 4, shadowDy: 4, swash: 8 }, // Brush-stroke title
-    card: { h: 318, landH: 36, w: 340, pad: 14, topPad: 26, pieceGap: 46, sidePad: 34, minScale: 0.5, maxScale: 1, starR: 17, starGap: 44, stampW: 112, stampH: 34, stampTilt: -0.1, blushMargin: 48, blushScale: 0.9, blush: 0.42, blushBlur: 34 }, // Result card
+    card: { h: 318, landH: 36, w: 340, pad: 14, topPad: 26, pieceGap: 46, sidePad: 34, minScale: 0.3, maxScale: 1, starR: 17, starGap: 44, stampW: 112, stampH: 34, stampTilt: -0.1, blushMargin: 48, blushScale: 0.9, blush: 0.42, blushBlur: 34 }, // Result card
+    blot: { rim: 2, specks: 3, speckAngle: 0.9, speckStep: 2.1, speckDist: 5, speckR: 2.2, core: 0.35 }, // The blot mark (radius is TUNING.blotRadius): dark rim beyond the disc, the specks around it (count, first angle, angle step, distance beyond the disc, size), the dark core as a share of the radius
     star: { inner: 0.45, sheen: 0.55 }, // Ink stars
   },
 };
@@ -350,14 +352,14 @@ const BADGES = [
   { id: 'first-ink', tier: 0, name: 'First Ink', text: 'Pass any stencil', rule: { on: 'any', stat: 'stars', min: 1 } },
   { id: 'steady-hand', tier: 0, name: 'Steady Hand', text: 'Clean pass on any stencil', rule: { on: 'any', stat: 'clean', min: 1 } },
   { id: 'five-stars', tier: 0, name: 'Five Stars', text: 'Five stars on any stencil', rule: { on: 'any', stat: 'stars', min: 5 } },
-  { id: 'steady-landing', tier: 1, name: 'Steady Landing', text: 'All landings clean, in parts', rule: { on: 'any', stat: 'steady', min: 1 } },
+  { id: 'steady-landing', tier: 1, name: 'Steady Landing', text: 'Split set done, all clean', rule: { on: 'any', stat: 'steady', min: 1 } },
   { id: 'cornered', tier: 1, name: 'Cornered', text: 'Clean pass on the Star', rule: { on: 'one', of: 'Star', stat: 'clean', min: 1 } },
   { id: 'thin-line', tier: 1, name: 'Thin Line', text: 'Five stars on the Crescent', rule: { on: 'one', of: 'Crescent', stat: 'stars', min: 5 } },
   { id: 'two-edges', tier: 1, name: 'Two Edges', text: 'Clean pass on the Halo', rule: { on: 'one', of: 'Halo', stat: 'clean', min: 1 } },
   { id: 'flash-sheet', tier: 1, name: 'Flash Sheet', text: 'Three stars on the first ten', rule: { on: 'all', from: 0, to: 10, stat: 'stars', min: 3 } },
   { id: 'serpent', tier: 2, name: 'Serpent', text: 'Clean five stars, the Snake', rule: { on: 'one', of: 'Snake', stat: 'cs', min: 5 } },
   { id: 'bone', tier: 2, name: 'Bone', text: 'Clean five stars, the Skull', rule: { on: 'one', of: 'Skull', stat: 'cs', min: 5 } },
-  { id: 'set-piece', tier: 2, name: 'Set Piece', text: 'Five stars on all split sets', rule: { on: 'parts', stat: 'stars', min: 5 } },
+  { id: 'set-piece', tier: 2, name: 'Set Piece', text: 'Five stars on all split sets', rule: { on: 'parts', stat: 'split', min: 5 } },
   { id: 'full-sleeve', tier: 2, name: 'Full Sleeve', text: 'Five stars on every stencil', rule: { on: 'all', from: 0, to: 15, stat: 'stars', min: 5 } },
   // Tricks (PRD v0.6 section G) are earned by how one attempt was played, so each is a function of that attempt: `a` is what toCard sees (daily, pct, stars, ruined, failed, clean,
   // lifts99 = finger lifts before 99 percent was reached (-1 if never), used and total seconds, hintOff, maxR = the widest ink radius laid). Only Second Skin is earned on the daily.
@@ -367,7 +369,7 @@ const BADGES = [
   { id: 'featherweight', tier: 3, name: 'Featherweight', text: 'Clean pass, never full width', trick: (a) => !a.daily && !a.failed && a.clean && a.maxR < T.needleR * T.wideScale * T.fullWidthShare },
   { id: 'second-skin', tier: 3, name: 'Second Skin', text: 'The daily at 100%', trick: (a) => a.daily && !a.ruined && a.pct === 100 },
 ];
-const statOf = (p, i, stat) => (stat === 'clean' ? (p.clean[i] ? 1 : 0) : stat === 'steady' ? (p.land && p.land[i] && p.land[i].ok ? 1 : 0) : p[stat][i] || 0);
+const statOf = (p, i, stat) => (stat === 'clean' ? (p.clean[i] ? 1 : 0) : stat === 'steady' ? (p.land && p.land[i] && p.land[i].ok ? 1 : 0) : stat === 'split' ? (p.land && p.land[i] && p.land[i].st) || 0 : p[stat][i] || 0);
 // How far a badge is: { have, need } stencils meeting its rule.
 function badgeProgress(b, p) {
   const r = b.rule;
@@ -599,12 +601,12 @@ function fxSlip(E, x, y) {
 function fxPart(E, i) {
   if (!E.tween) return;
   S.fx.partT = E.time;
-  E.audio.beep({ freq: 880 + 110 * i, dur: 0.09, type: 'triangle', gain: 0.06 });
+  E.audio.beep({ freq: J.partFreq + J.partFreqStep * i, dur: J.partDur, type: 'triangle', gain: J.partGain });
   const g = S.g, cs = T.cellSize;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (let k = 0; k < g.part.length; k++) if (g.part[k] === i + 1) { const cx = g.x0 + (k % g.cols) * cs, cy = g.y0 + Math.floor(k / g.cols) * cs; x0 = Math.min(x0, cx); x1 = Math.max(x1, cx); y0 = Math.min(y0, cy); y1 = Math.max(y1, cy); }
   const [sx, sy] = toScreen(E, (x0 + x1) / 2, (y0 + y1) / 2);
-  emit(E, sx, sy, J.burstPer * 3, SK.i.gloss, J.burstSpeed, J.burstLife, J.burstSize);
+  emit(E, sx, sy, J.partBurst, SK.i.gloss, J.burstSpeed, J.burstLife, J.burstSize);
 }
 
 // The stencil ended: sounds, haptic and the end-of-piece effects. The card follows after endHold.
@@ -1372,10 +1374,10 @@ function drawPiece(ctx, E, v, ct) {
   for (const k of S.marks) {
     if (!k.blot) continue;
     const R = T.blotRadius;
-    ctx.fillStyle = P.slipShadow; ctx.beginPath(); ctx.arc(k.x, k.y, R + 2, 0, TAU); ctx.fill();
+    ctx.fillStyle = P.slipShadow; ctx.beginPath(); ctx.arc(k.x, k.y, R + A.blot.rim, 0, TAU); ctx.fill();
     ctx.fillStyle = P.slip; ctx.beginPath(); ctx.arc(k.x, k.y, R, 0, TAU); ctx.fill();
-    for (let i = 0; i < 3; i++) { const a = 0.9 + i * 2.1, d = R + 5; ctx.fillStyle = P.slip; ctx.beginPath(); ctx.arc(k.x + Math.cos(a) * d, k.y + Math.sin(a) * d, 2.2, 0, TAU); ctx.fill(); }
-    ctx.fillStyle = P.slipShadow; ctx.beginPath(); ctx.arc(k.x, k.y, R * 0.35, 0, TAU); ctx.fill();
+    for (let i = 0; i < A.blot.specks; i++) { const a = A.blot.speckAngle + i * A.blot.speckStep, d = R + A.blot.speckDist; ctx.fillStyle = P.slip; ctx.beginPath(); ctx.arc(k.x + Math.cos(a) * d, k.y + Math.sin(a) * d, A.blot.speckR, 0, TAU); ctx.fill(); }
+    ctx.fillStyle = P.slipShadow; ctx.beginPath(); ctx.arc(k.x, k.y, R * A.blot.core, 0, TAU); ctx.fill();
   }
   ctx.restore();
   if (fk) ctx.restore();
@@ -1606,7 +1608,7 @@ function miniPath(idx) {
 
 // ---------- Progress (saved) ----------
 // unlocked: highest unlocked stencil index. best: percentage per stencil. stars: best stars per stencil. clean: a zero-slip pass per stencil. cs: best stars of a zero-slip
-// pass per stencil. land: { idx: { n, c, ok } } landings, clean landings and a pass with all landings clean, for stencils in parts. badges: { id: true } once earned. skin: { machine, ink } skin ids (each counts only while its badge is earned). daily: { 'YYYY-MM-DD': { idx, vi, first, best } } for the last dailyKeep days.
+// pass per stencil. land: { idx: { n, c, ok, st } } landings, clean landings, a finished pass with all landings clean and the best stars of a finished pass, for stencils in parts. badges: { id: true } once earned. skin: { machine, ink } skin ids (each counts only while its badge is earned). daily: { 'YYYY-MM-DD': { idx, vi, first, best } } for the last dailyKeep days.
 
 function progress(E) {
   const best = E.save.get('best', {}), stars = E.save.get('stars', {}), clean = E.save.get('clean', {}), cs = E.save.get('cs', {}), badges = E.save.get('badges', {}), land = E.save.get('land', {});
@@ -1616,15 +1618,16 @@ function progress(E) {
   return { best, stars, clean, cs, badges, land, unlocked, total };
 }
 
-function recordResult(E, idx, { pct, stars, ruined, clean, landings, cleanLand, steady }) {
+function recordResult(E, idx, { pct, stars, ruined, clean, landings, cleanLand, steady, done }) {
   const p = progress(E);
   if (!ruined && pct > (p.best[idx] || 0)) E.save.set('best', { ...p.best, [idx]: pct });
   if (stars > (p.stars[idx] || 0)) E.save.set('stars', { ...p.stars, [idx]: stars });
   if (clean && !p.clean[idx]) E.save.set('clean', { ...p.clean, [idx]: true });
   if (clean && stars > (p.cs[idx] || 0)) E.save.set('cs', { ...p.cs, [idx]: stars }); // best stars of a zero-slip pass (the Serpent and Bone badges)
   if (landings) { // stencils in parts: lifetime landings and clean landings, and whether any pass had every landing clean (the Steady Landing badge)
-    const o = p.land[idx] || { n: 0, c: 0, ok: 0 };
-    E.save.set('land', { ...p.land, [idx]: { n: o.n + landings, c: o.c + cleanLand, ok: o.ok || (steady ? 1 : 0) } });
+    const o = p.land[idx] || { n: 0, c: 0, ok: 0, st: 0 };
+    // st: best stars of a pass with every part complete, made on the split version (stars saved before a stencil was split never count toward Set Piece)
+    E.save.set('land', { ...p.land, [idx]: { n: o.n + landings, c: o.c + cleanLand, ok: o.ok || (steady ? 1 : 0), st: Math.max(o.st || 0, done ? stars : 0) } });
   }
   if (stars >= 1) E.save.set('unlocked', Math.max(p.unlocked, Math.min(idx + 1, STENCILS.length - 1)));
 }
@@ -1700,7 +1703,7 @@ const menu = {
     ctx.drawImage(titleLayer(E), cx - (A.title.w * Y.ts) / 2, Y.y0, A.title.w * Y.ts, A.title.h * Y.ts);
     // The pen sits left of the title, below the engine's EXPORT tab (top left, 72 x 44) and above the count row, so it is never under either.
     { const penTop = E.safe.top + 4 + 44 + 6, rowTop = Y.rowY - M.rowH / 2 - 2, k = Math.min(clamp((cx - A.title.glyphHalf * Y.ts - m - 8) / 60, 0.3, A.skins.swatch.pen), (rowTop - penTop) / (2 * M.penHalf));
-      if (k >= 0.25) drawPen(ctx, m + (cx - A.title.glyphHalf * Y.ts - m) / 2 - 2, (penTop + rowTop) / 2, k); }
+      if (k >= M.penMin) drawPen(ctx, m + (cx - A.title.glyphHalf * Y.ts - m) / 2 - 2, (penTop + rowTop) / 2, k); }
     // Where the INK title really is, for the release channel's five title taps (ADR-0016).
     Object.assign(this.titleBox, { x: cx - A.title.glyphHalf * Y.ts, y: Y.y0, w: 2 * A.title.glyphHalf * Y.ts, h: A.title.h * Y.ts });
     { const ex = E._exportTab, tb = this.titleBox; if (ex && tb.x < ex.x + ex.w + 2 && tb.y < ex.y + ex.h) { const cut = ex.x + ex.w + 2 - tb.x; tb.x += cut; tb.w -= cut; } } // keep the title's tap box off the EXPORT tab
@@ -1833,8 +1836,8 @@ function hintButton(ctx, cx, cy, w, h, on) {
   ctx.globalAlpha = L.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, x + L.shadowDx, y + L.shadowDy, w, h, L.radius); ctx.fill(); ctx.globalAlpha = 1;
   ctx.beginPath(); rr(ctx, x, y, w, h, L.radius); ctx.fillStyle = P.paperShade; ctx.fill();
   ctx.lineWidth = L.weight; ctx.strokeStyle = P.ink; ctx.beginPath(); rr(ctx, x + 4, y + 4, w - 8, h - 8, L.radius - 4); ctx.globalAlpha = 0.55; ctx.stroke(); ctx.globalAlpha = 1;
-  label(ctx, 'HINT', cx, cy - 8, FONT.small, on ? P.textDark : P.textMute);
-  const sw = 30, sh = 14, sx = cx - sw / 2, sy = cy + 8;
+  label(ctx, 'HINT', cx, cy - A.menu.hintLabelDy, FONT.small, on ? P.textDark : P.textMute);
+  const M = A.menu, sw = M.hintSwW, sh = M.hintSwH, sx = cx - sw / 2, sy = cy + M.hintSwDy;
   ctx.beginPath(); rr(ctx, sx, sy, sw, sh, sh / 2); ctx.fillStyle = on ? P.stencilDeep : P.lock; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = P.ink; ctx.stroke();
   ctx.beginPath(); ctx.arc(on ? sx + sw - sh / 2 : sx + sh / 2, sy + sh / 2, sh / 2 - 2, 0, TAU); ctx.fillStyle = P.paper; ctx.fill(); ctx.stroke();
   return { x, y, w, h };
@@ -1949,7 +1952,7 @@ function drawHud(ctx, E) {
   ctx.lineCap = 'round'; ctx.lineWidth = H.ringW;
   ctx.globalAlpha = H.ringTrack; ctx.strokeStyle = P.cream; ctx.beginPath(); ctx.arc(cx, ty, rr_, 0, TAU); ctx.stroke();
   ctx.globalAlpha = 1;
-  if (left > 0.002) { ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(cx, ty, rr_, -Math.PI / 2 + TAU * (1 - clamp(left, 0, 1)), -Math.PI / 2 + TAU); ctx.stroke(); }
+  if (left > H.ringHide) { ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(cx, ty, rr_, -Math.PI / 2 + TAU * (1 - clamp(left, 0, 1)), -Math.PI / 2 + TAU); ctx.stroke(); }
   const tk = S.started && !S.ended && S.time <= J.timerPulseSecs ? pop(now - f.secT, J.timerPulseSec, J.timerPulseFrom) : 1, sec = Math.ceil(S.time), big = sec >= H.timerBig;
   plabel(ctx, NUM[sec], cx, ty + 2, tk, big ? FONT.mid : FONT.timer, col, 'center', (big ? A.type.mid : A.type.timer) * o * 0.6, P.ink);
   // Percentage: pops on each whole-percent step from the first star threshold up, harder on a threshold, and glows star colour after one.
@@ -1995,7 +1998,7 @@ const play = {
     const pct = percent(), ruined = S.ended === 'ruined';
     const stars = ruined ? 0 : starsFor(pct);
     const failed = ruined || pct < T.passPercent;
-    const clean = !failed && S.slips === 0, landings = S.landings, cleanLand = S.cleanLand, steady = !failed && landings > 0 && cleanLand === landings;
+    const clean = !failed && S.slips === 0, landings = S.landings, cleanLand = S.cleanLand, done = S.ended === 'full', steady = done && landings > 0 && cleanLand === landings; // steady: every part complete and every landing clean
     const a = { daily: S.daily, pct, stars, ruined, failed, clean, lifts99: S.lifts99, used: S.total - S.time, total: S.total, hintOff: S.hintOff, maxR: S.maxR };
     const res = { stencil: S.st.name, percent: pct, stars, clean, slips: S.slips, blots: blotsOf(), landings, clean_landings: cleanLand, time: +a.used.toFixed(1), preset: presetName(), hint: !S.hintOff, ended: S.ended, daily: S.daily };
     ledger(E, 'result', res);
@@ -2004,17 +2007,17 @@ const play = {
       const wasFirst = (E.save.get('daily', {})[S.dailyKey] || { first: -1 }).first < 0, rec = recordDaily(E, S.dailyKey, pct, ruined);
       const tr = trickBadges(a), fresh = BADGES.filter((b) => tr[b.id] && !had[b.id]);
       if (fresh.length) E.save.set('badges', { ...had, ...tr });
-      S.tickets = Math.min(fresh.length, A.badge.max);
+      S.tickets = ticketFit(E, fresh.length);
       ledger(E, 'daily', { stencil: S.st.name, variant: S.st.variant, percent: pct, first: wasFirst, best: rec ? rec.best : pct, ruined });
       for (const b of fresh) ledger(E, 'badge', { badge: b.name, tier: BADGE_TIERS[b.tier], stencil: S.st.name });
       E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: rec ? rec.first : pct, boss: S.st.boss, daily: true, ruined, wasFirst, last: false, starsUp: false, newBadges: byTier(fresh), landings, cleanLand });
       return;
     }
     const starsUp = stars > (progress(E).stars[S.idx] || 0);
-    recordResult(E, S.idx, { pct, stars, ruined, clean, landings, cleanLand, steady });
+    recordResult(E, S.idx, { pct, stars, ruined, clean, landings, cleanLand, steady, done });
     const now = { ...earnedBadges(progress(E)), ...trickBadges(a) }, fresh = BADGES.filter((b) => now[b.id] && !had[b.id]);
     if (fresh.length) E.save.set('badges', { ...had, ...now });
-    S.tickets = Math.min(fresh.length, A.badge.max);
+    S.tickets = ticketFit(E, fresh.length);
     for (const b of fresh) ledger(E, 'badge', { badge: b.name, tier: BADGE_TIERS[b.tier], stencil: S.st.name });
     E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp, newBadges: byTier(fresh), landings, cleanLand });
   },
@@ -2063,6 +2066,14 @@ const cardBoxFor = (E, b) => {
 };
 // Where the finished piece sits on the card: as large as fits above the paper card, never larger than it was in play.
 const CB = { x: 0, y: 0, w: 0, h: 0 };
+// How many badge tickets can stack over the card and still leave the piece its minimum scale (never covering it): as many as were earned, up to badge.max, fewer where the
+// screen is short.
+function ticketFit(E, want) {
+  const C = A.card, B = A.badge, b = cardBoxFor(E, CB), bb = bboxOf(S.idx), top = E.safe.top + C.topPad;
+  let n = Math.min(want, B.max);
+  while (n > 1 && (b.y - C.pieceGap - (n - 1) * (B.h + B.gap) - top) / bb.h < C.minScale) n--;
+  return n;
+}
 function cardViewFor(E, out) {
   const C = A.card, b = cardBoxFor(E, CB), bb = bboxOf(S.idx), top = E.safe.top + C.topPad, bot = b.y - C.pieceGap - Math.max(0, S.tickets - 1) * (A.badge.h + A.badge.gap);
   out.s = clamp(Math.min((E.w - 2 * C.sidePad) / Math.max(bb.w, STORY_W[S.st.story] || 0), (bot - top) / bb.h), C.minScale, C.maxScale * view(E).s);
@@ -2156,7 +2167,7 @@ const over = {
   // The badge tickets over the card: a paper strip per new badge (up to max, the highest tier nearest the card) with the tier's medal and the badge's name; "+n" counts the ones
   // that did not fit. Each pops in a beat after the one below it.
   drawBadge(ctx, E, panelY, age) {
-    const B = A.badge, L = A.line, bg = this.p.newBadges, n = Math.min(bg.length, B.max), w = Math.min(B.w, E.w - 2 * A.card.pad), h = B.h, cx = E.w / 2;
+    const B = A.badge, L = A.line, bg = this.p.newBadges, n = Math.min(bg.length, S.tickets), w = Math.min(B.w, E.w - 2 * A.card.pad), h = B.h, cx = E.w / 2;
     for (let i = 0; i < n; i++) {
       const cy = panelY - 8 - h / 2 - i * (h + B.gap), k = pop(age - i * B.stagger, B.popSec, 0.5);
       if (age - i * B.stagger < 0) continue;
@@ -2270,5 +2281,5 @@ export const game = {
   start: 'menu',
   scenes: { menu, play, over, missions },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
-  sim: { stencils: STENCILS, prep: prepStencil, landings: () => S.landings, cleanLand: () => S.cleanLand, parts: () => (S.g.part ? S.partDone.slice() : null), partPct: () => S.partN.map((n, i) => (100 * n) / S.g.partTotal[i]), timerFor, dailyTimer: () => dailyTimer(DAILY_ST), skins: () => ({ machine: SK.m.id, ink: SK.i.id }), percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, time: () => S.time, total: () => S.total, grid: () => S.g, radius: () => S.r, maxR: () => S.maxR, lifts99: () => S.lifts99, hint: () => S.hint, computeHint },
+  sim: { stencils: STENCILS, prep: prepStencil, landings: () => S.landings, cleanLand: () => S.cleanLand, parts: () => (S.g.part ? S.partDone.slice() : null), partPct: () => S.partN.map((n, i) => (100 * n) / S.g.partTotal[i]), timerFor, dailyTimer: () => dailyTimer(DAILY_ST), skins: () => ({ machine: SK.m.id, ink: SK.i.id }), percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, time: () => S.time, total: () => S.total, grid: () => S.g, radius: () => S.r, tickets: () => S.tickets, maxR: () => S.maxR, lifts99: () => S.lifts99, hint: () => S.hint, computeHint },
 };
