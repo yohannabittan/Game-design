@@ -198,10 +198,17 @@ const TUNING = {
   art: {
     palette: {
       space: '#070b19',      // Letterbox (the engine reads TUNING.bg, set below) and the deepest sky
-      field: '#0e1631',      // The play field
       starCool: '#dbeafe',
       starWarm: '#fde68a',
-      nebula: ['#3346a8', '#0f7490', '#2f5d9e', '#7a3560'], // Indigo, teal, steel, dusty plum; never green, purple or orange
+      // One per sector of art.sectors: the play field and its nebula tints (never green or orange; sector 2's purples are
+      // deep and dim so they never read as gravity); meteor streaks, the whale's rim and the twin suns' glows.
+      sectors: [
+        { field: '#0e1631', nebula: ['#3346a8', '#0f7490', '#2f5d9e', '#7a3560'] },
+        { field: '#120f30', nebula: ['#4c2a85', '#3b2f8f', '#5b2a6e', '#2e2a78'] },
+        { field: '#0c1630', nebula: ['#0f7490', '#2f5d9e', '#1e3a8a'], streak: '#dbeafe' },
+        { field: '#090e22', nebula: ['#1e2a5a', '#233a6b'], whale: '#04060f', whaleRim: '#94a3b8' },
+        { field: '#0b0d24', nebula: ['#7a3560', '#5a3a7a'], suns: ['#f59e0b', '#e0527a'] },
+      ],
       // Three meanings: green is the goal, purple is gravity, orange is danger and full power.
       green: '#22c55e', greenLight: '#bbf7d0', ink: '#04110a', // ink is the text on green
       purple: '#a855f7',
@@ -238,13 +245,47 @@ const TUNING = {
         { n: 30, r0: 0.8, r1: 1.4, drift: 6, alphas: [0.4, 0.6, 0.85] },
       ],
       margin: 12,          // Stars are laid out this far beyond the field so the drift never shows an edge
-      warmChance: 0.15,    // Share of stars in the warm bucket
       flares: 4,           // Bright stars with a small cross
       flareLen: 3.6,
       flareAlpha: 0.55,
-      nebulae: [1, 2],     // Soft gradients per hole, one or two from the seed
-      nebAlpha: [0.2, 0.32],
-      nebR: [50, 90],
+    },
+    // Sectors (PRD v0.5 C): holes grouped by sectorSize share a backdrop. stars scales the star counts, warmChance is the
+    // share of warm stars, nebulae is how many soft gradients a hole gets (from its seed). A hole past the last keeps it.
+    sectorSize: 5,
+    sectors: [
+      { name: 'Starfield', stars: 1, warmChance: 0.15, nebulae: [1, 2], nebAlpha: [0.2, 0.32], nebR: [50, 90] },
+      { name: 'Nebula', stars: 1, warmChance: 0.1, nebulae: [3, 4], nebAlpha: [0.18, 0.28], nebR: [80, 140] },
+      { name: 'Meteor shower', stars: 1, warmChance: 0.15, nebulae: [1, 1], nebAlpha: [0.16, 0.24], nebR: [50, 80], meteors: true },
+      { name: 'Deep space', stars: 0.7, warmChance: 0.05, nebulae: [0, 1], nebAlpha: [0.12, 0.18], nebR: [60, 100], whale: true },
+      { name: 'Binary sunrise', stars: 0.8, warmChance: 0.4, nebulae: [1, 2], nebAlpha: [0.12, 0.2], nebR: [60, 100], sunrise: true },
+    ],
+    meteors: {
+      period: 6,           // Seconds between showers
+      count: 4,            // Streaks per shower
+      stagger: 0.35,       // Seconds between streak starts
+      life: 0.7,           // Seconds a streak is visible
+      speed: 420,          // Design units per second
+      len: [50, 95],       // Tail length
+      angle: [2.1, 2.5],   // Heading in radians (down and to the left)
+      alpha: 0.55,         // Head alpha at the middle of its life; the tail fades to nothing. Dimmer than the brightest stars.
+      width: 1.4,
+    },
+    whale: {
+      period: 60,          // One pass a minute
+      cross: 40,           // Seconds a pass takes; the rest of the minute the sky is empty
+      size: 150,           // Length in design units
+      y: 0.3,              // Height as a share of the field
+      bob: 8,              // Slow rise and fall over a pass
+      alpha: 0.8,
+      rimAlpha: 0.14,
+      rimW: 1,
+    },
+    sunrise: {
+      suns: [ // Centres below the field's bottom edge (x as a share of the width, dy below the edge), radius; only the glow rises
+        { x: 0.32, dy: 40, r: 190 },
+        { x: 0.74, dy: 70, r: 150 },
+      ],
+      alpha: 0.1,
     },
     planet: {
       lowMass: 0.75,       // Below this: plain with a few craters
@@ -502,6 +543,7 @@ const LEVELS = [
   {
     // Boss: land on the planet, time the moon to get through the door, then time the comet to cross the top lane past the black hole into the cup. three: (10, 53) lands on the planet's upper left at (114.7, 407.7); (-112, 100) at clock 0.8 (full power; the route still finishes for release clocks 0.1 to 1.8 of the 3.2 s moon cycle, 18 of 32 tried; otherwise the moon turns it away) rests at (327.3, 175.1); (-84, 68) at clock 0.5 (finishes for clocks 0.35 to 0.75 of the 1.2 s comet cycle, 9 of 24 tried; otherwise the comet knocks it away) banks off the right wall, crosses the top lane over the pillar, bounces off the ceiling and drops through the black hole's ring into the cup; aim window 7.0 degrees (-2.50 / +4.50), drag 100.1 px to full power. Sweep: 0 straight sinks. Lesson not carried: the straight line at the cup is walled, not swallowed.
     // v0.4 (PRD v0.4 A, C): under the influence ring every shot of the v0.3 route changed (its black hole pulled across the whole field); the pillar top drops from y 90 to 120 (a wider top lane) and the comet now falls through the lane at x 200 (from y -20 to 110, r 18, 1.2 s) instead of running along the ceiling, so the last shot has a wide window at the right clock and misses on the rest. The black hole moves down from y 190 to 215, over the gap at the left end of the long wall: a timed two-stroke shortcut up that gap, whipped round the black hole into the cup (a 4 degree untimed second shot), is now swallowed.
+    // v0.5 (v17): no first shot lands on the planet at every clock (the moon orbits it), so the first shot is timed as on hole 10, the most forgiving one found: (13, 74) at clock 2.9 lands on the planet and the route finishes for release clocks 2.0 to 0.5 through the loop (1.8 s of the 3.2 s moon cycle, 18 of 32 tried); then (-112, 100) at clock 1.5 (clocks 0.6 to 2.4, 1.9 s of 3.2 s, 19 of 32) and (-84, 68) at clock 0.5 (clocks 0.25 to 0.7, 0.5 s of the 1.2 s comet cycle, 10 of 24). Level data unchanged.
     name: "Collapse", boss: true, stars: { three: 3, two: 5 },
     ball: { x: 40, y: 610 }, hole: { x: 80, y: 100 },
     walls: [{ x: 30, y: 250, w: 242, h: 22 }, { x: 250, y: 120, w: 22, h: 130 }, { x: 245, y: 390, w: 115, h: 22 }], planets: [{ x: 130, y: 450, r: 36, mass: 0.8 }], suns: [], blackholes: [{ x: 28, y: 215 }], movers: [{ type: "moon", parent: 0, orbitR: 74, period: 3.2, r: 13, mass: 0.45, phase: 0 }, { type: "comet", a: { x: 200, y: -20 }, b: { x: 200, y: 110 }, period: 1.2, r: 18 }],
@@ -1044,15 +1086,32 @@ function tintG(ctx, t) {
   return g;
 }
 
-// ----- Sky: two parallax star layers, bright stars and one or two nebulae, seeded per hole -----
+// ----- Sky: two parallax star layers, bright stars, nebulae and the sector's feature, seeded per hole -----
+
+function sectorOf(idx) { return Math.min(Math.floor(idx / A.sectorSize), A.sectors.length - 1); }
+
+// A whale facing right, one unit long, centred on the origin.
+function whalePath() {
+  const w = new Path2D();
+  w.moveTo(0.5, 0.02);
+  w.bezierCurveTo(0.48, -0.14, 0.2, -0.2, -0.05, -0.16);
+  w.bezierCurveTo(-0.2, -0.13, -0.32, -0.05, -0.4, -0.02);
+  w.lineTo(-0.49, -0.13); w.lineTo(-0.45, 0); w.lineTo(-0.49, 0.11); w.lineTo(-0.4, 0.02);
+  w.bezierCurveTo(-0.25, 0.08, -0.05, 0.16, 0.2, 0.14);
+  w.bezierCurveTo(0.4, 0.12, 0.5, 0.1, 0.5, 0.02);
+  w.closePath();
+  w.moveTo(0.12, 0.13); w.lineTo(0.02, 0.27); w.lineTo(0.06, 0.13); w.closePath();
+  return w;
+}
 
 const SKY = new Map();
-function buildSky(ctx, key) {
-  const sk = A.sky, rng = makeRng(hashString(`sky:${key}`)), m = sk.margin, w = T.designW + 2 * m, h = T.designH + 2 * m;
+function buildSky(ctx, key, sector) {
+  const sk = A.sky, sec = A.sectors[sector], pal = P.sectors[sector], rng = makeRng(hashString(`sky:${key}`));
+  const m = sk.margin, w = T.designW + 2 * m, h = T.designH + 2 * m;
   const layers = sk.layers.map((L) => {
     const buckets = L.alphas.map((a, i) => ({ path: new Path2D(), a, c: i === L.alphas.length - 1 ? P.starWarm : P.starCool }));
-    for (let i = 0; i < L.n; i++) {
-      const b = buckets[rng() < sk.warmChance ? buckets.length - 1 : rng.int(0, buckets.length - 2)];
+    for (let i = 0, n = Math.round(L.n * sec.stars); i < n; i++) {
+      const b = buckets[rng() < sec.warmChance ? buckets.length - 1 : rng.int(0, buckets.length - 2)];
       const x = rng.range(-m, w - m), y = rng.range(-m, h - m), r = rng.range(L.r0, L.r1);
       b.path.moveTo(x + r, y); b.path.arc(x, y, r, 0, PI2);
     }
@@ -1064,25 +1123,79 @@ function buildSky(ctx, key) {
     flare.dots.moveTo(x + 1.2, y); flare.dots.arc(x, y, 1.2, 0, PI2);
     flare.cross.moveTo(x - L, y); flare.cross.lineTo(x + L, y); flare.cross.moveTo(x, y - L); flare.cross.lineTo(x, y + L);
   }
-  const first = rng.int(0, P.nebula.length - 1);
-  const neb = Array.from({ length: rng.int(...sk.nebulae) }, (_, i) => {
-    const c = P.nebula[(first + i * rng.int(1, P.nebula.length - 1)) % P.nebula.length];
+  const cols = pal.nebula, first = rng.int(0, cols.length - 1);
+  const neb = Array.from({ length: rng.int(...sec.nebulae) }, (_, i) => {
+    const c = cols[(first + i * rng.int(1, cols.length - 1)) % cols.length];
     return {
-      x: rng.range(0, T.designW), y: rng.range(0, T.designH), r: rng.range(...sk.nebR), a: rng.range(...sk.nebAlpha),
+      x: rng.range(0, T.designW), y: rng.range(0, T.designH), r: rng.range(...sec.nebR), a: rng.range(...sec.nebAlpha),
       g: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.45, rgba(c, 0.45), 1, rgba(c, 0)]),
     };
   });
-  const s = { layers, flare, neb };
+  const s = { key, sec, pal, layers, flare, neb, streaks: null, shower: -1, streakG: null, whale: null, suns: null };
+  if (sec.meteors) {
+    s.streaks = Array.from({ length: A.meteors.count }, () => ({ x: 0, y: 0, c: 0, s: 0, len: 0 }));
+    s.streakG = linear(ctx, 0, 0, 1, 0, [0, rgba(pal.streak, 0), 1, rgba(pal.streak, 1)]);
+  }
+  if (sec.whale) s.whale = whalePath();
+  if (sec.sunrise) s.suns = pal.suns.map((c) => radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.35, rgba(c, 0.5), 1, rgba(c, 0)]));
   SKY.set(key, s);
   return s;
 }
 
-// Draws the field for a hole. (ox, oy) is where the ball is on the field, -1 to 1; the layers drift against it.
-function drawField(ctx, key, ox, oy) {
+// A new shower re-rolls its streaks from the hole's seed and the shower's number.
+function rollShower(s, n) {
+  const M = A.meteors, rng = makeRng(hashString(`meteor:${s.key}:${n}`));
+  s.shower = n;
+  for (let i = 0; i < s.streaks.length; i++) {
+    const k = s.streaks[i], a = rng.range(...M.angle);
+    k.x = rng.range(T.designW * 0.2, T.designW * 1.1); k.y = rng.range(-20, T.designH * 0.45);
+    k.c = Math.cos(a); k.s = Math.sin(a); k.len = rng.range(...M.len);
+  }
+}
+
+function drawMeteors(ctx, s, t) {
+  const M = A.meteors, n = Math.floor(t / M.period), u = t - n * M.period;
+  if (u > M.stagger * (M.count - 1) + M.life) return;
+  if (n !== s.shower) rollShower(s, n);
+  ctx.strokeStyle = s.streakG; ctx.lineWidth = M.width; ctx.lineCap = 'round';
+  for (let i = 0; i < s.streaks.length; i++) {
+    const k = s.streaks[i], v = (u - i * M.stagger) / M.life;
+    if (v <= 0 || v >= 1) continue;
+    const d = v * M.life * M.speed;
+    ctx.save(); ctx.translate(k.x + k.c * d, k.y + k.s * d); ctx.rotate(Math.atan2(k.s, k.c)); ctx.scale(k.len, 1);
+    ctx.globalAlpha = M.alpha * Math.sin(Math.PI * v);
+    ctx.beginPath(); ctx.moveTo(-1, 0); ctx.lineTo(0, 0); ctx.stroke(); ctx.restore();
+  }
+}
+
+function drawWhale(ctx, s, t) {
+  const W = A.whale, u = (t % W.period) / W.cross;
+  if (u >= 1) return;
+  const x = lerp(-W.size, T.designW + W.size, u), y = T.designH * W.y + Math.sin(u * PI2) * W.bob;
+  ctx.save(); ctx.translate(x, y); ctx.scale(W.size, W.size);
+  ctx.globalAlpha = W.alpha; ctx.fillStyle = s.pal.whale; ctx.fill(s.whale);
+  ctx.globalAlpha = W.rimAlpha; ctx.strokeStyle = s.pal.whaleRim; ctx.lineWidth = W.rimW / W.size; ctx.stroke(s.whale);
+  ctx.restore();
+}
+
+function drawSunrise(ctx, s) {
+  const R = A.sunrise;
+  ctx.globalAlpha = R.alpha;
+  for (let i = 0; i < R.suns.length; i++) {
+    const o = R.suns[i];
+    ctx.save(); ctx.translate(T.designW * o.x, T.designH + o.dy); ctx.scale(o.r, o.r);
+    ctx.fillStyle = s.suns[i]; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill(); ctx.restore();
+  }
+}
+
+// Draws the field for a hole of the given sector at time t (seconds, cosmetic only). (ox, oy) is where the ball is on
+// the field, -1 to 1; the layers drift against it.
+function drawField(ctx, key, sector, ox, oy, t) {
   if (!G) G = buildGradients(ctx);
-  const s = SKY.get(key) || buildSky(ctx, key), sk = A.sky;
-  ctx.fillStyle = P.field;
+  const s = SKY.get(key) || buildSky(ctx, key, sector), sk = A.sky;
+  ctx.fillStyle = s.pal.field;
   ctx.fillRect(0, 0, T.designW, T.designH);
+  if (s.suns) drawSunrise(ctx, s);
   for (let i = 0; i < s.neb.length; i++) {
     const n = s.neb[i];
     ctx.save(); ctx.translate(n.x, n.y); ctx.scale(n.r, n.r);
@@ -1090,6 +1203,7 @@ function drawField(ctx, key, ox, oy) {
   }
   for (let i = 0; i < s.layers.length; i++) {
     const L = s.layers[i];
+    if (i === s.layers.length - 1 && s.whale) drawWhale(ctx, s, t);
     ctx.save(); ctx.translate(-ox * L.drift, -oy * L.drift);
     for (let j = 0; j < L.buckets.length; j++) { const b = L.buckets[j]; ctx.globalAlpha = b.a; ctx.fillStyle = b.c; ctx.fill(b.path); }
     if (i === s.layers.length - 1) {
@@ -1098,6 +1212,7 @@ function drawField(ctx, key, ox, oy) {
     }
     ctx.restore();
   }
+  if (s.streaks) drawMeteors(ctx, s, t);
   ctx.globalAlpha = 1;
 }
 
@@ -1962,7 +2077,7 @@ const menu = {
   update(dt) { if (this.pop) this.t += dt; },
   render(ctx, E) {
     const v = coverView(E), p = progress(E), cx = E.w / 2, tl = A.tile, M = A.menu;
-    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0); ctx.restore();
+    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0, 0, E.time); ctx.restore();
     const ty = Math.max(E.h * 0.09, E.safe.top + M.tabBottom + M.titleGap); // below the engine's TUNE tab on a notched phone
     E.text('GRAVITY GOLF', cx, ty, TX.big);
     const tw0 = ctx.measureText('GRAVITY GOLF').width + 16, TA = this.titleBox; // release: five taps on the title open TUNE (ADR-0016)
@@ -2046,7 +2161,7 @@ const missions = {
   },
   render(ctx, E) {
     const M = A.missions, V = this.area(E), p = progress(E), m = M.margin, w = E.w - 2 * m, v = coverView(E);
-    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0); ctx.restore();
+    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0, 0, E.time); ctx.restore();
     E.text('Missions', m, E.safe.top + 32, TX.bigL);
     E.text(`${BADGES.filter((b) => p.badges[b.id]).length} / ${BADGES.length}`, E.w - m, E.safe.top + 32, TX.valueGoalR);
     this.scroll = clamp(this.scroll, 0, V.max);
@@ -2190,7 +2305,7 @@ const play = {
     ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, T.designW, T.designH); ctx.clip();
-    drawField(ctx, FX.skyKey, (b.x / T.designW - 0.5) * 2, (b.y / T.designH - 0.5) * 2);
+    drawField(ctx, FX.skyKey, sectorOf(S.idx), (b.x / T.designW - 0.5) * 2, (b.y / T.designH - 0.5) * 2, t);
     for (let i = 0; i < mv.length; i++) {
       const m = mv[i];
       if (m.type === 'moon') {
@@ -2333,7 +2448,7 @@ const over = {
   },
   render(ctx, E) {
     const p = this.p, cx = E.w / 2, t = this.t, v = coverView(E);
-    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, this.sky, 0, 0); ctx.restore();
+    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, this.sky, sectorOf(p.hole), 0, 0, E.time); ctx.restore();
     ctx.save(); ctx.translate(0, (1 - this.slide) * E.h * J.cardSlideFrac);
     const pw = Math.min(E.w - 32, 340), py = E.h * 0.085;
     E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + 80 + 44 - py, A.line.card, P.card, p.boss ? P.bossAccent : P.slate);

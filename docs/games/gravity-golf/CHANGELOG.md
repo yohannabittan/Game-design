@@ -1,6 +1,26 @@
 # Gravity Golf changelog
 
 ## v0.5 (unreleased)
+- PRD v0.5 C (sectors) and hole 15's timed first shot, built by Opus 5.5; cache `gravity-golf-v17`. D and E are not built. Review: pending
+- **Sectors** (C). Holes come in sectors of five (`art.sectorSize`). Each sector has its own backdrop settings in `art.sectors` and colours in `art.palette.sectors`, and one style sentence under the anchor in `style.md`. The backdrop is drawn behind everything and nothing in it touches the physics.
+  - 1 Starfield (holes 1 to 5): the v16 sky, pixel for pixel. Same seeds and settings.
+  - 2 Nebula (6 to 10): three or four large, dim clouds in deep purples and indigos over a slightly darker field. They stay dim so they never read as gravity.
+  - 3 Meteor shower (11 to 15): a teal-navy sky. Every 6 s (`meteors.period`) four faint streaks cross it, heading down and to the left. Each streak is seeded from the hole and the shower's number, is cosmetic only and allocates nothing per frame. The brightest streak pixel (L 0.21) is dimmer than the brightest v15 star (L 0.74).
+  - 4 Deep space (16 to 20) and 5 Binary sunrise (21 to 25) are data only, since those holes do not exist yet. Deep space is a near-black field with sparse stars and a whale silhouette with a faint rim. The whale is darker than the sky and crosses once a minute (`whale.period` 60, a 40 s pass). Binary sunrise has two glows, amber and rose, rising from below the bottom edge (`sunrise.alpha` 0.1) into a dusky plum sky with warm stars.
+  - The first sunrise try (glow 0.2 over a lighter field) raised the backdrop under hole 15's tee. That dropped the ball there to 13.1:1 from 14.9:1, so the glow and the field were dimmed until it was back at 15.0:1.
+- **Contrast re-measured per sector** at 390 x 844 in Chromium, with the same method on v16 (the v15 backdrop) as the reference. Hole 12 was drawn with each sector's backdrop in turn (it holds the ring and the violet finder), and hole 15's bottom tee was used for the ball.
+  - Influence ring dashes, median: reference 5.87:1; sectors 5.87 / 5.98 / 5.87 / 6.15 / 6.16.
+  - Rest ring: reference 3.75:1; sectors 3.75 / 3.75 / 3.75 / 3.86 / 3.84. The meteor sector reads 3.74 in a mid-shower frame taken at another animation time.
+  - Violet finder dots, median: reference 6.24:1; sectors 6.24 / 6.25 / 6.27 / 6.72 / 6.73. The faintest component is unchanged.
+  - Ball body against the brightest nearby backdrop, hole 12 / hole 15: reference 14.9 / 14.9; nebula 15.4 / 15.0, meteor 14.9 / 14.9, deep space 16.0 / 16.0, sunrise 16.0 / 15.0.
+  - Backdrop alone with stars filtered out (9 x 9 median), the brightest point over each sector's five holes: v16 0.026 across all 15 holes; sectors 0.023 / 0.018 / 0.022 / 0.008 / 0.010. Mean: v16 0.0092; sectors 0.0091 / 0.0076 / 0.0088 / 0.0049 / 0.0053. No sector's backdrop is brighter anywhere than the v15 starfield's.
+- **Frame time, 4x CPU throttle** (Chromium CDP), meteor sector, 13 s of aiming (two showers), then a drag and a flight. `_tick` (update plus render JS) means were 0.65 / 0.64 / 0.65 ms on hole 13 and 0.65 / 0.91 / 0.95 ms on hole 12, with p95 at most 3.3 ms. One idle spike reached 16.1 ms. The v16 build, measured the same way on the same holes, averaged 0.66 to 1.39 ms with spikes up to 22.6 ms.
+- **Hole 15's first shot is timed**, as on hole 10 (the designer's decision on the v16 finding). The route is now (13, 74) at clock 2.9, then (-112, 100) at clock 1.5, then (-84, 68) at clock 0.5. The level data is unchanged. Clock windows:
+  - Shot 1 finishes the route for release clocks 2.0 to 0.5 across the loop: 1.8 s of the 3.2 s moon cycle, 18 of 32 tried.
+  - Shot 2: clocks 0.6 to 2.4, 1.9 s of 3.2 s, 19 of 32. Its release clock moved from 0.8 to 1.5, the middle of its window from the new landing spot.
+  - Shot 3: clocks 0.25 to 0.7, 0.5 s of the 1.2 s comet cycle, 10 of 24.
+  - Every window is more than a third of its cycle. `--three` 36/36, `--windows` 7.15 degrees and 49.9 px (neighbours at least 6.95 degrees and 44.1 px). `--sweep` at clocks 0, 0.5, 1.5 and 2.9 finds 0 straight sinks. `--escape` and `--two-shot` pass with no untimed route. Noisy human: 91.0 percent.
+  - Hole 6's sun mass is kept, pending the designer's call on soft misses.
 - PRD v0.5 A2 (fixes from the v15 gate) and B (suns have mass), built by Opus 5.5; cache `gravity-golf-v16`. C, D and E are not built. Hole 15's first shot is still clock-sensitive: see the last bullet. Review: pending
 - **Suns have mass** (B). A sun pulls like a planet of mass `sunMass` (1.6, or the sun's own `mass`) with the distance floored at `sunPullR`. TUNE has a Sun mass slider (0 to 3).
   - `sunPullR` is 60, a builder choice. At 40 a ball resting on a small sun could not shoot 250 units clear (hole 14 reached 211), which is the capture the PRD rules out. At 60 a sun's floor pull matches the heaviest planet's at its surface and stays far under a black hole's.
