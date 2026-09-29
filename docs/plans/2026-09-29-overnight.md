@@ -29,6 +29,10 @@ Rules for the night: one builder per game file at a time; content shards produce
 4. Art layer: the gun as a proper silhouette per gun, targets with a paper-target look, tracer and muzzle flash styled, a range backdrop with a horizon.
 5. Experiment for tomorrow: handling presets, "Steady" (low kick, low sway), "Standard", "Wild" (high kick, high sway).
 
+## Unlockables (added 2026-09-29, late)
+
+Every game gets skins as unlockables, earned by badges, never by grind: Gravity Golf ball skins and trail colours; Ink machine skins and ink colours; Recoil gun skins. Each skin is procedural in the art layer (a palette and a shape variant), so it costs a data entry, not an asset. Missions screens list skins next to badges. Recoil's art layer moves up: the guns need a proper silhouette before anything else on that game.
+
 ## Order of operations
 
 Gravity Golf art and Ink art start now (files are free). Ink stencil shards start now (data only). Recoil waits for its reviewer, then fixes, then progression. Gravity Golf v0.3 objects wait for the art layer to land. Missions layers run last on each game. Reviews after every layer.
