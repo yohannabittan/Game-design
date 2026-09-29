@@ -1,9 +1,9 @@
-// Gravity Golf v0.2: planets, suns, rotating bars and orbiting moons on the v0.1 mechanic, juice, scenes and the space look.
+// Gravity Golf v0.3: planets, suns, rotating bars, orbiting moons, comets and black holes on the v0.1 mechanic, juice, scenes and the space look.
 // Slingshot aim, fixed-step ball physics, strokes against per-hole star thresholds, the hole card, hole select.
 
 import { makeRng, hashString, ease, clamp, lerp, dist } from './engine.js';
 
-// Design-space units unless stated. Names match PRD v0.1 section 16 and v0.2 section E; the rest are marked.
+// Design-space units unless stated. Names match PRD v0.1 section 16, v0.2 section E and v0.3 section E; the rest are marked.
 const TUNING = {
   designW: 360,          // Design space width
   designH: 640,          // Design space height
@@ -24,6 +24,12 @@ const TUNING = {
   landSpeed: 60,         // Below this speed, a ball touching a planet comes to rest on it
   moonMassMax: 0.5,      // Cap on moon mass
   barAngularSpeed: 1.2,  // Radians per second for a rotating bar (clockwise on screen)
+  cometR: 10,            // Comet radius (unless the comet sets `r`)
+  cometPush: 0.8,        // Fraction of the comet's velocity added to the ball on contact
+  holeR2: 26,            // Black hole horizon radius (unless the black hole sets `r`)
+  bhMass: 1.4,           // Black hole pull strength as a planet mass (unless the black hole sets `mass`)
+  bhPullR: 26,           // Distance below which a black hole's pull stops growing (equals the horizon)
+  bhPenalty: 1,          // Strokes per swallow
   previewFullHoles: 3,   // Holes 1 to this show the full preview
   previewFullSeconds: 2.0,   // Length of the full preview in simulated seconds
   previewShortSeconds: 0.4,  // Length of the preview after the full-preview holes
@@ -39,6 +45,9 @@ const TUNING = {
   // Builder additions, not in the PRD tables.
   barW: 8,               // Rotating bar thickness
   sunRearm: 9,           // A sun touch counts again only once the ball has left its surface by this much
+  cometRearm: 9,         // A comet kicks the ball again only once the ball has left its surface by this much
+  hudH: 48,              // HUD stack height below the safe top (screen px); Retry sits below it, the field below both
+  hudGap: 6,             // Gap between Retry and the field's edge wall (screen px)
   borderW: 8,            // Drawn thickness of the edge walls, kept on screen by view()
   retryW: 64,            // Retry button size (screen px)
   retryH: 44,
@@ -111,6 +120,21 @@ const TUNING = {
     flareLife: 0.4,
     flareSize: 3,
     sunHaptic: 30,
+    // Comets
+    cometHaptic: 20,
+    cometSparkCount: 14,
+    cometSparkSpeed: 220,
+    cometSparkLife: 0.4,
+    cometSparkSize: 3,
+    cometShake: 2.5,       // Screen px
+    cometShakeTime: 0.1,
+    // Black holes
+    swallowTime: 0.7,      // Seconds the ball spirals into the horizon before it returns to its last rest
+    swallowTurns: 1.25,    // Turns it makes on the way in (clockwise, with the swirl)
+    swallowHaptic: 45,
+    swallowVol: 0.6,
+    bhFlareTime: 0.6,
+    returnFade: 0.35,      // The ball fades in at its last rest
     // Boss banner
     bannerTime: 1.5,
     bannerIn: 0.25,
@@ -180,11 +204,14 @@ const TUNING = {
         { light: '#fbcfe8', mid: '#d946ef', dark: '#86198f' },
       ],
       bossAccent: '#e879f9', bannerBg: '#1a0d2e',
-      moon: { light: '#f8fafc', mid: '#cbd5e1', dark: '#64748b' }, moonCrater: '#94a3b8',
+      moon: { light: '#c9d6ea', mid: '#8b9dbb', dark: '#46587a' }, moonCrater: '#5f7294', // cool blue-grey: the ball is the only white sphere
+      amber: '#fbbf24', // the range finder warms white to amber; orange is kept for full power
       orange: '#f97316', sunCore: '#fffbeb', sunMid: '#fde047', sunRim: '#ea580c', sunRay: '#fdba74',
       slate: '#64748b', slateLight: '#94a3b8', slateDark: '#334155', slateDeep: '#1e293b', // Walls, bars, bumpers, border
       white: '#ffffff', ballMid: '#e2e8f0', ballEdge: '#a3b1c6', ballRim: '#0b1226', ballSpin: '#5f6f8a',
       trail: '#e0ecff', shadow: '#02040c',
+      cometCore: '#ecfeff', cometHead: '#67e8f9', cometTail: '#22d3ee', // comets are cyan: a fast body with no pull
+      bhCore: '#000000', bhRim: '#c4b5fd', bhSwirl: '#8b5cf6', bhGlow: '#6d28d9', // black holes are gravity (purple) with no surface
       cupDeep: '#02060a', cupEdge: '#0b1f15',
       text: '#f1f5f9', textDim: '#a3aec2', textOff: '#64748b',
       card: '#0c1330', tile: '#16203d', tileLocked: '#0a1024', tileLockedEdge: '#1b2440', retryOff: '#141c33', starOff: '#475569',
@@ -216,7 +243,7 @@ const TUNING = {
       craters: [3, 5], bands: [3, 5], ringBands: 2,
       bandAlpha: [0.14, 0.28],
       craterAlpha: 0.32,
-      ringR: 1.68, ringW: 0.15, ringInner: 1.4, ringInnerW: 0.06, ringAlpha: 0.5, ringTilt: 0.5, ringSquash: [0.26, 0.36],
+      ringR: 1.3, ringW: 0.1, ringInner: 1.14, ringInnerW: 0.05, ringAlpha: 0.5, ringTilt: 0.5, ringSquash: [0.26, 0.36], // outer edge 1.35 radii
     },
     sun: {
       raysA: 12, lenA: 2.0,   // Long rays, in sun radii (short ones are three quarters as long)
@@ -228,6 +255,22 @@ const TUNING = {
       shimmerAlpha: 0.5,
     },
     metal: { bevel: 1.5, boltMin: 16, boltR: 1.9, railW: 6 },
+    comet: {
+      tail: 48,               // Tail length (design units); it grows from nothing at the start of the path
+      tailW: 0.9,             // Tail half-width at the head, in comet radii
+      glowR: 2.4,             // Head glow, in comet radii
+      pathAlpha: 0.16,        // The faint dashed path from a to b
+    },
+    blackhole: {
+      arms: 3, armTurns: 0.45, reach: 2.3, // Swirl arms: count, turns from the outer end to the horizon, outer radius in horizon radii
+      swirlRate: 0.55,        // Radians per second, clockwise
+      ringRate: 0.45,         // Inward drifting rings per second
+      rings: 3, ringAlpha: 0.55,
+      armAlpha: 0.5,
+      lens: 1.7, lensAlpha: 0.5, // Soft purple glow just outside the horizon
+      rimW: 2.2,              // Horizon ring width (design units)
+      flareGrow: 0.5,         // Extra glow radius at the start of a swallow flare, in horizon radii
+    },
     ball: {
       shadowDx: 2.4, shadowDy: 3.4, shadowR: 1.25, shadowAlpha: 0.6, // Offset toward the lower right, in design units at rest size
       rim: 1.1,               // Thin dark rim so the white ball holds against pale planets
@@ -273,7 +316,11 @@ TUNING.bg = TUNING.art.palette.space; // the engine reads TUNING.bg for the lett
 //     { type: 'slide', w, h, a: { x, y }, b: { x, y }, period? }: a wall easing from a to b and back (period defaults to moverPeriod).
 //     { type: 'bar', x, y, len, phase }: a bar of length len spinning about its centre at barAngularSpeed; phase is its angle (radians) at clock 0.
 //     { type: 'moon', parent, orbitR, period, r, mass, phase }: a small planet circling planets[parent] clockwise; phase is its angle at clock 0.
-//   A ball never comes to rest where a mover would sweep it (a bar's disc, a moon's orbit band, a slide's path); it waits
+//     { type: 'comet', a: { x, y }, b: { x, y }, period, r? }: a body crossing from a to b in period seconds, then back at a;
+//       no pull; contact adds cometPush times its velocity to the ball on top of a wallBounce reflection. r defaults to cometR.
+//   blackholes: { x, y, r?, mass? }: pulls like a planet of mass `mass` (bhMass) with the distance floored at bhPullR; a ball
+//     whose centre crosses the horizon (r, holeR2) is swallowed: bhPenalty strokes and back to where the shot started.
+//   A ball never comes to rest where a mover would sweep it (a bar's disc, a moon's orbit band, a slide's or comet's path); it waits
 //   there until the part knocks it on. A ball that lands on a moon rides it. So keep tees, cups and other objects clear of
 //   those zones, keep orbitR at least parent r + moon r + 2 ball radii, and keep moon orbits clear of walls and suns.
 // Drag vectors in the comments are screen px (finger moves dx right, dy down); the ball flies the opposite way.
@@ -315,16 +362,18 @@ const LEVELS = [
     walls: [{ x: 73, y: 264, w: 22, h: 196 }, { x: 238, y: 470, w: 122, h: 22 }], planets: [{ x: 188, y: 435, r: 32, mass: 1.1 }, { x: 188, y: 223, r: 36, mass: 1.5 }], suns: [], movers: [],
   },
   {
-    // Teaches choosing the safe side: a sun sits in front of the tee and shuts the short near-side lane (no near-side sink at one stroke), so go the long way round the far side with more power. three: drag (-91, 100), one shot, passing 30 from the surface; sinks over 8.9 degrees of aim and 118 to 147 px. two: (-46, 39) lands on the planet, then (-3, 90). Sweep (0.5 degrees, 5 px): 0 straight sinks.
+    // Teaches choosing the safe side: a sun sits in front of the tee and shuts the short near-side lane (no near-side sink at one stroke), so go the long way round the far side with more power. three: drag (-91, 100), one shot, passing 30 from the surface; sinks over 8.85 degrees of aim and 118 to 147 px. two: (-46, 39) lands on the planet, then (-3, 90). Sweep (0.5 degrees, 5 px): 0 straight sinks.
+    // v0.3: the sun moved from (100, 470) to (61, 469), 182 from the planet centre instead of 158, so the planet presses a soft miss into it less: soft shots (15 to 75 px) aimed at the sun or the cup now charge 1 (680) or 2 (7), never 3 (they charged 2 in 180 and 3 in 12 before).
     name: "Solar Flare", boss: false, stars: { three: 1, two: 3 },
     ball: { x: 90, y: 570 }, hole: { x: 230, y: 190 },
-    walls: [{ x: 0, y: 300, w: 70, h: 22 }], planets: [{ x: 190, y: 340, r: 40, mass: 1 }], suns: [{ x: 100, y: 470, r: 40 }], movers: [],
+    walls: [{ x: 0, y: 300, w: 70, h: 22 }], planets: [{ x: 190, y: 340, r: 40, mass: 1 }], suns: [{ x: 61, y: 469, r: 40 }], movers: [],
   },
   {
-    // Teaches bumper banks: mass 0 planets do not pull, so aim by where the ball rebounds. three: drag (-120, 72), one shot, glancing off the bumper beside the tee, then the floor, then up into the cup (2 bounces); sinks over 5.8 degrees of aim and 135 px to full power. two: (-60, -67) then (-2, 40). Sweep (0.5 degrees, 5 px): 0 straight sinks.
-    name: "Pinball", boss: false, stars: { three: 1, two: 3 },
+    // Teaches bumper banks: mass 0 planets do not pull, so aim by where the ball rebounds. three: drag (-120, 72), one shot, glancing off the bumper beside the tee, then the floor, then up into the cup (2 bounces); sinks over 5.2 degrees of aim and 135 px to full power. two: (-80, 0) rolls to (294, 592), then (-2, 70). Sweep (0.5 degrees, 5 px): 0 straight sinks.
+    // v0.3: a half-sunk floor bumper right of the tee closes the floor-bank ace (an 18 degree cluster around drag (-84, -86)): one-shot sinks that bank off the floor first fell from 320 to 2 (widest 1 degree), all one-shot sinks from 536 to 283; the widest aim cluster is now the route's own bumper bank (8.5 degrees at full power).
+    name: "Pinball", boss: false, stars: { three: 1, two: 2 },
     ball: { x: 122, y: 592 }, hole: { x: 299, y: 404 },
-    walls: [{ x: 0, y: 399, w: 175, h: 22 }], planets: [{ x: 171, y: 527, r: 36, mass: 0 }, { x: 91, y: 151, r: 31, mass: 0 }, { x: 240, y: 247, r: 28, mass: 0 }], suns: [], movers: [],
+    walls: [{ x: 0, y: 399, w: 175, h: 22 }], planets: [{ x: 171, y: 527, r: 36, mass: 0 }, { x: 91, y: 151, r: 31, mass: 0 }, { x: 240, y: 247, r: 28, mass: 0 }, { x: 150, y: 640, r: 24, mass: 0 }], suns: [], movers: [],
   },
   {
     // Teaches timing a slingshot: a sliding door hangs in the exit lane and the whip only works while it is raised. three: drag (0, 120) released at clock 1.25 (window about 1.0 to 1.6 s of the 2.4 s cycle), one shot, passing 25 from the surface; sinks over 5.7 degrees of aim and 115 to 127 px. Fired at clock 0 to 0.9 the ball hits the door. two: (-19, 108) at clock 0 lands on the planet, then (-18, 129) at clock 1.25. Sweep at clocks 0, 0.5, 1.0, 1.25, 1.5, 2.0: 0 straight sinks.
@@ -344,11 +393,17 @@ const LEVELS = [
     ball: { x: 60, y: 590 }, hole: { x: 60, y: 130 },
     walls: [{ x: 0, y: 178, w: 290, h: 22 }, { x: 120, y: 70, w: 22, h: 108 }], planets: [{ x: 180, y: 400, r: 52, mass: 1.2 }], suns: [{ x: 140, y: 548, r: 20 }], movers: [{ type: "moon", parent: 0, orbitR: 96, period: 4, r: 12, mass: 0.4, phase: 0 }],
   },
+  // Holes 11 to 15 (PRD v0.3 B) are pasted here from the content shards.
 ];
-// Clamps a hole to the size and mass limits; also applied by tools/sim-golf.mjs to a shard's JSON.
+// Clamps a hole to the size and mass limits and fills the optional fields; also applied by tools/sim-golf.mjs to a shard's JSON.
 function prepareLevel(lv) {
+  lv.blackholes = lv.blackholes || [];
   for (const p of lv.planets) p.r = Math.max(p.r, T.planetMinR);
-  for (const m of lv.movers) if (m.type === 'moon') m.mass = Math.min(m.mass, T.moonMassMax);
+  for (const h of lv.blackholes) { if (h.r === undefined) h.r = T.holeR2; if (h.mass === undefined) h.mass = T.bhMass; }
+  for (const m of lv.movers) {
+    if (m.type === 'moon') m.mass = Math.min(m.mass, T.moonMassMax);
+    else if (m.type === 'comet' && m.r === undefined) m.r = T.cometR;
+  }
   return lv;
 }
 LEVELS.forEach(prepareLevel);
@@ -373,6 +428,14 @@ function moonAt(lv, m, clock) {
   const c = Math.cos(a), s = Math.sin(a);
   PART.x = p.x + c * m.orbitR; PART.y = p.y + s * m.orbitR;
   PART.vx = -s * m.orbitR * w; PART.vy = c * m.orbitR * w;
+  return PART;
+}
+
+// A comet's centre and velocity: a to b at constant speed once per period, then back at a.
+function cometAt(m, clock) {
+  const per = m.period || T.moverPeriod, k = (clock % per) / per;
+  PART.x = lerp(m.a.x, m.b.x, k); PART.y = lerp(m.a.y, m.b.y, k);
+  PART.vx = (m.b.x - m.a.x) / per; PART.vy = (m.b.y - m.a.y) / per; PART.k = k;
   return PART;
 }
 
@@ -435,10 +498,31 @@ function bounceBar(b, m, clock) {
   hit(b, N.x, N.y, -T.barAngularSpeed * (cy - m.y), T.barAngularSpeed * (cx - m.x));
 }
 
+// A comet kicks the ball once per contact: a wallBounce reflection off its surface plus cometPush times its velocity.
+// It is solid, so if it is still catching the ball after the kick it pushes it on like a moving wall. The kick re-arms
+// once the ball is cometRearm clear of it (or on the next shot).
+function bounceComet(b, m, i, clock) {
+  const c = cometAt(m, clock), bit = 1 << i;
+  if (circleOut(b, c.x, c.y, m.r)) {
+    if (!(b.cometIn & bit)) {
+      b.cometIn |= bit; b.cometHits++; b.cometLast = i; b.hits++;
+      reflect(b, N.x, N.y, 0, 0);
+      b.vx += T.cometPush * c.vx; b.vy += T.cometPush * c.vy;
+      b.nx = N.x; b.ny = N.y;
+    }
+    reflect(b, N.x, N.y, c.vx, c.vy);
+  } else if (b.cometIn & bit && dist(b.x, b.y, c.x, c.y) > m.r + T.ballR + T.cometRearm) b.cometIn &= ~bit;
+}
+
 function pull(b, x, y, r, mass) {
   const dx = x - b.x, dy = y - b.y, d = Math.hypot(dx, dy) || 1e-6, dd = Math.max(d, r);
   const a = (T.planetGravity * mass) / (dd * dd);
   ACC.x += (dx / d) * a; ACC.y += (dy / d) * a;
+}
+
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
 }
 
 // True where a moving part will sweep the ball: it must not come to rest there.
@@ -449,6 +533,8 @@ function inSweep(lv, b) {
     } else if (m.type === 'moon') {
       const p = lv.planets[m.parent];
       if (Math.abs(dist(b.x, b.y, p.x, p.y) - m.orbitR) < m.r + T.ballR) return true;
+    } else if (m.type === 'comet') {
+      if (segDist(b.x, b.y, m.a.x, m.a.y, m.b.x, m.b.y) < m.r + T.ballR) return true;
     } else if (b.x > Math.min(m.a.x, m.b.x) - T.ballR && b.x < Math.max(m.a.x, m.b.x) + m.w + T.ballR &&
                b.y > Math.min(m.a.y, m.b.y) - T.ballR && b.y < Math.max(m.a.y, m.b.y) + m.h + T.ballR) return true;
   }
@@ -463,18 +549,20 @@ function carry(lv, b, clock) {
 }
 
 function newBall(x, y) {
-  return { x, y, vx: 0, vy: 0, hits: 0, sunHits: 0, sunLast: -1, sunIn: 0, on: -1, onA: 0, nx: 0, ny: -1, touch: false, land: false, moon: -1 };
+  return { x, y, vx: 0, vy: 0, hits: 0, sunHits: 0, sunLast: -1, sunIn: 0, cometHits: 0, cometLast: -1, cometIn: 0, bh: -1,
+    on: -1, onA: 0, nx: 0, ny: -1, touch: false, land: false, moon: -1 };
 }
 
 function restPull() { return T.stopSpeed * -Math.log(T.friction); }
 
-// Advances the ball one fixed step. Returns null while it is still rolling, otherwise 'sink' | 'rest'.
+// Advances the ball one fixed step. Returns null while it is still rolling, otherwise 'sink' | 'rest' | 'swallow'.
 // `clock` is the hole clock in seconds at the end of the step.
 function stepBall(lv, b, clock) {
   b.touch = false; b.land = false; b.moon = -1;
   ACC.x = 0; ACC.y = 0;
   for (const p of lv.planets) if (p.mass > 0) pull(b, p.x, p.y, p.r, p.mass);
   for (const m of lv.movers) if (m.type === 'moon') { const c = moonAt(lv, m, clock); pull(b, c.x, c.y, m.r, m.mass); }
+  for (const h of lv.blackholes) pull(b, h.x, h.y, T.bhPullR, h.mass);
   const gx = ACC.x, gy = ACC.y;
   b.vx += gx * STEP; b.vy += gy * STEP;
   const hx = lv.hole.x - b.x, hy = lv.hole.y - b.y, hd = Math.hypot(hx, hy);
@@ -495,6 +583,7 @@ function stepBall(lv, b, clock) {
     const m = lv.movers[i];
     if (m.type === 'slide') { const r = slideAt(m, clock); bounceRect(b, r, r.vx, r.vy); }
     else if (m.type === 'bar') bounceBar(b, m, clock);
+    else if (m.type === 'comet') bounceComet(b, m, i, clock);
     else {
       const c = moonAt(lv, m, clock);
       if (circleOut(b, c.x, c.y, m.r)) { hit(b, N.x, N.y, c.vx, c.vy); b.moon = i; b.mvx = c.vx; b.mvy = c.vy; }
@@ -515,6 +604,10 @@ function stepBall(lv, b, clock) {
   if (b.y < T.ballR) { b.y = T.ballR; hit(b, 0, 1, 0, 0); }
   else if (b.y > T.designH - T.ballR) { b.y = T.designH - T.ballR; hit(b, 0, -1, 0, 0); }
 
+  for (let i = 0; i < lv.blackholes.length; i++) {
+    const h = lv.blackholes[i];
+    if (dist(b.x, b.y, h.x, h.y) < h.r) { b.bh = i; return 'swallow'; }
+  }
   const speed = Math.hypot(b.vx, b.vy);
   if (speed < T.sinkSpeed && dist(b.x, b.y, lv.hole.x, lv.hole.y) < T.holeR) return 'sink';
   if (hd < T.captureR) return null; // inside the cup's pull the ball always runs on and drops
@@ -558,7 +651,7 @@ function previewPoints(lv, b, l, clock, seconds) {
   let n = 0;
   for (let i = 1; i <= steps && n < PV.length; i++) {
     const r = stepBall(lv, PB, clock + i * STEP);
-    if (r === 'sink') { PV[n].x = PB.x; PV[n++].y = PB.y; break; }
+    if (r === 'sink' || r === 'swallow') { PV[n].x = PB.x; PV[n++].y = PB.y; break; }
     if (r === 'rest') break;
     if (i % every === 0) { PV[n].x = PB.x; PV[n++].y = PB.y; }
   }
@@ -567,11 +660,13 @@ function previewPoints(lv, b, l, clock, seconds) {
 
 // ---------- Helpers ----------
 
-// The design space plus its edge walls is fitted to the screen, so all four walls are always visible.
+// The design space plus its edge walls is fitted to the screen below the HUD and the Retry button, so all four walls are
+// always visible and nothing on the field sits under the HUD.
 const VIEW = { s: 1, ox: 0, oy: 0 }; // reused: callers read it at once
 function view(E) {
-  const s = Math.min(E.w / (T.designW + 2 * T.borderW), E.h / (T.designH + 2 * T.borderW));
-  VIEW.s = s; VIEW.ox = (E.w - T.designW * s) / 2; VIEW.oy = (E.h - T.designH * s) / 2;
+  const top = E.safe.top + T.hudH + T.retryH + T.hudGap, room = E.h - top - E.safe.bottom;
+  const s = Math.min(E.w / (T.designW + 2 * T.borderW), room / (T.designH + 2 * T.borderW));
+  VIEW.s = s; VIEW.ox = (E.w - T.designW * s) / 2; VIEW.oy = top + (room - T.designH * s) / 2;
   return VIEW;
 }
 
@@ -602,7 +697,7 @@ function mixHex(a, b, t) {
   const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), c = (s) => Math.round(lerp((x >> s) & 255, (y >> s) & 255, t));
   return `rgb(${c(16)},${c(8)},${c(0)})`;
 }
-const WARM = Array.from({ length: 17 }, (_, i) => mixHex(P.white, P.orange, i / 16)); // ball colour toward warm as power rises
+const WARM = Array.from({ length: 17 }, (_, i) => mixHex(P.white, P.amber, i / 16)); // ball colour toward amber as power rises; orange is full power
 
 // Text styles, shared objects so no call builds one. One weight rule: heavy on the large size only.
 const tx = (size, color, align, weight) => ({ size, color, align, weight });
@@ -650,7 +745,32 @@ function buildGradients(ctx) {
     cup: radial(ctx, 0, 0, 0, 0, 0, 1, [0, P.cupDeep, 0.72, P.cupDeep, 1, P.cupEdge]),
     cupGlow: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.green, 0.9), 0.6, rgba(P.green, 0.3), 1, rgba(P.green, 0)]),
     cupHalo: radial(ctx, 0, 0, 0.45, 0, 0, 1, [0, rgba(P.green, 0.6), 1, rgba(P.green, 0)]),
+    cometHead: radial(ctx, -0.25, -0.25, 0.05, 0, 0, 1, [0, P.cometCore, 0.45, P.cometHead, 1, P.cometTail]),
+    cometGlow: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.cometHead, 0.8), 0.4, rgba(P.cometTail, 0.3), 1, rgba(P.cometTail, 0)]),
+    cometTail: linear(ctx, 0, 0, -1, 0, [0, rgba(P.cometHead, 0.85), 0.35, rgba(P.cometTail, 0.4), 1, rgba(P.cometTail, 0)]),
+    bhLens: radial(ctx, 0, 0, 0.95, 0, 0, A.blackhole.lens, [0, rgba(P.bhGlow, 0.9), 0.3, rgba(P.bhSwirl, 0.35), 1, rgba(P.bhGlow, 0)]),
+    bhCore: radial(ctx, 0, 0, 0, 0, 0, 1, [0, P.bhCore, 0.75, P.bhCore, 1, rgba(P.bhGlow, 0.9)]),
+    bhArms: spiralArms(),
   };
+}
+
+function linear(ctx, x0, y0, x1, y1, stops) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  for (let i = 0; i < stops.length; i += 2) g.addColorStop(stops[i], stops[i + 1]);
+  return g;
+}
+
+// A black hole's swirl arms in horizon radii, from `reach` in to the horizon. They wind back against the clockwise spin,
+// so as they turn each arm's points slide inward.
+function spiralArms() {
+  const bh = A.blackhole, p = new Path2D();
+  for (let j = 0; j < bh.arms; j++) {
+    for (let i = 0; i <= 24; i++) {
+      const s = i / 24, rr = bh.reach - (bh.reach - 1) * s, a = (j * PI2) / bh.arms - s * bh.armTurns * PI2;
+      p[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+  }
+  return p;
 }
 
 // Planet gradients per tint (light, mid, dark): the lit body and the atmosphere.
@@ -932,6 +1052,55 @@ function drawSun(ctx, x, y, r, flare, t) {
   ctx.restore();
 }
 
+// ----- Comets: a bright cyan head and a tail trailing its motion; the path is a faint dashed line -----
+
+function drawCometPath(ctx, m) {
+  ctx.setLineDash(ORBIT_DASH); ctx.lineCap = 'round';
+  ctx.globalAlpha = A.comet.pathAlpha; ctx.strokeStyle = P.cometHead; ctx.lineWidth = A.line.hair;
+  ctx.beginPath(); ctx.moveTo(m.a.x, m.a.y); ctx.lineTo(m.b.x, m.b.y); ctx.stroke();
+  ctx.setLineDash(NO_DASH); ctx.globalAlpha = 1;
+}
+
+function drawComet(ctx, m, clock) {
+  const c = cometAt(m, clock), ca = A.comet, r = m.r, x = c.x, y = c.y;
+  const back = Math.min(ca.tail, c.k * Math.hypot(m.b.x - m.a.x, m.b.y - m.a.y)); // the tail never reaches back past a
+  ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(c.vy, c.vx));
+  if (back > 1) {
+    ctx.save(); ctx.scale(back, 1); ctx.fillStyle = G.cometTail;
+    ctx.beginPath(); ctx.moveTo(0, -r * ca.tailW); ctx.lineTo(-1, 0); ctx.lineTo(0, r * ca.tailW); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.scale(r, r);
+  ctx.save(); ctx.scale(ca.glowR, ca.glowR); ctx.fillStyle = G.cometGlow; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill(); ctx.restore();
+  ctx.fillStyle = G.cometHead; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.restore();
+}
+
+// ----- Black holes: a black core, a thin horizon ring, a soft purple glow and a slow clockwise swirl drawn inward -----
+// `flare` runs 0 to 1 after a swallow.
+
+function drawBlackHole(ctx, h, t, flare) {
+  const bh = A.blackhole, r = h.r, f = 1 - flare;
+  ctx.save(); ctx.translate(h.x, h.y); ctx.scale(r, r);
+  ctx.save(); const L = 1 + bh.flareGrow * f; ctx.scale(L, L);
+  ctx.globalAlpha = Math.min(1, bh.lensAlpha + 0.5 * f); ctx.fillStyle = G.bhLens;
+  ctx.beginPath(); ctx.arc(0, 0, bh.lens, 0, PI2); ctx.fill(); ctx.restore();
+  ctx.lineCap = 'round'; ctx.strokeStyle = P.bhSwirl; ctx.lineWidth = A.line.hair / r;
+  for (let i = 0; i < bh.rings; i++) { // rings drifting in to the horizon and fading as they arrive
+    const k = (t * bh.ringRate + i / bh.rings) % 1, rr = bh.reach - (bh.reach - 1) * k;
+    ctx.globalAlpha = bh.ringAlpha * Math.sin(Math.PI * k);
+    ctx.beginPath(); ctx.arc(0, 0, rr, 0, PI2); ctx.stroke();
+  }
+  ctx.save(); ctx.rotate(t * bh.swirlRate);
+  ctx.globalAlpha = bh.armAlpha; ctx.lineWidth = (A.line.edge * 1.2) / r; ctx.stroke(G.bhArms);
+  ctx.restore();
+  ctx.globalAlpha = 1; ctx.fillStyle = G.bhCore; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.strokeStyle = P.bhRim; ctx.lineWidth = bh.rimW / r; ctx.globalAlpha = 0.85 + 0.15 * f;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
 // ----- The cup: dark disc, green ring, inner glow that brightens when sinkable, and a flag so it reads at arm's length -----
 
 function drawCup(ctx, x, y, glow, t) {
@@ -987,7 +1156,9 @@ function iconOf(lv) {
   let k = ICON.get(lv);
   if (!k) {
     k = { kind: 'slab', obj: null, moon: lv.movers.find((m) => m.type === 'moon') || null };
-    if (lv.suns.length) { k.kind = 'sun'; k.obj = lv.suns[0]; }
+    if (lv.blackholes.length) k.kind = 'bh';
+    else if (lv.movers.some((m) => m.type === 'comet')) k.kind = 'comet';
+    else if (lv.suns.length) { k.kind = 'sun'; k.obj = lv.suns[0]; }
     else if (lv.planets.length) { k.kind = 'planet'; k.obj = lv.planets.reduce((a, p) => (p.mass > a.mass ? p : a)); }
     else if (lv.movers.some((m) => m.type === 'bar')) k.kind = 'bar';
     ICON.set(lv, k);
@@ -997,7 +1168,16 @@ function iconOf(lv) {
 
 function drawBadge(ctx, lv, cx, cy, t) {
   const k = iconOf(lv), tl = A.tile, r = tl.iconR;
-  if (k.kind === 'sun') drawSun(ctx, cx, cy, tl.sunR, 1, t);
+  if (k.kind === 'bh') {
+    BADGE_BH.x = cx; BADGE_BH.y = cy; BADGE_BH.r = r * 0.62;
+    drawBlackHole(ctx, BADGE_BH, t, 1);
+    if (lv.boss) drawBossHalo(ctx, cx, cy, r);
+  } else if (k.kind === 'comet') {
+    BADGE_COMET.a.x = cx - r * 1.6; BADGE_COMET.a.y = cy + r * 0.8; BADGE_COMET.b.x = cx + r * 0.6; BADGE_COMET.b.y = cy - r * 0.3;
+    BADGE_COMET.r = r * 0.45;
+    drawComet(ctx, BADGE_COMET, 0.999);
+    if (lv.boss) drawBossHalo(ctx, cx, cy, r);
+  } else if (k.kind === 'sun') drawSun(ctx, cx, cy, tl.sunR, 1, t);
   else if (k.kind === 'planet') {
     drawPlanet(ctx, cx, cy, r, k.obj, k.obj.mass, lv.boss);
     if (lv.boss && !lookOf(k.obj, k.obj.mass, lv.boss).ring) drawBossHalo(ctx, cx, cy, r);
@@ -1014,6 +1194,8 @@ function drawBadge(ctx, lv, cx, cy, t) {
   if (k.moon) drawPlanet(ctx, cx + r * 1.35, cy - r * 0.95, r * 0.36, k.moon, k.moon.mass, lv.boss);
 }
 
+const BADGE_BH = { x: 0, y: 0, r: 0 }, BADGE_COMET = { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, period: 1, r: 0 };
+
 function drawBossHalo(ctx, cx, cy, r) {
   ctx.strokeStyle = P.bossAccent; ctx.lineWidth = A.line.hair; ctx.globalAlpha = 0.8;
   ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.7, r * 0.5, -0.35, 0, PI2); ctx.stroke(); ctx.globalAlpha = 1;
@@ -1028,7 +1210,9 @@ function loadHole(idx) {
   S.idx = idx; S.lv = lv;
   S.ball = newBall(lv.ball.x, lv.ball.y);
   S.strokes = 0;
-  S.phase = 'aim';       // aim | fly | sink
+  S.phase = 'aim';       // aim | fly | sink | swallow
+  S.from = { x: lv.ball.x, y: lv.ball.y, on: -1, onA: 0 }; // where the current shot started (the last rest)
+  S.swT = 0; S.swX = 0; S.swY = 0; S.swBh = -1;
   S.acc = 0; S.steps = 0;
   S.clock = 0;           // hole clock: runs while aiming, restarts when the ball comes to rest
   S.clock0 = 0;
@@ -1037,8 +1221,8 @@ function loadHole(idx) {
   S.sinkT = 0; S.sinkFrom = null;
 }
 
-// The clock the moving parts are drawn at: the flight's own clock while it runs, the aiming clock otherwise.
-function partClock() { return S.phase === 'aim' ? S.clock : S.clock0 + S.steps * STEP; }
+// The clock the moving parts are drawn at: the flight's own clock while it runs (and on through a swallow), the aiming clock otherwise.
+function partClock() { return S.phase === 'aim' ? S.clock : S.clock0 + S.steps * STEP + (S.phase === 'swallow' ? S.swT : 0); }
 
 // Current aim as a launch, from the pointer drag or the keyboard fallback.
 function currentLaunch() {
@@ -1052,9 +1236,10 @@ function currentLaunch() {
 
 function launch(l) {
   S.strokes++;
-  const v = launchVel(S.lv, S.ball, l, S.clock);
+  const v = launchVel(S.lv, S.ball, l, S.clock), f = S.from;
+  f.x = S.ball.x; f.y = S.ball.y; f.on = S.ball.on; f.onA = S.ball.onA;
   S.ball.vx = v.vx; S.ball.vy = v.vy; S.ball.on = -1;
-  S.ball.sunIn = 0; // a shot from rest against a sun is charged if it goes back into it
+  S.ball.sunIn = 0; S.ball.cometIn = 0; // a shot from rest against a sun is charged if it goes back into it
   S.clock0 = S.clock;
   S.acc = 0; S.steps = 0;
   S.phase = 'fly';
@@ -1066,6 +1251,13 @@ function comeToRest() {
   S.phase = 'aim';
   S.clock = 0;
   carry(S.lv, S.ball, 0);
+}
+
+// After a swallow the ball is back where the shot started, as a rest (a moon rider is back on its moon).
+function returnToLastRest() {
+  const b = S.ball, f = S.from;
+  b.x = f.x; b.y = f.y; b.on = f.on; b.onA = f.onA; b.bh = -1;
+  comeToRest();
 }
 
 function finishHole(E) {
@@ -1081,7 +1273,7 @@ function finishHole(E) {
 
 // ---------- Juice (cosmetic only: reads the physics state, never writes it) ----------
 
-const FX = { glow: 0, power: 0, pop: 1, flash: 1, rest: 1, sink: 1, retry: 1, shots: 1, banner: 1, bannerTok: null, ring: null, flare: null, trailT: 0, ghost: false, gx: 0, gy: 0,
+const FX = { glow: 0, power: 0, pop: 1, flash: 1, rest: 1, sink: 1, retry: 1, shots: 1, banner: 1, bannerTok: null, ring: null, flare: null, bhFlare: null, trailT: 0, ghost: false, gx: 0, gy: 0,
   spin: 0, trailK: 1, cup: 0, skyKey: '', hudHole: '', hudPar: '', hudN: -1, hudShots: '' };
 const TRAIL = { xy: new Float32Array(2 * T.trailLength), n: 0, col: P.purple }; // oldest point first
 const NOOP = () => {};
@@ -1093,6 +1285,7 @@ function resetFx() {
   FX.skyKey = `h${S.idx}`; FX.hudHole = `${S.lv.boss ? 'BOSS' : 'HOLE'} ${S.idx + 1}`; FX.hudPar = `${S.lv.stars.two}`;
   FX.ring = new Float32Array(S.lv.planets.length);
   FX.flare = new Float32Array(S.lv.suns.length).fill(1);
+  FX.bhFlare = new Float32Array(S.lv.blackholes.length).fill(1);
   TRAIL.n = 0;
 }
 
@@ -1118,9 +1311,10 @@ function trailDrop() {
   if (TRAIL.n > 0) { TRAIL.xy.copyWithin(0, 2, 2 * TRAIL.n); TRAIL.n--; }
 }
 
-// True when the ball is within planetNearR of the surface of a planet or moon that pulls.
+// True when the ball is within planetNearR of the surface of a planet or moon that pulls, or of a black hole's horizon.
 function planetNear(lv, b, clock) {
   for (const p of lv.planets) if (p.mass > 0 && dist(b.x, b.y, p.x, p.y) - p.r < J.planetNearR) return true;
+  for (const h of lv.blackholes) if (dist(b.x, b.y, h.x, h.y) - h.r < J.planetNearR) return true;
   for (const m of lv.movers) if (m.type === 'moon') { const c = moonAt(lv, m, clock); if (dist(b.x, b.y, c.x, c.y) - m.r < J.planetNearR) return true; }
   return false;
 }
@@ -1161,7 +1355,7 @@ function drawRing(ctx, x, y, r, w, col, a) {
 // the dot count of a full-length preview: a preview that reaches it was cut by time, so it ends in a soft cap; one that
 // stops earlier ended at a rest or the cup and gets none.
 function drawRange(ctx, b, l, n, maxN) {
-  const R = A.range, p = l.power, col = WARM[Math.round(p * (WARM.length - 1))], grow = 1 + R.powerGrow * p, head = Math.min(n, R.firstDots);
+  const R = A.range, p = l.power, col = p >= 1 ? P.orange : WARM[Math.round(p * (WARM.length - 1))], grow = 1 + R.powerGrow * p, head = Math.min(n, R.firstDots);
   const gr = T.ballR + R.gaugeGap;
   ctx.lineCap = 'round'; ctx.strokeStyle = col; ctx.lineWidth = R.gaugeW;
   ctx.globalAlpha = R.gaugeTrack; ctx.beginPath(); ctx.arc(b.x, b.y, gr, 0, PI2); ctx.stroke();
@@ -1258,6 +1452,30 @@ function sunFx(E, i) {
   burst(E, s.x + nx * s.r, s.y + ny * s.r, { count: J.flareCount, color: P.orange, speed: J.flareSpeed, life: J.flareLife, size: J.flareSize, angle: Math.atan2(ny, nx), spread: 2.4 });
 }
 
+// A comet kick: a cyan burst where it struck, a short shake and a buzz (the bounce itself sounds through bounceFx).
+function cometFx(E) {
+  const b = S.ball, nx = b.nx, ny = b.ny;
+  E.haptic(J.cometHaptic); E.shake(J.cometShake, J.cometShakeTime);
+  burst(E, b.x - nx * T.ballR, b.y - ny * T.ballR, { count: J.cometSparkCount, color: P.cometHead, speed: J.cometSparkSpeed, life: J.cometSparkLife, size: J.cometSparkSize, angle: Math.atan2(ny, nx), spread: 2.2 });
+}
+
+// The ball crosses a horizon: the penalty stroke pops, a falling tone, a buzz, and the horizon flares while the ball spirals in.
+function swallowFx(E, i) {
+  const flare = FX.bhFlare;
+  E.audio.play('miss'); E.audio.beep({ freq: 420, dur: J.swallowTime, type: 'sine', gain: 0.15 * J.swallowVol, slide: 0.25 });
+  E.haptic(J.swallowHaptic);
+  popShots(E);
+  flare[i] = 0;
+  E.tween(J.bhFlareTime, (k) => { flare[i] = k; }, ease.outCubic);
+}
+
+// Back at the last rest after a swallow: the ball fades in there, with no trail leading to it.
+function returnFx(E) {
+  TRAIL.n = 0;
+  FX.ghost = false; FX.retry = 0;
+  E.tween(J.returnFade, (k) => { FX.retry = k; }, ease.outQuad);
+}
+
 function restFx(E) {
   if (S.strokes <= J.farRestShots || dist(S.ball.x, S.ball.y, S.lv.hole.x, S.lv.hole.y) <= J.farRestDist) return;
   FX.rest = 0;
@@ -1344,8 +1562,9 @@ const menu = {
       this.tiles.push({ x, y, w: tw, h: th, hole: i, locked });
     });
 
-    this.btnPlay = pill(E, p.total > 0 || p.unlocked > 0 ? `Play hole ${p.unlocked + 1}` : 'Play', cx, E.h * 0.58, BTN.primary);
-    this.btnMute = pill(E, E.audio.muted ? 'Sound: off' : 'Sound: on', cx, E.h * 0.58 + 84, BTN.second);
+    const rows = Math.ceil(LEVELS.length / cols), py = Math.max(E.h * 0.58, top + rows * (th + gap) + 8 + BTN.primary.h / 2); // below the grid at any hole count
+    this.btnPlay = pill(E, p.total > 0 || p.unlocked > 0 ? `Play hole ${p.unlocked + 1}` : 'Play', cx, py, BTN.primary);
+    this.btnMute = pill(E, E.audio.muted ? 'Sound: off' : 'Sound: on', cx, py + 84, BTN.second);
   },
   onTap(p, E) {
     if (E.hit(this.btnPlay, p)) { E.setScene('play', { hole: progress(E).unlocked }); return; }
@@ -1377,13 +1596,19 @@ const play = {
       if (S.sinkT >= T.sinkTime) finishHole(E);
       return;
     }
+    if (S.phase === 'swallow') {
+      S.swT += dt;
+      if (S.swT >= J.swallowTime) { returnToLastRest(); returnFx(E); }
+      return;
+    }
     // Fixed-step accumulator: outcomes depend on the drag and the release clock, never on the frame rate.
     S.acc += dt;
     while (S.acc >= STEP && S.phase === 'fly') {
       S.acc -= STEP; S.steps++;
-      const b = S.ball, hitsBefore = b.hits, sunsBefore = b.sunHits, pvx = b.vx, pvy = b.vy;
+      const b = S.ball, hitsBefore = b.hits, sunsBefore = b.sunHits, cometsBefore = b.cometHits, pvx = b.vx, pvy = b.vy;
       let r = stepBall(S.lv, b, S.clock0 + S.steps * STEP);
       if (b.hits !== hitsBefore) bounceFx(E, pvx, pvy);
+      if (b.cometHits !== cometsBefore) cometFx(E);
       if (b.sunHits !== sunsBefore) { S.strokes += T.sunPenalty * (b.sunHits - sunsBefore); sunFx(E, b.sunLast); }
       if (S.steps % J.trailEvery === 0) {
         if (Math.hypot(b.vx, b.vy) < A.trail.minSpeed) trailDrop();
@@ -1391,7 +1616,10 @@ const play = {
       }
       if (!r && S.steps * STEP >= T.maxFlightSeconds) r = 'rest';
       if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: b.x, y: b.y }; sinkFx(E); }
-      else if (r === 'rest') { comeToRest(); restFx(E); }
+      else if (r === 'swallow') {
+        S.phase = 'swallow'; S.swT = 0; S.swX = b.x; S.swY = b.y; S.swBh = b.bh;
+        S.strokes += T.bhPenalty; swallowFx(E, b.bh);
+      } else if (r === 'rest') { comeToRest(); restFx(E); }
     }
   },
 
@@ -1408,7 +1636,9 @@ const play = {
         const p = lv.planets[m.parent];
         ctx.setLineDash(ORBIT_DASH); drawRing(ctx, p.x, p.y, m.orbitR, A.line.hair, planetColor(lv), J.orbitAlpha); ctx.setLineDash(NO_DASH);
       } else if (m.type === 'slide') drawRail(ctx, m);
+      else if (m.type === 'comet') drawCometPath(ctx, m);
     }
+    for (let i = 0; i < lv.blackholes.length; i++) drawBlackHole(ctx, lv.blackholes[i], t, FX.bhFlare[i]);
     for (let i = 0; i < lv.suns.length; i++) { const s = lv.suns[i]; drawSun(ctx, s.x, s.y, s.r, FX.flare[i], t); }
     for (let i = 0; i < lv.planets.length; i++) { const p = lv.planets[i]; drawPlanet(ctx, p.x, p.y, p.r, p, p.mass, lv.boss, FX.ring[i]); }
     for (let i = 0; i < lv.walls.length; i++) drawWall(ctx, lv.walls[i]);
@@ -1416,7 +1646,7 @@ const play = {
       const m = mv[i];
       if (m.type === 'slide') drawWall(ctx, slideAt(m, clock));
       else if (m.type === 'bar') drawBar(ctx, m, clock);
-      else { const c = moonAt(lv, m, clock); drawPlanet(ctx, c.x, c.y, m.r, m, m.mass, lv.boss); }
+      else if (m.type === 'moon') { const c = moonAt(lv, m, clock); drawPlanet(ctx, c.x, c.y, m.r, m, m.mass, lv.boss); }
     }
 
     drawCup(ctx, lv.hole.x, lv.hole.y, FX.cup, t);
@@ -1432,10 +1662,16 @@ const play = {
       drawRange(ctx, b, aiming, n, Math.floor(Math.round(seconds / STEP) / Math.round(T.previewDotEvery / STEP)));
     }
 
+    for (let i = 0; i < mv.length; i++) if (mv[i].type === 'comet') drawComet(ctx, mv[i], clock);
+
     let bx = b.x, by = b.y, br = T.ballR, ba = 1;
     if (S.phase === 'sink') {
       const k = clamp(S.sinkT / T.sinkTime, 0, 1);
       bx = lerp(S.sinkFrom.x, lv.hole.x, k); by = lerp(S.sinkFrom.y, lv.hole.y, k); br = T.ballR * (1 - k);
+    } else if (S.phase === 'swallow') { // spiral in with the swirl, shrinking to nothing at the centre
+      const h = lv.blackholes[S.swBh], k = clamp(S.swT / J.swallowTime, 0, 1), d = dist(S.swX, S.swY, h.x, h.y) * (1 - ease.inQuad(k));
+      const a = Math.atan2(S.swY - h.y, S.swX - h.x) + J.swallowTurns * PI2 * k;
+      bx = h.x + Math.cos(a) * d; by = h.y + Math.sin(a) * d; br = T.ballR * (1 - k); ba = 1 - 0.4 * k;
     } else {
       br = T.ballR * FX.pop; ba = FX.retry;
       if (FX.glow > 0.01) drawGlow(ctx, bx, by, T.ballR + J.glowR + J.glowRPower * FX.power, FX.glow * J.glowAlpha);
@@ -1462,7 +1698,7 @@ const play = {
     E.text(lv.name, E.w / 2, top + 10, TX.valueC);
     E.text('PAR', E.w - 16, top - 9, TX.labelR);
     E.text(FX.hudPar, E.w - 16, top + 10, TX.valueGoalR);
-    S.retryRect = pill(E, 'Retry', E.w - 16 - T.retryW / 2, top + 20 + T.retryH / 2, S.phase === 'aim' ? BTN.retryOn : BTN.retryOff);
+    S.retryRect = pill(E, 'Retry', E.w - 16 - T.retryW / 2, E.safe.top + T.hudH + T.retryH / 2, S.phase === 'aim' ? BTN.retryOn : BTN.retryOff);
     if (FX.banner < 1) drawBanner(ctx, E);
   },
 
@@ -1587,16 +1823,24 @@ export const game = {
     return data;
   },
   TUNING,
-  // Playtest ranges for the engine's tune panel; values apply from the next shot.
+  // Playtest ranges for the engine's tune panel; physics reads them every step, so a change applies from the next shot.
+  // PRD v0.3 D: gravity presets. The routes are proven at Heavy (the defaults) only.
+  presets: [
+    { label: 'Heavy', values: { planetGravity: 4500000, stopSpeed: 50 } },
+    { label: 'Medium', values: { planetGravity: 3000000, stopSpeed: 50 } },
+    { label: 'Light', values: { planetGravity: 2000000, stopSpeed: 50 } },
+    { label: 'Light+roll', values: { planetGravity: 3000000, stopSpeed: 80 } },
+  ],
   experiments: [
     { key: 'planetGravity', label: 'Planet gravity', min: 1500000, max: 13500000, step: 100000 },
+    { key: 'stopSpeed', label: 'Stop speed', min: 20, max: 120, step: 5 },
     { key: 'landSpeed', label: 'Land speed', min: 20, max: 150, step: 5 },
     { key: 'friction', label: 'Friction (speed kept per s)', min: 0.15, max: 0.5, step: 0.01 },
     { key: 'powerMax', label: 'Max power', min: 500, max: 1100, step: 10 },
     { key: 'sunPenalty', label: 'Sun penalty', min: 0, max: 3, step: 1 },
   ],
   // Read by tools/sim-golf.mjs so the simulator runs the real physics.
-  sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt },
+  sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt },
   start: 'menu',
   scenes: { menu, play, over },
 };
