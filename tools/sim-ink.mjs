@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // sim-ink: run a scripted needle path through Ink's real coverage and slip code (games/ink/src/game.js).
 //
-//   node tools/sim-ink.mjs <stencil.json> <path.json> [--speed 300] [--events HZ] [--timer-from-path]
-//   node tools/sim-ink.mjs --index N <path.json> [--speed 300] [--events HZ] [--timer-from-path]
+//   node tools/sim-ink.mjs <stencil.json> <path.json> [--speed 300] [--events HZ] [--timer-from-path] [--preset NAME]
+//   node tools/sim-ink.mjs --index N <path.json> [--speed 300] [--events HZ] [--timer-from-path] [--preset NAME]
 //   node tools/sim-ink.mjs --list
 //
 // stencil.json: one stencil entry exactly as in the STENCILS array of game.js, so it can be pasted there unchanged.
@@ -20,7 +20,8 @@
 //
 // The ink radius follows the finger speed with inertia (dynamic needle, Flowy values; PRD v0.2 and v0.3, the only needle since v0.4): it is integrated
 //   over every path sample from the time the sample would have had on its segment, so [x, y, speed] paths give the same result at any event rate.
-//   The old --needle and --preset flags were removed in v0.4 and now stop with an error.
+//   The old --needle flag was removed in v0.4 and stops with an error. --preset NAME (v0.5) applies a timer preset of the game (Relaxed, Standard, Tight; default Standard)
+//   to the multipliers before the run, so the timer the stencil gets, the pass check and the --timer-from-path rows all use the multipliers that are active.
 // { "hold": seconds } in the path keeps the finger still for that long (the game's own update runs, the radius swells, the timer runs).
 // --events HZ cuts the finger movement into events HZ times per second of path time (default: events of sampleSpacing units). The score
 //   must not depend on it; use it to check frame-rate independence.
@@ -38,7 +39,7 @@ const T = game.TUNING, sim = game.sim, play = game.scenes.play;
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const value = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
-const valueFlags = new Set(['--speed', '--index', '--events']);
+const valueFlags = new Set(['--speed', '--index', '--events', '--preset']);
 const positional = args.filter((a, i) => !a.startsWith('--') && !valueFlags.has(args[i - 1]));
 const die = (msg) => { console.error(`sim-ink: ${msg}`); process.exit(2); };
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch (e) { die(`cannot read ${f}: ${e.message}`); } };
@@ -50,7 +51,10 @@ if (flag('--list')) {
 
 const speed = Number(value('--speed') ?? 300);
 if (!(speed > 0)) die('--speed must be a positive number');
-if (flag('--needle') || flag('--preset')) die('--needle and --preset were removed in v0.4: dynamic needle with Flowy inertia is the only needle');
+if (flag('--needle')) die('--needle was removed in v0.4: dynamic needle with Flowy inertia is the only needle');
+const presetName = value('--preset') ?? 'Standard', preset = (game.presets || []).find((p) => p.label.toLowerCase() === presetName.toLowerCase());
+if (!preset) die(`--preset must be one of ${(game.presets || []).map((p) => p.label).join(', ')}`);
+Object.assign(T, preset.values);
 const eventsHz = value('--events') === undefined ? null : Number(value('--events'));
 if (eventsHz !== null && !(eventsHz > 0)) die('--events must be a positive number');
 
@@ -127,22 +131,22 @@ for (const pt of path) {
 
 const pct = sim.percent(), slips = sim.slips(), ruined = sim.ended() === 'ruined';
 const time = clock, time99 = t99;
-const ok = time99 !== null && time99 <= st.timer && !ruined;
+const timer = sim.timerFor(st), ok = time99 !== null && time99 <= timer && !ruined;
 const f1 = (v) => v.toFixed(1);
-console.log(`stencil   ${st.name}  (timer ${st.timer}s)  needle dynamic (Flowy)`);
+console.log(`stencil   ${st.name}  (timer ${timer}s, ${preset.label})  needle dynamic (Flowy)`);
 console.log(`percent   ${pct}%${sim.ended() === 'full' ? '  (100%, ended)' : ''}`);
 console.log(`slips     ${slips}/${T.maxSlips}${ruined ? '  RUINED, stencil ended at the third slip' : ''}`);
 console.log(`length    ${length.toFixed(0)} units${lifted ? ` (${lifted.toFixed(0)} while lifted)` : ''}`);
 console.log(`time      ${f1(time)}s at ${speed} units/s unless a point gives its own speed`);
-console.log(time99 === null ? `99%       not reached` : `99%       reached at ${f1(time99)}s, ${f1(st.timer - time99)}s before the timer (${Math.round(((st.timer - time99) / st.timer) * 100)}% spare)`);
+console.log(time99 === null ? `99%       not reached` : `99%       reached at ${f1(time99)}s, ${f1(timer - time99)}s before the timer (${Math.round(((timer - time99) / timer) * 100)}% spare)`);
 if (slips > 0) console.log('warning   the intended path should be clean: it slips');
-console.log(ok ? `result    OK: 99 percent within the ${st.timer}s timer` : `result    FAIL: 99 percent not reached within the ${st.timer}s timer`);
+console.log(ok ? `result    OK: 99 percent within the ${timer}s timer` : `result    FAIL: 99 percent not reached within the ${timer}s timer`);
 
 if (flag('--timer-from-path')) {
   if (time99 === null) console.log('timer     cannot be set: this path never reaches 99 percent');
-  else for (const [label, mult] of [['Circle, Diamond, Heart, Star', T.timerMultEarly], ['Bolt, Halo, Clover, Key', T.timerMultMid], ['boss Crescent', T.timerMultBoss], ['boss Snake', T.timerMultFinal], ['final boss Skull', T.timerMultSkull]]) {
-    const t = time99 * mult;
-    console.log(`timer     ${label}: ${f1(t)}s at ${mult}x the perfect path (round up: ${Math.ceil(t)})`);
+  else for (const [label, mult] of [['Circle, Diamond, Heart, Star', T.timerMultEarly], ['Bolt, Halo, Clover, Key, Dagger, Anchor, Rose, Swallow', T.timerMultMid], ['boss Crescent', T.timerMultBoss], ['boss Snake', T.timerMultFinal], ['final boss Skull', T.timerMultSkull]]) {
+    const m = mult * T.timerGlobalMult, t = time99 * m;
+    console.log(`timer     ${label}: ${f1(t)}s at ${+m.toFixed(3)}x the perfect path (round up: ${Math.ceil(t)})  [${preset.label}]`);
   }
 }
 process.exit(ok ? 0 : 1);

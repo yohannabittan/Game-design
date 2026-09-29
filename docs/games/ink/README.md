@@ -2,7 +2,7 @@
 
 Stencils are data in the `STENCILS` array of `games/ink/src/game.js`. A shard authors stencils as JSON files, proves them with `tools/sim-ink.mjs`, and hands the JSON to the orchestrator, who pastes it into the array.
 
-Stencil order is fixed by PRD v0.5 section A (`node tools/sim-ink.mjs --list` prints it). Saves are keyed by index, so a reorder needs a `saveVersion` bump and a remap in `migrate`. Each entry also carries a `body` (forearm, shoulder, calf or back: the body part drawn behind it) and optionally a `story` (gem, banner or swirl: a decoration on the card); these are art only and shards do not need to supply them.
+Stencil order is fixed by PRD v0.5 section A (`node tools/sim-ink.mjs --list` prints it). Saves are keyed by index, so a reorder needs a `saveVersion` bump and a remap in `migrate`. Each entry also carries a `tier` (early, mid, boss, final or skull: which timer multiplier retimes it; shards' JSON without one keeps its own timer), a `body` (forearm, shoulder, calf or back: the body part drawn behind it) and optionally a `story` (gem, banner or swirl: a decoration on the card); these are art only and shards do not need to supply them.
 
 ## Stencil file
 
@@ -62,7 +62,7 @@ The dynamic needle measures speed over the last `speedWindow` units of travel, u
 
 Output is the percentage, slips, path length, time, the moment 99 percent is reached and whether that is inside the timer. Exit code 0 means 99 percent within the timer with no ruin; 1 means not. The time counts travel during lifts at the same speed.
 
-`--timer-from-path` prints the timer as a multiple of the time the path takes to reach 99 percent (PRD section 9): 2.2x for Circle, Diamond, Heart and Star, 1.9x for Bolt, Halo, Clover and Key, 1.7x for the boss Crescent, 1.6x for the boss Snake and 1.35x for the final boss Skull (the fifteen-stencil order is in PRD v0.5 section A). Use the row for your stencil and round up to a whole second.
+`--timer-from-path` prints the timer as a multiple of the time the path takes to reach 99 percent (PRD section 9): 2.2x for Circle, Diamond, Heart and Star, 1.9x for Bolt, Halo, Clover and Key, 1.7x for the boss Crescent, 1.6x for the boss Snake and 1.35x for the final boss Skull (the fifteen-stencil order is in PRD v0.5 section A). Use the row for your stencil and round up to a whole second. `--preset Relaxed|Standard|Tight` (default Standard) applies one of the game's timer presets first, so the pass check and these rows use the multipliers that are active; the game's timer for a stencil is its perfect-path time (its `timer` over its `tier`'s standard multiplier) times the tier's active multiplier times `timerGlobalMult`.
 
 ## What a shard delivers per stencil
 
