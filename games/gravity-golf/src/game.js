@@ -307,7 +307,7 @@ const TUNING = {
     },
     tile: { number: 14, icon: 37, iconR: 10, sunR: 7, stars: 10, starR: 5.5 }, // Offsets from the tile top (stars from the bottom), design px
     menu: { titleGap: 26, tabBottom: 42, starsGap: 40, gridGap: 34, missionsW: 150, rowGap: 12 }, // Title sits titleGap below the engine's TUNE tab (safe top + 42)
-    missions: { top: 64, headH: 32, rowH: 58, rowGap: 6, medalR: 15, bottom: 88, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17 }, // rowH for a one-line condition; each extra line adds lineH
+    missions: { top: 64, headH: 32, rowH: 58, rowGap: 6, medalR: 15, bottom: 156, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17, toastBand: 96 }, // rowH for a one-line condition; each extra line adds lineH. Back sits above toastBand: the engine's toast (24 px up, two lines) takes taps while it shows
     swatch: { size: 46, gap: 10, perRow: 6, headH: 26, rowGap: 10, ring: 3, ballR: 13 }, // The Skins block on the missions screen (swatches at least 44 px)
     ticket: { w: 320, h: 50, r: 14, medalR: 12 }, // The badge ticket that pops over the top edge of the hole card
     // Skins (PRD v0.3 C2): data entries, each earned by one badge. A ball skin sets the body gradient (light, mid, edge, or
@@ -1276,7 +1276,7 @@ function drawBall(ctx, x, y, r, a, spin, s = SK.ball) {
     ctx.beginPath(); ctx.arc(0.66, 0, 0.11, 0, PI2); ctx.fill();
   }
   ctx.restore();
-  ctx.globalAlpha = a * 0.9; ctx.fillStyle = P.white;
+  ctx.globalAlpha = a; ctx.fillStyle = P.white; // full white on every skin: the ball stays the brightest sphere
   ctx.beginPath(); ctx.ellipse(-0.36, -0.4, 0.26, 0.17, -0.7, 0, PI2); ctx.fill();
   const rim = Math.min(s.rimW, r * 0.25) / r; // the rim thins as the ball drops into the cup
   ctx.globalAlpha = a * s.rimA; ctx.strokeStyle = s.rim; ctx.lineWidth = rim;
@@ -1845,7 +1845,7 @@ const missions = {
       const tr = V.bot - V.top, bh = Math.max(24, (tr * tr) / (tr + V.max));
       E.roundRect(E.w - 6, V.top + (tr - bh) * (this.scroll / V.max), M.scrollBar, bh, 1.5, P.slate);
     }
-    this.btnBack = pill(E, 'Back', E.w / 2, E.h - E.safe.bottom - 16 - M.backH / 2, BTN.back);
+    this.btnBack = pill(E, 'Back', E.w / 2, E.h - E.safe.bottom - M.toastBand - M.backH / 2, BTN.back);
   },
   // Ball swatches then trail swatches. An owned swatch picks it (ringed when chosen); a locked one shows a lock and toasts its badge.
   drawSkins(ctx, E, p, y, V, m) {
@@ -2086,9 +2086,10 @@ const over = {
     ctx.save(); ctx.translate(0, (1 - this.slide) * E.h * J.cardSlideFrac);
     const pw = Math.min(E.w - 32, 340), py = E.h * 0.085;
     E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + (p.hasNext ? 80 : 0) + 44 - py, A.line.card, P.card, p.boss ? P.bossAccent : P.slate);
-    if (p.boss) E.text('Boss', cx, E.h * 0.12, TX.bossMd);
-    E.text(p.name, cx, E.h * 0.16, TX.dim);
-    drawSkinSample(ctx, cx - pw / 2 + 36, E.h * 0.16, 8, SK.ball, SK.trail, t * 2);
+    const tky = Math.max(py, E.safe.top + A.ticket.h / 2 + 4), ly = Math.max(E.h * 0.12, tky + A.ticket.h / 2 + 14), ny = Math.max(E.h * 0.16, ly + 28);
+    if (p.boss) E.text('Boss', cx, ly, TX.bossMd); // the label and the name sit below the badge ticket's slot
+    E.text(p.name, cx, ny, TX.dim);
+    drawSkinSample(ctx, cx - pw / 2 + 36, ny, 8, SK.ball, SK.trail, t * 2);
     const nk = ease.outBack(clamp((t - J.numDelay) / J.numPop, 0, 1));
     ctx.save(); ctx.translate(cx, E.h * 0.24); ctx.scale(nk, nk);
     E.text(shots(p.strokes), 0, 0, TX.big);
@@ -2116,7 +2117,7 @@ const over = {
     }
     if (this.badgeOn >= 0) { // the ticket straddles the card's top edge; each new badge takes the place of the one before
       const k = ease.outBack(clamp((t - this.badgeT - this.badgeOn * J.badgeHold) / J.badgePop, 0, 1));
-      drawTicket(ctx, E, this.badges[this.badgeOn], k, Math.max(py, E.safe.top + A.ticket.h / 2 + 4), this.badges.length - 1 - this.badgeOn);
+      drawTicket(ctx, E, this.badges[this.badgeOn], k, tky, this.badges.length - 1 - this.badgeOn);
     }
     ctx.restore();
   },
