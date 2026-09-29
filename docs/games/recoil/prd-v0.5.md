@@ -51,3 +51,17 @@ Trick badges with a name and a reward feel, earned by a single act, never by gri
 | Walk the Line | a horde cleared left to right without a miss |
 
 Each shows on the missions screen with its condition and pops a ticket on the card.
+
+## K. Per-gun progression (from the 2026-09-30 second session; build before F)
+
+Finding: a boss best is saved without its gun, so the menu reads a rifle best against the pistol's bars and the rifle can never show three stars. Finding: the selector cannot tell the designer what they have done with which gun, which the badges depend on.
+
+Rule change:
+
+- Bests are keyed by challenge and gun: `bests[challengeId][gunId] = { score, stars, accuracy }`. Stars are per gun, against that gun's bars (every challenge gets per-gun bars from the section A bots, not only the bosses).
+- Ladders unlock per gun: rung n+1 opens for a gun when that gun has two stars on rung n; Boss 2 opens for a gun with two stars on Boss 1. A new gun starts every ladder at rung 1.
+- The menu shows the selected gun's progress: its stars on every rung, its locks, its best score on the selected rung, and the gun's silhouette by the ladders. Switching guns redraws the lanes.
+- Points are the sum of every gun's stars. Gun unlocks move to badges: carbine by Marksman I, shotgun by Quick Draw I, rifle by Clay I (each is a bronze badge any pistol player earns early); the points table is retired.
+- Badges read per-gun stars: Boss Killer, the Wrong Tool set, Sniper as before; Legend becomes three stars on every challenge with any gun; a new Gold badge "Arsenal" for three stars on every challenge with every gun.
+- Migration (save v7): each old best becomes the pistol's entry, except boss bests where `bossGuns` names the gun; per-gun unlocks are derived from those entries; badges are never revoked; the star-bar preset is kept.
+- Section B, D and A behaviours unchanged. The stats card (C) shows that gun's rung count ("9 of 15 rungs at two stars or better").
