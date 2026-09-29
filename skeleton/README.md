@@ -4,7 +4,7 @@ The starting point for every game. Do not edit games in here; run `tools/new-gam
 
 | File | What it is | Who touches it |
 | --- | --- | --- |
-| `index.html` | Canvas, viewport, PWA hooks, service worker registration | Rarely. Only the title placeholders. |
+| `index.html` | Canvas, viewport, PWA hooks, service worker registration | Rarely. Only the title placeholders. `tools/release.sh` adds the channel and release-version meta tags to the copy under `release/`, never to this file. |
 | `src/engine.js` | Loop, input, scenes, save, audio synth, particles, RNG, drawing helpers | Nobody, per game. Engine changes go in `skeleton/` with an ADR. |
 | `src/game.js` | The whole game. This is the file a one-shot prompt writes. | Every layer prompt. |
 | `sw.js` | Offline cache. Bump `CACHE_VERSION` on every deploy. | Each deploy. |
@@ -59,6 +59,9 @@ What the engine gives you (`E`):
 | Drawing | `E.text(str, x, y, {size,color,align,weight})`, `E.roundRect(x,y,w,h,r,fill,stroke)`, `E.button(label, cx, cy, opts)` returns a rect, `E.hit(rect, p)` |
 | Toast | `E.toast(msg, onTap)` |
 | Tune panel | declare `experiments` on the game; the engine adds the `tune` scene and the menu tab |
+| Channel | `E.channel` is `'dev'` or `'release'`, from `<meta name="channel">`; `E.releaseVersion` is `<meta name="release-version">` (empty in dev). `tools/release.sh` writes both into the copy under `release/`. In release: TUNE is hidden until five taps in two seconds on the title band (the top strip of the menu, `E.titleArea = {x,y,w,h}` overrides it), saved tune values are ignored, and the save key is `game:<slug>.release`. A game that draws its own TUNE-like screen must check `E.channel`. See ADR-0016. |
+| Ledger | `E.ledger.add(kind, data)` appends `{ t, k, d }` to a local record (200 entries, oldest dropped) saved under `__ledger`. `data` is flat: numbers, strings, booleans; anything else is stored as JSON text. The engine owns `__ledger`: `migrate` never sees it, `E.save.reset()` keeps it, and no `saveVersion` bump is needed. Call it at natural points: a result, a retry, a quit mid-run, a badge. `E.ledger.entries` and `E.ledger.text(E)` read it back. The demo game shows one call on its result. |
+| Export tab | On the `menu` scene, in both channels, the engine draws a 72 x 44 `EXPORT` tab at the top left (mirror of TUNE). It opens the engine's `__export` scene: a scrollable plain-text block (game, channel, version, viewport, date, then one line per entry: `<m:ss since first entry> <kind> key=value ...`) and a Copy button. Keep the top-left 82 x 48 px of the menu free. Copy uses `navigator.clipboard` when allowed, else selects all in a hidden `<textarea>` and runs `execCommand('copy')`; if that fails the textarea is shown over the text for a long-press copy. That textarea, and the toast, are the engine's only DOM. |
 | Pointers | `E.pointers` (Map of active pointers, for drag and multi-touch), `E.keys` (Set) |
 
 Imports available from `./engine.js`: `makeRng`, `hashString`, `ease`, `clamp`, `lerp`, `dist`.

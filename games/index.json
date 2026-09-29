@@ -2,17 +2,20 @@
   {
     "slug": "gravity-golf",
     "title": "Gravity Golf",
-    "status": "v0.2 complete: ten holes with planets, suns, a sliding door, a windmill and an orbiting moon; space art"
+    "status": "v0.2 complete: ten holes with planets, suns, a sliding door, a windmill and an orbiting moon; space art",
+    "release": false
   },
   {
     "slug": "ink",
     "title": "Ink",
-    "status": "v0.5: fifteen stencils on skin, flash-sheet menu, three bosses"
+    "status": "v0.5: fifteen stencils on skin, flash-sheet menu, three bosses",
+    "release": false
   },
   {
     "slug": "recoil",
     "title": "Recoil",
     "status": "v0.3: four guns with unlocks, badges, missions; range art with real gun silhouettes",
-    "orientation": "landscape"
+    "orientation": "landscape",
+    "release": false
   }
 ]

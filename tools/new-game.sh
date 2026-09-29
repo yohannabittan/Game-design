@@ -24,7 +24,7 @@ p = 'games/index.json'
 try: data = json.load(open(p))
 except Exception: data = []
 if not any(g['slug'] == slug for g in data):
-    data.append({'slug': slug, 'title': title, 'status': 'v0.1 in progress'})
+    data.append({'slug': slug, 'title': title, 'status': 'v0.1 in progress', 'release': False})
 json.dump(data, open(p, 'w'), indent=2); open(p, 'a').write('\n')
 PY
 echo "Created $DEST and docs/games/$SLUG. Next: fill docs/games/$SLUG/prd-v0.1.md, then run the Layer 1 prompt."

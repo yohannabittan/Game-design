@@ -3,7 +3,10 @@
 // Contract: a game exports `game` (see game.js) and the engine drives it.
 // The engine owns: canvas + DPR, the loop, unified touch/mouse/keyboard input,
 // scenes, local save, a tiny synth for audio, haptics, seeded RNG, and juice
-// helpers (shake, particles, tweens). Games should not touch the DOM.
+// helpers (shake, particles, tweens), the dev/release channel (ADR-0016), and
+// the playtest ledger with its Export scene. Games should not touch the DOM.
+// The engine's own DOM: the toast, and one hidden textarea that the Export
+// scene uses as the select-all fallback for Copy.
 //
 // Coordinates: everything is in CSS pixels. engine.w / engine.h are the
 // current viewport size. Portrait phone is the primary target.
@@ -47,8 +50,9 @@ export const dist = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
 
 // ---------- Save (localStorage, namespaced, versioned) ----------
 class Save {
-  constructor(slug, version, migrate) {
-    this.key = `game:${slug}`;
+  constructor(slug, version, migrate, channel = 'dev') {
+    // The release channel shares an origin with dev, so it gets its own key and the two never mix (ADR-0016).
+    this.key = channel === 'release' ? `game:${slug}.release` : `game:${slug}`;
     this.version = version;
     this.data = {};
     try {
@@ -57,7 +61,11 @@ class Save {
         const parsed = JSON.parse(raw);
         const from = parsed.__v || 1;
         this.data = parsed.data || {};
+        // __ledger belongs to the engine (ADR-0016): migrate never sees it and cannot drop it.
+        const ledger = this.data.__ledger;
+        delete this.data.__ledger;
         if (from < version && migrate) this.data = migrate(this.data, from) || this.data;
+        if (ledger) this.data.__ledger = ledger;
       }
     } catch (e) { this.data = {}; }
   }
@@ -65,7 +73,7 @@ class Save {
   set(k, v) { this.data[k] = v; this.flush(); return v; }
   update(k, fn, def) { return this.set(k, fn(this.get(k, def))); }
   flush() { try { localStorage.setItem(this.key, JSON.stringify({ __v: this.version, data: this.data })); } catch (e) {} }
-  reset() { this.data = {}; this.flush(); }
+  reset() { const ledger = this.data.__ledger; this.data = {}; if (ledger) this.data.__ledger = ledger; this.flush(); }
 }
 
 // ---------- Audio (tiny synth, no asset files) ----------
@@ -121,6 +129,47 @@ class Audio {
   }
 }
 
+// ---------- Ledger (append-only local playtest record, ADR-0016) ----------
+const LEDGER_CAP = 200;
+class Ledger {
+  constructor(save) { this.save = save; this.cap = LEDGER_CAP; }
+  get entries() { const l = this.save.get('__ledger', null); return l && Array.isArray(l.entries) ? l.entries : []; }
+  // add('result', { level: 3, strokes: 5 }): scalars only; anything else is stored as JSON text. Oldest entries drop past the cap.
+  add(kind, data = {}) {
+    const d = {};
+    for (const [k, v] of Object.entries(data || {})) {
+      const t = typeof v;
+      d[k] = v === null || t === 'boolean' ? v : t === 'number' ? (Number.isFinite(v) ? +v.toFixed(3) : null) : (t === 'string' ? v : JSON.stringify(v) || '').slice(0, 80);
+    }
+    const entries = this.entries.concat({ t: Date.now(), k: String(kind).trim().replace(/\s+/g, '_').slice(0, 32) || 'event', d });
+    while (entries.length > this.cap) entries.shift();
+    this.save.set('__ledger', { entries });
+    return entries.length;
+  }
+  static fmtAgo(ms) {
+    const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+    const two = (n) => String(n).padStart(2, '0');
+    return h ? `${h}:${two(m)}:${two(r)}` : `${m}:${two(r)}`;
+  }
+  static fmtData(d) {
+    return Object.entries(d || {}).map(([k, v]) => `${k}=${typeof v === 'string' && /[\s"=]/.test(v) ? JSON.stringify(v) : v}`).join(' ');
+  }
+  // The block a tester pastes: a header, then one line per entry, time counted from the first entry kept.
+  text(E) {
+    const es = this.entries, t0 = es.length ? es[0].t : 0;
+    const head = [
+      `Game: ${E.game.title}`,
+      `Channel: ${E.channel}`,
+      `Version: ${E.releaseVersion || 'dev'}`,
+      `Viewport: ${E.w}x${E.h}`,
+      `Date: ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
+      `Entries: ${es.length}`,
+      '',
+    ];
+    return head.concat(es.map((e) => `${Ledger.fmtAgo(e.t - t0)} ${e.k}${Object.keys(e.d || {}).length ? ' ' + Ledger.fmtData(e.d) : ''}`)).join('\n');
+  }
+}
+
 // ---------- Particles ----------
 class Particles {
   constructor() { this.list = []; }
@@ -160,7 +209,12 @@ export class Engine {
     this.scene = null; this.sceneName = null;
     this.pointers = new Map();
     this.keys = new Set();
-    this.save = new Save(game.slug, game.saveVersion || 1, game.migrate);
+    // ADR-0016: <meta name="channel" content="release"> and <meta name="release-version" content="v0.3"> are written by tools/release.sh.
+    const meta = (n) => { const m = document.querySelector(`meta[name="${n}"]`); return m ? (m.content || '').trim() : ''; };
+    this.channel = meta('channel') === 'release' ? 'release' : 'dev';
+    this.releaseVersion = meta('release-version');
+    this.save = new Save(game.slug, game.saveVersion || 1, game.migrate, this.channel);
+    this.ledger = new Ledger(this.save);
     this.audio = new Audio(this.save);
     this.particles = new Particles();
     this.rng = makeRng(Date.now() & 0xffffffff);
@@ -169,6 +223,8 @@ export class Engine {
     this._flash = { color: null, t: 0, dur: 0 };
     this._toast = document.getElementById('toast');
     this._toastCb = null;
+    this._tuneShown = this.channel !== 'release'; // release hides TUNE until five title taps
+    this._titleTaps = [];
     this._bind();
   }
 
@@ -177,6 +233,7 @@ export class Engine {
     this.resize();
     this.save.update('__opens', (n) => n + 1, 0); // also proves storage works on first launch
     this._setupTune();
+    this._setupExport();
     if (this.game.init) this.game.init(this);
     this.setScene(this.game.start || Object.keys(this.game.scenes)[0]);
     let last = performance.now();
@@ -211,10 +268,17 @@ export class Engine {
     if (this.scene && this.scene.render) this.scene.render(ctx, this);
     this.particles.render(ctx);
     ctx.restore();
-    if (this._tune && this.sceneName === 'menu') {
-      this._tuneTab = { x: this.w - 74 - this.safe.right, y: this.safe.top + 10, w: 64, h: 32 };
-      this.roundRect(this._tuneTab.x, this._tuneTab.y, 64, 32, 10, '#1f2937', '#475569');
-      this.text('TUNE', this._tuneTab.x + 32, this._tuneTab.y + 16, { size: 13, color: '#9aa4b2' });
+    this._tuneTab = this._exportTab = null;
+    if (this.sceneName === 'menu') {
+      if (this._tune && this._tuneShown) {
+        this._tuneTab = { x: this.w - 74 - this.safe.right, y: this.safe.top + 10, w: 64, h: 32 };
+        this.roundRect(this._tuneTab.x, this._tuneTab.y, 64, 32, 10, '#1f2937', '#475569');
+        this.text('TUNE', this._tuneTab.x + 32, this._tuneTab.y + 16, { size: 13, color: '#9aa4b2' });
+      }
+      // Top-left mirror of the TUNE tab, in both channels: a 72 x 44 target.
+      this._exportTab = { x: 10 + this.safe.left, y: this.safe.top + 4, w: 72, h: 44 };
+      this.roundRect(this._exportTab.x, this._exportTab.y, 72, 44, 10, '#1f2937', '#475569');
+      this.text('EXPORT', this._exportTab.x + 36, this._exportTab.y + 22, { size: 14, color: '#9aa4b2' });
     }
     if (this._flash.t > 0) {
       ctx.globalAlpha = (this._flash.t / this._flash.dur) * 0.6;
@@ -268,10 +332,11 @@ export class Engine {
     this._tuneDefs = {};
     for (const k of presetKeys) if (!this._tune.some((e) => e.key === k)) this._tuneDefs[k] = this._getPath(k);
     for (const e of this._tune) this._tuneDefs[e.key] = e.def;
-    const saved = this.save.get('__tune', {});
+    // The release channel runs on TUNING as shipped: saved tune values are neither applied nor pruned (ADR-0016).
+    const saved = this.channel === 'release' ? {} : this.save.get('__tune', {});
     const kept = {};
     for (const k of Object.keys(saved)) if (k in this._tuneDefs) { kept[k] = saved[k]; this._setPath(k, saved[k]); }
-    if (Object.keys(kept).length !== Object.keys(saved).length) this.save.set('__tune', kept);
+    if (this.channel !== 'release' && Object.keys(kept).length !== Object.keys(saved).length) this.save.set('__tune', kept);
     const E = this;
     this.game.scenes.tune = this.game.scenes.tune || {
       enter() { this.drag = null; },
@@ -330,6 +395,90 @@ export class Engine {
         }
       },
     };
+  }
+  // --- export scene: the ledger as plain text with a Copy button (ADR-0016) ---
+  // Reached from the EXPORT tab the engine draws on the menu. The hidden textarea is the engine's one DOM exception besides the toast.
+  _setupExport() {
+    const E = this;
+    const MONO = 'ui-monospace, Menlo, Consolas, monospace', SZ = 12, LH = 17;
+    this.game.scenes.__export = {
+      enter(_, params) {
+        this.from = (params && params.from) || 'menu';
+        this.text = E.ledger.text(E); this.scroll = 0; this.drag = null; this.lines = null;
+        const ta = this.ta = document.createElement('textarea');
+        ta.readOnly = true; ta.value = this.text; ta.setAttribute('aria-hidden', 'true'); ta.tabIndex = -1;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;font:12px ui-monospace,Menlo,monospace;user-select:text;-webkit-user-select:text;';
+        document.body.appendChild(ta);
+      },
+      exit() { if (this.ta) this.ta.remove(); this.ta = null; },
+      body() { const top = E.safe.top + 60, bottom = E.h - E.safe.bottom - 92; return { x: 16 + E.safe.left, y: top, w: E.w - 32 - E.safe.left - E.safe.right, h: Math.max(60, bottom - top) }; },
+      wrap(ctx, w) {
+        ctx.font = `${SZ}px ${MONO}`;
+        const cols = Math.max(10, Math.floor(w / ctx.measureText('M').width)), out = [];
+        for (const raw of this.text.split('\n')) {
+          let l = raw;
+          if (!l.length) { out.push(''); continue; }
+          out.push(l.slice(0, cols)); l = l.slice(cols);
+          while (l.length) { out.push('  ' + l.slice(0, cols - 2)); l = l.slice(cols - 2); }
+        }
+        return out;
+      },
+      render(ctx) {
+        const b = this.body();
+        E.text('Export', E.w / 2, E.safe.top + 30, { size: 24, weight: '800' });
+        this.back = E.button('Back', 16 + E.safe.left + 42, E.safe.top + 30, { w: 84, h: 44, size: 15, fill: '#334155' });
+        this.copyBtn = E.button('Copy', E.w / 2, E.h - E.safe.bottom - 40, { w: Math.min(280, E.w * 0.7), h: 56, size: 20 });
+        E.roundRect(b.x - 8, b.y - 8, b.w + 16, b.h + 16, 10, '#0b0e14', '#263042');
+        if (!this.lines || this.lw !== b.w) { this.lines = this.wrap(ctx, b.w); this.lw = b.w; }
+        const max = Math.max(0, this.lines.length * LH - b.h);
+        this.scroll = clamp(this.scroll, 0, max);
+        ctx.save(); ctx.beginPath(); ctx.rect(b.x - 4, b.y - 4, b.w + 8, b.h + 8); ctx.clip();
+        this.lines.forEach((l, i) => {
+          const y = b.y + i * LH - this.scroll + LH / 2;
+          if (y > b.y - LH && y < b.y + b.h + LH) E.text(l, b.x, y, { size: SZ, font: MONO, align: 'left', weight: '400', color: i < 6 ? '#fbbf24' : '#cbd5e1' });
+        });
+        ctx.restore();
+        if (max > 0) E.roundRect(b.x + b.w + 4, b.y + (b.h - 30) * (this.scroll / max), 3, 30, 2, '#475569');
+      },
+      onPointerDown(p) { this.drag = { y: p.y, s: this.scroll }; },
+      onPointerMove(p) { if (this.drag) this.scroll = this.drag.s - (p.y - this.drag.y); },
+      onPointerUp() { this.drag = null; },
+      onTap(p) {
+        if (this.back && E.hit(this.back, p)) E.setScene(this.from);
+        else if (this.copyBtn && E.hit(this.copyBtn, p)) this.copy();
+      },
+      // Clipboard API when the browser allows it, else select-all in the hidden textarea and execCommand; if even that
+      // fails the textarea is shown over the text so the tester can long-press and copy it themselves.
+      copy() {
+        const ta = this.ta, text = this.text;
+        const fallback = () => {
+          let ok = false;
+          try { ta.select(); ta.setSelectionRange(0, text.length); ok = document.execCommand('copy'); } catch (e) {}
+          if (!ok) {
+            const b = this.body();
+            ta.style.cssText = `position:fixed;left:${b.x - 8}px;top:${b.y - 8}px;width:${b.w + 16}px;height:${b.h + 16}px;box-sizing:border-box;margin:0;padding:8px;border:0;border-radius:10px;background:#0b0e14;color:#cbd5e1;font:12px/17px ui-monospace,Menlo,monospace;z-index:5;outline:none;resize:none;user-select:text;-webkit-user-select:text;`;
+            ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+          }
+          E.toast(ok ? 'Copied' : 'Text selected: long-press it and choose Copy');
+        };
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => E.toast('Copied'), fallback); return; }
+        } catch (e) {}
+        fallback();
+      },
+    };
+  }
+  // Five quick taps on the title band reveal the TUNE tab in the release channel. The band is the top strip of the menu, clear of
+  // both tabs; a game may set E.titleArea = { x, y, w, h } to say where its title really is. Returns true when the tap is consumed.
+  _titleTap(p) {
+    const a = this.titleArea || { x: 0, y: 0, w: this.w, h: this.safe.top + Math.max(110, this.h * 0.16) };
+    if (!this.hit(a, p) || (this._exportTab && this.hit(this._exportTab, p))) { this._titleTaps = []; return false; }
+    const now = performance.now();
+    this._titleTaps = this._titleTaps.filter((t) => now - t < 2000).concat(now);
+    if (this._titleTaps.length < 5) return false;
+    this._titleTaps = []; this._tuneShown = true;
+    this.haptic(20); this.audio.play('coin', 0.5); this.toast('TUNE tab unlocked');
+    return true;
   }
   _fmt(v, step) { const d = step && step < 1 ? Math.min(3, Math.ceil(-Math.log10(step))) : 0; return Number(v).toFixed(d); }
   _getPath(key) { return key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), this.T); }
@@ -394,6 +543,8 @@ export class Engine {
       p.cancelled = e.type === 'pointercancel'; // system gesture or palm: scenes must not act on it
       if (p.cancelled) p.isTap = p.isSwipe = false;
       if (p.isTap && this._tune && this.sceneName === 'menu' && this._tuneTab && this.hit(this._tuneTab, p)) { this.setScene('tune'); return; }
+      if (p.isTap && this.sceneName === 'menu' && this._exportTab && this.hit(this._exportTab, p)) { this.setScene('__export', { from: this.sceneName }); return; }
+      if (p.isTap && this.channel === 'release' && this._tune && !this._tuneShown && this.sceneName === 'menu' && this._titleTap(p)) return;
       this.scene && this.scene.onPointerUp && this.scene.onPointerUp(p, this);
       if (p.isTap && this.scene && this.scene.onTap) this.scene.onTap(p, this);
       if (p.isSwipe && this.scene && this.scene.onSwipe) this.scene.onSwipe(p, this);

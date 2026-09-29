@@ -20,3 +20,8 @@ The designer's tuning playtests use the TUNE tab, presets and experiments. Share
 - Builders add ledger calls at the points the layer prompt names; the reviewer checks that a run's export lists every result.
 - Every game's `engine.js` is refreshed from the skeleton in the same round (ADR-0011).
 - The release script is the only way into `release/`; hand-edited release files are a process failure.
+- The engine draws the EXPORT tab at the top left of the menu (72 x 44), so a game's menu keeps that corner clear, as it already does for the TUNE tab at the top right. Recoil's landscape menu title sits under it and needs to move.
+- The release title-tap band is the top strip of the menu (safe top plus the larger of 110 px and 16 percent of the height), clear of both tabs; a game whose title lives elsewhere sets `E.titleArea`. Taps in the band still reach the scene until the fifth, which is consumed.
+- `tools/release.sh` reads the newest layer line of the highest version in a changelog (the first bullet when sections run newest-first, else the last) and refuses the game on "Review: pending". A refused game is left out of `release/games/` and any earlier copy is removed, so the launcher's single version never labels a game it did not build; the script exits 2. The release folder is rebuilt from sources on every run and is idempotent. `release/release.json` lets the dev launcher show a link only when a release exists.
+- `E.ledger` and `__ledger` are engine-owned: `migrate` never sees the key and `E.save.reset()` keeps it.
+- `tools/smoke.mjs` also boots every `release/games/<slug>` present and checks the release meta, cache name, manifest prefix, save key and hidden TUNE tab.

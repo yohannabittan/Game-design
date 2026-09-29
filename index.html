@@ -19,13 +19,22 @@
     .go { color: var(--muted); font-size: 22px; }
     .foot { color: var(--muted); font-size: 12px; margin-top: 22px; line-height: 1.5; }
     .empty { color: var(--muted); }
+    a.release { display: none; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: 16px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 14px; text-decoration: none; }
+    a.release.show { display: flex; }
   </style>
 </head>
 <body>
   <header><h1>Game Library</h1><span class="hint" id="count"></span></header>
+  <a class="release" id="release" href="release/">Release build <span id="relver"></span> &rsaquo;</a>
   <div id="list"><div class="empty">Loading…</div></div>
   <p class="foot">Open a game, then use Share → Add to Home Screen. After one online launch each game plays offline. A game shows an update toast when a new version is ready.</p>
   <script>
+    // release/release.json is written by tools/release.sh; the link shows only when a release exists.
+    fetch('release/release.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(rel => {
+      if (!rel || !rel.version) return;
+      document.getElementById('relver').textContent = rel.version;
+      document.getElementById('release').classList.add('show');
+    }).catch(() => {});
     fetch('games/index.json', { cache: 'no-store' }).then(r => r.json()).then(games => {
       const el = document.getElementById('list');
       document.getElementById('count').textContent = games.length + (games.length === 1 ? ' game' : ' games');

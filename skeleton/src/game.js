@@ -84,6 +84,8 @@ const play = {
       const best = E.save.get('best', 0);
       if (state.score > best) E.save.set('best', state.score);
       E.save.update('runs', (n) => n + 1, 0);
+      // The playtest ledger (ADR-0016): one line per result, so an exported run says what happened without memory.
+      E.ledger.add('result', { score: state.score, hits: state.hits, best: Math.max(best, state.score), seed: state.seed });
       E.setScene('over', { score: state.score, best: Math.max(best, state.score), isNew: state.score > best });
     }
   },
