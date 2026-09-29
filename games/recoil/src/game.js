@@ -35,7 +35,7 @@ const TUNING = {
   weavePeriod: 1.4,      // Seconds per weave cycle
   dodgeRange: 30,        // A shot within this of the target centre triggers a dodge
   dodgeStep: 60,         // Dodge distance
-  dodgeCooldown: 1.2,    // Seconds before a target can dodge again (it flickers when ready)
+  dodgeCooldown: 1.2,    // Seconds before a target can dodge again (an armed dodger wears a dashed ring; a shrinking arc counts the window)
   hordeCount: 6,         // Targets per horde
   skeetSpeed: 420,       // Launch speed
   skeetGravity: 380,     // Gravity on skeet
@@ -110,7 +110,7 @@ const TUNING = {
 
   // Additions, not in the PRDs.
   swayWindow: 0.05,      // Seconds over which the gun's speed is measured for sway
-  dodgeWarn: 0.4,        // A dodge target starts flickering this long before it can dodge again
+  expiryGrace: 0.12,     // v0.5 B: seconds an Accuracy card stays hit-testable after its time is up (touch latency is 50 to 100 ms); the miss books when it ends
   accLife: 6,            // Seconds an Accuracy target stays before it is a miss
   accGap: 0.45,          // Seconds between a target going and the next appearing
   startDelay: 0.6,       // Seconds before the first target
@@ -283,14 +283,16 @@ const TUNING = {
       ],
     },
     chip: { hit: 44, gap: 8, size: 26, radius: 6 }, // Skin swatches on the stats card: touch size, spacing, drawn size, corner
-    flash: { spikes: [28, 10, 14, 8, 6, 8, 14, 10], inner: 4.5, from: 0.7, mid: 0.62, core: 0.3, dropAlpha: 0.3, dropScale: 0.5 }, // Muzzle flash: eight spikes (forward first), scale grows from `from` to 1 as it lives; a dropped tap flickers a small faint one (dropAlpha, dropScale)
+    flash: { spikes: [28, 10, 14, 8, 6, 8, 14, 10], inner: 4.5, from: 0.7, mid: 0.62, core: 0.3 }, // Muzzle flash: eight spikes (forward first), scale grows from `from` to 1 as it lives
     casing: { cap: 10, life: 0.55, gravity: 700, vx: [-75, -30], vy: [-175, -105], spin: [-16, 16], floor: 16, fade: 0.35, line: 1.2 }, // Ejected brass: capped particles
     finder: { gap: 6, rNear: 2.8, rFar: 1.5, farAlpha: 0.25, warm: 0.3, ramp: 4, track: 5.5, trackAlpha: 0.3, capHalf: 6, capWidth: 2.6, capAlpha: 0.55, fanAlpha: 0.22 },
     tracer: { width: 2.5 },
+    drop: { life: 0.12, dotK: 1.7, lineAlpha: 0.9, haptic: 12 }, // v0.5 B: a tap dropped inside the fire interval flashes the range finder white (dot size factor, line alpha)
+    dodge: { ghostLife: 0.25, ghostAlpha: 0.5, slide: 0.1, ringGap: 5, ringWidth: 2.5, dash: [7, 5], coolAlpha: 0.75, beep: 520, calloutDx: 84 }, // v0.5 B: a dodge leaves a fading ghost card and slides the target over `slide`, and the call-out sits to its left; the armed ring
     ring: { life: 0.3, r0: 8, r1: 30, width: 3 }, // Hit ring that opens at the target as the score pop rises (inside the pop's own life)
     popLine: 5,            // Outline width of the score pop
     backdrop: { skyLowY: 120, wallTop: 208, coping: 7, seam: 64, marker: 128, markerW: 14, markerH: 22, tape: [10, 8], tick: 5 },
-    card: { pad: 3, radius: 0.6, ringLine: 1, timerK: 1.17, timerGap: 4, timerWidth: 3, post: 4, foot: 13 }, // Paper target: pad beyond the outer ring, corner as a fraction of the half size
+    card: { pad: 3, radius: 0.6, ringLine: 1, timerK: 1.17, timerGap: 4, timerWidth: 3, post: 4, foot: 13, warn: 1, warnFlip: 0.3, pulse: 8 }, // Paper target: pad beyond the outer ring (an Accuracy card scores out to it), corner as a fraction of the half size; the timer ring goes orange and pulses in the last `warn` seconds (the last `warnFlip` of a flip window)
     trolley: { w: 0.8, h: 4, wheel: 2.6, tie: 24, tieLen: 2.5, tieW: 5, rail: 2, railAlpha: 0.55 },
     clay: { disc: 0.74, rimLine: 1.2, cross: 0.5 }, // cross: the decoy's mark, as a fraction of its radius
     flip: { time: 0.25, min: 0.08 }, // A flip target turns edge-on over its last `time` seconds (never thinner than `min`)
@@ -298,7 +300,7 @@ const TUNING = {
     core: { pulse: 5, glow: [7, 14], glowAlpha: [0.22, 0.12], amp: 3, spec: 0.68 },
     pip: { w: 6, h: 9, gap: 11 }, // Combo pips drawn as brass casings
     mult: { size: 24, swell: 0.5, pulse: 0.25, x: 128, dy: 50, flip: 170 }, // The multiplier beside the lane: size in design units, swell on a step, seconds it swells, where it sits, and the gun height below which it goes under the line
-    intro: { y: 52, hold: 5, fade: 1.5 }, // Boss 2's "Every plate scores" line: design-space height, seconds shown, seconds to fade
+    intro: { y: 66, hold: 5, fade: 1.5 }, // The one-line intro (Boss 2's "Every plate scores", Accuracy 4 and 5's dodge line): design-space height, seconds shown, seconds to fade
     menu: { ext: 18, rackH: 58, gap: 4, tileMin: 46, tileMax: 66, selMin: 178, selMax: 236, laneGap: 2, label: 74, btnH: 44, edge: 4 }, // The menu (v0.5 N): the rung art's half size, the gun rack's height and gap, its small and selected tiles' widths, the space between lanes, the lane label's width, the corner buttons' height, the margin to the screen edge
     missions: { th: 104, gap: 8, rail: 44, lock: 16, lockGap: 10 }, // Missions tile height, gap, scroll rail width, the Gauntlet padlock's size and its gap to the label
   },
@@ -335,7 +337,7 @@ const CHALLENGES = [
     accTargets: 12, accAmmo: 14, scale: 0.8, x: [520, 612], yBand: [0.35, 0.6], minDy: 70,
     high: { every: 3, band: [0, 0.2], before: [0.6, 1] },
   },
-  { // Dodgers: a shot near a flickering target makes it jump, so fire once to make it jump, then again at where it landed. Perfect run 2950.
+  { // Dodgers: a shot near a target wearing the dashed orange ring makes it jump (armed from its first frame), so fire once to make it jump, then again at where it landed. Perfect run 2950.
     id: 'a4', ladder: 'accuracy', level: 4, name: 'Accuracy 4', seed: 41004, behaviour: 'dodge',
     accTargets: 10, accAmmo: 24, scale: 0.9, x: [400, 600], yBand: [0, 1], minDy: 70,
   },
@@ -426,74 +428,74 @@ function chById(id) { return id === ENDLESS.id ? ENDLESS : CHALLENGES.find((c) =
 // active noise (TUNE), so a slider needs no re-run. Generated by the harness described in the changelog; regenerate whenever the sim changes.
 const BARS = {
   a1: {
-    pistol: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1688, 1601, 1477, 1366, 1242, 1152, 1082, 1035, 980, 919, 877, 811, 775, 730, 697],
-      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1270, 1170, 995, 885, 835, 780, 760, 710, 690, 610, 585, 550, 540] },
-    carbine: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1688, 1601, 1477, 1366, 1242, 1152, 1082, 1035, 979, 917, 874, 814, 782, 741, 711],
-      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1270, 1170, 995, 885, 835, 780, 760, 700, 685, 610, 585, 580, 575] },
-    shotgun: { m: [2150, 2150, 2135, 2041, 1924, 1796, 1692, 1601, 1479, 1359, 1244, 1156, 1081, 1031, 976, 913, 862, 817, 781, 734, 707],
-      q: [2150, 2150, 2150, 1950, 1825, 1675, 1525, 1425, 1280, 1170, 1010, 885, 835, 780, 760, 695, 675, 610, 580, 580, 575] },
-    rifle: { m: [2150, 2150, 2135, 2041, 1924, 1795, 1696, 1618, 1496, 1377, 1260, 1170, 1115, 1064, 1007, 923, 880, 832, 803, 758, 725],
-      q: [2150, 2150, 2150, 1950, 1825, 1675, 1535, 1465, 1335, 1185, 1020, 900, 865, 820, 780, 675, 625, 610, 595, 580, 550] },
-    smg: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1688, 1601, 1477, 1366, 1242, 1152, 1082, 1035, 981, 918, 874, 816, 781, 739, 708],
-      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1270, 1170, 995, 885, 835, 780, 760, 700, 685, 610, 585, 575, 575] },
-    revolver: { m: [2150, 2150, 2134, 2051, 1877, 1759, 1618, 1530, 1425, 1300, 1161, 1106, 1018, 941, 878, 839, 801, 768, 734, 716, 688],
-      q: [2150, 2150, 2150, 2000, 1750, 1650, 1475, 1360, 1230, 1075, 940, 865, 785, 740, 710, 620, 590, 565, 545, 535, 500] },
+    pistol: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1694, 1601, 1501, 1387, 1280, 1185, 1110, 1054, 996, 944, 902, 857, 826, 767, 731],
+      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1310, 1205, 1080, 920, 835, 790, 760, 710, 695, 670, 625, 580, 550] },
+    carbine: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1694, 1601, 1501, 1387, 1280, 1185, 1110, 1054, 996, 944, 900, 857, 824, 770, 735],
+      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1310, 1205, 1080, 920, 835, 790, 760, 710, 695, 670, 625, 580, 555] },
+    shotgun: { m: [2150, 2150, 2135, 2041, 1924, 1796, 1697, 1601, 1501, 1388, 1282, 1194, 1112, 1043, 998, 935, 899, 860, 827, 763, 730],
+      q: [2150, 2150, 2150, 1950, 1825, 1675, 1525, 1425, 1310, 1205, 1080, 940, 835, 780, 775, 705, 695, 660, 625, 575, 545] },
+    rifle: { m: [2150, 2150, 2135, 2041, 1924, 1795, 1696, 1618, 1519, 1414, 1292, 1206, 1130, 1067, 1033, 972, 918, 871, 829, 782, 765],
+      q: [2150, 2150, 2150, 1950, 1825, 1675, 1535, 1465, 1345, 1245, 1065, 980, 865, 825, 790, 760, 700, 645, 595, 560, 560] },
+    smg: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1694, 1601, 1501, 1387, 1280, 1185, 1110, 1054, 996, 943, 902, 857, 824, 771, 736],
+      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1310, 1205, 1080, 920, 835, 790, 760, 710, 695, 670, 625, 580, 575] },
+    revolver: { m: [2150, 2150, 2134, 2051, 1877, 1759, 1618, 1532, 1444, 1333, 1217, 1139, 1069, 992, 920, 872, 833, 807, 757, 715, 714],
+      q: [2150, 2150, 2150, 2000, 1750, 1650, 1475, 1360, 1245, 1170, 1040, 955, 845, 775, 735, 670, 655, 590, 570, 540, 515] },
   },
   a2: {
-    pistol: { m: [2950, 2949, 2802, 2585, 2365, 2122, 1919, 1722, 1549, 1401, 1244, 1137, 1046, 958, 870, 802, 735, 664, 612, 579, 532],
-      q: [2950, 2950, 2750, 2425, 2195, 1885, 1645, 1390, 1215, 1095, 945, 835, 775, 650, 585, 510, 465, 435, 390, 380, 340] },
-    carbine: { m: [2950, 2949, 2802, 2585, 2365, 2122, 1918, 1719, 1546, 1397, 1246, 1140, 1051, 962, 877, 801, 733, 670, 621, 585, 549],
-      q: [2950, 2950, 2750, 2425, 2195, 1885, 1645, 1365, 1215, 1095, 945, 830, 775, 675, 595, 515, 465, 445, 400, 385, 355] },
-    shotgun: { m: [2950, 2949, 2802, 2584, 2364, 2124, 1928, 1714, 1547, 1397, 1247, 1159, 1049, 971, 895, 806, 748, 675, 629, 596, 561],
-      q: [2950, 2950, 2750, 2425, 2180, 1870, 1655, 1365, 1230, 1095, 955, 865, 775, 720, 610, 540, 510, 460, 420, 400, 355] },
-    rifle: { m: [2950, 2949, 2801, 2579, 2361, 2125, 1927, 1715, 1550, 1423, 1271, 1173, 1080, 975, 890, 791, 745, 682, 618, 595, 545],
-      q: [2950, 2950, 2750, 2425, 2180, 1905, 1655, 1365, 1240, 1120, 930, 865, 830, 710, 620, 540, 525, 455, 400, 385, 340] },
-    smg: { m: [2950, 2949, 2802, 2585, 2365, 2122, 1919, 1723, 1549, 1399, 1246, 1141, 1053, 963, 879, 801, 733, 667, 620, 584, 543],
-      q: [2950, 2950, 2750, 2425, 2195, 1885, 1645, 1390, 1215, 1095, 945, 835, 775, 675, 590, 510, 465, 445, 400, 390, 355] },
-    revolver: { m: [2950, 2947, 2804, 2579, 2357, 2089, 1916, 1737, 1552, 1340, 1196, 1059, 970, 878, 788, 690, 642, 589, 529, 519, 490],
-      q: [2950, 2950, 2750, 2425, 2175, 1850, 1655, 1410, 1235, 985, 805, 725, 655, 535, 485, 465, 420, 390, 370, 380, 340] },
+    pistol: { m: [2950, 2949, 2802, 2585, 2365, 2168, 1973, 1765, 1605, 1449, 1317, 1193, 1106, 1033, 941, 868, 809, 753, 702, 638, 590],
+      q: [2950, 2950, 2750, 2425, 2195, 1970, 1735, 1460, 1305, 1110, 1075, 855, 815, 775, 705, 600, 515, 470, 465, 405, 355] },
+    carbine: { m: [2950, 2949, 2802, 2585, 2365, 2168, 1973, 1765, 1599, 1449, 1315, 1196, 1108, 1036, 946, 872, 813, 753, 702, 641, 599],
+      q: [2950, 2950, 2750, 2425, 2195, 1970, 1735, 1460, 1300, 1110, 1075, 880, 820, 775, 685, 590, 530, 490, 465, 420, 390] },
+    shotgun: { m: [2950, 2949, 2802, 2584, 2364, 2170, 1981, 1765, 1608, 1438, 1321, 1202, 1106, 1031, 963, 877, 815, 756, 719, 657, 604],
+      q: [2950, 2950, 2750, 2425, 2180, 1970, 1735, 1460, 1300, 1110, 1075, 880, 815, 775, 710, 610, 515, 515, 490, 435, 400] },
+    rifle: { m: [2950, 2949, 2801, 2579, 2361, 2170, 1971, 1761, 1613, 1455, 1332, 1218, 1131, 1051, 964, 876, 808, 751, 715, 673, 594],
+      q: [2950, 2950, 2750, 2425, 2180, 1970, 1700, 1445, 1295, 1140, 1070, 920, 840, 805, 710, 660, 540, 515, 480, 445, 390] },
+    smg: { m: [2950, 2949, 2802, 2585, 2365, 2168, 1973, 1766, 1603, 1452, 1315, 1196, 1112, 1036, 946, 876, 808, 751, 700, 643, 598],
+      q: [2950, 2950, 2750, 2425, 2195, 1970, 1735, 1460, 1305, 1110, 1075, 880, 820, 775, 685, 590, 515, 470, 460, 435, 390] },
+    revolver: { m: [2950, 2947, 2804, 2579, 2357, 2133, 1950, 1780, 1615, 1437, 1258, 1128, 1028, 971, 885, 796, 722, 666, 611, 562, 533],
+      q: [2950, 2950, 2750, 2425, 2175, 1905, 1700, 1465, 1340, 1120, 940, 795, 725, 655, 535, 535, 450, 415, 400, 385, 345] },
   },
   a3: {
-    pistol: { m: [3750, 3690, 3248, 2816, 2373, 1956, 1566, 1251, 1028, 851, 732, 619, 535, 453, 428, 371, 320, 291, 263, 226, 215],
-      q: [3750, 3650, 3100, 2605, 2075, 1660, 1205, 935, 690, 585, 505, 390, 320, 255, 245, 150, 130, 100, 70, 70, 70] },
-    carbine: { m: [3750, 3690, 3248, 2816, 2373, 1960, 1580, 1301, 1094, 934, 812, 681, 609, 549, 499, 457, 424, 380, 338, 312, 302],
-      q: [3750, 3650, 3100, 2605, 2075, 1650, 1200, 995, 815, 675, 615, 460, 420, 390, 330, 295, 280, 250, 195, 170, 145] },
-    shotgun: { m: [3750, 3700, 3273, 2844, 2388, 1932, 1552, 1223, 996, 836, 724, 603, 535, 472, 431, 380, 355, 321, 297, 283, 276],
-      q: [3750, 3675, 3100, 2625, 2135, 1515, 1150, 830, 695, 570, 485, 415, 330, 280, 270, 245, 245, 220, 190, 190, 170] },
-    rifle: { m: [3750, 3675, 3074, 2594, 2030, 1541, 1171, 969, 806, 709, 624, 577, 516, 455, 423, 379, 370, 352, 323, 296, 273],
-      q: [3750, 3600, 2875, 2360, 1705, 1210, 870, 715, 595, 475, 435, 405, 340, 310, 270, 265, 240, 240, 205, 170, 150] },
-    smg: { m: [3750, 3690, 3248, 2816, 2370, 1958, 1568, 1284, 1074, 917, 804, 672, 591, 534, 473, 421, 387, 348, 295, 271, 257],
-      q: [3750, 3650, 3100, 2605, 2075, 1620, 1200, 980, 790, 675, 600, 430, 385, 370, 315, 240, 240, 200, 135, 100, 50] },
-    revolver: { m: [3750, 3665, 3000, 2426, 1878, 1351, 1033, 775, 625, 520, 465, 393, 350, 333, 309, 285, 269, 246, 240, 227, 227],
-      q: [3750, 3550, 2800, 2240, 1595, 1050, 750, 560, 400, 350, 250, 215, 200, 195, 180, 170, 165, 145, 150, 150, 140] },
+    pistol: { m: [3750, 3690, 3248, 2825, 2423, 2028, 1699, 1394, 1163, 941, 838, 700, 613, 545, 501, 440, 391, 338, 306, 282, 266],
+      q: [3750, 3650, 3100, 2615, 2240, 1735, 1380, 1090, 805, 640, 570, 450, 420, 320, 310, 240, 215, 135, 120, 100, 70] },
+    carbine: { m: [3750, 3690, 3248, 2825, 2425, 2026, 1712, 1422, 1211, 1021, 901, 779, 666, 626, 572, 512, 461, 432, 404, 370, 349],
+      q: [3750, 3650, 3100, 2615, 2240, 1730, 1380, 1085, 880, 755, 655, 590, 480, 435, 410, 365, 320, 280, 270, 260, 225] },
+    shotgun: { m: [3750, 3700, 3273, 2860, 2462, 2013, 1687, 1358, 1133, 931, 809, 688, 590, 529, 485, 418, 394, 355, 340, 315, 297],
+      q: [3750, 3675, 3100, 2625, 2240, 1625, 1270, 935, 775, 625, 540, 470, 405, 315, 325, 260, 260, 240, 220, 210, 195] },
+    rifle: { m: [3750, 3675, 3074, 2623, 2132, 1692, 1283, 1033, 893, 739, 658, 591, 553, 494, 460, 430, 396, 375, 362, 343, 315],
+      q: [3750, 3600, 2875, 2380, 1875, 1335, 980, 765, 635, 525, 470, 410, 370, 325, 280, 280, 265, 245, 240, 220, 175] },
+    smg: { m: [3750, 3690, 3248, 2825, 2422, 2024, 1710, 1407, 1193, 996, 890, 764, 660, 608, 548, 502, 451, 401, 368, 343, 310],
+      q: [3750, 3650, 3100, 2615, 2240, 1730, 1375, 1060, 845, 740, 655, 570, 460, 415, 385, 340, 295, 245, 220, 210, 140] },
+    revolver: { m: [3750, 3665, 3000, 2447, 1943, 1454, 1160, 893, 712, 575, 498, 437, 394, 353, 328, 309, 286, 256, 244, 252, 239],
+      q: [3750, 3550, 2800, 2280, 1690, 1155, 870, 650, 535, 370, 290, 260, 225, 215, 180, 190, 165, 140, 140, 150, 140] },
   },
   a4: {
-    pistol: { m: [2950, 2938, 2514, 1917, 1594, 1343, 1122, 933, 789, 678, 614, 534, 460, 412, 351, 303, 260, 245, 226, 184, 164],
-      q: [2950, 2950, 2150, 1570, 1235, 1070, 845, 695, 590, 510, 445, 350, 300, 270, 220, 170, 140, 100, 100, 50, 50] },
-    carbine: { m: [2950, 2938, 2510, 1934, 1590, 1341, 1135, 953, 814, 729, 649, 569, 513, 480, 433, 415, 394, 375, 353, 335, 320],
-      q: [2950, 2950, 2150, 1600, 1265, 1110, 895, 695, 620, 540, 495, 445, 400, 375, 335, 320, 300, 290, 270, 265, 250] },
-    shotgun: { m: [2950, 2942, 2755, 2472, 2192, 1943, 1720, 1463, 1299, 1191, 1033, 991, 924, 842, 752, 681, 645, 598, 585, 568, 553],
-      q: [2950, 2950, 2625, 2275, 1975, 1620, 1435, 1130, 985, 915, 800, 705, 685, 625, 530, 465, 465, 445, 450, 420, 400] },
-    rifle: { m: [2950, 2935, 2505, 1910, 1590, 1303, 1110, 887, 749, 623, 520, 427, 378, 339, 316, 289, 267, 231, 223, 205, 185],
-      q: [2950, 2950, 2125, 1550, 1270, 1020, 815, 625, 545, 465, 350, 240, 220, 190, 200, 170, 160, 125, 120, 120, 100] },
-    smg: { m: [2950, 2938, 2517, 1933, 1590, 1338, 1145, 956, 807, 726, 643, 567, 507, 466, 416, 387, 366, 353, 302, 263, 241],
-      q: [2950, 2950, 2200, 1600, 1265, 1095, 895, 695, 605, 540, 495, 440, 390, 370, 300, 280, 260, 240, 195, 120, 100] },
-    revolver: { m: [2950, 2942, 2545, 1871, 1420, 1150, 929, 763, 589, 503, 408, 334, 300, 273, 257, 242, 221, 200, 177, 172, 155],
-      q: [2950, 2950, 2250, 1475, 1075, 815, 620, 505, 400, 320, 270, 220, 170, 165, 140, 120, 120, 90, 90, 90, 70] },
+    pistol: { m: [2950, 2938, 2514, 1917, 1595, 1362, 1141, 983, 819, 721, 645, 557, 507, 455, 398, 328, 293, 270, 245, 215, 201],
+      q: [2950, 2950, 2150, 1570, 1255, 1075, 885, 720, 620, 535, 480, 370, 320, 300, 270, 200, 170, 165, 110, 100, 90] },
+    carbine: { m: [2950, 2938, 2510, 1934, 1597, 1358, 1158, 1002, 838, 743, 672, 596, 543, 482, 441, 413, 393, 385, 358, 349, 330],
+      q: [2950, 2950, 2150, 1600, 1275, 1110, 925, 740, 630, 565, 530, 460, 410, 370, 350, 295, 270, 290, 270, 265, 240] },
+    shotgun: { m: [2950, 2942, 2750, 2464, 2199, 1933, 1722, 1509, 1353, 1191, 1085, 1019, 903, 869, 806, 713, 670, 655, 628, 623, 590],
+      q: [2950, 2950, 2625, 2275, 1980, 1645, 1480, 1245, 1080, 940, 830, 765, 665, 670, 615, 500, 485, 485, 460, 460, 470] },
+    rifle: { m: [2950, 2935, 2505, 1910, 1590, 1331, 1147, 954, 786, 695, 568, 490, 429, 369, 325, 298, 275, 250, 241, 210, 192],
+      q: [2950, 2950, 2125, 1550, 1275, 1025, 860, 720, 565, 515, 405, 320, 280, 230, 190, 190, 170, 150, 150, 130, 120] },
+    smg: { m: [2950, 2938, 2517, 1933, 1597, 1358, 1168, 1003, 830, 744, 663, 598, 549, 481, 431, 406, 380, 371, 323, 306, 273],
+      q: [2950, 2950, 2200, 1600, 1275, 1110, 925, 740, 625, 565, 530, 465, 400, 365, 335, 270, 260, 265, 240, 210, 190] },
+    revolver: { m: [2950, 2942, 2545, 1871, 1429, 1154, 943, 793, 642, 540, 433, 375, 339, 306, 259, 247, 224, 210, 189, 186, 169],
+      q: [2950, 2950, 2250, 1475, 1080, 825, 650, 535, 430, 370, 295, 245, 220, 190, 145, 140, 120, 110, 100, 90, 80] },
   },
   a5: {
-    pistol: { m: [3750, 3639, 2835, 2025, 1493, 1136, 874, 679, 548, 455, 360, 312, 278, 245, 208, 200, 170, 152, 133, 110, 102],
-      q: [3750, 3550, 2500, 1650, 1100, 800, 585, 420, 350, 275, 210, 160, 120, 90, 90, 70, 70, 50, 50, 20, 20] },
-    carbine: { m: [3750, 3636, 2801, 2007, 1484, 1107, 920, 766, 655, 555, 490, 416, 396, 362, 338, 305, 276, 248, 214, 191, 182],
-      q: [3750, 3550, 2450, 1570, 1080, 800, 685, 565, 510, 390, 345, 260, 240, 200, 170, 135, 120, 120, 90, 40, 20] },
-    shotgun: { m: [3750, 3660, 3049, 2575, 2057, 1603, 1192, 894, 750, 690, 606, 519, 463, 438, 408, 379, 350, 323, 312, 307, 300],
-      q: [3750, 3550, 2885, 2315, 1685, 1260, 835, 655, 510, 440, 415, 350, 290, 260, 245, 230, 210, 170, 180, 180, 170] },
-    rifle: { m: [3750, 3615, 2577, 1786, 1261, 892, 671, 512, 421, 348, 299, 283, 254, 231, 201, 187, 181, 159, 149, 140, 134],
-      q: [3750, 3550, 2275, 1290, 800, 665, 475, 360, 295, 245, 190, 170, 170, 145, 130, 120, 115, 90, 70, 60, 50] },
-    smg: { m: [3750, 3634, 2798, 2011, 1475, 1140, 906, 762, 630, 541, 461, 395, 348, 312, 290, 251, 226, 201, 180, 153, 134],
-      q: [3750, 3550, 2450, 1590, 1065, 810, 675, 570, 475, 370, 315, 245, 185, 170, 140, 100, 90, 50, 20, 0, 0] },
-    revolver: { m: [3750, 3575, 2401, 1430, 1002, 635, 475, 398, 325, 273, 223, 179, 164, 133, 141, 123, 114, 115, 104, 91, 84],
-      q: [3750, 3550, 1915, 1100, 745, 490, 350, 290, 235, 170, 120, 110, 70, 60, 60, 50, 50, 40, 40, 20, 20] },
+    pistol: { m: [3750, 3639, 2835, 2046, 1532, 1265, 993, 726, 626, 505, 409, 341, 311, 265, 225, 212, 198, 162, 128, 118, 113],
+      q: [3750, 3550, 2500, 1650, 1145, 875, 695, 445, 400, 315, 240, 190, 150, 120, 100, 90, 70, 70, 40, 50, 50] },
+    carbine: { m: [3750, 3636, 2801, 2012, 1530, 1226, 977, 814, 683, 620, 524, 459, 413, 368, 357, 329, 295, 269, 230, 206, 189],
+      q: [3750, 3550, 2450, 1570, 1145, 835, 695, 605, 520, 460, 360, 320, 250, 220, 210, 170, 140, 120, 100, 70, 70] },
+    shotgun: { m: [3750, 3660, 3049, 2587, 2113, 1729, 1388, 1056, 879, 765, 717, 625, 522, 472, 453, 431, 416, 385, 344, 333, 327],
+      q: [3750, 3550, 2885, 2330, 1800, 1405, 1070, 740, 635, 475, 455, 435, 355, 320, 320, 270, 270, 230, 195, 190, 200] },
+    rifle: { m: [3750, 3615, 2577, 1817, 1337, 988, 728, 536, 426, 341, 305, 287, 265, 237, 227, 193, 161, 155, 148, 132, 124],
+      q: [3750, 3550, 2275, 1315, 835, 685, 530, 345, 265, 220, 215, 185, 170, 150, 135, 100, 70, 70, 70, 60, 50] },
+    smg: { m: [3750, 3634, 2798, 2016, 1529, 1229, 981, 801, 687, 591, 517, 438, 371, 330, 305, 268, 240, 223, 200, 183, 166],
+      q: [3750, 3550, 2450, 1590, 1100, 845, 705, 590, 540, 435, 370, 305, 235, 180, 150, 120, 90, 80, 40, 40, 20] },
+    revolver: { m: [3750, 3575, 2404, 1439, 1026, 675, 535, 418, 329, 283, 222, 184, 163, 143, 140, 128, 122, 118, 104, 96, 98],
+      q: [3750, 3550, 1915, 1100, 765, 535, 390, 295, 200, 170, 110, 100, 70, 60, 70, 50, 40, 40, 40, 20, 40] },
   },
   s1: {
     pistol: { m: [4150, 4147, 3909, 3517, 3175, 2801, 2442, 2131, 1872, 1628, 1482, 1327, 1222, 1167, 1089, 1035, 989, 968, 944, 909, 874],
@@ -874,7 +876,7 @@ function addTarget(run, tg, t) {
 function spawnAccuracy(run, t) {
   const ch = run.ch, p = run.list[run.idx++], lg = legal(ch.scale), life = p.flip ? ch.flipWindow : ch.accLife || T.accLife; // a flip target shows for a short window, then turns away
   addTarget(run, {
-    kind: ch.behaviour === 'dodge' && !p.flip ? 'dodge' : 'still', x0: p.x, y0: p.y, sc: ch.scale, life, lifeMax: life, flip: p.flip,
+    kind: ch.behaviour === 'dodge' && !p.flip ? 'dodge' : 'still', card: true, x0: p.x, y0: p.y, sc: ch.scale, life, lifeMax: life, flip: p.flip,
     bits: p.bits, dodges: 0, nextDodge: t, ymin: lg.y0, ymax: lg.y1,
   }, t);
 }
@@ -916,13 +918,15 @@ function spawnCore(run, t) {
   addTarget(run, { kind: 'core', x0: c.x, y0: c.y, sc: ch.coreScale, bullMul: ch.coreBull, hp: T.bossCoreHp, hpMax: T.bossCoreHp, dir: c.dir, ymin: lg.y0, ymax: lg.y1 }, t);
 }
 
-function targetRadius(tg) { return tg.rad !== undefined ? tg.rad : (tg.kind === 'skeet' ? T.zoneR[1] : T.zoneR[2]) * tg.sc; }
+function targetRadius(tg) { return tg.rad !== undefined ? tg.rad : tg.card ? (T.zoneR[2] + A.card.pad) * tg.sc : (tg.kind === 'skeet' ? T.zoneR[1] : T.zoneR[2]) * tg.sc; } // an Accuracy card scores over all its drawn paper (v0.5 B, F7)
 
-function dodge(tg, now) {
+function dodge(run, tg, now) {
+  const oldY = tg.y;
   let dir = tg.bits[tg.dodges % tg.bits.length] ? 1 : -1;
   if (tg.y0 + dir * T.dodgeStep < tg.ymin || tg.y0 + dir * T.dodgeStep > tg.ymax) dir = -dir;
   tg.y0 = clamp(tg.y0 + dir * T.dodgeStep, tg.ymin, tg.ymax); tg.y = tg.y0;
   tg.dodges++; tg.nextDodge = now + T.dodgeCooldown;
+  run.events.push({ type: 'dodge', x: tg.x, y0: oldY, y1: tg.y, sc: tg.sc });
 }
 
 // ---- Reload (v0.5 M) ----
@@ -1067,7 +1071,7 @@ function fire(run, cue) {
   for (const tg of run.targets) {
     if (tg.kind !== 'dodge' || now < tg.nextDodge - 1e-9) continue;
     const vx = tg.x - gx, vy = tg.y - gy;
-    if (lines.some((l) => vx * l.cs - vy * l.sn > 0 && Math.abs(vx * l.sn + vy * l.cs) <= T.dodgeRange)) { dodge(tg, now); dodged = true; }
+    if (lines.some((l) => vx * l.cs - vy * l.sn > 0 && Math.abs(vx * l.sn + vy * l.cs) <= T.dodgeRange)) { dodge(run, tg, now); dodged = true; }
   }
   const res = lines.map((l) => {
     let tg = null, along = Infinity, perp = 0;
@@ -1094,7 +1098,8 @@ function fire(run, cue) {
   for (const tg of hurt) if (tg.hp <= 0 && tg.kind !== 'zpart') down.add(tg);
   const zh = [...hurt].some((tg) => tg.kind === 'zpart');
   const mid = res[ci];
-  const ev = { type: 'shot', x0: gx + Math.cos(a0 * DEG) * T.barrelLen, y0: gy - Math.sin(a0 * DEG) * T.barrelLen, lines: res.map((r) => ({ x1: r.x1, y1: r.y1 })), x1: mid.x1, y1: mid.y1, hit: scored.size > 0 || zh, dodged: dodged && !scored.size && !zh, neutral: !scored.size && !hurt.size && res.some((r) => r.neutral) };
+  const outer = res.find((r, i) => i !== ci && r.tg && !r.tg.flat && !r.neutral && (r.tg.kind === 'still' || r.tg.kind === 'dodge' || r.tg.kind === 'approach' || r.tg.kind === 'weave') && !scored.has(r.tg)); // an outer pellet on a card the centre pellet missed
+  const ev = { type: 'shot', x0: gx + Math.cos(a0 * DEG) * T.barrelLen, y0: gy - Math.sin(a0 * DEG) * T.barrelLen, lines: res.map((r) => ({ x1: r.x1, y1: r.y1 })), x1: mid.x1, y1: mid.y1, hit: scored.size > 0 || zh, dodged: dodged && !scored.size && !zh, neutral: !scored.size && !hurt.size && res.some((r) => r.neutral), outer: outer ? { x: outer.tg.x, y: outer.tg.y } : null };
   const decoy = [...scored].find(([tg]) => tg.decoy);
   if (decoy) { // a decoy hit costs its zone value and breaks the combo; it is no hit and no miss
     const pts = -Math.round(T.zonePoints[decoy[1]] * T.decoyPenalty);
@@ -1146,10 +1151,11 @@ function stepAccuracy(run, t) {
   const tg = run.targets[0];
   if (tg) {
     tg.life -= STEP;
-    if (tg.life <= 0) {
+    if (tg.life <= -T.expiryGrace + 1e-9) { // the card fades through the grace and can still be hit; the miss books when it ends
       run.targets.length = 0;
+      const lost = !tg.flip && run.streak > 0;
       if (!tg.flip) { run.streak = 0; run.misses++; } // a flip target that turns away costs nothing but its window
-      run.events.push({ type: 'expire', x: tg.x, y: tg.y });
+      run.events.push({ type: 'expire', x: tg.x, y: tg.y, flip: !!tg.flip, lost, card: true });
       run.nextAt = t + T.accGap;
     }
   } else if (run.idx < run.list.length && t >= run.nextAt) spawnAccuracy(run, t);
@@ -1384,7 +1390,7 @@ const OLD_SKIN_BADGES = { pistol: { nickel: 'marksman1', blackout: 'quickdraw1' 
 // Everything below reads TUNING.art. Guns, the muzzle flash and the backdrop are built once (Path2D, an offscreen canvas), and the
 // per-frame loops keep no arrays or closures, so a frame allocates nothing beyond the engine's own text calls.
 
-const NO_DASH = [], BREACH_DASH = [6, 6], SEL_DASH = [5, 4], TIE_DASH = [A.trolley.tieLen, A.trolley.tie - A.trolley.tieLen], PART_NUM = ['1', '2', '3', '4', '5', '6'];
+const NO_DASH = [], BREACH_DASH = [6, 6], SEL_DASH = [5, 4], DODGE_DASH = A.dodge.dash, TIE_DASH = [A.trolley.tieLen, A.trolley.tie - A.trolley.tieLen], PART_NUM = ['1', '2', '3', '4', '5', '6'];
 const HORIZON = T.designH - T.thumbLane;
 const GUN_ART = {}, RAMP = []; // GUN_ART[gun][skin]
 let FLASH = null, GUN_BOX = null;
@@ -1529,9 +1535,9 @@ function drawGun(ctx, run) {
 
 // The muzzle flash sprite at the barrel tip, turned with the barrel. It grows as it fades.
 function drawFlash(ctx, run, f) {
-  const F = A.flash, a = angleOf(run) * DEG, m = gunArt(run.gun.id).muzzle, life = f.t / f.max, s = (F.from + (1 - F.from) * (1 - life)) * (f.faint ? F.dropScale : 1);
+  const F = A.flash, a = angleOf(run) * DEG, m = gunArt(run.gun.id).muzzle, life = f.t / f.max, s = F.from + (1 - F.from) * (1 - life);
   ctx.save(); ctx.translate(T.gunX + Math.cos(a) * m, run.gunY - Math.sin(a) * m); ctx.rotate(-a); ctx.scale(s, s);
-  ctx.globalAlpha = life * (f.faint ? F.dropAlpha : 1);
+  ctx.globalAlpha = life;
   ctx.fillStyle = P.orangeLight; ctx.fill(FLASH);
   ctx.scale(F.mid, F.mid); ctx.fillStyle = P.orange; ctx.fill(FLASH);
   ctx.scale(F.core / F.mid, F.core / F.mid); ctx.fillStyle = P.flashCore; ctx.fill(FLASH);
@@ -1704,12 +1710,28 @@ function drawTargetFull(ctx, E, tg, run, ch, alpha) {
     default: // still and dodge cards on a post
       drawPost(ctx, tg.x, tg.y + half); drawSprite(ctx, K_CARD + Math.round(sc * 100), half + 6, paintCard, tg.x, tg.y, sc, false);
   }
-  if (ch.ladder === 'accuracy') { // time left, as a ring round the card (cyan on a flip target, which has a short window)
-    const C = A.card, rr = half * C.timerK + C.timerGap, end = -Math.PI / 2 + PI2 * clamp(tg.life / tg.lifeMax, 0, 1);
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = P.ink; ctx.lineWidth = C.timerWidth + 2; ctx.beginPath(); ctx.arc(tg.x, tg.y, rr, -Math.PI / 2, end); ctx.stroke();
-    ctx.strokeStyle = tg.flip ? P.cyan : P.paperShade; ctx.lineWidth = C.timerWidth; ctx.beginPath(); ctx.arc(tg.x, tg.y, rr, -Math.PI / 2, end); ctx.stroke();
-    ctx.lineCap = 'butt';
+  if (ch.ladder === 'accuracy') { // time left, as a ring round the card (cyan on a flip target, which has a short window); orange and pulsing when it is nearly up
+    const C = A.card, rr = half * C.timerK + C.timerGap, life = Math.max(0, tg.life), end = -Math.PI / 2 + PI2 * clamp(life / tg.lifeMax, 0, 1);
+    const late = life > 0 && (tg.flip ? life / tg.lifeMax <= C.warnFlip : life <= C.warn);
+    if (life > 0) { // no ring in the grace: the time is up
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = P.ink; ctx.lineWidth = C.timerWidth + 2; ctx.beginPath(); ctx.arc(tg.x, tg.y, rr, -Math.PI / 2, end); ctx.stroke();
+      ctx.strokeStyle = late ? P.orange : tg.flip ? P.cyan : P.paperShade; ctx.lineWidth = C.timerWidth; if (late) ctx.globalAlpha = alpha * (0.6 + 0.4 * Math.abs(Math.sin(E.time * C.pulse)));
+      ctx.beginPath(); ctx.arc(tg.x, tg.y, rr, -Math.PI / 2, end); ctx.stroke(); ctx.globalAlpha = alpha;
+      ctx.lineCap = 'butt';
+    }
+    if (tg.kind === 'dodge') { // a dodger that can jump wears a steady dashed ring; while it recharges an arc counts the window down
+      const K = A.dodge, rd = rr + C.timerWidth + K.ringGap, cool = tg.nextDodge - run.steps * STEP;
+      ctx.lineWidth = K.ringWidth;
+      if (cool <= 1e-9) {
+        ctx.strokeStyle = P.ink; ctx.lineWidth = K.ringWidth + 2; ctx.setLineDash(DODGE_DASH); ctx.beginPath(); ctx.arc(tg.x, tg.y, rd, 0, PI2); ctx.stroke();
+        ctx.strokeStyle = P.orange; ctx.lineWidth = K.ringWidth; ctx.beginPath(); ctx.arc(tg.x, tg.y, rd, 0, PI2); ctx.stroke(); ctx.setLineDash(NO_DASH);
+      } else {
+        const e2 = -Math.PI / 2 + PI2 * clamp(cool / T.dodgeCooldown, 0, 1);
+        ctx.lineCap = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = K.ringWidth + 2; ctx.beginPath(); ctx.arc(tg.x, tg.y, rd, -Math.PI / 2, e2); ctx.stroke();
+        ctx.globalAlpha = alpha * K.coolAlpha; ctx.strokeStyle = P.orange; ctx.lineWidth = K.ringWidth; ctx.beginPath(); ctx.arc(tg.x, tg.y, rd, -Math.PI / 2, e2); ctx.stroke(); ctx.globalAlpha = alpha; ctx.lineCap = 'butt';
+      }
+    }
   }
   if (turn) ctx.restore();
   ctx.globalAlpha = 1;
@@ -1841,7 +1863,7 @@ function drawMult(ctx, run) {
 
 // Dots along the true barrel line, scaled and faded with distance, orange near the muzzle. It ends `accuracy` of the way to the right
 // edge; a short one gets a soft cap so the end reads as deliberate.
-function drawRangeFinder(ctx, run) {
+function drawRangeFinder(ctx, run, flash) {
   const F = A.finder, a = angleOf(run) * DEG, cs = Math.cos(a), sn = Math.sin(a), gx = T.gunX, gy = run.gunY;
   const d0 = gunArt(run.gun.id).muzzle + F.gap, d1 = rangeLen(run), n = T.rangeDots, nb = F.ramp;
   if (d1 <= d0) return;
@@ -1863,6 +1885,17 @@ function drawRangeFinder(ctx, run) {
     ctx.beginPath(); ctx.moveTo(ex + sn * F.capHalf, ey + cs * F.capHalf); ctx.lineTo(ex - sn * F.capHalf, ey - cs * F.capHalf); ctx.stroke(); ctx.lineCap = 'butt';
   }
   ctx.globalAlpha = 1;
+  if (flash > 0) { // a dropped tap: the whole line goes white for a moment, dots swollen
+    const D = A.drop;
+    ctx.globalAlpha = flash * D.lineAlpha; ctx.strokeStyle = P.white; ctx.lineWidth = F.track * 0.6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(gx + cs * d0, gy - sn * d0); ctx.lineTo(gx + cs * d1, gy - sn * d1); ctx.stroke(); ctx.lineCap = 'butt';
+    ctx.fillStyle = P.white; ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const f = (i + 0.5) / n, d = d0 + (d1 - d0) * f, r = (F.rNear + (F.rFar - F.rNear) * f) * D.dotK, x = gx + cs * d;
+      ctx.moveTo(x + r, gy - sn * d); ctx.arc(x, gy - sn * d, r, 0, PI2);
+    }
+    ctx.fill(); ctx.globalAlpha = 1;
+  }
   if (run.gun.pellets > 1) { // the fan's outer pellets, faint
     const offs = fanOffsets(run.gun);
     ctx.strokeStyle = P.white; ctx.globalAlpha = F.fanAlpha; ctx.lineWidth = 1;
@@ -2063,6 +2096,7 @@ function cosmetics(E, ev) {
     S.fx.push({ k: 'flash', t: T.flashLife, max: T.flashLife });
     ejectCasing(run);
     E.audio.play('tap'); E.haptic(8);
+    if (ev.outer) S.fx.push({ k: 'callout', x: ev.outer.x, y: Math.max(ev.outer.y - 46, 40), text: 'Centre pellet scores', color: P.textDim, size: TY.mid, t: T.calloutLife, max: T.calloutLife }); // a shotgun's outer pellet on a card counts for nothing
     if (ev.decoy) { // the minus shows on the decoy that was hit
       S.fx.push({ k: 'pop', x: ev.tx, y: ev.ty, text: `\u2212${-ev.pts}`, color: P.text, t: T.popLife, max: T.popLife });
       E.audio.play('miss', 0.6); E.haptic(20);
@@ -2081,10 +2115,19 @@ function cosmetics(E, ev) {
   } else if (ev.type === 'shell') { E.audio.beep({ freq: 330, dur: 0.04, type: 'square', gain: 0.05 });
   } else if (ev.type === 'reloaded') { E.audio.beep({ freq: 560, dur: 0.07, type: 'triangle', gain: 0.09 });
   } else if (ev.type === 'interrupt') { E.audio.beep({ freq: 260, dur: 0.05, type: 'square', gain: 0.05 });
-  } else if (ev.type === 'dropped') { // a tap inside the fire interval, or during a reload: a faint click and a flicker, no effect on timing
+  } else if (ev.type === 'dropped') { // a tap inside the fire interval, or during a reload: the range finder flashes white and it clicks, no effect on timing
     if (ev.reload) S.nope = E.time;
-    E.audio.play('tap', 0.12);
-    S.fx.push({ k: 'flash', faint: true, t: T.flashLife * 0.6, max: T.flashLife * 0.6 });
+    E.audio.play('tap'); E.haptic(A.drop.haptic);
+    S.fx = S.fx.filter((f) => f.k !== 'finder'); S.fx.push({ k: 'finder', t: A.drop.life, max: A.drop.life });
+  } else if (ev.type === 'dodge') { // the target jumped: a ghost stays where it was, the target slides, a call-out and a soft note
+    S.fx.push({ k: 'ghost', x: ev.x, y: ev.y0, sc: ev.sc, t: A.dodge.ghostLife, max: A.dodge.ghostLife });
+    S.fx.push({ k: 'slide', x: ev.x, y0: ev.y0, y1: ev.y1, t: A.dodge.slide, max: A.dodge.slide });
+    S.fx.push({ k: 'callout', x: ev.x - A.dodge.calloutDx, y: Math.max((ev.y0 + ev.y1) / 2, 40), text: 'Dodged', color: P.orangeLight, t: T.calloutLife, max: T.calloutLife });
+    E.audio.beep({ freq: A.dodge.beep, dur: 0.09, type: 'sine', gain: 0.06 });
+  } else if (ev.type === 'expire' && ev.card) { // an Accuracy card timed out: it says so, and a chain that dies says so
+    S.fx.push({ k: 'callout', x: ev.x, y: Math.max(ev.y - 40, 40), text: 'Gone', color: P.textDim, size: TY.mid, t: T.calloutLife, max: T.calloutLife });
+    if (ev.lost) S.fx.push({ k: 'callout', x: ev.x, y: Math.max(ev.y - 64, 40), text: 'Chain lost', color: P.red, size: TY.mid, t: T.calloutLife, max: T.calloutLife });
+    if (!ev.flip) E.audio.play('miss', 0.5);
   } else if (ev.type === 'wave') { // a wave enters
     S.fx.push({ k: 'callout', x: T.designW / 2, y: 120, text: `Wave ${ev.n}`, t: T.calloutLife * 1.4, max: T.calloutLife * 1.4, big: true });
     E.audio.play('tap', 0.4);
@@ -2468,10 +2511,11 @@ const play = {
   enter(E, params) {
     const ch = (params && chById(params.id)) || CHALLENGES[0];
     newRun(ch.endless ? { ...ch, seed: E.dailySeed() } : ch, gunId(E), params && params.gauntlet, skinId(E, gunId(E))); // the endless mode plays the day's seed
-    this.menuBtn = null; this.reloadBtn = null;
+    this.menuBtn = null; this.reloadBtn = null; S.restarted = false;
   },
 
   update(dt, E) {
+    if (S.restarted) { S.restarted = false; E.toast('Run restarted'); }
     const r = S.run, gdt = S.slow > 0 ? dt * T.slowScale : dt; // the last kill of a Speed or Skeet run plays in slow motion; only the show slows, the sim is over
     S.slow = Math.max(0, S.slow - dt);
     for (const f of S.fx) f.t -= gdt;
@@ -2511,18 +2555,24 @@ const play = {
       for (const f of S.fx) if (f.k === 'corpse') drawCorpse(ctx, f);
       for (const z of r.zs) drawZombie(ctx, z, now);
     }
+    for (const f of S.fx) if (f.k === 'ghost') { // the card where a dodger was, fading
+      const half = (T.zoneR[2] + A.card.pad) * f.sc;
+      ctx.globalAlpha = A.dodge.ghostAlpha * (f.t / f.max); drawSprite(ctx, K_CARD + Math.round(f.sc * 100), half + 6, paintCard, f.x, f.y, f.sc, false); ctx.globalAlpha = 1;
+    }
     for (const tg of r.targets) {
       if (tg.kind === 'zpart') continue; // a zombie is drawn whole, above
-      let alpha = 1;
+      let alpha = 1, at = tg;
       if (tg.kind === 'part' && !ch.wall && tg.idx !== r.stage) alpha = 0.5;
-      if (tg.kind === 'dodge' && now >= tg.nextDodge - T.dodgeWarn && Math.floor(E.time * 10) % 2) alpha = 0.3;
-      drawTargetFull(ctx, E, tg, r, ch, alpha);
+      if (tg.card && tg.life < 0) alpha = 1 + tg.life / T.expiryGrace; // the grace: the card fades out and is still there to hit
+      if (tg.kind === 'dodge') for (const f of S.fx) if (f.k === 'slide' && f.x === tg.x && f.y1 === tg.y) at = { ...tg, y: f.y0 + (f.y1 - f.y0) * ease.outQuad(1 - f.t / f.max) }; // the jump is drawn as a short slide
+      drawTargetFull(ctx, E, at, r, ch, alpha);
     }
     for (const tg of r.targets) {
       if (tg.kind === 'part' && ch.wall && !partActive(r, tg)) continue; // a closed frame shows no hit points
       drawTargetHp(ctx, tg, tg.kind === 'part' && !ch.wall && tg.idx !== r.stage ? 0.5 : tg.kind === 'core' && coreShielded(r) ? A.plate.shut : 1);
     }
-    drawRangeFinder(ctx, r);
+    const ff = S.fx.find((f) => f.k === 'finder');
+    drawRangeFinder(ctx, r, ff ? ff.t / ff.max : 0);
     for (const f of S.fx) if (f.k === 'tracer') drawTracer(ctx, f);
     for (const f of S.fx) if (f.k === 'pop') drawHitRing(ctx, f);
     drawReloadRing(ctx, r, now);
@@ -2540,13 +2590,14 @@ const play = {
       const k = 1 - f.t / f.max;
       popText(E, f.text, v.ox + f.x * v.s, v.oy + (f.y - 18 - 22 * k) * v.s, f.color, 1 - k * k);
     }
-    if (ch.wall && now < A.intro.hold + A.intro.fade) { // the Bunker's one-line intro: plates 5 and 6 are optional but they score
+    const intro = ch.wall ? 'Every plate scores' : ch.behaviour === 'dodge' ? 'Fire near it and it jumps. Shoot again where it lands.' : null;
+    if (intro && now < A.intro.hold + A.intro.fade) { // the one-line intro: the Bunker's optional plates score; a dodger jumps when a shot passes near it
       const a = clamp((A.intro.hold + A.intro.fade - now) / A.intro.fade, 0, 1);
-      E.text('Every plate scores', v.ox + (T.designW / 2) * v.s, v.oy + A.intro.y * v.s, { size: TY.small, weight: TY.strong, color: P.text, alpha: a });
+      wrapText(ctx, intro, v.w - 24, TY.small).forEach((ln, i) => E.text(ln, v.ox + (T.designW / 2) * v.s, v.oy + A.intro.y * v.s + i * 18, { size: TY.small, weight: TY.strong, color: P.text, alpha: a })); // a narrow field wraps it
     }
     for (const f of S.fx) if (f.k === 'callout') {
       const k = 1 - f.t / f.max, big = f.big ? 1.35 : 1, x = clamp(v.ox + f.x * v.s, v.ox + 70, v.ox + v.w - 70);
-      popText(E, f.text, x, v.oy + (f.y - 26 * k) * v.s, f.color || P.cyan, Math.min(1, 3 * (1 - k)), TY.mid * big + 4);
+      popText(E, f.text, x, v.oy + (f.y - 26 * k) * v.s, f.color || P.cyan, Math.min(1, 3 * (1 - k)), f.size || TY.mid * big + 4);
     }
     this.hud(E, v, r, ch);
     this.reloadUI(E, v, r, now);
@@ -2595,7 +2646,8 @@ const play = {
 
   onPointerDown(p, E) {
     if (S.run.done || (this.menuBtn && E.hit(this.menuBtn, p))) return;
-    if (this.reloadBtn && E.hit(this.reloadBtn, p)) { queueInput(S.run, stamp(S.run), 'reload'); return; } // the button reloads and never fires
+    const run = S.run;
+    if (this.reloadBtn && E.hit(this.reloadBtn, p) && run.mag < run.gun.magSize && !run.reloading) { queueInput(run, stamp(run), 'reload'); return; } // the button reloads; with a full magazine or a reload under way it is just a fire tap
     if (p.x < E.w / 2) { if (!S.drag) S.drag = { id: p.id, y: p.y }; return; }
     S.right.add(p.id);
     const at = stamp(S.run);
@@ -2619,7 +2671,7 @@ const play = {
     else if (key === ' ') queueInput(S.run, stamp(S.run), 'fire'); // key repeat fires at the gun's rate
     else if (key === 'r' || key === 'R') queueInput(S.run, stamp(S.run), 'reload');
   },
-  onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet, S.skin); }, // closing the app mid-challenge restarts it
+  onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet, S.skin); S.restarted = true; }, // closing the app mid-challenge restarts it, and the toast says so on return
 };
 
 const over = {
