@@ -1,6 +1,6 @@
 # Ink PRD v0.6: the timer you can see, the slip you can feel, and stencils in parts
 
-Status: locked 2026-09-29 (morning) for sections A, B and D. Section C waits on one designer answer. Builds on v0.5 (cache ink-v16). Source: the designer's playtest notes.
+Status: locked 2026-09-29 (morning), all sections. Builds on v0.5 (cache ink-v16). Source: the designer's playtest notes.
 
 ## A. Timer prominence
 
@@ -10,9 +10,9 @@ The timer is the largest thing on the HUD: a big numeral centred at the top unde
 
 On a slip: the body flinches (the skin layer jolts 3 units away from the needle and settles in 0.25 s), the screen kicks once (2 px, 80 ms), the slip sound gets a low thud, and the phone buzzes 20 ms through the engine's existing haptic call (Android; iPhone Safari has no vibration, so the visual carries it). One flinch per slip, never stacking. The slip mark itself is unchanged.
 
-## C. Body background (needs one answer: practice pad, or flattened body parts)
+## C. Body background (designer: keep the body parts, flatten them)
 
-Option 1, practice pad: a synthetic tattoo practice skin, a pale rectangular pad on a tray with the machine beside it; one skin tone, a soft grain, no body silhouette. Every stencil uses it; body parts return later as an unlock. Option 2, flattened parts: keep the body parts but one flat tone, softer shading, no lumpy edges, and a cleaner drape. The fixed style sentence is updated to match the choice.
+Decision: option 2. Option 1, practice pad (not chosen, kept for a later unlock): a synthetic tattoo practice skin, a pale rectangular pad on a tray with the machine beside it; one skin tone, a soft grain, no body silhouette. Every stencil uses it; body parts return later as an unlock. Option 2, flattened parts: keep the body parts but one flat tone, softer shading, no lumpy edges, and a cleaner drape. The fixed style sentence is updated to match the choice.
 
 ## D. Stencils in parts and landings
 
@@ -25,3 +25,17 @@ Flinch amplitude and time, screen kick, blot radius, landing tolerance in TUNING
 ## F. Out of scope
 
 New machines, ink physics changes, the daily's rules.
+
+## G. Delighter badges
+
+| Badge | Earned by |
+| --- | --- |
+| One Line | 99 percent without lifting the needle |
+| Half Time | five stars in under half the timer |
+| Blind | five stars with the gap hint off |
+| Featherweight | a clean pass with the needle never at full width |
+| Second Skin | the daily at 100 percent |
+
+## H. Title and machine art (generated assets, ADR-0015)
+
+The INK title becomes an ornate tattoo-script logo (blackletter-meets-calligraphy with flourishes) as a generated image with the style anchor in docs/games/ink/style.md, bundled as a PNG at two sizes; the procedural brush title stays as the fallback when the asset is missing. The machines may get generated reference art the same way. Blocked until the environment allows the image host.

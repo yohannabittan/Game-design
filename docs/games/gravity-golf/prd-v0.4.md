@@ -32,6 +32,16 @@ All fifteen routes re-proven (`--three`, `--sweep`, `--escape`, `--two-shot`, `-
 
 `bhReach` (default 150) and `bhFade` (default 1.5) in TUNING and on the TUNE tab as sliders (reach 100 to 250, fade 1.2 to 2.0); `ghostSeconds` (3) and `ghostAlpha`.
 
+## F. Delighter badges (next build after A to D)
+
+| Badge | Earned by |
+| --- | --- |
+| Double Bank | sink after exactly two wall bounces |
+| Whiplash | sink a shot that entered the influence ring |
+| Comet Surfer | get kicked by a comet and still sink that shot |
+| Moon Walker | rest on a moon, then sink |
+| Hole in None | a full run without a single swallow or sun touch |
+
 ## E. Out of scope
 
 New objects, new holes, missions changes, gravity preset defaults (still the designer's pick from GG-1).

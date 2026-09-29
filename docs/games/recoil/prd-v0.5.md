@@ -1,6 +1,6 @@
 # Recoil PRD v0.5: stars a thumb can earn, a range that reads, and more to shoot
 
-Status: locked 2026-09-29 (morning) for sections A to F. Sections G and H wait on two designer answers (marked). Builds on v0.4 (cache recoil-v10). Source: the designer's first full playtest. Findings: stars and scores are too hard; Accuracy targets sometimes vanish or do not score; Speed and Skeet are the fun; guns feel distinct; the rifle on Speed was a fun wrong tool; the menu is dull; guns should show stats; skins read as uneven; the game wants more umph.
+Status: locked 2026-09-29 (morning), all sections. Builds on v0.4 (cache recoil-v10). Source: the designer's first full playtest. Findings: stars and scores are too hard; Accuracy targets sometimes vanish or do not score; Speed and Skeet are the fun; guns feel distinct; the rifle on Speed was a fun wrong tool; the menu is dull; guns should show stats; skins read as uneven; the game wants more umph.
 
 ## A. Star bars from noisy bots
 
@@ -26,9 +26,9 @@ Silver badges for finishing a challenge with the gun it was not designed for, ea
 
 The ladder grid becomes lanes on the range: each ladder is a row of targets standing on posts, one per rung, drawn as the rung's own target type (cards, trolleys, clays, plates), with stars painted on the post and the best gun's silhouette below. The next locked rung shows its condition on a hanging tag. A featured tile at the right end shows the newest mode (Zombies when built) or the daily. The layout must fit 640x360 and 844x390 with 44 px targets and text at least 14 px, and portrait stays the fallback.
 
-## G. Zombies (needs one answer: does a walker reaching the fence end the run?)
+## G. Zombies (designer: a walker reaching the fence ends the run)
 
-A zombie is a moving target with three parts: legs (2 hp), body (3 hp), brain (1 hp, small). It walks toward a fence line at the near edge. Legs down and it crawls at half speed and lower to the ground. Body down slows it. Only the brain ends it. Waves of two to six with mixed speeds, seeded; an endless mode with a daily seed and a high score; a "Zombies" ladder of three rungs (fixed waves) for stars. Guns: the shotgun's pellets each damage a part (legs and hordes), the rifle one-shots a brain at range, the pistol is the all-rounder. Score per part plus a brain bonus, multiplier applies. Fence rule pending.
+A zombie is a moving target with three parts: legs (2 hp), body (3 hp), brain (1 hp, small). It walks toward a fence line at the near edge. Legs down and it crawls at half speed and lower to the ground. Body down slows it. Only the brain ends it. Waves of two to six with mixed speeds, seeded; an endless mode with a daily seed and a high score; a "Zombies" ladder of three rungs (fixed waves) for stars. Guns: the shotgun's pellets each damage a part (legs and hordes), the rifle one-shots a brain at range, the pistol is the all-rounder. Score per part plus a brain bonus, multiplier applies. Fence rule: the run ends the moment a zombie touches the fence; the card says which one and how far the wave got. A fence with hit points is a later option.
 
 ## H. Two more guns (needs no answer, held with G for one build)
 
@@ -37,3 +37,17 @@ SMG: damage 1, fireRate 14, accuracy 0.5, kick 6, recovery 40, mag 24; hardest c
 ## I. Save and out of scope
 
 Save v6: adds the active star-bar preset name and nothing else; bests keyed by id are untouched. Out of scope: handling changes, new bosses, sound redesign.
+
+## J. Delighter badges
+
+Trick badges with a name and a reward feel, earned by a single act, never by grind:
+
+| Badge | Earned by |
+| --- | --- |
+| Kickback | six hits in a row within 0.5 s, so the recoil itself walks the aim up the targets |
+| Last Round | three stars with the magazine empty on the final shot |
+| Cold Barrel | a bullseye on the first shot of a run, five runs in a row |
+| Clay Sweep | every clay of a Skeet run hit before it peaks |
+| Walk the Line | a horde cleared left to right without a miss |
+
+Each shows on the missions screen with its condition and pops a ticket on the card.
