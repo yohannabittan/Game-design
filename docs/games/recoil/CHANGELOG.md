@@ -364,3 +364,67 @@
   - Casual: Speed 4 Shotgun, Zombies 1 Shotgun, Zombies 1 Rifle, Zombies 2 Carbine, Zombies 2 Shotgun, Zombies 2 Rifle, Zombies 2 SMG, Zombies 3 Pistol, Zombies 3 Carbine, Zombies 3 Shotgun, Zombies 3 SMG
 
 - O is Sonnet (Review: pending); `game.js`, the cache version recoil-v19, `games/index.json` and this file.
+- P. Release-gate fixes from the v19 review (PRD v0.5 P; built by Sonnet; `game.js`, the cache version recoil-v20 and this file only). Save version 11. The orchestrator moved `outerShare` from the PRD's 0.5 to 0.25 after the first build showed 0.5 left the shotgun's Speed 4 aim-free (see P1). Only the shotgun's Speed 4, Speed 5 and Zombies rungs, the Brute (so Zombies 2 and 3 for every gun), and the Accuracy 4 and 5 bars change in play; the rest is as v19.
+- P1. Shotgun scoring on hordes and zombies (`zombie.outerShare` 0.25; the PRD said half, 0.5, and the orchestrator's call amended it to a quarter): a horde member or zombie part that the centre pellet hits scores in full; one that only an outer pellet hits scores a quarter of everything that part pays (hit points, part-destroyed and brain-bonus values); damage, the streak and the headshot credit are unchanged. Check on the sim: with only outer pellets on members a shot that paid 80 pays 20; on a Shambler with only outer pellets 210 pays 53; unchanged (45) when the centre pellet crosses every part hit. Single-pellet guns have one pellet, which is the centre, so nothing changes for them.
+- P1 observable, the shotgun (100 fresh seeds 101 to 200 per noise; the bars are the new ones; stars 0 / 1 / 2 / 3). At 0.5 the first build gave Speed 4 perfect 2210, bars 660/1220/1880 (fallback) and 3 degree 0 / 0 / 10 / 90, only 10 percent at two stars or below; at 0.25:
+
+  | Rung | Bars (Skilled) | Perfect | 0.75 degree bot | 1.5 degree bot | 3 degree bot | 3 degree at two stars or below |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Speed 4 | 520/950/1460 (fallback) | 1722 | 0 / 0 / 0 / 100 | 0 / 0 / 14 / 86 | 0 / 0 / 37 / 63 | 37 percent |
+  | Speed 5 | 790/1340/1780 | 2061 | 0 / 2 / 57 / 41 | 2 / 48 / 41 / 9 | 25 / 64 / 11 / 0 | 100 |
+  | Zombies 1 | 1120/2010/2710 | 3409 | 0 / 4 / 58 / 38 | 0 / 65 / 30 / 5 | 18 / 79 / 3 / 0 | 100 |
+  | Zombies 2 | 2550/4070/5580 | 7141 | 0 / 0 / 56 / 44 | 0 / 56 / 44 / 0 | 20 / 77 / 3 / 0 | 100 |
+  | Zombies 3 | 4250/6470/8600 | 10664 | 0 / 0 / 47 / 53 | 0 / 49 / 50 / 1 | 14 / 85 / 1 / 0 | 100 |
+
+  The observable is met on all five rungs: the 3 degree bot is at two stars or below in at least 37 percent (30 required) and the 0.75 degree bot earns three stars in 38 to 100 percent (35 required). Speed 4 still collapses (its score depends little on aim: mean 1720 at 0.75 degrees, 1596 at 1.5, 1494 at 3) and takes the O1 fallback, so its 0.75 degree bot gets three stars every time; that is the fallback's 85 percent bar, not a measure of aim, and the 1.5 degree bot gets it 86 percent. That pair is listed at the end.
+- P2. Centre-firing bar bots on Accuracy 4 and 5: the probe at the card's centre (two shots per dodger, the second where it lands), where the old bot probed 24 units off (a quarter of probes missed the dodge range). The Accuracy perfect runs do not change (2950 and 3750 for every gun, the same shots, reloads and policy). The a4 and a5 bars are regenerated for every gun (100 seeds per gun per sigma); the 0.75 degree bot's three-star share on 100 fresh seeds is 52, 52, 52, 52, 52, 45 percent on Accuracy 4 (pistol, carbine, shotgun, rifle, SMG, revolver) and 51, 52, 48, 55, 52, 56 on Accuracy 5, and the 3 degree bot's one-star share at least 60 percent (Accuracy 5 pistol 60). Old against new, all three presets, is in the tables below.
+- P3. The first-run controls line: "Left thumb drags the gun. Right thumb fires." on an orange-edged plate at the height of the Bunker's intro line, for 3 s (0.5 s fade), on the first play of a fresh save and never again. `controlsSeen` is set when the line is shown, so a quit before the three seconds are up, a Retry and a reload do not show it again, and a pause that restarts the run drops it. It needed save version 11 (a new key): `migrate` sets `controlsSeen` on every existing save, so only a fresh one sees it. Chromium at 844x390, 640x360 and 390x844: on a fresh save the menu has no key, the first play shows the line (`first` true at 0.9 s and at 4 s the plate is gone), a second play in the same session, and a play after `reload`, show nothing (`first` false, key true, stored `__v` 11). Two lines in portrait.
+- P4. The HUD never paints over a Brute's head: the Brute is 2.45 times size (was 2.6), so its standing head is at y 86, 82 and 77 in the far, middle and near lane and the top of its drawn head is at least y 52 (the Menu button's bottom edge is at 48 at 640x360). A near-lane Brute placed under the Menu button, drawn top against the button's bottom edge: 640x360 51.9 against 48.0, 812x375 51.0, 844x390 53.2, 932x430 58.9, all clear (`v20-brute-by-menu-*`). The Brute's body circle is 37 units at scale 1, the brain hit radius still about 10 units.
+- P5. The stats card's numbers column is 100 px wide, so the shotgun's "2.2 s shells" stands clear of its bar; the over card's badge-skin line reads "Skin unlocked: Revolver Ivory" (it read "Skin unlocked: Revolver Ivory unlocked"); the zombie cards' "Brain shots" is the headshots credited (`heads`, the run's `cHead`), where it read the count of brain kills.
+- P6. The zombie pose offsets are `TUNING.zombie.pose` (standing, crawling, hunched, head alone, and the Hunched zombie's set), scaled by the type's size in `ZTYPES`; every type's poses are identical to v19 except the Brute's (its size).
+- Checks. Regression of the 288 scripted-input runs against v19: identical on every run except Zombies 3 (13 runs, every gun: the Brute) and, for the shotgun, Speed 4 (4), Speed 5 (4), Zombies 1 (4) and Zombies 2 (4); every Accuracy, Skeet, Boss and Speed-with-another-gun run is identical. Determinism at 30 and 120 fps: all 66 runs identical. Perfect runs: only the shotgun's move (Speed 4 3190 to 1722, Speed 5 2750 to 2061, Zombies 1 3554 to 3409, Zombies 2 7556 to 7141, Zombies 3 11463 to 10664); every other gun's perfect run on every rung is as before. Delighter cases 13 of 13; the release-channel and ledger drives pass. Bars rising on every rung and gun; on fresh seeds the 0.75 degree bot's three-star share is at least 42 percent everywhere except the zombie rungs (Zombies 1 carbine 39, rifle 40, SMG 40, pistol 41; Zombies 2 rifle 27, pistol 37; Zombies 3 pistol 36) and Speed 3 revolver 41.
+- Screenshots (`v20-*`): the first-run line (three sizes), a Brute by the Menu button (four sizes), the shotgun stats card, the over card with a badge skin (Last Round, Revolver Ivory).
+- Bars regenerated: Accuracy 4 and 5 for every gun, Speed 4 and 5 for the shotgun, Zombies 1 for the shotgun and Zombies 2 and 3 for every gun (100 seeds per gun per sigma); every other row of `BARS` is unchanged (Speed 4 and 5 rows of the other guns and Zombies 1 of the other guns were re-run and came out the same). Old (v19) against new (v20), only where a bar moved, one / two / three:
+
+  Skilled (0.75 / 1.5 / 3 degrees), only the rungs where a bar moved, old (v19) to new (v20), one / two / three:
+
+  | Rung | Pistol | Carbine | Shotgun | Rifle | SMG | Revolver |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Accuracy 4 | 320/1140/1920 to 490/1750/2480 | 410/1160/1930 to 530/1750/2480 | 670/1720/2460 to 650/1740/2480 | 280/1150/1910 to 320/1730/2480 | 400/1170/1930 to 520/1750/2480 | 220/940/1870 to 300/1640/2470 |
+  | Accuracy 5 | 150/990/2050 to 220/1510/2650 | 250/980/2010 to 330/1410/2580 | 360/1390/2590 to 290/1360/2580 | 170/730/1820 to 170/930/2460 | 240/980/2020 to 260/1440/2590 | 70/540/1440 to 120/960/2470 |
+  | Speed 4 | same | same | 960/1750/2710 (fallback) to 520/950/1460 (fallback) | same | same | same |
+  | Speed 5 | same | same | 1390/2060/2500 to 790/1340/1780 | same | same | same |
+  | Zombies 1 | same | same | 1070/1950/3020 (fallback) to 1120/2010/2710 | same | same | same |
+  | Zombies 2 | 4020/4540/5550 to 4020/4510/5530 | 4090/4550/5540 to 4100/4540/5510 | 2270/4160/6420 (fallback) to 2550/4070/5580 | same | 4040/4540/5440 to 4040/4530/5420 | 3510/5100/6150 to 3310/5090/6150 |
+  | Zombies 3 | 6670/7220/9040 to 6730/7160/8840 | 6660/7350/8900 to 6630/7280/8840 | 3440/6300/9740 (fallback) to 4250/6470/8600 | 2570/8660/9870 to 2630/8800/9870 | 6670/7290/8930 to 6630/7250/8810 | 1280/5180/9960 to 1250/5270/9830 |
+
+  Pro (0.5 / 1 / 2 degrees), only the rungs where a bar moved, old (v19) to new (v20), one / two / three:
+
+  | Rung | Pistol | Carbine | Shotgun | Rifle | SMG | Revolver |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Accuracy 4 | 620/1600/2510 to 1020/2240/2750 | 630/1600/2510 to 1030/2240/2750 | 1080/2200/2750 to 1020/2220/2750 | 570/1590/2510 to 870/2230/2760 | 630/1600/2520 to 1030/2240/2750 | 430/1430/2550 to 770/2230/2730 |
+  | Accuracy 5 | 400/1530/2840 to 600/2210/3120 | 520/1530/2800 to 630/2150/3090 | 640/2110/3050 to 580/2140/3070 | 270/1340/2580 to 320/1890/3000 | 540/1530/2800 to 640/2160/3090 | 200/1030/2400 to 330/1910/3000 |
+  | Speed 4 | same | same | 960/1750/2710 (fallback) to 520/950/1460 (fallback) | same | same | same |
+  | Speed 5 | same | same | 1600/2350/2610 to 940/1620/1910 | same | same | same |
+  | Zombies 1 | same | same | 2470/2890/3260 to 1370/2440/3100 | same | same | same |
+  | Zombies 2 | 4170/5100/6380 to 4180/5070/6360 | 4150/4980/6480 to 4150/4960/6480 | 5490/5990/6980 to 3100/4990/6610 | 4790/5470/6690 to 4790/5450/6680 | 4130/5090/6480 to 4120/5060/6470 | 4670/5520/6870 to 4700/5520/6870 |
+  | Zombies 3 | 6820/7990/10120 to 6760/7950/10120 | 6830/8070/10300 to 6860/8050/10270 | 9000/9600/10830 to 5090/7810/10080 | 6240/9300/10900 to 5700/9260/10810 | 6710/8180/10260 to 6690/8110/10260 | 2670/8580/10910 to 2520/8320/10900 |
+
+  Casual (1 / 2 / 4 degrees), only the rungs where a bar moved, old (v19) to new (v20), one / two / three:
+
+  | Rung | Pistol | Carbine | Shotgun | Rifle | SMG | Revolver |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Accuracy 4 | 170/820/1600 to 210/1300/2240 | 270/840/1600 to 340/1310/2240 | 490/1350/2200 to 490/1360/2220 | 170/790/1590 to 200/1240/2230 | 260/830/1600 to 310/1300/2240 | 120/640/1430 to 180/1120/2230 |
+  | Accuracy 5 | 70/630/1530 to 70/890/2210 | 140/680/1530 to 170/940/2150 | 270/880/2110 to 220/840/2140 | 70/430/1340 to 100/540/1890 | 90/690/1530 to 110/920/2160 | 40/330/1030 to 40/490/1910 |
+  | Speed 4 | same | same | 960/1750/2710 (fallback) to 1260/1570/1640 | same | same | same |
+  | Speed 5 | same | same | 1260/1850/2350 to 700/1180/1620 | same | same | same |
+  | Zombies 1 | same | same | 1070/1950/3020 (fallback) to 980/1610/2440 | same | same | same |
+  | Zombies 2 | 4040/4380/5100 to 4010/4370/5070 | same | 2270/4160/6420 (fallback) to 2410/3560/4990 | same | same | same |
+  | Zombies 3 | same | same | 3440/6300/9740 (fallback) to 3940/5680/7810 | 2320/7350/9300 to 1510/7280/9260 | same | 890/4150/8580 to 890/4050/8320 |
+
+  Pairs on the collapsed-bar fallback (30 / 55 / 85 percent of the gun's perfect run):
+  - Skilled: Speed 4 Shotgun, Zombies 2 Rifle
+  - Pro: Speed 4 Shotgun
+  - Casual: Zombies 1 Rifle, Zombies 2 Carbine, Zombies 2 Rifle, Zombies 2 SMG, Zombies 3 Pistol, Zombies 3 Carbine, Zombies 3 SMG
+
+- P is Sonnet (Review: pending); `game.js`, the cache version recoil-v20 and this file only.

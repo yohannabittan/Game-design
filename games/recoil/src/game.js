@@ -67,7 +67,7 @@ const TUNING = {
   // v0.5 sections G and L: zombies. A zombie is up to three parts (circles, in units at scale 1, centre `cy` above the feet): legs, body, brain. Legs down: it crawls at `crawl` of its
   // speed and its body drops; body down: it slows to `hunch`; the brain ends it. A zombie whose front (arms, `reach`) touches the fence ends the run. The five types are
   // data (`types`): speed as a share of `base`, size (a multiplier on every radius and height), part hit points, and where the head sits, so no two heads sit at the same height
-  // (Shambler 74, Crawler 28, Hunched 48 under its shield, Brute 192, and the Runner's 74 bobbing by `bob`).
+  // (Shambler 74, Crawler 28, Hunched 48 under its shield, Brute 181, and the Runner's 74 bobbing by `bob`).
   zombie: {
     fenceX: 122,         // the fence stands just in front of the muzzle
     spawnX: 618,         // zombies enter at the right wall, one after another (a wave's `gap` seconds apart)
@@ -82,12 +82,18 @@ const TUNING = {
       s: { name: 'Shambler', speed: 1, size: 1, legs: { hp: 2, r: 17 }, body: { hp: 3, r: 15 }, brain: { hp: 1, r: 8 } },
       r: { name: 'Runner', speed: 1.6, size: 1, bob: 20, legs: { hp: 2, r: 17 }, body: { hp: 3, r: 15 }, brain: { hp: 1, r: 8 } },
       c: { name: 'Crawler', speed: 0.7, size: 1, ground: true, legs: null, body: { hp: 3, r: 15 }, brain: { hp: 1, r: 8 } },
-      b: { name: 'Brute', speed: 0.8, size: 2.6, legs: { hp: 3, r: 17 }, body: { hp: 5, r: 15 }, brain: { hp: 1, r: 3.7 } }, // v0.5 O: tall enough that its head stands at the top of the field band (y about 70 at scale 1)
+      b: { name: 'Brute', speed: 0.8, size: 2.45, legs: { hp: 3, r: 17 }, body: { hp: 5, r: 15 }, brain: { hp: 1, r: 3.9 } }, // v0.5 O and P: tall enough that its head stands at the top of the field band, and no taller than the HUD (the near-lane head's top is at y 52, under the Menu button's bottom edge at 48)
       h: { name: 'Hunched', speed: 0.9, size: 1, shield: true, legs: { hp: 2, r: 17 }, body: { hp: 3, r: 18 }, brain: { hp: 1, r: 8 } },
     },
     points: { hit: 5, legs: 30, body: 50, brain: 75, bonus: 125 }, // per hit, per part destroyed, and the bonus for the brain that ends it; the multiplier applies to all
     waveGap: 1.5,        // seconds between the last zombie of a wave going down and the next wave entering
-    crawlHead: [-17, 28], // v0.5 O: a crawling zombie's head, forward of its middle and up, in units at scale 1: it clears the top half of the body circle, so legs, then body, then brain is a real order
+    // Where each part sits, [dx toward the fence (negative), height above the feet] in units at scale 1 and size 1 (every offset scales with the type's size): standing, on its hands (legs down; the head is forward of the
+    // body and 14 up, clearing the top half of the body circle so legs, then body, then brain is a real order), with the body gone (legs left) and the head alone. `shield` is the Hunched zombie's set: it stoops over its head.
+    pose: {
+      stand: { legs: [0, 17], body: [0, 50], brain: [0, 74] }, crawl: { body: [0, 14], brain: [-17, 28] }, hunch: { brain: [-6, 58] }, drag: { brain: [-16, 8] },
+      shield: { stand: { body: [0, 44], brain: [7, 48] }, crawl: { brain: [3, 20] }, hunch: { brain: [-6, 42] } },
+    },
+    outerShare: 0.25,    // v0.5 P (0.5 in the PRD; the orchestrator moved it to 0.25 because 0.5 left the shotgun's Speed 4 aim-free): a horde member or a zombie part hit only by an outer pellet scores this share of its points (the centre pellet's hit scores in full); damage is unchanged
     hitFlash: 0.14,      // seconds a part shows it was hit
     endless: { speedStep: 0.04, speedCap: 2.5, hpEvery: 3, mixFrom: 2, mixEvery: 2, sizeFrom: 2, sizeEvery: 2, sizeCap: 6, forceFrom: 24, forceMin: 9 }, // each wave raises speed by speedStep; every hpEvery waves every part gains 1 hp; the mix opens a type every mixEvery waves; a wave holds sizeFrom zombies and one more every sizeEvery waves up to sizeCap; the next wave is forced forceFrom seconds after one enters, one second sooner per wave, but never under forceMin
   },
@@ -304,6 +310,7 @@ const TUNING = {
     core: { pulse: 5, glow: [7, 14], glowAlpha: [0.22, 0.12], amp: 3, spec: 0.68 },
     pip: { w: 6, h: 9, gap: 11 }, // Combo pips drawn as brass casings
     mult: { size: 24, swell: 0.5, pulse: 0.25, x: 128, dy: 50, flip: 170 }, // The multiplier beside the lane: size in design units, swell on a step, seconds it swells, where it sits, and the gun height below which it goes under the line
+    first: { text: 'Left thumb drags the gun. Right thumb fires.', hold: 3, fade: 0.5 }, // v0.5 P: the first-run controls line, in seconds
     intro: { y: 66, hold: 5, fade: 1.5 }, // The one-line intro (Boss 2's "Every plate scores", Accuracy 4 and 5's dodge line): design-space height, seconds shown, seconds to fade
     menu: { ext: 18, rackH: 58, gap: 4, tileMin: 46, tileMax: 66, selMin: 178, selMax: 236, laneGap: 2, label: 74, btnH: 44, edge: 4 }, // The menu (v0.5 N): the rung art's half size, the gun rack's height and gap, its small and selected tiles' widths, the space between lanes, the lane label's width, the corner buttons' height, the margin to the screen edge
     missions: { th: 104, gap: 8, rail: 44, lock: 16, lockGap: 10 }, // Missions tile height, gap, scroll rail width, the Gauntlet padlock's size and its gap to the label
@@ -474,32 +481,32 @@ const BARS = {
       q: [3750, 3550, 2800, 2280, 1690, 1155, 870, 650, 535, 370, 290, 260, 225, 215, 180, 190, 165, 140, 140, 150, 140] },
   },
   a4: {
-    pistol: { m: [2950, 2938, 2514, 1917, 1595, 1362, 1141, 983, 819, 721, 645, 557, 507, 455, 398, 328, 293, 270, 245, 215, 201],
-      q: [2950, 2950, 2150, 1570, 1255, 1075, 885, 720, 620, 535, 480, 370, 320, 300, 270, 200, 170, 165, 110, 100, 90] },
-    carbine: { m: [2950, 2938, 2510, 1934, 1597, 1358, 1158, 1002, 838, 743, 672, 596, 543, 482, 441, 413, 393, 385, 358, 349, 330],
-      q: [2950, 2950, 2150, 1600, 1275, 1110, 925, 740, 630, 565, 530, 460, 410, 370, 350, 295, 270, 290, 270, 265, 240] },
-    shotgun: { m: [2950, 2942, 2750, 2464, 2199, 1933, 1722, 1509, 1353, 1191, 1085, 1019, 903, 869, 806, 713, 670, 655, 628, 623, 590],
-      q: [2950, 2950, 2625, 2275, 1980, 1645, 1480, 1245, 1080, 940, 830, 765, 665, 670, 615, 500, 485, 485, 460, 460, 470] },
-    rifle: { m: [2950, 2935, 2505, 1910, 1590, 1331, 1147, 954, 786, 695, 568, 490, 429, 369, 325, 298, 275, 250, 241, 210, 192],
-      q: [2950, 2950, 2125, 1550, 1275, 1025, 860, 720, 565, 515, 405, 320, 280, 230, 190, 190, 170, 150, 150, 130, 120] },
-    smg: { m: [2950, 2938, 2517, 1933, 1597, 1358, 1168, 1003, 830, 744, 663, 598, 549, 481, 431, 406, 380, 371, 323, 306, 273],
-      q: [2950, 2950, 2200, 1600, 1275, 1110, 925, 740, 625, 565, 530, 465, 400, 365, 335, 270, 260, 265, 240, 210, 190] },
-    revolver: { m: [2950, 2942, 2545, 1871, 1429, 1154, 943, 793, 642, 540, 433, 375, 339, 306, 259, 247, 224, 210, 189, 186, 169],
-      q: [2950, 2950, 2250, 1475, 1080, 825, 650, 535, 430, 370, 295, 245, 220, 190, 145, 140, 120, 110, 100, 90, 80] },
+    pistol: { m: [2950, 2942, 2753, 2480, 2237, 1979, 1748, 1548, 1297, 1117, 914, 789, 697, 625, 500, 420, 374, 327, 289, 252, 233],
+      q: [2950, 2950, 2625, 2275, 2055, 1705, 1495, 1255, 1015, 865, 665, 575, 490, 410, 340, 260, 210, 195, 170, 140, 100] },
+    carbine: { m: [2950, 2942, 2753, 2480, 2237, 1979, 1748, 1556, 1306, 1102, 957, 812, 720, 623, 536, 486, 443, 418, 390, 356, 338],
+      q: [2950, 2950, 2625, 2275, 2055, 1705, 1495, 1255, 1025, 860, 750, 625, 530, 460, 390, 370, 340, 310, 290, 270, 255] },
+    shotgun: { m: [2950, 2940, 2749, 2477, 2221, 1989, 1744, 1520, 1360, 1222, 1094, 1022, 867, 804, 773, 740, 659, 649, 611, 562, 546],
+      q: [2950, 2950, 2625, 2275, 2005, 1725, 1505, 1235, 1020, 910, 840, 730, 645, 555, 560, 535, 485, 420, 420, 365, 365] },
+    rifle: { m: [2950, 2942, 2755, 2484, 2230, 1975, 1727, 1498, 1235, 1024, 779, 603, 525, 434, 365, 329, 307, 275, 242, 201, 194],
+      q: [2950, 2950, 2625, 2275, 2050, 1705, 1400, 1170, 865, 725, 540, 395, 320, 280, 230, 220, 200, 150, 140, 120, 120] },
+    smg: { m: [2950, 2942, 2753, 2480, 2237, 1979, 1748, 1550, 1302, 1103, 964, 819, 716, 623, 528, 476, 431, 406, 374, 337, 309],
+      q: [2950, 2950, 2625, 2275, 2055, 1705, 1495, 1255, 1025, 860, 750, 605, 515, 460, 390, 350, 305, 260, 260, 230, 190] },
+    revolver: { m: [2950, 2943, 2729, 2469, 2228, 1933, 1643, 1418, 1115, 876, 709, 604, 495, 394, 302, 275, 272, 249, 214, 201, 171],
+      q: [2950, 2950, 2625, 2325, 2050, 1745, 1360, 1165, 765, 575, 400, 355, 295, 235, 185, 170, 175, 160, 135, 100, 90] },
   },
   a5: {
-    pistol: { m: [3750, 3639, 2835, 2046, 1532, 1265, 993, 726, 626, 505, 409, 341, 311, 265, 225, 212, 198, 162, 128, 118, 113],
-      q: [3750, 3550, 2500, 1650, 1145, 875, 695, 445, 400, 315, 240, 190, 150, 120, 100, 90, 70, 70, 40, 50, 50] },
-    carbine: { m: [3750, 3636, 2801, 2012, 1530, 1226, 977, 814, 683, 620, 524, 459, 413, 368, 357, 329, 295, 269, 230, 206, 189],
-      q: [3750, 3550, 2450, 1570, 1145, 835, 695, 605, 520, 460, 360, 320, 250, 220, 210, 170, 140, 120, 100, 70, 70] },
-    shotgun: { m: [3750, 3660, 3049, 2587, 2113, 1729, 1388, 1056, 879, 765, 717, 625, 522, 472, 453, 431, 416, 385, 344, 333, 327],
-      q: [3750, 3550, 2885, 2330, 1800, 1405, 1070, 740, 635, 475, 455, 435, 355, 320, 320, 270, 270, 230, 195, 190, 200] },
-    rifle: { m: [3750, 3615, 2577, 1817, 1337, 988, 728, 536, 426, 341, 305, 287, 265, 237, 227, 193, 161, 155, 148, 132, 124],
-      q: [3750, 3550, 2275, 1315, 835, 685, 530, 345, 265, 220, 215, 185, 170, 150, 135, 100, 70, 70, 70, 60, 50] },
-    smg: { m: [3750, 3634, 2798, 2016, 1529, 1229, 981, 801, 687, 591, 517, 438, 371, 330, 305, 268, 240, 223, 200, 183, 166],
-      q: [3750, 3550, 2450, 1590, 1100, 845, 705, 590, 540, 435, 370, 305, 235, 180, 150, 120, 90, 80, 40, 40, 20] },
-    revolver: { m: [3750, 3575, 2404, 1439, 1026, 675, 535, 418, 329, 283, 222, 184, 163, 143, 140, 128, 122, 118, 104, 96, 98],
-      q: [3750, 3550, 1915, 1100, 765, 535, 390, 295, 200, 170, 110, 100, 70, 60, 70, 50, 40, 40, 40, 20, 40] },
+    pistol: { m: [3750, 3639, 3118, 2650, 2213, 1803, 1512, 1128, 889, 667, 509, 450, 390, 305, 265, 240, 208, 183, 153, 131, 127],
+      q: [3750, 3550, 2950, 2415, 1805, 1455, 1200, 745, 600, 420, 340, 255, 215, 140, 120, 90, 70, 60, 50, 40, 40] },
+    carbine: { m: [3750, 3636, 3088, 2583, 2146, 1751, 1407, 1120, 941, 756, 609, 541, 463, 432, 388, 348, 318, 291, 256, 248, 233],
+      q: [3750, 3550, 2950, 2310, 1875, 1470, 1045, 795, 630, 550, 455, 390, 325, 325, 255, 220, 165, 120, 120, 120, 100] },
+    shotgun: { m: [3750, 3653, 3066, 2576, 2138, 1740, 1355, 1052, 843, 718, 628, 560, 502, 440, 440, 413, 395, 368, 351, 330, 335],
+      q: [3750, 3550, 2855, 2360, 1855, 1380, 1000, 750, 575, 440, 430, 325, 290, 270, 260, 230, 220, 210, 200, 195, 170] },
+    rifle: { m: [3750, 3625, 2998, 2464, 1893, 1365, 926, 763, 537, 467, 390, 342, 281, 240, 220, 214, 188, 173, 168, 153, 132],
+      q: [3750, 3550, 2775, 2200, 1570, 1005, 635, 450, 320, 280, 225, 210, 170, 150, 140, 120, 100, 70, 70, 70, 50] },
+    smg: { m: [3750, 3634, 3088, 2591, 2163, 1764, 1444, 1148, 924, 724, 625, 525, 424, 371, 330, 307, 270, 253, 229, 211, 201],
+      q: [3750, 3550, 2950, 2320, 1875, 1470, 1080, 815, 635, 545, 480, 365, 255, 195, 150, 120, 110, 115, 90, 50, 50] },
+    revolver: { m: [3750, 3636, 2995, 2470, 1912, 1299, 955, 609, 486, 409, 297, 265, 211, 181, 174, 165, 142, 140, 126, 105, 103],
+      q: [3750, 3550, 2770, 2190, 1495, 910, 670, 425, 330, 240, 170, 165, 120, 90, 100, 90, 40, 50, 40, 20, 20] },
   },
   s1: {
     pistol: { m: [4150, 4147, 3909, 3517, 3175, 2801, 2442, 2131, 1872, 1628, 1482, 1327, 1222, 1167, 1089, 1035, 989, 968, 944, 909, 874],
@@ -548,8 +555,8 @@ const BARS = {
       q: [3630, 3630, 3430, 2940, 2210, 1930, 1670, 1490, 1490, 1400, 1350, 1340, 1270, 1240, 1200, 1220, 1180, 1170, 1150, 1160, 1190] },
     carbine: { m: [3630, 3630, 3593, 3128, 2657, 2264, 1988, 1846, 1734, 1624, 1535, 1512, 1405, 1395, 1329, 1319, 1284, 1278, 1315, 1322, 1319],
       q: [3630, 3630, 3630, 2940, 2420, 2030, 1790, 1690, 1560, 1460, 1380, 1350, 1280, 1240, 1180, 1190, 1200, 1160, 1200, 1210, 1200] },
-    shotgun: { m: [3190, 3223, 3242, 3240, 3239, 3244, 3256, 3262, 3260, 3265, 3262, 3224, 3227, 3206, 3172, 3120, 3045, 3056, 3023, 2977, 2885],
-      q: [3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3200, 3190, 3190, 3190, 3170, 2910, 2850, 2810, 2800, 2720, 2630] },
+    shotgun: { m: [1722, 1752, 1764, 1720, 1656, 1616, 1596, 1577, 1573, 1552, 1545, 1505, 1494, 1470, 1449, 1430, 1389, 1384, 1368, 1344, 1294],
+      q: [1722, 1722, 1722, 1662, 1602, 1562, 1520, 1502, 1491, 1450, 1463, 1420, 1385, 1378, 1368, 1336, 1259, 1260, 1236, 1239, 1176] },
     rifle: { m: [2990, 2984, 2986, 2900, 2720, 2504, 2418, 2273, 2195, 2132, 2096, 2000, 1977, 1907, 1846, 1738, 1740, 1719, 1636, 1568, 1562],
       q: [2990, 2990, 2990, 2730, 2620, 2350, 2260, 2120, 2060, 1950, 1890, 1710, 1750, 1660, 1590, 1520, 1500, 1440, 1390, 1330, 1250] },
     smg: { m: [3630, 3630, 3584, 3165, 2566, 2214, 1954, 1818, 1690, 1575, 1483, 1456, 1388, 1376, 1351, 1302, 1297, 1241, 1249, 1227, 1203],
@@ -562,8 +569,8 @@ const BARS = {
       q: [3310, 3310, 2910, 2375, 1830, 1460, 1240, 1090, 1010, 970, 890, 875, 860, 810, 800, 785, 790, 760, 750, 760, 770] },
     carbine: { m: [3310, 3290, 3042, 2596, 2099, 1776, 1553, 1394, 1268, 1139, 1072, 1033, 993, 974, 914, 913, 872, 853, 848, 818, 813],
       q: [3310, 3310, 2910, 2350, 1725, 1515, 1335, 1195, 1060, 980, 940, 885, 880, 860, 800, 800, 780, 760, 760, 715, 720] },
-    shotgun: { m: [2750, 2744, 2612, 2497, 2354, 2216, 2058, 1946, 1853, 1777, 1735, 1703, 1673, 1599, 1547, 1539, 1531, 1503, 1460, 1447, 1416],
-      q: [2750, 2750, 2535, 2390, 2215, 2010, 1805, 1700, 1600, 1510, 1545, 1440, 1390, 1320, 1260, 1260, 1260, 1230, 1215, 1220, 1155] },
+    shotgun: { m: [2061, 2048, 1908, 1775, 1619, 1480, 1344, 1249, 1178, 1118, 1094, 1060, 1033, 967, 931, 917, 910, 900, 873, 861, 833],
+      q: [2061, 2061, 1825, 1636, 1473, 1294, 1169, 1047, 938, 904, 905, 850, 791, 754, 725, 704, 702, 705, 707, 708, 669] },
     rifle: { m: [2830, 2830, 2807, 2646, 2353, 2097, 1964, 1830, 1701, 1649, 1535, 1492, 1382, 1328, 1323, 1263, 1211, 1177, 1151, 1103, 1111],
       q: [2830, 2830, 2830, 2530, 2090, 1860, 1755, 1620, 1500, 1440, 1280, 1280, 1125, 1060, 1040, 985, 920, 940, 920, 850, 855] },
     smg: { m: [3310, 3282, 3030, 2622, 2004, 1720, 1500, 1294, 1188, 1139, 1108, 1042, 995, 947, 938, 919, 891, 886, 866, 859, 859],
@@ -646,8 +653,8 @@ const BARS = {
       q: [3362, 3362, 2547, 2235, 2055, 2034, 1947, 1931, 1876, 1857, 1861, 1844, 1839, 1844, 1849, 1849, 1852, 1859, 1843, 1849, 1853] },
     carbine: { m: [3362, 3353, 3042, 2642, 2403, 2257, 2186, 2060, 2032, 1995, 1970, 1967, 1965, 1961, 1943, 1932, 1925, 1921, 1937, 1939, 1940],
       q: [3362, 3362, 2547, 2242, 2124, 2027, 1962, 1910, 1897, 1883, 1878, 1879, 1880, 1884, 1860, 1854, 1844, 1841, 1863, 1863, 1858] },
-    shotgun: { m: [3554, 3544, 3259, 2958, 2888, 2878, 2880, 2791, 2722, 2748, 2733, 2724, 2740, 2668, 2716, 2757, 2697, 2704, 2674, 2624, 2621],
-      q: [3554, 3554, 2799, 2579, 2580, 2524, 2476, 2494, 2466, 2504, 2460, 2480, 2449, 2394, 2426, 2482, 2430, 2387, 2373, 2369, 2399] },
+    shotgun: { m: [3409, 3400, 3099, 2712, 2437, 2217, 2012, 1790, 1609, 1547, 1504, 1395, 1364, 1319, 1302, 1293, 1256, 1235, 1207, 1159, 1195],
+      q: [3409, 3409, 2619, 2298, 2098, 1886, 1675, 1501, 1366, 1325, 1300, 1189, 1120, 1043, 1059, 1055, 978, 981, 958, 926, 966] },
     rifle: { m: [3502, 3493, 3170, 2785, 2569, 2437, 2392, 2281, 2266, 2261, 2227, 2256, 2244, 2217, 2206, 2211, 2195, 2185, 2171, 2181, 2185],
       q: [3502, 3502, 2737, 2402, 2252, 2204, 2172, 2156, 2164, 2137, 2116, 2134, 2107, 2116, 2122, 2127, 2124, 2103, 2066, 2059, 2101] },
     smg: { m: [3362, 3353, 3044, 2637, 2409, 2248, 2177, 2051, 2026, 2009, 1978, 1954, 1951, 1935, 1944, 1953, 1955, 1936, 1945, 1933, 1941],
@@ -656,32 +663,32 @@ const BARS = {
       q: [3502, 3502, 2737, 2402, 2259, 2157, 2113, 2102, 2101, 2045, 2062, 2064, 2059, 2061, 2059, 2031, 2041, 2054, 2024, 2024, 2041] },
   },
   z2: {
-    pistol: { m: [7002, 6993, 6376, 5546, 5096, 4849, 4539, 4438, 4383, 4272, 4234, 4225, 4160, 4172, 4182, 4174, 4172, 4194, 4184, 4108, 4162],
-      q: [7002, 7002, 6085, 5009, 4721, 4489, 4244, 4174, 4171, 4081, 4068, 4096, 4019, 4044, 4004, 4040, 4038, 4066, 4045, 4015, 4048] },
-    carbine: { m: [7002, 6994, 6481, 5539, 4978, 4770, 4550, 4429, 4369, 4326, 4307, 4289, 4252, 4176, 4200, 4161, 4157, 4234, 4149, 4115, 4053],
-      q: [7002, 7002, 6177, 5072, 4672, 4533, 4304, 4206, 4154, 4096, 4100, 4148, 4088, 4078, 4076, 4051, 4021, 4126, 4053, 4038, 4028] },
-    shotgun: { m: [7556, 7488, 6976, 6162, 5987, 5993, 5934, 5916, 5950, 5938, 5919, 5795, 5747, 5782, 5715, 5669, 5708, 5593, 5584, 5581, 5462],
-      q: [7556, 7458, 6661, 5756, 5571, 5593, 5574, 5512, 5490, 5508, 5418, 5426, 5370, 5352, 5285, 5257, 5267, 5177, 5205, 5170, 5104] },
-    rifle: { m: [7347, 7335, 6685, 5849, 5468, 5281, 5192, 5048, 5067, 4934, 5000, 5053, 4925, 4826, 4665, 4711, 4586, 4474, 4290, 4339, 4218],
-      q: [7347, 7347, 6247, 5407, 5120, 4986, 4928, 4829, 4792, 4725, 4795, 4878, 4779, 4702, 4696, 4732, 4597, 4588, 4403, 4385, 4291] },
-    smg: { m: [7002, 6999, 6484, 5441, 5088, 4785, 4541, 4447, 4346, 4303, 4269, 4195, 4182, 4185, 4236, 4213, 4207, 4182, 4168, 4154, 4163],
-      q: [7002, 7002, 6177, 5059, 4656, 4457, 4229, 4214, 4125, 4108, 4111, 4049, 4041, 4030, 4063, 4094, 4062, 4064, 4053, 4001, 4013] },
-    revolver: { m: [7347, 7340, 6870, 6152, 5523, 5254, 5100, 5027, 4668, 4538, 4323, 4107, 3990, 3732, 3449, 3158, 3091, 2888, 2714, 2509, 2379],
-      q: [7347, 7347, 6472, 5727, 5072, 4897, 4831, 4813, 4668, 4646, 4517, 4113, 3511, 2156, 1384, 1323, 1331, 1273, 1221, 1068, 1043] },
+    pistol: { m: [7002, 6993, 6355, 5532, 5067, 4832, 4511, 4436, 4374, 4256, 4218, 4222, 4158, 4165, 4179, 4166, 4139, 4194, 4177, 4095, 4163],
+      q: [7002, 7002, 6079, 4988, 4665, 4502, 4244, 4166, 4179, 4089, 4063, 4093, 4020, 4039, 4003, 4044, 4005, 4078, 4040, 3997, 4044] },
+    carbine: { m: [7002, 6994, 6481, 5510, 4964, 4731, 4538, 4415, 4356, 4330, 4310, 4290, 4264, 4180, 4199, 4158, 4153, 4224, 4130, 4116, 4051],
+      q: [7002, 7002, 6177, 5072, 4672, 4532, 4304, 4188, 4153, 4093, 4100, 4135, 4097, 4084, 4071, 4051, 4021, 4108, 4050, 4018, 4029] },
+    shotgun: { m: [7141, 7119, 6612, 5575, 4987, 4532, 4069, 3778, 3559, 3384, 3224, 3036, 2950, 2899, 2799, 2716, 2674, 2614, 2574, 2554, 2494],
+      q: [7141, 7117, 6344, 5162, 4487, 4052, 3655, 3423, 3101, 2971, 2791, 2673, 2552, 2557, 2440, 2351, 2407, 2278, 2241, 2212, 2164] },
+    rifle: { m: [7347, 7335, 6675, 5815, 5454, 5264, 5168, 5038, 5060, 4934, 4999, 5039, 4919, 4827, 4675, 4702, 4589, 4456, 4287, 4358, 4219],
+      q: [7347, 7347, 6242, 5380, 5111, 4968, 4921, 4807, 4785, 4714, 4789, 4856, 4773, 4688, 4696, 4695, 4655, 4619, 4403, 4403, 4267] },
+    smg: { m: [7002, 6999, 6467, 5418, 5059, 4771, 4528, 4430, 4328, 4297, 4260, 4195, 4181, 4174, 4208, 4205, 4198, 4175, 4158, 4139, 4156],
+      q: [7002, 7002, 6177, 4954, 4647, 4457, 4229, 4214, 4117, 4094, 4088, 4019, 4041, 4030, 4038, 4080, 4038, 4043, 4032, 4000, 4015] },
+    revolver: { m: [7347, 7340, 6870, 6151, 5523, 5256, 5093, 5015, 4674, 4545, 4303, 4115, 3987, 3735, 3447, 3157, 3074, 2870, 2691, 2511, 2379],
+      q: [7347, 7347, 6472, 5727, 5072, 4887, 4794, 4799, 4697, 4646, 4517, 4183, 3306, 2156, 1384, 1323, 1331, 1273, 1221, 1068, 1043] },
   },
   z3: {
-    pistol: { m: [11250, 10989, 10124, 9041, 7987, 7517, 7224, 7119, 7092, 6945, 6963, 6955, 6885, 6860, 6831, 6859, 6845, 6777, 6854, 6741, 6805],
-      q: [11250, 10745, 9715, 8505, 7575, 7119, 6912, 6803, 6816, 6705, 6733, 6761, 6674, 6650, 6663, 6668, 6653, 6577, 6671, 6645, 6610] },
-    carbine: { m: [11250, 11240, 10300, 8898, 8069, 7645, 7346, 7220, 7095, 7008, 6969, 6916, 6783, 6751, 6703, 6692, 6722, 6533, 6040, 6135, 5952],
-      q: [11250, 11250, 9907, 8391, 7485, 7211, 6941, 6930, 6833, 6751, 6762, 6720, 6663, 6690, 6663, 6653, 6586, 6579, 5420, 6059, 6212] },
-    shotgun: { m: [11463, 11626, 10834, 9819, 9597, 9357, 9515, 9582, 9574, 9443, 9609, 9406, 9464, 9276, 9350, 9333, 9181, 9168, 9059, 8973, 9097],
-      q: [11463, 11481, 10461, 9242, 9119, 8981, 9114, 9047, 9001, 8897, 9040, 8932, 8945, 8796, 8833, 8749, 8711, 8568, 8570, 8500, 8486] },
-    rifle: { m: [11725, 11725, 10902, 9868, 9299, 8854, 8655, 8262, 7346, 6517, 5804, 4812, 4027, 3898, 3548, 2917, 2870, 2738, 2597, 2568, 2364],
-      q: [11725, 11725, 10502, 9225, 8925, 8490, 8498, 8277, 6241, 4659, 3115, 2795, 2567, 2650, 2610, 2398, 2323, 2190, 2202, 1902, 1801] },
-    smg: { m: [11250, 11241, 10263, 8930, 8180, 7665, 7291, 7106, 6942, 6975, 6874, 6819, 6855, 6921, 6758, 6829, 6746, 6763, 6769, 6778, 6586],
-      q: [11250, 11250, 9820, 8303, 7764, 7120, 6920, 6806, 6714, 6729, 6612, 6637, 6673, 6686, 6625, 6615, 6575, 6592, 6522, 6620, 6508] },
-    revolver: { m: [11725, 11725, 10906, 9956, 8576, 6240, 5175, 4497, 4154, 3416, 3053, 2914, 2368, 2162, 1912, 1907, 1756, 1554, 1403, 1321, 1187],
-      q: [11725, 11725, 10345, 9677, 6412, 5140, 3045, 2740, 2665, 2242, 2074, 1997, 1281, 1219, 1016, 903, 891, 818, 806, 713, 633] },
+    pistol: { m: [11250, 10994, 10120, 8835, 7953, 7468, 7157, 7125, 7019, 6971, 6956, 6889, 6920, 6862, 6881, 6807, 6793, 6759, 6810, 6648, 6738],
+      q: [11250, 10745, 9707, 8234, 7499, 7054, 6872, 6850, 6764, 6686, 6731, 6678, 6733, 6725, 6668, 6609, 6631, 6618, 6620, 6549, 6610] },
+    carbine: { m: [11250, 11240, 10272, 8842, 8048, 7534, 7283, 7170, 7102, 7026, 7006, 6882, 6804, 6704, 6695, 6703, 6666, 6509, 6196, 6034, 5913],
+      q: [11250, 11250, 9907, 8387, 7582, 7102, 6910, 6899, 6864, 6749, 6757, 6669, 6628, 6680, 6647, 6683, 6605, 6563, 6393, 6218, 6329] },
+    shotgun: { m: [10664, 10844, 10077, 8599, 7806, 6914, 6471, 6056, 5683, 5381, 5182, 4853, 4781, 4689, 4599, 4486, 4341, 4417, 4322, 4220, 4199],
+      q: [10664, 10667, 9591, 8044, 7173, 6330, 5861, 5556, 5087, 4865, 4703, 4397, 4245, 4263, 4064, 3996, 3936, 4082, 3913, 3852, 3785] },
+    rifle: { m: [11725, 11725, 10806, 9869, 9264, 8866, 8802, 8404, 7277, 6467, 5890, 4972, 4099, 3739, 3323, 2841, 2907, 2717, 2598, 2483, 2284],
+      q: [11725, 11725, 10420, 9305, 8855, 8499, 8633, 8264, 5703, 4729, 3203, 2830, 2634, 2578, 2453, 2185, 1511, 1552, 1614, 1776, 1680] },
+    smg: { m: [11250, 11241, 10261, 8805, 8112, 7571, 7253, 7050, 6928, 6964, 6892, 6832, 6846, 6885, 6761, 6710, 6691, 6711, 6716, 6676, 6565],
+      q: [11250, 11250, 9820, 8173, 7597, 7127, 6917, 6827, 6688, 6735, 6653, 6644, 6629, 6664, 6652, 6585, 6578, 6535, 6551, 6545, 6455] },
+    revolver: { m: [11725, 11725, 10902, 9825, 8321, 6705, 5274, 4397, 4053, 3421, 3133, 2909, 2375, 2156, 1954, 1852, 1629, 1439, 1335, 1291, 1115],
+      q: [11725, 11725, 10317, 9587, 6152, 5475, 3045, 2753, 2520, 2217, 2052, 1854, 1251, 1311, 1101, 903, 886, 813, 798, 713, 633] },
   },
 };
 
@@ -962,13 +969,8 @@ function reloadFrac(run, now) { return run.reloading ? clamp((now - run.reloadSt
 // and the head alone. Every offset scales with the type's size. A Hunched zombie's head sits inside its body's circle, and stays out of the shot lines (`hidden`) while the body stands.
 const ZTYPES = {};
 for (const [k, d] of Object.entries(T.zombie.types)) {
-  const z = d.size, sh = !!d.shield;
-  ZTYPES[k] = { id: k, ...d, pose: {
-    stand: { legs: [0, 17 * z], body: [0, (sh ? 44 : 50) * z], brain: [sh ? 7 : 0, (sh ? 48 : 74) * z] },
-    crawl: { body: [0, 14 * z], brain: sh ? [3, 20 * z] : [T.zombie.crawlHead[0] * z, T.zombie.crawlHead[1] * z] },
-    hunch: { brain: [-6 * z, (sh ? 42 : 58) * z] },
-    drag: { brain: [-16 * z, 8 * z] },
-  } };
+  const z = d.size, PS = T.zombie.pose, SH = d.shield ? PS.shield : {}, sc = (o) => (o ? [o[0] * z, o[1] * z] : o), pick = (name) => Object.fromEntries(Object.keys({ ...PS[name], ...SH[name] }).map((part) => [part, sc((SH[name] && SH[name][part]) || PS[name][part])]));
+  ZTYPES[k] = { id: k, ...d, pose: { stand: pick('stand'), crawl: pick('crawl'), hunch: pick('hunch'), drag: pick('drag') } };
 }
 function zSpeed(z) { const Z = T.zombie; return z.v * (z.legsDown && !z.ty.ground ? Z.crawl : 1) * (z.bodyDown ? Z.hunch : 1); }
 function zReach(z) { return T.zombie.reach * z.ty.size * z.sc; }
@@ -1016,13 +1018,14 @@ function zombieShot(run, res, hurt, mult, now) {
   const Z = T.zombie, PT = Z.points, hits = new Map();
   for (const r of res) if (r.tg && r.tg.kind === 'zpart') hits.set(r.tg, (hits.get(r.tg) || 0) + 1);
   let base = 0, tx = 0, ty = 0, zone = 2, tag = null, killed = false, brain = false;
-  const parts = [...hurt].filter((p) => p.kind === 'zpart').sort((a, b) => (a.part < b.part ? -1 : 1)); // a fixed order, by name
+  const parts = [...hurt].filter((p) => p.kind === 'zpart').sort((a, b) => (a.part < b.part ? -1 : 1)), centre = res[(res.length - 1) >> 1].tg; // a fixed order, by name
   for (const p of parts) {
-    base += PT.hit * hits.get(p); tx += p.x; ty += p.y; p.hitAt = now;
+    const w = p === centre ? 1 : Z.outerShare; // v0.5 P: a part only an outer pellet hit pays its outer share (a quarter)
+    base += w * PT.hit * hits.get(p); tx += p.x; ty += p.y; p.hitAt = now;
     if (p.part === 'brain') brain = true;
     if (p.hp > 0) continue;
-    base += PT[p.part];
-    if (p.part === 'brain') { base += PT.bonus; zone = 0; tag = 'Brain shot'; killed = true; }
+    base += w * PT[p.part];
+    if (p.part === 'brain') { base += w * PT.bonus; zone = 0; tag = 'Brain shot'; killed = true; }
     else { zone = Math.min(zone, 1); if (tag !== 'Brain shot') tag = p.part === 'legs' ? 'Legs down' : 'Body down'; }
   }
   for (const p of parts) if (p.hp <= 0 && p.part !== 'brain') { const z = p.z; run.targets.splice(run.targets.indexOf(p), 1); z.parts[p.part] = null; if (p.part === 'legs') z.legsDown = true; else z.bodyDown = true; layoutZombie(z, now); }
@@ -1114,7 +1117,7 @@ function fire(run, cue) {
   } else if (scored.size || zh) {
     const mult = Math.min(T.comboCap, 1 + T.comboStep * run.streak);
     let pts = 0, bz = 3, tx = 0, ty = 0, nt = scored.size, zt = null;
-    for (const [tg, z] of scored) { pts += Math.round(T.zonePoints[z] * mult); bz = Math.min(bz, z); tx += tg.x; ty += tg.y; if (z === 0 && (run.ch.ladder === 'accuracy' || run.ch.ladder === 'skeet' || tg.kind === 'core')) run.cBull++; } // mastery (v0.5 N): bullseyes on cards and clays, and on a boss core
+    for (const [tg, z] of scored) { pts += Math.round(T.zonePoints[z] * mult * (tg.flat && tg !== mid.tg ? T.zombie.outerShare : 1)); bz = Math.min(bz, z); tx += tg.x; ty += tg.y; if (z === 0 && (run.ch.ladder === 'accuracy' || run.ch.ladder === 'skeet' || tg.kind === 'core')) run.cBull++; } // mastery (v0.5 N): bullseyes on cards and clays, and on a boss core
     if (zh) { zt = zombieShot(run, res, hurt, mult, now); if (zt.brain) run.cHead++; pts += zt.pts; bz = Math.min(bz, zt.zone); tx += zt.tx; ty += zt.ty; nt++; }
     const was = run.streak;
     run.score += pts; run.hits += scored.size + (zh ? 1 : 0);
@@ -2198,7 +2201,7 @@ function endRun(E) {
   const left = ch.wall && r.cleared ? r.targets.filter((t) => t.kind === 'part').length : 0;
   const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
   const zom = ch.ladder === 'zombie' ? { zdown: r.zdown, ztotal: ch.endless ? 0 : r.list.reduce((n, w) => n + w.length, 0), zwave: r.wave, zwaves: ch.endless ? 0 : r.list.length, breach: r.breach, day, bestWave } : {};
-  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), skins: unlocked, tierUp: t1 > t0 ? { gun: T.guns[gid].short, name: TIER_NAMES[t1] } : null, ...zom });
+  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, badges: fresh, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), skins: unlocked, tierUp: t1 > t0 ? { gun: T.guns[gid].short, name: TIER_NAMES[t1] } : null, ...zom });
 }
 
 function meterText(r, ch) {
@@ -2488,7 +2491,7 @@ const gunCard = {
     // the numbers as bars, against the six-gun maximum
     const bx = land ? x0 + lw + 20 : x0, bw = land ? W - lw - 20 : W, by = land ? y0 : y + 12, rowH = land ? 22 : 26;
     STAT_ROWS.forEach(([label, val, txt], i) => {
-      const max = Math.max(...GUN_IDS.map((k) => val(T.guns[k]))), yy = by + i * rowH + 11, tx = bx + 84, tw = bw - 84 - 64;
+      const max = Math.max(...GUN_IDS.map((k) => val(T.guns[k]))), yy = by + i * rowH + 11, tx = bx + 84, tw = bw - 84 - 100;
       E.text(label, bx + 4, yy, { size: TY.small, align: 'left', color: P.text });
       E.roundRect(tx, yy - 4, tw, 8, 4, P.panelEdge); E.roundRect(tx, yy - 4, Math.max(8, tw * val(g) / max), 8, 4, P.cyan);
       E.text(txt(g), bx + bw - 4, yy, { size: TY.small, weight: TY.strong, align: 'right', color: P.text });
@@ -2523,6 +2526,7 @@ const play = {
     const ch = (params && chById(params.id)) || CHALLENGES[0];
     newRun(ch.endless ? { ...ch, seed: E.dailySeed() } : ch, gunId(E), params && params.gauntlet, skinId(E, gunId(E))); // the endless mode plays the day's seed
     this.menuBtn = null; this.reloadBtn = null; S.restarted = false;
+    S.first = !E.save.get('controlsSeen', false); if (S.first) E.save.set('controlsSeen', true); // the controls line: the first play of a fresh save, once
   },
 
   update(dt, E) {
@@ -2606,6 +2610,12 @@ const play = {
       const a = clamp((A.intro.hold + A.intro.fade - now) / A.intro.fade, 0, 1);
       wrapText(ctx, intro, v.w - 24, TY.small).forEach((ln, i) => E.text(ln, v.ox + (T.designW / 2) * v.s, v.oy + A.intro.y * v.s + i * 18, { size: TY.small, weight: TY.strong, color: P.text, alpha: a })); // a narrow field wraps it
     }
+    if (S.first && now < A.first.hold + A.first.fade) { // v0.5 P: the one line of tutorial there is, on a fresh save's first play
+      const a = clamp((A.first.hold + A.first.fade - now) / A.first.fade, 0, 1), lines = wrapText(ctx, A.first.text, v.w - 56, TY.small), h = 12 + lines.length * 20, cx = v.ox + v.w / 2;
+      const w = Math.min(v.w - 24, Math.max(...lines.map((ln) => ctx.measureText(ln).width)) + 32);
+      ctx.globalAlpha = a; plate(E, cx - w / 2, v.oy + A.intro.y * v.s - 12, w, h, P.panel, P.orange, 10); ctx.globalAlpha = 1;
+      lines.forEach((ln, i) => E.text(ln, cx, v.oy + A.intro.y * v.s + 4 + i * 20, { size: TY.small, weight: TY.strong, color: P.text, alpha: a }));
+    }
     for (const f of S.fx) if (f.k === 'callout') {
       const k = 1 - f.t / f.max, big = f.big ? 1.35 : 1, x = clamp(v.ox + f.x * v.s, v.ox + 70, v.ox + v.w - 70);
       popText(E, f.text, x, v.oy + (f.y - 26 * k) * v.s, f.color || P.cyan, Math.min(1, 3 * (1 - k)), f.size || TY.mid * big + 4);
@@ -2682,7 +2692,7 @@ const play = {
     else if (key === ' ') queueInput(S.run, stamp(S.run), 'fire'); // key repeat fires at the gun's rate
     else if (key === 'r' || key === 'R') queueInput(S.run, stamp(S.run), 'reload');
   },
-  onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet, S.skin); S.restarted = true; }, // closing the app mid-challenge restarts it, and the toast says so on return
+  onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet, S.skin); S.restarted = true; S.first = false; }, // closing the app mid-challenge restarts it, and the toast says so on return
 };
 
 const over = {
@@ -2722,7 +2732,7 @@ const over = {
       } else drawStar(ctx, sx, sy, 22, null, P.panelEdge);
     }
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
-    if (ch.ladder === 'zombie') E.text(ch.endless ? `Wave ${p.zwave}   Down ${p.zdown}   Brain shots ${p.bulls}` : `Down ${p.zdown} of ${p.ztotal}   Brain shots ${p.bulls}`, cx, y0 + (ch.endless ? 104 : 134), { size: TY.mid, weight: ch.endless ? TY.strong : TY.normal, color: P.text });
+    if (ch.ladder === 'zombie') E.text(ch.endless ? `Wave ${p.zwave}   Down ${p.zdown}   Brain shots ${p.heads}` : `Down ${p.zdown} of ${p.ztotal}   Brain shots ${p.heads}`, cx, y0 + (ch.endless ? 104 : 134), { size: TY.mid, weight: ch.endless ? TY.strong : TY.normal, color: P.text });
     else E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 134, { size: TY.mid, color: P.text });
     if (ch.endless) {
       E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  wave ${p.bestWave}`, cx, y0 + 140, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
@@ -2763,7 +2773,7 @@ const over = {
     if (p.tierUp || (p.skins && p.skins.length)) { // mastery (v0.5 N): a tier reached, and the skin it opens
       yy += 22;
       const a = clamp((age - 0.7) / 0.35, 0, 1), sk = p.skins && p.skins.length ? `${p.skins.join(', ')} unlocked` : '';
-      E.text(p.tierUp ? `${p.tierUp.gun} is now ${p.tierUp.name}${sk ? ': ' + sk : ''}` : `Skin unlocked: ${sk}`, cx, yy, { size: TY.small, weight: TY.strong, color: P.cyan, alpha: a });
+      E.text(p.tierUp ? `${p.tierUp.gun} is now ${p.tierUp.name}${sk ? ': ' + sk : ''}` : `Skin unlocked: ${p.skins.join(', ')}`, cx, yy, { size: TY.small, weight: TY.strong, color: P.cyan, alpha: a });
     }
     const btns = [['Again', P.orange, P.ink, 'again']];
     if (this.canNext) btns.push(['Next', P.cyan, P.ink, 'next']);
@@ -2898,9 +2908,10 @@ function migrateGuns(data) {
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 10,
+  saveVersion: 11,
   // Save shape: best { challengeId: { gunId: { score, stars, accuracy } } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, gunsHad { gunId: 1 } (guns a save from
   // before v7 already had), cold (Cold Barrel's runs in a row), zend (the endless mode's bests), mastery { gunId: { shots, hits, bulls, heads, plates } } and skinsHad { gunId: { skinId: 1 } } and skinsNew { gunId: [skinId] } (v10), starPreset (the star-bar preset's name), __tune, __muted.
+  // controlsSeen (v11: the first-run controls line has been shown).
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
   // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default); v6 adds the star-bar preset's name. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
@@ -2922,6 +2933,7 @@ export const game = {
       for (const [gun, map] of Object.entries(OLD_SKIN_BADGES)) for (const [skin, badge] of Object.entries(map)) if (data.badges[badge]) (had[gun] || (had[gun] = {}))[skin] = 1;
       data.skinsHad = had;
     }
+    if (fromVersion < 11) data.controlsSeen = true; // v11: a save that already exists has played; only a fresh one sees the controls line
     if (data.mastery !== undefined && (typeof data.mastery !== 'object' || data.mastery === null)) delete data.mastery;
     delete data.bossGuns;
     if (data.__tune && typeof data.__tune === 'object') data.__tune = Object.fromEntries(Object.entries(data.__tune).filter(([k]) => TUNE_KEYS.has(k)));
