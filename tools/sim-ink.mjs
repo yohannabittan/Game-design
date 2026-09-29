@@ -10,11 +10,14 @@
 //     "shape": [ [[x,y],[x,y],...], [[x,y],...] ] }
 //   `shape` is a list of closed polygons in the 360x640 design space (do not repeat the first point at the end);
 //   a polygon inside another is a hole (even-odd). `polygons` is accepted as an alias for `shape`.
+//   A stencil in parts (PRD v0.6 section D) has `parts` instead: a list of parts, each a list of polygons like `shape` (`shape` is then made from them, so it can be left out).
+//   Inking a part to 99 percent completes it, the piece is done when every part is, and a touch-down is a landing: clean inside a part's line (or within TUNING.landTolerance
+//   of it), a blot (a slip) on skin outside every line. Only stencils with `parts` score landings.
 //
 // path.json: an array of needle positions in DESIGN units (not finger positions; the needle offset is irrelevant to
 //   scoring). Consecutive points are joined by straight segments. A `null` entry is a lift: the finger comes up, and the
 //   next point is a new touch down (with the needle wherever that point is).
-//   [ [180,320], [190,320], null, [50,60], [70,60] ]
+//   [ [180,320], [190,320], null, [50,60], [70,60] ]  (a lift is free, and the finger is assumed to cross it at --speed, so it counts in the time)
 //   A point may carry a third element, the finger speed in units per second for the segment ENDING at that point:
 //   [x, y, speed]. Missing speed uses --speed. Speed only matters to the dynamic needle (it sets the ink radius) and to the clock.
 //
@@ -67,6 +70,7 @@ if (flag('--index')) {
   if (positional.length < 2) die('usage: sim-ink.mjs <stencil.json> <path.json> | --index N <path.json> | --list');
   const st = readJson(positional[0]);
   if (st.polygons && !st.shape) st.shape = st.polygons;
+  if (st.parts) sim.prep(st);
   if (typeof st.name !== 'string' || !(st.timer > 0) || !Array.isArray(st.shape) || !st.shape.length) die('stencil needs name, timer > 0, and shape (list of polygons)');
   for (const poly of st.shape) {
     if (!Array.isArray(poly) || poly.length < 3 || !poly.every((p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite))) die('each polygon needs at least 3 [x, y] points');
@@ -79,7 +83,7 @@ if (flag('--index')) {
 if (!pathFile) die('missing path.json');
 const path = readJson(pathFile);
 if (!Array.isArray(path) || !path.every((p) => p === null || (p && typeof p === 'object' && !Array.isArray(p) && p.hold > 0) || (Array.isArray(p) && (p.length === 2 || p.length === 3) && p.every(Number.isFinite) && (p.length === 2 || p[2] > 0)))) die('path must be an array of [x, y], [x, y, speed] (speed > 0), { hold: seconds } or null');
-const st = sim.stencils[idx];
+const st = sim.stencils[idx], st0 = st;
 
 // A stand-in engine: only what the play scene touches.
 const E = {
@@ -93,19 +97,20 @@ const finger = (x, y) => ({ id: 1, x, y: y + T.needleOffset });
 
 play.enter(E, { stencil: idx });
 
+const multi = !!st0.parts;
 let length = 0, lifted = 0, clock = 0, t99 = null, down = false, last = null, ptr = null;
 const step = T.sampleSpacing; // events are cut to this length (or to speed/HZ with --events); the score does not depend on it
 const event = (x, y) => {
   E.time = clock;
   if (!down) { ptr = finger(x, y); ptr.t = clock; E.pointers.set(1, ptr); play.onPointerDown(ptr, E); down = true; }
   else { const f = finger(x, y); ptr.x = f.x; ptr.y = f.y; ptr.t = clock; play.onPointerMove(ptr, E); }
-  if (t99 === null && sim.percent() >= 99) t99 = clock;
+  if (t99 === null && (multi ? sim.ended() === 'full' : sim.percent() >= 99)) t99 = clock;
 };
 for (const pt of path) {
   if (sim.ended()) break;
   if (pt && !Array.isArray(pt)) { // hold still: run the game's own update in frames of 1/60 s (or 1/HZ with --events)
     const fdt = eventsHz ? 1 / eventsHz : 1 / 60, n = Math.round(pt.hold / fdt);
-    for (let i = 0; i < n && !sim.ended(); i++) { clock += fdt; E.time = clock; play.update(fdt, E); if (t99 === null && sim.percent() >= 99) t99 = clock; }
+    for (let i = 0; i < n && !sim.ended(); i++) { clock += fdt; E.time = clock; play.update(fdt, E); if (t99 === null && (multi ? sim.ended() === 'full' : sim.percent() >= 99)) t99 = clock; }
     continue;
   }
   if (pt === null) { if (down) { E.pointers.delete(1); play.onPointerUp({ id: 1 }, E); down = false; } continue; }
@@ -138,13 +143,17 @@ console.log(`percent   ${pct}%${sim.ended() === 'full' ? '  (100%, ended)' : ''}
 console.log(`slips     ${slips}/${T.maxSlips}${ruined ? '  RUINED, stencil ended at the third slip' : ''}`);
 console.log(`length    ${length.toFixed(0)} units${lifted ? ` (${lifted.toFixed(0)} while lifted)` : ''}`);
 console.log(`time      ${f1(time)}s at ${speed} units/s unless a point gives its own speed`);
-console.log(time99 === null ? `99%       not reached` : `99%       reached at ${f1(time99)}s, ${f1(timer - time99)}s before the timer (${Math.round(((timer - time99) / timer) * 100)}% spare)`);
+console.log(time99 === null ? `${multi ? 'done' : '99%'}       not reached` : `${multi ? 'done     ' : '99%      '} reached at ${f1(time99)}s, ${f1(timer - time99)}s before the timer (${Math.round(((timer - time99) / timer) * 100)}% spare)`);
+if (multi) {
+  const pd = sim.parts(), n = sim.landings(), c = sim.cleanLand();
+  console.log(`landings  ${c} clean of ${n}${n - c ? `, ${n - c} blot${n - c > 1 ? 's' : ''}` : ''}   parts done ${pd.reduce((a, b) => a + b, 0)}/${pd.length} (${pd.join('')})  per part ${sim.partPct().map((v) => v.toFixed(1)).join(' ')}%`);
+}
 if (slips > 0) console.log('warning   the intended path should be clean: it slips');
 console.log(ok ? `result    OK: 99 percent within the ${timer}s timer` : `result    FAIL: 99 percent not reached within the ${timer}s timer`);
 
 if (flag('--timer-from-path')) {
   if (time99 === null) console.log('timer     cannot be set: this path never reaches 99 percent');
-  else console.log(`perfect   ${time99.toFixed(2)}s to 99 percent (the stencil's perfectTime is this, rounded to 0.1)`);
+  else console.log(`perfect   ${time99.toFixed(2)}s to ${multi ? 'the last part done (99 percent of every part), lifts included' : '99 percent'} (the stencil's perfect time is this)`);
   if (time99 !== null) for (const [label, mult] of [['Circle, Diamond, Heart, Star', T.timerMultEarly], ['Bolt, Halo, Clover, Key, Dagger, Anchor, Rose, Swallow', T.timerMultMid], ['boss Crescent', T.timerMultBoss], ['boss Snake', T.timerMultFinal], ['final boss Skull', T.timerMultSkull]]) {
     const m = mult * T.timerGlobalMult, t = time99 * m;
     console.log(`timer     ${label}: ${f1(t)}s at ${+m.toFixed(3)}x the perfect path (round up: ${Math.ceil(t)})  [${preset.label}]`);

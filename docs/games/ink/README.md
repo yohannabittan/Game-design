@@ -102,7 +102,19 @@ Rules the shard must design for:
 - After a lift the radius starts again at `needleR * floorScale` and widens at `growRate`, so a landing costs about a third of a second of thin ink. A path that keeps its old single-piece order and only gets a lift where it crosses a gap loses a lot of coverage this way (the old Swallow path with lifts inserted reached 82 percent, not 100). Write the path per part instead: land, ride the part's outline 5 to 6 units inside at speed 175, then fill it in rows about 15 apart at speed 270, with as few lifts as it takes. The Swallow's and the Skull's paths were made that way.
 - The perfect time is the time to the moment the last part is done, lifts included (the finger crosses a lift at `--speed`); `--timer-from-path` prints it as `perfect`. Store it in `perfect` and set `timer` by the same tier rule as any stencil.
 
-Sets still to be authored by shards under this rule: Trinity (three rings), Constellation (five small stars joined by nothing) and Bones (two crossed bones). Adding them appends to `STENCILS` after the Skull (a new index, so no save remap; give each a `tier`, a `body` and, if wanted, a `story`), and the badge Set Piece (five stars on every stencil in parts) then needs those too.
+### The three new sets (shard work, not yet authored)
+
+Trinity (three rings), Constellation (five small stars joined by nothing) and Bones (two crossed bones) are for content shards under the rules above; the orchestrator merges them. Each is one stencil entry in the shape of the example above, plus the game's own fields, and its intended path is one file in `docs/games/ink/paths/` (`trinity.json`, `constellation.json`, `bones.json`; a `null` between parts is the lift):
+
+```json
+{ "name": "Trinity", "timer": 40, "boss": false, "tier": "mid", "perfect": 21.5, "body": "forearm", "story": null,
+  "parts": [ [ outer ring polygon, its hole ], [ ... ], [ ... ] ] }
+```
+
+- Appending puts them at indices 15, 16 and 17, after the Skull: no save remap. `tier` is `mid` unless the orchestrator says otherwise; `perfect` is what `--timer-from-path` prints; `timer` is `perfect` times the tier's multiplier rounded up; `body` is one of forearm, shoulder, calf, back.
+- Trinity: each ring is one part made of an outer polygon and a hole (even-odd inside the part). Constellation: five stars, each at least 20 by 20 units, at least 5 units apart. Bones: parts must not overlap, so one bone is whole and the other is cut in two by a 5 unit slit either side of it (three parts), or both are cut where they cross.
+- The badge Set Piece counts every stencil that has `parts`, so it needs no change, but a save that already earned it keeps it. Full Sleeve stays the first fifteen.
+- Menu: 18 stencils at five per row is a fourth row of tiles, and the menu then no longer fits 360x640 or 375x667 (the tiles stop at 100 px and the Play button ends at 680 px). Six columns (three rows of 100 px tiles, narrower) or a scrolling grid is a layout change for the merge, not for the shards.
 
 ## What a shard delivers per stencil
 
