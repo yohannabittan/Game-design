@@ -148,3 +148,13 @@ Not in v0.1: skins, badges, missions, daily, multiple critters, obstacles that h
 - Camera (resolves open question 1, reversing the layer 1 default): the camera zooms out smoothly with height and speed, down to 0.45x, so the landing zone of the current arc is always on screen by the top of the arc; the ground band and HUD keep their screen size. Landings must be aimable by a human; the layer 1 harness showed late arcs land 300 m or more ahead of a 45 m view.
 - Flight length: expert flights run 36 s median with no upgrades and up to 70 s; the 8 to 40 s target in section 3 is relaxed to "under 60 s for 90 percent of expert flights" and checked again after the camera change.
 - For layer 4 (shop): Fuel dominates in the harness (Fuel 2 alone reaches 5000 m on 95 of 200 seeds; Rocket 1 adds nothing because it only unlocks hold). Price and effect of each upgrade must be balanced so each is some expert's best next buy at some point; the harness reports the best next buy from every upgrade state.
+
+## Amendments after the layer 1 review (2026-09-30, build before layer 2)
+
+1. Camera zoom as amended above is required before any later layer; after it, re-measure the share of flight time the critter is off screen (target: never, for flights under 600 m up) and the share of expert arcs whose landing is on screen at the arc's top (target: at least 90 percent).
+2. The HUD never covers the pulled critter: the fuel gauge moves off the sling pocket (top left under the distance, or drawn only in flight), checked at 812x375 and 844x390 with 44 px side insets.
+3. Mud reads at a glance: a light rim or top edge so its contrast against sky and ground is at least 3:1; springs and ramps keep theirs.
+4. The result card ignores taps for 400 ms after it appears (boost taps must not dismiss it).
+5. Pull affordance: on the first launch of a fresh save, a faint animated hand-drag hint behind the critter until the first pull begins; a drag under the dead zone shows "Pull further"; a pull at full power shows the band taut (a colour change) so the saturation point is visible.
+6. Power window: the first spring should be reachable from about 0.85 power at 40 degrees, not only 0.97 to 1; move or widen the teaching chunk's first spring accordingly and re-prove the naked 500 m.
+7. Layer hygiene: the unreachable upgrade code stays (it is the harness's upgrade model) but is grouped and commented as the layer 4 shop's model; the extra named sounds stay (the juice layer will own them).
