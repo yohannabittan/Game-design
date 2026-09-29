@@ -65,7 +65,8 @@ const TUNING = {
   holdGap: 0.06,         // Seconds without a movement event before the finger counts as holding still
 
   // v0.4 gap hint (PRD v0.4 section E). Cosmetic: never changes coverage, slips, the timer or stars.
-  hintPercent: 95,       // Fill percentage at which the hint turns on (101 turns it off)
+  hintPercent: 95,       // Fill percentage at which the hint turns on. The menu's Hint toggle (saved as `hint`, on by default) sets it to 101 (off) or, from off, back to hintOnPercent; the TUNE slider only moves it while the toggle is on
+  hintOnPercent: 95,     // What the Hint toggle sets hintPercent to when it is switched on
   hintShare: 0.1,        // A cluster of unfilled cells is shown when it holds at least this share of the unfilled cells
   hintEvery: 0.25,       // Seconds between hint recomputations
   hintAlphaMin: 0.25,    // Pulse floor
@@ -655,7 +656,7 @@ function newAttempt(idx, daily = false) {
   const st = stOf(idx), g = gridFor(idx);
   Object.assign(S, {
     idx, st, g, daily, dailyKey: daily ? utcDay() : '',
-    inked: new Uint8Array(g.cols * g.rows), count: 0, partN: g.partTotal ? new Int32Array(g.partTotal.length) : null, partDone: g.partTotal ? new Uint8Array(g.partTotal.length) : null, fills: [], fillDrawn: 0, landings: 0, cleanLand: 0, lifts: 0, lifts99: -1, maxR: 0, hintOff: T.hintPercent >= 101, quit: false, tickets: 0,
+    inked: new Uint8Array(g.cols * g.rows), count: 0, partN: g.partTotal ? new Int32Array(g.partTotal.length) : null, partDone: g.partTotal ? new Uint8Array(g.partTotal.length) : null, fills: [], fillDrawn: 0, landings: 0, cleanLand: 0, lifts: 0, lifts99: -1, maxR: 0, hintOff: false, quit: false, tickets: 0,
     strokes: [], stroke: null, marks: [],
     slips: 0, time: 0, total: 0, started: false, ended: null, holdT: 0,
     pid: null, last: null, lastT: 0, carry: 0, armed: false,
@@ -1623,12 +1624,19 @@ function presetName() {
 }
 // The newest badges, highest tier first (the card shows the top few as tickets).
 const byTier = (list) => list.slice().sort((x, y) => y.tier - x.tier);
+// The Hint toggle (menu, beside Sound; saved as `hint`, on unless switched off; both channels). Off sets hintPercent to 101 so the gap glow never shows (Blind needs that); on
+// puts back hintOnPercent if it was off, and leaves a TUNE slider value alone.
+const hintOn = (E) => E.save.get('hint', true) !== false;
+function applyHint(E) {
+  if (!hintOn(E)) T.hintPercent = 101;
+  else if (T.hintPercent >= 101) T.hintPercent = T.hintOnPercent;
+}
 const blotsOf = () => S.marks.filter((k) => k.blot).length;
 
 // ---------- Scenes ----------
 
 const menu = {
-  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnDaily = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; this.daily = dailyToday(E); this.dayT = E.time; this.scroll = 0; this.drag = null; this.focus = true; this.gridView = { top: 0, h: 0, max: 0 }; this.titleBox = { x: 0, y: 0, w: 0, h: 0 }; applySkins(E); },
+  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnDaily = null; this.btnHint = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; this.daily = dailyToday(E); this.dayT = E.time; applyHint(E); this.scroll = 0; this.drag = null; this.focus = true; this.gridView = { top: 0, h: 0, max: 0 }; this.titleBox = { x: 0, y: 0, w: 0, h: 0 }; applySkins(E); },
   // The vertical layout comes from the height there is. The title shrinks (to titleMin) until rowsSeen rows of tiles at tileWant fit between the count row and the daily strip;
   // the daily strip and Play stay fixed under the grid. If every row fits at tileMin or more the grid is laid out whole and grows to tileMax; if not, the grid scrolls in a
   // window that shows a whole number of rows and a peek of the next (tiles never below tileMin). The title also drops below the engine's TUNE tab when its letters would run
@@ -1744,9 +1752,11 @@ const menu = {
     }
 
     this.btnDaily = this.drawDaily(ctx, E, Y.dailyY, m);
-    const pw = E.w - 2 * m - M.soundW - 10, px = Math.min(pw, 224);
-    this.btnPlay = inkButton(ctx, p.unlocked > 0 ? `Play ${p.unlocked + 1}` : 'Play', cx - (M.soundW + 10) / 2, Y.playY, px, M.playH, true, FONT.big);
-    this.btnMute = soundButton(ctx, cx - (M.soundW + 10) / 2 + px / 2 + 10 + M.soundW / 2, Y.playY, M.soundW, M.playH, E.audio.muted);
+    // Bottom row: Play, then Hint and Sound, centred as a group.
+    const pw = E.w - 2 * m - 2 * (M.soundW + 10), px = Math.min(pw, 224), left = cx - (px + 2 * (M.soundW + 10)) / 2;
+    this.btnPlay = inkButton(ctx, p.unlocked > 0 ? `Play ${p.unlocked + 1}` : 'Play', left + px / 2, Y.playY, px, M.playH, true, FONT.big);
+    this.btnHint = hintButton(ctx, left + px + 10 + M.soundW / 2, Y.playY, M.soundW, M.playH, hintOn(E));
+    this.btnMute = soundButton(ctx, left + px + 20 + M.soundW * 1.5, Y.playY, M.soundW, M.playH, E.audio.muted);
     if (AC.warmGo) warmStep(E, p.unlocked); else AC.warmGo = true; // the warm-up starts the frame after the first full render
   },
   // The daily strip: today's stencil (turned as the day says), its tight timer, and the score so far.
@@ -1768,6 +1778,7 @@ const menu = {
   onTap(p, E) {
     if (E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play', { stencil: progress(E).unlocked }); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
+    if (E.hit(this.btnHint, p)) { const on = !hintOn(E); E.save.set('hint', on); applyHint(E); E.audio.play('tap'); ledger(E, 'hint', { on }); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
     if (E.hit(this.btnDaily, p)) { E.audio.play('tap'); E.setScene('play', { daily: true }); return; }
     const gv = this.gridView, t = p.y >= gv.top && p.y <= gv.top + gv.h && this.tiles.find((t) => !t.locked && E.hit(t, p));
@@ -1798,6 +1809,19 @@ function soundButton(ctx, cx, cy, w, h, muted) {
   ctx.beginPath(); ctx.moveTo(cx - 12, cy - 5); ctx.lineTo(cx - 6, cy - 5); ctx.lineTo(cx + 1, cy - 11); ctx.lineTo(cx + 1, cy + 11); ctx.lineTo(cx - 6, cy + 5); ctx.lineTo(cx - 12, cy + 5); ctx.closePath(); ctx.fill();
   if (muted) { ctx.beginPath(); ctx.moveTo(cx + 6, cy - 6); ctx.lineTo(cx + 16, cy + 6); ctx.moveTo(cx + 16, cy - 6); ctx.lineTo(cx + 6, cy + 6); ctx.stroke(); }
   else { ctx.beginPath(); ctx.arc(cx + 1, cy, 8, -0.9, 0.9); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + 1, cy, 14, -0.9, 0.9); ctx.stroke(); }
+  return { x, y, w, h };
+}
+
+// The hint toggle: the word HINT over a small switch, stencil blue and knob right when on, grey and knob left when off.
+function hintButton(ctx, cx, cy, w, h, on) {
+  const x = cx - w / 2, y = cy - h / 2, L = A.line;
+  ctx.globalAlpha = L.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, x + L.shadowDx, y + L.shadowDy, w, h, L.radius); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.beginPath(); rr(ctx, x, y, w, h, L.radius); ctx.fillStyle = P.paperShade; ctx.fill();
+  ctx.lineWidth = L.weight; ctx.strokeStyle = P.ink; ctx.beginPath(); rr(ctx, x + 4, y + 4, w - 8, h - 8, L.radius - 4); ctx.globalAlpha = 0.55; ctx.stroke(); ctx.globalAlpha = 1;
+  label(ctx, 'HINT', cx, cy - 8, FONT.small, on ? P.textDark : P.textMute);
+  const sw = 30, sh = 14, sx = cx - sw / 2, sy = cy + 8;
+  ctx.beginPath(); rr(ctx, sx, sy, sw, sh, sh / 2); ctx.fillStyle = on ? P.stencilDeep : P.lock; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = P.ink; ctx.stroke();
+  ctx.beginPath(); ctx.arc(on ? sx + sw - sh / 2 : sx + sh / 2, sy + sh / 2, sh / 2 - 2, 0, TAU); ctx.fillStyle = P.paper; ctx.fill(); ctx.stroke();
   return { x, y, w, h };
 }
 
@@ -1938,7 +1962,7 @@ function drawHud(ctx, E) {
 }
 
 const play = {
-  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); },
+  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); applyHint(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); S.hintOff = !hintOn(E); },
   update(dt, E) {
     holdStep(E, dt);
     hintStep(dt);
@@ -1958,7 +1982,7 @@ const play = {
     const failed = ruined || pct < T.passPercent;
     const clean = !failed && S.slips === 0, landings = S.landings, cleanLand = S.cleanLand, steady = !failed && landings > 0 && cleanLand === landings;
     const a = { daily: S.daily, pct, stars, ruined, failed, clean, lifts99: S.lifts99, used: S.total - S.time, total: S.total, hintOff: S.hintOff, maxR: S.maxR };
-    const res = { stencil: S.st.name, percent: pct, stars, clean, slips: S.slips, blots: blotsOf(), landings, clean_landings: cleanLand, time: +a.used.toFixed(1), preset: presetName(), ended: S.ended, daily: S.daily };
+    const res = { stencil: S.st.name, percent: pct, stars, clean, slips: S.slips, blots: blotsOf(), landings, clean_landings: cleanLand, time: +a.used.toFixed(1), preset: presetName(), hint: !S.hintOff, ended: S.ended, daily: S.daily };
     ledger(E, 'result', res);
     const had = E.save.get('badges', {});
     if (S.daily) { // the daily counts for the daily only: no stars, unlocks or badges (Second Skin is the one trick it can earn)
@@ -2220,7 +2244,7 @@ export const game = {
   // hint's presets became its two sliders: 101 is off). Everything reads TUNING at use time, so it applies live, from the next attempt for timers.
   experiments: [
     { key: 'timerGlobalMult', label: 'Timer multiplier (all stencils)', min: 0.6, max: 2, step: 0.05 },
-    { key: 'hintPercent', label: 'Hint starts at (percent, 101 = off)', min: 85, max: 101, step: 1 },
+    { key: 'hintPercent', label: 'Hint starts at (percent; the menu toggle turns it off)', min: 85, max: 100, step: 1 },
     { key: 'hintShare', label: 'Gap share shown (of what is left)', min: 0.02, max: 0.5, step: 0.01 },
   ],
   presets: [
