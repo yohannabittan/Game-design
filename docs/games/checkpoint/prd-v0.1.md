@@ -161,3 +161,16 @@ Section 16 now also holds, as built: `bagH` 260 and `bagGap` 64 (so shift 10 las
 ## Adopted after v3 (2026-09-30)
 
 Belt speeds are now 70, 75, 80, 85, 90, 90, 95, 100, 105, 95 by shift (difficulty moved into clutter and look-alikes); rush shifts 5 and 10 deliver bags in bursts of three at the same average pitch. Toothbrush and belt are metal-tinted so every look-alike pair shares a tint. The engine has no sustained oscillator, so the belt hum is built from overlapping short tones (a candidate engine ADR later).
+
+## Amendments after the v3 review (2026-09-30, pre-release)
+
+1. Frame budget: the bloom is adaptive. Three passes only when the measured frame time allows; otherwise one glow pass (and none below a floor), decided in the first seconds of a shift and never flickering mid-shift. Target at 4x CPU throttle, DPR 3, shift 10: p95 frame under 33 ms in headless software raster.
+2. Teach the shapes: the shift card before play shows "New today" with each contraband shape introduced on that shift, drawn and named (knife, scissors, gun on shift 1; lighter and hammer on 2; and so on). The miss ghost carries the item's name. Shapes are never taught by a strike alone.
+3. Tint prior: kept as teaching in shifts 1 and 2 (all contraband is metal there); from shift 3 the generator balances so that an organic item is contraband at least half as often as a metal one (add organic contraband weight or organic look-alikes), and the harness prints P(contraband | tint) per shift.
+4. Colour: the core stroke is drawn non-additively in the item's tint so amber stays amber and metal stays blue under bloom; a false-alarm item turns clearly yellow and a caught item clearly red.
+5. No hitch: shift generation happens before the shift card is dismissed (or spread over frames), so entering play never blocks for more than one frame; at 4x throttle entering shift 10 takes under 50 ms of main-thread time on the first play frame.
+6. Legibility for a first-timer: the streak badge is labelled ("Streak x2"), a catch pop shows the early bonus ("+251, early"), a clean pass pop says "Clean +20", the seed line is removed from the card (it stays in the ledger), a locked shift tap toasts "Clear shift N first".
+7. Eyes closed: a false alarm and a miss use distinct haptic patterns (a double pulse for a false alarm, one long pulse for a miss) and pitches an octave apart outside the hum's range.
+8. Hardening: saves with `shifts` null or malformed read as empty; contrast of the Next button text and the rush label at least 4.5:1 and 3:1.
+9. Icons and manifest regenerated in the game's palette (tools/make-icons.py), theme colour the game background.
+10. Ledger calls per ADR-0016 (shift result with score, strikes by kind, stars, catches, false alarms, misses, time; retry; quit; a new-shape card seen), EXPORT and TUNE clear of the HUD, release channel behaviour verified.
