@@ -31,10 +31,10 @@ Targets are data with a behaviour and hit points:
 
 - **still** (v0.1), **approach** (v0.1).
 - **weave:** approaches while oscillating vertically with amplitude `weaveAmp` and period `weavePeriod`; deterministic from spawn time.
-- **dodge:** when a shot is fired while the target is within `dodgeRange` of the barrel line, it jumps `dodgeStep` up or down (direction from its seed) once per `dodgeCooldown`. Announced: it flickers before it can dodge again. The counter is to shoot where it will land, or to fire two quick shots.
+- **dodge:** when a shot is fired while the target is within `dodgeRange` of the barrel line, it jumps `dodgeStep` up or down (direction from its seed) once per `dodgeCooldown`. Announced: it flickers before it can dodge again. The counter is shoot, watch it jump, re-aim, shoot again inside the cooldown (about 0.7 seconds with a normal reaction; the window is 1.2). Two shots without re-aiming do not work, because the kick moves the second shot less than the dodge does; that is intended.
 - **horde:** a group of `hordeCount` small targets spawned together in a loose column drifting left; each is worth outer-ring points only; hits chain the combo fast.
 - **skeet:** launched from the bottom right in a parabolic arc with `skeetSpeed` and gravity `skeetGravity`; visible for about 2 seconds; only the bullseye and inner zones count.
-- **boss part:** a stationary target with `hp` hit points, part of a sequence: parts are hit in order (the active one is highlighted; hits on inactive parts score outer only and do not damage). When all parts are down the **core** appears, with `coreHp` and a smaller bullseye, and it drifts. The challenge ends when the core is down or the timer ends.
+- **boss part:** a stationary target with `hp` hit points, part of a sequence: parts are hit in order (the active one is highlighted). A hit on an inactive part is neutral: no points, no damage, no combo change, not counted as a hit; it spends the shot. (Amended after review: "outer points only" was farmable for unlimited score.) When all parts are down the **core** appears, with `coreHp` and a smaller bullseye, and it drifts. The challenge ends when the core is down or the timer ends.
 
 All motion is deterministic from the challenge seed and the shot log; the only randomness is the seed.
 

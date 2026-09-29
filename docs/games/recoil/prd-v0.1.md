@@ -140,7 +140,7 @@ Design-space units unless stated.
 | gunX | 70 | Gun centre from the left edge |
 | gunLineX | 110 | Approaching targets vanish as a miss at this x |
 | thumbLane | 70 | Bottom band with no targets |
-| gunMinY | 40 | Highest gun position |
+| gunMinY | 60 | Highest gun position (raised from 40 after review so the HUD never covers the gun or the range finder) |
 | gunMaxY | 300 | Lowest gun position |
 | dragGain | 1.0 | Design units of gun movement per design unit of drag |
 | kickPerShot | 8 | Degrees of barrel climb per shot (7 failed the one-ring kick check in section 15) |

@@ -32,3 +32,4 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0011](0011-engine-change-policy.md) | Additive engine changes need a README entry; behavioural changes need an ADR | accepted |
 | [0012](0012-content-sharding-and-physics-kits.md) | Content layers are built in parallel shards; physics lives in per-family kits with a harness | accepted |
 | [0013](0013-orientation-per-game.md) | Orientation is a per-game PRD decision; portrait is the default | accepted, amends 0004 |
+| [0014](0014-tune-panel-persistence.md) | The tune panel restores only declared keys, prunes the rest; Reset restores every declared key | accepted |

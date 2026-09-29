@@ -262,8 +262,16 @@ export class Engine {
     const ex = this.game.experiments;
     if (!ex || !ex.length) return;
     this._tune = ex.map((e) => ({ ...e, def: this._getPath(e.key) }));
+    // Declared keys are the sliders plus every key a preset sets. Only those are restored or kept in the save;
+    // anything else saved by an earlier build is pruned, so a stale experiment can never silently apply (ADR-0014).
+    const presetKeys = new Set((this.game.presets || []).flatMap((p) => Object.keys(p.values)));
+    this._tuneDefs = {};
+    for (const k of presetKeys) if (!this._tune.some((e) => e.key === k)) this._tuneDefs[k] = this._getPath(k);
+    for (const e of this._tune) this._tuneDefs[e.key] = e.def;
     const saved = this.save.get('__tune', {});
-    for (const k of Object.keys(saved)) this._setPath(k, saved[k]); // slider keys and preset-only keys alike
+    const kept = {};
+    for (const k of Object.keys(saved)) if (k in this._tuneDefs) { kept[k] = saved[k]; this._setPath(k, saved[k]); }
+    if (Object.keys(kept).length !== Object.keys(saved).length) this.save.set('__tune', kept);
     const E = this;
     this.game.scenes.tune = this.game.scenes.tune || {
       enter() { this.drag = null; },
@@ -314,7 +322,7 @@ export class Engine {
       onPointerUp(p) { this.drag = null; },
       onTap(p) {
         if (this.back && E.hit(this.back, p)) E.setScene('menu');
-        else if (this.reset && E.hit(this.reset, p)) { for (const e of E._tune) E._setPath(e.key, e.def); E.save.set('__tune', {}); }
+        else if (this.reset && E.hit(this.reset, p)) { for (const [k, v] of Object.entries(E._tuneDefs)) E._setPath(k, v); E.save.set('__tune', {}); }
         else for (const b of this.presetRow()) if (E.hit(b, p)) {
           for (const [k, v] of Object.entries(b.p.values)) E._setPath(k, v);
           E.save.update('__tune', (t) => ({ ...t, ...b.p.values }), {});
