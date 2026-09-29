@@ -67,6 +67,8 @@ Content layers run as parallel shards once the mechanic has been played (ADR-001
 
 A PRD is frozen while a builder is running against it. Amendments found during the build (by the orchestrator, a reviewer or a playtest) are queued and applied between rounds, and the reviewer judges the build against the version the builder read. Otherwise a builder is failed for a rule it never saw, which happened once on Ink.
 
+Merging content is a change like any other. Two rules learned from the first fifteen-stencil merge: if content is keyed by index in the save, any insertion or reorder ships with a save version bump and a remap, in the same commit; and a merged set is checked on the shortest supported phone (360 by 640) and on its heaviest entry for frame time before it ships, not only on the designer's device.
+
 Why layers work for one-shots: each prompt has a small, closed target, a fixed contract (the engine), a spec (the PRD), and testable acceptance. The builder is never asked to invent scope, and a failure is contained to one layer.
 
 ## Stage 6. Deploy
