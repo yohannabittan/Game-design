@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'recoil-v16';
+const CACHE_VERSION = 'recoil-v17';
 const ASSETS = [
   './',
   './index.html',
