@@ -1,6 +1,7 @@
 // Recoil, v0.3: the mechanic plus guns, barrel sway, moving targets, skeet, a boss, and progression (four guns unlocked by
 // points, nine badges, a gauntlet). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
-// Instant shot lines scored by zone, a combo multiplier, four ladders, stars, points, menu and card. Grey box: shapes and three colours only.
+// Instant shot lines scored by zone, a combo multiplier, four ladders, stars, points, menu and card. Layer 5: procedural art (four gun
+// silhouettes, paper targets, a range backdrop) from one palette in TUNING.art; no image assets.
 // Landscape, two thumbs (ADR-0013).
 
 import { makeRng, ease, clamp } from './engine.js';
@@ -76,17 +77,109 @@ const TUNING = {
   edgeLife: 0.3,         // Seconds the red edge flash shows
   breachGap: 0.3,        // Least seconds between two breach sounds and buzzes
   hudPad: 8,             // HUD padding in screen px
-  bg: '#0f1115',         // Letterbox colour (the engine reads this name)
-  fieldColor: '#141b2d',
-  groundColor: '#0b1019',
-  horizonColor: '#33405c',
-  cyan: '#22d3ee',       // Targets (goal)
-  orange: '#f97316',     // Gun and shots (player)
-  red: '#ef4444',        // A target that reaches the line (danger)
-  slate: '#475569',
-  slateEdge: '#64748b',
+  // Layer 5 (art). Every colour and every effect number the drawing uses lives here; nothing below reads a literal colour.
+  // Look: chunky flat vector, warm-black outlines (line, gunLine), one soft highlight per shape, a drop shadow (shadowX, shadowY, palette.shadow),
+  // corner radius `radius` on panels. Light comes from the upper left. Semantic colours keep their meaning: cyan is the goal (targets),
+  // orange is the player (gun, shots, muzzle, clays), red is danger (the breach line and edge). World art is in design units; HUD and menus in screen px.
+  art: {
+    palette: {
+      letterbox: '#0f1115',  // Outside the field (the engine reads TUNING.bg, set from this)
+      ink: '#1a1512',        // Outlines and dark details
+      inkSoft: 'rgba(26,21,18,0.55)', // Thin printed lines on cards
+      shadow: 'rgba(10,6,4,0.42)',
+      highlight: 'rgba(255,246,232,0.36)', // The one soft highlight
+      // Range backdrop
+      sky: '#2a2622', skyLow: '#342e29', wall: '#463f37', wallTop: '#645a50', wallSeam: '#382f29',
+      ground: '#1b1715', groundLine: '#8f8170', tape: '#74675a', backstop: '#2b2521', backstopEdge: '#63584d',
+      // Gunmetal, warm
+      steel: '#8d877e', steelDark: '#57524b', steelLight: '#b4ada1',
+      // Accents
+      orange: '#f97316', orangeDark: '#a8480d', orangeLight: '#fdba74', flashCore: '#fff4dc',
+      brass: '#d6a23a', brassDark: '#8a5d16',
+      // Targets
+      cyan: '#22d3ee', cyanGlow: 'rgba(34,211,238,0.2)', orbShell: '#123a4a',
+      slate: '#475569', slateEdge: '#64748b',
+      paper: '#ece3d0', paperShade: '#c4b89f', white: '#ffffff', red: '#ef4444',
+      // Text and panels
+      text: '#f3ede3', textDim: '#b0a698', textFaint: '#7b7266',
+      panel: '#1f1b18', panelHi: '#2e2823', panelEdge: '#453d35',
+      tier: { Bronze: '#d08a4a', Silver: '#cbd5e1', Gold: '#fbbf24' },
+      zone: ['#ffffff', '#22d3ee', '#c4b89f'], // Score pop colour by zone: bullseye, inner, outer
+    },
+    type: { small: 14, mid: 18, big: 30, normal: '600', strong: '800' }, // Three sizes, one weight rule: strong for numbers and headings
+    line: 2.5, gunLine: 2.6, radius: 10, shadowX: 2, shadowY: 3,
+    // Guns: side view, origin on the bore axis at the grip (the gun turns about it), +x forward, +y down. muzzle is the drawn tip
+    // (at least barrelLen, so shots leave the barrel); port is where the casing leaves; shell is the casing size.
+    // Parts draw in order: ['rr', fill, x, y, w, h, radius] or ['poly', fill, [x, y, ...]]. fill is a palette key; 'ink' and 'highlight' get no outline.
+    guns: {
+      pistol: { muzzle: 40, port: [-2, -9], shell: [5, 2.4], parts: [
+        ['rr', 'steelDark', 4, 4, 18, 14, 4], ['rr', 'ink', 9, 8, 8, 8, 2],
+        ['poly', 'steelDark', [-13, 3, 8, 3, 4, 31, -14, 33]],
+        ['rr', 'steelDark', -21, -14, 6, 5, 1.5], ['rr', 'steelDark', 32, -14, 6, 5, 1.5],
+        ['rr', 'steel', -22, -10, 62, 15, 3.5],
+        ['rr', 'orange', 34, -10, 6, 15, 2],
+        ['rr', 'ink', -6, -8, 11, 3.5, 1], ['rr', 'ink', -18, -6, 1.6, 8, 0.8], ['rr', 'ink', -14.5, -6, 1.6, 8, 0.8], ['rr', 'ink', -11, -6, 1.6, 8, 0.8],
+        ['rr', 'highlight', -6, -8, 38, 2.6, 1.3],
+      ] },
+      carbine: { muzzle: 50, port: [2, -10], shell: [6, 2.6], parts: [
+        ['poly', 'steelDark', [-16, -9, -44, -6, -47, 13, -40, 13, -16, 4]],
+        ['poly', 'steelDark', [-14, 4, -2, 4, -5, 22, -18, 22]],
+        ['poly', 'steelDark', [4, 5, 18, 5, 26, 31, 14, 34]],
+        ['poly', 'steelDark', [30, 3, 38, 3, 41, 19, 33, 19]],
+        ['rr', 'steelDark', -12, -16, 9, 6, 2], ['rr', 'steelDark', 36, -15, 5, 7, 1.5],
+        ['rr', 'steelDark', 22, -9, 22, 15, 3.5],
+        ['rr', 'steel', 43, -4, 9, 8, 2],
+        ['rr', 'steel', -18, -12, 42, 18, 3.5],
+        ['rr', 'orange', 47, -5, 5, 10, 2],
+        ['rr', 'ink', -2, -8, 10, 3.5, 1],
+        ['rr', 'highlight', -14, -10, 34, 2.6, 1.3],
+      ] },
+      shotgun: { muzzle: 62, port: [-8, -10], shell: [8, 3.6], parts: [
+        ['poly', 'steelDark', [-18, -10, -60, -6, -67, 18, -42, 20, -18, 8]],
+        ['poly', 'steelDark', [-14, 6, -2, 6, -5, 26, -18, 25]],
+        ['rr', 'steelDark', -2, 3, 52, 9, 4],
+        ['rr', 'steel', -22, -12, 26, 20, 3.5],
+        ['rr', 'steel', -4, -9, 66, 11, 3],
+        ['rr', 'steelDark', 18, 5, 26, 15, 4.5], ['rr', 'ink', 24, 8, 1.6, 9, 0.8], ['rr', 'ink', 29, 8, 1.6, 9, 0.8], ['rr', 'ink', 34, 8, 1.6, 9, 0.8], ['rr', 'ink', 39, 8, 1.6, 9, 0.8],
+        ['rr', 'steelDark', 54, -13, 4, 4, 1.5],
+        ['rr', 'orange', 57, -10, 5, 13, 2],
+        ['rr', 'highlight', 0, -7, 54, 2.6, 1.3],
+      ] },
+      rifle: { muzzle: 66, port: [4, -8], shell: [7, 2.8], parts: [
+        ['poly', 'steelDark', [-20, -6, -46, -12, -62, -10, -62, 15, -42, 12, -20, 6]],
+        ['poly', 'steelDark', [-14, 4, -2, 4, -6, 26, -19, 25]],
+        ['rr', 'steelDark', -4, 4, 13, 9, 2.5],
+        ['poly', 'steelDark', [36, 2, 43, 2, 55, 18, 50, 21]],
+        ['rr', 'steel', 10, -3.5, 56, 6, 2],
+        ['rr', 'steelDark', 14, -6, 26, 9, 3],
+        ['rr', 'steel', -22, -10, 36, 16, 3.5],
+        ['rr', 'steelDark', -7, -15, 4, 7, 1.5], ['rr', 'steelDark', 13, -15, 4, 7, 1.5],
+        ['rr', 'steelDark', -14, -22, 44, 8, 4],
+        ['rr', 'steel', -19, -25, 7, 13, 3], ['rr', 'steel', 24, -26, 10, 15, 3],
+        ['rr', 'ink', 32.5, -22, 1.6, 7, 0.8],
+        ['rr', 'orange', 61, -6, 5, 10, 2],
+        ['rr', 'highlight', -17, -8, 28, 2.6, 1.3], ['rr', 'highlight', -10, -20.5, 32, 2.2, 1.1],
+      ] },
+    },
+    flash: { spikes: [28, 10, 14, 8, 6, 8, 14, 10], inner: 4.5, from: 0.7, mid: 0.62, core: 0.3 }, // Muzzle flash: eight spikes (forward first), scale grows from `from` to 1 as it lives
+    casing: { cap: 10, life: 0.55, gravity: 700, vx: [-75, -30], vy: [-175, -105], spin: [-16, 16], floor: 16, fade: 0.35, line: 1.2 }, // Ejected brass: capped particles
+    finder: { gap: 6, rNear: 2.8, rFar: 1.5, farAlpha: 0.25, warm: 0.3, ramp: 4, track: 5.5, trackAlpha: 0.3, capHalf: 6, capWidth: 2.6, capAlpha: 0.55, fanAlpha: 0.22 },
+    tracer: { width: 2.5 },
+    ring: { life: 0.3, r0: 8, r1: 30, width: 3 }, // Hit ring that opens at the target as the score pop rises (inside the pop's own life)
+    popLine: 5,            // Outline width of the score pop
+    backdrop: { skyLowY: 120, wallTop: 208, coping: 7, seam: 64, marker: 128, markerW: 14, markerH: 22, tape: [10, 8], tick: 5 },
+    card: { pad: 3, radius: 0.6, ringLine: 1, timerK: 1.17, timerGap: 4, timerWidth: 3, post: 4, foot: 13 }, // Paper target: pad beyond the outer ring, corner as a fraction of the half size
+    trolley: { w: 0.8, h: 4, wheel: 2.6, tie: 24, tieLen: 2.5, tieW: 5, rail: 2, railAlpha: 0.55 },
+    clay: { dome: 0.62, rim: 0.82, rimLine: 1.2 },
+    plate: { r: 1.1, inner: 0.86, rivet: 2.2, glow: [1.2, 1.32], dash: 12, ring: 7, pip: 5, pipGap: 8, pipTray: 3 },
+    core: { pulse: 5, glow: [7, 14], glowAlpha: [0.22, 0.12], amp: 3, spec: 0.68 },
+    pip: { w: 6, h: 9, gap: 11 }, // Combo pips drawn as brass casings
+    tile: { pad: 6 }, // Gun tiles on the menu: padding round the silhouette
+  },
 };
 const T = TUNING;
+const A = T.art, P = A.palette, TY = A.type, PI2 = Math.PI * 2;
+T.bg = P.letterbox; // the engine reads this name for the letterbox
 const STEP = T.physicsStep;
 const DEG = Math.PI / 180;
 const GUN_IDS = ['pistol', 'carbine', 'shotgun', 'rifle'];
@@ -525,7 +618,6 @@ function nextUnlock(points) {
 
 // ---------- Badges (v0.3 section B): skill acts, tiered ----------
 
-const TIER_COLOR = { Bronze: '#d08a4a', Silver: '#cbd5e1', Gold: '#fbbf24' };
 const BADGES = [
   { id: 'marksman1', tier: 'Bronze', name: 'Marksman I', cond: 'Three stars on Accuracy 1' },
   { id: 'quickdraw1', tier: 'Bronze', name: 'Quick Draw I', cond: 'Three stars on Speed 1' },
@@ -564,6 +656,13 @@ function gauntletStep(i, stars) {
 function badgeMap(E) { const b = E.save.get('badges', {}); return b && typeof b === 'object' ? b : {}; }
 
 // ---------- Drawing ----------
+// Everything below reads TUNING.art. Guns, the muzzle flash and the backdrop are built once (Path2D, an offscreen canvas), and the
+// per-frame loops keep no arrays or closures, so a frame allocates nothing beyond the engine's own text calls.
+
+const NO_DASH = [], BREACH_DASH = [6, 6], SEL_DASH = [5, 4], TIE_DASH = [A.trolley.tieLen, A.trolley.tie - A.trolley.tieLen], PART_NUM = ['1', '2', '3', '4', '5', '6'];
+const HORIZON = T.designH - T.thumbLane;
+const GUN_ART = {}, RAMP = [];
+let FLASH = null, GUN_BOX = null;
 
 function view(E) {
   const aw = E.w - E.safe.left - E.safe.right, ah = E.h - E.safe.top - E.safe.bottom;
@@ -571,73 +670,425 @@ function view(E) {
   return { s, ox: E.safe.left + (aw - T.designW * s) / 2, oy: E.safe.top + (ah - T.designH * s) / 2, w: T.designW * s, h: T.designH * s };
 }
 
+function mixHex(a, b, t) {
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), c = (s) => Math.round(((x >> s) & 255) * (1 - t) + ((y >> s) & 255) * t);
+  return `rgb(${c(16)},${c(8)},${c(0)})`;
+}
+
+// Rounded rectangle and polygon onto a Path2D or a context.
+function rrPath(p, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  p.moveTo(x + r, y); p.arcTo(x + w, y, x + w, y + h, r); p.arcTo(x + w, y + h, x, y + h, r); p.arcTo(x, y + h, x, y, r); p.arcTo(x, y, x + w, y, r); p.closePath();
+}
+function rrect(g, x, y, w, h, r) { g.beginPath(); rrPath(g, x, y, w, h, r); }
+function polyPath(p, pts) { p.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) p.lineTo(pts[i], pts[i + 1]); p.closePath(); }
+function disc(ctx, x, y, r, fill) { ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill(); }
+// A printed ring: filled, then edged with the current stroke style.
+function ringDisc(ctx, x, y, r, fill) { disc(ctx, x, y, r, fill); ctx.stroke(); }
+
+// Sprites: shapes that never change (a card, a plate, a clay, a gun, a casing) are painted once into a small offscreen canvas at screen
+// resolution and blitted each frame. Keys are numbers (no strings built per frame); the cache is rebuilt when the screen scale changes.
+const SPR = new Map();
+let SPR_K = 0;
+function sprScale(k) { const r = Math.round(k * 100); if (r !== SPR_K) { SPR_K = r; SPR.clear(); } }
+// paint(g, a, b) draws centred on the origin inside +-ext. Falls back to painting straight onto the frame if offscreen canvases are missing.
+function drawSprite(ctx, key, ext, paint, x, y, a, b) {
+  let s = SPR.get(key);
+  if (s === undefined) {
+    s = null;
+    if (typeof OffscreenCanvas !== 'undefined' && SPR_K) {
+      const k = SPR_K / 100, ey = ext, cv = new OffscreenCanvas(Math.ceil(2 * ext * k), Math.ceil(2 * ey * k)), g = cv.getContext('2d');
+      if (g) { g.scale(cv.width / (2 * ext), cv.height / (2 * ey)); g.translate(ext, ey); paint(g, a, b); s = cv; }
+    }
+    SPR.set(key, s);
+  }
+  if (s) ctx.drawImage(s, x - ext, y - ext, 2 * ext, 2 * ext);
+  else { ctx.save(); ctx.translate(x, y); paint(ctx, a, b); ctx.restore(); }
+}
+const K_CARD = 1e6, K_FLAT = 2e6, K_CLAY = 3e6, K_PLATE = 4e6, K_CORE = 5e6, K_GUN = 6e6;
+
+// Builds every cached shape: each gun's parts, the muzzle flash and the finder colour ramp. Runs once (init), and lazily if a harness skips init.
+function buildArt() {
+  if (FLASH) return;
+  let w = 0, h = 0;
+  for (const id of GUN_IDS) {
+    const spec = A.guns[id], parts = [], sil = new Path2D();
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    const grow = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+    for (const [kind, fill, a, b, c, d, e] of spec.parts) {
+      const path = new Path2D(), line = fill !== 'ink' && fill !== 'highlight';
+      if (kind === 'rr') { rrPath(path, a, b, c, d, e); grow(a, b); grow(a + c, b + d); } else { polyPath(path, a); for (let i = 0; i < a.length; i += 2) grow(a[i], a[i + 1]); }
+      if (line) sil.addPath(path);
+      parts.push({ path, fill: P[fill], line });
+    }
+    GUN_ART[id] = { idx: GUN_IDS.indexOf(id), parts, sil, x0, y0, x1, y1, muzzle: spec.muzzle, port: spec.port, shell: spec.shell };
+    w = Math.max(w, x1 - x0); h = Math.max(h, y1 - y0);
+  }
+  GUN_BOX = { w, h };
+  const F = A.flash, n = F.spikes.length;
+  FLASH = new Path2D();
+  for (let i = 0; i < n * 2; i++) {
+    const a = (i * Math.PI) / n, r = i % 2 ? F.inner : F.spikes[i >> 1];
+    if (i) FLASH.lineTo(Math.cos(a) * r, Math.sin(a) * r); else FLASH.moveTo(r, 0);
+  }
+  FLASH.closePath();
+  for (let i = 0; i < A.finder.ramp; i++) RAMP.push(mixHex(P.orange, P.white, Math.min(1, i / (A.finder.ramp * A.finder.warm))));
+}
+function gunArt(id) { if (!FLASH) buildArt(); return GUN_ART[id] || GUN_ART.pistol; }
+
 function drawStar(ctx, cx, cy, R, fill, stroke) {
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
     const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? R * 0.45 : R;
     ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r);
   }
-  ctx.closePath();
-  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.closePath(); ctx.lineJoin = 'round';
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.stroke(); }
+  else if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
 }
 
-function drawLock(ctx, cx, cy) {
-  ctx.strokeStyle = T.slateEdge; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(cx, cy - 3, 5, Math.PI, 0); ctx.stroke();
-  ctx.fillStyle = T.slateEdge; ctx.fillRect(cx - 7, cy - 3, 14, 11);
+function drawLock(ctx, cx, cy, col) {
+  ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, cy - 3, 5, Math.PI, 0); ctx.stroke();
+  ctx.fillStyle = col; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; rrect(ctx, cx - 8, cy - 3, 16, 12, 2.5); ctx.fill(); ctx.stroke();
+  disc(ctx, cx, cy + 3, 1.8, P.ink);
 }
 
-function disc(ctx, x, y, r, fill) { ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+// ---- Guns ----
 
-// Three rings: outer slate, inner cyan, bullseye white. Skeet dims the outer ring (it does not count); a horde member is one disc.
-function drawTarget(ctx, tg, alpha) {
-  const R = T.zoneR, sc = tg.sc;
+// One gun, origin (the grip) at x, y, turned by rot radians. The outline stays chunky at menu sizes; the shadow is one union fill.
+function drawGunArt(ctx, ga, x, y, k, rot, shadow) {
+  ctx.save(); ctx.translate(x, y); ctx.lineJoin = 'round';
+  if (shadow) { ctx.save(); ctx.translate(A.shadowX, A.shadowY); ctx.scale(k, k); ctx.rotate(rot); ctx.fillStyle = P.shadow; ctx.fill(ga.sil); ctx.restore(); }
+  ctx.scale(k, k); ctx.rotate(rot);
+  ctx.lineWidth = Math.max(A.gunLine, 1.6 / k); ctx.strokeStyle = P.ink;
+  for (const p of ga.parts) { ctx.fillStyle = p.fill; ctx.fill(p.path); if (p.line) ctx.stroke(p.path); }
+  ctx.restore();
+}
+
+// Every gun drawn at one scale, so sizes stay honest, centred on its own bounds inside a w x h box.
+function drawGunTile(ctx, id, cx, cy, w, h) {
+  const ga = gunArt(id), k = Math.min(w / GUN_BOX.w, h / GUN_BOX.h);
+  drawGunArt(ctx, ga, cx - ((ga.x0 + ga.x1) / 2) * k, cy - ((ga.y0 + ga.y1) / 2) * k, k, 0, false);
+}
+
+// The gun is one sprite cut to its own bounds (outline and shadow included), turned about the grip at draw time.
+const GUN_PAD = 6;
+function paintGun(g, ga) { drawGunArt(g, ga, 0, 0, 1, 0, true); }
+function drawGun(ctx, run) {
+  const ga = gunArt(run.gun.id), key = K_GUN + ga.idx, w = ga.x1 - ga.x0 + 2 * GUN_PAD, h = ga.y1 - ga.y0 + 2 * GUN_PAD;
+  ctx.save(); ctx.translate(T.gunX, run.gunY); ctx.rotate(-angleOf(run) * DEG);
+  let s = SPR.get(key);
+  if (s === undefined) {
+    s = null;
+    if (typeof OffscreenCanvas !== 'undefined' && SPR_K) {
+      const k = SPR_K / 100, cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), g = cv.getContext('2d');
+      if (g) { g.scale(cv.width / w, cv.height / h); g.translate(GUN_PAD - ga.x0, GUN_PAD - ga.y0); paintGun(g, ga); s = cv; }
+    }
+    SPR.set(key, s);
+  }
+  if (s) ctx.drawImage(s, ga.x0 - GUN_PAD, ga.y0 - GUN_PAD, w, h); else paintGun(ctx, ga);
+  ctx.restore();
+}
+
+// The muzzle flash sprite at the barrel tip, turned with the barrel. It grows as it fades.
+function drawFlash(ctx, run, f) {
+  const F = A.flash, a = angleOf(run) * DEG, m = gunArt(run.gun.id).muzzle, life = f.t / f.max, s = F.from + (1 - F.from) * (1 - life);
+  ctx.save(); ctx.translate(T.gunX + Math.cos(a) * m, run.gunY - Math.sin(a) * m); ctx.rotate(-a); ctx.scale(s, s);
+  ctx.globalAlpha = life;
+  ctx.fillStyle = P.orangeLight; ctx.fill(FLASH);
+  ctx.scale(F.mid, F.mid); ctx.fillStyle = P.orange; ctx.fill(FLASH);
+  ctx.scale(F.core / F.mid, F.core / F.mid); ctx.fillStyle = P.flashCore; ctx.fill(FLASH);
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+
+// A casing on its short arc: launched up and back from the port, tumbling, resting on the ground line, fading out. Tumbling is drawn as the
+// turning rectangle's bounding box (two plain rects, no transform), which reads the same at this size and costs almost nothing.
+function drawCasing(ctx, f) {
+  const C = A.casing, u = f.max - f.t, fy = HORIZON + C.floor, th = f.r0 + f.vr * u, c = Math.abs(Math.cos(th)), s = Math.abs(Math.sin(th));
+  const x = f.x + f.vx * u, y = Math.min(fy, f.y + f.vy * u + 0.5 * C.gravity * u * u), w = f.w * c + f.h * s, h = f.w * s + f.h * c;
+  ctx.globalAlpha = Math.min(1, f.t / (f.max * C.fade));
+  ctx.fillStyle = P.ink; ctx.fillRect(x - w / 2 - C.line, y - h / 2 - C.line, w + 2 * C.line, h + 2 * C.line);
+  ctx.fillStyle = P.brass; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+  ctx.globalAlpha = 1;
+}
+
+// ---- Targets ----
+
+// A paper range target: a card with three printed rings (a horde card prints two and no bullseye). Returns the card's half size.
+function drawCard(ctx, x, y, sc, bullMul, flat) {
+  const R = T.zoneR, C = A.card, r2 = R[2] * sc, half = r2 + C.pad * sc, lw = Math.max(1.5, A.line * Math.min(1, sc + 0.25));
+  ctx.lineJoin = 'round';
+  if (!flat) { ctx.fillStyle = P.shadow; rrect(ctx, x - half + A.shadowX, y - half + A.shadowY, half * 2, half * 2, half * C.radius); ctx.fill(); }
+  ctx.fillStyle = P.paper; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
+  rrect(ctx, x - half, y - half, half * 2, half * 2, half * C.radius); ctx.fill(); ctx.stroke();
+  if (flat) { disc(ctx, x, y, r2, P.slate); disc(ctx, x, y, R[1] * sc, P.cyan); return; } // a horde member is small: no printed edges, no shadow
+  ctx.lineWidth = C.ringLine; ctx.strokeStyle = P.inkSoft;
+  ringDisc(ctx, x, y, r2, P.slate); ringDisc(ctx, x, y, R[1] * sc, P.cyan);
+  const b = R[0] * sc * bullMul; ringDisc(ctx, x, y, b, P.white); disc(ctx, x, y, b * 0.42, P.red);
+}
+
+function paintCard(g, sc, flat) { drawCard(g, 0, 0, sc, 1, flat); }
+
+// The stand of a still card: a thin post to the ground line with a foot. Drawn before the card, which hides its top.
+function drawPost(ctx, x, top) {
+  const C = A.card, base = HORIZON;
+  if (base - top < 6) return;
+  ctx.fillStyle = P.steelDark; ctx.strokeStyle = P.ink; ctx.lineWidth = A.line * 0.8;
+  ctx.fillRect(x - C.post / 2, top - 2, C.post, base - top + 2); ctx.strokeRect(x - C.post / 2, top - 2, C.post, base - top + 2);
+  rrect(ctx, x - C.foot / 2, base - 4, C.foot, 6, 2); ctx.fill(); ctx.stroke();
+}
+
+// The trolley under an approaching card: a bracket, a flat base and two wheels; approach cards also ride a rail with ties fixed in the world.
+function drawTrolley(ctx, x, y, half, sc, rail) {
+  const K = A.trolley, by = y + half, w = half * K.w, wr = Math.max(1.8, K.wheel * sc), wy = by + 1 + K.h, ga = ctx.globalAlpha;
+  if (rail) {
+    const ry = wy + wr, x0 = Math.floor(x / K.tie) * K.tie;
+    ctx.globalAlpha = ga * K.railAlpha; ctx.strokeStyle = P.steelDark;
+    ctx.lineWidth = K.rail; ctx.beginPath(); ctx.moveTo(x, ry); ctx.lineTo(T.designW - 4, ry); ctx.stroke();
+    ctx.lineWidth = K.tieW; ctx.setLineDash(TIE_DASH); ctx.beginPath(); ctx.moveTo(x0, ry + 1); ctx.lineTo(T.designW - 4, ry + 1); ctx.stroke(); ctx.setLineDash(NO_DASH);
+    ctx.globalAlpha = ga;
+  }
+  ctx.fillStyle = P.steelDark; ctx.strokeStyle = P.ink; ctx.lineWidth = A.line * 0.7;
+  ctx.fillRect(x - 2, by - 2, 4, K.h + 4);
+  rrect(ctx, x - w, by + 1, w * 2, K.h, 2); ctx.fill(); ctx.stroke();
+  disc(ctx, x - w * 0.55, wy, wr, P.steel); ctx.stroke(); disc(ctx, x + w * 0.55, wy, wr, P.steel); ctx.stroke();
+}
+
+// A clay pigeon: an orange disc with a rim, a lighter dome, a highlight and the bullseye dot. Its radius is exactly the hit radius.
+function paintClay(g, sc) { drawClay(g, 0, 0, sc); }
+function drawClay(ctx, x, y, sc) {
+  const C = A.clay, r = T.zoneR[1] * sc;
+  ctx.lineJoin = 'round';
+  disc(ctx, x + A.shadowX, y + A.shadowY, r, P.shadow);
+  ctx.fillStyle = P.orange; ctx.strokeStyle = P.ink; ctx.lineWidth = A.line * Math.min(1, sc + 0.3);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill(); ctx.stroke();
+  disc(ctx, x, y, r * C.dome, P.orangeLight);
+  ctx.strokeStyle = P.orangeDark; ctx.lineWidth = C.rimLine; ctx.beginPath(); ctx.arc(x, y, r * C.rim, 0, PI2); ctx.stroke();
+  ctx.strokeStyle = P.highlight; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 0.8, Math.PI * 1.05, Math.PI * 1.45); ctx.stroke();
+  ctx.lineWidth = 1; ctx.strokeStyle = P.inkSoft; ringDisc(ctx, x, y, T.zoneR[0] * sc, P.white);
+}
+
+function octagon(g, x, y, r) {
+  g.beginPath();
+  for (let k = 0; k < 8; k++) { const a = Math.PI / 8 + (k * Math.PI) / 4; g[k ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r); }
+  g.closePath();
+}
+
+// A boss part: a bolted octagonal armour plate with the rings printed on it. The active one is lit: orange bolts, a cyan glow and a marching ring.
+function paintPlate(g, sc, active) {
+  const B = A.plate, R = T.zoneR, r2 = R[2] * sc, pr = r2 * B.r;
+  g.lineJoin = 'round';
+  if (active) { g.fillStyle = P.cyanGlow; octagon(g, 0, 0, pr * B.glow[1]); g.fill(); octagon(g, 0, 0, pr * B.glow[0]); g.fill(); }
+  g.fillStyle = P.shadow; octagon(g, A.shadowX, A.shadowY, pr); g.fill();
+  g.fillStyle = P.steel; g.strokeStyle = P.ink; g.lineWidth = A.line; octagon(g, 0, 0, pr); g.fill(); g.stroke();
+  g.fillStyle = P.steelDark; octagon(g, 0, 0, pr * B.inner); g.fill();
+  g.strokeStyle = P.highlight; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, pr * 0.93, Math.PI * 1.08, Math.PI * 1.42); g.stroke();
+  g.lineWidth = 1; g.strokeStyle = P.inkSoft;
+  ringDisc(g, 0, 0, r2, P.slate); ringDisc(g, 0, 0, R[1] * sc, P.cyan);
+  const b = R[0] * sc; ringDisc(g, 0, 0, b, P.white); disc(g, 0, 0, b * 0.42, P.red);
+  g.strokeStyle = P.ink; g.lineWidth = 1.2;
+  for (let k = 0; k < 4; k++) {
+    const a = Math.PI / 4 + (k * Math.PI) / 2;
+    disc(g, Math.cos(a) * pr * 0.905, Math.sin(a) * pr * 0.905, B.rivet * Math.min(1, sc + 0.2), active ? P.orange : P.steelLight); g.stroke();
+  }
+}
+function drawPlate(ctx, tg, active, time) {
+  const B = A.plate, pr = T.zoneR[2] * tg.sc * B.r, x = tg.x, y = tg.y;
+  drawSprite(ctx, K_PLATE + Math.round(tg.sc * 100) * 2 + (active ? 1 : 0), pr * B.glow[1] + 6, paintPlate, x, y, tg.sc, active);
+  if (active) {
+    ctx.strokeStyle = P.orangeLight; ctx.lineWidth = 2; ctx.setLineDash(SEL_DASH); ctx.lineDashOffset = -time * B.dash;
+    ctx.beginPath(); ctx.arc(x, y, pr * B.glow[1] + 2, 0, PI2); ctx.stroke(); ctx.setLineDash(NO_DASH); ctx.lineDashOffset = 0;
+  }
+}
+
+// The boss core: a pulsing halo, a dark shell with a cyan rim, the printed rings, and a specular glint outside the scoring rings.
+function paintCore(g, sc, bullMul) {
+  const C = A.core, R = T.zoneR, r2 = R[2] * sc;
+  disc(g, A.shadowX, A.shadowY, r2, P.shadow);
+  g.fillStyle = P.orbShell; g.strokeStyle = P.ink; g.lineWidth = A.line;
+  g.beginPath(); g.arc(0, 0, r2, 0, PI2); g.fill(); g.stroke();
+  g.strokeStyle = P.cyan; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, r2 - 2.5, 0, PI2); g.stroke();
+  g.lineWidth = 1; g.strokeStyle = P.inkSoft;
+  ringDisc(g, 0, 0, R[1] * sc, P.cyan);
+  ringDisc(g, 0, 0, R[0] * sc * bullMul, P.white);
+  disc(g, -r2 * C.spec * 0.7, -r2 * C.spec * 0.7, r2 * 0.13, P.highlight);
+}
+function drawCore(ctx, tg, time) {
+  const C = A.core, r2 = T.zoneR[2] * tg.sc, pulse = 0.5 + 0.5 * Math.sin(time * C.pulse), ga = ctx.globalAlpha;
+  ctx.globalAlpha = ga * C.glowAlpha[1]; disc(ctx, tg.x, tg.y, r2 + C.glow[1] + pulse * C.amp, P.cyan);
+  ctx.globalAlpha = ga * C.glowAlpha[0]; disc(ctx, tg.x, tg.y, r2 + C.glow[0] + pulse * C.amp * 0.5, P.cyan);
+  ctx.globalAlpha = ga;
+  drawSprite(ctx, K_CORE + Math.round(tg.sc * 100), r2 + 6, paintCore, tg.x, tg.y, tg.sc, tg.bullMul || 1);
+}
+
+// A row of hit points in a small tray: lit pips are paper, spent ones dark steel.
+function drawHp(ctx, x, y, hp, hpMax) {
+  const B = A.plate, w = (hpMax - 1) * B.pipGap + B.pip + 2 * B.pipTray;
+  ctx.fillStyle = P.ink; rrect(ctx, x - w / 2, y - B.pip / 2 - B.pipTray, w, B.pip + 2 * B.pipTray, 3); ctx.fill();
+  for (let i = 0; i < hpMax; i++) { ctx.fillStyle = i < hp ? P.paper : P.steelDark; rrect(ctx, x + (i - (hpMax - 1) / 2) * B.pipGap - B.pip / 2, y - B.pip / 2, B.pip, B.pip, 1.5); ctx.fill(); }
+}
+
+// One target with everything that belongs to it: stand or trolley, the timer arc, hit points.
+function drawTargetFull(ctx, E, tg, run, ch, alpha) {
+  const sc = tg.sc, R2 = T.zoneR[2] * sc, half = R2 + A.card.pad * sc;
   ctx.globalAlpha = alpha;
-  if (tg.flat) {
-    disc(ctx, tg.x, tg.y, R[2] * sc, T.slateEdge); disc(ctx, tg.x, tg.y, R[1] * sc, T.cyan);
-  } else {
-    ctx.globalAlpha = alpha * (tg.kind === 'skeet' ? 0.35 : 1); disc(ctx, tg.x, tg.y, R[2] * sc, T.slateEdge);
-    ctx.globalAlpha = alpha; disc(ctx, tg.x, tg.y, R[1] * sc, T.cyan); disc(ctx, tg.x, tg.y, R[0] * sc * (tg.bullMul || 1), '#ffffff');
+  switch (tg.kind) {
+    case 'skeet': drawSprite(ctx, K_CLAY + Math.round(sc * 100), T.zoneR[1] * sc + 6, paintClay, tg.x, tg.y, sc, 0); break;
+    case 'core': drawCore(ctx, tg, E.time); break;
+    case 'part': drawPlate(ctx, tg, tg.idx === run.stage, E.time); break;
+    case 'horde':
+      drawSprite(ctx, K_FLAT + Math.round(sc * 100), half + 6, paintCard, tg.x, tg.y, sc, true); break;
+    case 'approach': case 'weave':
+      drawTrolley(ctx, tg.x, tg.y, half, sc, tg.kind === 'approach'); drawSprite(ctx, K_CARD + Math.round(sc * 100), half + 6, paintCard, tg.x, tg.y, sc, false); break;
+    default: // still and dodge cards on a post
+      drawPost(ctx, tg.x, tg.y + half); drawSprite(ctx, K_CARD + Math.round(sc * 100), half + 6, paintCard, tg.x, tg.y, sc, false);
+  }
+  if (ch.ladder === 'accuracy') { // time left, as a ring round the card
+    const C = A.card, rr = half * C.timerK + C.timerGap, end = -Math.PI / 2 + PI2 * clamp(tg.life / T.accLife, 0, 1);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = P.ink; ctx.lineWidth = C.timerWidth + 2; ctx.beginPath(); ctx.arc(tg.x, tg.y, rr, -Math.PI / 2, end); ctx.stroke();
+    ctx.strokeStyle = P.paperShade; ctx.lineWidth = C.timerWidth; ctx.beginPath(); ctx.arc(tg.x, tg.y, rr, -Math.PI / 2, end); ctx.stroke();
+    ctx.lineCap = 'butt';
   }
   ctx.globalAlpha = 1;
 }
 
-const ZONE_COLOR = ['#ffffff', T.cyan, '#94a3b8'];
-
-// The gun: white body, the barrel rotates with the kick and sway, orange tip. Pivot at (gunX, gunY).
-function drawGun(ctx, E, gy, angle) {
-  const gx = T.gunX;
-  E.roundRect(gx - 44, gy - 14, 46, 28, 5, '#f8fafc');
-  E.roundRect(gx - 34, gy + 8, 14, 22, 3, '#e2e8f0');
-  ctx.save();
-  ctx.translate(gx, gy); ctx.rotate(-angle * DEG);
-  ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, -4, T.barrelLen - 9, 8);
-  ctx.fillStyle = T.orange; ctx.fillRect(T.barrelLen - 9, -4, 9, 8);
-  ctx.restore();
+// Hit points are a second pass so no neighbouring plate covers them.
+function drawTargetHp(ctx, tg, alpha) {
+  if (tg.hp === undefined) return;
+  const R2 = T.zoneR[2] * tg.sc;
+  ctx.globalAlpha = alpha; drawHp(ctx, tg.x, tg.y + (tg.kind === 'core' ? R2 + A.core.glow[0] + 2 : R2 * A.plate.r) + 6, tg.hp, tg.hpMax); ctx.globalAlpha = 1;
 }
 
-// Dotted line along the true barrel angle, fading with distance. It ends `accuracy` of the way to the right edge.
+// ---- Range finder and hit feedback ----
+
+// Dots along the true barrel line, scaled and faded with distance, orange near the muzzle. It ends `accuracy` of the way to the right
+// edge; a short one gets a soft cap so the end reads as deliberate.
 function drawRangeFinder(ctx, run) {
-  const a = angleOf(run) * DEG, cs = Math.cos(a), sn = Math.sin(a);
-  const d0 = T.barrelLen + 6, d1 = rangeLen(run), n = T.rangeDots;
+  const F = A.finder, a = angleOf(run) * DEG, cs = Math.cos(a), sn = Math.sin(a), gx = T.gunX, gy = run.gunY;
+  const d0 = gunArt(run.gun.id).muzzle + F.gap, d1 = rangeLen(run), n = T.rangeDots, nb = F.ramp;
   if (d1 <= d0) return;
-  ctx.fillStyle = '#ffffff';
-  for (let i = 0; i < n; i++) {
-    const d = d0 + (d1 - d0) * (i + 0.5) / n;
-    ctx.globalAlpha = 1 - 0.75 * (i / n);
-    ctx.beginPath(); ctx.arc(T.gunX + cs * d, run.gunY - sn * d, 2, 0, Math.PI * 2); ctx.fill();
+  // A dark track under the dots keeps them readable on paper, then one fill per colour step (colour and fade both step with distance).
+  ctx.globalAlpha = F.trackAlpha; ctx.strokeStyle = P.ink; ctx.lineWidth = F.track; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(gx + cs * d0, gy - sn * d0); ctx.lineTo(gx + cs * d1, gy - sn * d1); ctx.stroke(); ctx.lineCap = 'butt';
+  for (let b = 0; b < nb; b++) {
+    const al = 1 - (1 - F.farAlpha) * ((b + 0.5) / nb);
+    ctx.beginPath();
+    for (let i = Math.ceil((b * n) / nb); i < Math.ceil(((b + 1) * n) / nb); i++) {
+      const f = (i + 0.5) / n, d = d0 + (d1 - d0) * f, r = F.rNear + (F.rFar - F.rNear) * f, x = gx + cs * d;
+      ctx.moveTo(x + r, gy - sn * d); ctx.arc(x, gy - sn * d, r, 0, PI2);
+    }
+    ctx.fillStyle = RAMP[b]; ctx.globalAlpha = al; ctx.fill();
+  }
+  if (run.gun.accuracy < 0.999) {
+    const ex = gx + cs * d1, ey = gy - sn * d1;
+    ctx.globalAlpha = F.capAlpha; ctx.strokeStyle = P.white; ctx.lineWidth = F.capWidth; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(ex + sn * F.capHalf, ey + cs * F.capHalf); ctx.lineTo(ex - sn * F.capHalf, ey - cs * F.capHalf); ctx.stroke(); ctx.lineCap = 'butt';
   }
   ctx.globalAlpha = 1;
   if (run.gun.pellets > 1) { // the fan's outer pellets, faint
     const offs = fanOffsets(run.gun);
-    ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = 0.22; ctx.lineWidth = 1;
-    for (const off of [offs[0], offs[offs.length - 1]]) {
-      const b = (angleOf(run) + off) * DEG;
-      ctx.beginPath(); ctx.moveTo(T.gunX + Math.cos(b) * d0, run.gunY - Math.sin(b) * d0); ctx.lineTo(T.gunX + Math.cos(b) * d1, run.gunY - Math.sin(b) * d1); ctx.stroke();
+    ctx.strokeStyle = P.white; ctx.globalAlpha = F.fanAlpha; ctx.lineWidth = 1;
+    for (let j = 0; j < 2; j++) {
+      const b = (angleOf(run) + offs[j ? offs.length - 1 : 0]) * DEG;
+      ctx.beginPath(); ctx.moveTo(gx + Math.cos(b) * d0, gy - Math.sin(b) * d0); ctx.lineTo(gx + Math.cos(b) * d1, gy - Math.sin(b) * d1); ctx.stroke();
     }
     ctx.globalAlpha = 1;
   }
+}
+
+// A shot line: an orange stroke with a pale core, fading with its life.
+function drawTracer(ctx, f) {
+  const K = A.tracer, a = f.t / f.max;
+  ctx.globalAlpha = a; ctx.strokeStyle = P.orange; ctx.lineWidth = K.width;
+  ctx.beginPath(); ctx.moveTo(f.x0, f.y0); ctx.lineTo(f.x1, f.y1); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// The ring that opens at a hit in the zone's colour, over the first part of the pop's life.
+function drawHitRing(ctx, f) {
+  const K = A.ring, k = (1 - f.t / f.max) * (f.max / K.life);
+  if (k >= 1) return;
+  ctx.globalAlpha = 1 - k; ctx.strokeStyle = f.color; ctx.lineWidth = K.width * (1 - k * 0.5);
+  ctx.beginPath(); ctx.arc(f.x, f.y, K.r0 + (K.r1 - K.r0) * k, 0, PI2); ctx.stroke(); ctx.globalAlpha = 1;
+}
+
+// Score pop: bold, zone-coloured, with a dark outline so it reads on card, wall and sky alike.
+function popText(E, str, x, y, color, alpha) {
+  const ctx = E.ctx;
+  ctx.globalAlpha = alpha; ctx.font = `${TY.strong} ${TY.mid + 2}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = A.popLine; ctx.strokeStyle = P.ink; ctx.strokeText(str, x, y);
+  ctx.fillStyle = color; ctx.fillText(str, x, y); ctx.globalAlpha = 1;
+}
+
+// ---- The range: horizon, distant wall with lane markers, ground band. The static shapes are prebuilt Path2Ds (built once), drawn in a
+// handful of fills; solid fills are the cheapest thing a canvas does, so this beats blitting a full-screen image every frame. ----
+
+const BGP = { built: false, seams: null, boards: null, chevrons: null, plaques: null, ticks: null };
+function buildBackdrop() {
+  const W = T.designW, hz = HORIZON, b = A.backdrop, base = b.wallTop + b.coping;
+  BGP.seams = new Path2D(); BGP.boards = new Path2D(); BGP.chevrons = new Path2D(); BGP.plaques = new Path2D(); BGP.ticks = new Path2D();
+  for (let x = b.seam; x < W; x += b.seam) BGP.seams.rect(x - 1, base + 2, 2, hz - base - 2);
+  for (let x = b.marker; x < W - 20; x += b.marker) { // a paper lane board with an orange chevron
+    rrPath(BGP.boards, x - b.markerW / 2, base + 10, b.markerW, b.markerH, 2);
+    BGP.chevrons.moveTo(x - 5, base + 15); BGP.chevrons.lineTo(x + 5, base + 15); BGP.chevrons.lineTo(x, base + 23); BGP.chevrons.closePath();
+    BGP.plaques.rect(x - 5, base + 27, 10, 3);
+    BGP.ticks.rect(x - 1, hz + 3, 2, b.tick);
+  }
+  BGP.built = true;
+}
+function drawBackdrop(ctx) {
+  if (!BGP.built) buildBackdrop();
+  const W = T.designW, H = T.designH, hz = HORIZON, b = A.backdrop, top = b.wallTop, base = top + b.coping;
+  ctx.fillStyle = P.sky; ctx.fillRect(0, 0, W, b.skyLowY);
+  ctx.fillStyle = P.skyLow; ctx.fillRect(0, b.skyLowY, W, top - b.skyLowY);
+  ctx.fillStyle = P.wall; ctx.fillRect(0, top, W, hz - top);
+  ctx.fillStyle = P.wallTop; ctx.fillRect(0, top, W, b.coping);
+  ctx.fillStyle = P.highlight; ctx.fillRect(0, top, W, 2);
+  ctx.fillStyle = P.ink; ctx.fillRect(0, base, W, 2);
+  ctx.fillStyle = P.wallSeam; ctx.fill(BGP.seams);
+  ctx.fillStyle = P.paper; ctx.strokeStyle = P.ink; ctx.lineJoin = 'round'; ctx.lineWidth = 1.6; ctx.fill(BGP.boards); ctx.stroke(BGP.boards);
+  ctx.fillStyle = P.orange; ctx.fill(BGP.chevrons);
+  ctx.fillStyle = P.slate; ctx.fill(BGP.plaques);
+  ctx.fillStyle = P.shadow; ctx.fillRect(0, hz - 6, W, 6);
+  ctx.fillStyle = P.ground; ctx.fillRect(0, hz, W, H - hz);
+  ctx.fillStyle = P.groundLine; ctx.fillRect(0, hz - 1, W, 3);
+  ctx.fillStyle = P.tape; ctx.fill(BGP.ticks); ctx.fillRect(0, hz + 8, W - 8, 2); ctx.fillRect(0, H - 10, W - 8, 2);
+  ctx.fillStyle = P.backstop; ctx.fillRect(W - 6, 0, 6, H);
+  ctx.fillStyle = P.backstopEdge; ctx.fillRect(W - 6, 0, 2, H);
+}
+
+// ---- Interface pieces (screen px) ----
+
+// A chunky panel: a shadow, then the face with its edge.
+function plate(E, x, y, w, h, fill, edge, r) {
+  const rad = r === undefined ? A.radius : r;
+  E.roundRect(x, y + A.shadowY, w, h, rad, P.shadow);
+  E.roundRect(x, y, w, h, rad, fill, edge);
+}
+// A button on a plate with a dark edge; returns its rect for hit-testing.
+function btn(E, label, cx, cy, o) {
+  const x = cx - o.w / 2, y = cy - o.h / 2;
+  plate(E, x, y, o.w, o.h, o.fill, P.ink);
+  E.text(label, cx, cy, { size: o.size, color: o.color || P.text, weight: TY.strong });
+  return { x, y, w: o.w, h: o.h };
+}
+// The combo pips as casings, two paths for the whole row: `lit` brass ones with a primer, and the spent, empty ones.
+function pipRow(ctx, x0, y, lit, total) {
+  const K = A.pip;
+  ctx.lineJoin = 'round'; ctx.lineWidth = 1.4;
+  for (let pass = 0; pass < 2; pass++) {
+    const on = pass === 1;
+    ctx.beginPath();
+    for (let i = 0; i < total; i++) if ((i < lit) === on) {
+      const x = x0 + i * K.gap;
+      rrPath(ctx, x - K.w / 2, y - K.h / 2 + 3, K.w, K.h - 3, 1.5); rrPath(ctx, x - K.w / 2 + 1, y - K.h / 2 - 1, K.w - 2, 5, 1.5);
+    }
+    ctx.fillStyle = on ? P.brass : P.panel; ctx.strokeStyle = on ? P.ink : P.panelEdge; ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle = P.brassDark; ctx.beginPath();
+  for (let i = 0; i < lit; i++) { const x = x0 + i * K.gap; ctx.moveTo(x + 1.3, y + K.h / 2 - 1); ctx.arc(x, y + K.h / 2 - 1, 1.3, 0, PI2); }
+  ctx.fill();
 }
 
 // ---------- Play state ----------
@@ -650,13 +1101,28 @@ function newRun(ch, id, gauntlet) {
   S.run.frameReal = performance.now();
 }
 
+const rnd = (r) => r[0] + (r[1] - r[0]) * Math.random();
+
+// A casing leaves the gun's port on every shot, at most `casing.cap` alive at once (the oldest goes first). Cosmetic: Math.random is fine.
+function ejectCasing(run) {
+  const ga = gunArt(run.gun.id), C = A.casing, a = angleOf(run) * DEG, cs = Math.cos(a), sn = Math.sin(a);
+  let n = 0, oldest = -1;
+  for (let i = 0; i < S.fx.length; i++) if (S.fx[i].k === 'casing') { n++; if (oldest < 0) oldest = i; }
+  if (n >= C.cap) S.fx.splice(oldest, 1);
+  S.fx.push({ k: 'casing', x: T.gunX + ga.port[0] * cs + ga.port[1] * sn, y: run.gunY - ga.port[0] * sn + ga.port[1] * cs, vx: rnd(C.vx), vy: rnd(C.vy), r0: Math.random() * PI2, vr: rnd(C.spin), w: ga.shell[0], h: ga.shell[1], t: C.life, max: C.life });
+}
+
 function cosmetics(E, ev) {
   if (ev.type === 'shot') {
-    for (const l of ev.lines) S.fx.push({ k: 'tracer', x0: ev.x0, y0: ev.y0, x1: l.x1, y1: l.y1, t: T.tracerLife, max: T.tracerLife });
-    S.fx.push({ k: 'flash', x: ev.x0, y: ev.y0, t: T.flashLife, max: T.flashLife });
+    // Shot lines leave the drawn muzzle: the event's origin is barrelLen along the barrel, the drawn tip may be further out.
+    const run = S.run, ex = gunArt(run.gun.id).muzzle - T.barrelLen, dx = ev.x1 - ev.x0, dy = ev.y1 - ev.y0, dl = Math.hypot(dx, dy) || 1;
+    const ox = ev.x0 + (dx / dl) * ex, oy = ev.y0 + (dy / dl) * ex;
+    for (const l of ev.lines) S.fx.push({ k: 'tracer', x0: ox, y0: oy, x1: l.x1, y1: l.y1, t: T.tracerLife, max: T.tracerLife });
+    S.fx.push({ k: 'flash', t: T.flashLife, max: T.flashLife });
+    ejectCasing(run);
     E.audio.play('tap'); E.haptic(8);
     if (ev.hit) {
-      S.fx.push({ k: 'pop', x: ev.tx, y: ev.ty, text: `${ev.pts}`, color: ZONE_COLOR[ev.zone], t: T.popLife, max: T.popLife });
+      S.fx.push({ k: 'pop', x: ev.tx, y: ev.ty, text: `${ev.pts}`, color: P.zone[ev.zone], t: T.popLife, max: T.popLife });
       if (ev.zone === 0) { E.audio.play('coin'); E.haptic(16); }
       E.audio.play('hit', 0.5);
       E.audio.beep({ freq: 440 * Math.pow(2, Math.min(ev.streak, 12) / 12), dur: 0.06, type: 'triangle', gain: 0.1 });
@@ -702,24 +1168,24 @@ function menuLayout(E) {
   };
   const gunGrid = (x, y, w, pitch, h) => GUN_IDS.map((id, i) => ({ id, x: x + (i % 2) * ((w + 8) / 2), y: y + Math.floor(i / 2) * pitch, w: (w - 8) / 2, h }));
   if (land) {
-    const W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, lw = 236, H = 342;
+    const W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, lw = 236, H = 361;
     const y0 = Math.max(E.safe.top + 6, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
     L.title = { x: x0 + lw / 2, y: y0 + 14 }; L.points = { x: x0 + lw / 2, y: y0 + 40 }; L.bar = { x: x0, y: y0 + 54, w: lw, h: 6 };
     L.next = { x: x0 + lw / 2, y: y0 + 72 };
-    L.guns = gunGrid(x0, y0 + 84, lw, 54, 48);
-    L.stat = { x: x0 + lw / 2, y: y0 + 213 };
-    L.play = { x: x0, y: y0 + 242, w: lw, h: 48 };
-    L.missions = { x: x0, y: y0 + 298, w: (lw - 8) / 2, h: 44 }; L.mute = { x: x0 + (lw + 8) / 2, y: y0 + 298, w: (lw - 8) / 2, h: 44 };
+    L.guns = gunGrid(x0, y0 + 84, lw, 62, 56);
+    L.stat = { x: x0 + lw / 2, y: y0 + 232 };
+    L.play = { x: x0, y: y0 + 261, w: lw, h: 48 };
+    L.missions = { x: x0, y: y0 + 317, w: (lw - 8) / 2, h: 44 }; L.mute = { x: x0 + (lw + 8) / 2, y: y0 + 317, w: (lw - 8) / 2, h: 44 };
     const rx = x0 + lw + 28;
     rowsAt(rx, E.safe.top + 56, x0 + W - rx, 66, 56);
   } else {
     const W = Math.min(E.w - 2 * side, 560), x0 = (E.w - W) / 2, y0 = E.safe.top + 14;
     L.title = { x: E.w / 2, y: y0 + 16 }; L.points = { x: E.w / 2, y: y0 + 44 }; L.bar = { x: x0, y: y0 + 58, w: W, h: 6 };
     L.next = { x: E.w / 2, y: y0 + 76 };
-    L.guns = gunGrid(x0, y0 + 90, W, 56, 48);
-    L.stat = { x: E.w / 2, y: y0 + 226 };
-    rowsAt(x0, y0 + 262, W, 66, 56);
-    const by = y0 + 262 + 4 * 66 + 12;
+    L.guns = gunGrid(x0, y0 + 90, W, 62, 56);
+    L.stat = { x: E.w / 2, y: y0 + 240 };
+    rowsAt(x0, y0 + 276, W, 66, 56);
+    const by = y0 + 276 + 4 * 66 + 12;
     L.play = { x: x0, y: by, w: W, h: 48 };
     L.missions = { x: x0, y: by + 58, w: (W - 10) / 2, h: 48 }; L.mute = { x: x0 + (W + 10) / 2, y: by + 58, w: (W - 10) / 2, h: 48 };
   }
@@ -745,42 +1211,45 @@ const menu = {
   enter() { this.tiles = []; this.guns = []; this.btnPlay = null; this.btnMute = null; this.btnMissions = null; },
   render(ctx, E) {
     const L = menuLayout(E), sel = T.guns[gunId(E)], pts = pointsTotal(E), nx = nextUnlock(pts);
-    E.text('RECOIL', L.title.x, L.title.y, { size: 30, weight: '800' });
-    E.text(`Points ${pts}`, L.points.x, L.points.y, { size: 16, color: T.cyan });
-    E.text(nx ? `Next: ${T.guns[nx.id].name} at ${nx.need}` : 'All guns unlocked', L.next.x, L.next.y, { size: 14, color: '#9aa4b2' });
-    E.roundRect(L.bar.x, L.bar.y, L.bar.w, L.bar.h, 3, '#1f2937');
+    E.text('RECOIL', L.title.x, L.title.y, { size: TY.big, weight: TY.strong, color: P.text });
+    E.text(`Points ${pts}`, L.points.x, L.points.y + 2, { size: TY.mid, weight: TY.strong, color: P.cyan });
+    E.text(nx ? `Next: ${T.guns[nx.id].name} at ${nx.need}` : 'All guns unlocked', L.next.x, L.next.y, { size: TY.small, color: P.textDim });
+    E.roundRect(L.bar.x - 2, L.bar.y - 2, L.bar.w + 4, L.bar.h + 4, 5, P.ink);
+    E.roundRect(L.bar.x, L.bar.y, L.bar.w, L.bar.h, 3, P.panelEdge);
     const frac = nx ? clamp((pts - nx.from) / (nx.need - nx.from), 0, 1) : 1;
-    if (frac > 0) E.roundRect(L.bar.x, L.bar.y, Math.max(6, L.bar.w * frac), L.bar.h, 3, T.cyan);
+    if (frac > 0) E.roundRect(L.bar.x, L.bar.y, Math.max(6, L.bar.w * frac), L.bar.h, 3, P.cyan);
     this.guns = L.guns;
     for (const b of L.guns) {
-      const g = T.guns[b.id], on = b.id === sel.id, open = gunUnlocked(E, b.id);
-      E.roundRect(b.x, b.y, b.w, b.h, 10, on ? '#1a2338' : '#0c1220', on ? T.orange : '#1d2740');
-      if (open) E.text(g.short, b.x + b.w / 2, b.y + b.h / 2, { size: 14, weight: on ? '800' : '600', color: on ? '#ffffff' : '#94a3b8' });
-      else {
-        E.text(g.short, b.x + b.w / 2, b.y + 15, { size: 14, color: '#475569' });
-        E.text(`${T.unlockPoints[GUN_IDS.indexOf(b.id)]} points`, b.x + b.w / 2, b.y + 34, { size: 14, color: T.slateEdge });
+      const on = b.id === sel.id, open = gunUnlocked(E, b.id), cx = b.x + b.w / 2;
+      plate(E, b.x, b.y, b.w, b.h, on ? P.panelHi : P.panel, on ? P.orange : P.panelEdge);
+      ctx.globalAlpha = open ? 1 : 0.25;
+      drawGunTile(ctx, b.id, cx, b.y + b.h / 2, b.w - 2 * A.tile.pad, b.h - 2 * A.tile.pad);
+      ctx.globalAlpha = 1;
+      if (!open) {
+        drawLock(ctx, cx, b.y + b.h / 2 - 12, P.textDim);
+        E.text(`${T.unlockPoints[GUN_IDS.indexOf(b.id)]} points`, cx, b.y + b.h - 14, { size: TY.small, weight: TY.strong, color: P.textDim });
       }
     }
-    E.text(sel.name, L.stat.x, L.stat.y - 17, { size: 14, weight: '800', color: '#ffffff' });
-    E.text(`Damage ${sel.damage}${sel.pellets > 1 ? ` x${sel.pellets}` : ''}   ${sel.fireRate}/s   Range ${Math.round(sel.accuracy * 100)}%`, L.stat.x, L.stat.y, { size: 14, color: '#9aa4b2' });
-    E.text(sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 17, { size: 14, color: '#64748b' });
+    E.text(sel.name, L.stat.x, L.stat.y - 19, { size: TY.mid, weight: TY.strong, color: P.text });
+    E.text(`Damage ${sel.damage}${sel.pellets > 1 ? ` x${sel.pellets}` : ''}   ${sel.fireRate}/s   Range ${Math.round(sel.accuracy * 100)}%`, L.stat.x, L.stat.y, { size: TY.small, color: P.textDim });
+    E.text(sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 17, { size: TY.small, color: P.textFaint });
     this.tiles = [];
     for (const row of L.rows) {
-      E.text(row.label, row.x, row.y + row.th / 2, { size: 14, align: 'left', color: '#9aa4b2' });
+      E.text(row.label, row.x, row.y + row.th / 2, { size: TY.small, align: 'left', color: P.textDim });
       CHALLENGES.filter((c) => c.ladder === row.ladder).forEach((ch, i) => {
         const x = row.x + row.labelW + i * (row.tw + row.gap), top = row.y, tw = row.tw, th = row.th;
         const locked = !isUnlocked(E, ch), st = starsOf(E, ch);
-        E.roundRect(x, top, tw, th, 10, locked ? '#0c1220' : '#1a2338', st ? T.cyan : locked ? '#1d2740' : T.slate);
-        E.text(`${ch.level}`, x + tw / 2, top + 17, { size: 18, weight: '800', color: locked ? '#475569' : '#e6e6e6' });
-        if (locked) drawLock(ctx, x + tw / 2, top + th - 16);
-        else for (let k = 0; k < 3; k++) drawStar(ctx, x + tw / 2 + (k - 1) * 16, top + th - 15, 6, k < st ? T.cyan : null, k < st ? null : '#334155');
+        plate(E, x, top, tw, th, locked ? P.ink : P.panelHi, st ? P.brass : locked ? P.panelEdge : P.slateEdge);
+        E.text(`${ch.level}`, x + tw / 2, top + 17, { size: TY.mid, weight: TY.strong, color: locked ? P.textFaint : P.text });
+        if (locked) drawLock(ctx, x + tw / 2, top + th - 16, P.textFaint);
+        else for (let k = 0; k < 3; k++) drawStar(ctx, x + tw / 2 + (k - 1) * 16, top + th - 15, 6, k < st ? P.brass : null, k < st ? null : P.panelEdge);
         this.tiles.push({ x, y: top, w: tw, h: th, ch, locked });
       });
     }
     const p = L.play, m = L.mute, ms = L.missions, earned = BADGES.filter((b) => badgeMap(E)[b.id]).length;
-    this.btnPlay = E.button(`Play ${firstPlayable(E).name}`, p.x + p.w / 2, p.y + p.h / 2, { w: p.w, h: p.h, fill: T.orange, color: '#1a0a02', size: 18 });
-    this.btnMissions = E.button(`Missions ${earned}/${BADGES.length}`, ms.x + ms.w / 2, ms.y + ms.h / 2, { w: ms.w, h: ms.h, fill: '#1f2937', size: 14 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', m.x + m.w / 2, m.y + m.h / 2, { w: m.w, h: m.h, fill: T.slate, size: 14 });
+    this.btnPlay = btn(E, `Play ${firstPlayable(E).name}`, p.x + p.w / 2, p.y + p.h / 2, { w: p.w, h: p.h, fill: P.orange, color: P.ink, size: TY.mid });
+    this.btnMissions = btn(E, `Missions ${earned}/${BADGES.length}`, ms.x + ms.w / 2, ms.y + ms.h / 2, { w: ms.w, h: ms.h, fill: P.panelHi, size: TY.small });
+    this.btnMute = btn(E, E.audio.muted ? 'Sound: off' : 'Sound: on', m.x + m.w / 2, m.y + m.h / 2, { w: m.w, h: m.h, fill: P.slate, size: TY.small });
   },
   onTap(p, E) {
     if (E.hit(this.btnPlay, p)) { E.setScene('play', { id: firstPlayable(E).id }); return; }
@@ -798,26 +1267,26 @@ const missions = {
     const have = badgeMap(E), land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right);
     const W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, top = E.safe.top + 62;
     const earned = BADGES.filter((b) => have[b.id]).length;
-    this.back = E.button('Back', x0 + 42, E.safe.top + 30, { w: 84, h: 44, size: 15, fill: '#334155' });
-    E.text(`Missions  ${earned}/${BADGES.length}`, E.w / 2, E.safe.top + 30, { size: 20, weight: '800' });
+    this.back = btn(E, 'Back', x0 + 42, E.safe.top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
+    E.text(`Missions  ${earned}/${BADGES.length}`, E.w / 2, E.safe.top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     const open = GAUNTLET.every((id) => isUnlocked(E, CHALLENGES.find((c) => c.id === id)));
     const gw = land ? 120 : W, gy = land ? E.safe.top + 30 : top + BADGES.length * 66 + 8 + 24, gx = land ? x0 + W - 60 : E.w / 2;
-    this.btnGauntlet = E.button('Gauntlet', gx, gy, { w: gw, h: land ? 44 : 48, size: 15, fill: open ? T.orange : '#1f2937', color: open ? '#1a0a02' : '#64748b' });
+    this.btnGauntlet = btn(E, 'Gauntlet', gx, gy, { w: gw, h: land ? 44 : 48, size: TY.small, fill: open ? P.orange : P.panelHi, color: open ? P.ink : P.textFaint });
     BADGES.forEach((b, i) => {
-      const on = !!have[b.id], col = TIER_COLOR[b.tier];
+      const on = !!have[b.id], col = P.tier[b.tier];
       if (land) {
         const gap = 10, tw = (W - 2 * gap) / 3, th = 88, x = x0 + (i % 3) * (tw + gap), y = top + Math.floor(i / 3) * 96;
-        E.roundRect(x, y, tw, th, 12, on ? '#1a2338' : '#0c1220', on ? col : '#1d2740');
-        E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: 14, align: 'left', color: on ? col : '#475569' });
-        E.text(b.name, x + 12, y + 36, { size: 18, weight: '800', align: 'left', color: on ? '#ffffff' : '#94a3b8' });
-        wrapText(ctx, b.cond, tw - 24, 14).forEach((ln, k) => E.text(ln, x + 12, y + 58 + k * 18, { size: 14, align: 'left', color: on ? '#9aa4b2' : '#64748b' }));
+        plate(E, x, y, tw, th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
+        E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: TY.small, align: 'left', color: on ? col : P.textFaint });
+        E.text(b.name, x + 12, y + 36, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
+        wrapText(ctx, b.cond, tw - 24, TY.small).forEach((ln, k) => E.text(ln, x + 12, y + 58 + k * 18, { size: TY.small, align: 'left', color: on ? P.textDim : P.textFaint }));
         if (on) drawStar(ctx, x + tw - 24, y + 24, 12, col);
       } else {
         const y = top + i * 66, th = 60;
-        E.roundRect(x0, y, W, th, 12, on ? '#1a2338' : '#0c1220', on ? col : '#1d2740');
-        E.text(b.name, x0 + 14, y + 18, { size: 16, weight: '800', align: 'left', color: on ? '#ffffff' : '#94a3b8' });
-        E.text(b.tier.toUpperCase(), x0 + W - 14, y + 18, { size: 14, align: 'right', color: on ? col : '#475569' });
-        E.text(b.cond, x0 + 14, y + 42, { size: 14, align: 'left', color: on ? '#9aa4b2' : '#64748b' });
+        plate(E, x0, y, W, th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
+        E.text(b.name, x0 + 14, y + 18, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
+        E.text(b.tier.toUpperCase(), x0 + W - 14, y + 18, { size: TY.small, align: 'right', color: on ? col : P.textFaint });
+        E.text(b.cond, x0 + 14, y + 42, { size: TY.small, align: 'left', color: on ? P.textDim : P.textFaint });
         if (on) drawStar(ctx, x0 + W - 28, y + 40, 9, col);
       }
     });
@@ -840,7 +1309,9 @@ const play = {
   update(dt, E) {
     const r = S.run;
     for (const f of S.fx) f.t -= dt;
-    S.fx = S.fx.filter((f) => f.t > 0);
+    let n = 0;
+    for (const f of S.fx) { f.t -= 0; if (f.t > 0) S.fx[n++] = f; }
+    S.fx.length = n;
     r.kUp = E.keys.has('ArrowUp'); r.kDown = E.keys.has('ArrowDown');
     advance(r, dt);
     r.frameReal = performance.now();
@@ -854,82 +1325,68 @@ const play = {
     ctx.save();
     ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
     ctx.beginPath(); ctx.rect(0, 0, T.designW, T.designH); ctx.clip();
-    const horizon = T.designH - T.thumbLane;
-    ctx.fillStyle = T.fieldColor; ctx.fillRect(0, 0, T.designW, horizon);
-    ctx.fillStyle = T.groundColor; ctx.fillRect(0, horizon, T.designW, T.designH - horizon);
-    ctx.fillStyle = T.horizonColor; ctx.fillRect(0, horizon - 1, T.designW, 2);
-    ctx.fillStyle = T.slate; ctx.fillRect(T.designW - 3, 0, 3, T.designH);
-    if (ch.ladder === 'speed') {
-      ctx.strokeStyle = T.red; ctx.globalAlpha = 0.35; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
-      ctx.beginPath(); ctx.moveTo(T.gunLineX, 0); ctx.lineTo(T.gunLineX, horizon); ctx.stroke();
-      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    sprScale(v.s * E.dpr);
+    drawBackdrop(ctx);
+    if (ch.ladder === 'speed') { // the breach line
+      ctx.strokeStyle = P.red; ctx.globalAlpha = 0.35; ctx.lineWidth = 2; ctx.setLineDash(BREACH_DASH);
+      ctx.beginPath(); ctx.moveTo(T.gunLineX, 0); ctx.lineTo(T.gunLineX, HORIZON); ctx.stroke();
+      ctx.setLineDash(NO_DASH); ctx.globalAlpha = 1;
     }
     for (const f of S.fx) if (f.k === 'edge') {
-      ctx.fillStyle = T.red; ctx.globalAlpha = 0.8 * (f.t / f.max); ctx.fillRect(0, 0, 10, T.designH); ctx.globalAlpha = 1;
+      ctx.fillStyle = P.red; ctx.globalAlpha = 0.8 * (f.t / f.max); ctx.fillRect(0, 0, 10, T.designH); ctx.globalAlpha = 1;
     }
-    const labels = [];
     for (const tg of r.targets) {
       let alpha = 1;
-      if (tg.kind === 'part' && tg.idx !== r.stage) alpha = 0.45;
+      if (tg.kind === 'part' && tg.idx !== r.stage) alpha = 0.5;
       if (tg.kind === 'dodge' && now >= tg.nextDodge - T.dodgeWarn && Math.floor(E.time * 10) % 2) alpha = 0.3;
-      drawTarget(ctx, tg, alpha);
-      const R = T.zoneR[2] * tg.sc;
-      if (ch.ladder === 'accuracy') {
-        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(tg.x, tg.y, R + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(tg.life / T.accLife, 0, 1)); ctx.stroke();
-      }
-      if (tg.hp !== undefined) {
-        for (let i = 0; i < tg.hpMax; i++) disc(ctx, tg.x + (i - (tg.hpMax - 1) / 2) * 8, tg.y + R + 9, 2.5, i < tg.hp ? '#ffffff' : '#334155');
-      }
-      if (tg.kind === 'part') {
-        if (tg.idx === r.stage) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.arc(tg.x, tg.y, R + 7, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
-        labels.push({ x: tg.x, y: tg.y - R - 12, text: `${tg.idx + 1}`, on: tg.idx === r.stage });
-      }
+      drawTargetFull(ctx, E, tg, r, ch, alpha);
     }
+    for (const tg of r.targets) drawTargetHp(ctx, tg, tg.kind === 'part' && tg.idx !== r.stage ? 0.5 : 1);
     drawRangeFinder(ctx, r);
-    for (const f of S.fx) if (f.k === 'tracer') {
-      ctx.strokeStyle = T.orange; ctx.globalAlpha = f.t / f.max; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.moveTo(f.x0, f.y0); ctx.lineTo(f.x1, f.y1); ctx.stroke(); ctx.globalAlpha = 1;
-    }
-    drawGun(ctx, E, r.gunY, angleOf(r));
-    for (const f of S.fx) if (f.k === 'flash') {
-      ctx.globalAlpha = f.t / f.max; disc(ctx, f.x, f.y, 11, '#fde68a'); disc(ctx, f.x, f.y, 6, T.orange); ctx.globalAlpha = 1;
-    }
+    for (const f of S.fx) if (f.k === 'tracer') drawTracer(ctx, f);
+    for (const f of S.fx) if (f.k === 'pop') drawHitRing(ctx, f);
+    drawGun(ctx, r);
+    for (const f of S.fx) if (f.k === 'flash') drawFlash(ctx, r, f);
+    for (const f of S.fx) if (f.k === 'casing') drawCasing(ctx, f);
     ctx.restore();
 
-    for (const l of labels) E.text(l.text, v.ox + l.x * v.s, v.oy + l.y * v.s, { size: 14, weight: '800', color: l.on ? '#ffffff' : '#64748b' });
+    for (const tg of r.targets) if (tg.kind === 'part') {
+      const on = tg.idx === r.stage;
+      E.text(PART_NUM[tg.idx], v.ox + (tg.x - T.zoneR[2] * tg.sc * A.plate.r - 10) * v.s, v.oy + tg.y * v.s, { size: TY.small, weight: TY.strong, color: on ? P.text : P.textFaint });
+    }
     for (const f of S.fx) if (f.k === 'pop') {
       const k = 1 - f.t / f.max;
-      E.text(f.text, v.ox + f.x * v.s, v.oy + (f.y - 18 - 22 * k) * v.s, { size: 20, weight: '800', color: f.color, alpha: 1 - k * k });
+      popText(E, f.text, v.ox + f.x * v.s, v.oy + (f.y - 18 - 22 * k) * v.s, f.color, 1 - k * k);
     }
     this.hud(E, v, r, ch);
     if (E.h > E.w) { // portrait: playable, but say what it wants, in the letterbox below the field
       const below = v.oy + v.h + 8 + 34 <= E.h - E.safe.bottom;
       const by = (below ? v.oy + v.h + 8 : E.h - E.safe.bottom - 38) + 17;
-      E.roundRect(v.ox + 12, by - 17, v.w - 24, 34, 10, 'rgba(15,17,21,0.9)', T.orange);
-      E.text('Rotate your phone', v.ox + v.w / 2, by, { size: 16, weight: '800', color: '#ffffff' });
+      plate(E, v.ox + 12, by - 17, v.w - 24, 34, P.panel, P.orange);
+      E.text('Rotate your phone', v.ox + v.w / 2, by, { size: TY.mid, weight: TY.strong, color: P.text });
     }
   },
 
   // HUD inside the safe insets: the field is fitted to the safe area, so anything anchored to it is inside. Landscape keeps
   // the top-left for text and the top-right for Menu and score (clear of the gun at its highest and of the range finder);
   // the combo sits in the ground band. Portrait puts everything in the letterbox above the field when it fits.
+  // Three sizes: small (buttons, labels), mid (name, meter, combo), big (score).
   hud(E, v, r, ch) {
     const pad = T.hudPad, xl = v.ox + pad, xr = v.ox + v.w - pad, compact = v.w < 560, ctx = E.ctx;
     const hudH = compact ? 70 : 44;
     const top = v.oy - hudH - 4 >= E.safe.top + 4 ? v.oy - hudH - 4 : v.oy + 4;
-    E.text(ch.name, xl, top + (compact ? 22 : 12), { size: 16, align: 'left' });
+    E.text(ch.name, xl, top + (compact ? 22 : 12), { size: TY.mid, weight: TY.strong, align: 'left', color: P.text });
     const nameW = ctx.measureText(ch.name).width;
     const low = ch.ladder === 'accuracy' && r.ammo <= 3;
-    E.text(meterText(r, ch), compact ? xl : xl + nameW + 16, top + (compact ? 58 : 12), { size: 16, align: 'left', color: low ? T.orange : '#cbd5e1' });
-    E.text(`${r.score}`, xr, top + 22, { size: 24, weight: '800', align: 'right' });
-    this.menuBtn = E.button('Menu', xr - 96 - 8 - 32, top + 22, { w: 64, h: 44, size: 14, fill: '#1f2937' });
+    E.text(meterText(r, ch), compact ? xl : xl + nameW + 16, top + (compact ? 58 : 12), { size: TY.mid, align: 'left', color: low ? P.orange : P.textDim });
+    E.text(`${r.score}`, xr, top + 22, { size: TY.big, weight: TY.strong, align: 'right', color: P.text });
+    this.menuBtn = btn(E, 'Menu', xr - 96 - 8 - 32, top + 22, { w: 64, h: 44, size: TY.small, fill: P.panelHi });
     const mult = Math.min(T.comboCap, 1 + T.comboStep * r.streak), live = r.streak > 0;
-    const pips = Math.round((T.comboCap - 1) / T.comboStep);
+    const pips = Math.round((T.comboCap - 1) / T.comboStep), gap = A.pip.gap;
     const cy = compact ? top + 58 : v.oy + (T.designH - T.thumbLane * 0.5) * v.s;
-    const cx = compact ? xr - 44 - pips * 11 : v.ox + v.w / 2 - 50;
-    E.text(`x${mult.toFixed(1)}`, compact ? xr : cx, cy, { size: 16, align: compact ? 'right' : 'left', color: live ? T.orange : '#64748b' });
-    for (let i = 0; i < pips; i++) disc(ctx, (compact ? cx : cx + 50) + i * 11, cy, 3.5, i < r.streak ? T.orange : '#334155');
+    const cx = compact ? xr - 44 - pips * gap : v.ox + v.w / 2 - 50;
+    E.text(`x${mult.toFixed(1)}`, compact ? xr : cx, cy, { size: TY.mid, weight: TY.strong, align: compact ? 'right' : 'left', color: live ? P.orange : P.textFaint });
+    pipRow(ctx, compact ? cx : cx + 50, cy, Math.min(pips, r.streak), pips);
   },
 
   onPointerDown(p, E) {
@@ -973,33 +1430,35 @@ const over = {
   render(ctx, E) {
     const p = this.p, ch = this.ch, cx = E.w / 2, g = p.gaunt;
     const H = 310, y0 = Math.max(E.safe.top + 8, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
-    E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Gauntlet ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 10, { size: 16, color: '#9aa4b2' });
-    E.text(`${p.score}`, cx, y0 + 56, { size: 46, weight: '800' });
+    const pw = Math.min(E.w - 16, 500);
+    plate(E, cx - pw / 2, y0 - 18, pw, H + 30, P.panel, P.panelEdge, 16);
+    E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Gauntlet ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 10, { size: TY.small, color: P.textDim });
+    E.text(`${p.score}`, cx, y0 + 56, { size: TY.big + 16, weight: TY.strong, color: P.text });
     const age = E.time - this.t0;
     for (let i = 0; i < 3; i++) {
       const sx = cx + (i - 1) * 60, sy = y0 + 112;
       if (i < p.stars) {
         const k = ease.outBack(clamp((age - i * 0.2) / 0.3, 0, 1));
-        if (k > 0) drawStar(ctx, sx, sy, 22 * k, T.cyan);
-      } else drawStar(ctx, sx, sy, 22, null, '#334155');
+        if (k > 0) drawStar(ctx, sx, sy, 22 * k, P.brass);
+      } else drawStar(ctx, sx, sy, 22, null, P.panelEdge);
     }
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
-    E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 158, { size: 16, color: '#cbd5e1' });
-    E.text(p.isNew ? `New best ${p.best}` : `Best ${p.best}`, cx, y0 + 182, { size: 16, color: p.isNew ? T.orange : '#9aa4b2' });
-    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}`, cx, y0 + 206, { size: 14, color: '#64748b' });
+    E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 158, { size: TY.mid, color: P.text });
+    E.text(p.isNew ? `New best ${p.best}` : `Best ${p.best}`, cx, y0 + 182, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
+    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}`, cx, y0 + 206, { size: TY.small, color: P.textFaint });
     if (p.badges.length) { // a badge pop: the name scales in
       const k = ease.outBack(clamp((age - 0.5) / 0.35, 0, 1)), names = p.badges.map((id) => BADGES.find((b) => b.id === id).name).join(', ');
-      const col = TIER_COLOR[BADGES.find((b) => b.id === p.badges[0]).tier];
-      if (k > 0) { drawStar(ctx, cx - 92 * k - names.length * 4, y0 + 236, 11 * k, col); E.text(`Badge earned: ${names}`, cx + 12, y0 + 236, { size: Math.round(16 * Math.min(1, k)) || 1, weight: '800', color: col }); }
-    } else if (g && !g.ok) E.text('Gauntlet over: two stars needed', cx, y0 + 236, { size: 16, color: T.red });
-    else if (g && g.done) E.text('Gauntlet complete', cx, y0 + 236, { size: 16, color: T.cyan });
-    const btns = [['Again', T.orange, '#1a0a02', 'again']];
-    if (this.canNext) btns.push(['Next', T.cyan, '#04141a', 'next']);
-    btns.push(['Menu', T.slate, '#e6e6e6', 'menu']);
+      const col = P.tier[BADGES.find((b) => b.id === p.badges[0]).tier];
+      if (k > 0) { const msg = `Badge earned: ${names}`; E.text(msg, cx + 12, y0 + 236, { size: Math.round(TY.mid * Math.min(1, k)) || 1, weight: TY.strong, color: col }); drawStar(ctx, cx + 12 - ctx.measureText(msg).width / 2 - 16, y0 + 236, 11 * k, col); }
+    } else if (g && !g.ok) E.text('Gauntlet over: two stars needed', cx, y0 + 236, { size: TY.mid, color: P.red });
+    else if (g && g.done) E.text('Gauntlet complete', cx, y0 + 236, { size: TY.mid, color: P.cyan });
+    const btns = [['Again', P.orange, P.ink, 'again']];
+    if (this.canNext) btns.push(['Next', P.cyan, P.ink, 'next']);
+    btns.push(['Menu', P.slate, P.text, 'menu']);
     const bw = Math.min(140, (E.w - 32 - 16) / 3), by = y0 + 282;
     this.btns = btns.map(([label, fill, color, act], i) => {
       const x = cx + (i - (btns.length - 1) / 2) * (bw + 12);
-      return { act, ...E.button(label, x, by, { w: bw, h: 52, fill, color, size: 18 }) };
+      return { act, ...btn(E, label, x, by, { w: bw, h: 52, fill, color, size: TY.mid }) };
     });
   },
   onTap(p, E) {
@@ -1045,6 +1504,7 @@ export const game = {
     return data;
   },
   TUNING,
+  init() { buildArt(); },
   experiments: EXPERIMENTS,
   presets: PRESETS,
   start: 'menu',
