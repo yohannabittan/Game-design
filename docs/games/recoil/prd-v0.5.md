@@ -105,3 +105,14 @@ Gun mastery:
 - Tiers: Marksman at 100 bullseyes plus headshots, Expert at 500, Master at 1500 with lifetime accuracy at least 60 percent. The mastery bar on the rack shows progress to the next tier; the stats card shows the counters.
 - Skins: each gun's second skin unlocks at Marksman and its third at Master (the Legend Gold pistol stays on Legend). Trick-badge skins (SMG Brass and Hazard, revolver Ivory and Frost) stay on their badges. The badge-to-skin table in v0.3 E is retired for the ladder badges; those badges keep their names and conditions and unlock nothing but themselves. Skins already earned are kept on migration (a worn skin is never taken away).
 - Missions screen: badges only, no skin swatches; the skins picker lives on the stats card.
+
+## O. Fixes from the v17 review (build after B)
+
+1. Shotgun bars that collapse (Speed 4: 3010/3020/3030; Zombies 1 to 3) measure no aim. Rule: when a gun's three-star bar minus its one-star bar is under 15 percent of its perfect run, that gun's bars on that rung fall back to 30/55/85 percent of its perfect run (efficiency, not aim). Print which pairs fall back.
+2. Lifetime accuracy counts at most one hit per shot (a shotgun sweep no longer shows 267 percent); Master's 60 percent gate reads that figure.
+3. Boss 2 bars come from a straightforward bot (nearest live plate, then the core) rather than a state-search planner: a 0.75 degree straightforward bot gets three stars at least 35 percent of the time on every gun. Rule for every rung from now on: bar bots use straightforward policies.
+4. Kickback: window back to 0.5 s and the six hits must land on at least two distinct targets (the recoil walking the aim), so a held carbine on one core does not earn it.
+5. Brute head at the top of the field band (about y 70 at scale 1), as PRD L says.
+6. A legs-down zombie keeps its body hittable: the crawling pose moves the head forward and down but leaves at least half the body circle exposed, so legs, then body, then brain is a real order.
+7. Rule 5: the Endless force timer, the Endless wave size and the Kickback count move into TUNING.
+8. games/index.json status line updated for v0.5; the ledger writes the result before the mastery event; the changelog's newest line reads "Review: pending" until the review after this round clears it.
