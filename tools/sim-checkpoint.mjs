@@ -1,20 +1,22 @@
 #!/usr/bin/env node
-// sim-checkpoint: proofs for Checkpoint through the game's real generation, tap resolution and scoring
+// sim-checkpoint: proofs for Checkpoint through the game's real generation, tap resolution, scoring and render calls
 // (games/checkpoint/src/game.js, via game.sim and the play scene).
 //
-//   node tools/sim-checkpoint.mjs [--bags 1000] [--seeds 20] [--human-seeds 40] [--fail-seeds 5]
+//   node tools/sim-checkpoint.mjs [--bags 1000] [--seeds 20] [--human-seeds 40] [--fail-seeds 5] [--curve-only] [--workers N]
 //
 // 1. Items: 30 items, 10 contraband, longest extent at least 44 units, hit shape (narrowest width + 2 x hitMargin) at least 44 at 360x640,
-//    contraband centre inside its outline, look-alike links point at contraband.
-// 2. Packing, per shift row 1 to 10 over --bags seeded bags: item counts, contraband per bag, clean share, look-alikes from shift 4,
-//    every item at least minVisible visible by area AND by outline perimeter (both measured on grids finer than packing used), items inside the bag.
-// 3. Bots through the play scene: a fast centre-tap bot (three stars on every row), a late one-strike bot (the score ratio), a pulse-waiting bot
-//    (taps only what shows a red tell, so it must fail from shift 1), a late blind bot, tap-everything and never-tap bots (all must fail), and a
-//    human-model bot (serial scanning with reaction time, 8 px tap noise, look-alike mistakes) that gives the difficulty curve.
-// 4. The miss cue: no red on screen before a strike, the missed item's ghost after it.
-// 5. Determinism (same seed and tap times at 30, 60 and 120 fps), overlap resolution, unlock on clear, shift lengths.
+//    contraband centre inside its outline, look-alike pairs share a tint.
+// 2. Packing, per shift row 1 to 10 over --bags seeded bags: item counts, contraband per bag, clean share, look-alikes, every item at least
+//    minVisible visible by area AND by outline perimeter (finer grids than packing used), items inside the bag, tangles rarely metal on metal.
+// 3. Bots through the play scene: a fast centre-tap bot, a late one-strike bot (score ratio), a pulse-waiting bot, a late blind bot, tap-everything
+//    and never-tap bots, and four human models (expert, good, average, novice: serial reading, per-item, per-overlap and per-look-alike costs,
+//    tap noise, look-alike mistakes) whose clear and three-star rates per shift are the difficulty slope.
+// 4. Render: no red before a strike, the ghost after it; an unflagged contraband item and a harmless one of the same tint draw identically.
+// 5. Save migration and clamp, retry seed, rush bursts, tray, determinism (30, 60, 120 fps), overlap resolution, unlock, shift lengths.
 // Exit code 0 when every check passes, 1 otherwise.
 
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { availableParallelism } from 'node:os';
 import { game } from '../games/checkpoint/src/game.js';
 import { makeRng, hashString } from '../games/checkpoint/src/engine.js';
 
@@ -28,6 +30,178 @@ const f1 = (x) => x.toFixed(1), f2 = (x) => x.toFixed(2), f3 = (x) => x.toFixed(
 const pad = (v, n) => String(v).padStart(n);
 const mean = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
 const median = (a) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : 0; };
+const seedOf = (tag, shift, k) => hashString(`checkpoint-${tag}-${shift}-${k}`);
+
+// ---------- the play scene on a stand-in engine ----------
+const makeE = (w = 360, h = 640) => {
+  const e = {
+    w, h, time: 0, safe: { top: 0, bottom: 0, left: 0, right: 0 }, scene: null, params: null, haptics: [], sounds: [], beeps: [], shakes: 0,
+    rng: makeRng(1),
+    save: { d: {}, get(k, d) { return k in this.d ? this.d[k] : d; }, set(k, v) { this.d[k] = v; return v; }, update(k, fn, d) { return this.set(k, fn(this.get(k, d))); } },
+    audio: { muted: false, play(n) { e.sounds.push(n); }, beep(o) { e.beeps.push(o); }, noise() {}, toggleMute() {} },
+    particles: { list: [], emit(o) { this.list.push(...Array.from({ length: o.count || 0 }, () => ({ life: o.life || 0.5 }))); } },
+    shake() { e.shakes++; }, flash() {}, haptic(ms) { e.haptics.push(ms); },
+    tween(d, fn, ease, done) { fn(1); if (done) done(); },
+    setScene(n, p) { this.scene = n; this.params = p; },
+    hit: (r, p) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h,
+    button: (label, cx, cy, o = {}) => { const w = o.w || Math.min(280, e.w * 0.7), h = o.h || 56; return { x: cx - w / 2, y: cy - h / 2, w, h }; },
+  };
+  return e;
+};
+let E = makeE();
+
+// Runs one shift. policy(E, t) returns the taps [{x, y}] to deliver at the end of a frame; `script` replays recorded taps instead.
+function run(shift, seed, fps, policy, script, e = makeE()) {
+  E = e; E.scene = null; E.params = null;
+  play.enter(E, { shift, seed });
+  const S = sim.state(), dt = 1 / fps, taps = [];
+  let frame = 0, ti = 0;
+  while (!E.scene && frame < fps * 400) {
+    play.update(dt, E); frame++; E.time = frame * dt;
+    const t = Math.round(frame * dt * 1200) / 1200;
+    const list = script ? [] : policy(E, t);
+    if (script) while (ti < script.length && script[ti].t <= t + 1e-9) list.push(script[ti++]);
+    for (const p of list) { taps.push({ t, x: p.x, y: p.y }); play.onPointerDown({ x: p.x, y: p.y }, E); }
+  }
+  return { r: E.params, taps, S: { score: S.score, strikes: S.strikes, streak: S.streak, log: S.log.map((e) => JSON.stringify(e)).join('|') }, time: S.time, E };
+}
+const gauss = (rng) => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
+
+// Fast bot: taps each contraband centre the first frame it is below the hood (the first bag is fully in view at t=0, so some items start below the middle).
+const centreBot = () => {
+  const done = new Set();
+  return (E) => {
+    const L = sim.layout(E), out = [];
+    for (const it of sim.onScreen(E)) if (it.contraband && it.state === 0 && !done.has(it.id) && it.y >= L.top + 8) { done.add(it.id); out.push({ x: it.x, y: it.y }); }
+    return out;
+  };
+};
+// Late bot: taps contraband once it is `at` (60 or 70) percent down the screen, and lets exactly one contraband item through (one strike) from bag 7 on.
+const lateBot = (at) => {
+  const done = new Set();
+  let skipped = null;
+  return (E) => {
+    const L = sim.layout(E), out = [];
+    for (const it of sim.onScreen(E)) {
+      if (!it.contraband || it.state !== 0 || done.has(it.id) || it.y < L.top + 8 || it.cy < at * L.H) continue;
+      if (skipped === null && Number(it.id.split(':')[0]) >= 6) { skipped = it.id; done.add(it.id); continue; }
+      done.add(it.id); out.push({ x: it.x, y: it.y });
+    }
+    return out;
+  };
+};
+const blindLateBot = () => {
+  const done = new Set();
+  return (E) => {
+    const L = sim.layout(E), out = [];
+    for (const it of sim.onScreen(E)) if (it.state === 0 && !done.has(it.id) && it.y >= L.top + 8 && it.cy >= 0.85 * L.H) { done.add(it.id); out.push({ x: it.x, y: it.y }); }
+    return out;
+  };
+};
+const tapAllBot = () => {
+  const done = new Set();
+  return (E) => {
+    const L = sim.layout(E), out = [];
+    for (const it of sim.onScreen(E)) if (it.state === 0 && !done.has(it.id) && it.y >= L.top + 8 && it.cy <= L.H / 2) { done.add(it.id); out.push({ x: it.x, y: it.y }); }
+    return out;
+  };
+};
+
+// A recording canvas, so the bots and the render checks can see what the play scene draws: every stroke and fill with its style and the
+// outline it was drawn for (identified by the outline's first point), and every text and rounded box colour.
+class Path2D { constructor() { this.sig = null; } moveTo(x, y) { if (!this.sig) this.sig = `${x},${y}`; } lineTo(x, y) { if (this.sig && !this.sig.includes('|')) this.sig += `|${x},${y}`; } closePath() {} }
+globalThis.Path2D = Path2D;
+const sigOf = Object.fromEntries(sim.ITEMS.map((i) => [`${i.shape[0][0][0]},${i.shape[0][0][1]}|${i.shape[0][1][0]},${i.shape[0][1][1]}`, i.name]));
+function recordRender(e, scene = play) {
+  const log = [];
+  const style = (t, k) => `${k}:${k === 'stroke' ? t.strokeStyle : t.fillStyle}|w${t.lineWidth}|a${t.globalAlpha}|${t.globalCompositeOperation}`;
+  const ctx = new Proxy({}, {
+    get: (t, k) => (k === 'stroke' || k === 'fill' ? (p) => log.push({ c: String(k === 'stroke' ? t.strokeStyle : t.fillStyle), style: style(t, k), item: p && p.sig ? sigOf[p.sig] : null }) : k in t ? t[k] : k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : k === 'measureText' ? () => ({ width: 100 }) : () => {}),
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  const re = { ...e, ctx, text: (str, x, y, o = {}) => log.push({ c: String(o.color || ''), text: str }), roundRect: (x, y, w, h, r, fill, stroke) => { if (fill) log.push({ c: String(fill) }); if (stroke) log.push({ c: String(stroke) }); }, button: (label, cx, cy, o = {}) => { log.push({ c: String(o.fill || ''), text: label }); return e.button(label, cx, cy, o); } };
+  scene.render(ctx, re);
+  return log;
+}
+const RED = /255,\s*59,\s*71|#ff3b47/i;
+// Pulse-waiting bot: never reads a shape. It taps only items the screen draws with a red tell before they are flagged, once they are low on the screen.
+const pulseBot = () => {
+  const done = new Set();
+  return (E) => {
+    const red = new Set(recordRender(E).filter((r) => RED.test(r.c) && r.item).map((r) => r.item));
+    if (!red.size) return [];
+    const L = sim.layout(E), out = [];
+    for (const it of sim.onScreen(E)) if (red.has(it.name) && it.state === 0 && !done.has(it.id) && it.y >= L.top + 8) { done.add(it.id); out.push({ x: it.x, y: it.y }); }
+    return out;
+  };
+};
+
+// The four human models. A bag is read once it is fully below the hood and the previous bag is done. Reading takes
+// (base + perItem x items) x lognormal(0.3) + pair x overlapping pairs + look x look-alikes; then the bot taps what it found, `gap` s apart, with
+// Gaussian tap noise (px), mistaking each look-alike for contraband with probability pConf, and repeating a tap that flagged nothing.
+const MODELS = {
+  expert: { base: 0.28, perItem: 0.065, gap: 0.18, noise: 8, pConf: 0.02, pair: 0.03, look: 0.10 },
+  good: { base: 0.35, perItem: 0.09, gap: 0.22, noise: 8, pConf: 0.04, pair: 0.06, look: 0.17 },
+  average: { base: 0.45, perItem: 0.12, gap: 0.30, noise: 9, pConf: 0.08, pair: 0.09, look: 0.26 },
+  novice: { base: 0.60, perItem: 0.16, gap: 0.38, noise: 10, pConf: 0.12, pair: 0.12, look: 0.35 },
+};
+const humanBot = (seed, prm) => {
+  const rng = makeRng(seed ^ 0x5bd1e995);
+  let free = 0;
+  const plan = new Map();
+  return (E, t) => {
+    const S = sim.state(), L = sim.layout(E), out = [];
+    for (const b of S.bags) {
+      if (b.gone || plan.has(b.idx) || b.y < L.top / L.s - 2) continue;
+      const contraband = b.items.filter((i) => i.contraband), looks = b.items.filter((i) => i.def.confusable);
+      const scan = (prm.base + prm.perItem * b.items.length) * Math.exp(0.3 * gauss(rng)) + prm.pair * sim.overlaps(b) + prm.look * looks.length;
+      const start = Math.max(t, free), taps = [];
+      let k = 0;
+      for (const it of looks) if (rng() < prm.pConf) taps.push({ it, at: start + scan + k++ * prm.gap });
+      for (const it of contraband) taps.push({ it, at: start + scan + k++ * prm.gap });
+      free = start + scan + Math.max(0, k - 1) * prm.gap;
+      plan.set(b.idx, { taps, b });
+    }
+    const on = new Map(sim.onScreen(E).map((i) => [i.id, i]));
+    for (const { taps, b } of plan.values()) for (const tp of taps) {
+      if (tp.done || t < tp.at) continue;
+      const id = `${b.idx}:${b.items.indexOf(tp.it)}`, s = on.get(id);
+      if (tp.it.state !== 0 || b.gone) { tp.done = true; continue; }
+      if (s && s.y >= L.top + 4) { tp.tries = (tp.tries || 0) + 1; tp.at = t + 0.3; if (tp.tries >= 4) tp.done = true; out.push({ x: s.x + prm.noise * gauss(rng), y: s.y + prm.noise * gauss(rng) }); }
+    }
+    return out;
+  };
+};
+const humanRuns = (model, shift, n) => {
+  const h = { n, three: 0, clear: 0, strikes: 0, miss: 0, fa: 0, time: [] };
+  for (let k = 0; k < n; k++) {
+    const seed = seedOf(`human-${model}`, shift, k), r = run(shift, seed, 60, humanBot(seed, MODELS[model]));
+    if (r.r.stars === 3) h.three++;
+    if (r.r.result === 'clear') h.clear++;
+    h.strikes += r.r.strikes; h.miss += r.r.misses; h.fa += r.r.falseAlarms; h.time.push(r.time);
+  }
+  return h;
+};
+
+// Worker threads run the human-model table in parallel.
+if (!isMainThread) {
+  parentPort.postMessage(humanRuns(workerData.model, workerData.shift, workerData.n));
+  process.exit(0);
+}
+async function humanTable(n) {
+  const jobs = [];
+  for (const model of Object.keys(MODELS)) for (let shift = 1; shift <= SHIFTS; shift++) jobs.push({ model, shift, n });
+  const out = {}, workers = opt('--workers', Math.max(1, availableParallelism()));
+  let next = 0;
+  await Promise.all(Array.from({ length: workers }, async () => {
+    while (next < jobs.length) {
+      const job = jobs[next++];
+      const res = await new Promise((resolve, reject) => { const w = new Worker(new URL(import.meta.url), { workerData: job, argv: process.argv.slice(2) }); w.on('message', resolve); w.on('error', reject); });
+      (out[job.model] = out[job.model] || [])[job.shift - 1] = res;
+    }
+  }));
+  return out;
+}
 
 // ---------- 1. items ----------
 console.log('Items');
@@ -41,17 +215,21 @@ console.log(`  hit shape widths at 360x640 (narrowest width + 2 x ${T.hitMargin}
 for (const i of items) check(i.thin >= 16 && i.thin + 2 * T.hitMargin >= 44, `${i.name}: narrowest width ${f1(i.thin)}, hit shape ${f1(i.thin + 2 * T.hitMargin)} (needs 16 and 44)`);
 const inPoly = (px, py, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) c = !c; } return c; };
 for (const i of contra) check(i.shape.some((p) => inPoly(0, 0, p)), `${i.name}: centre is outside its outline`);
-for (const i of items) if (i.confusable) check(items.some((o) => o.name === i.confusable && o.contraband), `${i.name}: look-alike link ${i.confusable} is not contraband`);
+for (const i of items) if (i.confusable) {
+  const c = items.find((o) => o.name === i.confusable);
+  check(c && c.contraband, `${i.name}: look-alike link ${i.confusable} is not contraband`);
+  check(c && c.tint === i.tint, `${i.name} (${i.tint}) and its look-alike ${i.confusable} (${c && c.tint}) do not share a tint`);
+}
 console.log(`  look-alikes: ${items.filter((i) => i.confusable).map((i) => `${i.name}>${i.confusable}`).join(', ')}`);
 
 // ---------- 2. packing ----------
 console.log(`\nPacking, ${BAGS} bags per shift (${Math.ceil(BAGS / T.bagsPerShift)} seeds of ${T.bagsPerShift}); visibility measured on finer grids than packing used`);
-console.log(' shift  items  minArea  minOutline  clean  clean/shift  two-contra  look-alike bags  overlap (mean hidden area)');
+console.log(' shift  items  minArea  minOutline  clean  clean/shift  two-contra  look-alike bags  overlap (mean hidden area)  overlapping pairs/bag  metal-on-metal share');
 const packSeed = (shift, k) => hashString(`checkpoint-pack-${shift}-${k}`);
 for (let shift = 1; shift <= (BAGS > 0 ? SHIFTS : 0); shift++) {
   const [lo, hi] = T.itemsPerBag[shift - 1], pool = new Set(T.newContraband.slice(0, shift).flat());
   const rot = T.rotMax[shift - 1], maxC = T.maxContraband[shift - 1];
-  let n = 0, minArea = 1, minLine = 1, clean = 0, two = 0, conf = 0, itemsSum = 0, maxCl = 0, minCl = 99, contraBags = 0, hidSum = 0, hidN = 0;
+  let n = 0, minArea = 1, minLine = 1, clean = 0, two = 0, conf = 0, itemsSum = 0, maxCl = 0, minCl = 99, contraBags = 0, hidSum = 0, hidN = 0, pairs = 0, mm = 0;
   for (let k = 0; n < BAGS; k++) {
     const g = sim.genShift(packSeed(shift, k), shift);
     let cl = 0;
@@ -72,6 +250,7 @@ for (let shift = 1; shift <= (BAGS > 0 ? SHIFTS : 0); shift++) {
       if (hasConf) conf++;
       const opener = shift === T.opener.shift && bi === 0;
       if (T.confusableShare[shift - 1] === 0 && !opener) check(!hasConf, `${where}: look-alike in a shift that has none`);
+      for (const [a, b] of sim.overlapPairs(bag)) { pairs++; if (a.def.tint === 'metal' && b.def.tint === 'metal') mm++; }
       const area = sim.visibility(bag, 0.75, 0.31), line = sim.outlineVisibility(bag, 0.7, 0.3);
       minArea = Math.min(minArea, ...area); minLine = Math.min(minLine, ...line);
       for (const v of area) { hidSum += 1 - v; hidN++; }
@@ -91,143 +270,13 @@ for (let shift = 1; shift <= (BAGS > 0 ? SHIFTS : 0); shift++) {
   }
   const share = clean / n;
   check(share >= 0.4 && share <= 0.55, `shift ${shift}: clean share ${f3(share)} outside 0.40-0.55`);
-  console.log(`${pad(shift, 6)}  ${pad(f2(itemsSum / n), 5)}  ${pad(f3(minArea), 7)}  ${pad(f3(minLine), 10)}  ${pad(f3(share), 5)}  ${pad(`${minCl}-${maxCl}`, 11)}  ${pad(f2(two / Math.max(1, contraBags)), 10)}  ${pad(f2(conf / n), 15)}  ${pad(f3(hidSum / hidN), 8)}`);
+  console.log(`${pad(shift, 6)}  ${pad(f2(itemsSum / n), 5)}  ${pad(f3(minArea), 7)}  ${pad(f3(minLine), 10)}  ${pad(f3(share), 5)}  ${pad(`${minCl}-${maxCl}`, 11)}  ${pad(f2(two / Math.max(1, contraBags)), 10)}  ${pad(f2(conf / n), 15)}  ${pad(f3(hidSum / hidN), 8)}                     ${pad(f2(pairs / n), 5)}                 ${pad(pairs ? f2(mm / pairs) : '-', 5)}`);
+  if (pairs > 200) check(mm / pairs <= 0.2, `shift ${shift}: ${f2(mm / pairs)} of overlapping pairs are metal on metal (tangle bias should keep this rare)`);
 }
 
-// ---------- bots ----------
-const makeE = (w = 360, h = 640) => ({
-  w, h, time: 0, safe: { top: 0, bottom: 0, left: 0, right: 0 }, sounds: [], scene: null, params: null,
-  rng: makeRng(1),
-  save: { d: {}, get(k, d) { return k in this.d ? this.d[k] : d; }, set(k, v) { this.d[k] = v; return v; }, update(k, fn, d) { return this.set(k, fn(this.get(k, d))); } },
-  audio: { muted: false, play(n) { E.sounds.push(n); }, toggleMute() {} },
-  setScene(n, p) { this.scene = n; this.params = p; },
-});
-let E = makeE();
 
-// Runs one shift. policy(E, t) returns the taps [{x, y}] to deliver at the end of a frame; `script` replays recorded taps instead.
-function run(shift, seed, fps, policy, script, e = makeE()) {
-  E = e; E.scene = null; E.params = null;
-  play.enter(E, { shift, seed });
-  const S = sim.state(), dt = 1 / fps, taps = [];
-  let frame = 0, ti = 0;
-  while (!E.scene && frame < fps * 400) {
-    play.update(dt, E); frame++; E.time = frame * dt;
-    const t = Math.round(frame * dt * 1200) / 1200;
-    const list = script ? [] : policy(E, t);
-    if (script) while (ti < script.length && script[ti].t <= t + 1e-9) list.push(script[ti++]);
-    for (const p of list) { taps.push({ t, x: p.x, y: p.y }); play.onPointerDown({ x: p.x, y: p.y }, E); }
-  }
-  return { r: E.params, taps, S: { score: S.score, strikes: S.strikes, streak: S.streak, log: S.log.map((e) => JSON.stringify(e)).join('|') }, time: S.time, E };
-}
-const gauss = (rng) => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
-
-// Fast bot: taps each contraband centre the first frame it is below the HUD and in the top half.
-const centreBot = () => {
-  const done = new Set();
-  return (E) => {
-    const L = sim.layout(E), out = [];
-    for (const it of sim.onScreen(E)) if (it.contraband && it.state === 0 && !done.has(it.id) && it.y >= L.hud + 8 && it.cy <= L.H / 2) { done.add(it.id); out.push({ x: it.x, y: it.y }); }
-    return out;
-  };
-};
-// Late bot: taps contraband once it is `at` (60 or 70) percent down the screen, and lets exactly one contraband item through (one strike) from bag 7 on.
-const lateBot = (at) => {
-  const done = new Set();
-  let skipped = null;
-  return (E) => {
-    const L = sim.layout(E), S = sim.state(), out = [];
-    for (const it of sim.onScreen(E)) {
-      if (!it.contraband || it.state !== 0 || done.has(it.id) || it.y < L.hud + 8 || it.cy < at * L.H) continue;
-      if (skipped === null && Number(it.id.split(':')[0]) >= 6) { skipped = it.id; done.add(it.id); continue; }
-      done.add(it.id); out.push({ x: it.x, y: it.y });
-    }
-    return out;
-  };
-};
-const blindLateBot = () => {
-  const done = new Set();
-  return (E) => {
-    const L = sim.layout(E), out = [];
-    for (const it of sim.onScreen(E)) if (it.state === 0 && !done.has(it.id) && it.y >= L.hud + 8 && it.cy >= 0.85 * L.H) { done.add(it.id); out.push({ x: it.x, y: it.y }); }
-    return out;
-  };
-};
-const tapAllBot = () => {
-  const done = new Set();
-  return (E) => {
-    const L = sim.layout(E), out = [];
-    for (const it of sim.onScreen(E)) if (it.state === 0 && !done.has(it.id) && it.y >= L.hud + 8 && it.cy <= L.H / 2) { done.add(it.id); out.push({ x: it.x, y: it.y }); }
-    return out;
-  };
-};
-
-// A recording canvas, so the bots and the miss-cue test can see what the play scene draws: every stroke and fill with its colour and the
-// outline it was drawn for (identified by the outline's first point), and every text and rounded box colour.
-class Path2D { constructor() { this.sig = null; } moveTo(x, y) { if (!this.sig) this.sig = `${x},${y}`; } lineTo() {} closePath() {} }
-globalThis.Path2D = Path2D;
-const sigOf = Object.fromEntries(sim.ITEMS.map((i) => [`${i.shape[0][0][0]},${i.shape[0][0][1]}`, i.name]));
-function recordRender(e) {
-  const log = [];
-  const ctx = new Proxy({}, {
-    get: (t, k) => (k === 'stroke' || k === 'fill' ? (p) => log.push({ c: String(k === 'stroke' ? t.strokeStyle : t.fillStyle), item: p && p.sig ? sigOf[p.sig] : null }) : k in t ? t[k] : () => {}),
-    set: (t, k, v) => { t[k] = v; return true; },
-  });
-  const re = { ...e, ctx, text: (str, x, y, o = {}) => log.push({ c: String(o.color || ''), text: str }), roundRect: (x, y, w, h, r, fill, stroke) => { if (fill) log.push({ c: String(fill) }); if (stroke) log.push({ c: String(stroke) }); }, button() { return {}; } };
-  play.render(ctx, re);
-  return log;
-}
-const RED = /255,\s*59,\s*71|#ff3b47/i;
-// Pulse-waiting bot: never reads a shape. It taps only items the screen draws with a red tell before they are flagged, once they are low on the screen.
-const pulseBot = () => {
-  const done = new Set();
-  return (E) => {
-    const red = new Set(recordRender(E).filter((r) => RED.test(r.c) && r.item).map((r) => r.item));
-    if (!red.size) return [];
-    const L = sim.layout(E), out = [];
-    for (const it of sim.onScreen(E)) if (red.has(it.name) && it.state === 0 && !done.has(it.id) && it.y >= L.hud + 8) { done.add(it.id); out.push({ x: it.x, y: it.y }); }
-    return out;
-  };
-};
-
-// Human-model bot. Serial scanning: a bag is read once it is fully below the HUD and the last bag is done; reading takes
-// (base + perItem x items) x lognormal noise + occlusion and look-alike penalties; then the bot taps what it found, tapGap apart, with
-// 8 px Gaussian tap noise, mistakes each look-alike for contraband with probability pConf, and overlooks a partly hidden contraband item
-// on the first pass with probability overlook x hidden share (finding it lag seconds later).
-const HUMAN = { base: opt('--h-base', 0.45), perItem: opt('--h-item', 0.1), overlook: opt('--h-over', 0.4), lag: opt('--h-lag', 1.4), occl: opt('--h-occl', 0.8), conf: opt('--h-conf', 0.15), sigma: opt('--h-sigma', 0.3), tapGap: 0.3, pConf: opt('--h-pconf', 0.05), noise: 8 };
-const humanBot = (seed, prm = HUMAN) => {
-  const rng = makeRng(seed ^ 0x5bd1e995);
-  let free = 0;
-  const plan = new Map();
-  return (E, t) => {
-    const S = sim.state(), L = sim.layout(E), out = [];
-    for (const b of S.bags) {
-      if (b.gone || plan.has(b.idx) || b.y < L.hud / L.s - 2) continue;
-      const contraband = b.items.filter((i) => i.contraband), looks = b.items.filter((i) => i.def.confusable);
-      const occ = contraband.length ? Math.max(...contraband.map((i) => 1 - i.vis)) : 0;
-      const scan = (prm.base + prm.perItem * b.items.length) * Math.exp(prm.sigma * gauss(rng)) + prm.occl * occ + prm.conf * looks.length;
-      const start = Math.max(t, free), taps = [];
-      let k = 0;
-      for (const it of looks) if (rng() < prm.pConf) taps.push({ it, at: start + scan + k++ * prm.tapGap });
-      // a contraband item partly hidden may be overlooked on the first pass and found on a second look
-      for (const it of contraband) taps.push({ it, at: start + scan + k++ * prm.tapGap + (rng() < prm.overlook * (1 - it.vis) ? prm.lag * Math.exp(prm.sigma * gauss(rng)) : 0) });
-      free = start + scan + Math.max(0, k - 1) * prm.tapGap;
-      plan.set(b.idx, { taps, b });
-    }
-    const on = new Map(sim.onScreen(E).map((i) => [i.id, i]));
-    for (const { taps, b } of plan.values()) for (const tp of taps) {
-      if (tp.done || t < tp.at) continue;
-      const id = `${b.idx}:${b.items.indexOf(tp.it)}`, s = on.get(id);
-      if (tp.it.state !== 0 || b.gone) { tp.done = true; continue; }
-      if (s && s.y >= L.hud + 4) { tp.tries = (tp.tries || 0) + 1; tp.at = t + 0.3; if (tp.tries >= 4) tp.done = true; out.push({ x: s.x + prm.noise * gauss(rng), y: s.y + prm.noise * gauss(rng) }); } // a tap that flagged nothing is repeated
-    }
-    return out;
-  };
-};
-
-const seedOf = (tag, shift, k) => hashString(`checkpoint-${tag}-${shift}-${k}`);
-console.log(`\nBots through the play scene at 60 fps (fast, late, human: ${SEEDS}/${SEEDS}/${HUMANSEEDS} seeds per shift; the four failing bots ${Math.min(SEEDS, FAILSEEDS)})`);
+console.log(`\nBots through the play scene at 60 fps (fast, late: ${SEEDS} seeds per shift; the four failing bots ${Math.min(SEEDS, FAILSEEDS)})`);
 console.log(' shift  fast bot   late one-strike at 70%: score, ratio fast/late (mean, median)   at 60%: score, ratio   pulse-waiting  late-blind  tap-all  never');
-const curve = [];
 for (let shift = 1; shift <= SHIFTS; shift++) {
   const F = [], L = [], ratios = [], L6 = [], ratios6 = [];
   const over = { pulse: 0, blind: 0, all: 0, none: 0 };
@@ -247,27 +296,28 @@ for (let shift = 1; shift <= SHIFTS; shift++) {
   const nf = Math.min(SEEDS, FAILSEEDS);
   for (const [name, v] of Object.entries(over)) check(v === nf, `shift ${shift}: the ${name} bot cleared ${nf - v} of ${nf} shifts`);
   console.log(`${pad(shift, 6)}  ${pad(Math.round(mean(F)), 6)}     ${pad(Math.round(mean(L)), 6)}, ${f2(mean(ratios))} (${f2(median(ratios))})                                    ${pad(Math.round(mean(L6)), 6)}, ${f2(mean(ratios6))}          fails ${over.pulse}/${nf}    fails ${over.blind}/${nf}  fails ${over.all}/${nf}  fails ${over.none}/${nf}`);
-  const h = { three: 0, two: 0, clear: 0, strikes: 0, miss: 0, fa: 0, time: [] };
-  for (let k = 0; k < HUMANSEEDS; k++) {
-    if (args.includes('--shift') && Number(args[args.indexOf('--shift') + 1]) !== shift) break;
-    const seed = seedOf('human', shift, k), r = run(shift, seed, 60, humanBot(seed));
-    if (r.r.stars === 3) h.three++;
-    if (r.r.stars >= 2) h.two++;
-    if (r.r.result === 'clear') h.clear++;
-    h.strikes += r.r.strikes; h.miss += r.r.misses; h.fa += r.r.falseAlarms; h.time.push(r.time);
-  }
-  curve.push({ shift, ...h });
-}
-console.log(`\nHuman-model bot (scan ${HUMAN.base} s + ${HUMAN.perItem} s per item, lognormal ${HUMAN.sigma}, ${HUMAN.noise} px tap noise, ${HUMAN.pConf} look-alike mistake, overlook ${HUMAN.overlook} x hidden share then ${HUMAN.lag} s), ${HUMANSEEDS} seeds per shift`);
-console.log(' shift  three stars  two+ stars  cleared  mean strikes (missed / false alarms)  mean length');
-for (const c of curve) console.log(`${pad(c.shift, 6)}  ${pad(Math.round((100 * c.three) / HUMANSEEDS) + '%', 11)}  ${pad(Math.round((100 * c.two) / HUMANSEEDS) + '%', 10)}  ${pad(Math.round((100 * c.clear) / HUMANSEEDS) + '%', 7)}  ${pad(f2(c.strikes / HUMANSEEDS), 12)} (${f2(c.miss / HUMANSEEDS)} / ${f2(c.fa / HUMANSEEDS)})  ${pad(f1(mean(c.time)) + ' s', 10)}`);
-for (const c of curve.filter((c) => c.shift <= 3)) check(c.three / HUMANSEEDS >= 0.8, `shift ${c.shift}: the human-model bot got three stars only ${c.three} of ${HUMANSEEDS} times`);
-{
-  const c10 = curve[SHIFTS - 1], p = c10.three / HUMANSEEDS;
-  check(p >= 0.25 && p <= 0.7, `shift 10: the human-model bot got three stars ${Math.round(p * 100)} percent of the time, target about half`);
 }
 
-if (args.includes('--curve-only')) process.exit(0);
+// ---------- the human models ----------
+const table = await humanTable(HUMANSEEDS);
+console.log(`\nHuman models, ${HUMANSEEDS} seeds per cell. Cleared / three stars, percent (mean strikes: missed + false alarms)`);
+for (const m of Object.keys(MODELS)) {
+  const p = MODELS[m];
+  console.log(` ${m} (read ${p.base} + ${p.perItem}/item, tap gap ${p.gap}, noise ${p.noise} px, look-alike mistake ${p.pConf}, +${p.pair}/overlap +${p.look}/look-alike)`);
+  console.log('   shift   cleared  three stars  strikes (missed + false)  mean length');
+  table[m].forEach((c, i) => console.log(`   ${pad(i + 1, 5)}   ${pad(Math.round((100 * c.clear) / c.n) + '%', 6)}   ${pad(Math.round((100 * c.three) / c.n) + '%', 10)}   ${pad(f2(c.strikes / c.n), 6)} (${f2(c.miss / c.n)} + ${f2(c.fa / c.n)})           ${pad(f1(mean(c.time)) + ' s', 7)}`));
+}
+const rate = (m, shift, k) => table[m][shift - 1][k] / table[m][shift - 1].n;
+for (let shift = 1; shift <= SHIFTS; shift++) check(rate('average', shift, 'clear') >= 0.6, `shift ${shift}: the average reader clears only ${Math.round(100 * rate('average', shift, 'clear'))} percent (needs 60)`);
+check(rate('average', SHIFTS, 'three') >= 0.2, `shift 10: the average reader three-stars only ${Math.round(100 * rate('average', SHIFTS, 'three'))} percent (needs 20)`);
+for (let shift = 1; shift <= 6; shift++) check(rate('novice', shift, 'clear') >= 0.6, `shift ${shift}: the novice clears only ${Math.round(100 * rate('novice', shift, 'clear'))} percent (needs 60)`);
+for (const rush of T.rush) {
+  const neigh = [rush - 1, rush + 1].filter((n) => n >= 1 && n <= SHIFTS).map((n) => rate('good', n, 'three'));
+  const dip = 100 * (mean(neigh) - rate('good', rush, 'three'));
+  console.log(`Rush shift ${rush}: the good reader three-stars ${Math.round(100 * rate('good', rush, 'three'))} percent, ${f1(dip)} points below its neighbours' ${Math.round(100 * mean(neigh))} (target 10 to 20)`);
+  check(dip >= 6 && dip <= 30, `rush shift ${rush}: the good reader's three-star dip is ${f1(dip)} points (target 10 to 20)`);
+}
+if (args.includes('--curve-only')) process.exit(failed ? 1 : 0);
 // ---------- the miss cue ----------
 console.log('\nMiss cue');
 {
@@ -290,6 +340,113 @@ console.log('\nMiss cue');
   check(redBefore === 0, `red was drawn ${redBefore} frames before the first strike`);
   check(ghost === 1 && label && redAfter >= 30, `the ghost cue after the strike is missing (ghosts ${ghost}, label ${label}, red frames ${redAfter})`);
   console.log(`  frames drawn with red before the first strike: ${redBefore}; after it: ${redAfter} of 90, ghost outline ${ghost ? 'yes' : 'no'}, "Missed" label ${label ? 'yes' : 'no'}`);
+}
+
+// ---------- the render is item-neutral ----------
+console.log('\nRender neutrality');
+{
+  check(Object.keys(sigOf).length === sim.ITEMS.length, `outline signatures are not unique (${Object.keys(sigOf).length} of ${sim.ITEMS.length})`);
+  const seen = new Map(), tints = { contra: new Set(), harmless: new Set() };
+  for (const shift of [3, 8]) {
+    E = makeE(); play.enter(E, { shift, seed: hashString(`checkpoint-neutral-${shift}`) });
+    for (let f = 0; f < 60 * 4; f++) {
+      play.update(1 / 60, E); E.time += 1 / 60;
+      if (f % 20) continue;
+      const runs = []; let cur = null;
+      for (const r of recordRender(E)) { if (!r.item) { cur = null; continue; } if (!cur || cur.item !== r.item) { cur = { item: r.item, styles: [] }; runs.push(cur); } cur.styles.push(r.style); }
+      for (const run1 of runs) {
+        const def = sim.ITEMS.find((i) => i.name === run1.item), key = def.tint, sig = run1.styles.join(';');
+        if (!seen.has(key)) seen.set(key, new Map());
+        seen.get(key).set(sig, (seen.get(key).get(sig) || 0) + 1);
+        (def.contraband ? tints.contra : tints.harmless).add(key);
+      }
+    }
+  }
+  for (const [tint, sigs] of seen) check(sigs.size === 1, `${tint}: ${sigs.size} different draw styles for unflagged items (a contraband and a harmless item must draw the same)`);
+  check(tints.contra.size > 0 && tints.harmless.size > 0 && [...tints.contra].some((t) => tints.harmless.has(t)), 'the neutrality test never saw a contraband and a harmless item of one tint');
+  console.log(`  unflagged items draw with one style per tint (${[...seen].map(([t, m]) => `${t}: ${[...m.values()][0]} draws`).join(', ')}); contraband tints seen ${[...tints.contra].join('/')}, harmless ${[...tints.harmless].join('/')}`);
+}
+
+// ---------- juice: every event answers the way the PRD says ----------
+console.log('\nJuice');
+{
+  const J = T.juice;
+  const fast = run(5, seedOf('juice', 5, 0), 60, centreBot()), e = fast.E, S0 = sim.state();
+  const catches = S0.log.filter((x) => x.e === 'catch'), bigs = catches.filter((x) => x.pts >= J.bigCatch).length;
+  check(fast.r.result === 'clear', 'the juice run did not clear');
+  check(e.haptics.filter((h) => h === J.haptic.catch).length === catches.length && e.haptics.includes(J.haptic.clear) && e.haptics.every((h) => h === J.haptic.catch || h === J.haptic.clear), `haptics on a clean run should be ${J.haptic.catch} ms per catch and ${J.haptic.clear} ms at the clear only (got ${[...new Set(e.haptics)]})`);
+  check(e.sounds.filter((x) => x === 'hit').length === catches.length && e.sounds.filter((x) => x === 'win').length === 1 && !e.sounds.includes('lose') && !e.sounds.includes('miss'), 'sounds on a clean run should be hit per catch and one win');
+  check(e.shakes === bigs, `small hits must not shake: ${e.shakes} shakes for ${bigs} big catches`);
+  const steps = e.beeps.filter((b) => b.type === J.tones.step.type && b.dur === J.tones.step.dur);
+  check(steps.length === T.streakSteps.length && steps.every((b, i) => i === 0 || b.freq > steps[i - 1].freq), `the streak steps should give ${T.streakSteps.length} rising tones (got ${steps.map((b) => Math.round(b.freq))})`);
+  check(e.beeps.filter((b) => b.dur === J.tones.pass[0].dur && b.freq === J.tones.pass[0].freq).length === S0.passes, 'a soft chime per clean pass');
+  const hum = e.beeps.filter((b) => b.dur === J.hum.every * 1.6);
+  const hz = hum.map((b) => b.freq);
+  check(hum.length > 100 && hz.every((f, i) => i === 0 || f >= hz[i - 1]) && hz[hz.length - 1] > hz[0], `the belt hum should rise with the streak (${hum.length} pulses, ${Math.round(hz[0])} to ${Math.round(hz[hz.length - 1])} Hz)`);
+  check(e.particles.list.length <= J.particleCap, `particle cap exceeded: ${e.particles.list.length}`);
+  check(S0.stamp && S0.stamp.text === 'CLEARED' && S0.bags.filter((b) => b.shown).length === Math.ceil(T.bagsPerShift / T.burst.size), `the CLEARED stamp and one RUSH banner per burst (${S0.bags.filter((b) => b.shown).length} bursts shown)`);
+  console.log(`  clean run, shift 5: ${catches.length} catches (${bigs} big, ${e.shakes} shakes), haptics ${[...new Set(e.haptics)].join('/')} ms, hum ${Math.round(hz[0])} to ${Math.round(hz[hz.length - 1])} Hz over ${hum.length} pulses, ${steps.length} streak tones, stamp ${S0.stamp.text}`);
+
+  const none = run(3, seedOf('juice', 3, 1), 60, () => []), en = none.E, Sn = sim.state();
+  check(en.haptics.length === 3 && en.haptics.every((h) => h === J.haptic.miss) && en.sounds.filter((x) => x === 'lose').length === 1 && !en.sounds.includes('win'), `three misses should give three ${J.haptic.miss} ms buzzes and one lose (got ${en.haptics}, ${en.sounds})`);
+  check(en.beeps.filter((b) => b.freq === J.tones.miss.freq).length === 3 && Sn.stamp.text === 'SHIFT OVER' && en.shakes === 4, `misses: low buzz x3, SHIFT OVER stamp, 3 miss shakes and one for the stamp (got ${en.shakes} shakes)`);
+  const all = run(3, seedOf('juice', 3, 2), 60, tapAllBot()), ea = all.E, Sa = sim.state();
+  check(Sa.falseAlarms > 0 && ea.haptics.filter((h) => h === J.haptic.falseAlarm).length === Sa.falseAlarms && ea.sounds.filter((x) => x === 'miss').length === Sa.falseAlarms, 'each false alarm gives the buzzer and 30 ms');
+  console.log(`  never-tap run: haptics ${en.haptics.join('/')} ms, low buzz x3, lose, ${en.shakes} shakes; tap-all run: ${Sa.falseAlarms} false alarms with buzzer and ${J.haptic.falseAlarm} ms each`);
+}
+{
+  // Catching the last contraband slides the bag into the tray; it takes no taps after that.
+  E = makeE(); play.enter(E, { shift: 3, seed: 7 });
+  const S = sim.state(), bag = S.bags.find((b) => b.kind === 'contra');
+  bag.y0 = 100 - S.dist; bag.y = 100;
+  const k = bag.items.find((i) => i.contraband), h = bag.items.find((i) => !i.contraband);
+  play.onPointerDown({ x: 30 + k.x, y: 100 + k.y }, E);
+  check(bag.trayT === 0 && k.state === 1, 'the last catch should start the tray slide');
+  play.onPointerDown({ x: 30 + h.x, y: 100 + h.y }, E);
+  check(h.state === 0 && S.strikes === 0, 'a bag in the tray must take no taps');
+  for (let i = 0; i < 60; i++) { play.update(1 / 60, E); E.time += 1 / 60; }
+  check(bag.trayT >= T.juice.tray, 'the tray slide should finish');
+  console.log(`Tray: last catch starts the slide (trayT ${bag.trayT.toFixed(2)} s after a second), later taps on the bag do nothing`);
+}
+{
+  // The card: no buttons during the beat, then Retry reuses the seed and Next does not.
+  const e = makeE(); e.time = 5;
+  const r = { shift: 4, seed: 12345, result: 'clear', score: 999, strikes: 0, stars: 3, best: 999, isNew: true };
+  game.scenes.over.enter(e, r);
+  recordRender(e, game.scenes.over);
+  game.scenes.over.onTap({ x: e.w / 2, y: e.h * 0.6 }, e);
+  check(!e.scene, 'a tap during the card beat must not press a button');
+  e.time = 5 + T.juice.cardButtons + 0.5; recordRender(e, game.scenes.over);
+  game.scenes.over.onTap({ x: e.w / 2, y: e.h * 0.6 + 68 }, e);
+  check(e.scene === 'play' && e.params.seed === 12345 && e.params.shift === 4, `Retry should replay shift 4 with seed 12345 (got ${e.scene} ${JSON.stringify(e.params)})`);
+  e.scene = null; game.scenes.over.onTap({ x: e.w / 2, y: e.h * 0.6 }, e);
+  check(e.scene === 'play' && e.params.shift === 5 && e.params.seed === undefined, 'Next should start shift 5 with a fresh seed');
+  console.log('Card: buttons appear after the beat; Retry reuses the seed, Next starts fresh');
+}
+{
+  // Save v2: unlocked derives from the stars, and is clamped.
+  const m = (d) => game.migrate(d, 1).unlocked;
+  check(m({ shifts: { 1: { stars: 3 }, 2: { stars: 1 }, 4: { stars: 2 } }, unlocked: 999 }) === 5, 'migrate should unlock one past the highest starred shift');
+  check(m({ unlocked: 999 }) === 1 && m({}) === 1 && m({ shifts: { 10: { stars: 1 } } }) === 10, 'migrate with no stars unlocks shift 1; a starred shift 10 stays at 10');
+  const cl = [['x', 1], [0, 1], [-3, 1], [99, 10], [4.7, 4], [NaN, 1], ['3', 3], [undefined, 1]];
+  for (const [v, want] of cl) check(sim.clampUnlocked(v) === want, `clampUnlocked(${v}) should be ${want}`);
+  check(game.saveVersion === 2, 'saveVersion should be 2');
+  const e = makeE(); e.save.set('unlocked', 'garbage');
+  const rr = run(1, 5, 60, () => [], null, e);
+  check(rr.r.unlocked === 1, `a garbage unlocked value should read as 1 (result says ${rr.r.unlocked})`);
+  console.log('Save: v1 saves migrate (unlocked = highest starred shift + 1), unlocked is clamped to 1 to 10 on read');
+}
+{
+  // Rush hour comes in bursts at the normal average rate.
+  for (const shift of [4, 5, 10]) {
+    E = makeE(); play.enter(E, { shift, seed: 3 });
+    const S = sim.state(), gaps = S.bags.slice(1).map((b, i) => S.bags[i].y0 - b.y0 - T.bagH);
+    const avg = mean(gaps), rush = T.rush.includes(shift);
+    const pattern = gaps.map((g, i) => ((i + 1) % T.burst.size === 0 ? 'L' : 's') + (Math.abs(g - (rush ? ((i + 1) % T.burst.size === 0 ? T.burst.size * T.bagGap - (T.burst.size - 1) * T.burst.gapIn : T.burst.gapIn) : T.bagGap)) < 1e-6 ? '' : '!')).join('');
+    check(!pattern.includes('!'), `shift ${shift}: bag gaps are wrong (${gaps.map(Math.round)})`);
+    check(Math.abs(avg - T.bagGap) < 4, `shift ${shift}: average gap ${f1(avg)} should stay near ${T.bagGap}`);
+    console.log(`  shift ${shift}${rush ? ' (rush)' : ''}: gaps ${gaps.slice(0, 7).map(Math.round).join(' ')} ..., average ${f1(avg)}`);
+  }
 }
 
 // ---------- determinism ----------

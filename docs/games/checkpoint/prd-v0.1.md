@@ -157,3 +157,7 @@ Section 16 now also holds, as built: `bagH` 260 and `bagGap` 64 (so shift 10 las
 4. Tangles: a contraband item's overlap partners are biased toward the other tint, so metal-on-metal knots are rare.
 5. Look-alike pairs share a tint (the toothbrush and belt become metal-tinted items, or their partners change).
 6. Retry reuses the shift's seed; Next and a fresh start use a new one.
+
+## Adopted after v3 (2026-09-30)
+
+Belt speeds are now 70, 75, 80, 85, 90, 90, 95, 100, 105, 95 by shift (difficulty moved into clutter and look-alikes); rush shifts 5 and 10 deliver bags in bursts of three at the same average pitch. Toothbrush and belt are metal-tinted so every look-alike pair shares a tint. The engine has no sustained oscillator, so the belt hum is built from overlapping short tones (a candidate engine ADR later).
