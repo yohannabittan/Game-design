@@ -41,3 +41,7 @@ All in `TUNING` or the challenge entries: plate hp, plate reveal interval, decoy
 ## E. Out of scope
 
 New guns, handling changes, new skins beyond Bronze, a second gauntlet, sound changes. The rifle's damage stays 3.
+
+## Amendment after the build (2026-09-29, late)
+
+The rifle-niche rule in section A ("the rifle's three-star must be out of the pistol's reach") cannot hold under per-shot scoring: the gun that fires more shots always out-scores a stronger one (pistol centred maximum 9750 in 27 shots, rifle 2550 in 9). Plate hp 4 makes it worse and ends the rifle's one-shot plates. Plate hp stays 3 and stars are per gun from centred maxima. The rifle's niche in v0.4 is therefore the one-shot plate, the shortest perfect path (10.7 s against the pistol's 14.9 s) and the rifle-gated Sniper badge, not a score the pistol cannot match. Whether that is enough is the designer's call; it is experiment REC-4 in docs/plans/2026-09-30-experiments.md. If not, the v0.5 answer is a scoring rule that pays per plate rather than per hit, or a Boss 2 timer set from the rifle's path.

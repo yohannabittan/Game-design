@@ -106,7 +106,7 @@ Note:
 
 Decision rule: the shotgun should win Horde and lose Clay. If it loses both, its spread tightens (a tuning change, no PRD). If it wins both, the centre-pellet rule stays and clays get smaller.
 
-### REC-3. Skins (pending: skins build in flight)
+### REC-3. Skins (ready)
 
 Why: skins are the first unlockable and they are earned by badges only.
 
@@ -117,6 +117,18 @@ Note:
 2. Did the skin show everywhere you expected (menu tile, card, in play)?
 
 Decision rule: this is a look-and-feel check, not a tuning one. Anything you could not find in ten seconds is a finding.
+
+### REC-4. Is Boss 2 the rifle's boss (ready)
+
+Why: Boss 2 "Bunker" has six 3-hp plates. The rifle one-shots a plate, the pistol needs three centred hits. Stars are per gun, and the build found that per-shot scoring means the pistol's maximum is always higher than the rifle's, so the rifle's niche is speed and feel, not score.
+
+No preset. Play: Boss 2 with the rifle twice, then with the pistol twice, then with the shotgun once.
+
+Note:
+1. Stars and time left on each run (the card shows both).
+2. Which gun did you want to bring back to it?
+
+Decision rule: if the rifle was the gun you wanted, the design holds and the Sniper badge stays rifle-gated. If the pistol felt strictly better, v0.5 changes Boss 2 scoring to pay per plate broken rather than per hit, or sets its timer from the rifle's path.
 
 ## After the session
 
