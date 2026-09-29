@@ -3,7 +3,7 @@
     "slug": "gravity-golf",
     "title": "Gravity Golf",
     "status": "v0.5: fifteen holes with planets, suns, comets and black holes; missions, ball skins, gravity presets; influence ring and ghost",
-    "release": false
+    "release": true
   },
   {
     "slug": "ink",

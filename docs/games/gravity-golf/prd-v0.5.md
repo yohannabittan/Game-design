@@ -8,6 +8,16 @@ Status: locked 2026-09-30. Builds on v0.4. Source: the designer's second playtes
 - Run counter: during a full run the HUD shows "Run: 14 strokes" and, on the missions screen, Under Par shows "best run 31, need 29 or fewer". Never Landed shows a live mark on the HUD during a run ("no landings yet" turning to "landed on hole 4") and its missions tile says exactly what counts: resting on a planet or moon at any point in the run.
 - Rule for every badge: its tile shows progress toward it (a count, a best, or the hole where it was lost).
 
+## A2. From the v15 gate (build with B)
+
+- The card's Retry ends a full run while the HUD's Retry keeps it: say so on the card button when a run is live ("Retry (ends run)"), or make the card Retry keep the run too; pick keeping the run.
+- The first-run hint shows until the first shot is released (not on a timer), and a drag under the cancel threshold shows a short "Drag further" call-out.
+- A ball resting on a planet that has been shot three times without leaving it shows "More power to leave the planet" once per hole.
+- The Run counter and landed mark appear only after hole 1 is finished (a run is a thing only once the player has chained a hole); the first landing that breaks Never Landed shows a one-line toast.
+- Hole 5 (boss) sinks for a noisy human 70.7 percent of the time on the route, the worst after D0: widen its drag window to at least 25 px with the boss lesson kept.
+- The hole 15 route's first shot is clock-sensitive (released within 0.02 s of clock 0): make shot 1 clock-free (a landing that works at any clock), keeping shots 2 and 3 timed.
+- Cosmetics: the Never Landed progress line's orphan wrap, `landedOn=0` in the ledger reads "none", the file header, a stray TUNING comment.
+
 ## B. Suns have mass
 
 A sun pulls like a planet of mass `sunMass` (default 1.6, above the heaviest planet's 1.2 and below the black hole's 1.4 pull at its floor; tune so the whip past a sun is felt but never captures), with the distance floored at `sunPullR`. Touching still costs a stroke. Every sun hole (6, 9, 10, 14) re-proved with --three, --sweep, --escape, --two-shot and --windows; routes re-authored where the pull breaks them; the soft-shot sweep on hole 6 re-run.

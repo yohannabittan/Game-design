@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'recoil-release-v1.1';
+const CACHE_VERSION = 'gravity-golf-release-v1.1';
 const ASSETS = [
   './',
   './index.html',
