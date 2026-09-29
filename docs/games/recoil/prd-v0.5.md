@@ -65,3 +65,27 @@ Rule change:
 - Badges read per-gun stars: Boss Killer, the Wrong Tool set, Sniper as before; Legend becomes three stars on every challenge with any gun; a new Gold badge "Arsenal" for three stars on every challenge with every gun.
 - Migration (save v7): each old best becomes the pistol's entry, except boss bests where `bossGuns` names the gun; per-gun unlocks are derived from those entries; badges are never revoked; the star-bar preset is kept.
 - Section B, D and A behaviours unchanged. The stats card (C) shows that gun's rung count ("9 of 15 rungs at two stars or better").
+
+## L. Zombies v2 (from the 2026-09-30 third session)
+
+Findings: brains all at one height made the mode too easy (no vertical aim); zombies too slow; hitting anything but the brain should break the multiplier; speed and health should climb over time.
+
+- Types, each a data entry with head height, speed, part hp and a silhouette: Shambler (standard, head high-mid), Runner (1.6x speed, head bobbing by 20 units), Crawler (starts on the ground, brain low, 0.7x speed), Brute (tall, body 5 hp, head at the top of the field band, 0.8x speed), Hunched (head at chest height, the body shields the brain until the body is down). Four distinct brain heights across the set.
+- Base speeds up by 1.4x. Fixed rungs mix at least three types from Zombies 2 on. Endless: every wave raises speed 4 percent and part hp by 1 every third wave, and the type mix widens with the wave number.
+- Headshot chain: only a brain hit advances the multiplier; a legs or body hit keeps the multiplier (it does not step it) and a miss resets it. Amend: per the designer, a hit on anything but the brain resets the multiplier to x1. Legs and body still pay their points.
+- Bars regenerated with the section A bots per gun for the three rungs; Endless keeps no stars.
+
+## M. Reload (all modes)
+
+Every gun has a magazine and a reload time. Empty triggers an automatic reload; a Reload button (44 px, above the fire zone on the right thumb's side) reloads early; a ring on the gun and a text cue show progress; firing during a reload does nothing and shows the dropped-tap cue.
+
+| Gun | Magazine | Reload | Note |
+| --- | --- | --- | --- |
+| Pistol | 12 | 1.0 s | |
+| Carbine | 30 | 1.6 s | |
+| Shotgun | 6 | 2.2 s | shell by shell (0.37 s each), a fire tap interrupts and fires what is loaded |
+| Rifle | 5 | 1.8 s | |
+| SMG | 24 | 1.4 s | |
+| Revolver | 6 | 2.4 s | |
+
+Ammo per challenge stays as it is (Accuracy rungs keep their round counts; the magazine is how many can be fired before a reload). Perfect paths, timers and star bars are regenerated with reloads in; the report states, per rung, where the perfect path reloads. Reload time and magazine sizes are in TUNING. Ledger `result` gains `reloads`.
