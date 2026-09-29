@@ -35,9 +35,13 @@ if (!folders.length) {
 
 const browser = await chromium.launch();
 let failed = 0;
+let meta = [];
+try { meta = JSON.parse(await readFile(join(ROOT, 'games', 'index.json'), 'utf8')); } catch {}
 for (const folder of folders) {
   const errors = [];
-  const ctx = await browser.newContext({ ...devices['iPhone 13'], serviceWorkers: 'allow' });
+  const slug = folder.replace(/^games\//, '');
+  const landscape = (meta.find((g) => g.slug === slug) || {}).orientation === 'landscape';
+  const ctx = await browser.newContext({ ...(landscape ? devices['iPhone 13 landscape'] : devices['iPhone 13']), serviceWorkers: 'allow' });
   const page = await ctx.newPage();
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
@@ -56,7 +60,7 @@ for (const folder of folders) {
     const sw = await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return !!r; });
     const saved = await page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('game:')));
     const frames = await page.evaluate(() => window.__engine.frame);
-    const notes = [`frames=${frames}`, `scene ${before}→${after}`, `sw=${sw}`, `save=${saved}`];
+    const notes = [`frames=${frames}`, `scene ${before}→${after}`, `sw=${sw}`, `save=${saved}`, landscape ? 'landscape' : 'portrait'];
     if (!sw) errors.push('service worker did not register');
     if (errors.length) { failed++; console.log(`FAIL ${folder}  ${notes.join('  ')}\n  - ${errors.join('\n  - ')}`); }
     else console.log(`ok   ${folder}  ${notes.join('  ')}`);
