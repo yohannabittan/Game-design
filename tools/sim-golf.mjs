@@ -58,12 +58,13 @@ if (flag('--index')) {
   sim.prepareLevel(lv);
 }
 
-// Bodies that pull: planets with mass, moons and black holes. Distances are from the ball centre to the body's surface
+// Bodies that pull: planets with mass, moons, black holes and suns. Distances are from the ball centre to the body's surface
 // (a black hole's horizon). The escape sweep skips black holes: they have no surface to rest on.
 const bodies = [
   ...lv.planets.map((p, i) => ({ label: `planet ${i}`, r: p.r, at: () => p, planet: i })).filter((b, i) => lv.planets[i].mass > 0),
   ...lv.movers.map((m, i) => ({ m, i })).filter((o) => o.m.type === 'moon').map(({ m, i }) => ({ label: `moon (mover ${i})`, r: m.r, at: (c) => sim.moonAt(lv, m, c), mover: i })),
   ...lv.blackholes.map((h, i) => ({ label: `black hole ${i}`, r: h.r, at: () => h, bh: i })),
+  ...lv.suns.map((s, i) => ({ label: `sun ${i}`, r: s.r, at: () => s, sun: i })), // PRD v0.5 B: suns pull; a ball pressed against one can rest there
 ];
 
 // ---------- One flight, exactly as the play scene runs it ----------
@@ -274,6 +275,7 @@ if (flag('--three')) {
   ran.any = true;
   // A route is one or more shots separated by '/', each DX,DY[,CLOCK], each played from where the previous one rests.
   const route = String(value('--three')).split('/').map((sh) => { const [dx, dy, c = 0] = nums(sh, '--three shot', 2); return { dx, dy, c }; });
+  route.forEach((sh, n) => { if (!sim.launchFromDrag(sh.dx, sh.dy)) die(`shot ${n + 1} of the route is inside the dead zone (shorter than dragDead)`); });
   const play = (shots, dts) => {
     let b = sim.newBall(lv.ball.x, lv.ball.y), strokes = 0, last = null;
     for (const sh of shots) {
