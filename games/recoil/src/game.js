@@ -70,7 +70,7 @@ const TUNING = {
     rifle: { id: 'rifle', job: 'One-shots plates; long waits and sway matter most.', name: 'Marksman rifle', short: 'Rifle', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 2.0, auto: false },
   },
   shotSpread: 10,        // v0.3: total fan angle of the shotgun's five pellets, degrees
-  unlockPoints: [0, 60, 150, 300], // v0.3: points needed per gun, in GUN_IDS order
+  unlockBadges: { carbine: 'marksman1', shotgun: 'quickdraw1', rifle: 'clay1' }, // v0.5 K: the badge that unlocks each gun (the pistol is always open)
 
   // Additions, not in the PRDs.
   swayWindow: 0.05,      // Seconds over which the gun's speed is measured for sway
@@ -86,7 +86,7 @@ const TUNING = {
   barrelLen: 40,         // Barrel length; the tip sits on gunLineX at zero angle
   startGunY: 180,        // Gun height at the start of a challenge
   keyMoveSpeed: 200,     // Keyboard fallback: gun units per second
-  unlockStars: 1,        // Stars on a level that unlock the next in its ladder
+  unlockStars: 2,        // Stars a gun needs on a rung to open the next rung of its ladder for that gun
   starPoints: [0, 10, 25, 50], // Points by best star count
   tracerLife: 0.15,      // Seconds a tracer takes to fade
   flashLife: 0.07,       // Seconds a muzzle flash shows
@@ -244,66 +244,66 @@ const GAUNTLET = ['a2', 's2', 'k2', 'b1'];
 // approach, weave, horde (Speed). speedMul scales approachSpeed (Speed 1, 2, 3 = 60, 80, 100 at the default tuning).
 // Skeet: launches at skeetEvery seconds, angle range in degrees, skeetMul scales skeetSpeed, pair launches two at once.
 // Boss: parts in order, then the core (coreScale, coreBull scale the core and its bullseye).
-// Stars (PRD v0.5 A): the bars come from BARS, the scores of noisy bots with the challenge's `bestGun` (per gun on the bosses), read at the noise TUNE sets. The
-// perfect-run score in each comment is the ceiling every bar sits under (starCap).
+// Stars (PRD v0.5 A and K): the bars come from BARS, the scores of noisy bots with each gun, read at the noise TUNE sets. The perfect-run score in each comment is
+// the pistol's, the ceiling its bars sit under (starCap); another gun has its own perfect run and bars.
 const CHALLENGES = [
   { // Teaches the kick: the second quick shot sails high. Perfect run 2150.
-    id: 'a1', bestGun: 'pistol', ladder: 'accuracy', level: 1, name: 'Accuracy 1', seed: 41001, behaviour: 'still',
+    id: 'a1', ladder: 'accuracy', level: 1, name: 'Accuracy 1', seed: 41001, behaviour: 'still',
     accTargets: 8, accAmmo: 12, scale: 1.3, x: [370, 430], yBand: [0.15, 0.9], minDy: 50,
   },
   { // Teaches tip 2: nudge down as you fire. Perfect run 2950.
-    id: 'a2', bestGun: 'pistol', ladder: 'accuracy', level: 2, name: 'Accuracy 2', seed: 41002, behaviour: 'still',
+    id: 'a2', ladder: 'accuracy', level: 2, name: 'Accuracy 2', seed: 41002, behaviour: 'still',
     accTargets: 10, accAmmo: 13, scale: 1.0, x: [300, 560], yBand: [0, 1], minDy: 70,
   },
   { // Teaches tip 5: every third target is high and the one before it low (the rest sit mid-height), so every change is at least
     // minDy and the kick can carry the barrel to the high ones. Perfect run 3750.
-    id: 'a3', bestGun: 'pistol', ladder: 'accuracy', level: 3, name: 'Accuracy 3', seed: 41003, behaviour: 'still',
+    id: 'a3', ladder: 'accuracy', level: 3, name: 'Accuracy 3', seed: 41003, behaviour: 'still',
     accTargets: 12, accAmmo: 14, scale: 0.8, x: [520, 612], yBand: [0.35, 0.6], minDy: 70,
     high: { every: 3, band: [0, 0.2], before: [0.6, 1] },
   },
   { // Dodgers: a shot near a flickering target makes it jump, so fire once to make it jump, then again at where it landed. Perfect run 2950.
-    id: 'a4', bestGun: 'pistol', ladder: 'accuracy', level: 4, name: 'Accuracy 4', seed: 41004, behaviour: 'dodge',
+    id: 'a4', ladder: 'accuracy', level: 4, name: 'Accuracy 4', seed: 41004, behaviour: 'dodge',
     accTargets: 10, accAmmo: 24, scale: 0.9, x: [400, 600], yBand: [0, 1], minDy: 70,
   },
   { // v0.4. Small far targets: the dodgers of Accuracy 4 (fire once to make it jump, then again where it landed) and every third target a flip
     // target that shows for flipWindow seconds and turns away, a miss costing nothing but the window. Tests sway control and the first shot.
     // Naked run: the pistol's kick recovery (0.25 s) is inside the window. Perfect run 3750 (twelve bullseyes). Windows by the perfect-path rule: the flip window
     // is 1.5 times the slowest flip target on a keyboard-speed perfect path (0.97 s, gun travelling at keyMoveSpeed), accLife 4 s is 2.25 times the slowest dodger (1.78 s).
-    id: 'a5', bestGun: 'pistol', ladder: 'accuracy', level: 5, name: 'Accuracy 5', seed: 41005, behaviour: 'dodge', needStars: 2,
+    id: 'a5', ladder: 'accuracy', level: 5, name: 'Accuracy 5', seed: 41005, behaviour: 'dodge',
     accTargets: 12, accAmmo: 22, scale: 0.7, x: [500, 612], yBand: [0, 1], minDy: 70, accLife: 4, flipEvery: 3, flipWindow: 1.5,
   },
   { // Teaches prioritising: one target at a time. Perfect run 4150.
-    id: 's1', bestGun: 'carbine', ladder: 'speed', level: 1, name: 'Speed 1', seed: 42001, behaviour: 'approach',
+    id: 's1', ladder: 'speed', level: 1, name: 'Speed 1', seed: 42001, behaviour: 'approach',
     speedSeconds: 25, spawnEvery: 2.0, speedMul: 1, maxTargets: 1, scale: 1.2, yBand: [0.1, 0.9], minDy: 60,
   },
   { // Perfect run 7350.
-    id: 's2', bestGun: 'carbine', ladder: 'speed', level: 2, name: 'Speed 2', seed: 42002, behaviour: 'approach',
+    id: 's2', ladder: 'speed', level: 2, name: 'Speed 2', seed: 42002, behaviour: 'approach',
     speedSeconds: 30, spawnEvery: 1.4, speedMul: 4 / 3, maxTargets: 2, scale: 1.0, yBand: [0, 1], minDy: 80,
   },
   { // Weavers: every target oscillates, so the line has to keep chasing it. The band leaves room for the weave and
     // is only 106 tall, so minDy is 50, the most it allows. Perfect run 12950.
-    id: 's3', bestGun: 'carbine', ladder: 'speed', level: 3, name: 'Speed 3', seed: 42003, behaviour: 'weave',
+    id: 's3', ladder: 'speed', level: 3, name: 'Speed 3', seed: 42003, behaviour: 'weave',
     speedSeconds: 35, spawnEvery: 1.0, speedMul: 5 / 3, maxTargets: 3, scale: 0.9, yBand: [0.22, 0.78], minDy: 50,
   },
   { // Hordes: a column of small targets drifting left, each worth outer-ring points. Perfect run 3630.
-    id: 's4', bestGun: 'carbine', ladder: 'speed', level: 4, name: 'Speed 4', seed: 42004, behaviour: 'horde',
+    id: 's4', ladder: 'speed', level: 4, name: 'Speed 4', seed: 42004, behaviour: 'horde',
     speedSeconds: 35, spawnEvery: 4.5, speedMul: 0.7, maxTargets: 12, scale: 0.55, yBand: [0, 1], minDy: 60,
     hordeSpacing: 30, hordeJitterX: 16, hordeJitterY: 3, // column spacing, and how loose the column is (x and y)
   },
   { // v0.4. Two hordes back to back with a weaving pair between them, twice, on a tighter clock than Speed 4. Burst discipline: the fire interval is
     // under the kick recovery, so holding fire climbs off the column. Naked run: every member is worth outer points, the pair can be left alone at a cost
     // of the combo only. Perfect run 3310 (28 hits, last kill 18.34 s); the timer is that rounded up to a multiple of 5 like Speed 1 to 4 (20 s against Speed 4's 35).
-    id: 's5', bestGun: 'carbine', ladder: 'speed', level: 5, name: 'Speed 5', seed: 42005, behaviour: 'horde', needStars: 2,
+    id: 's5', ladder: 'speed', level: 5, name: 'Speed 5', seed: 42005, behaviour: 'horde',
     speedSeconds: 20, speedMul: 0.8, maxTargets: 16, scale: 0.55, yBand: [0, 1], minDy: 60,
     hordeSpacing: 30, hordeJitterX: 16, hordeJitterY: 3, pairScale: 0.9, pairMul: 1.4, pairBand: [0.2, 0.8], pairGap: 70,
     waves: [{ at: 0.6, horde: true }, { at: 3.6, pair: true }, { at: 6.6, horde: true }, { at: 11.6, horde: true }, { at: 14.6, pair: true }, { at: 17.6, horde: true }],
   },
   { // Clay pigeons from the bottom right; only bullseye and inner count. Perfect run 2950.
-    id: 'k1', bestGun: 'pistol', ladder: 'skeet', level: 1, name: 'Skeet 1', seed: 43001,
+    id: 'k1', ladder: 'skeet', level: 1, name: 'Skeet 1', seed: 43001,
     skeetCount: 10, skeetEvery: 2.4, skeetMul: 0.9, pair: false, angle: [58, 68], launchSpread: 30, scale: 1.2,
   },
   { // Two at once. Perfect run 3750.
-    id: 'k2', bestGun: 'pistol', ladder: 'skeet', level: 2, name: 'Skeet 2', seed: 43002,
+    id: 'k2', ladder: 'skeet', level: 2, name: 'Skeet 2', seed: 43002,
     skeetCount: 12, skeetEvery: 2.6, skeetMul: 1.0, pair: true, angle: [56, 66], pairSplit: 0.4, pairDx: 46, scale: 1.0, // the pair's angles come from the low and high 40 percent of the range; the second launches pairDx to the left
   },
   { // v0.4. Three launches a volley from alternating sides, one of them a decoy in the player's orange: shot, it costs its zone value and the combo.
@@ -311,7 +311,7 @@ const CHALLENGES = [
     // The 0.6 s between launches is 1.5 times the 0.4 s a keyboard-speed perfect path needs to switch clays (at 0.3 s it drops one). The left station sits mid-field
     // (leftX) and lobs steeply toward the wall, so no clay is launched near the gun; every clay is smaller than Skeet 2's (0.75), so the angle that hits a bullseye is
     // about Skeet 2's from the left station (4.5 units at 360, against 6 at 512) and tighter from the right (4.5 at 515), and a bot at 1 and 2 degrees does no better here.
-    id: 'k3', bestGun: 'pistol', ladder: 'skeet', level: 3, name: 'Skeet 3', seed: 43003, needStars: 2,
+    id: 'k3', ladder: 'skeet', level: 3, name: 'Skeet 3', seed: 43003,
     skeetEvery: 4.0, volleys: 5, volley: 3, volleyGap: 0.6, skeetMul: 1.0, angle: [56, 66], launchSpread: 30, leftX: 430, leftAngle: [64, 68], scale: 0.75,
   },
   { // Three parts in order, then a drifting core. Perfect run 3750.
@@ -324,68 +324,146 @@ const CHALLENGES = [
     // three centred hits, the shotgun its centre pellet plus two outers on the same plate. Naked run: the pistol clears it with 27 bullseyes.
     // Perfect centred runs (searched, then replayed in the sim): pistol and carbine 9750 (27 bullseyes: six plates of three, then the core's nine), shotgun 4950 (15),
     // rifle 2550 (9). bossSeconds is 1.6 times the slowest gun's keyboard-speed perfect path (the pistol's 14.9 s), rounded up.
-    id: 'b2', ladder: 'boss', level: 2, name: 'Boss 2', seed: 44002, needStars: 2, needGun: 'rifle',
+    id: 'b2', ladder: 'boss', level: 2, name: 'Boss 2', seed: 44002,
     bossSeconds: 24, scale: 0.85, plateHp: 3, startReveal: 2,
     wall: [[430, 80], [350, 116], [495, 153], [385, 189], [465, 226], [350, 262]], // plate positions: no two share a height band, so a level shot at any plate never crosses another
     coreX: 585, coreBand: [145, 205], coreScale: 0.9, coreBull: 0.6, coreHp: 9, coreDrift: 35,
   },
 ];
 
-// Star bars (PRD v0.5 A): for each challenge, the noisy bot's scores by aim noise. `m` is the mean score and `q` the 25th percentile, over 100 seeds of a bot whose
-// every shot's barrel angle is off by a Gaussian of sigma degrees, sigma from 0 to 5 in steps of starGrid (index 0 is the perfect run). The gun is the challenge's `bestGun`
-// (per gun on the bosses). Generated by the harness described in the changelog; a bar is read off these curves at the active noise (TUNE), so a slider needs no re-run.
+// Star bars (PRD v0.5 A and K): for each challenge and gun, the noisy bot's scores by aim noise. `m` is the mean score and `q` the 25th percentile, over 100 seeds of a bot whose
+// every shot's barrel angle is off by a Gaussian of sigma degrees, sigma from 0 to 5 in steps of starGrid (index 0 is the perfect run). A bar is read off these curves at the
+// active noise (TUNE), so a slider needs no re-run. Generated by the harness described in the changelog; regenerate whenever the sim changes.
 const BARS = {
   a1: {
     pistol: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1688, 1601, 1477, 1366, 1242, 1152, 1082, 1035, 980, 919, 877, 811, 775, 730, 697],
       q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1270, 1170, 995, 885, 835, 780, 760, 710, 690, 610, 585, 550, 540] },
+    carbine: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1688, 1601, 1477, 1366, 1242, 1152, 1082, 1035, 979, 917, 874, 814, 782, 741, 711],
+      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1270, 1170, 995, 885, 835, 780, 760, 700, 685, 610, 585, 580, 575] },
+    shotgun: { m: [2150, 2150, 2135, 2041, 1924, 1796, 1692, 1601, 1479, 1359, 1244, 1156, 1081, 1031, 976, 913, 862, 817, 781, 734, 707],
+      q: [2150, 2150, 2150, 1950, 1825, 1675, 1525, 1425, 1280, 1170, 1010, 885, 835, 780, 760, 695, 675, 610, 580, 580, 575] },
+    rifle: { m: [2150, 2150, 2133, 2037, 1920, 1787, 1695, 1618, 1488, 1380, 1293, 1221, 1141, 1087, 1023, 931, 895, 866, 808, 753, 719],
+      q: [2150, 2150, 2150, 1950, 1800, 1675, 1525, 1475, 1315, 1190, 1035, 980, 925, 830, 790, 690, 670, 625, 595, 570, 525] },
   },
   a2: {
     pistol: { m: [2950, 2949, 2802, 2585, 2365, 2122, 1919, 1722, 1549, 1401, 1244, 1137, 1046, 958, 871, 802, 735, 665, 613, 579, 532],
       q: [2950, 2950, 2750, 2425, 2195, 1885, 1645, 1390, 1215, 1095, 945, 835, 775, 650, 575, 500, 485, 435, 390, 380, 340] },
+    carbine: { m: [2950, 2949, 2802, 2585, 2365, 2122, 1918, 1719, 1546, 1397, 1246, 1140, 1051, 962, 877, 801, 733, 670, 621, 585, 549],
+      q: [2950, 2950, 2750, 2425, 2195, 1885, 1645, 1365, 1215, 1095, 945, 830, 775, 675, 595, 515, 465, 445, 400, 385, 355] },
+    shotgun: { m: [2950, 2949, 2802, 2584, 2364, 2124, 1928, 1714, 1547, 1397, 1247, 1159, 1049, 971, 895, 806, 748, 675, 629, 596, 561],
+      q: [2950, 2950, 2750, 2425, 2180, 1870, 1655, 1365, 1230, 1095, 955, 865, 775, 720, 610, 540, 510, 460, 420, 400, 355] },
+    rifle: { m: [2950, 2947, 2795, 2540, 2290, 2070, 1812, 1586, 1393, 1249, 1100, 937, 841, 744, 629, 573, 527, 467, 442, 401, 379],
+      q: [2950, 2950, 2750, 2375, 2150, 1880, 1500, 1275, 1135, 970, 800, 675, 570, 465, 435, 350, 350, 320, 320, 265, 240] },
   },
   a3: {
     pistol: { m: [3750, 3690, 3248, 2816, 2373, 1956, 1564, 1246, 1023, 845, 718, 604, 520, 437, 404, 346, 282, 250, 228, 198, 189],
       q: [3750, 3650, 3100, 2605, 2075, 1660, 1205, 935, 675, 550, 475, 380, 315, 240, 215, 120, 100, 50, 50, 20, 20] },
+    carbine: { m: [3750, 3690, 3248, 2816, 2373, 1960, 1580, 1301, 1094, 934, 812, 681, 609, 549, 499, 457, 424, 380, 338, 312, 302],
+      q: [3750, 3650, 3100, 2605, 2075, 1650, 1200, 995, 815, 675, 615, 460, 420, 390, 330, 295, 280, 250, 195, 170, 145] },
+    shotgun: { m: [3750, 3700, 3273, 2844, 2388, 1932, 1552, 1223, 996, 836, 724, 603, 535, 472, 431, 380, 355, 321, 297, 283, 276],
+      q: [3750, 3675, 3100, 2625, 2135, 1515, 1150, 830, 695, 570, 485, 415, 330, 280, 270, 245, 245, 220, 190, 190, 170] },
+    rifle: { m: [3750, 3679, 3062, 2532, 1915, 1349, 959, 735, 546, 433, 396, 332, 278, 264, 240, 207, 195, 188, 165, 155, 146],
+      q: [3750, 3600, 2900, 2310, 1570, 1040, 720, 505, 390, 300, 265, 220, 190, 150, 145, 120, 100, 100, 70, 70, 50] },
   },
   a4: {
     pistol: { m: [2950, 2938, 2514, 1918, 1592, 1346, 1123, 926, 767, 645, 550, 456, 398, 309, 264, 225, 194, 155, 136, 114, 106],
       q: [2950, 2950, 2150, 1570, 1225, 1075, 845, 700, 580, 445, 340, 270, 240, 140, 90, 40, 20, 20, 0, 0, 0] },
+    carbine: { m: [2950, 2938, 2510, 1934, 1590, 1341, 1135, 953, 814, 729, 649, 569, 513, 480, 433, 415, 394, 375, 353, 335, 320],
+      q: [2950, 2950, 2150, 1600, 1265, 1110, 895, 695, 620, 540, 495, 445, 400, 375, 335, 320, 300, 290, 270, 265, 250] },
+    shotgun: { m: [2950, 2942, 2755, 2472, 2192, 1943, 1720, 1463, 1299, 1191, 1033, 991, 924, 842, 752, 681, 645, 598, 585, 568, 553],
+      q: [2950, 2950, 2625, 2275, 1975, 1620, 1435, 1130, 985, 915, 800, 705, 685, 625, 530, 465, 465, 445, 450, 420, 400] },
+    rifle: { m: [2950, 2919, 2143, 1443, 1131, 891, 736, 632, 498, 414, 361, 299, 256, 225, 199, 184, 159, 133, 115, 107, 98],
+      q: [2950, 2950, 1750, 1225, 960, 670, 550, 445, 340, 290, 215, 190, 170, 140, 140, 120, 90, 50, 40, 20, 20] },
   },
   a5: {
     pistol: { m: [3750, 3639, 2835, 2046, 1523, 1159, 861, 658, 507, 390, 306, 262, 219, 183, 147, 133, 109, 97, 86, 79, 71],
       q: [3750, 3550, 2545, 1650, 1100, 795, 575, 410, 300, 220, 175, 120, 70, 80, 50, 20, 0, 20, 0, 0, 0] },
+    carbine: { m: [3750, 3636, 2801, 2007, 1484, 1107, 920, 766, 655, 555, 490, 416, 396, 362, 338, 305, 276, 248, 214, 191, 182],
+      q: [3750, 3550, 2450, 1570, 1080, 800, 685, 565, 510, 390, 345, 260, 240, 200, 170, 135, 120, 120, 90, 40, 20] },
+    shotgun: { m: [3750, 3660, 3049, 2575, 2057, 1603, 1192, 894, 750, 690, 606, 519, 463, 438, 408, 379, 350, 323, 312, 307, 300],
+      q: [3750, 3550, 2885, 2315, 1685, 1260, 835, 655, 510, 440, 415, 350, 290, 260, 245, 230, 210, 170, 180, 180, 170] },
+    rifle: { m: [3750, 3551, 2213, 1293, 843, 574, 475, 385, 323, 275, 230, 189, 175, 165, 156, 141, 127, 127, 118, 100, 98],
+      q: [3750, 3475, 1780, 990, 640, 455, 365, 280, 240, 190, 165, 120, 120, 110, 100, 70, 50, 50, 50, 40, 20] },
   },
   s1: {
+    pistol: { m: [4150, 4147, 3909, 3517, 3175, 2801, 2442, 2131, 1871, 1627, 1482, 1325, 1223, 1167, 1090, 1022, 970, 912, 864, 799, 752],
+      q: [4150, 4150, 3800, 3350, 2985, 2555, 2125, 1690, 1525, 1290, 1210, 1050, 995, 995, 910, 870, 815, 750, 680, 605, 560] },
     carbine: { m: [4150, 4147, 3909, 3517, 3175, 2801, 2443, 2130, 1869, 1639, 1478, 1330, 1228, 1170, 1096, 1053, 998, 979, 961, 942, 906],
       q: [4150, 4150, 3800, 3350, 2985, 2555, 2125, 1690, 1525, 1315, 1215, 1090, 1010, 990, 930, 910, 845, 825, 790, 780, 770] },
+    shotgun: { m: [4150, 4147, 3909, 3517, 3175, 2802, 2441, 2128, 1861, 1634, 1465, 1318, 1225, 1151, 1066, 1030, 990, 966, 949, 920, 889],
+      q: [4150, 4150, 3800, 3350, 2985, 2555, 2125, 1690, 1460, 1310, 1190, 1085, 1010, 960, 870, 885, 835, 815, 760, 750, 730] },
+    rifle: { m: [4150, 4147, 3909, 3517, 3175, 2803, 2441, 2132, 1850, 1636, 1470, 1322, 1235, 1157, 1063, 1003, 952, 894, 856, 830, 783],
+      q: [4150, 4150, 3800, 3350, 2985, 2580, 2125, 1775, 1460, 1310, 1160, 1095, 1010, 975, 865, 835, 800, 730, 685, 665, 630] },
   },
   s2: {
+    pistol: { m: [7350, 7318, 6565, 5745, 5017, 4239, 3604, 3078, 2648, 2313, 2142, 1958, 1842, 1702, 1575, 1500, 1414, 1325, 1297, 1196, 1153],
+      q: [7350, 7350, 6350, 5460, 4595, 3825, 3195, 2600, 2265, 2010, 1825, 1685, 1555, 1435, 1370, 1270, 1240, 1045, 1020, 945, 870] },
     carbine: { m: [7350, 7318, 6565, 5745, 5017, 4239, 3605, 3065, 2630, 2340, 2154, 1987, 1870, 1773, 1685, 1636, 1556, 1489, 1439, 1391, 1338],
       q: [7350, 7350, 6350, 5460, 4595, 3825, 3195, 2590, 2215, 2025, 1860, 1690, 1620, 1525, 1450, 1380, 1355, 1265, 1205, 1175, 1120] },
+    shotgun: { m: [7350, 7318, 6565, 5745, 5019, 4240, 3601, 3068, 2641, 2343, 2135, 1995, 1883, 1776, 1709, 1653, 1581, 1541, 1488, 1435, 1417],
+      q: [7350, 7350, 6350, 5460, 4595, 3900, 3195, 2595, 2210, 2035, 1870, 1735, 1645, 1530, 1475, 1445, 1390, 1375, 1275, 1260, 1230] },
+    rifle: { m: [7350, 7318, 6565, 5745, 5019, 4247, 3595, 3069, 2607, 2254, 2005, 1772, 1549, 1437, 1380, 1330, 1233, 1207, 1160, 1136, 1118],
+      q: [7350, 7350, 6350, 5460, 4595, 3915, 3140, 2585, 2170, 1860, 1650, 1400, 1190, 1175, 1155, 1085, 1065, 1055, 1000, 1015, 990] },
   },
   s3: {
+    pistol: { m: [12950, 12817, 11275, 9763, 8228, 6789, 5588, 4608, 3923, 3534, 3095, 2704, 2463, 2240, 2082, 1903, 1817, 1700, 1638, 1571, 1557],
+      q: [12950, 12750, 10900, 9365, 7720, 6185, 4895, 3935, 3285, 3095, 2655, 2360, 2065, 1875, 1825, 1610, 1565, 1470, 1450, 1420, 1430] },
     carbine: { m: [12950, 12817, 11275, 9763, 8233, 6790, 5593, 4646, 3966, 3497, 3213, 2981, 2813, 2654, 2565, 2440, 2318, 2248, 2139, 2045, 1993],
       q: [12950, 12750, 10900, 9365, 7720, 6185, 4875, 4005, 3460, 3155, 2845, 2650, 2535, 2360, 2275, 2190, 2020, 1970, 1845, 1735, 1745] },
+    shotgun: { m: [12950, 12817, 11275, 9763, 8231, 6792, 5581, 4648, 3985, 3545, 3247, 3000, 2829, 2705, 2582, 2499, 2412, 2326, 2330, 2269, 2232],
+      q: [12950, 12750, 10900, 9365, 7720, 6185, 4875, 4010, 3510, 3145, 2795, 2665, 2460, 2340, 2240, 2210, 2095, 2090, 2130, 1975, 1935] },
+    rifle: { m: [12950, 12817, 11275, 9766, 8210, 6718, 5273, 4025, 3365, 3105, 2994, 2923, 2864, 2730, 2706, 2622, 2579, 2533, 2518, 2453, 2444],
+      q: [12950, 12750, 10900, 9365, 7695, 6005, 4640, 3470, 2925, 2815, 2690, 2590, 2535, 2435, 2310, 2305, 2305, 2280, 2190, 2245, 2175] },
   },
   s4: {
+    pistol: { m: [3630, 3630, 3564, 2967, 2348, 1984, 1721, 1591, 1458, 1392, 1379, 1324, 1292, 1259, 1234, 1240, 1231, 1220, 1190, 1197, 1180],
+      q: [3630, 3630, 3430, 2770, 2140, 1790, 1560, 1480, 1360, 1300, 1280, 1210, 1200, 1160, 1130, 1150, 1150, 1140, 1110, 1120, 1130] },
     carbine: { m: [3630, 3630, 3597, 3145, 2611, 2222, 1984, 1820, 1649, 1539, 1481, 1377, 1344, 1262, 1240, 1229, 1199, 1207, 1194, 1203, 1215],
       q: [3630, 3630, 3630, 3000, 2380, 2000, 1760, 1660, 1520, 1410, 1350, 1290, 1230, 1140, 1110, 1130, 1110, 1140, 1120, 1140, 1140] },
+    shotgun: { m: [3190, 3223, 3242, 3240, 3239, 3244, 3256, 3262, 3260, 3265, 3262, 3224, 3227, 3206, 3172, 3120, 3045, 3056, 3023, 2977, 2885],
+      q: [3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3200, 3190, 3190, 3190, 3170, 2910, 2850, 2810, 2800, 2720, 2630] },
+    rifle: { m: [3470, 3470, 3445, 3130, 2721, 2471, 2318, 2130, 2020, 1985, 1936, 1937, 1866, 1772, 1790, 1709, 1695, 1695, 1697, 1657, 1601],
+      q: [3470, 3470, 3470, 2970, 2510, 2260, 2130, 1900, 1800, 1760, 1770, 1740, 1640, 1560, 1570, 1530, 1490, 1480, 1490, 1460, 1410] },
   },
   s5: {
+    pistol: { m: [3310, 3288, 3039, 2547, 2030, 1643, 1379, 1162, 1119, 981, 884, 858, 839, 833, 819, 799, 786, 759, 777, 766, 780],
+      q: [3310, 3310, 2910, 2350, 1770, 1400, 1185, 975, 950, 860, 785, 760, 760, 760, 740, 720, 700, 700, 710, 705, 710] },
     carbine: { m: [3310, 3290, 3042, 2596, 2092, 1776, 1497, 1360, 1188, 1040, 969, 932, 863, 833, 810, 786, 774, 770, 767, 756, 761],
       q: [3310, 3310, 2910, 2350, 1715, 1520, 1260, 1190, 1015, 895, 840, 775, 755, 750, 710, 710, 710, 690, 700, 700, 680] },
+    shotgun: { m: [2750, 2744, 2612, 2497, 2354, 2216, 2058, 1946, 1853, 1777, 1735, 1703, 1673, 1599, 1547, 1539, 1531, 1503, 1460, 1447, 1416],
+      q: [2750, 2750, 2535, 2390, 2215, 2010, 1805, 1700, 1600, 1510, 1545, 1440, 1390, 1320, 1260, 1260, 1260, 1230, 1215, 1220, 1155] },
+    rifle: { m: [3150, 3150, 2956, 2534, 2197, 1985, 1795, 1732, 1659, 1487, 1377, 1350, 1318, 1261, 1203, 1166, 1156, 1109, 1125, 1102, 1088],
+      q: [3150, 3150, 2830, 2320, 2000, 1780, 1575, 1450, 1385, 1315, 1150, 1115, 1095, 1005, 985, 955, 950, 900, 880, 905, 880] },
   },
   k1: {
     pistol: { m: [2950, 2949, 2791, 2447, 2104, 1782, 1519, 1350, 1249, 1155, 1095, 1047, 1015, 993, 959, 942, 925, 919, 904, 903, 894],
       q: [2950, 2950, 2700, 2275, 1725, 1400, 1250, 1075, 1000, 975, 925, 900, 825, 850, 850, 825, 825, 825, 800, 800, 800] },
+    carbine: { m: [2950, 2949, 2791, 2447, 2104, 1782, 1519, 1350, 1250, 1154, 1092, 1044, 1016, 992, 958, 940, 926, 922, 911, 899, 889],
+      q: [2950, 2950, 2700, 2275, 1725, 1400, 1250, 1075, 1000, 975, 925, 900, 850, 850, 825, 825, 825, 825, 800, 800, 800] },
+    shotgun: { m: [2950, 2949, 2791, 2447, 2104, 1781, 1524, 1361, 1249, 1150, 1097, 1036, 1010, 989, 947, 918, 894, 867, 853, 843, 817],
+      q: [2950, 2950, 2700, 2275, 1725, 1400, 1250, 1075, 1000, 975, 925, 875, 825, 825, 800, 800, 775, 725, 750, 725, 700] },
+    rifle: { m: [2950, 2949, 2791, 2448, 2103, 1783, 1522, 1356, 1248, 1135, 1066, 1006, 971, 927, 882, 843, 807, 772, 743, 705, 689],
+      q: [2950, 2950, 2700, 2275, 1725, 1425, 1275, 1075, 1000, 925, 875, 825, 825, 775, 725, 700, 675, 625, 625, 575, 575] },
   },
   k2: {
     pistol: { m: [3750, 3738, 3394, 2832, 2253, 1861, 1613, 1440, 1334, 1258, 1204, 1170, 1144, 1126, 1118, 1105, 1069, 1052, 1045, 1034, 1028],
       q: [3750, 3750, 3275, 2475, 1850, 1500, 1300, 1225, 1100, 1075, 1050, 1025, 1025, 1000, 975, 975, 950, 950, 950, 925, 925] },
+    carbine: { m: [3750, 3738, 3397, 2836, 2255, 1870, 1610, 1437, 1330, 1252, 1193, 1141, 1118, 1098, 1086, 1071, 1049, 1026, 1025, 1007, 1003],
+      q: [3750, 3750, 3275, 2475, 1850, 1525, 1300, 1225, 1100, 1075, 1050, 975, 1000, 975, 975, 950, 950, 925, 925, 900, 900] },
+    shotgun: { m: [3750, 3739, 3432, 2931, 2384, 1946, 1717, 1514, 1397, 1306, 1258, 1219, 1180, 1135, 1107, 1069, 1025, 986, 965, 924, 903],
+      q: [3750, 3750, 3300, 2675, 2000, 1600, 1400, 1275, 1175, 1150, 1075, 1025, 1025, 975, 975, 950, 925, 875, 825, 775, 725] },
+    rifle: { m: [3750, 3739, 3467, 2995, 2463, 2001, 1759, 1531, 1381, 1221, 1134, 1052, 967, 907, 852, 797, 753, 713, 679, 662, 632],
+      q: [3750, 3750, 3350, 2725, 2075, 1650, 1450, 1275, 1150, 975, 900, 825, 750, 725, 675, 650, 600, 575, 525, 525, 500] },
   },
   k3: {
     pistol: { m: [2950, 2915, 2523, 2036, 1616, 1356, 1190, 1084, 992, 966, 939, 872, 817, 800, 778, 754, 713, 709, 712, 688, 665],
       q: [2950, 2950, 2350, 1700, 1275, 1075, 975, 875, 850, 825, 775, 775, 700, 700, 650, 675, 625, 600, 600, 575, 575] },
+    carbine: { m: [2950, 2915, 2523, 2044, 1610, 1360, 1207, 1110, 1008, 964, 924, 888, 861, 844, 805, 810, 777, 758, 742, 742, 726],
+      q: [2950, 2950, 2350, 1700, 1275, 1100, 975, 925, 875, 825, 800, 775, 775, 750, 725, 700, 675, 650, 675, 650, 625] },
+    shotgun: { m: [2950, 2915, 2523, 2043, 1599, 1344, 1167, 1057, 965, 888, 840, 779, 738, 693, 644, 618, 594, 578, 557, 527, 512],
+      q: [2950, 2950, 2350, 1700, 1275, 1075, 925, 850, 800, 725, 675, 625, 600, 550, 525, 475, 475, 475, 425, 425, 400] },
+    rifle: { m: [2950, 2915, 2532, 2027, 1568, 1287, 1089, 988, 899, 788, 712, 648, 598, 544, 494, 460, 429, 412, 388, 364, 349],
+      q: [2950, 2950, 2425, 1700, 1225, 950, 875, 750, 700, 600, 525, 475, 450, 400, 350, 350, 300, 300, 300, 250, 250] },
   },
   b1: {
     pistol: { m: [3750, 3577, 2961, 2448, 1984, 1580, 1222, 962, 831, 790, 772, 745, 736, 738, 699, 698, 650, 558, 443, 349, 295],
@@ -411,10 +489,10 @@ const BARS = {
 
 const BAR_CACHE = {}; // by challenge and gun, rebuilt when the noise sliders move
 function curveAt(a, x) { const f = clamp(x / T.starGrid, 0, a.length - 1), i = Math.min(a.length - 2, Math.floor(f)); return a[i] + (a[i + 1] - a[i]) * (f - i); }
-// The bars {one, two, three} of a challenge for a gun: the mean score of the bot at the three-star and two-star noise, and the 25th percentile at the one-star noise
-// (the mean of a skewed score is beaten by fewer than half the bots, and most of the one-star bots must earn the first star), each capped at starCap of the perfect run.
+// The bars {one, two, three} of a challenge for a gun: the mean score of that gun's bot at the three-star and two-star noise, and the 25th percentile at the one-star noise
+// (the mean of a skewed score is beaten by fewer than half the bots, and most of the one-star bots must earn the first star), each capped at starCap of that gun's perfect run.
 function thresholds(ch, gun) {
-  const N = T.starNoise, sig = N.three * 1e4 + N.two * 100 + N.one, g = ch.ladder === 'boss' ? gun : ch.bestGun, by = BARS[ch.id], key = by[g] ? g : 'pistol';
+  const N = T.starNoise, sig = N.three * 1e4 + N.two * 100 + N.one, by = BARS[ch.id], key = by[gun] ? gun : 'pistol';
   const C = BAR_CACHE[ch.id] || (BAR_CACHE[ch.id] = {}), hit = C[key];
   if (hit && hit.sig === sig) return hit.b;
   const c = by[key], cap = T.starCap * c.m[0], R = T.starRound, r = (x) => Math.round(Math.min(x, cap) / R) * R;
@@ -815,28 +893,30 @@ function presetName() { const p = PRESETS.find((q) => q.group === 'stars' && Obj
 
 // ---------- Save ----------
 
+// Bests are per gun (PRD v0.5 K): best[challengeId][gunId] = { score, stars, accuracy } (accuracy is the share of shots that hit, of the best run).
 function bests(E) { const b = E.save.get('best', {}); return b && typeof b === 'object' ? b : {}; }
-// Stars shown for a saved best: the stars saved, or what its score earns against the bars now if that is more (never fewer: saved stars are never revoked). A boss
-// best does not say which gun set it, so it is read against the pistol's bars, the hardest.
-function starsOf(E, ch) { const b = bests(E)[ch.id]; return b ? Math.max(b.stars || 0, starsFor(ch, b.score || 0, 'pistol')) : 0; }
-function isUnlocked(E, ch) {
+function bestOf(E, ch, gun) { const b = bests(E)[ch.id], e = b && b[gun]; return e && typeof e === 'object' ? e : null; }
+// Stars a gun has on a rung: the stars saved, or what its best score earns against that gun's bars now if that is more (never fewer: saved stars are never revoked).
+function starsOf(E, ch, gun) { const e = bestOf(E, ch, gun); return e ? Math.max(e.stars || 0, starsFor(ch, e.score || 0, gun)) : 0; }
+// A rung opens for a gun when that gun has unlockStars on the rung before it (Boss 2 on Boss 1); every gun starts each ladder at rung 1.
+function isUnlocked(E, ch, gun) {
   if (ch.level === 1) return true;
   const prev = CHALLENGES.find((c) => c.ladder === ch.ladder && c.level === ch.level - 1);
-  return starsOf(E, prev) >= (ch.needStars || T.unlockStars) && (!ch.needGun || gunUnlocked(E, ch.needGun));
+  return starsOf(E, prev, gun) >= T.unlockStars;
 }
-function pointsTotal(E) { return CHALLENGES.reduce((n, ch) => n + T.starPoints[starsOf(E, ch)], 0); }
-// Play on the menu: the first unlocked challenge with no stars yet, else the first challenge.
-function firstPlayable(E) { return CHALLENGES.find((ch) => isUnlocked(E, ch) && starsOf(E, ch) === 0) || CHALLENGES[0]; }
-// ---------- Guns: unlocked by points ----------
+// Points are every gun's stars on every rung, summed.
+function pointsTotal(E) { return CHALLENGES.reduce((n, ch) => n + GUN_IDS.reduce((m, g) => m + T.starPoints[starsOf(E, ch, g)], 0), 0); }
+// Play on the menu: this gun's first unlocked rung with no stars yet, else the first rung.
+function firstPlayable(E, gun) { return CHALLENGES.find((ch) => isUnlocked(E, ch, gun) && starsOf(E, ch, gun) === 0) || CHALLENGES[0]; }
+// Rungs where a gun has two stars or better.
+function rungsDone(E, gun) { return CHALLENGES.filter((ch) => starsOf(E, ch, gun) >= 2).length; }
+// ---------- Guns: unlocked by badges ----------
 
-function gunUnlockedAt(points, id) { return points >= T.unlockPoints[GUN_IDS.indexOf(id)]; }
-function gunUnlocked(E, id) { return gunUnlockedAt(pointsTotal(E), id); }
+function hadMap(E) { const m = E.save.get('gunsHad', {}); return m && typeof m === 'object' ? m : {}; }
+// A gun is open when its badge is earned, or (a save from before v7) it was open under the old points table: a badge or a gun is never taken away.
+function gunUnlocked(E, id) { return id === 'pistol' || !!badgeMap(E)[T.unlockBadges[id]] || !!hadMap(E)[id]; }
 function gunId(E) { const id = E.save.get('gun', 'pistol'); return T.guns[id] && gunUnlocked(E, id) ? id : 'pistol'; }
-// The next gun to unlock, or null: { id, need, from } (points needed, threshold of the gun before it).
-function nextUnlock(points) {
-  const i = GUN_IDS.findIndex((id) => !gunUnlockedAt(points, id));
-  return i < 0 ? null : { id: GUN_IDS[i], need: T.unlockPoints[i], from: T.unlockPoints[i - 1] };
-}
+function unlockBadge(id) { return BADGES.find((b) => b.id === T.unlockBadges[id]); }
 
 // ---------- Badges (v0.3 section B): skill acts, tiered ----------
 
@@ -856,12 +936,13 @@ const BADGES = [
   { id: 'claycarbine', tier: 'Silver', name: 'Clay Carbine', cond: 'Carbine on Skeet 2, three stars' },
   { id: 'bosskiller', tier: 'Gold', name: 'Boss Killer', cond: 'Boss 1 three stars, every gun' },
   { id: 'gauntlet', tier: 'Gold', name: 'Gauntlet', cond: 'A2, S2, K2, B1 in a row, two stars each' },
-  { id: 'legend', tier: 'Gold', name: 'Legend', cond: 'Three stars on every challenge' },
+  { id: 'legend', tier: 'Gold', name: 'Legend', cond: 'Three stars on every challenge, any gun' },
+  { id: 'arsenal', tier: 'Gold', name: 'Arsenal', cond: 'Three stars on every challenge, every gun' },
   { id: 'sniper', tier: 'Gold', name: 'Sniper', cond: 'Boss 2, three stars, rifle' },
 ];
 
-// Badges a finished run earns that are not already `have`. o: { ch, gun, stars, double, gauntletDone, bests, bossGuns, have }.
-// bests and bossGuns already include this run.
+// Badges a finished run earns that are not already `have`. o: { ch, gun, stars, double, gauntletDone, bests, have }; bests is { challengeId: { gunId: { stars } } } and
+// already includes this run.
 function newBadges(o) {
   const id = o.ch.id, three = o.stars === 3;
   const met = {
@@ -879,9 +960,10 @@ function newBadges(o) {
     quickdraw2: id === 's5' && three,
     clay2: id === 'k3' && three && !o.decoyHits,
     sniper: id === 'b2' && three && o.gun === 'rifle',
-    bosskiller: id === 'b1' && three && GUN_IDS.every((g) => o.bossGuns[g]),
+    bosskiller: id === 'b1' && three && GUN_IDS.every((g) => o.bests.b1[g].stars === 3),
     gauntlet: !!o.gauntletDone,
-    legend: CHALLENGES.every((c) => o.bests[c.id] && o.bests[c.id].stars === 3),
+    legend: CHALLENGES.every((c) => GUN_IDS.some((g) => o.bests[c.id][g].stars === 3)),
+    arsenal: CHALLENGES.every((c) => GUN_IDS.every((g) => o.bests[c.id][g].stars === 3)),
   };
   return BADGES.filter((b) => met[b.id] && !o.have[b.id]).map((b) => b.id);
 }
@@ -1470,16 +1552,15 @@ function cosmetics(E, ev) {
 }
 
 function endRun(E) {
-  const r = S.run, ch = S.ch, stars = starsFor(ch, r.score, r.gun.id);
-  const prev = bests(E)[ch.id], prevStars = starsOf(E, ch);
-  // Stars are monotonic and kept apart from the best score: a higher score with fewer stars (another gun's thresholds) never lowers them.
-  const isNew = !prev || r.score > prev.score, bestScore = isNew ? r.score : prev.score, bestStars = Math.max(stars, prevStars);
-  if (isNew || bestStars !== prevStars) E.save.update('best', (b) => ({ ...(b && typeof b === 'object' ? b : {}), [ch.id]: { score: bestScore, stars: bestStars } }), {});
-  let bossGuns = E.save.get('bossGuns', {});
-  if (!bossGuns || typeof bossGuns !== 'object') bossGuns = {};
-  if (ch.id === 'b1' && stars === 3 && !bossGuns[r.gun.id]) { bossGuns = { ...bossGuns, [r.gun.id]: 1 }; E.save.set('bossGuns', bossGuns); }
+  const r = S.run, ch = S.ch, gid = r.gun.id, stars = starsFor(ch, r.score, gid);
+  const prev = bestOf(E, ch, gid), prevStars = starsOf(E, ch, gid);
+  // Stars are monotonic and kept apart from the best score: a higher score with fewer stars never lowers them. All per gun.
+  const isNew = !prev || r.score > prev.score, bestScore = isNew ? r.score : prev.score, bestStars = Math.max(stars, prevStars), acc = r.shots ? Math.round((100 * r.hits) / r.shots) : 0;
+  if (isNew || bestStars !== prevStars) {
+    E.save.update('best', (b) => { const all = b && typeof b === 'object' ? b : {}; return { ...all, [ch.id]: { ...(all[ch.id] || {}), [gid]: { score: bestScore, stars: bestStars, accuracy: isNew ? acc : prev.accuracy || 0 } } }; }, {});
+  }
   const gaunt = S.gauntlet === null ? null : gauntletStep(S.gauntlet, stars);
-  const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, decoyHits: r.decoyHits, gauntletDone: !!(gaunt && gaunt.done), bests: Object.fromEntries(CHALLENGES.map((c) => [c.id, { stars: starsOf(E, c) }])), bossGuns, have: badgeMap(E) });
+  const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, decoyHits: r.decoyHits, gauntletDone: !!(gaunt && gaunt.done), bests: Object.fromEntries(CHALLENGES.map((c) => [c.id, Object.fromEntries(GUN_IDS.map((g) => [g, { stars: starsOf(E, c, g) }]))])), have: badgeMap(E) });
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
   const unlocked = fresh.map(skinOfBadge).filter(Boolean).map((k) => `${T.guns[k.gun].short} ${k.skin.name}`); // shown on the card's badge line
   // A Bunker cleared early leaves plates standing; say what they were worth (a full combo, the shots the gun needs per plate).
@@ -1567,14 +1648,13 @@ function wrapText(ctx, str, maxW, size) {
 const menu = {
   enter() { this.tiles = []; this.guns = []; this.infos = []; this.chips = []; this.btnPlay = null; this.btnMute = null; this.btnMissions = null; },
   render(ctx, E) {
-    const L = menuLayout(E), sel = T.guns[gunId(E)], pts = pointsTotal(E), nx = nextUnlock(pts);
+    const L = menuLayout(E), sel = T.guns[gunId(E)], pts = pointsTotal(E), gid = sel.id, done = rungsDone(E, gid), play = firstPlayable(E, gid);
     E.text('RECOIL', L.title.x, L.title.y, { size: TY.big, weight: TY.strong, color: P.text });
     E.text(`Points ${pts}`, L.points.x, L.points.y + 2, { size: TY.mid, weight: TY.strong, color: P.cyan });
-    E.text(nx ? `Next: ${T.guns[nx.id].name} at ${nx.need}` : 'All guns unlocked', L.next.x, L.next.y, { size: TY.small, color: P.textDim });
+    E.text(`${sel.short}: ${done} of ${CHALLENGES.length} rungs at 2 stars`, L.next.x, L.next.y, { size: TY.small, color: P.textDim }); // the selected gun's progress
     E.roundRect(L.bar.x - 2, L.bar.y - 2, L.bar.w + 4, L.bar.h + 4, 5, P.ink);
     E.roundRect(L.bar.x, L.bar.y, L.bar.w, L.bar.h, 3, P.panelEdge);
-    const frac = nx ? clamp((pts - nx.from) / (nx.need - nx.from), 0, 1) : 1;
-    if (frac > 0) E.roundRect(L.bar.x, L.bar.y, Math.max(6, L.bar.w * frac), L.bar.h, 3, P.cyan);
+    if (done) E.roundRect(L.bar.x, L.bar.y, Math.max(6, (L.bar.w * done) / CHALLENGES.length), L.bar.h, 3, P.cyan);
     this.guns = L.guns; this.infos = [];
     for (const b of L.guns) {
       const on = b.id === sel.id, open = gunUnlocked(E, b.id), cx = b.x + b.w / 2;
@@ -1584,7 +1664,7 @@ const menu = {
       ctx.globalAlpha = 1;
       if (!open) {
         drawLock(ctx, cx, b.y + b.h / 2 - 12, P.textDim);
-        E.text(`${T.unlockPoints[GUN_IDS.indexOf(b.id)]} points`, cx, b.y + b.h - 14, { size: TY.small, weight: TY.strong, color: P.textDim });
+        E.text(unlockBadge(b.id).name, cx - A.tile.info / 2, b.y + b.h - 14, { size: TY.small, weight: TY.strong, color: P.textDim }); // the badge that opens it
       }
       const info = { x: b.x + b.w - 44, y: b.y, w: 44, h: 44, id: b.id }; // the info corner opens the stats card; the rest of the tile selects the gun
       this.infos.push(info);
@@ -1594,10 +1674,11 @@ const menu = {
     const wear = skinById(sel.id, skinId(E, sel.id));
     E.text(wear.badge ? `${sel.short} · ${wear.name}` : sel.name, L.stat.x, L.stat.y - 19, { size: TY.mid, weight: TY.strong, color: P.text });
     E.text(`Damage ${sel.damage}${sel.pellets > 1 ? ` x${sel.pellets}` : ''}   ${sel.fireRate}/s   Range ${Math.round(sel.accuracy * 100)}%`, L.stat.x, L.stat.y, { size: TY.small, color: P.textDim });
-    E.text(sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 17, { size: TY.small, color: P.textDim });
+    const bp = bestOf(E, play, gid); // a new gun is told how to fire; a gun with a history, its best on the rung Play opens
+    E.text(bp ? `${play.name}: best ${bp.score}` : rungsDone(E, gid) || CHALLENGES.some((c) => bestOf(E, c, gid)) ? `${play.name}: no score yet` : sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 17, { size: TY.small, color: P.textDim });
     // Skin swatches for the selected gun: a chip per skin, the worn one ringed in orange, locked ones dimmed with a padlock.
     const SK = L.skinRow, C = A.chip;
-    E.text('Skin', SK.lx, SK.y + C.hit / 2, { size: TY.small, align: 'left', color: P.textDim });
+    drawGunTile(ctx, gid, SK.lx + C.labelW / 2 - 2, SK.y + C.hit / 2, C.labelW - 4, 30, wear.id); // the gun whose lanes these are, by its swatches
     this.chips = A.skins[sel.id].map((skin, i) => {
       const r = { x: SK.x + i * (C.hit + C.gap), y: SK.y, w: C.hit, h: C.hit, gun: sel.id, skin }, open = skinOpen(E, skin);
       drawChip(ctx, E, r, skin, skin.id === wear.id, open);
@@ -1608,7 +1689,7 @@ const menu = {
       E.text(row.label, row.x, row.y + row.th / 2, { size: TY.small, align: 'left', color: P.textDim });
       CHALLENGES.filter((c) => c.ladder === row.ladder).forEach((ch, i) => {
         const x = row.x + row.labelW + i * (row.tw + row.gap), top = row.y, tw = row.tw, th = row.th;
-        const locked = !isUnlocked(E, ch), st = starsOf(E, ch);
+        const locked = !isUnlocked(E, ch, gid), st = starsOf(E, ch, gid);
         plate(E, x, top, tw, th, locked ? P.ink : P.panelHi, st ? P.brass : locked ? P.panelEdge : P.slateEdge);
         E.text(`${ch.level}`, x + tw / 2, top + 17, { size: TY.mid, weight: TY.strong, color: locked ? P.textDim : P.text });
         if (locked) drawLock(ctx, x + tw / 2, top + th - 16, P.textFaint);
@@ -1617,14 +1698,14 @@ const menu = {
       });
     }
     const p = L.play, m = L.mute, ms = L.missions, earned = BADGES.filter((b) => badgeMap(E)[b.id]).length;
-    this.btnPlay = btn(E, `Play ${firstPlayable(E).name}`, p.x + p.w / 2, p.y + p.h / 2, { w: p.w, h: p.h, fill: P.orange, color: P.ink, size: TY.mid });
+    this.btnPlay = btn(E, `Play ${play.name}`, p.x + p.w / 2, p.y + p.h / 2, { w: p.w, h: p.h, fill: P.orange, color: P.ink, size: TY.mid });
     this.btnMissions = btn(E, '', ms.x + ms.w / 2, ms.y + ms.h / 2, { w: ms.w, h: ms.h, fill: P.panelHi, size: TY.small });
     E.text('Missions', ms.x + ms.w / 2, ms.y + ms.h / 2 - 9, { size: TY.small, weight: TY.strong }); // two lines: 13 badges no longer fit one line at 114 px
     E.text(`${earned}/${BADGES.length}`, ms.x + ms.w / 2, ms.y + ms.h / 2 + 9, { size: TY.small, color: P.textDim });
     this.btnMute = btn(E, E.audio.muted ? 'Sound: off' : 'Sound: on', m.x + m.w / 2, m.y + m.h / 2, { w: m.w, h: m.h, fill: P.slate, size: TY.small });
   },
   onTap(p, E) {
-    if (E.hit(this.btnPlay, p)) { E.setScene('play', { id: firstPlayable(E).id }); return; }
+    if (E.hit(this.btnPlay, p)) { E.setScene('play', { id: firstPlayable(E, gunId(E)).id }); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
     for (const c of this.chips) if (E.hit(c, p)) {
@@ -1633,16 +1714,16 @@ const menu = {
       return;
     }
     for (const i of this.infos) if (E.hit(i, p)) { E.audio.play('tap'); E.setScene('gun', { id: i.id }); return; }
-    for (const b of this.guns) if (E.hit(b, p)) { if (gunUnlocked(E, b.id)) { E.save.set('gun', b.id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
-    for (const t of this.tiles) if (!t.locked && E.hit(t, p)) { E.setScene('play', { id: t.ch.id }); return; }
+    for (const b of this.guns) if (E.hit(b, p)) { if (gunUnlocked(E, b.id)) { E.save.set('gun', b.id); E.audio.play('tap'); } else { E.audio.play('tap', 0.3); const bd = unlockBadge(b.id); E.toast(`The ${T.guns[b.id].short} opens with the ${bd.name} badge (${bd.cond})`); } return; }
+    for (const t of this.tiles) if (E.hit(t, p)) { if (t.locked) { E.audio.play('tap', 0.3); E.toast(`Two stars on ${CHALLENGES.find((c) => c.ladder === t.ch.ladder && c.level === t.ch.level - 1).name} with the ${T.guns[gunId(E)].short} open this`); } else E.setScene('play', { id: t.ch.id }); return; }
   },
 };
 
-// Why the Gauntlet is locked: the level before each locked stage needs a star (Boss 1 is always open).
+// Why the Gauntlet is locked: the rung before each locked stage needs two stars with the selected gun (Boss 1 is always open).
 function gauntletReason(E) {
-  const need = GAUNTLET.map((id) => CHALLENGES.find((c) => c.id === id)).filter((c) => !isUnlocked(E, c))
+  const gun = gunId(E), need = GAUNTLET.map((id) => CHALLENGES.find((c) => c.id === id)).filter((c) => !isUnlocked(E, c, gun))
     .map((c) => CHALLENGES.find((p) => p.ladder === c.ladder && p.level === c.level - 1).name);
-  return `Locked: earn a star on ${need.join(', ')} first`;
+  return `Locked: two stars with the ${T.guns[gun].short} on ${need.join(', ')} first`;
 }
 
 // Missions: the badge tiers, in a list that scrolls by drag (or the 44 px rail on its right) when it does not fit. Earned badges are lit; the rest show what
@@ -1652,7 +1733,7 @@ const missions = {
   render(ctx, E) {
     const have = badgeMap(E), land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), M = A.missions, top = E.safe.top;
     const W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, earned = BADGES.filter((b) => have[b.id]).length;
-    const open = GAUNTLET.every((id) => isUnlocked(E, CHALLENGES.find((c) => c.id === id)));
+    const open = GAUNTLET.every((id) => isUnlocked(E, CHALLENGES.find((c) => c.id === id), gunId(E)));
     this.reason = open ? '' : gauntletReason(E);
     this.back = btn(E, 'Back', x0 + 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
     E.text(`Missions  ${earned}/${BADGES.length}`, E.w / 2, top + 30, { size: land ? TY.mid + 2 : TY.mid, weight: TY.strong, color: P.text });
@@ -1736,7 +1817,7 @@ const gunCard = {
   enter(E, params) { this.id = (params && params.id) || 'pistol'; this.chips = []; this.back = null; this.use = null; },
   render(ctx, E) {
     const id = this.id, g = T.guns[id], land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2;
-    const open = gunUnlocked(E, id), worn = skinId(E, id), top = E.safe.top, need = T.unlockPoints[GUN_IDS.indexOf(id)];
+    const open = gunUnlocked(E, id), worn = skinId(E, id), top = E.safe.top, bd = unlockBadge(id), done = rungsDone(E, id);
     this.back = btn(E, 'Back', x0 + 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
     E.text(g.name, E.w / 2, top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     const cur = gunId(E) === id;
@@ -1747,7 +1828,7 @@ const gunCard = {
     if (!open) drawLock(ctx, x0 + lw / 2, y0 + 46, P.textDim);
     const lines = wrapText(ctx, g.job, lw - 8, TY.small);
     lines.forEach((ln, k) => E.text(ln, x0 + 4, y0 + 108 + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
-    if (!open) E.text(`Unlocks at ${need} points`, x0 + 4, y0 + 108 + lines.length * 18, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange });
+    if (!open) E.text(`Opens with the ${bd.name} badge`, x0 + 4, y0 + 108 + lines.length * 18, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange });
     // bars against the four-gun maximum
     const bx = land ? x0 + lw + 20 : x0, bw = land ? W - lw - 20 : W, by = land ? y0 : y0 + 108 + (lines.length + 1) * 18 + 6, rowH = 26;
     STAT_ROWS.forEach(([label, val, txt], i) => {
@@ -1756,8 +1837,10 @@ const gunCard = {
       E.roundRect(tx, y - 5, tw, 10, 5, P.panelEdge); E.roundRect(tx, y - 5, Math.max(8, tw * val(g) / max), 10, 5, P.cyan);
       E.text(txt(g), bx + bw - 4, y, { size: TY.small, weight: TY.strong, align: 'right', color: P.text });
     });
+    const ry = by + STAT_ROWS.length * rowH + 4; // the gun's rung count, from its own bests
+    E.text(`${done} of ${CHALLENGES.length} rungs at two stars or better`, bx + 4, ry + 6, { size: TY.small, weight: TY.strong, align: 'left', color: done ? P.cyan : P.textDim });
     // skin swatches: every gun shows its own, the badge each needs beside it
-    const sy = land ? y0 + 170 : by + STAT_ROWS.length * rowH + 14, list = A.skins[id], cols = land ? list.length : 2, cw = W / cols;
+    const sy = land ? y0 + 190 : ry + 24, list = A.skins[id], cols = land ? list.length : 2, cw = W / cols;
     this.chips = list.map((skin, i) => {
       const cx = x0 + (i % cols) * cw, cy = sy + Math.floor(i / cols) * 52, r = { x: cx, y: cy, w: 44, h: 44, skin }, have = skinOpen(E, skin), b = skin.badge && BADGES.find((k) => k.id === skin.badge);
       drawChip(ctx, E, r, skin, open && skin.id === worn, have);
@@ -1771,7 +1854,7 @@ const gunCard = {
     if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
     if (E.hit(this.use, p)) { if (gunUnlocked(E, id) && gunId(E) !== id) { E.save.set('gun', id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
     for (const c of this.chips) if (E.hit(c, p)) {
-      if (!gunUnlocked(E, id)) { E.audio.play('tap', 0.3); E.toast(`The ${g.short} unlocks at ${T.unlockPoints[GUN_IDS.indexOf(id)]} points`); }
+      if (!gunUnlocked(E, id)) { E.audio.play('tap', 0.3); E.toast(`The ${g.short} opens with the ${unlockBadge(id).name} badge`); }
       else if (skinOpen(E, c.skin)) { E.save.update('skins', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [id]: c.skin.id }), {}); E.audio.play('tap'); }
       else { const b = BADGES.find((k) => k.id === c.skin.badge); E.audio.play('tap', 0.3); E.toast(`${c.skin.name}: earn the ${b.name} badge (${b.cond})`); }
       return;
@@ -1920,7 +2003,7 @@ const over = {
     if (g) { this.next = g.next ? CHALLENGES.find((c) => c.id === g.next) : null; this.canNext = !!this.next; }
     else {
       this.next = CHALLENGES.find((c) => c.ladder === this.ch.ladder && c.level === this.ch.level + 1);
-      this.canNext = !!this.next && params.bestStars >= (this.next.needStars || T.unlockStars) && (!this.next.needGun || gunUnlocked(E, this.next.needGun));
+      this.canNext = !!this.next && params.bestStars >= T.unlockStars;
     }
     E.audio.play(params.stars >= 1 ? 'win' : 'lose'); E.haptic(30);
   },
@@ -2084,23 +2167,47 @@ const tune = {
   },
 };
 
+// v7 (PRD v0.5 K): every old best { score, stars } becomes the pistol's entry, except Boss 1 where `bossGuns` names the guns that three-starred it (each gets the entry) and
+// Boss 2 when the Sniper badge says the rifle did it. Nothing is lost: stars and badges are kept, and a gun the old points table had opened (60, 150, 300 points of the old
+// stars) is kept in gunsHad, since guns now open by badge and not everyone who had one has the badge.
+const OLD_UNLOCK_POINTS = { carbine: 60, shotgun: 150, rifle: 300 };
+function migrateGuns(data) {
+  const old = data.best && typeof data.best === 'object' ? data.best : {}, out = {}, named = data.bossGuns && typeof data.bossGuns === 'object' ? Object.keys(data.bossGuns).filter((g) => T.guns[g]) : [];
+  let points = 0;
+  for (const [cid, e] of Object.entries(old)) {
+    if (!e || typeof e !== 'object') continue;
+    if (typeof e.score !== 'number') { out[cid] = e; continue; } // already per gun
+    points += T.starPoints[e.stars || 0] || 0;
+    const guns = cid === 'b1' && named.length ? named : cid === 'b2' && data.badges.sniper ? ['rifle'] : ['pistol'];
+    out[cid] = Object.fromEntries(guns.map((g) => [g, { score: e.score, stars: e.stars || 0, accuracy: 0 }]));
+  }
+  data.best = out;
+  const had = data.gunsHad && typeof data.gunsHad === 'object' ? data.gunsHad : {};
+  for (const [g, need] of Object.entries(OLD_UNLOCK_POINTS)) if (points >= need) had[g] = 1;
+  data.gunsHad = had;
+}
+
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 6,
-  // Save shape: best { challengeId: { score, stars } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, bossGuns { gunId: 1 }, starPreset (the star-bar preset's name), __tune, __muted.
+  saveVersion: 7,
+  // Save shape: best { challengeId: { gunId: { score, stars, accuracy } } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, gunsHad { gunId: 1 } (guns a save from
+  // before v7 already had), starPreset (the star-bar preset's name), __tune, __muted.
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
   // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default); v6 adds the star-bar preset's name. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (!data.gun) data.gun = 'pistol';
     if (!data.badges || typeof data.badges !== 'object') data.badges = {};
-    if (!data.bossGuns || typeof data.bossGuns !== 'object') data.bossGuns = {};
     if (!data.skins || typeof data.skins !== 'object') data.skins = {};
     if (typeof data.starPreset !== 'string') data.starPreset = 'Skilled';
-    const b = data.best || {}, three = (id) => b[id] && b[id].stars === 3;
-    for (const [badge, id] of [['marksman1', 'a1'], ['quickdraw1', 's1'], ['clay1', 'k1'], ['storm', 's4']]) if (three(id)) data.badges[badge] = 1;
-    if (CHALLENGES.every((c) => three(c.id))) data.badges.legend = 1;
+    if (fromVersion < 4) { // the star-only badges the bests of that time already earned
+      const b = data.best || {}, three = (id) => b[id] && b[id].stars === 3;
+      for (const [badge, id] of [['marksman1', 'a1'], ['quickdraw1', 's1'], ['clay1', 'k1'], ['storm', 's4']]) if (three(id)) data.badges[badge] = 1;
+      if (CHALLENGES.every((c) => three(c.id))) data.badges.legend = 1;
+    }
+    if (fromVersion < 7) migrateGuns(data);
+    delete data.bossGuns;
     if (data.__tune && typeof data.__tune === 'object') data.__tune = Object.fromEntries(Object.entries(data.__tune).filter(([k]) => TUNE_KEYS.has(k)));
     return data;
   },
