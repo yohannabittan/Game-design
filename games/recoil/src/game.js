@@ -1,8 +1,8 @@
-// Recoil, v0.4: the mechanic plus guns, barrel sway, moving targets, skeet with decoys, two bosses, and progression (four guns unlocked by
-// points, thirteen badges, nine gun skins, a gauntlet). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
-// Instant shot lines scored by zone, a combo multiplier, four ladders of five rungs (Skeet has three, Boss two), stars, points, menu and card.
-// Procedural art (four gun silhouettes, paper targets, a range backdrop) from one palette in TUNING.art; no image assets.
-// Landscape, two thumbs (ADR-0013).
+// Recoil, v0.5: the mechanic plus six guns (pistol, carbine, shotgun, rifle, SMG, revolver), barrel sway, moving targets, skeet with decoys, two bosses, zombies,
+// and progression (guns opened by badges, twenty-three badges, skins, a gauntlet). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
+// Instant shot lines scored by zone, a combo multiplier, five ladders (Accuracy and Speed have five rungs, Skeet three, Boss two, Zombies three) and an endless zombie mode,
+// stars per gun from noisy-bot bars, points, a menu that is a range, and a card. Procedural art (gun silhouettes, paper targets, zombies, a range backdrop) from one palette
+// in TUNING.art; no image assets. Landscape, two thumbs (ADR-0013).
 
 import { makeRng, ease, clamp } from './engine.js';
 
@@ -61,6 +61,26 @@ const TUNING = {
   kickWindow: 0.65,      // v0.5 J, Kickback: six hits in a row within this many seconds (0.5 in the PRD is faster than any gun here can shoot: the pistol's five gaps are 0.54 s)
   coldRuns: 5,           // v0.5 J, Cold Barrel: runs in a row that open on a bullseye
 
+  // v0.5 section G: zombies. A zombie is three parts (circles, in units at scale 1, centre `cy` above the feet): legs, body, brain. Legs down: it crawls at `crawl` of its
+  // speed and its body drops; body down: it slows to `hunch`; the brain ends it. A zombie whose front (arms, `reach`) touches the fence ends the run.
+  zombie: {
+    fenceX: 122,         // the fence stands just in front of the muzzle
+    spawnX: 618,         // zombies enter at the right wall, one after another (a wave's `gap` seconds apart)
+    lanes: [240, 286],   // feet heights: lower is nearer, so bigger (scale runs over `scale` across the lanes)
+    scale: [0.85, 1.15],
+    legs: { hp: 2, r: 17, cy: 17 },
+    body: { hp: 3, r: 15, cy: 50 },
+    brain: { hp: 1, r: 8, cy: 74 },
+    crawl: 0.5,          // speed factor with the legs down
+    hunch: 0.7,          // speed factor with the body down
+    reach: 24,           // how far its arms reach ahead of its middle, at scale 1
+    speeds: { s: 20, w: 34, r: 58, x: 84 }, // shamble, walk, run, sprint (units per second)
+    pose: { stand: { body: [0, 50], brain: [0, 74] }, crawl: { body: [0, 14], brain: [-17, 22] }, hunch: { brain: [-6, 58] }, drag: { brain: [-16, 8] } }, // part centres (dx toward the fence is negative, height above the feet) by what is left
+    points: { hit: 5, legs: 30, body: 50, brain: 75, bonus: 125 }, // per hit, per part destroyed, and the bonus for the brain that ends it; the multiplier applies to all
+    waveGap: 1.5,        // seconds between the last zombie of a wave going down and the next wave entering
+    hitFlash: 0.14,      // seconds a part shows it was hit
+  },
+
   // Guns (v0.2 section A): data, so a later layer adds more. kickPerShot and kickRecovery are per gun now.
   // magSize and reloadSeconds are carried but not used yet: Accuracy keeps its own ammo, the other ladders are unlimited.
   guns: {
@@ -70,9 +90,12 @@ const TUNING = {
     // pellet scores zone points on ring targets; on hordes every member any pellet hits scores.
     shotgun: { id: 'shotgun', job: 'Five pellets: boss plates and hordes; hopeless at far bullseyes.', name: 'Shotgun', short: 'Shotgun', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.0, auto: false },
     rifle: { id: 'rifle', job: 'One-shots plates; long waits and sway matter most.', name: 'Marksman rifle', short: 'Rifle', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 2.0, auto: false },
+    // v0.5 section H. Both fire faster than the barrel settles, so a held SMG and a quick revolver climb off the target: the interval is under the recovery time on both.
+    smg: { id: 'smg', job: 'Hold to spray: the fastest fire, and the hardest climb to hold.', name: 'SMG', short: 'SMG', damage: 1, fireRate: 14, accuracy: 0.5, kickPerShot: 6, kickRecovery: 40, magSize: 24, reloadSeconds: 1.8, auto: true },
+    revolver: { id: 'revolver', job: 'Six heavy shots: one-shots plates and brains, then waits for the barrel.', name: 'Revolver', short: 'Revolver', damage: 3, fireRate: 1.2, accuracy: 1.0, kickPerShot: 20, kickRecovery: 18, magSize: 6, reloadSeconds: 2.5, auto: false },
   },
   shotSpread: 10,        // v0.3: total fan angle of the shotgun's five pellets, degrees
-  unlockBadges: { carbine: 'marksman1', shotgun: 'quickdraw1', rifle: 'clay1' }, // v0.5 K: the badge that unlocks each gun (the pistol is always open)
+  unlockBadges: { carbine: 'marksman1', shotgun: 'quickdraw1', rifle: 'clay1', smg: 'quickdraw2', revolver: 'marksman2' }, // v0.5 K: the badge that unlocks each gun (the pistol is always open)
 
   // Additions, not in the PRDs.
   swayWindow: 0.05,      // Seconds over which the gun's speed is measured for sway
@@ -125,6 +148,8 @@ const TUNING = {
       panel: '#1f1b18', panelHi: '#2e2823', panelEdge: '#453d35',
       tier: { Bronze: '#d08a4a', Silver: '#cbd5e1', Trick: '#c4a6ff', Gold: '#fbbf24' },
       zone: ['#ffffff', '#22d3ee', '#c4b89f'], // Score pop colour by zone: bullseye, inner, outer
+      // Zombies: a sickly skin, a torn shirt and trousers, a wound, the brain (its bullseye ring is the goal's cyan), and the fence's weathered wood
+      zSkin: '#8fae87', zSkinDark: '#5f7d5a', zShirt: '#5d6b86', zPants: '#4a4139', zWound: '#8f2f2f', zBrain: '#e59ab0', wood: '#7d6547', woodDark: '#4e3f2c',
     },
     type: { small: 14, mid: 18, big: 30, normal: '600', strong: '800' }, // Three sizes, one weight rule: strong for numbers and headings
     line: 2.5, gunLine: 2.6, radius: 10, shadowX: 2, shadowY: 3,
@@ -164,6 +189,31 @@ const TUNING = {
         ['rr', 'steelDark', 54, -13, 4, 4, 1.5],
         ['rr', 'orange', 57, -10, 5, 13, 2],
         ['rr', 'highlight', 0, -7, 54, 2.6, 1.3],
+      ] },
+      smg: { muzzle: 56, port: [6, -9], shell: [5, 2.2], parts: [
+        ['rr', 'steelDark', -46, -9, 26, 4, 1.5], ['rr', 'steelDark', -49, -13, 4, 13, 1.5],
+        ['poly', 'steelDark', [-8, 3, 4, 3, 6, 26, -6, 27]],
+        ['poly', 'steelDark', [11, 4, 21, 4, 24, 40, 14, 40]],
+        ['rr', 'steelDark', -6, -17, 28, 5, 2],
+        ['rr', 'steel', -22, -12, 54, 19, 3.5],
+        ['rr', 'steelDark', 32, -9, 20, 13, 3],
+        ['rr', 'ink', 36, -6, 1.6, 7, 0.8], ['rr', 'ink', 41, -6, 1.6, 7, 0.8], ['rr', 'ink', 46, -6, 1.6, 7, 0.8],
+        ['rr', 'orange', 50, -6, 6, 8, 2],
+        ['rr', 'ink', -3, -8, 12, 3.5, 1],
+        ['rr', 'highlight', -20, -10, 50, 2.6, 1.3],
+      ] },
+      revolver: { muzzle: 58, port: [4, -6], shell: [6, 2.6], parts: [
+        ['poly', 'steelDark', [-12, 3, 6, 3, 3, 35, -17, 32]],
+        ['poly', 'steelDark', [-19, -10, -11, -15, -8, -6, -18, -3]],
+        ['rr', 'steel', -14, -10, 26, 20, 4],
+        ['rr', 'steelDark', -3, -14, 20, 26, 5],
+        ['rr', 'ink', 3, -10, 1.6, 18, 0.8], ['rr', 'ink', 8, -10, 1.6, 18, 0.8], ['rr', 'ink', 13, -10, 1.6, 18, 0.8],
+        ['rr', 'steel', 17, -9, 41, 9, 3],
+        ['rr', 'steelDark', 20, 0, 32, 5, 2],
+        ['rr', 'steelDark', 50, -13, 4, 5, 1.5],
+        ['rr', 'orange', 53, -9, 5, 9, 2],
+        ['rr', 'ink', -9, 6, 12, 3, 1],
+        ['rr', 'highlight', -10, -8, 46, 2.6, 1.3],
       ] },
       rifle: { muzzle: 66, port: [4, -8], shell: [7, 2.8], parts: [
         ['poly', 'steelDark', [-20, -6, -46, -12, -62, -10, -62, 15, -42, 12, -20, 6]],
@@ -209,6 +259,16 @@ const TUNING = {
         { id: 'bronze', name: 'Bronze', badge: 'sniper', pal: { steel: '#b8834a', steelDark: '#7a542c', accent: '#e8c48a' }, deco: [['rr', 'accent', -19, -7, 18, 7, 2], ['rr', 'ink', -16, -4, 12, 1.3, 0.6]] }, // warm bronze, engraved plate on the receiver
         { id: 'ghost', name: 'Ghost', badge: 'gauntlet', pal: { steel: '#eceef2', steelDark: '#aeb7c4', accent: '#b9a6e6' }, deco: [['rr', 'accent', -54, -4, 20, 7, 2], ['rr', 'ink', -51, -1, 14, 1.3, 0.6]] }, // engraved plate on the stock
       ],
+      smg: [
+        { id: 'std', name: 'Standard', badge: null, pal: {}, deco: [] },
+        { id: 'brass', name: 'Brass', badge: 'kickback', pal: { steel: '#d9b25a', steelDark: '#8a5d16', accent: '#fff1b8' }, deco: [['rr', 'accent', -20, -9, 50, 1.8, 0.9], ['rr', 'accent', -20, 2, 50, 1.8, 0.9]] }, // brass finish, two bright lines on the receiver
+        { id: 'hazard', name: 'Hazard', badge: 'walkline', pal: { steel: '#e7e0cf', steelDark: '#6b6458', accent: '#1a1512' }, deco: [['rr', 'accent', -16, -11, 6, 17, 1], ['rr', 'accent', -4, -11, 6, 17, 1], ['rr', 'accent', 8, -11, 6, 17, 1], ['rr', 'accent', 20, -11, 6, 17, 1]] }, // black warning bars
+      ],
+      revolver: [
+        { id: 'std', name: 'Standard', badge: null, pal: {}, deco: [] },
+        { id: 'ivory', name: 'Ivory', badge: 'lastround', pal: { steel: '#c9cdd3', steelDark: '#e6dcc4', accent: '#c08a2c' }, deco: [['rr', 'accent', -14, -2, 26, 3, 1.2], ['rr', 'accent', 20, -6, 26, 2, 1]] }, // ivory grip and cylinder, a gold band
+        { id: 'frost', name: 'Frost', badge: 'coldbarrel', pal: { steel: '#dbe7f7', steelDark: '#8ea6c8', accent: '#3f6396' }, deco: [['rr', 'accent', 17, -6, 41, 3, 1.4]] }, // pale steel, a blue rib on the barrel
+      ],
     },
     chip: { hit: 44, gap: 8, size: 26, radius: 6, labelW: 46, mini: 14 }, // Skin swatches: menu touch size, spacing, drawn size, corner, the "Skin" label's width; mini is the missions swatch
     flash: { spikes: [28, 10, 14, 8, 6, 8, 14, 10], inner: 4.5, from: 0.7, mid: 0.62, core: 0.3, dropAlpha: 0.3, dropScale: 0.5 }, // Muzzle flash: eight spikes (forward first), scale grows from `from` to 1 as it lives; a dropped tap flickers a small faint one (dropAlpha, dropScale)
@@ -227,9 +287,9 @@ const TUNING = {
     pip: { w: 6, h: 9, gap: 11 }, // Combo pips drawn as brass casings
     mult: { size: 24, swell: 0.5, pulse: 0.25, x: 128, dy: 50, flip: 170 }, // The multiplier beside the lane: size in design units, swell on a step, seconds it swells, where it sits, and the gun height below which it goes under the line
     intro: { y: 52, hold: 5, fade: 1.5 }, // Boss 2's "Every plate scores" line: design-space height, seconds shown, seconds to fade
-    range: { ext: 18, h: 60, pitch: 72, head: 16, board: 30, boardH: 14, gunY: 52, tag: [66, 32], shift: 6 }, // The menu's lanes: cell height, lane pitch, target centre, the score board on the post, the best gun's row, the hanging tag's size
+    titleHalf: 62, range: { ext: 18, h: 56, pitch: 58, head: 15, board: 29, boardH: 14, gunY: 50, tag: [66, 32], shift: 6 }, // The menu's lanes: cell height, lane pitch, target centre, the score board on the post, the best gun's row, the hanging tag's size
     missions: { th: 104, gap: 8, rail: 44, lock: 16, lockGap: 10 }, // Missions tile height, gap, scroll rail width, the Gauntlet padlock's size and its gap to the label
-    tile: { pad: 6, info: 22 }, // Gun tiles on the menu: padding round the silhouette
+    tile: { pad: 6 }, // Gun tiles on the menu: padding round the silhouette
   },
 };
 const T = TUNING;
@@ -237,7 +297,7 @@ const A = T.art, P = A.palette, TY = A.type, PI2 = Math.PI * 2;
 T.bg = P.letterbox; // the engine reads this name for the letterbox
 const STEP = T.physicsStep;
 const DEG = Math.PI / 180;
-const GUN_IDS = ['pistol', 'carbine', 'shotgun', 'rifle'];
+const GUN_IDS = ['pistol', 'carbine', 'shotgun', 'rifle', 'smg', 'revolver'];
 // Gauntlet: one level of each ladder in a row, each at two stars or better.
 const GAUNTLET = ['a2', 's2', 'k2', 'b1'];
 
@@ -332,9 +392,23 @@ const CHALLENGES = [
     wall: [[430, 80], [350, 116], [495, 153], [385, 189], [465, 226], [350, 262]], // plate positions: no two share a height band, so a level shot at any plate never crosses another
     coreX: 585, coreBand: [145, 205], coreScale: 0.9, coreBull: 0.6, coreHp: 9, coreDrift: 35,
   },
+  { // v0.5 G. Zombies walk to the fence at the near edge and the run ends when one touches it; waves are fixed and seeded. Classes: s shamble, w walk, r run, x sprint.
+    // `gap` is the seconds between one zombie of a wave entering and the next, `force` the seconds after a wave enters that the next comes regardless.
+    id: 'z1', ladder: 'zombie', level: 1, name: 'Zombies 1', seed: 45001,
+    waves: ['ss', 'sws', 'wsw'], gap: [1.6, 2.6], force: 22, mul: 1,
+  },
+  { id: 'z2', ladder: 'zombie', level: 2, name: 'Zombies 2', seed: 45002,
+    waves: ['wsw', 'wwrw', 'swrwr', 'wrwwr'], gap: [0.9, 1.8], force: 12, mul: 1.15,
+  },
+  { id: 'z3', ladder: 'zombie', level: 3, name: 'Zombies 3', seed: 45003,
+    waves: ['wrwx', 'rwrxr', 'wxrwrx', 'rxrwrx', 'xrwrxr'], gap: [0.6, 1.3], force: 8, mul: 1.3,
+  },
 ];
+// The endless mode: not a rung (no stars, not in the points), a daily seed and a high score. Waves come without end, larger and faster.
+const ENDLESS = { id: 'zend', ladder: 'zombie', level: 0, name: 'Endless', endless: true, gap: [1.0, 2.2], seed: 45999 };
+function chById(id) { return id === ENDLESS.id ? ENDLESS : CHALLENGES.find((c) => c.id === id); }
 
-// Star bars (PRD v0.5 A and K): for each challenge and gun, the noisy bot's scores by aim noise. `m` is the mean score and `q` the 25th percentile, over 100 seeds of a bot whose
+// Star bars (PRD v0.5 A, G, H and K): for each challenge and gun, the noisy bot's scores by aim noise. `m` is the mean score and `q` the 25th percentile, over 100 seeds of a bot whose
 // every shot's barrel angle is off by a Gaussian of sigma degrees, sigma from 0 to 5 in steps of starGrid (index 0 is the perfect run). A bar is read off these curves at the
 // active noise (TUNE), so a slider needs no re-run. Generated by the harness described in the changelog; regenerate whenever the sim changes.
 const BARS = {
@@ -347,6 +421,10 @@ const BARS = {
       q: [2150, 2150, 2150, 1950, 1825, 1675, 1525, 1425, 1280, 1170, 1010, 885, 835, 780, 760, 695, 675, 610, 580, 580, 575] },
     rifle: { m: [2150, 2150, 2133, 2037, 1920, 1787, 1695, 1618, 1488, 1380, 1293, 1221, 1141, 1087, 1023, 931, 895, 866, 808, 753, 719],
       q: [2150, 2150, 2150, 1950, 1800, 1675, 1525, 1475, 1315, 1190, 1035, 980, 925, 830, 790, 690, 670, 625, 595, 570, 525] },
+    smg: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1688, 1601, 1477, 1366, 1242, 1152, 1082, 1035, 981, 918, 874, 816, 781, 739, 708],
+      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1270, 1170, 995, 885, 835, 780, 760, 700, 685, 610, 585, 575, 575] },
+    revolver: { m: [2150, 2150, 2134, 2051, 1877, 1759, 1619, 1530, 1430, 1308, 1171, 1121, 1037, 966, 893, 839, 814, 790, 756, 719, 682],
+      q: [2150, 2150, 2150, 2000, 1750, 1650, 1475, 1360, 1245, 1110, 955, 880, 805, 750, 715, 635, 615, 610, 570, 550, 495] },
   },
   a2: {
     pistol: { m: [2950, 2949, 2802, 2585, 2365, 2122, 1919, 1722, 1549, 1401, 1244, 1137, 1046, 958, 871, 802, 735, 665, 613, 579, 532],
@@ -357,6 +435,10 @@ const BARS = {
       q: [2950, 2950, 2750, 2425, 2180, 1870, 1655, 1365, 1230, 1095, 955, 865, 775, 720, 610, 540, 510, 460, 420, 400, 355] },
     rifle: { m: [2950, 2947, 2795, 2540, 2290, 2070, 1812, 1586, 1393, 1249, 1100, 937, 841, 744, 629, 573, 527, 467, 442, 401, 379],
       q: [2950, 2950, 2750, 2375, 2150, 1880, 1500, 1275, 1135, 970, 800, 675, 570, 465, 435, 350, 350, 320, 320, 265, 240] },
+    smg: { m: [2950, 2949, 2802, 2585, 2365, 2122, 1919, 1723, 1549, 1399, 1246, 1141, 1053, 963, 879, 801, 733, 667, 620, 584, 543],
+      q: [2950, 2950, 2750, 2425, 2195, 1885, 1645, 1390, 1215, 1095, 945, 835, 775, 675, 590, 510, 465, 445, 400, 390, 355] },
+    revolver: { m: [2950, 2943, 2762, 2519, 2267, 1963, 1783, 1512, 1343, 1166, 1086, 964, 848, 760, 681, 614, 573, 533, 476, 454, 433],
+      q: [2950, 2950, 2625, 2355, 2075, 1750, 1500, 1170, 1050, 895, 820, 710, 595, 515, 450, 420, 390, 375, 345, 340, 320] },
   },
   a3: {
     pistol: { m: [3750, 3690, 3248, 2816, 2373, 1956, 1564, 1246, 1023, 845, 718, 604, 520, 437, 404, 346, 282, 250, 228, 198, 189],
@@ -367,6 +449,10 @@ const BARS = {
       q: [3750, 3675, 3100, 2625, 2135, 1515, 1150, 830, 695, 570, 485, 415, 330, 280, 270, 245, 245, 220, 190, 190, 170] },
     rifle: { m: [3750, 3679, 3062, 2532, 1915, 1349, 959, 735, 546, 433, 396, 332, 278, 264, 240, 207, 195, 188, 165, 155, 146],
       q: [3750, 3600, 2900, 2310, 1570, 1040, 720, 505, 390, 300, 265, 220, 190, 150, 145, 120, 100, 100, 70, 70, 50] },
+    smg: { m: [3750, 3690, 3248, 2816, 2370, 1958, 1568, 1284, 1074, 917, 804, 672, 591, 534, 473, 421, 387, 348, 295, 271, 257],
+      q: [3750, 3650, 3100, 2605, 2075, 1620, 1200, 980, 790, 675, 600, 430, 385, 370, 315, 240, 240, 200, 135, 100, 50] },
+    revolver: { m: [3750, 3675, 2994, 2518, 1889, 1277, 911, 645, 479, 398, 337, 278, 261, 244, 224, 206, 200, 192, 177, 167, 155],
+      q: [3750, 3575, 2830, 2265, 1555, 955, 665, 460, 295, 220, 180, 145, 145, 145, 120, 100, 120, 110, 100, 70, 70] },
   },
   a4: {
     pistol: { m: [2950, 2938, 2514, 1918, 1592, 1346, 1123, 926, 767, 645, 550, 456, 398, 309, 264, 225, 194, 155, 136, 114, 106],
@@ -377,6 +463,10 @@ const BARS = {
       q: [2950, 2950, 2625, 2275, 1975, 1620, 1435, 1130, 985, 915, 800, 705, 685, 625, 530, 465, 465, 445, 450, 420, 400] },
     rifle: { m: [2950, 2919, 2143, 1443, 1131, 891, 736, 632, 498, 414, 361, 299, 256, 225, 199, 184, 159, 133, 115, 107, 98],
       q: [2950, 2950, 1750, 1225, 960, 670, 550, 445, 340, 290, 215, 190, 170, 140, 140, 120, 90, 50, 40, 20, 20] },
+    smg: { m: [2950, 2938, 2517, 1933, 1590, 1338, 1145, 956, 807, 726, 643, 567, 507, 466, 416, 387, 366, 353, 302, 263, 241],
+      q: [2950, 2950, 2200, 1600, 1265, 1095, 895, 695, 605, 540, 495, 440, 390, 370, 300, 280, 260, 240, 195, 120, 100] },
+    revolver: { m: [2950, 2927, 2324, 1639, 1266, 1028, 875, 717, 571, 461, 397, 367, 283, 259, 223, 209, 190, 170, 149, 133, 123],
+      q: [2950, 2950, 1900, 1355, 1045, 820, 675, 500, 430, 325, 250, 210, 165, 160, 120, 100, 100, 100, 90, 70, 50] },
   },
   a5: {
     pistol: { m: [3750, 3639, 2835, 2046, 1523, 1159, 861, 658, 507, 390, 306, 262, 219, 183, 147, 133, 109, 97, 86, 79, 71],
@@ -387,6 +477,10 @@ const BARS = {
       q: [3750, 3550, 2885, 2315, 1685, 1260, 835, 655, 510, 440, 415, 350, 290, 260, 245, 230, 210, 170, 180, 180, 170] },
     rifle: { m: [3750, 3551, 2213, 1293, 843, 574, 475, 385, 323, 275, 230, 189, 175, 165, 156, 141, 127, 127, 118, 100, 98],
       q: [3750, 3475, 1780, 990, 640, 455, 365, 280, 240, 190, 165, 120, 120, 110, 100, 70, 50, 50, 50, 40, 20] },
+    smg: { m: [3750, 3634, 2798, 2011, 1475, 1140, 906, 762, 630, 541, 461, 395, 348, 312, 290, 251, 226, 201, 180, 153, 134],
+      q: [3750, 3550, 2450, 1590, 1065, 810, 675, 570, 475, 370, 315, 245, 185, 170, 140, 100, 90, 50, 20, 0, 0] },
+    revolver: { m: [3750, 3600, 2375, 1409, 976, 650, 485, 362, 285, 228, 205, 168, 144, 128, 121, 110, 109, 93, 82, 84, 77],
+      q: [3750, 3550, 1850, 1045, 750, 455, 360, 250, 190, 140, 140, 120, 80, 70, 70, 40, 40, 20, 20, 40, 20] },
   },
   s1: {
     pistol: { m: [4150, 4147, 3909, 3517, 3175, 2801, 2442, 2131, 1871, 1627, 1482, 1325, 1223, 1167, 1090, 1022, 970, 912, 864, 799, 752],
@@ -397,6 +491,10 @@ const BARS = {
       q: [4150, 4150, 3800, 3350, 2985, 2555, 2125, 1690, 1460, 1310, 1190, 1085, 1010, 960, 870, 885, 835, 815, 760, 750, 730] },
     rifle: { m: [4150, 4147, 3909, 3517, 3175, 2803, 2441, 2132, 1850, 1636, 1470, 1322, 1235, 1157, 1063, 1003, 952, 894, 856, 830, 783],
       q: [4150, 4150, 3800, 3350, 2985, 2580, 2125, 1775, 1460, 1310, 1160, 1095, 1010, 975, 865, 835, 800, 730, 685, 665, 630] },
+    smg: { m: [4150, 4147, 3909, 3517, 3175, 2801, 2443, 2130, 1869, 1630, 1473, 1328, 1228, 1171, 1094, 1047, 1009, 973, 949, 934, 891],
+      q: [4150, 4150, 3800, 3350, 2985, 2555, 2125, 1690, 1505, 1315, 1210, 1080, 1005, 995, 940, 920, 855, 820, 780, 770, 730] },
+    revolver: { m: [4150, 4147, 3909, 3517, 3174, 2801, 2439, 2108, 1839, 1652, 1454, 1250, 1173, 1118, 1047, 966, 876, 851, 825, 788, 735],
+      q: [4150, 4150, 3800, 3350, 2985, 2580, 2125, 1665, 1455, 1335, 1130, 985, 925, 910, 825, 790, 760, 680, 655, 605, 575] },
   },
   s2: {
     pistol: { m: [7350, 7318, 6565, 5745, 5017, 4239, 3604, 3078, 2648, 2313, 2142, 1958, 1842, 1702, 1575, 1500, 1414, 1325, 1297, 1196, 1153],
@@ -407,6 +505,10 @@ const BARS = {
       q: [7350, 7350, 6350, 5460, 4595, 3900, 3195, 2595, 2210, 2035, 1870, 1735, 1645, 1530, 1475, 1445, 1390, 1375, 1275, 1260, 1230] },
     rifle: { m: [7350, 7318, 6565, 5745, 5019, 4247, 3595, 3069, 2607, 2254, 2005, 1772, 1549, 1437, 1380, 1330, 1233, 1207, 1160, 1136, 1118],
       q: [7350, 7350, 6350, 5460, 4595, 3915, 3140, 2585, 2170, 1860, 1650, 1400, 1190, 1175, 1155, 1085, 1065, 1055, 1000, 1015, 990] },
+    smg: { m: [7350, 7318, 6565, 5745, 5017, 4239, 3603, 3059, 2633, 2340, 2124, 1981, 1882, 1768, 1702, 1624, 1527, 1480, 1465, 1413, 1370],
+      q: [7350, 7350, 6350, 5460, 4595, 3825, 3195, 2570, 2265, 2010, 1825, 1690, 1570, 1540, 1490, 1385, 1320, 1285, 1215, 1215, 1140] },
+    revolver: { m: [7350, 7318, 6565, 5746, 5026, 4195, 3509, 2927, 2382, 2037, 1874, 1678, 1556, 1484, 1444, 1374, 1316, 1269, 1244, 1220, 1256],
+      q: [7350, 7350, 6350, 5460, 4595, 3785, 3045, 2490, 1905, 1630, 1550, 1340, 1310, 1265, 1220, 1145, 1125, 1100, 1115, 1055, 1090] },
   },
   s3: {
     pistol: { m: [12950, 12817, 11275, 9763, 8228, 6789, 5588, 4608, 3923, 3534, 3095, 2704, 2463, 2240, 2082, 1903, 1817, 1700, 1638, 1571, 1557],
@@ -417,6 +519,10 @@ const BARS = {
       q: [12950, 12750, 10900, 9365, 7720, 6185, 4875, 4010, 3510, 3145, 2795, 2665, 2460, 2340, 2240, 2210, 2095, 2090, 2130, 1975, 1935] },
     rifle: { m: [12950, 12817, 11275, 9766, 8210, 6718, 5273, 4025, 3365, 3105, 2994, 2923, 2864, 2730, 2706, 2622, 2579, 2533, 2518, 2453, 2444],
       q: [12950, 12750, 10900, 9365, 7695, 6005, 4640, 3470, 2925, 2815, 2690, 2590, 2535, 2435, 2310, 2305, 2305, 2280, 2190, 2245, 2175] },
+    smg: { m: [12950, 12817, 11275, 9763, 8232, 6789, 5581, 4610, 3954, 3533, 3196, 3025, 2776, 2631, 2482, 2288, 2241, 2108, 1956, 1877, 1768],
+      q: [12950, 12750, 10900, 9365, 7700, 6170, 4875, 3980, 3460, 3135, 2715, 2645, 2390, 2290, 2155, 2005, 1990, 1865, 1735, 1570, 1535] },
+    revolver: { m: [12550, 12390, 10528, 8491, 6606, 5573, 4888, 4576, 4295, 4031, 3855, 3744, 3604, 3457, 3308, 3240, 3158, 3104, 3071, 3013, 3040],
+      q: [12550, 12350, 10250, 7980, 6100, 5120, 4365, 4140, 3820, 3655, 3385, 3440, 3245, 3140, 3015, 2875, 2785, 2760, 2700, 2575, 2585] },
   },
   s4: {
     pistol: { m: [3630, 3630, 3564, 2967, 2348, 1984, 1721, 1591, 1458, 1392, 1379, 1324, 1292, 1259, 1234, 1240, 1231, 1220, 1190, 1197, 1180],
@@ -427,6 +533,10 @@ const BARS = {
       q: [3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3190, 3200, 3190, 3190, 3190, 3170, 2910, 2850, 2810, 2800, 2720, 2630] },
     rifle: { m: [3470, 3470, 3445, 3130, 2721, 2471, 2318, 2130, 2020, 1985, 1936, 1937, 1866, 1772, 1790, 1709, 1695, 1695, 1697, 1657, 1601],
       q: [3470, 3470, 3470, 2970, 2510, 2260, 2130, 1900, 1800, 1760, 1770, 1740, 1640, 1560, 1570, 1530, 1490, 1480, 1490, 1460, 1410] },
+    smg: { m: [3630, 3630, 3581, 3167, 2550, 2187, 1896, 1762, 1612, 1524, 1434, 1375, 1325, 1292, 1261, 1248, 1232, 1198, 1204, 1168, 1171],
+      q: [3630, 3630, 3630, 3000, 2370, 1980, 1710, 1620, 1480, 1390, 1310, 1270, 1240, 1210, 1180, 1170, 1160, 1110, 1130, 1090, 1100] },
+    revolver: { m: [2910, 2910, 2915, 2816, 2631, 2465, 2407, 2305, 2195, 2066, 2008, 1924, 1822, 1822, 1771, 1690, 1577, 1497, 1510, 1487, 1438],
+      q: [2910, 2910, 2910, 2700, 2480, 2330, 2220, 2160, 2080, 1910, 1840, 1720, 1630, 1610, 1530, 1490, 1370, 1260, 1300, 1240, 1190] },
   },
   s5: {
     pistol: { m: [3310, 3288, 3039, 2547, 2030, 1643, 1379, 1162, 1119, 981, 884, 858, 839, 833, 819, 799, 786, 759, 777, 766, 780],
@@ -437,6 +547,10 @@ const BARS = {
       q: [2750, 2750, 2535, 2390, 2215, 2010, 1805, 1700, 1600, 1510, 1545, 1440, 1390, 1320, 1260, 1260, 1260, 1230, 1215, 1220, 1155] },
     rifle: { m: [3150, 3150, 2956, 2534, 2197, 1985, 1795, 1732, 1659, 1487, 1377, 1350, 1318, 1261, 1203, 1166, 1156, 1109, 1125, 1102, 1088],
       q: [3150, 3150, 2830, 2320, 2000, 1780, 1575, 1450, 1385, 1315, 1150, 1115, 1095, 1005, 985, 955, 950, 900, 880, 905, 880] },
+    smg: { m: [3310, 3282, 3030, 2622, 2004, 1719, 1498, 1288, 1152, 1073, 1003, 971, 903, 875, 825, 802, 792, 780, 767, 757, 779],
+      q: [3310, 3310, 2910, 2380, 1715, 1455, 1290, 1130, 1010, 940, 865, 850, 810, 770, 730, 710, 710, 720, 690, 700, 710] },
+    revolver: { m: [2830, 2830, 2822, 2680, 2365, 2041, 1836, 1783, 1663, 1479, 1415, 1333, 1264, 1199, 1233, 1139, 1106, 1066, 1066, 1063, 1040],
+      q: [2830, 2830, 2830, 2600, 2140, 1745, 1640, 1550, 1455, 1225, 1175, 1100, 1030, 955, 990, 905, 865, 865, 900, 880, 845] },
   },
   k1: {
     pistol: { m: [2950, 2949, 2791, 2447, 2104, 1782, 1519, 1350, 1249, 1155, 1095, 1047, 1015, 993, 959, 942, 925, 919, 904, 903, 894],
@@ -447,6 +561,10 @@ const BARS = {
       q: [2950, 2950, 2700, 2275, 1725, 1400, 1250, 1075, 1000, 975, 925, 875, 825, 825, 800, 800, 775, 725, 750, 725, 700] },
     rifle: { m: [2950, 2949, 2791, 2448, 2103, 1783, 1522, 1356, 1248, 1135, 1066, 1006, 971, 927, 882, 843, 807, 772, 743, 705, 689],
       q: [2950, 2950, 2700, 2275, 1725, 1425, 1275, 1075, 1000, 925, 875, 825, 825, 775, 725, 700, 675, 625, 625, 575, 575] },
+    smg: { m: [2950, 2949, 2791, 2447, 2106, 1783, 1520, 1351, 1247, 1157, 1092, 1046, 1015, 992, 960, 939, 925, 918, 908, 907, 894],
+      q: [2950, 2950, 2700, 2275, 1725, 1400, 1250, 1075, 1000, 975, 925, 900, 825, 825, 850, 825, 825, 825, 800, 800, 800] },
+    revolver: { m: [2950, 2949, 2791, 2448, 2107, 1770, 1521, 1346, 1228, 1125, 1041, 947, 895, 854, 781, 749, 704, 673, 652, 636, 620],
+      q: [2950, 2950, 2700, 2275, 1725, 1425, 1275, 1075, 975, 925, 825, 750, 750, 675, 650, 625, 575, 550, 500, 500, 500] },
   },
   k2: {
     pistol: { m: [3750, 3738, 3394, 2832, 2253, 1861, 1613, 1440, 1334, 1258, 1204, 1170, 1144, 1126, 1118, 1105, 1069, 1052, 1045, 1034, 1028],
@@ -457,6 +575,10 @@ const BARS = {
       q: [3750, 3750, 3300, 2675, 2000, 1600, 1400, 1275, 1175, 1150, 1075, 1025, 1025, 975, 975, 950, 925, 875, 825, 775, 725] },
     rifle: { m: [3750, 3739, 3467, 2995, 2463, 2001, 1759, 1531, 1381, 1221, 1134, 1052, 967, 907, 852, 797, 753, 713, 679, 662, 632],
       q: [3750, 3750, 3350, 2725, 2075, 1650, 1450, 1275, 1150, 975, 900, 825, 750, 725, 675, 650, 600, 575, 525, 525, 500] },
+    smg: { m: [3750, 3738, 3394, 2814, 2235, 1842, 1594, 1428, 1328, 1246, 1193, 1171, 1152, 1125, 1096, 1080, 1056, 1049, 1038, 1026, 1016],
+      q: [3750, 3750, 3275, 2400, 1850, 1500, 1300, 1225, 1075, 1075, 1025, 1000, 1025, 1000, 975, 950, 925, 950, 925, 925, 900] },
+    revolver: { m: [3750, 3739, 3494, 3042, 2507, 2095, 1890, 1657, 1441, 1306, 1209, 1095, 1021, 958, 910, 838, 796, 748, 700, 662, 625],
+      q: [3750, 3750, 3375, 2850, 2100, 1625, 1525, 1300, 1200, 1100, 1000, 925, 850, 750, 750, 675, 625, 575, 575, 550, 450] },
   },
   k3: {
     pistol: { m: [2950, 2915, 2523, 2036, 1616, 1356, 1190, 1084, 992, 966, 939, 872, 817, 800, 778, 754, 713, 709, 712, 688, 665],
@@ -467,6 +589,10 @@ const BARS = {
       q: [2950, 2950, 2350, 1700, 1275, 1075, 925, 850, 800, 725, 675, 625, 600, 550, 525, 475, 475, 475, 425, 425, 400] },
     rifle: { m: [2950, 2915, 2532, 2027, 1568, 1287, 1089, 988, 899, 788, 712, 648, 598, 544, 494, 460, 429, 412, 388, 364, 349],
       q: [2950, 2950, 2425, 1700, 1225, 950, 875, 750, 700, 600, 525, 475, 450, 400, 350, 350, 300, 300, 300, 250, 250] },
+    smg: { m: [2950, 2915, 2523, 2039, 1615, 1362, 1187, 1106, 1022, 975, 945, 910, 893, 877, 828, 803, 784, 771, 766, 753, 735],
+      q: [2950, 2950, 2350, 1700, 1275, 1100, 975, 900, 900, 825, 800, 800, 775, 750, 725, 700, 700, 675, 650, 650, 625] },
+    revolver: { m: [2950, 2916, 2557, 2063, 1623, 1247, 1030, 902, 787, 711, 621, 551, 506, 459, 428, 396, 356, 335, 320, 313, 288],
+      q: [2950, 2950, 2475, 1725, 1300, 950, 800, 650, 575, 550, 450, 400, 325, 300, 300, 250, 225, 200, 200, 200, 150] },
   },
   b1: {
     pistol: { m: [3750, 3577, 2961, 2448, 1984, 1580, 1222, 962, 831, 790, 772, 745, 736, 738, 699, 698, 650, 558, 443, 349, 295],
@@ -477,6 +603,10 @@ const BARS = {
       q: [1000, 1000, 1000, 900, 800, 690, 525, 405, 355, 325, 295, 245, 215, 200, 190, 160, 170, 145, 140, 120, 120] },
     rifle: { m: [1000, 955, 863, 764, 695, 636, 586, 540, 496, 472, 442, 409, 388, 380, 364, 347, 342, 326, 315, 297, 269],
       q: [1000, 875, 775, 700, 600, 525, 475, 415, 390, 360, 350, 315, 305, 300, 275, 265, 260, 235, 225, 190, 160] },
+    smg: { m: [3750, 3579, 3001, 2525, 2092, 1666, 1356, 1117, 938, 824, 760, 728, 723, 699, 700, 715, 671, 653, 647, 624, 582],
+      q: [3750, 3550, 2775, 2330, 1860, 1410, 1100, 920, 790, 675, 615, 625, 620, 585, 600, 575, 555, 525, 515, 480, 435] },
+    revolver: { m: [1000, 966, 861, 770, 693, 637, 574, 522, 486, 457, 414, 384, 358, 343, 326, 315, 309, 292, 284, 267, 250],
+      q: [1000, 1000, 750, 675, 600, 515, 450, 380, 355, 335, 295, 270, 245, 235, 245, 215, 195, 190, 190, 190, 185] },
   },
   b2: {
     pistol: { m: [9750, 9481, 8637, 7790, 6972, 6210, 5573, 4967, 4543, 4133, 3883, 3671, 3515, 3352, 3217, 3096, 3016, 2983, 2848, 2763, 2631],
@@ -487,6 +617,52 @@ const BARS = {
       q: [4550, 2950, 2750, 2385, 2075, 1790, 1465, 1165, 1035, 890, 815, 695, 600, 565, 505, 485, 470, 455, 400, 385, 395] },
     rifle: { m: [2550, 2454, 2190, 1949, 1747, 1580, 1402, 1225, 1135, 1045, 993, 925, 880, 851, 825, 800, 773, 745, 735, 730, 695],
       q: [2550, 2350, 2075, 1800, 1555, 1365, 1170, 990, 960, 810, 775, 740, 685, 645, 645, 610, 610, 600, 565, 550, 530] },
+    smg: { m: [9750, 9481, 8637, 7786, 6974, 6221, 5581, 5000, 4577, 4175, 3866, 3592, 3386, 3184, 2988, 2865, 2821, 2806, 2718, 2665, 2547],
+      q: [9750, 9350, 8400, 7500, 6570, 5775, 5080, 4550, 4145, 3760, 3525, 3110, 2915, 2730, 2570, 2475, 2455, 2395, 2305, 2285, 2235] },
+    revolver: { m: [2550, 2454, 2192, 1953, 1751, 1583, 1419, 1261, 1169, 1077, 1020, 945, 891, 856, 830, 800, 782, 744, 738, 734, 691],
+      q: [2550, 2350, 2075, 1800, 1575, 1365, 1210, 1025, 965, 845, 830, 750, 690, 675, 675, 620, 625, 585, 565, 545, 535] },
+  },
+  z1: {
+    pistol: { m: [9644, 7650, 7290, 6869, 5728, 4641, 3938, 3672, 3660, 3728, 3628, 3581, 3333, 3291, 3141, 3005, 2804, 2721, 2591, 2519, 2465],
+      q: [9644, 7404, 7204, 6293, 5129, 3807, 3376, 3188, 3203, 3179, 3049, 3061, 2896, 2858, 2672, 2559, 2359, 2339, 2276, 2255, 2143] },
+    carbine: { m: [9644, 7682, 7352, 7079, 6286, 5395, 4908, 4322, 4057, 3769, 3720, 3478, 3328, 3207, 3234, 3164, 2879, 2883, 2678, 2666, 2485],
+      q: [9644, 7484, 7264, 6808, 5594, 4579, 4295, 3836, 3444, 3196, 3123, 2960, 2938, 2751, 2792, 2700, 2458, 2397, 2281, 2248, 2049] },
+    shotgun: { m: [7784, 7690, 7237, 6867, 6754, 6661, 6630, 6557, 6674, 6562, 6514, 6545, 6412, 6416, 6397, 6438, 6376, 6272, 6184, 6049, 5974],
+      q: [7784, 7399, 6682, 6347, 6124, 6151, 6163, 5792, 6155, 6092, 5907, 5904, 5652, 5786, 5885, 5955, 5812, 5763, 5576, 5339, 5397] },
+    rifle: { m: [8579, 7741, 6947, 5936, 4870, 4020, 3497, 3167, 2963, 2906, 2902, 2702, 2607, 2566, 2515, 2427, 2359, 2347, 2284, 2298, 2288],
+      q: [8579, 7569, 6313, 5208, 4186, 3314, 2918, 2738, 2568, 2528, 2490, 2380, 2310, 2336, 2207, 2167, 2094, 2119, 2051, 2081, 2033] },
+    smg: { m: [9644, 7730, 7374, 6917, 6058, 5129, 4400, 3961, 3674, 3705, 3538, 3443, 3407, 3373, 3351, 3137, 3043, 2831, 2757, 2805, 2714],
+      q: [9644, 7499, 7224, 6555, 5571, 4542, 3712, 3333, 3043, 3146, 2945, 3028, 2978, 2874, 3007, 2711, 2668, 2524, 2368, 2336, 2303] },
+    revolver: { m: [8579, 7501, 6556, 5742, 4786, 3715, 3344, 3115, 3049, 2960, 2778, 2684, 2628, 2525, 2490, 2435, 2325, 2296, 2305, 2279, 2171],
+      q: [8579, 7284, 5980, 5163, 4034, 3214, 2908, 2763, 2703, 2575, 2359, 2349, 2297, 2209, 2184, 2129, 2074, 2034, 1996, 2016, 1923] },
+  },
+  z2: {
+    pistol: { m: [20804, 16948, 16155, 14990, 12687, 10720, 9959, 9789, 9375, 8913, 8176, 7786, 7256, 6755, 6513, 6096, 5823, 5566, 5368, 5314, 5136],
+      q: [20804, 16684, 16044, 14541, 11523, 9736, 9038, 8757, 8435, 7986, 7263, 6836, 6555, 5932, 5765, 5538, 5165, 4905, 4931, 4768, 4620] },
+    carbine: { m: [20804, 17206, 16394, 15641, 13605, 11755, 10535, 9326, 8829, 8277, 7763, 7295, 6896, 6633, 6267, 6427, 5942, 5892, 5746, 5516, 5246],
+      q: [20804, 16884, 16204, 15118, 12557, 10793, 9576, 8486, 7812, 7422, 6736, 6497, 5880, 5920, 5447, 5456, 5169, 5110, 5101, 4858, 4667] },
+    shotgun: { m: [16974, 16145, 15477, 15047, 15215, 15240, 15326, 15444, 15538, 15517, 15424, 15286, 15367, 15316, 15002, 15114, 14824, 14462, 14169, 13783, 13585],
+      q: [16974, 15834, 14909, 14119, 14155, 14252, 14160, 14194, 14689, 14649, 14390, 14428, 14360, 14529, 13965, 14364, 13616, 13327, 13167, 12400, 12133] },
+    rifle: { m: [19284, 17456, 16149, 15146, 13352, 12035, 10168, 9122, 8753, 8116, 7670, 7590, 7389, 7052, 7139, 6510, 6568, 6289, 6435, 6265, 6396],
+      q: [19284, 17089, 15849, 14603, 12286, 10973, 8896, 8060, 7537, 7076, 6660, 6689, 6622, 6110, 6148, 5781, 5637, 5585, 5589, 5458, 5474] },
+    smg: { m: [20804, 17158, 16260, 15418, 13403, 11457, 9712, 8777, 8305, 8026, 7774, 7406, 6935, 6771, 6506, 6216, 6024, 5746, 5594, 5513, 5199],
+      q: [20804, 16834, 16144, 15038, 12462, 10374, 8650, 7831, 7572, 7003, 7018, 6593, 6241, 5940, 5707, 5404, 5384, 4954, 4928, 4938, 4609] },
+    revolver: { m: [18934, 17775, 16062, 14997, 13885, 12981, 11502, 10699, 9749, 9611, 8866, 8675, 8448, 7851, 7773, 7618, 7075, 7520, 7072, 6942, 6806],
+      q: [18934, 17464, 15629, 14345, 13007, 12072, 9800, 9220, 8518, 8733, 7672, 7637, 7340, 7133, 6666, 6637, 6041, 6174, 5972, 5817, 5686] },
+  },
+  z3: {
+    pistol: { m: [32784, 27478, 26015, 24312, 21293, 20518, 19912, 18746, 18096, 17194, 15436, 14489, 13722, 12213, 11715, 10713, 9874, 9701, 9071, 8517, 8121],
+      q: [32784, 26964, 25904, 23707, 19960, 19293, 18418, 17554, 16647, 15493, 14257, 12932, 12508, 11183, 10919, 9780, 9049, 8705, 8221, 7747, 7484] },
+    carbine: { m: [32724, 27525, 26312, 24939, 21992, 19177, 17815, 16921, 16232, 15292, 14117, 13547, 12616, 11766, 11227, 10409, 10004, 9544, 9112, 8920, 8462],
+      q: [32724, 27104, 26104, 24212, 21096, 18204, 16215, 15464, 14807, 13943, 12282, 12019, 11334, 10335, 9923, 9274, 8960, 8701, 8146, 8140, 7720] },
+    shotgun: { m: [27439, 27326, 26650, 25714, 25697, 25686, 25757, 25967, 25996, 25926, 25739, 25678, 25458, 25298, 25318, 24957, 24174, 23857, 23386, 23177, 22878],
+      q: [27439, 26759, 25959, 24632, 24847, 24709, 24746, 24878, 25009, 25124, 24861, 24939, 24479, 24379, 24685, 23947, 23161, 22358, 21881, 21748, 21467] },
+    rifle: { m: [27039, 26384, 25587, 24475, 23545, 22783, 21935, 21823, 20419, 18135, 17752, 15807, 15436, 13672, 12972, 12261, 10424, 9602, 9209, 8561, 8458],
+      q: [27039, 26249, 25349, 24018, 22642, 21754, 20530, 20006, 18796, 16211, 16077, 13732, 13436, 9413, 9586, 9105, 6659, 4977, 5907, 4519, 4519] },
+    smg: { m: [33204, 27647, 26192, 24765, 21208, 18210, 15758, 14753, 13759, 13008, 12859, 12454, 11835, 11505, 10820, 10500, 9773, 9541, 9152, 8768, 8423],
+      q: [33204, 27339, 26024, 24087, 20009, 17094, 14627, 13545, 12644, 11994, 11828, 11517, 10692, 10375, 10000, 9523, 8783, 8686, 8512, 7968, 7804] },
+    revolver: { m: [25484, 24983, 24393, 23051, 22871, 21351, 19807, 18183, 16052, 14446, 12456, 11010, 10153, 8537, 8607, 7365, 7458, 6306, 5820, 5141, 4688],
+      q: [25484, 24889, 24394, 22928, 22693, 20263, 16944, 13404, 11669, 9974, 9489, 7986, 7328, 4731, 5285, 4504, 4149, 3055, 2974, 2300, 2389] },
   },
 };
 
@@ -504,7 +680,7 @@ function thresholds(ch, gun) {
   C[key] = { sig, b };
   return b;
 }
-const LADDERS = [['accuracy', 'Accuracy'], ['speed', 'Speed'], ['skeet', 'Skeet'], ['boss', 'Boss']];
+const LADDERS = [['accuracy', 'Accuracy'], ['speed', 'Speed'], ['skeet', 'Skeet'], ['boss', 'Boss'], ['zombie', 'Zombies']];
 
 // ---------- Setup (seeded) ----------
 
@@ -523,6 +699,16 @@ function pickY(rng, lg, band, prev, minDy) {
   let r = rng.range(0, iv.reduce((s, [a, b]) => s + (b - a), 0));
   for (const [a, b] of iv) { if (r <= b - a) return a + r; r -= b - a; }
   return iv[iv.length - 1][1];
+}
+
+// A wave of an endless run: the size grows from two to six, the speeds shift from shamblers toward runners, all from the day's seed and the wave number.
+function zombieWave(ch, k) {
+  const rng = makeRng((ch.seed ^ Math.imul(k + 1, 2654435761)) >>> 0), Z = T.zombie, n = Math.min(6, 2 + (k >> 1)), mul = Math.min(1.5, 1 + 0.03 * k), out = [];
+  for (let i = 0; i < n; i++) {
+    const r = rng() + k * 0.04, cls = r < 0.5 ? 's' : r < 0.85 ? 'w' : r < 1.15 ? 'r' : 'x';
+    out.push({ cls, mul, feet: rng.range(Z.lanes[0], Z.lanes[1]), gap: rng.range(ch.gap[0], ch.gap[1]) });
+  }
+  return out;
 }
 
 const BUILT = new Map();
@@ -591,6 +777,9 @@ function build(ch) {
         b.push({ at, a: rng.range(hi - cut, hi), x0: lg.x1 - ch.pairDx });
       } else b.push({ at, a: rng.range(lo, hi), x0: lg.x1 - rng.range(0, ch.launchSpread) });
     }
+  } else if (ch.ladder === 'zombie') { // waves of zombies: class, the lane the feet keep (nearer is bigger), and the seconds since the one before
+    const Z = T.zombie;
+    b = ch.waves.map((w) => [...w].map((cls) => ({ cls, mul: ch.mul, feet: rng.range(Z.lanes[0], Z.lanes[1]), gap: rng.range(ch.gap[0], ch.gap[1]) })));
   } else if (ch.wall) { // the Bunker: plates in the order they are revealed, and a core behind them
     b = {
       parts: rng.shuffle(ch.wall.map((_, i) => i)).map((k) => ({ x: ch.wall[k][0], y: ch.wall[k][1] })),
@@ -612,7 +801,7 @@ function build(ch) {
 function makeRun(ch, gunId) {
   const gun = T.guns[gunId] || T.guns.pistol, hn = Math.round(T.swayWindow / STEP);
   return {
-    ch, gun, list: build(ch), idx: 0, targets: [], stage: 0,
+    ch, gun, list: ch.endless ? null : build(ch), idx: 0, targets: [], stage: 0,
     steps: 0, acc: 0, q: [], frameReal: 0, events: [],
     gunY: T.startGunY, kick: 0, sway: 0, hist: new Array(hn + 1).fill(T.startGunY), hi: 0, hn,
     kUp: false, kDown: false, holding: false, nextFire: 0,
@@ -620,6 +809,7 @@ function makeRun(ch, gunId) {
     ammo: ch.ladder === 'accuracy' ? ch.accAmmo : Infinity,
     nextAt: T.startDelay, done: false, cleared: false, pairHits: {}, double: false,
     decoyHits: 0, down: 0, revealed: 0, revealQ: [],
+    zs: [], zN: 0, wave: 0, pending: [], calmAt: T.startDelay, forceAt: Infinity, zdown: 0, breach: null, // zombies (v0.5 G)
     hitTimes: [], kickback: false, lastShotHit: false, firstZone: -1, lateClay: false, hordes: {}, hordeN: 0, walked: false, // counters for the delighter badges
   };
 }
@@ -708,7 +898,7 @@ function spawnCore(run, t) {
   addTarget(run, { kind: 'core', x0: c.x, y0: c.y, sc: ch.coreScale, bullMul: ch.coreBull, hp: T.bossCoreHp, hpMax: T.bossCoreHp, dir: c.dir, ymin: lg.y0, ymax: lg.y1 }, t);
 }
 
-function targetRadius(tg) { return (tg.kind === 'skeet' ? T.zoneR[1] : T.zoneR[2]) * tg.sc; }
+function targetRadius(tg) { return tg.rad !== undefined ? tg.rad : (tg.kind === 'skeet' ? T.zoneR[1] : T.zoneR[2]) * tg.sc; }
 
 function dodge(tg, now) {
   let dir = tg.bits[tg.dodges % tg.bits.length] ? 1 : -1;
@@ -717,9 +907,78 @@ function dodge(tg, now) {
   tg.dodges++; tg.nextDodge = now + T.dodgeCooldown;
 }
 
+// ---- Zombies (v0.5 G) ----
+function zSpeed(z) { const Z = T.zombie; return z.v * (z.legsDown ? Z.crawl : 1) * (z.bodyDown ? Z.hunch : 1); }
+// Where each part that is left sits: the pose follows what is left of the zombie, and the parts are the targets (circles) the shot lines cross.
+function layoutZombie(z) {
+  const Z = T.zombie, P = Z.pose, sc = z.sc, fy = z.y, pl = z.legsDown ? (z.bodyDown ? P.drag : P.crawl) : z.bodyDown ? P.hunch : P.stand;
+  const put = (p, dx, cy) => { p.x0 = p.x = z.x + dx * sc; p.y0 = p.y = fy - cy * sc; };
+  if (z.parts.legs) put(z.parts.legs, 0, Z.legs.cy);
+  if (z.parts.body) put(z.parts.body, pl.body[0], pl.body[1]);
+  if (z.parts.brain) put(z.parts.brain, pl.brain[0], pl.brain[1]);
+}
+function spawnZombie(run, spec, wave, n, t) {
+  const Z = T.zombie, k = clamp((spec.feet - Z.lanes[0]) / (Z.lanes[1] - Z.lanes[0]), 0, 1), sc = Z.scale[0] + (Z.scale[1] - Z.scale[0]) * k;
+  const z = { id: run.zN++, wave, n, cls: spec.cls, x: Z.spawnX, y: spec.feet, sc, v: Z.speeds[spec.cls] * (spec.mul || 1), legsDown: false, bodyDown: false, parts: {}, born: t };
+  for (const name of ['legs', 'body', 'brain']) z.parts[name] = { kind: 'zpart', part: name, z, hp: Z[name].hp, hpMax: Z[name].hp, rad: Z[name].r * sc, sc, hitAt: -9 };
+  layoutZombie(z);
+  for (const name of ['legs', 'body', 'brain']) addTarget(run, z.parts[name], t);
+  let i = run.zs.length; while (i > 0 && run.zs[i - 1].y > z.y) i--; run.zs.splice(i, 0, z); // kept far to near, the order they are drawn in
+}
+function startWave(run, t) {
+  const ch = run.ch, specs = ch.endless ? zombieWave(ch, run.wave) : run.list[run.wave];
+  let at = t;
+  specs.forEach((sp, i) => { if (i) at += sp.gap; run.pending.push({ at, spec: sp, wave: run.wave + 1, n: i + 1 }); });
+  run.wave++;
+  run.forceAt = t + (ch.endless ? Math.max(9, 24 - run.wave) : ch.force);
+  run.events.push({ type: 'wave', n: run.wave });
+}
+function killZombie(run, z, now) {
+  for (const p of Object.values(z.parts)) if (p) { const i = run.targets.indexOf(p); if (i >= 0) run.targets.splice(i, 1); }
+  z.parts = {}; z.dead = true; run.zs.splice(run.zs.indexOf(z), 1); run.zdown++;
+  if (!run.zs.length && !run.pending.length) run.calmAt = now + T.zombie.waveGap;
+  run.events.push({ type: 'fall', x: z.x, y: z.y, sc: z.sc, crawl: z.legsDown });
+}
+// The score of one shot's hits on zombie parts (called with the parts the pellets hurt, after damage): a point value per hit and per part destroyed, the brain bonus, all times
+// the multiplier. A part at zero hit points is destroyed: legs down make the zombie crawl, body down slow it, and the brain ends it.
+function zombieShot(run, res, hurt, mult, now) {
+  const Z = T.zombie, PT = Z.points, hits = new Map();
+  for (const r of res) if (r.tg && r.tg.kind === 'zpart') hits.set(r.tg, (hits.get(r.tg) || 0) + 1);
+  let base = 0, tx = 0, ty = 0, zone = 2, tag = null, killed = false;
+  const parts = [...hurt].filter((p) => p.kind === 'zpart').sort((a, b) => (a.part < b.part ? -1 : 1)); // a fixed order, by name
+  for (const p of parts) {
+    base += PT.hit * hits.get(p); tx += p.x; ty += p.y; p.hitAt = now;
+    if (p.hp > 0) continue;
+    base += PT[p.part];
+    if (p.part === 'brain') { base += PT.bonus; zone = 0; tag = 'Brain shot'; killed = true; }
+    else { zone = Math.min(zone, 1); if (tag !== 'Brain shot') tag = p.part === 'legs' ? 'Legs down' : 'Body down'; }
+  }
+  for (const p of parts) if (p.hp <= 0 && p.part !== 'brain') { const z = p.z; run.targets.splice(run.targets.indexOf(p), 1); z.parts[p.part] = null; if (p.part === 'legs') z.legsDown = true; else z.bodyDown = true; layoutZombie(z); }
+  for (const p of parts) if (p.hp <= 0 && p.part === 'brain') killZombie(run, p.z, now);
+  return { pts: Math.round(base * mult), zone, tx: tx / parts.length, ty: ty / parts.length, tag, killed };
+}
+function stepZombie(run, t) {
+  const Z = T.zombie, ch = run.ch;
+  let touched = null;
+  for (const z of run.zs) {
+    z.x -= zSpeed(z) * STEP; layoutZombie(z);
+    if (!touched && z.x - Z.reach * z.sc <= Z.fenceX) touched = z;
+  }
+  if (touched) { // the fence: the run ends the moment one touches it
+    run.breach = { wave: touched.wave, n: touched.n, cls: touched.cls, legs: touched.legsDown, body: touched.bodyDown };
+    run.events.push({ type: 'fence', x: Z.fenceX, y: touched.y });
+    finish(run); return;
+  }
+  while (run.pending.length && run.pending[0].at <= t + 1e-9) { const e = run.pending.shift(); spawnZombie(run, e.spec, e.wave, e.n, t); }
+  const live = run.zs.length + run.pending.length, more = ch.endless || run.wave < run.list.length;
+  if (more && ((!live && t >= run.calmAt) || t >= run.forceAt)) startWave(run, t);
+  else if (!more && !live) { run.cleared = true; finish(run); }
+}
+
 function checkEnd(run) {
   if (run.ch.ladder === 'accuracy' && (run.ammo <= 0 || (run.idx >= run.list.length && !run.targets.length))) finish(run);
   else if (run.ch.ladder === 'boss' && run.cleared) finish(run);
+  else if (run.ch.ladder === 'zombie' && run.cleared) finish(run);
 }
 
 // The angle offsets of a gun's pellets from the barrel: one line straight ahead, or a fixed fan of shotSpread degrees.
@@ -760,30 +1019,33 @@ function fire(run, cue) {
   const scored = new Map(), hurt = new Set(); // target -> zone it scores; boss targets a pellet damaged
   res.forEach((r, i) => {
     if (!r.tg || r.neutral) return;
-    if (r.tg.flat) scored.set(r.tg, 2);
+    if (r.tg.kind === 'zpart') { /* a zombie's parts score by damage below, not by zone */ }
+    else if (r.tg.flat) scored.set(r.tg, 2);
     else if (i === ci) scored.set(r.tg, zoneOf(r));
     if (r.tg.hp !== undefined) { r.tg.hp -= g.damage; hurt.add(r.tg); }
   });
   const down = new Set();
   for (const tg of scored.keys()) if (tg.hp === undefined) down.add(tg);
-  for (const tg of hurt) if (tg.hp <= 0) down.add(tg);
+  for (const tg of hurt) if (tg.hp <= 0 && tg.kind !== 'zpart') down.add(tg);
+  const zh = [...hurt].some((tg) => tg.kind === 'zpart');
   const mid = res[ci];
-  const ev = { type: 'shot', x0: gx + Math.cos(a0 * DEG) * T.barrelLen, y0: gy - Math.sin(a0 * DEG) * T.barrelLen, lines: res.map((r) => ({ x1: r.x1, y1: r.y1 })), x1: mid.x1, y1: mid.y1, hit: scored.size > 0, dodged: dodged && !scored.size, neutral: !scored.size && !hurt.size && res.some((r) => r.neutral) };
+  const ev = { type: 'shot', x0: gx + Math.cos(a0 * DEG) * T.barrelLen, y0: gy - Math.sin(a0 * DEG) * T.barrelLen, lines: res.map((r) => ({ x1: r.x1, y1: r.y1 })), x1: mid.x1, y1: mid.y1, hit: scored.size > 0 || zh, dodged: dodged && !scored.size && !zh, neutral: !scored.size && !hurt.size && res.some((r) => r.neutral) };
   const decoy = [...scored].find(([tg]) => tg.decoy);
   if (decoy) { // a decoy hit costs its zone value and breaks the combo; it is no hit and no miss
     const pts = -Math.round(T.zonePoints[decoy[1]] * T.decoyPenalty);
     run.score = Math.max(0, run.score + pts); run.streak = 0; run.decoyHits++;
     Object.assign(ev, { decoy: true, tx: decoy[0].x, ty: decoy[0].y, pts, streak: 0, hit: false });
-  } else if (scored.size) {
+  } else if (scored.size || zh) {
     const mult = Math.min(T.comboCap, 1 + T.comboStep * run.streak);
-    let pts = 0, bz = 3, tx = 0, ty = 0;
+    let pts = 0, bz = 3, tx = 0, ty = 0, nt = scored.size, zt = null;
     for (const [tg, z] of scored) { pts += Math.round(T.zonePoints[z] * mult); bz = Math.min(bz, z); tx += tg.x; ty += tg.y; }
-    run.score += pts; run.streak++; run.hits += scored.size;
+    if (zh) { zt = zombieShot(run, res, hurt, mult, now); pts += zt.pts; bz = Math.min(bz, zt.zone); tx += zt.tx; ty += zt.ty; nt++; }
+    run.score += pts; run.streak++; run.hits += scored.size + (zh ? 1 : 0);
     if (bz === 0) run.bulls++;
     if (run.shots === 0) run.firstZone = bz;
     run.hitTimes.push(now); if (run.hitTimes.length > 6) run.hitTimes.shift();
     if (run.streak >= 6 && now - run.hitTimes[0] <= T.kickWindow + 1e-9) run.kickback = true; // six consecutive scoring shots within the window
-    Object.assign(ev, { tx: tx / scored.size, ty: ty / scored.size, zone: bz, pts, mult, streak: run.streak, killed: down.size > 0 });
+    Object.assign(ev, { tx: tx / nt, ty: ty / nt, zone: bz, pts, mult, streak: run.streak, killed: down.size > 0 || !!(zt && zt.killed), tag: zt ? zt.tag : null });
   } else {
     if (!dodged && !ev.neutral) { run.streak = 0; run.misses++; }
     ev.streak = run.streak;
@@ -881,6 +1143,7 @@ function step(run) {
   if (l === 'accuracy') stepAccuracy(run, t);
   else if (l === 'speed') stepSpeed(run, t);
   else if (l === 'skeet') stepSkeet(run, t);
+  else if (l === 'zombie') stepZombie(run, t);
   else stepBoss(run, t);
 }
 
@@ -1332,16 +1595,89 @@ function drawTargetFull(ctx, E, tg, run, ch, alpha) {
 
 // Hit points are a second pass so no neighbouring plate covers them.
 function drawTargetHp(ctx, tg, alpha) {
-  if (tg.hp === undefined) return;
+  if (tg.hp === undefined || tg.kind === 'zpart') return;
   const R2 = T.zoneR[2] * tg.sc;
   ctx.globalAlpha = alpha; drawHp(ctx, tg.x, tg.y + (tg.kind === 'core' ? R2 + A.core.glow[0] + 2 : R2 * A.plate.r) + 6, tg.hp, tg.hpMax); ctx.globalAlpha = 1;
 }
 
+// ---- Zombies (v0.5 G) ----
+// A zombie is drawn from the same pose the hit circles follow (T.zombie.pose), so what you see is what a line crosses: legs and body while they stand, the body dragged low with
+// the legs down, the head alone with both gone. Drawn in the zombie's own units (feet at the origin, scaled), leaning into its walk; the gait follows its position, so it needs no state.
+function zPose(z) { const P2 = T.zombie.pose; return z.legsDown ? (z.bodyDown ? P2.drag : P2.crawl) : z.bodyDown ? P2.hunch : P2.stand; }
+function limb(g, x0, y0, x1, y1, w, col) { g.strokeStyle = P.ink; g.lineWidth = w + 3; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+function paintZombie(g, z, flash, phase, lean) {
+  const Z = T.zombie, pl = zPose(z), legs = !z.legsDown, body = !z.bodyDown, hd = pl.brain, sw = Math.sin(phase) * 7, bob = legs ? Math.abs(Math.sin(phase)) * 1.5 : 0;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.fillStyle = P.shadow; g.beginPath(); g.ellipse(2, 1, legs ? 15 : 24, 3.5, 0, 0, PI2); g.fill();
+  if (legs) { // two legs, the far one darker; the front one swings toward the fence
+    limb(g, 2, -34, 2 - sw, 0, 9, P.zPants); limb(g, -2, -34, -2 + sw, 0, 9, P.zPants);
+    g.fillStyle = P.ink; g.fillRect(-2 - sw - 5, -3, 9, 3); g.fillRect(-2 + sw - 5, -3, 9, 3);
+  } else { // the stumps behind a crawler
+    limb(g, 14, -9, 26, -6, 9, P.zPants); g.fillStyle = P.zWound; g.beginPath(); g.arc(27, -6, 4, 0, PI2); g.fill();
+  }
+  g.save(); if (legs) { g.translate(0, -bob); g.rotate(lean); }
+  if (body) {
+    const bx = pl.body[0], by = -pl.body[1];
+    if (z.legsDown) { // crawling: the torso lies forward, an arm reaching and one dragging
+      limb(g, bx - 8, by - 2, bx - 32, by + 3 + Math.sin(phase) * 3, 6, P.zSkin); limb(g, bx - 4, by + 4, bx - 26, by + 10, 6, P.zSkinDark);
+      g.fillStyle = P.zShirt; rrect(g, bx - 15, by - 10, 32, 20, 8); g.fill(); g.strokeStyle = P.ink; g.lineWidth = 2.2; g.stroke();
+    } else {
+      limb(g, -1, by - 10, -27, by - 6 + Math.sin(phase) * 2, 6, P.zSkinDark); // arms out to the fence
+      g.fillStyle = P.zShirt; rrect(g, -11, by - 15, 22, 30, 6); g.fill(); g.strokeStyle = P.ink; g.lineWidth = 2.2; g.stroke();
+      g.strokeStyle = P.inkSoft; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-5, by - 2); g.lineTo(-1, by + 6); g.lineTo(3, by + 1); g.stroke(); // a tear
+      limb(g, -1, by - 8, -27, by - 12 + Math.sin(phase + 1) * 2, 6, P.zSkin);
+    }
+  } else if (legs) { // body down: a torn stump of a torso under the head, ribs showing
+    g.fillStyle = P.zWound; rrect(g, -8, -47, 16, 14, 4); g.fill(); g.strokeStyle = P.ink; g.lineWidth = 2; g.stroke();
+    g.strokeStyle = P.paper; g.lineWidth = 1.4; g.beginPath(); g.moveTo(-5, -44); g.lineTo(5, -44); g.moveTo(-5, -40); g.lineTo(5, -40); g.stroke();
+    limb(g, -2, -50, -25, -46 + Math.sin(phase) * 2, 6, P.zSkin);
+  } else limb(g, hd[0] - 4, -hd[1] + 3, hd[0] - 22, -hd[1] + 6, 6, P.zSkin); // head only: a hand still reaching
+  // the head: sickly skin, a dark eye, an open mouth, and the exposed brain with the goal's cyan ring round it
+  const [hx, hy] = hd, hr = Z.brain.r;
+  g.fillStyle = P.zSkin; g.beginPath(); g.arc(hx, -hy, hr, 0, PI2); g.fill(); g.strokeStyle = P.ink; g.lineWidth = 2.2; g.stroke();
+  g.fillStyle = P.zBrain; g.beginPath(); g.ellipse(hx + 1, -hy - hr * 0.62, hr * 0.62, hr * 0.36, 0, 0, PI2); g.fill();
+  g.fillStyle = P.ink; g.beginPath(); g.arc(hx - 3.2, -hy - 0.5, 1.5, 0, PI2); g.fill(); g.fillRect(hx - 5.5, -hy + 3, 5, 1.6);
+  g.strokeStyle = P.cyan; g.globalAlpha = 0.6; g.lineWidth = 1.4; g.beginPath(); g.arc(hx, -hy, hr + 2.6, 0, PI2); g.stroke(); g.globalAlpha = 1;
+  g.restore();
+  if (flash) for (const p of Object.values(z.parts)) if (p && flash > 0 && z.now - p.hitAt < Z.hitFlash) { // a part just hit: a white flash over its circle
+    g.globalAlpha = 0.65 * (1 - (z.now - p.hitAt) / Z.hitFlash); g.fillStyle = P.white; g.beginPath(); g.arc((p.x - z.x) / z.sc, (p.y - z.y) / z.sc, p.rad / z.sc, 0, PI2); g.fill(); g.globalAlpha = 1;
+  }
+}
+function drawZombie(ctx, z, now) {
+  z.now = now;
+  const sc = z.sc, lean = z.cls === 'x' ? -0.18 : z.cls === 'r' ? -0.1 : z.cls === 's' ? 0.05 : 0;
+  ctx.save(); ctx.translate(z.x, z.y); ctx.scale(sc, sc);
+  paintZombie(ctx, z, 1, z.x * 0.32 * (z.cls === 's' ? 0.8 : 1), lean);
+  ctx.restore();
+  for (const p of Object.values(z.parts)) if (p && p.hp < p.hpMax) drawHp(ctx, p.x, p.y - p.rad - 5, p.hp, p.hpMax); // a damaged part shows what it has left
+}
+// A zombie that has gone down: it topples about its feet and fades (cosmetic; the sim removed it at the brain shot).
+function drawCorpse(ctx, f) {
+  const k = 1 - f.t / f.max, z = { legsDown: f.crawl, bodyDown: false, parts: {}, sc: f.sc };
+  ctx.save(); ctx.translate(f.x, f.y); ctx.scale(f.sc, f.sc); ctx.globalAlpha = 1 - k; ctx.rotate(-Math.min(1.45, k * 2.6) * (f.crawl ? 0.25 : 1));
+  paintZombie(ctx, z, 0, 0, 0);
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+// The fence: a palisade at the near edge of the field, red when a zombie is close. The sim ends the run when one touches it; this is only its look.
+function drawFence(ctx, run) {
+  const Z = T.zombie, fx = Z.fenceX, top = 190, bot = HORIZON + 4;
+  let near = 1e9; for (const z of run.zs) near = Math.min(near, z.x - Z.reach * z.sc - fx);
+  ctx.lineJoin = 'round'; ctx.lineWidth = 2;
+  for (let i = 0; i < 3; i++) { // three planks side by side with pointed tops
+    const x = fx - 8 + i * 6, h = i === 1 ? 0 : 5;
+    ctx.fillStyle = i === 1 ? P.woodDark : P.wood; ctx.strokeStyle = P.ink;
+    ctx.beginPath(); ctx.moveTo(x, bot); ctx.lineTo(x, top + h + 6); ctx.lineTo(x + 3, top + h); ctx.lineTo(x + 6, top + h + 6); ctx.lineTo(x + 6, bot); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle = P.steelDark; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6;
+  for (const y of [top + 26, top + 62]) { ctx.fillRect(fx - 12, y, 24, 5); ctx.strokeRect(fx - 12, y, 24, 5); } // two crossbars
+  if (near < 140) { ctx.globalAlpha = 0.5 * (1 - Math.max(0, near) / 140); ctx.fillStyle = P.red; ctx.fillRect(fx - 12, top, 24, bot - top); ctx.globalAlpha = 1; } // danger
+}
+
 // The combo multiplier beside the lane: big, at the muzzle end of the range finder (below it when the gun is high, above when low, so the HUD is never under it),
-// dim at x1, orange while the streak lives, lighter at the cap, and it swells for a moment on every step. It draws the combo that already exists.
+// dim at x1, orange while the streak lives, lighter at the cap, and it swells for a moment on every step. It draws the combo that already exists (past the fence on a zombie run).
 function drawMult(ctx, run) {
   const mult = Math.min(T.comboCap, 1 + T.comboStep * run.streak), live = run.streak > 0, pulse = clamp(1 - (run.steps * STEP - S.multAt) / A.mult.pulse, 0, 1);
-  const size = A.mult.size * (1 + A.mult.swell * pulse), x = A.mult.x, y = run.gunY + (run.gunY < A.mult.flip ? A.mult.dy : -A.mult.dy);
+  const size = A.mult.size * (1 + A.mult.swell * pulse), x = run.ch.ladder === 'zombie' ? T.zombie.fenceX + 16 : A.mult.x, y = run.gunY + (run.gunY < A.mult.flip ? A.mult.dy : -A.mult.dy);
   ctx.font = `${TY.strong} ${size}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   const str = `x${mult.toFixed(1)}`;
   ctx.globalAlpha = live ? 1 : 0.55; ctx.lineWidth = A.popLine; ctx.strokeStyle = P.ink; ctx.strokeText(str, x, y);
@@ -1512,7 +1848,7 @@ function menuSprite(ctx, key, ext, paint, x, y, a, b) {
 function prepMenu(dpr, ctx) {
   const k = Math.round(dpr * 100) / 100;
   if (k !== MSPR_K) { MSPR.clear(); MSPR_K = k; }
-  if (ctx && !MSPR.size) { for (const ch of CHALLENGES) menuSprite(ctx, K_ICON + CHALLENGES.indexOf(ch), A.range.ext, paintRung, 0, 0, ch, 0); for (const id of GUN_IDS) menuSprite(ctx, K_MINI + GUN_IDS.indexOf(id) * SKIN_SLOTS, 20, paintMini, 0, 0, id, 'std'); }
+  if (ctx && !MSPR.size) { [...CHALLENGES, ENDLESS].forEach((ch, i) => menuSprite(ctx, K_ICON + i, A.range.ext, paintRung, 0, 0, ch, 0)); for (const id of GUN_IDS) menuSprite(ctx, K_MINI + GUN_IDS.indexOf(id) * SKIN_SLOTS, 20, paintMini, 0, 0, id, 'std'); }
 }
 // What stands on a rung's post: a card, a card on a trolley, a weaver, a horde's small cards, a clay (with a decoy for Skeet 3), a plate, the Bunker's frame.
 function paintRung(g, ch) {
@@ -1524,6 +1860,9 @@ function paintRung(g, ch) {
     else { drawCard(g, 0, -2, base * 0.85, 1, false); g.fillStyle = P.steelDark; g.fillRect(-9, 11, 18, 3); disc(g, -5, 15, 2.2, P.steel); disc(g, 5, 15, 2.2, P.steel); if (ch.behaviour === 'weave') { g.strokeStyle = P.cyan; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-14, 4); g.bezierCurveTo(-8, -12, -2, 14, 4, -2); g.stroke(); } }
   } else if (ch.ladder === 'skeet') {
     if (ch.volley) { drawClay(g, -4, 2, 0.8, false); drawClay(g, 9, -6, 0.5, true); } else drawClay(g, 0, 0, 0.9, false);
+  } else if (ch.ladder === 'zombie') { // one, two or three zombies for the rung's wave count; the endless mode shows the crowd
+    const n = ch.endless ? 3 : ch.level, k = n === 1 ? 0.3 : 0.24, zs = { legsDown: false, bodyDown: false, parts: {}, sc: 1 };
+    for (let i = 0; i < n; i++) { g.save(); g.translate((i - (n - 1) / 2) * 11, 14 - (i % 2) * 2); g.scale(k, k); paintZombie(g, zs, 0, 0.5 + i, 0); g.restore(); }
   } else if (ch.wall) { paintFrame(g, base); paintPlate(g, base * 0.55, true); } else paintPlate(g, base, false);
 }
 function paintMini(g, id, skin) { drawGunTile(g, id, 0, 0, 34, 13, skin); }
@@ -1616,7 +1955,7 @@ function cosmetics(E, ev) {
     }
     if (ev.hit) {
       S.multAt = S.run.steps * STEP; if (ev.killed) S.killAt = S.multAt;
-      const word = ev.streak === 2 ? 'Double' : ev.streak === 3 ? 'Triple' : ev.streak >= 5 && ev.streak % 5 === 0 ? `${ev.streak} in a row` : null; // streak call-outs, in the goal colour
+      const word = ev.tag || (ev.streak === 2 ? 'Double' : ev.streak === 3 ? 'Triple' : ev.streak >= 5 && ev.streak % 5 === 0 ? `${ev.streak} in a row` : null); // streak call-outs, in the goal colour (a zombie's part or brain shot names itself)
       if (word) S.fx.push({ k: 'callout', x: ev.tx, y: ev.ty - 46, text: word, t: T.calloutLife, max: T.calloutLife });
       S.fx.push({ k: 'pop', x: ev.tx, y: ev.ty, text: `${ev.pts}`, color: P.zone[ev.zone], t: T.popLife, max: T.popLife });
       if (ev.zone === 0) { E.audio.play('coin'); E.haptic(16); }
@@ -1626,35 +1965,61 @@ function cosmetics(E, ev) {
   } else if (ev.type === 'dropped') { // a tap inside the fire interval: a faint click and a flicker, no effect on timing
     E.audio.play('tap', 0.12);
     S.fx.push({ k: 'flash', faint: true, t: T.flashLife * 0.6, max: T.flashLife * 0.6 });
+  } else if (ev.type === 'wave') { // a wave enters
+    S.fx.push({ k: 'callout', x: T.designW / 2, y: 120, text: `Wave ${ev.n}`, t: T.calloutLife * 1.4, max: T.calloutLife * 1.4, big: true });
+    E.audio.play('tap', 0.4);
+  } else if (ev.type === 'fall') { // a zombie goes down: it topples and fades
+    S.fx.push({ k: 'corpse', x: ev.x, y: ev.y, sc: ev.sc, crawl: ev.crawl, t: 0.6, max: 0.6 });
+    E.audio.play('coin', 0.6);
+  } else if (ev.type === 'fence') { // one touched the fence: the run is over
+    S.fx.push({ k: 'edge', t: T.edgeLife * 2, max: T.edgeLife * 2 });
+    E.audio.play('lose'); E.haptic(60); E.shake(9, 0.35);
   } else if (ev.type === 'breach') {
     S.fx.push({ k: 'edge', t: T.edgeLife, max: T.edgeLife });
     if (E.time - S.breachAt >= T.breachGap) { S.breachAt = E.time; E.audio.play('miss'); E.haptic(30); } // a horde breaching together sounds once
   }
 }
 
+// The playtest ledger (ADR-0016): what a tester did, so an export lists every result, retry, quit, badge and gun or skin change.
+function pickGun(E, id) { if (gunId(E) !== id) E.ledger.add('gun', { gun: id }); E.save.set('gun', id); }
+function wearSkin(E, gun, skin) { if (skinId(E, gun) !== skin.id) E.ledger.add('skin', { gun, skin: skin.id }); E.save.update('skins', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [gun]: skin.id }), {}); }
+function quitRun(E, why) {
+  const r = S.run;
+  if (r && !r.done) E.ledger.add(why, { id: S.ch.id, gun: r.gun.id, score: r.score, shots: r.shots, hits: r.hits, time: r.steps * STEP, ...(r.ammo === Infinity ? {} : { ammo: r.ammo }) });
+}
+
 function endRun(E) {
-  const r = S.run, ch = S.ch, gid = r.gun.id, stars = starsFor(ch, r.score, gid);
-  const prev = bestOf(E, ch, gid), prevStars = starsOf(E, ch, gid);
+  const r = S.run, ch = S.ch, gid = r.gun.id, stars = ch.endless ? 0 : starsFor(ch, r.score, gid);
+  const prev = ch.endless ? null : bestOf(E, ch, gid), prevStars = ch.endless ? 0 : starsOf(E, ch, gid);
   // Stars are monotonic and kept apart from the best score: a higher score with fewer stars never lowers them. All per gun.
-  const isNew = !prev || r.score > prev.score, bestScore = isNew ? r.score : prev.score, bestStars = Math.max(stars, prevStars), acc = r.shots ? Math.round((100 * r.hits) / r.shots) : 0;
-  if (isNew || bestStars !== prevStars) {
+  let bestWave = 0, isNew = !prev || r.score > prev.score, bestScore = isNew ? r.score : prev ? prev.score : 0, bestStars = Math.max(stars, prevStars), acc = r.shots ? Math.round((100 * r.hits) / r.shots) : 0, day = null;
+  if (ch.endless) { // no stars: the day's seed has its own best, and there is an all-time best
+    const zz = E.save.get('zend', null), d = zz && typeof zz === 'object' ? zz : {}, today = d.day === E.dailySeed() && d.today ? d.today : { score: 0, wave: 0 }, best = d.best || { score: 0, wave: 0 };
+    isNew = r.score > best.score; bestScore = Math.max(best.score, r.score); bestWave = isNew ? r.wave : best.wave;
+    day = { best: Math.max(today.score, r.score), isNew: r.score > today.score, wave: r.score > today.score ? r.wave : today.wave };
+    E.save.set('zend', { day: E.dailySeed(), today: { score: day.best, wave: day.wave }, best: isNew ? { score: r.score, wave: r.wave, gun: gid } : best });
+  } else if (isNew || bestStars !== prevStars) {
     E.save.update('best', (b) => { const all = b && typeof b === 'object' ? b : {}; return { ...all, [ch.id]: { ...(all[ch.id] || {}), [gid]: { score: bestScore, stars: bestStars, accuracy: isNew ? acc : prev.accuracy || 0 } } }; }, {});
   }
   const cold = r.firstZone === 0 ? E.save.get('cold', 0) + 1 : 0; // runs in a row that opened on a bullseye, kept across runs
   E.save.set('cold', cold);
   const gaunt = S.gauntlet === null ? null : gauntletStep(S.gauntlet, stars);
   const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, decoyHits: r.decoyHits, run: r, cold, gauntletDone: !!(gaunt && gaunt.done), bests: Object.fromEntries(CHALLENGES.map((c) => [c.id, Object.fromEntries(GUN_IDS.map((g) => [g, { stars: starsOf(E, c, g) }]))])), have: badgeMap(E) });
+  E.ledger.add('result', { id: ch.id, gun: gid, score: r.score, accuracy: acc, stars, best: bestStars, time: r.steps * STEP, hits: r.hits, shots: r.shots, ...(r.ammo === Infinity ? {} : { ammo: r.ammo }), ...(ch.ladder === 'zombie' ? { wave: r.wave, down: r.zdown, fence: !!r.breach } : {}), ...(S.gauntlet === null ? {} : { gauntlet: S.gauntlet }) });
+  for (const id of fresh) E.ledger.add('badge', { id, gun: gid, on: ch.id });
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
   const unlocked = fresh.map(skinOfBadge).filter(Boolean).map((k) => `${T.guns[k.gun].short} ${k.skin.name}`); // shown on the card's badge line
   // A Bunker cleared early leaves plates standing; say what they were worth (a full combo, the shots the gun needs per plate).
   const left = ch.wall && r.cleared ? r.targets.filter((t) => t.kind === 'part').length : 0;
   const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
-  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id), preset: presetName(), skins: unlocked });
+  const zom = ch.ladder === 'zombie' ? { zdown: r.zdown, ztotal: ch.endless ? 0 : r.list.reduce((n, w) => n + w.length, 0), zwave: r.wave, zwaves: ch.endless ? 0 : r.list.length, breach: r.breach, day, bestWave } : {};
+  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), skins: unlocked, ...zom });
 }
 
 function meterText(r, ch) {
   if (ch.ladder === 'accuracy') return `Ammo ${r.ammo}`;
   if (ch.ladder === 'skeet') { let n = 0; for (let i = r.idx; i < r.list.length; i++) if (!r.list[i].decoy) n++; for (const t of r.targets) if (!t.decoy) n++; return `Left ${n}`; } // goal clays only
+  if (ch.ladder === 'zombie') return ch.endless ? `Wave ${r.wave}  Down ${r.zdown}` : `Wave ${r.wave}/${r.list.length}  Down ${r.zdown}`;
   return `Time ${Math.max(0, Math.ceil((ch.speedSeconds || ch.bossSeconds) - r.steps * STEP))}`;
 }
 
@@ -1662,7 +2027,7 @@ function meterText(r, ch) {
 
 // The landscape left column, top to bottom, as [roomy, tight] offsets from its top: the roomy column is 361 tall, the tight one 336
 // (the least that keeps every button 44 px). The layout slides between them by how much height the viewport leaves above the bottom inset.
-const MENU_COL = { title: [14, 12], points: [40, 34], bar: [54, 46], next: [72, 63], guns: [84, 74], pitch: [62, 56], tile: [56, 50], stat: [232, 209], play: [261, 240], playH: [48, 44], row: [317, 292], rowH: [44, 44] };
+const MENU_COL = { title: [14, 12], points: [40, 34], bar: [54, 46], next: [72, 63], guns: [84, 74], pitch: [58, 50], tile: [48, 44], stat: [232, 209], play: [261, 240], playH: [48, 44], row: [317, 292], rowH: [44, 44] };
 const MENU_MARGIN = 6;
 
 function menuLayout(E) {
@@ -1675,16 +2040,18 @@ function menuLayout(E) {
       L.rows.push({ ladder, label, x, y: top + row * pitch, th, labelW: lab, tw, gap, n: count(ladder) });
     });
   };
-  const gunGrid = (x, y, w, pitch, h) => GUN_IDS.map((id, i) => ({ id, x: x + (i % 2) * ((w + 8) / 2), y: y + Math.floor(i / 2) * pitch, w: (w - 8) / 2, h }));
+  const gunGrid = (x, y, w, pitch, h) => GUN_IDS.map((id, i) => ({ id, x: x + (i % 3) * ((w + 6) / 3), y: y + Math.floor(i / 3) * pitch, w: (w - 12) / 3, h })); // three across, two rows
   if (land) {
     const W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, lw = 236, C = MENU_COL;
     const avail = E.h - E.safe.top - E.safe.bottom - 2 * MENU_MARGIN, tall = C.row[0] + C.rowH[0], short = C.row[1] + C.rowH[1];
     const k = clamp((avail - short) / (tall - short), 0, 1), at = (key) => Math.round(C[key][1] + (C[key][0] - C[key][1]) * k), H = at('row') + at('rowH');
     const y0 = E.safe.top + MENU_MARGIN + Math.max(0, (avail - H) / 2);
-    L.title = { x: x0 + lw / 2, y: y0 + at('title') }; L.points = { x: x0 + lw / 2, y: y0 + at('points') }; L.bar = { x: x0, y: y0 + at('bar'), w: lw, h: 6 };
+    const tcx = Math.max(x0 + lw / 2, 10 + E.safe.left + 72 + 6 + A.titleHalf); // the top-left 82 x 48 belongs to the engine's EXPORT tab (ADR-0016)
+    L.title = { x: tcx, y: y0 + at('title') }; L.points = { x: tcx, y: y0 + at('points') }; L.bar = { x: x0, y: y0 + at('bar'), w: lw, h: 6 };
     L.next = { x: x0 + lw / 2, y: y0 + at('next') };
     L.guns = gunGrid(x0, y0 + at('guns'), lw, at('pitch'), at('tile'));
     L.stat = { x: x0 + lw / 2, y: y0 + at('stat') };
+    L.info = { x: x0 + lw - 44, y: L.stat.y - 19 - 22, w: 44, h: 44 }; // the stats card: a 44 px button at the end of the gun's name line
     L.play = { x: x0, y: y0 + at('play'), w: lw, h: at('playH') };
     L.missions = { x: x0, y: y0 + at('row'), w: (lw - 8) / 2, h: at('rowH') }; L.mute = { x: x0 + (lw + 8) / 2, y: y0 + at('row'), w: (lw - 8) / 2, h: at('rowH') };
     const rx = x0 + lw + 28;
@@ -1694,11 +2061,12 @@ function menuLayout(E) {
     const W = Math.min(E.w - 2 * side, 560), x0 = (E.w - W) / 2, y0 = E.safe.top + 14;
     L.title = { x: E.w / 2, y: y0 + 16 }; L.points = { x: E.w / 2, y: y0 + 44 }; L.bar = { x: x0, y: y0 + 58, w: W, h: 6 };
     L.next = { x: E.w / 2, y: y0 + 76 };
-    L.guns = gunGrid(x0, y0 + 90, W, 62, 56);
+    L.guns = gunGrid(x0, y0 + 90, W, 56, 50);
     L.stat = { x: E.w / 2, y: y0 + 240 };
+    L.info = { x: x0 + W - 44, y: L.stat.y - 19 - 22, w: 44, h: 44 };
     L.skinRow = { lx: x0, x: x0 + A.chip.labelW, y: y0 + 272 };
     rowsAt(x0, y0 + 328, W, A.range.pitch, A.range.h);
-    const by = y0 + 328 + 3 * A.range.pitch + A.range.h + 12;
+    const by = y0 + 328 + (LADDERS.length - 1) * A.range.pitch + A.range.h + 12;
     L.play = { x: x0, y: by, w: W, h: 48 };
     L.missions = { x: x0, y: by + 58, w: (W - 10) / 2, h: 48 }; L.mute = { x: x0 + (W + 10) / 2, y: by + 58, w: (W - 10) / 2, h: 48 };
   }
@@ -1732,6 +2100,7 @@ const menu = {
   enter() { this.tiles = []; this.feat = null; this.guns = []; this.infos = []; this.chips = []; this.btnPlay = null; this.btnMute = null; this.btnMissions = null; },
   render(ctx, E) {
     const L = menuLayout(E), sel = T.guns[gunId(E)], pts = pointsTotal(E), gid = sel.id, done = rungsDone(E, gid), play = firstPlayable(E, gid);
+    E.titleArea = { x: L.title.x - 70, y: L.title.y - 22, w: 140, h: 50 }; // release: five taps on the title show TUNE; the rest of the menu is not a title
     E.text('RECOIL', L.title.x, L.title.y, { size: TY.big, weight: TY.strong, color: P.text });
     E.text(`Points ${pts}`, L.points.x, L.points.y + 2, { size: TY.mid, weight: TY.strong, color: P.cyan });
     E.text(`${sel.short}: ${done} of ${CHALLENGES.length} rungs at 2 stars`, L.next.x, L.next.y, { size: TY.small, color: P.textDim }); // the selected gun's progress
@@ -1743,18 +2112,14 @@ const menu = {
       const on = b.id === sel.id, open = gunUnlocked(E, b.id), cx = b.x + b.w / 2;
       plate(E, b.x, b.y, b.w, b.h, on ? P.panelHi : P.panel, on ? P.orange : P.panelEdge);
       ctx.globalAlpha = open ? 1 : 0.25;
-      drawGunTile(ctx, b.id, cx - A.tile.info / 2, b.y + b.h / 2, b.w - 2 * A.tile.pad - A.tile.info, b.h - 2 * A.tile.pad, open ? skinId(E, b.id) : 'std'); // clear of the info corner
+      drawGunTile(ctx, b.id, cx, b.y + b.h / 2, b.w - 2 * A.tile.pad, b.h - 2 * A.tile.pad, open ? skinId(E, b.id) : 'std');
       ctx.globalAlpha = 1;
-      if (!open) {
-        drawLock(ctx, cx, b.y + b.h / 2 - 12, P.textDim);
-        E.text(unlockBadge(b.id).name, cx - A.tile.info / 2, b.y + b.h - 14, { size: TY.small, weight: TY.strong, color: P.textDim }); // the badge that opens it
-      }
-      const info = { x: b.x + b.w - 44, y: b.y, w: 44, h: 44, id: b.id }; // the info corner opens the stats card; the rest of the tile selects the gun
-      this.infos.push(info);
-      ctx.strokeStyle = P.textDim; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(info.x + 26, info.y + 18, 9, 0, PI2); ctx.stroke();
-      E.text('i', info.x + 26, info.y + 18.5, { size: TY.small, weight: TY.strong, color: P.textDim });
+      if (!open) drawLock(ctx, cx, b.y + b.h / 2 - 2, P.text); // a tap says which badge opens it
     }
     const wear = skinById(sel.id, skinId(E, sel.id));
+    this.infos.push({ ...L.info, id: sel.id }); // the selected gun's stats card
+    ctx.strokeStyle = P.textDim; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(L.info.x + 22, L.info.y + 22, 10, 0, PI2); ctx.stroke();
+    E.text('i', L.info.x + 22, L.info.y + 22.5, { size: TY.small, weight: TY.strong, color: P.textDim });
     E.text(wear.badge ? `${sel.short} · ${wear.name}` : sel.name, L.stat.x, L.stat.y - 19, { size: TY.mid, weight: TY.strong, color: P.text });
     E.text(`Damage ${sel.damage}${sel.pellets > 1 ? ` x${sel.pellets}` : ''}   ${sel.fireRate}/s   Range ${Math.round(sel.accuracy * 100)}%`, L.stat.x, L.stat.y, { size: TY.small, color: P.textDim });
     const bp = bestOf(E, play, gid); // a new gun is told how to fire; a gun with a history, its best on the rung Play opens
@@ -1780,15 +2145,16 @@ const menu = {
         if (ch === nextLocked) drawTag(ctx, E, x, row.y, row.tw, ch.level - 1);
         this.tiles.push({ x, y: row.y, w: row.tw, h: row.th, ch, locked });
       });
-      if (row.ladder === 'boss') { // the featured tile fills the end of the lane: today's pick among the gun's open rungs (the newest mode goes here when there is one)
-        const x = row.x + row.labelW + chs.length * (row.tw + row.gap), w = row.x + row.labelW + 5 * (row.tw + row.gap) - row.gap - x, list = CHALLENGES.filter((c) => isUnlocked(E, c, gid));
-        const pick = list[(E.dailySeed ? E.dailySeed() : 0) % list.length], pb = bestOf(E, pick, gid);
+      if (row.ladder === 'zombie') { // the featured tile fills the end of the lane: the endless mode, the newest thing on the range, with the day's best
+        const x = row.x + row.labelW + chs.length * (row.tw + row.gap), w = row.x + row.labelW + 5 * (row.tw + row.gap) - row.gap - x, zz = E.save.get('zend', null), d = zz && typeof zz === 'object' ? zz : {};
+        const today = d.day === (E.dailySeed ? E.dailySeed() : 0) && d.today ? d.today.score : 0, best = d.best ? d.best.score : 0;
         plate(E, x, row.y, w, row.th, P.panelHi, P.cyan);
-        menuSprite(ctx, K_ICON + CHALLENGES.indexOf(pick), A.range.ext, paintRung, x + 22, row.y + row.th / 2, pick, 0);
-        E.text('DAILY', x + 44, row.y + 12, { size: TY.small, weight: TY.strong, align: 'left', color: P.cyan });
-        E.text(pick.name, x + 44, row.y + 31, { size: TY.mid, weight: TY.strong, align: 'left', color: P.text });
-        E.text(pb ? `best ${pb.score}` : 'not played', x + 44, row.y + 49, { size: TY.small, align: 'left', color: P.textDim });
-        this.feat = { x, y: row.y, w, h: row.th, ch: pick };
+        const ix = w >= 130 ? x + 44 : x + 9; // the crowd's icon only where the tile has the room
+        if (w >= 130) menuSprite(ctx, K_ICON + CHALLENGES.length, A.range.ext, paintRung, x + 22, row.y + row.th / 2, ENDLESS, 0);
+        E.text('ENDLESS', ix, row.y + 13, { size: TY.small, weight: TY.strong, align: 'left', color: P.cyan });
+        E.text(today ? `Today ${today}` : 'New today', ix, row.y + 31, { size: TY.small, weight: TY.strong, align: 'left', color: P.text });
+        E.text(best ? `Best ${best}` : 'no score yet', ix, row.y + 47, { size: TY.small, align: 'left', color: P.textDim });
+        this.feat = { x, y: row.y, w, h: row.th, ch: ENDLESS };
       }
     }
     const p = L.play, m = L.mute, ms = L.missions, earned = BADGES.filter((b) => badgeMap(E)[b.id]).length;
@@ -1803,13 +2169,13 @@ const menu = {
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
     for (const c of this.chips) if (E.hit(c, p)) {
-      if (skinOpen(E, c.skin)) { E.save.update('skins', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [c.gun]: c.skin.id }), {}); E.audio.play('tap'); }
+      if (skinOpen(E, c.skin)) { wearSkin(E, c.gun, c.skin); E.audio.play('tap'); }
       else { const b = BADGES.find((k) => k.id === c.skin.badge); E.audio.play('tap', 0.3); E.toast(`${c.skin.name}: earn the ${b.name} badge (${b.cond})`); }
       return;
     }
     for (const i of this.infos) if (E.hit(i, p)) { E.audio.play('tap'); E.setScene('gun', { id: i.id }); return; }
-    for (const b of this.guns) if (E.hit(b, p)) { if (gunUnlocked(E, b.id)) { E.save.set('gun', b.id); E.audio.play('tap'); } else { E.audio.play('tap', 0.3); const bd = unlockBadge(b.id); E.toast(`The ${T.guns[b.id].short} opens with the ${bd.name} badge (${bd.cond})`); } return; }
-    if (this.feat && E.hit(this.feat, p)) { E.setScene('play', { id: this.feat.ch.id }); return; }
+    for (const b of this.guns) if (E.hit(b, p)) { if (gunUnlocked(E, b.id)) { if (gunId(E) === b.id) E.setScene('gun', { id: b.id }); else pickGun(E, b.id); E.audio.play('tap'); } else { E.audio.play('tap', 0.3); const bd = unlockBadge(b.id); E.toast(`The ${T.guns[b.id].short} opens with the ${bd.name} badge (${bd.cond})`); } return; }
+    if (this.feat && E.hit(this.feat, p)) { E.audio.play('tap'); E.setScene('play', { id: this.feat.ch.id }); return; }
     for (const t of this.tiles) if (E.hit(t, p)) { if (t.locked) { E.audio.play('tap', 0.3); E.toast(`Two stars on ${CHALLENGES.find((c) => c.ladder === t.ch.ladder && c.level === t.ch.level - 1).name} with the ${T.guns[gunId(E)].short} open this`); } else E.setScene('play', { id: t.ch.id }); return; }
   },
 };
@@ -1947,10 +2313,10 @@ const gunCard = {
   onTap(p, E) {
     const id = this.id, g = T.guns[id];
     if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
-    if (E.hit(this.use, p)) { if (gunUnlocked(E, id) && gunId(E) !== id) { E.save.set('gun', id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
+    if (E.hit(this.use, p)) { if (gunUnlocked(E, id) && gunId(E) !== id) { pickGun(E, id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
     for (const c of this.chips) if (E.hit(c, p)) {
       if (!gunUnlocked(E, id)) { E.audio.play('tap', 0.3); E.toast(`The ${g.short} opens with the ${unlockBadge(id).name} badge`); }
-      else if (skinOpen(E, c.skin)) { E.save.update('skins', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [id]: c.skin.id }), {}); E.audio.play('tap'); }
+      else if (skinOpen(E, c.skin)) { wearSkin(E, id, c.skin); E.audio.play('tap'); }
       else { const b = BADGES.find((k) => k.id === c.skin.badge); E.audio.play('tap', 0.3); E.toast(`${c.skin.name}: earn the ${b.name} badge (${b.cond})`); }
       return;
     }
@@ -1959,7 +2325,8 @@ const gunCard = {
 
 const play = {
   enter(E, params) {
-    newRun(CHALLENGES.find((c) => c.id === (params && params.id)) || CHALLENGES[0], gunId(E), params && params.gauntlet, skinId(E, gunId(E)));
+    const ch = (params && chById(params.id)) || CHALLENGES[0];
+    newRun(ch.endless ? { ...ch, seed: E.dailySeed() } : ch, gunId(E), params && params.gauntlet, skinId(E, gunId(E))); // the endless mode plays the day's seed
     this.menuBtn = null;
   },
 
@@ -1977,8 +2344,8 @@ const play = {
     r.events.length = 0;
     if (r.done) {
       const l = S.ch.ladder;
-      if (!S.slowed && (l === 'speed' || l === 'skeet') && r.steps * STEP - S.killAt < 0.1) { S.slowed = true; S.slow = T.slowLife; }
-      if (!S.swept && r.misses === 0 && r.hits >= 3) { S.swept = true; S.fx.push({ k: 'callout', x: T.designW / 2, y: 130, text: 'Clean sweep', t: T.calloutLife * 1.4, max: T.calloutLife * 1.4, big: true }); }
+      if (!S.slowed && (l === 'speed' || l === 'skeet' || (l === 'zombie' && r.cleared)) && r.steps * STEP - S.killAt < 0.1) { S.slowed = true; S.slow = T.slowLife; }
+      if (!S.swept && r.misses === 0 && r.hits >= 3 && !r.breach) { S.swept = true; S.fx.push({ k: 'callout', x: T.designW / 2, y: 130, text: 'Clean sweep', t: T.calloutLife * 1.4, max: T.calloutLife * 1.4, big: true }); }
       S.endT += dt; if (S.endT >= T.endDelay) endRun(E);
     }
   },
@@ -1998,7 +2365,13 @@ const play = {
     for (const f of S.fx) if (f.k === 'edge') {
       ctx.fillStyle = P.red; ctx.globalAlpha = 0.8 * (f.t / f.max); ctx.fillRect(0, 0, 10, T.designH); ctx.globalAlpha = 1;
     }
+    if (ch.ladder === 'zombie') {
+      drawFence(ctx, r);
+      for (const f of S.fx) if (f.k === 'corpse') drawCorpse(ctx, f);
+      for (const z of r.zs) drawZombie(ctx, z, now);
+    }
     for (const tg of r.targets) {
+      if (tg.kind === 'zpart') continue; // a zombie is drawn whole, above
       let alpha = 1;
       if (tg.kind === 'part' && !ch.wall && tg.idx !== r.stage) alpha = 0.5;
       if (tg.kind === 'dodge' && now >= tg.nextDodge - T.dodgeWarn && Math.floor(E.time * 10) % 2) alpha = 0.3;
@@ -2082,10 +2455,10 @@ const play = {
     if (S.right.delete(p.id)) queueInput(S.run, stamp(S.run), 'trigger', S.right.size > 0);
   },
   onTap(p, E) {
-    if (this.menuBtn && E.hit(this.menuBtn, p)) E.setScene('menu');
+    if (this.menuBtn && E.hit(this.menuBtn, p)) { quitRun(E, 'quit'); E.setScene('menu'); }
   },
   onKey(key, E) {
-    if (key === 'Escape') E.setScene('menu');
+    if (key === 'Escape') { quitRun(E, 'quit'); E.setScene('menu'); }
     else if (key === ' ') queueInput(S.run, stamp(S.run), 'fire'); // key repeat fires at the gun's rate
   },
   onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet, S.skin); }, // closing the app mid-challenge restarts it
@@ -2093,11 +2466,11 @@ const play = {
 
 const over = {
   enter(E, params) {
-    this.p = params; this.ch = CHALLENGES.find((c) => c.id === params.id); this.t0 = E.time; this.tick = -1;
+    this.p = params; this.ch = chById(params.id); this.t0 = E.time; this.tick = -1;
     const g = params.gaunt;
     if (g) { this.next = g.next ? CHALLENGES.find((c) => c.id === g.next) : null; this.canNext = !!this.next; }
     else {
-      this.next = CHALLENGES.find((c) => c.ladder === this.ch.ladder && c.level === this.ch.level + 1);
+      this.next = this.ch.endless ? null : CHALLENGES.find((c) => c.ladder === this.ch.ladder && c.level === this.ch.level + 1);
       this.canNext = !!this.next && params.bestStars >= T.unlockStars;
     }
     E.audio.play(params.stars >= 1 ? 'win' : 'lose'); E.haptic(30);
@@ -2120,7 +2493,7 @@ const over = {
       if (ws.badge) E.text(ws.name, tx, y0 + 74, { size: TY.small, color: P.textDim });
     }
     const age = E.time - this.t0;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 3 && !ch.endless; i++) {
       const sx = cx + (i - 1) * 60, sy = y0 + 94;
       if (i < p.stars) {
         const k = ease.outBack(clamp((age - i * 0.2) / 0.3, 0, 1));
@@ -2128,15 +2501,26 @@ const over = {
       } else drawStar(ctx, sx, sy, 22, null, P.panelEdge);
     }
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
-    E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 134, { size: TY.mid, color: P.text });
-    E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 156, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
-    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}  ·  ${p.preset}`, cx, y0 + 178, { size: TY.small, color: P.textDim });
+    if (ch.ladder === 'zombie') E.text(ch.endless ? `Wave ${p.zwave}   Down ${p.zdown}   Brain shots ${p.bulls}` : `Down ${p.zdown} of ${p.ztotal}   Brain shots ${p.bulls}`, cx, y0 + (ch.endless ? 104 : 134), { size: TY.mid, weight: ch.endless ? TY.strong : TY.normal, color: P.text });
+    else E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 134, { size: TY.mid, color: P.text });
+    if (ch.endless) {
+      E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  wave ${p.bestWave}`, cx, y0 + 140, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
+      E.text(`Today ${p.day.best}${p.day.isNew ? ' (new)' : ''}  ·  the same waves all day`, cx, y0 + 164, { size: TY.small, color: P.textDim });
+    } else {
+      E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 156, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
+      E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}  ·  ${p.preset}`, cx, y0 + 178, { size: TY.small, color: P.textDim });
+    }
     // Optional lines stack under the thresholds (a cursor, not fixed rows): the Bunker's plates, the badge, its skin, a gauntlet note. The buttons start at y0 + 256;
     // with all four the last line ends at y0 + 247.
     let yy = y0 + 178;
     if (ch.wall) {
       yy += 20;
       E.text(p.platesLeft ? `${p.platesLeft} plates left, worth up to ${p.platesValue} more` : 'Every plate scores', cx, yy, { size: TY.small, color: p.platesLeft ? P.cyan : P.textDim });
+    }
+    if (ch.ladder === 'zombie') { // which one reached the fence, and how far the waves got
+      yy += 20;
+      const b = p.breach, cls = { s: 'shambler', w: 'walker', r: 'runner', x: 'sprinter' };
+      E.text(b ? `A ${cls[b.cls]}${b.legs ? ' on its hands' : ''} reached the fence: zombie ${b.n} of wave ${b.wave}${p.zwaves ? ' of ' + p.zwaves : ''}` : 'The fence held', cx, yy, { size: TY.small, weight: TY.strong, color: b ? P.red : P.cyan });
     }
     if (p.badges.length) { // a badge pop: the line pops in by transform, from popFrom of its size (never under the small text size), fading up
       yy += 22;
@@ -2170,7 +2554,7 @@ const over = {
     const b = this.btns.find((b) => E.hit(b, p));
     if (!b) return;
     E.audio.play('tap');
-    if (b.act === 'again') { const g = this.p.gaunt; E.setScene('play', g && g.ok && !g.done ? { id: this.ch.id, gauntlet: g.i } : { id: this.ch.id }); } // a passed stage replayed stays in the chain
+    if (b.act === 'again') { const g = this.p.gaunt; E.ledger.add('retry', { id: this.ch.id, gun: this.p.gunId, score: this.p.score, stars: this.p.stars }); E.setScene('play', g && g.ok && !g.done ? { id: this.ch.id, gauntlet: g.i } : { id: this.ch.id }); } // a passed stage replayed stays in the chain
     else if (b.act === 'next') E.setScene('play', this.p.gaunt ? { id: this.next.id, gauntlet: this.p.gaunt.i + 1 } : { id: this.next.id });
     else E.setScene('menu');
   },
@@ -2289,9 +2673,9 @@ function migrateGuns(data) {
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 8,
+  saveVersion: 9,
   // Save shape: best { challengeId: { gunId: { score, stars, accuracy } } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, gunsHad { gunId: 1 } (guns a save from
-  // before v7 already had), cold (Cold Barrel's runs in a row), starPreset (the star-bar preset's name), __tune, __muted.
+  // before v7 already had), cold (Cold Barrel's runs in a row), zend (the endless mode's bests), starPreset (the star-bar preset's name), __tune, __muted.
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
   // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default); v6 adds the star-bar preset's name. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
@@ -2301,6 +2685,7 @@ export const game = {
     if (!data.skins || typeof data.skins !== 'object') data.skins = {};
     if (typeof data.starPreset !== 'string') data.starPreset = 'Skilled';
     if (typeof data.cold !== 'number') data.cold = 0;
+    if (data.zend !== undefined && (typeof data.zend !== 'object' || data.zend === null)) delete data.zend; // v9: the endless mode's bests, { day, today: { score, wave }, best: { score, wave, gun } }
     if (fromVersion < 4) { // the star-only badges the bests of that time already earned
       const b = data.best || {}, three = (id) => b[id] && b[id].stars === 3;
       for (const [badge, id] of [['marksman1', 'a1'], ['quickdraw1', 's1'], ['clay1', 'k1'], ['storm', 's4']]) if (three(id)) data.badges[badge] = 1;
