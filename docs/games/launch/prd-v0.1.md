@@ -140,3 +140,11 @@ Not in v0.1: skins, badges, missions, daily, multiple critters, obstacles that h
 
 - Does the camera zoom out at great heights? Simplest: no zoom in v0.1; a height marker at the top edge when the critter is above the screen.
 - Hold-to-boost at base or only with Rocket 1? PRD says Rocket 1; builder notes feel in the changelog.
+
+## Amendments after layer 1 (2026-09-30)
+
+- `airDrag` is 0.025 (was 0.035): at 0.035 no expert with two upgrade levels could reach 5000 m even on an ideal field. `rampKeep` 1 (a ramp keeps all speed) is added to TUNING.
+- Springs are single-use per flight (a critter could otherwise bounce on one spring forever).
+- Camera (resolves open question 1, reversing the layer 1 default): the camera zooms out smoothly with height and speed, down to 0.45x, so the landing zone of the current arc is always on screen by the top of the arc; the ground band and HUD keep their screen size. Landings must be aimable by a human; the layer 1 harness showed late arcs land 300 m or more ahead of a 45 m view.
+- Flight length: expert flights run 36 s median with no upgrades and up to 70 s; the 8 to 40 s target in section 3 is relaxed to "under 60 s for 90 percent of expert flights" and checked again after the camera change.
+- For layer 4 (shop): Fuel dominates in the harness (Fuel 2 alone reaches 5000 m on 95 of 200 seeds; Rocket 1 adds nothing because it only unlocks hold). Price and effect of each upgrade must be balanced so each is some expert's best next buy at some point; the harness reports the best next buy from every upgrade state.
