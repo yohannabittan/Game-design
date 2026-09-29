@@ -44,7 +44,7 @@ const TUNING = {
 
   // Builder additions, not in the PRD tables.
   barW: 8,               // Rotating bar thickness
-  sunRearm: 9,           // A sun touch counts again only once the ball has left its surface by this much
+  sunRearm: 30,          // A sun touch counts again only once the ball has left its surface by this much (30: a ball the planet presses back into a sun pays once)
   cometRearm: 9,         // A comet kicks the ball again only once the ball has left its surface by this much
   hudH: 48,              // HUD stack height below the safe top (screen px); Retry sits below it, the field below both
   hudGap: 6,             // Gap between Retry and the field's edge wall (screen px)
