@@ -71,12 +71,43 @@ i=0; for n in circle diamond heart star bolt crescent halo clover dagger anchor 
   node tools/sim-ink.mjs --index $i docs/games/ink/paths/$n.json --timer-from-path | grep -E '^(perfect|slips|result)'; i=$((i+1)); done
 ```
 
-Every path must show 0 slips and an OK result. The paths are the plain intended paths at 300 units per second (the Swallow's is scaled with the stencil); the tighter edge-riding paths used to check spare time are not kept.
+Every path must show 0 slips and an OK result. The paths are the intended paths (speeds as marked, 300 units per second elsewhere); the tighter edge-riding paths used to check spare time are not kept. The Swallow and Skull paths are for the stencils in parts (next section): they land on each part in turn.
+
+## Stencils in parts (PRD v0.6 section D)
+
+A stencil may be several separate pieces. Instead of `shape` it has `parts`: a list of parts, each part a list of polygons exactly like `shape` (outer polygons and holes, even-odd inside one part). The game makes `shape` from them (all polygons together), so everything that reads `shape` (outline, grid, previews, the daily) keeps working. A stencil without `parts` behaves exactly as before.
+
+```json
+{
+  "name": "Trinity",
+  "timer": 40,
+  "boss": false,
+  "comment": "Three rings. Path: land on each ring, lap it, lift.",
+  "parts": [
+    [ [[70,200],[110,200],[110,240],[70,240]], [[80,210],[100,210],[100,230],[80,230]] ],
+    [ [[160,300],[200,300],[200,340],[160,340]] ],
+    [ [[250,400],[290,400],[290,440],[250,440]] ]
+  ]
+}
+```
+
+(the first part is a square ring: an outer square and a hole inside it.) The simulator (`--index` or a stencil JSON) accepts `parts` and prepares it the way the game does.
+
+Rules the shard must design for:
+
+- Inking a part to 99 percent of its own cells completes it: the rest of the part fills by itself. The piece is done (100 percent, the card) when every part is done. Lifting is free.
+- Every touch down is a landing. It is clean when the needle is inside any part's line, or within `landTolerance` (2 units) of one. On bare skin it is a blot: a slip (three ruin the piece) with its own red mark. The simulator prints `landings N clean of M` and the fraction of each part inked. Only stencils with `parts` score landings, so a stencil in one piece never has blots.
+- Keep at least 5 units between parts, and put no cell centre exactly on a cut (use .5 coordinates: cells are 3 units, centres at 1.5, 4.5, ...). A gap of 5 units means a stroke that crosses it slips (the slip tolerance is 2), so a path must lift over every gap.
+- A part needs at least about 40 cells (a 20 by 20 unit part) so that 99 percent of it is more than the needle's own error; the Skull's teeth are the smallest that work.
+- After a lift the radius starts again at `needleR * floorScale` and widens at `growRate`, so a landing costs about a third of a second of thin ink. A path that keeps its old single-piece order and only gets a lift where it crosses a gap loses a lot of coverage this way (the old Swallow path with lifts inserted reached 82 percent, not 100). Write the path per part instead: land, ride the part's outline 5 to 6 units inside at speed 175, then fill it in rows about 15 apart at speed 270, with as few lifts as it takes. The Swallow's and the Skull's paths were made that way.
+- The perfect time is the time to the moment the last part is done, lifts included (the finger crosses a lift at `--speed`); `--timer-from-path` prints it as `perfect`. Store it in `perfect` and set `timer` by the same tier rule as any stencil.
+
+Sets still to be authored by shards under this rule: Trinity (three rings), Constellation (five small stars joined by nothing) and Bones (two crossed bones). Adding them appends to `STENCILS` after the Skull (a new index, so no save remap; give each a `tier`, a `body` and, if wanted, a `story`), and the badge Set Piece (five stars on every stencil in parts) then needs those too.
 
 ## What a shard delivers per stencil
 
-1. The stencil JSON with `name`, `timer`, `boss`, `comment`, `shape`.
-2. The intended path JSON. It must be clean (0 slips) and reach 99 percent at 300 units/s.
+1. The stencil JSON with `name`, `timer`, `boss`, `comment`, `shape` (or `parts`).
+2. The intended path JSON. It must be clean (0 slips, every landing clean) and reach 99 percent (every part done, for stencils in parts) at 300 units/s.
 3. The simulator output for that pair, pasted in the report.
 4. A check that a naive path (a plain back-and-forth sweep of the bounding box) does not reach 99 percent clean, so the tips matter.
 

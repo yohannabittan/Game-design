@@ -1,0 +1,1 @@
+External tester reports, one file per person per game per session: YYYY-MM-DD-<name>-<slug>.md from templates/playtest-external.md. These feed PRDs; they never change a default on their own (ADR-0016).
