@@ -1,7 +1,7 @@
-// Gravity Golf v0.2: planets, suns, rotating bars and orbiting moons on the v0.1 mechanic, juice and scenes.
+// Gravity Golf v0.2: planets, suns, rotating bars and orbiting moons on the v0.1 mechanic, juice, scenes and the space look.
 // Slingshot aim, fixed-step ball physics, strokes against per-hole star thresholds, the hole card, hole select.
 
-import { makeRng, ease, clamp, lerp, dist } from './engine.js';
+import { makeRng, hashString, ease, clamp, lerp, dist } from './engine.js';
 
 // Design-space units unless stated. Names match PRD v0.1 section 16 and v0.2 section E; the rest are marked.
 const TUNING = {
@@ -39,13 +39,6 @@ const TUNING = {
   // Builder additions, not in the PRD tables.
   barW: 8,               // Rotating bar thickness
   sunRearm: 9,           // A sun touch counts again only once the ball has left its surface by this much
-  bg: '#070b19',         // Letterbox colour (the engine reads this name)
-  fieldColor: '#0e1631',
-  green: '#22c55e',      // Goal
-  purple: '#a855f7',     // Gravity: planets and moons
-  orange: '#f97316',     // Hazard: suns, and full power
-  slate: '#475569',      // Walls, bars and bumpers
-  slateEdge: '#64748b',
   borderW: 8,            // Drawn thickness of the edge walls, kept on screen by view()
   retryW: 64,            // Retry button size (screen px)
   retryH: 44,
@@ -81,7 +74,6 @@ const TUNING = {
     puffLife: 0.35,
     puffSize: 3.5,
     puffSpread: 1.1,
-    puffColor: '#cbd5e1',
     releaseHaptic: 8,
     // Wall, bar and planet bounce
     hitVol: 0.3,
@@ -96,8 +88,6 @@ const TUNING = {
     sparkSize: 2.4,
     sparkBigSize: 3.2,
     sparkSpread: 1.9,
-    sparkColor: '#94a3b8', // Slate, one step lighter than the walls so it reads on the navy field
-    sparkBigColor: '#cbd5e1',
     bigShake: 3,           // Screen px
     bigShakeTime: 0.12,
     // Planets
@@ -105,22 +95,15 @@ const TUNING = {
     ringRate: 0.5,         // Pull ring cycles per second when the ball is far
     ringBoost: 2.4,        // Extra cycles per second when the ball is on the surface
     pullRing: 22,          // The pull ring drifts in from this far outside the surface, times the planet's mass
-    atmosphere: 9,         // Width of the soft atmosphere ring
-    planetLight: '#e9d5ff',
-    planetDark: '#3b0764',
-    bossPlanet: '#e879f9', // Boss holes: planet colour
-    bossLight: '#fae8ff',
-    bossDark: '#581c87',
+    atmosphere: 9,         // The pull ring starts half this far outside the surface
     orbitAlpha: 0.22,      // Moon orbit path
     trailEvery: 2,         // Physics steps between trail samples
     trailDecay: 0.03,      // Seconds per trail point when the trail drains at rest
     trailWidth: 4,
     trailAlpha: 0.5,
     // Suns
-    sunCore: '#fffbeb',
-    sunMid: '#fde047',
-    corona: 1.7,           // Corona radius in sun radii
-    coronaAlpha: 0.45,
+    corona: 1.5,           // Corona glow radius in sun radii (the rays reach further)
+    coronaAlpha: 0.7,
     flareTime: 0.55,
     flareGrow: 0.8,        // Extra corona radius at the start of a flare, in sun radii
     flareCount: 12,
@@ -140,8 +123,6 @@ const TUNING = {
     burstSpeed: 230,
     burstLife: 0.55,
     burstSize: 3.6,
-    burstColor: '#22c55e',
-    burstLight: '#bbf7d0',
     sinkHaptic: 30,
     sinkRingTime: 0.4,
     sinkRingR: 34,
@@ -168,7 +149,6 @@ const TUNING = {
     farRestDist: 100,      // and resting farther than this from the hole gives the pulse
     restPulseTime: 0.6,
     restPulseR: 3.2,       // In ball radii
-    restPulseColor: '#94a3b8',
     // Menu
     menuPopFrom: 0.7,      // Tile scale when the menu opens after a clear
     menuPopTime: 0.45,
@@ -176,10 +156,113 @@ const TUNING = {
     menuStarStagger: 0.12,
     menuStarPop: 0.3,
   },
+
+  // Art (layer 5). Cosmetic only; nothing here is read by the physics. Every colour in the game lives in art.palette.
+  // Rules: light comes from the upper left and shadows fall to the lower right; line weights are art.line (design units);
+  // glows are soft radial gradients; the ball is the highest-contrast object, the range finder the second.
+  art: {
+    palette: {
+      space: '#070b19',      // Letterbox (the engine reads TUNING.bg, set below) and the deepest sky
+      field: '#0e1631',      // The play field
+      starCool: '#dbeafe',
+      starWarm: '#fde68a',
+      nebula: ['#3346a8', '#0f7490', '#2f5d9e', '#7a3560'], // Indigo, teal, steel, dusty plum; never green, purple or orange
+      // Three meanings: green is the goal, purple is gravity, orange is danger and full power.
+      green: '#22c55e', greenLight: '#bbf7d0', ink: '#04110a', // ink is the text on green
+      purple: '#a855f7',
+      planets: [ // Every planet is purple-family; the look is picked from its position and mass
+        { light: '#e9d5ff', mid: '#a855f7', dark: '#4c1d95' },
+        { light: '#ddd6fe', mid: '#7c6cf0', dark: '#3730a3' },
+        { light: '#f5d0fe', mid: '#c26be0', dark: '#6b21a8' },
+      ],
+      boss: [
+        { light: '#fae8ff', mid: '#e879f9', dark: '#6b21a8' },
+        { light: '#fbcfe8', mid: '#d946ef', dark: '#86198f' },
+      ],
+      bossAccent: '#e879f9', bannerBg: '#1a0d2e',
+      moon: { light: '#f8fafc', mid: '#cbd5e1', dark: '#64748b' }, moonCrater: '#94a3b8',
+      orange: '#f97316', sunCore: '#fffbeb', sunMid: '#fde047', sunRim: '#ea580c', sunRay: '#fdba74',
+      slate: '#64748b', slateLight: '#94a3b8', slateDark: '#334155', slateDeep: '#1e293b', // Walls, bars, bumpers, border
+      white: '#ffffff', ballMid: '#e2e8f0', ballEdge: '#a3b1c6', ballRim: '#0b1226', ballSpin: '#5f6f8a',
+      trail: '#e0ecff', shadow: '#02040c',
+      cupDeep: '#02060a', cupEdge: '#0b1f15',
+      text: '#f1f5f9', textDim: '#a3aec2', textOff: '#64748b',
+      card: '#0c1330', tile: '#16203d', tileLocked: '#0a1024', tileLockedEdge: '#1b2440', retryOff: '#141c33', starOff: '#475569',
+      puff: '#cbd5e1', spark: '#94a3b8', sparkBig: '#cbd5e1', restPulse: '#94a3b8',
+    },
+    type: { sm: 15, md: 20, lg: 36, heavy: '800' }, // Three sizes; only the large size is heavy, everything else is the engine's 600
+    line: { hair: 1.5, edge: 2, radius: 10, card: 18, button: 14 }, // Design units (button radius is the engine's)
+    sky: {
+      layers: [ // Far then near: star count, radius range, drift (design units at the field edge), alpha buckets
+        { n: 70, r0: 0.4, r1: 0.9, drift: 2.5, alphas: [0.22, 0.34, 0.5] },
+        { n: 30, r0: 0.8, r1: 1.4, drift: 6, alphas: [0.4, 0.6, 0.85] },
+      ],
+      margin: 12,          // Stars are laid out this far beyond the field so the drift never shows an edge
+      warmChance: 0.15,    // Share of stars in the warm bucket
+      flares: 4,           // Bright stars with a small cross
+      flareLen: 3.6,
+      flareAlpha: 0.55,
+      nebulae: [1, 2],     // Soft gradients per hole, one or two from the seed
+      nebAlpha: [0.2, 0.32],
+      nebR: [50, 90],
+    },
+    planet: {
+      lowMass: 0.75,       // Below this: plain with a few craters
+      ringMass: 1.2,       // Above this: ring system (bands in between)
+      atm: 0.3,            // Atmosphere width as a fraction of the radius
+      atmAlpha: 0.5,
+      rimAlpha: 0.6,       // Crisp edge line, so the dark side of a planet still shows its size
+      moonAtm: 0.5,        // A moon's atmosphere is this much of a planet's
+      craters: [3, 5], bands: [3, 5], ringBands: 2,
+      bandAlpha: [0.14, 0.28],
+      craterAlpha: 0.32,
+      ringR: 1.68, ringW: 0.15, ringInner: 1.4, ringInnerW: 0.06, ringAlpha: 0.5, ringTilt: 0.5, ringSquash: [0.26, 0.36],
+    },
+    sun: {
+      raysA: 12, lenA: 2.0,   // Long rays, in sun radii (short ones are three quarters as long)
+      raysB: 8, lenB: 1.6,    // Second, counter-rotating set
+      rayRate: 0.14,          // Radians per second
+      rayAlpha: 0.75,
+      shimmerRate: 2.6,       // Heat shimmer ring: radians per second of its breathing
+      shimmerAmp: 0.05,
+      shimmerAlpha: 0.5,
+    },
+    metal: { bevel: 1.5, boltMin: 16, boltR: 1.9, railW: 6 },
+    ball: {
+      shadowDx: 2.4, shadowDy: 3.4, shadowR: 1.25, shadowAlpha: 0.6, // Offset toward the lower right, in design units at rest size
+      rim: 1.1,               // Thin dark rim so the white ball holds against pale planets
+      spinMax: 12,            // Radians per second (a marking that turns faster than this only strobes)
+      seam: 0.13,
+    },
+    trail: {
+      minSpeed: 90,           // Below this the trail drains
+      speedRef: 700,          // Speed at which the trail is at full strength
+      glowWidth: 2.6, glowAlpha: 0.28,
+      floor: 0.3,             // Weakest strength, at minSpeed
+    },
+    range: {
+      r0: 3.4, r1: 1.4,       // Dot radius, first to last
+      a0: 0.95, a1: 0.38,     // Dot alpha, first to last
+      powerGrow: 0.25,        // Dots swell by this much at full power
+      firstDots: 6,           // The first segment is brighter: a tapering line and boosted dots
+      dotGroup: 3,            // Dots per fill (they share an alpha), to keep the draw calls few
+      headBoost: 0.35, headW: 3.4, headAlpha: 0.6,
+      backAlpha: 0.4, backGrow: 1,   // Dark backing under each dot for pale backgrounds
+      gaugeGap: 5, gaugeW: 2.4, gaugeTrack: 0.22, // Power gauge ring around the ball
+      capLen: 8, capW: 3, capGap: 5.5, capAlpha: 1, capGlowR: 13, capGlowA: 0.4, // Soft end cap of a preview cut by time
+    },
+    cup: {
+      haloR: 2.3, haloIdle: 0.16, haloGlow: 0.5,
+      glowIdle: 0.12, glowMax: 0.75, glowRate: 12, // Per second, easing toward the sinkable state
+      flagH: 26, flagW: 13, flagRate: 3.2, flagWave: 1.4,
+    },
+    tile: { number: 14, icon: 37, iconR: 10, sunR: 7, stars: 10, starR: 5.5 }, // Offsets from the tile top (stars from the bottom), design px
+  },
 };
 const T = TUNING;
 const J = T.juice;
 const STEP = T.physicsStep;
+TUNING.bg = TUNING.art.palette.space; // the engine reads TUNING.bg for the letterbox
 
 // Hole data. Coordinates are design space; the four field edges are walls added by the physics.
 //   stars: { three, two }: three is the fewest strokes proved in the harness; two is par, shown on the card.
@@ -250,16 +333,16 @@ const LEVELS = [
     walls: [{ x: 160, y: 330, w: 200, h: 22 }], planets: [{ x: 140, y: 300, r: 48, mass: 1 }], suns: [], movers: [{ type: "slide", w: 22, h: 100, a: { x: 165, y: 58 }, b: { x: 165, y: 130 }, period: 2.4 }],
   },
   {
-    // PLACEHOLDER for hole 9, Windmill.
-    name: 'Windmill', boss: false, stars: { three: 1, two: 2 },
-    ball: { x: 100, y: 540 }, hole: { x: 260, y: 150 },
-    walls: [{ x: 150, y: 250, w: 22, h: 200 }], planets: [], suns: [], movers: [],
+    // Teaches timing a moving part: the bar spins in the door and the planet is the staging post. three: (-30, 18) at clock 0 lands on the planet top, then (-51, 120) released at clock 1.45 passes the bar and sinks, the sun guarding the left lane; it sinks for clocks 1.15 to 1.75 and over 10.3 degrees of aim. two: four shots, (-30,18) / (-51,120) at clock 0.3 misses / (127,27) / (-51,120) at clock 1.45. Sweep: 0 straight sinks.
+    name: "Windmill", boss: false, stars: { three: 2, two: 4 },
+    ball: { x: 40, y: 470 }, hole: { x: 315, y: 110 },
+    walls: [{ x: 0, y: 289, w: 195, h: 22 }, { x: 173, y: 311, w: 22, h: 100 }, { x: 335, y: 289, w: 25, h: 22 }], planets: [{ x: 245, y: 480, r: 40, mass: 0.7 }], suns: [{ x: 250, y: 185, r: 20 }], movers: [{ type: "bar", x: 265, y: 300, len: 90, phase: 0 }],
   },
   {
-    // PLACEHOLDER for hole 10, Eclipse (boss).
-    name: 'Eclipse', boss: true, stars: { three: 1, two: 2 },
-    ball: { x: 180, y: 560 }, hole: { x: 180, y: 100 },
-    walls: [{ x: 0, y: 330, w: 140, h: 22 }, { x: 220, y: 330, w: 140, h: 22 }], planets: [], suns: [], movers: [],
+    // Boss: a heavy planet with an orbiting moon sits under the door; the moon closes the slingshot window on a 4 s cycle and a sun blocks the low approach from the tee. three: (-6, 90) at clock 0 (fine at 0 to 0.75 and 3.25 up; at 1 to 3 the ball meets the moon) lobs up the left and lands on the planet top, then (-69, 98) at clock 1.25 (works at clocks 3.7 to 2.4; 2.5 to 3.6 the moon spoils it) banks off the right edge through the door and settles on the ceiling, then (58, 94) sinks over 9.95 degrees of aim at any clock. two: (-6,90) / (-69,98) at 1.25 / (90,0) / (52,120). Sweep: 0 straight sinks.
+    name: "Eclipse", boss: true, stars: { three: 3, two: 5 },
+    ball: { x: 60, y: 590 }, hole: { x: 60, y: 130 },
+    walls: [{ x: 0, y: 178, w: 290, h: 22 }, { x: 120, y: 70, w: 22, h: 108 }], planets: [{ x: 180, y: 400, r: 52, mass: 1.2 }], suns: [{ x: 140, y: 548, r: 20 }], movers: [{ type: "moon", parent: 0, orbitR: 96, period: 4, r: 12, mass: 0.4, phase: 0 }],
   },
 ];
 // Clamps a hole to the size and mass limits; also applied by tools/sim-golf.mjs to a shard's JSON.
@@ -484,14 +567,17 @@ function previewPoints(lv, b, l, clock, seconds) {
 
 // ---------- Helpers ----------
 
-const STARS = (() => {
-  const r = makeRng(20260928);
-  return Array.from({ length: 45 }, () => ({ x: r.range(0, T.designW), y: r.range(0, T.designH), r: r.range(0.6, 1.4), a: r.range(0.15, 0.5) }));
-})();
-
 // The design space plus its edge walls is fitted to the screen, so all four walls are always visible.
+const VIEW = { s: 1, ox: 0, oy: 0 }; // reused: callers read it at once
 function view(E) {
   const s = Math.min(E.w / (T.designW + 2 * T.borderW), E.h / (T.designH + 2 * T.borderW));
+  VIEW.s = s; VIEW.ox = (E.w - T.designW * s) / 2; VIEW.oy = (E.h - T.designH * s) / 2;
+  return VIEW;
+}
+
+// The menu and cards paint the sky over the whole screen: the design space scaled to cover it.
+function coverView(E) {
+  const s = Math.max(E.w / T.designW, E.h / T.designH);
   return { s, ox: (E.w - T.designW * s) / 2, oy: (E.h - T.designH * s) / 2 };
 }
 
@@ -504,10 +590,141 @@ function progress(E) {
   return { best, stars, total: stars.reduce((a, b) => a + b, 0), unlocked: clamp(E.save.get('unlocked', 0), 0, LEVELS.length - 1) };
 }
 
-function mixToOrange(t) {
-  const c = (a, b) => Math.round(lerp(a, b, t));
-  return `rgb(${c(255, 249)},${c(255, 115)},${c(255, 22)})`;
+// ---------- Art (layer 5) ----------
+// Everything below draws from TUNING.art. Gradients are built once (unit radius, drawn translated and scaled, or per
+// planet look), the starfield once per hole as Path2D, and text styles once, so a frame allocates nothing.
+
+const A = T.art, P = A.palette, TY = A.type, PI2 = Math.PI * 2;
+const NO_DASH = [], ORBIT_DASH = [3, 7];
+
+function rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+function mixHex(a, b, t) {
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), c = (s) => Math.round(lerp((x >> s) & 255, (y >> s) & 255, t));
+  return `rgb(${c(16)},${c(8)},${c(0)})`;
 }
+const WARM = Array.from({ length: 17 }, (_, i) => mixHex(P.white, P.orange, i / 16)); // ball colour toward warm as power rises
+
+// Text styles, shared objects so no call builds one. One weight rule: heavy on the large size only.
+const tx = (size, color, align, weight) => ({ size, color, align, weight });
+const TX = {
+  big: tx(TY.lg, P.text, 'center', TY.heavy), bossBig: tx(TY.lg, P.bossAccent, 'center', TY.heavy),
+  goal: tx(TY.md, P.green, 'center'), dim: tx(TY.md, P.textDim, 'center'), sm: tx(TY.sm, P.textDim, 'center'),
+  bossMd: tx(TY.md, P.bossAccent, 'center'), smLight: tx(TY.sm, P.text, 'center'),
+  tileNum: tx(TY.md, P.text, 'center'), tileNumOff: tx(TY.md, P.textOff, 'center'),
+  label: tx(TY.sm, P.textDim, 'left'), labelC: tx(TY.sm, P.textDim, 'center'), labelBoss: tx(TY.sm, P.bossAccent, 'center'), labelR: tx(TY.sm, P.textDim, 'right'),
+  valueL: tx(TY.md, P.text, 'left'), valueC: tx(TY.md, P.text, 'center'), valueGoalR: tx(TY.md, P.green, 'right'),
+};
+// Button styles (engine buttons take these), and their outline colour.
+const BTN = {
+  primary: { fill: P.green, color: P.ink, h: 64, size: TY.md, edge: P.greenLight },
+  second: { fill: P.slateDark, color: P.text, w: 170, h: 48, size: TY.sm, edge: P.slate },
+  secondCard: { fill: P.slateDark, color: P.text, w: 150, h: 48, size: TY.sm, edge: P.slate },
+  retryOn: { w: T.retryW, h: T.retryH, size: TY.sm, fill: P.slateDark, color: P.text, edge: P.slateLight },
+  retryOff: { w: T.retryW, h: T.retryH, size: TY.sm, fill: P.retryOff, color: P.textOff, edge: P.slateDeep },
+};
+function pill(E, label, cx, cy, o) {
+  const r = E.button(label, cx, cy, o);
+  E.roundRect(r.x, r.y, r.w, r.h, A.line.button, null, o.edge);
+  return r;
+}
+
+function radial(ctx, x0, y0, r0, x1, y1, r1, stops) {
+  const g = ctx.createRadialGradient(x0, y0, r0, x1, y1, r1);
+  for (let i = 0; i < stops.length; i += 2) g.addColorStop(stops[i], stops[i + 1]);
+  return g;
+}
+
+// Shared gradients, all in unit space. Built on the first frame.
+let G = null;
+function buildGradients(ctx) {
+  const so = rgba(P.orange, 0), lit = [-0.4, -0.4, 0.06, 0, 0, 1.05];
+  return {
+    glow: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.white, 0.9), 0.55, rgba(P.white, 0.3), 1, rgba(P.white, 0)]),
+    ball: radial(ctx, -0.35, -0.4, 0.05, 0, 0, 1.05, [0, P.white, 0.5, P.ballMid, 1, P.ballEdge]),
+    shadow: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.shadow, 1), 0.55, rgba(P.shadow, 0.75), 1, rgba(P.shadow, 0)]),
+    bump: radial(ctx, ...lit, [0, P.slateLight, 0.5, P.slate, 1, P.slateDeep]),
+    moon: radial(ctx, ...lit, [0, P.moon.light, 0.5, P.moon.mid, 1, P.moon.dark]),
+    corona: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.orange, 0.9), 0.55, rgba(P.orange, 0.35), 1, so]),
+    rays: radial(ctx, 0, 0, 0.9, 0, 0, 2.1, [0, rgba(P.sunMid, 0.95), 0.4, rgba(P.sunRay, 0.6), 1, rgba(P.orange, 0)]),
+    sun: radial(ctx, 0, 0, 0, 0, 0, 1, [0, P.sunCore, 0.5, P.sunMid, 0.88, P.orange, 1, P.sunRim]),
+    cup: radial(ctx, 0, 0, 0, 0, 0, 1, [0, P.cupDeep, 0.72, P.cupDeep, 1, P.cupEdge]),
+    cupGlow: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.green, 0.9), 0.6, rgba(P.green, 0.3), 1, rgba(P.green, 0)]),
+    cupHalo: radial(ctx, 0, 0, 0.45, 0, 0, 1, [0, rgba(P.green, 0.6), 1, rgba(P.green, 0)]),
+  };
+}
+
+// Planet gradients per tint (light, mid, dark): the lit body and the atmosphere.
+const TG = new Map();
+function tintG(ctx, t) {
+  let g = TG.get(t);
+  if (!g) {
+    g = {
+      body: radial(ctx, -0.4, -0.4, 0.06, 0, 0, 1.05, [0, t.light, 0.45, t.mid, 1, t.dark]),
+      atm: radial(ctx, 0, 0, 1, 0, 0, 1 + A.planet.atm, [0, rgba(t.mid, 0.9), 1, rgba(t.mid, 0)]),
+    };
+    TG.set(t, g);
+  }
+  return g;
+}
+
+// ----- Sky: two parallax star layers, bright stars and one or two nebulae, seeded per hole -----
+
+const SKY = new Map();
+function buildSky(ctx, key) {
+  const sk = A.sky, rng = makeRng(hashString(`sky:${key}`)), m = sk.margin, w = T.designW + 2 * m, h = T.designH + 2 * m;
+  const layers = sk.layers.map((L) => {
+    const buckets = L.alphas.map((a, i) => ({ path: new Path2D(), a, c: i === L.alphas.length - 1 ? P.starWarm : P.starCool }));
+    for (let i = 0; i < L.n; i++) {
+      const b = buckets[rng() < sk.warmChance ? buckets.length - 1 : rng.int(0, buckets.length - 2)];
+      const x = rng.range(-m, w - m), y = rng.range(-m, h - m), r = rng.range(L.r0, L.r1);
+      b.path.moveTo(x + r, y); b.path.arc(x, y, r, 0, PI2);
+    }
+    return { buckets, drift: L.drift };
+  });
+  const flare = { dots: new Path2D(), cross: new Path2D() };
+  for (let i = 0; i < sk.flares; i++) {
+    const x = rng.range(10, T.designW - 10), y = rng.range(10, T.designH - 10), L = sk.flareLen * rng.range(0.8, 1.3);
+    flare.dots.moveTo(x + 1.2, y); flare.dots.arc(x, y, 1.2, 0, PI2);
+    flare.cross.moveTo(x - L, y); flare.cross.lineTo(x + L, y); flare.cross.moveTo(x, y - L); flare.cross.lineTo(x, y + L);
+  }
+  const first = rng.int(0, P.nebula.length - 1);
+  const neb = Array.from({ length: rng.int(...sk.nebulae) }, (_, i) => {
+    const c = P.nebula[(first + i * rng.int(1, P.nebula.length - 1)) % P.nebula.length];
+    return {
+      x: rng.range(0, T.designW), y: rng.range(0, T.designH), r: rng.range(...sk.nebR), a: rng.range(...sk.nebAlpha),
+      g: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.45, rgba(c, 0.45), 1, rgba(c, 0)]),
+    };
+  });
+  const s = { layers, flare, neb };
+  SKY.set(key, s);
+  return s;
+}
+
+// Draws the field for a hole. (ox, oy) is where the ball is on the field, -1 to 1; the layers drift against it.
+function drawField(ctx, key, ox, oy) {
+  if (!G) G = buildGradients(ctx);
+  const s = SKY.get(key) || buildSky(ctx, key), sk = A.sky;
+  ctx.fillStyle = P.field;
+  ctx.fillRect(0, 0, T.designW, T.designH);
+  for (let i = 0; i < s.neb.length; i++) {
+    const n = s.neb[i];
+    ctx.save(); ctx.translate(n.x, n.y); ctx.scale(n.r, n.r);
+    ctx.globalAlpha = n.a; ctx.fillStyle = n.g; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill(); ctx.restore();
+  }
+  for (let i = 0; i < s.layers.length; i++) {
+    const L = s.layers[i];
+    ctx.save(); ctx.translate(-ox * L.drift, -oy * L.drift);
+    for (let j = 0; j < L.buckets.length; j++) { const b = L.buckets[j]; ctx.globalAlpha = b.a; ctx.fillStyle = b.c; ctx.fill(b.path); }
+    if (i === s.layers.length - 1) {
+      ctx.globalAlpha = 0.9; ctx.fillStyle = P.starCool; ctx.fill(s.flare.dots);
+      ctx.globalAlpha = sk.flareAlpha; ctx.strokeStyle = P.starCool; ctx.lineWidth = 0.8; ctx.lineCap = 'round'; ctx.stroke(s.flare.cross);
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ----- Stars (the rating) and the lock -----
 
 function drawStar(ctx, cx, cy, R, fill, stroke) {
   ctx.beginPath();
@@ -517,101 +734,289 @@ function drawStar(ctx, cx, cy, R, fill, stroke) {
   }
   ctx.closePath();
   if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = A.line.hair; ctx.stroke(); }
 }
 
-function drawField(ctx) {
-  ctx.fillStyle = T.fieldColor;
-  ctx.fillRect(0, 0, T.designW, T.designH);
-  ctx.fillStyle = '#fff';
-  for (const s of STARS) { ctx.globalAlpha = s.a; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); }
-  ctx.globalAlpha = 1;
+function drawLock(ctx, cx, cy) {
+  ctx.strokeStyle = P.textOff; ctx.lineWidth = A.line.edge;
+  ctx.beginPath(); ctx.arc(cx, cy - 3, 5, Math.PI, 0); ctx.stroke();
+  ctx.fillStyle = P.textOff; ctx.fillRect(cx - 7, cy - 3, 14, 11);
 }
+
+// ----- Slate metal: walls, sliding walls, bars and bumpers are one material. Bevels sit inside the hit shape. -----
 
 // The edge walls sit just outside the field so the ball never overlaps them.
 function drawBorder(ctx) {
-  const bw = T.borderW;
-  ctx.strokeStyle = T.slate; ctx.lineWidth = bw;
-  ctx.strokeRect(-bw / 2, -bw / 2, T.designW + bw, T.designH + bw);
-  ctx.strokeStyle = T.slateEdge; ctx.lineWidth = 1.5;
-  ctx.strokeRect(-0.75, -0.75, T.designW + 1.5, T.designH + 1.5);
+  const bw = T.borderW, W = T.designW, H = T.designH, hair = A.line.hair;
+  ctx.fillStyle = P.slate; // the frame as one evenodd fill, then a light line inside and a dark line outside
+  ctx.beginPath(); ctx.rect(-bw, -bw, W + 2 * bw, H + 2 * bw); ctx.rect(0, 0, W, H); ctx.fill('evenodd');
+  ctx.fillStyle = P.slateLight;
+  ctx.fillRect(-hair, -hair, W + 2 * hair, hair); ctx.fillRect(-hair, H, W + 2 * hair, hair);
+  ctx.fillRect(-hair, 0, hair, H); ctx.fillRect(W, 0, hair, H);
+  ctx.fillStyle = P.slateDeep;
+  ctx.fillRect(-bw, -bw, W + 2 * bw, hair); ctx.fillRect(-bw, H + bw - hair, W + 2 * bw, hair);
+  ctx.fillRect(-bw, -bw + hair, hair, H + 2 * bw - 2 * hair); ctx.fillRect(W + bw - hair, -bw + hair, hair, H + 2 * bw - 2 * hair);
+  for (let i = 0; i < 4; i++) drawBolt(ctx, i % 2 ? W + bw / 2 : -bw / 2, i > 1 ? H + bw / 2 : -bw / 2, 1.5);
 }
 
-function drawWall(ctx, r) {
-  ctx.fillStyle = T.slate; ctx.fillRect(r.x, r.y, r.w, r.h);
-  ctx.strokeStyle = T.slateEdge; ctx.lineWidth = 2; ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+function drawBolt(ctx, x, y, r) {
+  ctx.fillStyle = P.slateDeep; ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill();
+  ctx.fillStyle = P.slateLight; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.4, 0, PI2); ctx.fill();
 }
 
-function drawBumper(ctx, x, y, r) {
-  ctx.fillStyle = T.slate; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = T.slateEdge; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r - 1, 0, Math.PI * 2); ctx.stroke();
+function drawSlab(ctx, x, y, w, h) {
+  const bv = A.metal.bevel, m = Math.min(w, h);
+  ctx.fillStyle = P.slate; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = P.slateLight; ctx.fillRect(x, y, w, bv); ctx.fillRect(x, y, bv, h);
+  ctx.fillStyle = P.slateDark; ctx.fillRect(x, y + h - bv, w, bv); ctx.fillRect(x + w - bv, y, bv, h);
+  if (m >= A.metal.boltMin) {
+    if (w >= h) { drawBolt(ctx, x + m / 2, y + h / 2, A.metal.boltR); drawBolt(ctx, x + w - m / 2, y + h / 2, A.metal.boltR); }
+    else { drawBolt(ctx, x + w / 2, y + m / 2, A.metal.boltR); drawBolt(ctx, x + w / 2, y + h - m / 2, A.metal.boltR); }
+  }
+}
+function drawWall(ctx, r) { drawSlab(ctx, r.x, r.y, r.w, r.h); }
+
+// The groove a sliding wall runs in, the length of its travel.
+function drawRail(ctx, m) {
+  const horiz = Math.abs(m.b.x - m.a.x) >= Math.abs(m.b.y - m.a.y), rw = A.metal.railW;
+  const x0 = Math.min(m.a.x, m.b.x), x1 = Math.max(m.a.x, m.b.x) + m.w, y0 = Math.min(m.a.y, m.b.y), y1 = Math.max(m.a.y, m.b.y) + m.h;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (horiz) { ctx.moveTo(x0 + rw, m.a.y + m.h / 2); ctx.lineTo(x1 - rw, m.a.y + m.h / 2); }
+  else { ctx.moveTo(m.a.x + m.w / 2, y0 + rw); ctx.lineTo(m.a.x + m.w / 2, y1 - rw); }
+  ctx.strokeStyle = P.slateDark; ctx.lineWidth = rw; ctx.stroke();
+  ctx.strokeStyle = P.slateDeep; ctx.lineWidth = rw * 0.4; ctx.stroke();
 }
 
 function drawBar(ctx, m, clock) {
-  const u = barAt(m, clock);
+  const u = barAt(m, clock), bw = T.barW;
   ctx.lineCap = 'round';
-  ctx.strokeStyle = T.slate; ctx.lineWidth = T.barW;
-  ctx.beginPath(); ctx.moveTo(m.x - u.x, m.y - u.y); ctx.lineTo(m.x + u.x, m.y + u.y); ctx.stroke();
-  ctx.strokeStyle = T.slateEdge; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(m.x - u.x, m.y - u.y); ctx.lineTo(m.x + u.x, m.y + u.y); ctx.stroke();
-  ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.arc(m.x, m.y, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(m.x - u.x, m.y - u.y); ctx.lineTo(m.x + u.x, m.y + u.y);
+  ctx.strokeStyle = P.slateDeep; ctx.lineWidth = bw; ctx.stroke();
+  ctx.strokeStyle = P.slate; ctx.lineWidth = bw - 2; ctx.stroke();
+  ctx.save(); ctx.translate(-0.9, -0.9);
+  ctx.strokeStyle = P.slateLight; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = P.slateDeep; ctx.beginPath(); ctx.arc(m.x, m.y, 4.8, 0, PI2); ctx.fill();
+  ctx.fillStyle = P.slateLight; ctx.beginPath(); ctx.arc(m.x, m.y, 3.2, 0, PI2); ctx.fill();
+  ctx.fillStyle = P.slateDark; ctx.beginPath(); ctx.arc(m.x, m.y, 1.4, 0, PI2); ctx.fill();
 }
 
-// Gradients are built once per size and colour around the origin, then drawn translated, so moons can reuse them.
-const GRAD = new Map();
-function grad(ctx, key, make) {
-  let g = GRAD.get(key);
-  if (!g) { g = make(); GRAD.set(key, g); }
-  return g;
+// A bumper (mass 0): a matte slate sphere, no specular, no atmosphere.
+function drawBumper(ctx, x, y, r) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(r, r);
+  ctx.fillStyle = G.bump; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.globalAlpha = 0.5; ctx.strokeStyle = P.slateDark; ctx.lineWidth = A.line.hair / r;
+  ctx.beginPath(); ctx.arc(0, 0, 0.68, 0, PI2); ctx.stroke();
+  ctx.globalAlpha = 0.85; ctx.strokeStyle = P.slateLight; ctx.lineWidth = A.line.edge / r;
+  ctx.beginPath(); ctx.arc(0, 0, 1 - A.line.edge / r / 2, Math.PI * 0.8, Math.PI * 1.7); ctx.stroke();
+  ctx.restore();
 }
 
-// A planet: soft atmosphere, a disc lit from the upper left, and a faint ring drifting in to show the pull.
-// `phase` is the ring cycle (0 to 1), advanced by the play scene so it runs faster when the ball is near.
-function drawPlanet(ctx, x, y, r, mass, boss, phase) {
-  if (mass <= 0) { drawBumper(ctx, x, y, r); return; }
-  const col = boss ? J.bossPlanet : T.purple, light = boss ? J.bossLight : J.planetLight, dark = boss ? J.bossDark : J.planetDark;
-  const atm = grad(ctx, `a${r}${col}`, () => {
-    const g = ctx.createRadialGradient(0, 0, r, 0, 0, r + J.atmosphere);
-    g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); return g;
-  });
-  const body = grad(ctx, `b${r}${col}`, () => {
-    const g = ctx.createRadialGradient(-r * 0.4, -r * 0.4, r * 0.1, 0, 0, r * 1.05);
-    g.addColorStop(0, light); g.addColorStop(0.45, col); g.addColorStop(1, dark); return g;
-  });
-  ctx.save(); ctx.translate(x, y);
-  ctx.globalAlpha = 0.45; ctx.fillStyle = atm;
-  ctx.beginPath(); ctx.arc(0, 0, r + J.atmosphere, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1; ctx.fillStyle = body;
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+// ----- Planets: a look per planet from its position and mass -----
+// Low mass: plain with craters. Mass about 1: bands. Above ringMass: a ring system. Moons are small and pale with a crater.
+
+const LOOK = new WeakMap();
+function lookOf(o, mass, boss) {
+  let k = LOOK.get(o);
+  if (k) return k;
+  const pa = A.planet, moon = o.parent !== undefined; // movers have a parent; planets do not
+  const rng = makeRng(hashString(moon ? `moon,${o.parent},${o.orbitR},${o.phase}` : `${o.x},${o.y},${mass}`));
+  k = { bump: mass <= 0, moon, tint: null, atmTint: null, craters: null, bands: null, ring: null, tilt: 0 };
+  const craters = (n) => { // x, y, radius in planet radii; the first is the largest
+    const c = [];
+    for (let i = 0; i < n; i++) { const a = rng.range(0, PI2), d = rng.range(0.1, 0.62); c.push(Math.cos(a) * d, Math.sin(a) * d, i ? rng.range(0.09, 0.17) : rng.range(0.17, 0.24)); }
+    return c;
+  };
+  const bands = (n) => { // y, height, light (1) or dark (0), alpha
+    const c = [];
+    for (let i = 0; i < n; i++) c.push(rng.range(-0.8, 0.8), rng.range(0.07, 0.2), i % 2, rng.range(...pa.bandAlpha));
+    return c;
+  };
+  if (moon) { k.tint = P.moon; k.atmTint = P.planets[0]; k.craters = [0.3, -0.25, 0.28, -0.35, 0.3, 0.14]; }
+  else if (!k.bump) {
+    k.tint = k.atmTint = rng.pick(boss ? P.boss : P.planets);
+    if (mass > pa.ringMass) {
+      k.ring = { tilt: rng.range(-pa.ringTilt, pa.ringTilt), squash: rng.range(...pa.ringSquash) };
+      k.bands = bands(pa.ringBands);
+    } else if (mass >= pa.lowMass) k.bands = bands(rng.int(...pa.bands));
+    else k.craters = craters(rng.int(...pa.craters));
+    k.tilt = rng.range(-0.3, 0.3);
+  }
+  LOOK.set(o, k);
+  return k;
+}
+
+function ringHalf(ctx, k, back) {
+  const pa = A.planet, rg = k.ring, a0 = back ? Math.PI : 0, a1 = back ? PI2 : Math.PI;
+  ctx.lineCap = 'butt'; ctx.strokeStyle = k.tint.light;
+  ctx.globalAlpha = pa.ringAlpha; ctx.lineWidth = pa.ringW;
+  ctx.beginPath(); ctx.ellipse(0, 0, pa.ringR, pa.ringR * rg.squash, rg.tilt, a0, a1); ctx.stroke();
+  ctx.globalAlpha = pa.ringAlpha * 0.8; ctx.lineWidth = pa.ringInnerW;
+  ctx.beginPath(); ctx.ellipse(0, 0, pa.ringInner, pa.ringInner * rg.squash, rg.tilt, a0, a1); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// A planet or moon `o` at (x, y). `phase` (0 to 1) is the drifting pull ring, or undefined for none.
+function drawPlanet(ctx, x, y, r, o, mass, boss, phase) {
+  const k = lookOf(o, mass, boss), pa = A.planet;
+  if (k.bump) { drawBumper(ctx, x, y, r); return; }
+  const tg = tintG(ctx, k.tint), ag = tintG(ctx, k.atmTint);
+  ctx.save(); ctx.translate(x, y); ctx.scale(r, r);
+  ctx.globalAlpha = pa.atmAlpha * (k.moon ? pa.moonAtm : 1); ctx.fillStyle = ag.atm;
+  ctx.beginPath(); ctx.arc(0, 0, 1 + pa.atm, 0, PI2); ctx.arc(0, 0, 0.98, 0, PI2, true); ctx.fill('evenodd');
+  ctx.globalAlpha = 1;
+  if (k.ring) ringHalf(ctx, k, true);
+  ctx.fillStyle = k.moon ? G.moon : tg.body; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.clip();
+  if (k.bands) {
+    ctx.rotate(k.tilt);
+    for (let i = 0; i < k.bands.length; i += 4) {
+      ctx.globalAlpha = k.bands[i + 3]; ctx.fillStyle = k.bands[i + 2] ? k.tint.light : k.tint.dark;
+      ctx.fillRect(-1.3, k.bands[i], 2.6, k.bands[i + 1]);
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (k.craters) {
+    ctx.lineWidth = A.line.hair / r;
+    for (let i = 0; i < k.craters.length; i += 3) {
+      const cx = k.craters[i], cy = k.craters[i + 1], cr = k.craters[i + 2];
+      ctx.globalAlpha = pa.craterAlpha; ctx.fillStyle = k.moon ? P.moonCrater : k.tint.dark;
+      ctx.beginPath(); ctx.arc(cx, cy, cr, 0, PI2); ctx.fill();
+      ctx.strokeStyle = k.tint.light; ctx.globalAlpha = pa.craterAlpha * 1.4;
+      ctx.beginPath(); ctx.arc(cx, cy, cr, -0.2, Math.PI * 0.75); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  ctx.globalAlpha = pa.rimAlpha; ctx.strokeStyle = k.tint.mid; ctx.lineWidth = A.line.hair / r; // a crisp edge all round, so the dark side still shows its size
+  ctx.beginPath(); ctx.arc(0, 0, 1 - A.line.hair / r / 2, 0, PI2); ctx.stroke(); ctx.globalAlpha = 1;
+  if (k.ring) ringHalf(ctx, k, false);
   if (phase !== undefined) {
-    ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.5 * phase;
-    ctx.beginPath(); ctx.arc(0, 0, r + J.atmosphere * 0.5 + J.pullRing * mass * (1 - phase), 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = k.tint.mid; ctx.lineWidth = A.line.hair / r; ctx.globalAlpha = 0.5 * phase;
+    ctx.beginPath(); ctx.arc(0, 0, (r + J.atmosphere * 0.5 + J.pullRing * mass * (1 - phase)) / r, 0, PI2); ctx.stroke();
   }
   ctx.restore();
 }
 
-// A sun: bright disc with a corona; `flare` runs 0 to 1 after a touch and swells the corona.
-function drawSun(ctx, s, flare) {
-  const f = 1 - flare, R = s.r * (J.corona + J.flareGrow * f);
-  const cor = grad(ctx, 'corona', () => { // unit radius, drawn scaled
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-    g.addColorStop(0, T.orange); g.addColorStop(1, 'rgba(249,115,22,0)'); return g;
-  });
-  const body = grad(ctx, `s${s.r}`, () => {
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s.r);
-    g.addColorStop(0, J.sunCore); g.addColorStop(0.55, J.sunMid); g.addColorStop(1, T.orange); return g;
-  });
-  ctx.save(); ctx.translate(s.x, s.y);
-  ctx.save(); ctx.scale(R, R); ctx.globalAlpha = Math.min(1, J.coronaAlpha + 0.5 * f); ctx.fillStyle = cor;
-  ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  ctx.fillStyle = body; ctx.beginPath(); ctx.arc(0, 0, s.r, 0, Math.PI * 2); ctx.fill();
+// ----- Suns: bright core, rotating soft rays, a breathing heat shimmer. `flare` runs 0 to 1 after a touch. -----
+
+function drawSun(ctx, x, y, r, flare, t) {
+  const sa = A.sun, f = 1 - flare, R = r * (J.corona + J.flareGrow * f);
+  ctx.save(); ctx.translate(x, y);
+  ctx.save(); ctx.scale(R, R); ctx.globalAlpha = Math.min(1, J.coronaAlpha + 0.5 * f); ctx.fillStyle = G.corona;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.arc(0, 0, r / R * 0.95, 0, PI2, true); ctx.fill('evenodd'); ctx.restore();
+  ctx.scale(r, r);
+  ctx.fillStyle = G.rays;
+  for (let layer = 0; layer < 2; layer++) {
+    const n = layer ? sa.raysB : sa.raysA, hw = (PI2 / n) * 0.28;
+    ctx.save(); ctx.rotate(t * sa.rayRate * (layer ? -1.5 : 1) + layer * 0.3);
+    ctx.globalAlpha = Math.min(1, sa.rayAlpha * (layer ? 0.7 : 1) + 0.4 * f);
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = (i * PI2) / n, len = layer ? sa.lenB : i % 2 ? sa.lenA * 0.75 : sa.lenA;
+      ctx.moveTo(Math.cos(a - hw), Math.sin(a - hw)); ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len); ctx.lineTo(Math.cos(a + hw), Math.sin(a + hw));
+    }
+    ctx.fill(); ctx.restore();
+  }
+  ctx.strokeStyle = P.sunMid; ctx.lineWidth = A.line.hair / r;
+  for (let i = 0; i < 2; i++) {
+    ctx.globalAlpha = sa.shimmerAlpha * (0.65 + 0.35 * Math.sin(t * sa.shimmerRate + i * 2));
+    ctx.beginPath(); ctx.arc(0, 0, 1.28 + i * 0.2 + sa.shimmerAmp * Math.sin(t * sa.shimmerRate * 0.7 + i * 1.6), 0, PI2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = G.sun; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.strokeStyle = P.sunRim; ctx.lineWidth = A.line.edge / r;
+  ctx.beginPath(); ctx.arc(0, 0, 1 - A.line.edge / r / 2, 0, PI2); ctx.stroke();
   ctx.restore();
 }
 
-function drawLock(ctx, cx, cy) {
-  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(cx, cy - 3, 5, Math.PI, 0); ctx.stroke();
-  ctx.fillStyle = '#64748b'; ctx.fillRect(cx - 7, cy - 3, 14, 11);
+// ----- The cup: dark disc, green ring, inner glow that brightens when sinkable, and a flag so it reads at arm's length -----
+
+function drawCup(ctx, x, y, glow, t) {
+  const c = A.cup, R = T.holeR;
+  ctx.save(); ctx.translate(x, y);
+  ctx.save(); ctx.scale(R * c.haloR, R * c.haloR); ctx.globalAlpha = lerp(c.haloIdle, c.haloGlow, glow); ctx.fillStyle = G.cupHalo;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.scale(R, R);
+  ctx.fillStyle = G.cup; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.globalAlpha = lerp(c.glowIdle, c.glowMax, glow); ctx.fillStyle = G.cupGlow;
+  ctx.beginPath(); ctx.arc(0, 0, 0.95, 0, PI2); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = P.green; ctx.globalAlpha = lerp(0.55, 1, glow); ctx.lineWidth = lerp(3, 5, glow);
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, PI2); ctx.stroke();
+  if (glow > 0.01) { ctx.globalAlpha = 0.35 * glow; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, PI2); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  const px = R * 0.72, py = -R * 0.72, top = py - c.flagH, wave = Math.sin(t * c.flagRate) * c.flagWave;
+  ctx.lineCap = 'round'; ctx.strokeStyle = P.slateLight; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, top); ctx.stroke();
+  ctx.fillStyle = P.green;
+  ctx.beginPath(); ctx.moveTo(px, top); ctx.quadraticCurveTo(px + c.flagW * 0.55, top + 1 + wave, px + c.flagW, top + c.flagH * 0.2 + wave);
+  ctx.lineTo(px, top + c.flagH * 0.44); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// ----- The ball: white sphere, highlight, soft shadow to the lower right, a spin marking that turns with the roll -----
+
+function drawBall(ctx, x, y, r, a, spin) {
+  const b = A.ball, k = r / T.ballR;
+  ctx.globalAlpha = a * b.shadowAlpha;
+  ctx.save(); ctx.translate(x + b.shadowDx * k, y + b.shadowDy * k); ctx.scale(r * b.shadowR, r * b.shadowR);
+  ctx.fillStyle = G.shadow; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill(); ctx.restore();
+  ctx.globalAlpha = a;
+  ctx.save(); ctx.translate(x, y); ctx.scale(r, r);
+  ctx.fillStyle = G.ball; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.clip(); ctx.rotate(spin);
+  ctx.globalAlpha = a * 0.5; ctx.strokeStyle = P.ballSpin; ctx.lineWidth = b.seam;
+  ctx.beginPath(); ctx.ellipse(0, 0, 0.42, 1, 0, 0, PI2); ctx.stroke();
+  ctx.fillStyle = P.ballSpin; ctx.beginPath(); ctx.arc(0.66, 0, 0.11, 0, PI2); ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha = a * 0.9; ctx.fillStyle = P.white;
+  ctx.beginPath(); ctx.ellipse(-0.36, -0.4, 0.26, 0.17, -0.7, 0, PI2); ctx.fill();
+  const rim = Math.min(b.rim, r * 0.25) / r; // the rim thins as the ball drops into the cup
+  ctx.globalAlpha = a * 0.75; ctx.strokeStyle = P.ballRim; ctx.lineWidth = rim;
+  ctx.beginPath(); ctx.arc(0, 0, 1 - rim / 2, 0, PI2); ctx.stroke();
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// ----- Hole select badges: each tile shows the hole's main feature -----
+
+const ICON = new WeakMap();
+function iconOf(lv) {
+  let k = ICON.get(lv);
+  if (!k) {
+    k = { kind: 'slab', obj: null, moon: lv.movers.find((m) => m.type === 'moon') || null };
+    if (lv.suns.length) { k.kind = 'sun'; k.obj = lv.suns[0]; }
+    else if (lv.planets.length) { k.kind = 'planet'; k.obj = lv.planets.reduce((a, p) => (p.mass > a.mass ? p : a)); }
+    else if (lv.movers.some((m) => m.type === 'bar')) k.kind = 'bar';
+    ICON.set(lv, k);
+  }
+  return k;
+}
+
+function drawBadge(ctx, lv, cx, cy, t) {
+  const k = iconOf(lv), tl = A.tile, r = tl.iconR;
+  if (k.kind === 'sun') drawSun(ctx, cx, cy, tl.sunR, 1, t);
+  else if (k.kind === 'planet') {
+    drawPlanet(ctx, cx, cy, r, k.obj, k.obj.mass, lv.boss);
+    if (lv.boss && !lookOf(k.obj, k.obj.mass, lv.boss).ring) drawBossHalo(ctx, cx, cy, r);
+  } else if (k.kind === 'bar') {
+    ctx.lineCap = 'round'; ctx.strokeStyle = P.slate; ctx.lineWidth = T.barW * 0.6;
+    ctx.beginPath(); ctx.moveTo(cx - Math.cos(t * T.barAngularSpeed) * r, cy - Math.sin(t * T.barAngularSpeed) * r);
+    ctx.lineTo(cx + Math.cos(t * T.barAngularSpeed) * r, cy + Math.sin(t * T.barAngularSpeed) * r); ctx.stroke();
+    drawBolt(ctx, cx, cy, 3);
+    if (lv.boss) drawBossHalo(ctx, cx, cy, r);
+  } else {
+    drawSlab(ctx, cx - r * 1.3, cy - r * 0.4, r * 2.6, r * 0.8);
+    if (lv.boss) drawBossHalo(ctx, cx, cy, r);
+  }
+  if (k.moon) drawPlanet(ctx, cx + r * 1.35, cy - r * 0.95, r * 0.36, k.moon, k.moon.mass, lv.boss);
+}
+
+function drawBossHalo(ctx, cx, cy, r) {
+  ctx.strokeStyle = P.bossAccent; ctx.lineWidth = A.line.hair; ctx.globalAlpha = 0.8;
+  ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.7, r * 0.5, -0.35, 0, PI2); ctx.stroke(); ctx.globalAlpha = 1;
 }
 
 // ---------- Play state ----------
@@ -676,15 +1081,16 @@ function finishHole(E) {
 
 // ---------- Juice (cosmetic only: reads the physics state, never writes it) ----------
 
-const FX = { glow: 0, power: 0, pop: 1, flash: 1, rest: 1, sink: 1, retry: 1, shots: 1, banner: 1, bannerTok: null, ring: null, flare: null, trailT: 0, ghost: false, gx: 0, gy: 0 };
-const TRAIL = { xy: new Float32Array(2 * T.trailLength), n: 0, col: T.purple }; // oldest point first
+const FX = { glow: 0, power: 0, pop: 1, flash: 1, rest: 1, sink: 1, retry: 1, shots: 1, banner: 1, bannerTok: null, ring: null, flare: null, trailT: 0, ghost: false, gx: 0, gy: 0,
+  spin: 0, trailK: 1, cup: 0, skyKey: '', hudHole: '', hudPar: '', hudN: -1, hudShots: '' };
+const TRAIL = { xy: new Float32Array(2 * T.trailLength), n: 0, col: P.purple }; // oldest point first
 const NOOP = () => {};
-let GLOW_G = null;   // unit-radius gradient, drawn scaled and translated so it is built once
 let CHANGED = null;  // { hole, from, to }: the hole whose stars just went up, consumed by the menu
 
 function resetFx() {
   FX.glow = 0; FX.power = 0; FX.pop = 1; FX.flash = 1; FX.rest = 1; FX.sink = 1; FX.retry = 1; FX.shots = 1;
-  FX.ghost = false; FX.trailT = 0;
+  FX.ghost = false; FX.trailT = 0; FX.spin = 0; FX.trailK = 1; FX.cup = 0; FX.hudN = -1;
+  FX.skyKey = `h${S.idx}`; FX.hudHole = `${S.lv.boss ? 'BOSS' : 'HOLE'} ${S.idx + 1}`; FX.hudPar = `${S.lv.stars.two}`;
   FX.ring = new Float32Array(S.lv.planets.length);
   FX.flare = new Float32Array(S.lv.suns.length).fill(1);
   TRAIL.n = 0;
@@ -718,29 +1124,29 @@ function planetNear(lv, b, clock) {
   for (const m of lv.movers) if (m.type === 'moon') { const c = moonAt(lv, m, clock); if (dist(b.x, b.y, c.x, c.y) - m.r < J.planetNearR) return true; }
   return false;
 }
-function planetColor(lv) { return lv.boss ? J.bossPlanet : T.purple; }
+function planetColor(lv) { return lv.boss ? P.bossAccent : P.purple; }
 
+// Speed-tied glow trail: a soft wide pass under a core pass, both scaled by FX.trailK (the ball's speed).
 function drawTrail(ctx, bx, by) {
-  const n = TRAIL.n;
+  const n = TRAIL.n, tr = A.trail;
   if (n < 1) return;
   ctx.strokeStyle = TRAIL.col; ctx.lineCap = 'round';
-  for (let i = 1; i <= n; i++) {
-    const k = i / n;
-    const x1 = i < n ? TRAIL.xy[2 * i] : bx, y1 = i < n ? TRAIL.xy[2 * i + 1] : by;
-    ctx.globalAlpha = J.trailAlpha * k; ctx.lineWidth = J.trailWidth * (0.3 + 0.7 * k);
-    ctx.beginPath(); ctx.moveTo(TRAIL.xy[2 * i - 2], TRAIL.xy[2 * i - 1]); ctx.lineTo(x1, y1); ctx.stroke();
+  for (let pass = 0; pass < 2; pass++) {
+    const wide = pass === 0, w = J.trailWidth * (wide ? tr.glowWidth : 1) * (0.7 + 0.3 * FX.trailK), a = (wide ? tr.glowAlpha : J.trailAlpha) * FX.trailK;
+    for (let i = 1; i <= n; i++) {
+      const k = i / n;
+      const x1 = i < n ? TRAIL.xy[2 * i] : bx, y1 = i < n ? TRAIL.xy[2 * i + 1] : by;
+      ctx.globalAlpha = a * k; ctx.lineWidth = w * (0.3 + 0.7 * k);
+      ctx.beginPath(); ctx.moveTo(TRAIL.xy[2 * i - 2], TRAIL.xy[2 * i - 1]); ctx.lineTo(x1, y1); ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
 }
 
 function drawGlow(ctx, x, y, r, a) {
-  if (!GLOW_G) {
-    GLOW_G = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-    GLOW_G.addColorStop(0, 'rgba(255,255,255,0.9)'); GLOW_G.addColorStop(0.55, 'rgba(255,255,255,0.3)'); GLOW_G.addColorStop(1, 'rgba(255,255,255,0)');
-  }
   ctx.save(); ctx.translate(x, y); ctx.scale(r, r);
-  ctx.globalAlpha = a; ctx.fillStyle = GLOW_G;
-  ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = a; ctx.fillStyle = G.glow;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
   ctx.restore();
 }
 
@@ -750,10 +1156,55 @@ function drawRing(ctx, x, y, r, w, col, a) {
   ctx.globalAlpha = 1;
 }
 
+// The range finder: the honest simulation, drawn as dots that shrink and fade with distance (evenly spaced in simulated
+// time, so spacing shows speed), coloured like the ball and warming with power, with a brighter first segment. `maxN` is
+// the dot count of a full-length preview: a preview that reaches it was cut by time, so it ends in a soft cap; one that
+// stops earlier ended at a rest or the cup and gets none.
+function drawRange(ctx, b, l, n, maxN) {
+  const R = A.range, p = l.power, col = WARM[Math.round(p * (WARM.length - 1))], grow = 1 + R.powerGrow * p, head = Math.min(n, R.firstDots);
+  const gr = T.ballR + R.gaugeGap;
+  ctx.lineCap = 'round'; ctx.strokeStyle = col; ctx.lineWidth = R.gaugeW;
+  ctx.globalAlpha = R.gaugeTrack; ctx.beginPath(); ctx.arc(b.x, b.y, gr, 0, PI2); ctx.stroke();
+  ctx.globalAlpha = 0.95; ctx.beginPath(); ctx.arc(b.x, b.y, gr, -Math.PI / 2, -Math.PI / 2 + p * PI2); ctx.stroke();
+  let px = b.x, py = b.y;
+  for (let i = 0; i < head; i++) { // the comet head: a tapering line through the first points
+    const k = i / R.firstDots, x = PV[i].x, y = PV[i].y;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y);
+    ctx.globalAlpha = R.backAlpha * (1 - 0.6 * k); ctx.strokeStyle = P.shadow; ctx.lineWidth = (R.headW + R.backGrow * 2) * (1 - 0.65 * k) * grow; ctx.stroke();
+    ctx.globalAlpha = R.headAlpha * (1 - 0.7 * k); ctx.strokeStyle = col; ctx.lineWidth = R.headW * (1 - 0.65 * k) * grow; ctx.stroke();
+    px = x; py = y;
+  }
+  ctx.globalAlpha = R.backAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); // one dark backing under all the dots
+  for (let i = 0; i < n; i++) { const r = lerp(R.r0, R.r1, i / maxN) * grow + R.backGrow; ctx.moveTo(PV[i].x + r, PV[i].y); ctx.arc(PV[i].x, PV[i].y, r, 0, PI2); }
+  ctx.fill();
+  ctx.fillStyle = col;
+  for (let g = 0; g < n; g += R.dotGroup) { // dots in groups of dotGroup share one fill, and one alpha
+    const mid = Math.min(n - 1, g + (R.dotGroup - 1) / 2);
+    ctx.globalAlpha = Math.min(1, lerp(R.a0, R.a1, mid / maxN) + (mid < R.firstDots ? R.headBoost : 0));
+    ctx.beginPath();
+    for (let i = g; i < Math.min(n, g + R.dotGroup); i++) { const r = lerp(R.r0, R.r1, i / maxN) * grow; ctx.moveTo(PV[i].x + r, PV[i].y); ctx.arc(PV[i].x, PV[i].y, r, 0, PI2); }
+    ctx.fill();
+  }
+  if (n >= maxN && n > 0) {
+    const e = PV[n - 1], q = n > 1 ? PV[n - 2] : b, d = Math.hypot(e.x - q.x, e.y - q.y) || 1;
+    const ux = (e.x - q.x) / d, uy = (e.y - q.y) / d, cx = e.x + ux * R.capGap, cy = e.y + uy * R.capGap;
+    drawGlow(ctx, cx, cy, R.capGlowR, R.capGlowA);
+    ctx.globalAlpha = R.capAlpha; ctx.strokeStyle = col; ctx.lineWidth = R.capW;
+    ctx.beginPath(); ctx.moveTo(cx - uy * R.capLen, cy + ux * R.capLen); ctx.lineTo(cx + uy * R.capLen, cy - ux * R.capLen); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
 // Per frame: glow follows the touch, pull rings speed up near the ball, the trail drains when the ball is not flying.
 function fxUpdate(dt) {
   const b = S.ball, planets = S.lv.planets;
   FX.glow = clamp(FX.glow + (S.aim || S.key.on ? dt / J.glowInTime : -dt / J.glowOutTime), 0, 1);
+  const sp = Math.hypot(b.vx, b.vy);
+  if (S.phase === 'fly') {
+    FX.trailK = lerp(A.trail.floor, 1, clamp((sp - A.trail.minSpeed) / (A.trail.speedRef - A.trail.minSpeed), 0, 1));
+    FX.spin += clamp(sp / T.ballR, 0, A.ball.spinMax) * dt * (b.vx < 0 ? -1 : 1);
+  }
+  FX.cup += ((S.phase === 'sink' || (S.phase === 'fly' && sp < T.sinkSpeed) ? 1 : 0) - FX.cup) * Math.min(1, dt * A.cup.glowRate);
   for (let i = 0; i < planets.length; i++) {
     const p = planets[i], near = clamp(1 - (dist(b.x, b.y, p.x, p.y) - p.r) / J.planetNearR, 0, 1);
     FX.ring[i] = (FX.ring[i] + dt * (J.ringRate + J.ringBoost * near)) % 1;
@@ -778,7 +1229,7 @@ function popShots(E) {
 function releaseFx(E) {
   const b = S.ball, len = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / len, uy = b.vy / len;
   E.audio.play('tap'); E.haptic(J.releaseHaptic);
-  burst(E, b.x - ux * T.ballR, b.y - uy * T.ballR, { count: J.puffCount, color: J.puffColor, speed: J.puffSpeed, life: J.puffLife, size: J.puffSize, angle: Math.atan2(-uy, -ux), spread: J.puffSpread });
+  burst(E, b.x - ux * T.ballR, b.y - uy * T.ballR, { count: J.puffCount, color: P.puff, speed: J.puffSpeed, life: J.puffLife, size: J.puffSize, angle: Math.atan2(-uy, -ux), spread: J.puffSpread });
   FX.flash = 0;
   E.tween(J.flashTime, (k) => { FX.flash = k; }, ease.linear);
   popShots(E);
@@ -789,7 +1240,7 @@ function bounceFx(E, pvx, pvy) {
   const b = S.ball, big = Math.hypot(pvx, pvy) > J.bigHitSpeed, nx = b.nx, ny = b.ny;
   E.audio.play('hit', big ? J.bigHitVol : J.hitVol);
   burst(E, b.x - nx * T.ballR, b.y - ny * T.ballR, {
-    count: big ? J.sparkBigCount : J.sparkCount, color: big ? J.sparkBigColor : J.sparkColor,
+    count: big ? J.sparkBigCount : J.sparkCount, color: big ? P.sparkBig : P.spark,
     speed: big ? J.sparkBigSpeed : J.sparkSpeed, life: big ? J.sparkBigLife : J.sparkLife,
     size: big ? J.sparkBigSize : J.sparkSize, angle: Math.atan2(ny, nx), spread: J.sparkSpread,
   });
@@ -804,7 +1255,7 @@ function sunFx(E, i) {
   flare[i] = 0;
   E.tween(J.flareTime, (k) => { flare[i] = k; }, ease.outCubic);
   const nx = (b.x - s.x) / (s.r + T.ballR), ny = (b.y - s.y) / (s.r + T.ballR);
-  burst(E, s.x + nx * s.r, s.y + ny * s.r, { count: J.flareCount, color: T.orange, speed: J.flareSpeed, life: J.flareLife, size: J.flareSize, angle: Math.atan2(ny, nx), spread: 2.4 });
+  burst(E, s.x + nx * s.r, s.y + ny * s.r, { count: J.flareCount, color: P.orange, speed: J.flareSpeed, life: J.flareLife, size: J.flareSize, angle: Math.atan2(ny, nx), spread: 2.4 });
 }
 
 function restFx(E) {
@@ -817,12 +1268,12 @@ function sinkFx(E) {
   const lv = S.lv, stars = starsFor(S.strokes, lv.stars), three = stars === 3;
   const from = E.save.get('stars', {})[S.idx] || 0;
   CHANGED = stars > from ? { hole: S.idx, from, to: stars } : null;
-  burst(E, lv.hole.x, lv.hole.y, { count: three ? J.burstBigCount : J.burstCount, color: J.burstColor, speed: J.burstSpeed * (three ? 1.3 : 1), life: J.burstLife, size: J.burstSize });
-  burst(E, lv.hole.x, lv.hole.y, { count: three ? J.burstBigCount / 2 : J.burstCount / 2, color: J.burstLight, speed: J.burstSpeed * 0.6, life: J.burstLife, size: J.burstSize * 0.7 });
+  burst(E, lv.hole.x, lv.hole.y, { count: three ? J.burstBigCount : J.burstCount, color: P.green, speed: J.burstSpeed * (three ? 1.3 : 1), life: J.burstLife, size: J.burstSize });
+  burst(E, lv.hole.x, lv.hole.y, { count: three ? J.burstBigCount / 2 : J.burstCount / 2, color: P.greenLight, speed: J.burstSpeed * 0.6, life: J.burstLife, size: J.burstSize * 0.7 });
   E.haptic(J.sinkHaptic);
   if (three) {
     E.audio.play('coin'); later(E, J.coinLead, () => E.audio.play('win'));
-    E.flash(T.green, J.threeStarFlash);
+    E.flash(P.green, J.threeStarFlash);
   } else E.audio.play('win');
   FX.sink = 0;
   E.tween(J.sinkRingTime, (k) => { FX.sink = k; }, ease.outCubic);
@@ -846,11 +1297,12 @@ function drawBanner(ctx, E) {
   const tt = FX.banner * J.bannerTime, outAt = J.bannerTime - J.bannerOut;
   const off = tt < J.bannerIn ? -(1 - ease.outCubic(tt / J.bannerIn)) : tt > outAt ? ease.inQuad((tt - outAt) / J.bannerOut) : 0;
   const y = E.h * J.bannerY, h = J.bannerH, x = off * E.w;
-  ctx.globalAlpha = 0.92; ctx.fillStyle = '#1a0d2e'; ctx.fillRect(x, y - h / 2, E.w, h);
-  ctx.globalAlpha = 1; ctx.fillStyle = J.bossPlanet;
+  ctx.globalAlpha = 0.94; ctx.fillStyle = P.bannerBg; ctx.fillRect(x, y - h / 2, E.w, h);
+  ctx.globalAlpha = 1; ctx.fillStyle = P.bossAccent;
   ctx.fillRect(x, y - h / 2, E.w, 3); ctx.fillRect(x, y + h / 2 - 3, E.w, 3);
-  E.text('BOSS', x + E.w / 2, y - 8, { size: 32, weight: '800', color: J.bossPlanet });
-  E.text(S.lv.name, x + E.w / 2, y + 20, { size: 14, color: '#cbd5e1' });
+  ctx.globalAlpha = 0.35; ctx.fillRect(x, y - h / 2 + 7, E.w, 1); ctx.fillRect(x, y + h / 2 - 8, E.w, 1); ctx.globalAlpha = 1;
+  E.text('BOSS', x + E.w / 2, y - 8, TX.bossBig);
+  E.text(S.lv.name, x + E.w / 2, y + 20, TX.smLight);
 }
 
 // ---------- Scenes ----------
@@ -859,39 +1311,41 @@ const menu = {
   enter() { this.btnPlay = null; this.btnMute = null; this.tiles = []; this.pop = CHANGED; CHANGED = null; this.t = 0; },
   update(dt) { if (this.pop) this.t += dt; },
   render(ctx, E) {
-    const v = view(E), p = progress(E), cx = E.w / 2;
-    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx); ctx.restore();
-    E.text('GRAVITY GOLF', cx, E.h * 0.09, { size: 34, weight: '800' });
-    E.text(`Stars ${p.total} / ${LEVELS.length * 3}`, cx, E.h * 0.09 + 40, { size: 18, color: T.green });
+    const v = coverView(E), p = progress(E), cx = E.w / 2, tl = A.tile;
+    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0); ctx.restore();
+    E.text('GRAVITY GOLF', cx, E.h * 0.09, TX.big);
+    E.text(`Stars ${p.total} / ${LEVELS.length * 3}`, cx, E.h * 0.09 + 40, TX.goal);
 
     const m = 16, gap = T.tileGap, cols = T.gridCols;
     const tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = T.tileH, top = E.h * 0.2;
     this.tiles = [];
     LEVELS.forEach((lv, i) => {
-      const x = m + (i % cols) * (tw + gap), y = top + Math.floor(i / cols) * (th + gap);
+      const x = m + (i % cols) * (tw + gap), y = top + Math.floor(i / cols) * (th + gap), tcx = x + tw / 2;
       const locked = i > p.unlocked, cleared = p.best[i] !== undefined;
       // Only the tile whose stars just went up pops.
       const pop = this.pop && this.pop.hole === i ? this.pop : null;
       const ts = pop ? lerp(J.menuPopFrom, 1, ease.outBack(clamp(this.t / J.menuPopTime, 0, 1))) : 1;
-      if (ts !== 1) { ctx.save(); ctx.translate(x + tw / 2, y + th / 2); ctx.scale(ts, ts); ctx.translate(-(x + tw / 2), -(y + th / 2)); }
-      E.roundRect(x, y, tw, th, 10, locked ? '#0a1024' : '#16203d', cleared ? T.green : locked ? '#1b2440' : T.slate);
-      E.text(`${i + 1}`, x + tw / 2, y + 19, { size: 20, weight: '800', color: locked ? '#475569' : '#e6e6e6' });
-      if (locked) drawLock(ctx, x + tw / 2, y + th - 24);
-      else {
-        if (lv.boss) E.text('Boss', x + tw / 2, y + 40, { size: 14, color: '#cbd5e1' });
+      if (ts !== 1) { ctx.save(); ctx.translate(tcx, y + th / 2); ctx.scale(ts, ts); ctx.translate(-tcx, -(y + th / 2)); }
+      E.roundRect(x, y, tw, th, A.line.radius, locked ? P.tileLocked : P.tile, cleared ? P.green : locked ? P.tileLockedEdge : lv.boss ? P.bossAccent : P.slate);
+      E.text(`${i + 1}`, tcx, y + tl.number, locked ? TX.tileNumOff : TX.tileNum);
+      if (locked) {
+        ctx.fillStyle = P.tileLockedEdge; ctx.beginPath(); ctx.arc(tcx, y + tl.icon, tl.iconR + 2, 0, PI2); ctx.fill();
+        drawLock(ctx, tcx, y + tl.icon + 1);
+      } else {
+        drawBadge(ctx, lv, tcx, y + tl.icon, E.time);
         for (let s = 0; s < 3; s++) {
-          const sx = x + tw / 2 + (s - 1) * 15, sy = y + th - 13, earned = s < p.stars[i];
+          const sx = tcx + (s - 1) * 15, sy = y + th - tl.stars, earned = s < p.stars[i];
           const k = pop && earned && s >= pop.from ? ease.outBack(clamp((this.t - J.menuStarDelay - (s - pop.from) * J.menuStarStagger) / J.menuStarPop, 0, 1)) : 1;
-          if (!earned || k < 1) drawStar(ctx, sx, sy, 6.5, null, '#334155');
-          if (earned && k > 0) drawStar(ctx, sx, sy, 6.5 * k, T.green);
+          if (!earned || k < 1) drawStar(ctx, sx, sy, tl.starR, null, P.starOff);
+          if (earned && k > 0) drawStar(ctx, sx, sy, tl.starR * k, P.green);
         }
       }
       if (ts !== 1) ctx.restore();
       this.tiles.push({ x, y, w: tw, h: th, hole: i, locked });
     });
 
-    this.btnPlay = E.button(p.total > 0 || p.unlocked > 0 ? `Play hole ${p.unlocked + 1}` : 'Play', cx, E.h * 0.58, { fill: T.green, color: '#04110a', h: 64, size: 22 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', cx, E.h * 0.58 + 84, { fill: T.slate, w: 170, h: 48, size: 16 });
+    this.btnPlay = pill(E, p.total > 0 || p.unlocked > 0 ? `Play hole ${p.unlocked + 1}` : 'Play', cx, E.h * 0.58, BTN.primary);
+    this.btnMute = pill(E, E.audio.muted ? 'Sound: off' : 'Sound: on', cx, E.h * 0.58 + 84, BTN.second);
   },
   onTap(p, E) {
     if (E.hit(this.btnPlay, p)) { E.setScene('play', { hole: progress(E).unlocked }); return; }
@@ -932,7 +1386,8 @@ const play = {
       if (b.hits !== hitsBefore) bounceFx(E, pvx, pvy);
       if (b.sunHits !== sunsBefore) { S.strokes += T.sunPenalty * (b.sunHits - sunsBefore); sunFx(E, b.sunLast); }
       if (S.steps % J.trailEvery === 0) {
-        if (planetNear(S.lv, b, S.clock0 + S.steps * STEP)) trailPush(b.x, b.y, planetColor(S.lv)); else trailDrop();
+        if (Math.hypot(b.vx, b.vy) < A.trail.minSpeed) trailDrop();
+        else trailPush(b.x, b.y, planetNear(S.lv, b, S.clock0 + S.steps * STEP) ? planetColor(S.lv) : P.trail);
       }
       if (!r && S.steps * STEP >= T.maxFlightSeconds) r = 'rest';
       if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: b.x, y: b.y }; sinkFx(E); }
@@ -941,36 +1396,31 @@ const play = {
   },
 
   render(ctx, E) {
-    const v = view(E), lv = S.lv, b = S.ball, clock = partClock();
+    const v = view(E), lv = S.lv, b = S.ball, clock = partClock(), t = E.time, mv = lv.movers;
     ctx.save();
     ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, T.designW, T.designH); ctx.clip();
-    drawField(ctx);
-    for (const m of lv.movers) {
-      if (m.type !== 'moon') continue;
-      const p = lv.planets[m.parent];
-      ctx.setLineDash([3, 7]); drawRing(ctx, p.x, p.y, m.orbitR, 1.5, planetColor(lv), J.orbitAlpha); ctx.setLineDash([]);
+    drawField(ctx, FX.skyKey, (b.x / T.designW - 0.5) * 2, (b.y / T.designH - 0.5) * 2);
+    for (let i = 0; i < mv.length; i++) {
+      const m = mv[i];
+      if (m.type === 'moon') {
+        const p = lv.planets[m.parent];
+        ctx.setLineDash(ORBIT_DASH); drawRing(ctx, p.x, p.y, m.orbitR, A.line.hair, planetColor(lv), J.orbitAlpha); ctx.setLineDash(NO_DASH);
+      } else if (m.type === 'slide') drawRail(ctx, m);
     }
-    for (let i = 0; i < lv.suns.length; i++) drawSun(ctx, lv.suns[i], FX.flare[i]);
-    for (let i = 0; i < lv.planets.length; i++) { const p = lv.planets[i]; drawPlanet(ctx, p.x, p.y, p.r, p.mass, lv.boss, FX.ring[i]); }
-    for (const r of lv.walls) drawWall(ctx, r);
-    for (const m of lv.movers) {
+    for (let i = 0; i < lv.suns.length; i++) { const s = lv.suns[i]; drawSun(ctx, s.x, s.y, s.r, FX.flare[i], t); }
+    for (let i = 0; i < lv.planets.length; i++) { const p = lv.planets[i]; drawPlanet(ctx, p.x, p.y, p.r, p, p.mass, lv.boss, FX.ring[i]); }
+    for (let i = 0; i < lv.walls.length; i++) drawWall(ctx, lv.walls[i]);
+    for (let i = 0; i < mv.length; i++) {
+      const m = mv[i];
       if (m.type === 'slide') drawWall(ctx, slideAt(m, clock));
       else if (m.type === 'bar') drawBar(ctx, m, clock);
-      else { const c = moonAt(lv, m, clock); drawPlanet(ctx, c.x, c.y, m.r, m.mass, lv.boss); }
+      else { const c = moonAt(lv, m, clock); drawPlanet(ctx, c.x, c.y, m.r, m, m.mass, lv.boss); }
     }
 
-    // Hole: the ring brightens while the ball is moving slowly enough to sink.
-    const sinkable = S.phase === 'fly' && Math.hypot(b.vx, b.vy) < T.sinkSpeed;
-    ctx.fillStyle = '#04110a';
-    ctx.beginPath(); ctx.arc(lv.hole.x, lv.hole.y, T.holeR, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = T.green;
-    ctx.globalAlpha = sinkable ? 1 : 0.55; ctx.lineWidth = sinkable ? 5 : 3;
-    ctx.beginPath(); ctx.arc(lv.hole.x, lv.hole.y, T.holeR, 0, Math.PI * 2); ctx.stroke();
-    if (sinkable) { ctx.globalAlpha = 0.35; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lv.hole.x, lv.hole.y, T.holeR + 6, 0, Math.PI * 2); ctx.stroke(); }
-    ctx.globalAlpha = 1;
-    if (FX.sink < 1) drawRing(ctx, lv.hole.x, lv.hole.y, T.holeR + J.sinkRingR * FX.sink, 4, T.green, 1 - FX.sink);
+    drawCup(ctx, lv.hole.x, lv.hole.y, FX.cup, t);
+    if (FX.sink < 1) drawRing(ctx, lv.hole.x, lv.hole.y, T.holeR + J.sinkRingR * FX.sink, 4, P.green, 1 - FX.sink);
 
     drawTrail(ctx, b.x, b.y);
 
@@ -979,14 +1429,7 @@ const play = {
       FX.power = aiming.power;
       const seconds = S.idx < T.previewFullHoles ? T.previewFullSeconds : T.previewShortSeconds;
       const n = previewPoints(lv, b, aiming, S.clock, seconds);
-      const col = mixToOrange(aiming.power);
-      const ux = aiming.vx / (aiming.power * T.powerMax), uy = aiming.vy / (aiming.power * T.powerMax);
-      const len = 20 + 60 * aiming.power; // line length shows power
-      ctx.strokeStyle = col; ctx.lineWidth = J.aimWidth + J.aimWidthPower * aiming.power; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(b.x + ux * (T.ballR + 3), b.y + uy * (T.ballR + 3)); ctx.lineTo(b.x + ux * (T.ballR + 3 + len), b.y + uy * (T.ballR + 3 + len)); ctx.stroke();
-      ctx.fillStyle = col;
-      for (let i = 0; i < n; i++) { ctx.globalAlpha = 1 - 0.6 * (i / n); ctx.beginPath(); ctx.arc(PV[i].x, PV[i].y, 2.2, 0, Math.PI * 2); ctx.fill(); }
-      ctx.globalAlpha = 1;
+      drawRange(ctx, b, aiming, n, Math.floor(Math.round(seconds / STEP) / Math.round(T.previewDotEvery / STEP)));
     }
 
     let bx = b.x, by = b.y, br = T.ballR, ba = 1;
@@ -997,33 +1440,29 @@ const play = {
       br = T.ballR * FX.pop; ba = FX.retry;
       if (FX.glow > 0.01) drawGlow(ctx, bx, by, T.ballR + J.glowR + J.glowRPower * FX.power, FX.glow * J.glowAlpha);
     }
-    if (FX.ghost && FX.retry < 1) {
-      ctx.globalAlpha = 1 - FX.retry; ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(FX.gx, FX.gy, T.ballR, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-    }
-    if (br > 0.1) {
-      ctx.globalAlpha = ba;
-      ctx.fillStyle = 'rgba(2,4,12,0.55)'; ctx.beginPath(); ctx.arc(bx + 2, by + 3, br, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-    }
+    if (FX.ghost && FX.retry < 1) drawBall(ctx, FX.gx, FX.gy, T.ballR, 1 - FX.retry, FX.spin);
+    if (br > 0.1) drawBall(ctx, bx, by, br, ba, FX.spin);
     if (FX.flash < 1) {
       drawGlow(ctx, bx, by, T.ballR * (1.8 + FX.flash), 1 - FX.flash);
-      drawRing(ctx, bx, by, T.ballR * (1 + (J.flashRing - 1) * FX.flash), 3 * (1 - FX.flash) + 0.5, '#fff', 1 - FX.flash);
+      drawRing(ctx, bx, by, T.ballR * (1 + (J.flashRing - 1) * FX.flash), 3 * (1 - FX.flash) + 0.5, P.white, 1 - FX.flash);
     }
-    if (FX.rest < 1) drawRing(ctx, bx, by, T.ballR * (1 + (J.restPulseR - 1) * FX.rest), 3, J.restPulseColor, 0.8 * (1 - FX.rest));
+    if (FX.rest < 1) drawRing(ctx, bx, by, T.ballR * (1 + (J.restPulseR - 1) * FX.rest), 3, P.restPulse, 0.8 * (1 - FX.rest));
     ctx.restore();
     drawBorder(ctx);
     ctx.restore();
 
+    // HUD: three small stacks, a dim label over a value, in the three-size scale.
     const top = E.safe.top + 26;
-    ctx.save(); ctx.translate(16, top); ctx.scale(FX.shots, FX.shots);
-    E.text(`Shots ${S.strokes}`, 0, 0, { size: 18, align: 'left' });
+    if (FX.hudN !== S.strokes) { FX.hudN = S.strokes; FX.hudShots = `${S.strokes}`; }
+    E.text('SHOTS', 16, top - 9, TX.label);
+    ctx.save(); ctx.translate(16, top + 10); ctx.scale(FX.shots, FX.shots);
+    E.text(FX.hudShots, 0, 0, TX.valueL);
     ctx.restore();
-    E.text(lv.boss ? `Hole ${S.idx + 1} Boss` : `Hole ${S.idx + 1}`, E.w / 2, top, { size: 16, color: '#9aa4b2' });
-    E.text(`Par ${lv.stars.two}`, E.w - 16, top, { size: 18, align: 'right', color: T.green });
-    const live = S.phase === 'aim';
-    S.retryRect = E.button('Retry', E.w - 16 - T.retryW / 2, top + 20 + T.retryH / 2, { w: T.retryW, h: T.retryH, size: 16, fill: live ? T.slate : '#141c33', color: live ? '#e6e6e6' : '#475569' });
+    E.text(FX.hudHole, E.w / 2, top - 9, lv.boss ? TX.labelBoss : TX.labelC);
+    E.text(lv.name, E.w / 2, top + 10, TX.valueC);
+    E.text('PAR', E.w - 16, top - 9, TX.labelR);
+    E.text(FX.hudPar, E.w - 16, top + 10, TX.valueGoalR);
+    S.retryRect = pill(E, 'Retry', E.w - 16 - T.retryW / 2, top + 20 + T.retryH / 2, S.phase === 'aim' ? BTN.retryOn : BTN.retryOff);
     if (FX.banner < 1) drawBanner(ctx, E);
   },
 
@@ -1064,7 +1503,7 @@ const play = {
 const over = {
   enter(E, params) {
     const p = this.p = params;
-    this.t = 0; this.t0 = E.time; this.slide = 0; this.ready = false;
+    this.t = 0; this.t0 = E.time; this.slide = 0; this.ready = false; this.sky = `h${p.hole}`;
     this.starK = [0, 0, 0]; this.starDone = [false, false, false];
     this.beat = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop * 0.6 + J.buttonGap;
     this.btnNext = null; this.btnMenu = null;
@@ -1081,35 +1520,35 @@ const over = {
     this.ready = this.t >= this.beat;
   },
   render(ctx, E) {
-    const p = this.p, cx = E.w / 2, t = this.t, v = view(E);
-    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx); ctx.restore();
+    const p = this.p, cx = E.w / 2, t = this.t, v = coverView(E);
+    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, this.sky, 0, 0); ctx.restore();
     ctx.save(); ctx.translate(0, (1 - this.slide) * E.h * J.cardSlideFrac);
     const pw = Math.min(E.w - 32, 340), py = E.h * 0.085;
-    E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + (p.hasNext ? 80 : 0) + 44 - py, 18, '#0c1330', p.boss ? J.bossPlanet : T.slateEdge);
-    if (p.boss) E.text('Boss', cx, E.h * 0.12, { size: 18, color: '#cbd5e1' });
-    E.text(p.name, cx, E.h * 0.16, { size: 18, color: '#9aa4b2' });
+    E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + (p.hasNext ? 80 : 0) + 44 - py, A.line.card, P.card, p.boss ? P.bossAccent : P.slate);
+    if (p.boss) E.text('Boss', cx, E.h * 0.12, TX.bossMd);
+    E.text(p.name, cx, E.h * 0.16, TX.dim);
     const nk = ease.outBack(clamp((t - J.numDelay) / J.numPop, 0, 1));
     ctx.save(); ctx.translate(cx, E.h * 0.24); ctx.scale(nk, nk);
-    E.text(shots(p.strokes), 0, 0, { size: 44, weight: '800' });
+    E.text(shots(p.strokes), 0, 0, TX.big);
     ctx.restore();
-    E.text(`Par ${p.par}`, cx, E.h * 0.24 + 40, { size: 20, color: '#9aa4b2' });
-    E.text(`3 stars: ${shots(p.three)}   2 stars: ${shots(p.par)}`, cx, E.h * 0.24 + 68, { size: 14, color: '#9aa4b2' });
+    E.text(`Par ${p.par}`, cx, E.h * 0.24 + 40, TX.dim);
+    E.text(`3 stars: ${shots(p.three)}   2 stars: ${shots(p.par)}`, cx, E.h * 0.24 + 68, TX.sm);
     for (let i = 0; i < 3; i++) {
       const sx = cx + (i - 1) * 64, sy = E.h * 0.24 + 120;
-      drawStar(ctx, sx, sy, 26, null, '#334155');
-      if (i < p.stars && this.starDone[i]) drawStar(ctx, sx, sy, 26 * this.starK[i], T.green);
+      drawStar(ctx, sx, sy, 26, null, P.starOff);
+      if (i < p.stars && this.starDone[i]) drawStar(ctx, sx, sy, 26 * this.starK[i], P.green);
     }
     const line = p.stars === 3 ? (p.strokes === 1 ? 'Hole in one' : 'Under par') : '';
-    if (line) E.text(line, cx, E.h * 0.24 + 178, { size: 20, color: T.green, alpha: clamp((t - J.starDelay - (p.stars - 1) * J.starStagger) / J.lineFade, 0, 1) });
-    E.text(`Best ${p.best}`, cx, E.h * 0.24 + 214, { size: 18, color: '#9aa4b2' });
+    if (line) E.text(line, cx, E.h * 0.24 + 178, { size: TY.md, color: P.green, alpha: clamp((t - J.starDelay - (p.stars - 1) * J.starStagger) / J.lineFade, 0, 1) });
+    E.text(`Best ${p.best}`, cx, E.h * 0.24 + 214, TX.dim);
     if (this.ready) {
       const bk = ease.outBack(clamp((t - this.beat) / J.buttonPop, 0, 1)), by = E.h * 0.68;
       ctx.save(); ctx.translate(cx, by); ctx.scale(bk, bk); ctx.translate(-cx, -by);
-      this.btnNext = E.button(p.hasNext ? 'Next' : 'Menu', cx, by, { fill: T.green, color: '#04110a', h: 64, size: 24 });
+      this.btnNext = pill(E, p.hasNext ? 'Next' : 'Menu', cx, by, BTN.primary);
       ctx.restore();
       if (p.hasNext) {
         ctx.save(); ctx.translate(cx, by + 80); ctx.scale(bk, bk); ctx.translate(-cx, -(by + 80));
-        this.btnMenu = E.button('Menu', cx, by + 80, { fill: T.slate, w: 150, h: 48, size: 16 });
+        this.btnMenu = pill(E, 'Menu', cx, by + 80, BTN.secondCard);
         ctx.restore();
       }
     }
