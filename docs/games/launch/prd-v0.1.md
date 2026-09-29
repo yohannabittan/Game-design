@@ -163,3 +163,14 @@ Not in v0.1: skins, badges, missions, daily, multiple critters, obstacles that h
 
 - Camera floor stays 0.45x: a 0.39x floor (needed for 90 percent at 844x390) and 0.32x (at 640x360) shrink the world too far to read. The landing-on-screen target is 80 percent of expert arcs at 844x390 (measured 83); above the zoom, the sky pans with the critter while the ground band stays pinned, with a drop line and height label.
 - The first milestone at 500 m is a tutorial beat: a sloppy full-pull player reaches it (198 of 200) and does not reach 1000 m (6 of 200) where an expert always does.
+
+## Amendments after the release-gate review of v4 (2026-09-30)
+
+1. No purchase may make a habitual full pull worse: the teaching chunk's springs are placed relative to the player's current full-pull range (with Band and Aero applied), so a clean full pull always meets the first and middle springs whatever the upgrades. The harness proves the naked 500 m at every Band and Aero level, and the pacing model stops compensating power (a full pull is a full pull).
+2. Teach the boost: on the first flight of a fresh save, "Tap to boost" shows at the top of the first arc, with the fuel pips pulsing once. The ghost thumb's stroke reaches at least 0.9 power.
+3. "Pull further" clears the moment a valid pull starts.
+4. Pacing is measured with the reviewer's careless profile too (pull length 90 plus or minus 40 px, angle 40 plus or minus 15 degrees, two taps); target the careless player's first purchase within ten flights.
+5. Springs at ground level keep 3:1 or better against every sky band (a light halo on the pad, as on birds).
+6. Backgrounding mid-flight ends the flight (logged once, as a quit); returning shows the menu.
+7. Cosmetics: tumbling birds stop at the ground band; the card never overshoots the top edge; ground labels sit above the bottom inset.
+8. Section 16 prices are now Band 300/450/650, Aero 300/500/700, Rocket 380/550/750, Fuel 1100/1300/1500; Rocket 1 makes a hold twice a tap's push per fuel.
