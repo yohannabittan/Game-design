@@ -16,6 +16,10 @@ A sun pulls like a planet of mass `sunMass` (default 1.6, above the heaviest pla
 
 Holes are grouped in sectors of five with their own backdrop and palette, one style sentence each under the game's fixed anchor: Sector 1 (holes 1 to 5) the current starfield; Sector 2 (6 to 10) a nebula in the game's purples; Sector 3 (11 to 15) a meteor shower (faint streaks on a period, cosmetic only); Sector 4 (16 to 20) "deep space" with a distant space whale silhouette drifting once a minute; Sector 5 (21 to 25) a binary sunrise. Backdrops never change contrast numbers below the v9 measurements.
 
+## D0. Holes 3, 7, 8 and 11 re-authored to the power-window rule
+
+The v0.4 build found their routes' drag windows at 20, 14.6, 12 and 11.5 px against the 20 px rule (with the neighbour check). The rule applies to every hole: re-author each so its three-star route meets 20 px and 4 degrees with the neighbour check, keeps its lesson, and passes --three, --sweep, --escape, --two-shot and --windows. Holes without a black hole otherwise stay byte-identical.
+
 ## D. Content: holes 16 to 25 (shards)
 
 Ten holes under every rule from v0.3 B and v0.4 C (power windows, --two-shot, escape), using all objects including heavy suns: at least two with a moon, two with two black holes, one with three comets, and bosses at 20 and 25. Sector 4 and 5 themes as above.
