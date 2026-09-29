@@ -39,3 +39,7 @@ New machines, ink physics changes, the daily's rules.
 ## H. Title and machine art (generated assets, ADR-0015)
 
 The INK title becomes an ornate tattoo-script logo (blackletter-meets-calligraphy with flourishes) as a generated image with the style anchor in docs/games/ink/style.md, bundled as a PNG at two sizes; the procedural brush title stays as the fallback when the asset is missing. The machines may get generated reference art the same way. Blocked until the environment allows the image host.
+
+## I. Hint toggle (after the v18 build)
+
+The Blind badge needs the gap hint off, but the release channel ignores TUNE, so it cannot be earned there. Add a player-facing Hint toggle (on by default) on the menu beside Sound; it sets hintPercent 95 or 101 in both channels and persists in the save. The Blind rule reads that toggle.
