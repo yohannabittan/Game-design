@@ -19,7 +19,9 @@ Guns unlock at points thresholds (points from the v0.1 rule: 10/25/50 per challe
 | Shotgun | 150 | damage 1 per pellet, 5 pellets in a fixed deterministic fan of `shotSpread` degrees centred on the barrel, fireRate 2.3 (interval shorter than its kick recovery of 0.47 s, per the v0.2 rule), accuracy 0.4, kick 14, recovery 30, mag 6 | boss parts and hordes; hopeless at far bullseyes |
 | Marksman rifle | 300 | damage 3, fireRate 1.5, accuracy 1.0, kick 16, recovery 20, mag 5 | one-shot boss parts, long waits; sway matters most |
 
-Pellet fans are deterministic: the same barrel angle gives the same five lines every time. A pellet scores its own zone; the shot's score is the best pellet's zone (not the sum), so the shotgun is about hitting, not about multiplying points. Each pellet deals damage separately to boss parts, which is the shotgun's reason to exist.
+Pellet fans are deterministic: the same barrel angle gives the same five lines every time. **Scoring (amended after review):** only the centre pellet scores zone points on ring targets, so the fan never makes aiming easier; the review measured that best-pellet scoring gave a bullseye at 30 units of aim error. The outer pellets exist for damage and for hordes: every pellet deals damage separately to boss parts (the shotgun kills a part in one centred shot), and on horde targets every member a pellet hits is scored (outer points each), so a shotgun sweep through a column pays. Boss 1's per-gun thresholds are set from each gun's true maximum run, not from a five-hit run: for the shotgun 30/55/85 percent of its measured maximum. The marksman rifle's niche is a Boss 2 with 3-hp plates (v0.4); until then it is the accurate slow gun.
+
+**Best per challenge (amended after review):** stars are monotonic. A run never lowers a saved star count; the saved best score and the saved stars are kept separately, so a high score with fewer stars (different gun thresholds) does not regress stars or re-lock a gun.
 
 The gun select shows locked guns with their threshold; the points total on the menu shows progress to the next unlock.
 
