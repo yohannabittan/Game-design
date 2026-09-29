@@ -137,7 +137,7 @@ const TUNING = {
     machine: { needleLen: 9, needleW: 1.4, nozzleTopW: 3.2, nozzleW: 9, nozzleEnd: 29, bandLen: 3, neckEnd: 46, neckW: 13, gripEnd: 98, gripW: 25, tailEnd: 128, tailW: 15, cableW: 4.5, cableAlpha: 0.85, shadowDx: 3, shadowDy: 4, shadowAlpha: 0.3, knurl: 5 }, // Pen-style machine, screen px from the needle tip down to the cable
     hud: { plateAlpha: 0.5, plateH: 46, pipGap: 22, pipR: 7, pipW: 3.2, ring: 38, ringW: 4, ringTrack: 0.28, amberAt: 1 / 3, ringHide: 0.002, timerBig: 100 }, // The timer's ring (radius, width, faint track alpha), when it turns amber (share of the time left), the slip plate; a timer of timerBig or more seconds uses the smaller numeral
     menu: { margin: 16, rowsSeen: 3, penHalf: 57, penMin: 0.25, hintSwW: 30, hintSwH: 14, hintSwDy: 8, hintLabelDy: 8, tilt: 0.03, tileWant: 116, tileMin: 100, tileMax: 132, titleMin: 0.55, topPad: 8, rowH: 44, gapTag: 8, gapDaily: 10, dailyH: 52, gapPlay: 10, playH: 52, soundW: 56, missionsW: 124, botPad: 10, warmMs: 3, bootFrames: 5, slackTop: 0.4, numH: 22, badgeW: 46, badgeH: 18, cleanW: 56, pinR: 4.5, cardR: 5, fiberDensity: 0.0032, boardMaxDpr: 1.5, tab: { w: 74, y: 10, h: 32 } }, // Flash-sheet menu: tile heights it wants, its limits and the title's, gaps and button heights (44 px at least), and the engine's TUNE tab it must clear
-    missions: { top: 60, rowH: 60, rowGap: 8, headH: 30, medalR: 18, bottom: 16, backW: 76, backH: 44, scrollBar: 3 }, // Missions screen: the list scrolls under the heading row, which holds Back (top left, clear of the toast at the bottom)
+    missions: { top: 60, rowH: 60, lineH: 18, rowGap: 8, headH: 30, medalR: 18, bottom: 16, backW: 76, backH: 44, scrollBar: 3 }, // Missions screen: the list scrolls under the heading row, which holds Back (top left, clear of the toast at the bottom)
     // Skins (PRD v0.5 section F): data entries, each earned by one badge and never by grind. A machine skin overrides the machine palette and adds one decoration to the same
     // silhouette; an ink skin overrides the ink, its sheen, gloss and bleed halo. Anything a skin leaves out is the default palette. The outline, the hint and the slip colours never change.
     skins: {
@@ -159,7 +159,9 @@ const TUNING = {
     },
     badge: { h: 32, w: 320, popSec: 0.3, delay: 0.25, medalR: 11, max: 3, gap: 4, stagger: 0.12 }, // The badge tickets over the result card: up to max, stacked upward, highest tier first
     title: { size: 92, w: 280, h: 130, glyphHalf: 100, glyphTop: 22, seed: 4242, passes: 18, jitter: 1.7, edge: 2.4, edgePasses: 7, streaks: 90, streakMin: 14, streakMax: 64, shadowDx: 4, shadowDy: 4, swash: 8 }, // Brush-stroke title
-    card: { h: 318, landH: 36, w: 340, pad: 14, topPad: 26, pieceGap: 46, sidePad: 34, minScale: 0.3, maxScale: 1, starR: 17, starGap: 44, stampW: 112, stampH: 34, stampTilt: -0.1, blushMargin: 48, blushScale: 0.9, blush: 0.42, blushBlur: 34 }, // Result card
+    card: { h: 318, landH: 36, ruinedHeroY: 74, ruinedY: 109, w: 340, pad: 14, topPad: 26, pieceGap: 46, sidePad: 34, minScale: 0.3, maxScale: 1, starR: 17, starGap: 44, stampW: 112, stampH: 34, stampTilt: -0.1, blushMargin: 48, blushScale: 0.9, blush: 0.42, blushBlur: 34 }, // Result card
+    intro: { sec: 5, fade: 0.5, bottom: 16, pad: 10, lineH: 18, maxW: 340, text: 'Land on the line. Skin is a blot, and three slips ruin the piece.' }, // Split stencils: a plate near the bottom of the screen (clear of the piece) for the first seconds after the piece opens
+    callout: { sec: 2.6, fade: 0.5, gap: 8, pad: 8, h: 28, text: 'Blot: landed on skin' }, // The call-out above the first blot of a piece
     blot: { rim: 2, specks: 3, speckAngle: 0.9, speckStep: 2.1, speckDist: 5, speckR: 2.2, core: 0.35 }, // The blot mark (radius is TUNING.blotRadius): dark rim beyond the disc, the specks around it (count, first angle, angle step, distance beyond the disc, size), the dark core as a share of the radius
     star: { inner: 0.45, sheen: 0.55 }, // Ink stars
   },
@@ -352,21 +354,21 @@ const BADGES = [
   { id: 'first-ink', tier: 0, name: 'First Ink', text: 'Pass any stencil', rule: { on: 'any', stat: 'stars', min: 1 } },
   { id: 'steady-hand', tier: 0, name: 'Steady Hand', text: 'Clean pass on any stencil', rule: { on: 'any', stat: 'clean', min: 1 } },
   { id: 'five-stars', tier: 0, name: 'Five Stars', text: 'Five stars on any stencil', rule: { on: 'any', stat: 'stars', min: 5 } },
-  { id: 'steady-landing', tier: 1, name: 'Steady Landing', text: 'Split set done, all clean', rule: { on: 'any', stat: 'steady', min: 1 } },
+  { id: 'steady-landing', tier: 1, name: 'Steady Landing', text: 'Every part done, every landing clean', rule: { on: 'any', stat: 'steady', min: 1 } },
   { id: 'cornered', tier: 1, name: 'Cornered', text: 'Clean pass on the Star', rule: { on: 'one', of: 'Star', stat: 'clean', min: 1 } },
   { id: 'thin-line', tier: 1, name: 'Thin Line', text: 'Five stars on the Crescent', rule: { on: 'one', of: 'Crescent', stat: 'stars', min: 5 } },
   { id: 'two-edges', tier: 1, name: 'Two Edges', text: 'Clean pass on the Halo', rule: { on: 'one', of: 'Halo', stat: 'clean', min: 1 } },
   { id: 'flash-sheet', tier: 1, name: 'Flash Sheet', text: 'Three stars on the first ten', rule: { on: 'all', from: 0, to: 10, stat: 'stars', min: 3 } },
   { id: 'serpent', tier: 2, name: 'Serpent', text: 'Clean five stars, the Snake', rule: { on: 'one', of: 'Snake', stat: 'cs', min: 5 } },
   { id: 'bone', tier: 2, name: 'Bone', text: 'Clean five stars, the Skull', rule: { on: 'one', of: 'Skull', stat: 'cs', min: 5 } },
-  { id: 'set-piece', tier: 2, name: 'Set Piece', text: 'Five stars on all split sets', rule: { on: 'parts', stat: 'split', min: 5 } },
+  { id: 'set-piece', tier: 2, name: 'Set Piece', text: 'Five stars on all stencils in parts', rule: { on: 'parts', stat: 'split', min: 5 } },
   { id: 'full-sleeve', tier: 2, name: 'Full Sleeve', text: 'Five stars on every stencil', rule: { on: 'all', from: 0, to: 15, stat: 'stars', min: 5 } },
   // Tricks (PRD v0.6 section G) are earned by how one attempt was played, so each is a function of that attempt: `a` is what toCard sees (daily, pct, stars, ruined, failed, clean,
   // lifts99 = finger lifts before 99 percent was reached (-1 if never), used and total seconds, hintOff, maxR = the widest ink radius laid). Only Second Skin is earned on the daily.
   { id: 'one-line', tier: 3, name: 'One Line', text: '99% without a lift', trick: (a) => !a.daily && !a.failed && a.lifts99 === 0 },
   { id: 'half-time', tier: 3, name: 'Half Time', text: 'Five stars in half the time', trick: (a) => !a.daily && a.stars === 5 && a.used < a.total / 2 },
   { id: 'blind', tier: 3, name: 'Blind', text: 'Five stars, gap hint off', trick: (a) => !a.daily && a.stars === 5 && a.hintOff },
-  { id: 'featherweight', tier: 3, name: 'Featherweight', text: 'Clean pass, never full width', trick: (a) => !a.daily && !a.failed && a.clean && a.maxR < T.needleR * T.wideScale * T.fullWidthShare },
+  { id: 'featherweight', tier: 3, name: 'Featherweight', text: 'Clean pass, needle never at full width', trick: (a) => !a.daily && !a.failed && a.clean && a.maxR < T.needleR * T.wideScale * T.fullWidthShare },
   { id: 'second-skin', tier: 3, name: 'Second Skin', text: 'The daily at 100%', trick: (a) => a.daily && !a.ruined && a.pct === 100 },
 ];
 const statOf = (p, i, stat) => (stat === 'clean' ? (p.clean[i] ? 1 : 0) : stat === 'steady' ? (p.land && p.land[i] && p.land[i].ok ? 1 : 0) : stat === 'split' ? (p.land && p.land[i] && p.land[i].st) || 0 : p[stat][i] || 0);
@@ -673,7 +675,7 @@ function newAttempt(idx, daily = false) {
   const st = stOf(idx), g = gridFor(idx);
   Object.assign(S, {
     idx, st, g, daily, dailyKey: daily ? utcDay() : '',
-    inked: new Uint8Array(g.cols * g.rows), count: 0, partN: g.partTotal ? new Int32Array(g.partTotal.length) : null, partDone: g.partTotal ? new Uint8Array(g.partTotal.length) : null, fills: [], fillDrawn: 0, landings: 0, cleanLand: 0, lifts: 0, lifts99: -1, maxR: 0, hintOff: false, quit: false, tickets: 0,
+    inked: new Uint8Array(g.cols * g.rows), count: 0, partN: g.partTotal ? new Int32Array(g.partTotal.length) : null, partDone: g.partTotal ? new Uint8Array(g.partTotal.length) : null, fills: [], fillDrawn: 0, landings: 0, cleanLand: 0, lifts: 0, lifts99: -1, maxR: 0, hintOff: false, quit: false, tickets: 0, callout: null, introT: 0,
     strokes: [], stroke: null, marks: [],
     slips: 0, time: 0, total: 0, started: false, ended: null, holdT: 0,
     pid: null, last: null, lastT: 0, carry: 0, armed: false,
@@ -782,6 +784,7 @@ function landing(E, x, y) {
   S.landings++;
   if (pointInShape(S.st.shape, x, y) || nearestEdge(S.st.shape, x, y).d <= T.landTolerance) { S.cleanLand++; return; }
   S.slips++;
+  if (!S.marks.some((k) => k.blot)) S.callout = { x, y, t: E.time }; // the first blot of a piece gets a call-out
   S.marks.push({ x, y, blot: true });
   E.audio.play('miss');
   fxSlip(E, x, y);
@@ -897,7 +900,7 @@ const NUM = Array.from({ length: 201 }, (_, i) => `${i}`), PCT = Array.from({ le
 // Caches of everything built once. Body layers are per body part; the rest are per size or per stencil.
 const AC = {
   grainBuild: null, warmGo: false, warm: 0, warmGrid: 0, warmOl: 0, warmBmp: false, boot: 0, order: null, bodyBuild: {}, inkTile: {}, mach: {}, body: {}, comp: {}, ol: null, olIdx: -1, olK: 0, grain: null, gw: 0, gh: 0, outline: [], bbox: [], mini: [], blush: null, blushIdx: -1,
-  title: null, titleK: 0, board: null, bw: 0, bh: 0, shapes: null, tilt: null,
+  wrap: {}, mctx: null, title: null, titleK: 0, board: null, bw: 0, bh: 0, shapes: null, tilt: null,
 };
 
 function bboxOf(idx) {
@@ -918,6 +921,21 @@ function plabel(ctx, str, x, y, k, font, fill, align, outline, outlineColor) {
   ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
   label(ctx, str, 0, 0, font, fill, align, outline, outlineColor);
   ctx.restore();
+}
+
+// Text broken into lines no wider than maxW at the given font (measured once per string and width, so nothing is measured per frame).
+function wrapText(str, maxW, font) {
+  const key = `${font}|${maxW}|${str}`;
+  if (AC.wrap[key]) return AC.wrap[key];
+  const c = (AC.mctx = AC.mctx || mk(1, 1).getContext('2d')), lines = [];
+  c.font = font;
+  let line = '';
+  for (const word of str.split(' ')) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && c.measureText(next).width > maxW) { lines.push(line); line = word; } else line = next;
+  }
+  lines.push(line);
+  return (AC.wrap[key] = lines);
 }
 
 // ----- Body parts -----
@@ -1510,6 +1528,12 @@ function plate(ctx, x, y, w, h) {
   ctx.globalAlpha = 0.28; ctx.strokeStyle = P.cream; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1;
 }
 
+// The same plate at a given opacity (a share of its usual one), for text that fades away.
+function fadePlate(ctx, x, y, w, h, a) {
+  ctx.globalAlpha = a * A.hud.plateAlpha; ctx.fillStyle = P.plate; ctx.beginPath(); rr(ctx, x, y, w, h, A.line.radius); ctx.fill();
+  ctx.globalAlpha = a * 0.28; ctx.strokeStyle = P.cream; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1;
+}
+
 // A button: ink black with a blue rule for the primary, flash paper for the rest, with the shared drop shadow.
 function inkButton(ctx, str, cx, cy, w, h, primary, font) {
   const x = cx - w / 2, y = cy - h / 2, L = A.line;
@@ -1855,7 +1879,9 @@ function drawMedal(ctx, cx, cy, r, tier, earned) {
 const missions = {
   enter(E) { this.scroll = 0; this.drag = null; this.btnBack = null; this.moved = 0; this.swatches = []; applySkins(E); },
   skinsH() { const M = A.missions, W = A.skins.swatch; return M.headH + 2 * (W.headH + W.size + W.rowGap) + 6; },
-  content(E) { const M = A.missions; return this.skinsH() + BADGE_TIERS.length * M.headH + BADGES.length * (M.rowH + M.rowGap); },
+  textW(E) { return E.w - 2 * A.menu.margin - (14 + 2 * A.missions.medalR + 12) - 12; }, // room for a badge's line of text on its tile
+  rowH(E, b) { const M = A.missions; return M.rowH + (wrapText(b.text, this.textW(E), FONT.small).length - 1) * M.lineH; }, // a long line wraps and the tile grows
+  content(E) { const M = A.missions; return this.skinsH() + BADGE_TIERS.length * M.headH + BADGES.reduce((n, b) => n + this.rowH(E, b) + M.rowGap, 0); },
   view(E) { const M = A.missions, top = E.safe.top + M.top, bot = E.h - E.safe.bottom - M.bottom; return { top, bot, max: Math.max(0, this.content(E) - (bot - top)) }; },
   render(ctx, E) {
     const M = A.missions, p = progress(E), V = this.view(E), m = A.menu.margin, w = E.w - 2 * m, L = A.line;
@@ -1873,7 +1899,7 @@ const missions = {
       label(ctx, `${tn.toUpperCase()}  ${inTier.filter((b) => p.badges[b.id]).length}/${inTier.length}`, m + 20, y + M.headH / 2 + 2, FONT.small, P.textDark, 'left');
       y += M.headH;
       for (const b of inTier) {
-        const got = !!p.badges[b.id], g = got ? null : badgeProgress(b, p), h = M.rowH;
+        const got = !!p.badges[b.id], g = got ? null : badgeProgress(b, p), h = this.rowH(E, b);
         if (y + h > V.top && y < V.bot) {
           ctx.globalAlpha = L.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, m + L.shadowDx, y + L.shadowDy, w, h, A.menu.cardR); ctx.fill(); ctx.globalAlpha = 1;
           ctx.fillStyle = got ? P.paper : P.paperShade; ctx.beginPath(); rr(ctx, m, y, w, h, A.menu.cardR); ctx.fill();
@@ -1881,7 +1907,7 @@ const missions = {
           drawMedal(ctx, m + 14 + M.medalR, y + h / 2, M.medalR, tier, got);
           const tx = m + 14 + 2 * M.medalR + 12;
           label(ctx, b.name, tx, y + 20, FONT.mid, got ? P.textDark : P.textMute, 'left');
-          label(ctx, b.text, tx, y + 43, FONT.small, P.textMute, 'left');
+          wrapText(b.text, this.textW(E), FONT.small).forEach((ln, i) => label(ctx, ln, tx, y + 43 + i * M.lineH, FONT.small, P.textMute, 'left'));
           if (g && g.need > 1) label(ctx, `${g.have}/${g.need}`, m + w - 12, y + 20, FONT.small, P.textMute, 'right');
         }
         y += h + M.rowGap;
@@ -1979,8 +2005,35 @@ function drawHud(ctx, E) {
   }
 }
 
+// Split stencils judge the landing blind (the needle is not shown before it touches), so for the first seconds a plate near the bottom of the screen, clear of every piece, says how.
+function drawIntro(ctx, E) {
+  const I = A.intro, age = E.time - S.introT;
+  if (!S.st.parts || S.ended || age < 0 || age >= I.sec) return;
+  const w = Math.min(E.w - 2 * A.menu.margin, I.maxW), lines = wrapText(I.text, w - 2 * I.pad, FONT.small), h = lines.length * I.lineH + 2 * I.pad;
+  const a = clamp((I.sec - age) / I.fade, 0, 1);
+  fadePlate(ctx, (E.w - w) / 2, E.h - E.safe.bottom - I.bottom - h, w, h, a);
+  ctx.globalAlpha = a;
+  lines.forEach((ln, i) => label(ctx, ln, E.w / 2, E.h - E.safe.bottom - I.bottom - h + I.pad + I.lineH * (i + 0.5), FONT.small, P.cream));
+  ctx.globalAlpha = 1;
+}
+// The first blot of a piece: a short plate just above the mark, kept on screen, so the player learns what the red disc is.
+function drawCallout(ctx, E) {
+  const C = A.callout, k = S.callout;
+  if (!k) return;
+  const age = E.time - k.t;
+  if (age < 0 || age >= C.sec) return;
+  const v = view(E), sx = v.ox + k.x * v.s, sy = v.oy + k.y * v.s;
+  ctx.font = FONT.small;
+  const w = ctx.measureText(C.text).width + 2 * C.pad, x = clamp(sx - w / 2, 4, E.w - w - 4), y = Math.max(E.safe.top + 4, sy - (T.blotRadius + C.gap) * v.s - C.h);
+  const a = clamp((C.sec - age) / C.fade, 0, 1);
+  fadePlate(ctx, x, y, w, C.h, a);
+  ctx.globalAlpha = a;
+  label(ctx, C.text, x + w / 2, y + C.h / 2 + 1, FONT.small, P.cream);
+  ctx.globalAlpha = 1;
+}
+
 const play = {
-  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); applyHint(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); S.hintOff = !hintOn(E); },
+  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); applyHint(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); S.hintOff = !hintOn(E); S.introT = E.time; },
   update(dt, E) {
     holdStep(E, dt);
     hintStep(dt);
@@ -2019,7 +2072,7 @@ const play = {
     if (fresh.length) E.save.set('badges', { ...had, ...now });
     S.tickets = ticketFit(E, fresh.length);
     for (const b of fresh) ledger(E, 'badge', { badge: b.name, tier: BADGE_TIERS[b.tier], stencil: S.st.name });
-    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp, newBadges: byTier(fresh), landings, cleanLand });
+    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, ruined, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp, newBadges: byTier(fresh), landings, cleanLand });
   },
   // Leaving a piece that was started and not finished (the app going to the background, or any scene change) is a quit, logged once.
   quit(E) {
@@ -2053,6 +2106,8 @@ const play = {
     if (S.ended) prepareCard(E);
     drawMachine(ctx, E);
     drawHud(ctx, E);
+    drawIntro(ctx, E);
+    drawCallout(ctx, E);
   },
 };
 
@@ -2086,6 +2141,7 @@ function prepareCard(E) {
   if (S.prep === 0) { if (S.ended !== 'ruined') blushLayer(S.idx); } else fieldComp(E, cardViewFor(E, CV), 1);
   S.prep++;
 }
+const SLIPWORD = { 2: 'two', 3: 'three', 4: 'four', 5: 'five' };
 const over = {
   enter(E, params) {
     this.p = params;
@@ -2135,7 +2191,8 @@ const over = {
     drawPin(ctx, cx, y + 1, 6);
     label(ctx, this.head, x + 20, y + 30, FONT.small, P.textMute, 'left');
     label(ctx, this.bestStr, x + w - 20, y + 30, FONT.small, P.textMute, 'right');
-    label(ctx, PCT[p.pct], cx, y + 80, FONT.hero, P.textDark);
+    label(ctx, PCT[p.pct], cx, y + (p.ruined ? C.ruinedHeroY : 80), FONT.hero, P.textDark);
+    if (p.ruined) label(ctx, `Ruined at ${p.pct}%: ${SLIPWORD[T.maxSlips] || T.maxSlips} slips`, cx, y + C.ruinedY, FONT.small, P.textDark); // a blot counts as a slip
     for (let i = 0; i < 5; i++) {
       const sx = cx + (i - 2) * C.starGap;
       if (i >= p.stars) { drawStar(ctx, sx, y + 134, C.starR, false); continue; }
@@ -2148,7 +2205,7 @@ const over = {
       const all = p.landings > 0 && p.cleanLand === p.landings;
       label(ctx, `Landings ${p.cleanLand} / ${p.landings} clean`, cx, y + 217, FONT.small, all ? P.stamp : P.textMute);
     }
-    if (p.daily && p.ruined && t >= this.starsEnd) label(ctx, `Ruined at ${p.pct}%, ${p.wasFirst ? 'first attempt stands' : 'best unchanged'}`, cx, y + 178, FONT.small, P.textMute);
+    if (p.daily && p.ruined && t >= this.starsEnd) label(ctx, `${p.wasFirst ? 'First attempt stands' : 'Best unchanged'}`, cx, y + 178, FONT.small, P.textMute);
     ctx.restore();
     if (this.badgeDone) this.drawBadge(ctx, E, y, t - this.badgeAt);
 
@@ -2225,7 +2282,7 @@ const over = {
 export const game = {
   slug: 'ink',
   title: 'Ink',
-  saveVersion: 8,
+  saveVersion: 9,
   // v1 saved only best percentages: derive stars and the unlock from them. v3 kept bests per needle mode; v4 has one needle, so the dynamic bests become the bests
   // and every earlier best (all made with the classic needle) is dropped. Stars, clean and unlocks are kept.
   migrate(data, fromVersion) {
@@ -2263,6 +2320,17 @@ export const game = {
     }
     if (fromVersion < 7) data.skin = { machine: 'steel', ink: 'black' }; // v7: the chosen machine and ink skins
     if (fromVersion < 8) data.land = {}; // v8: landing counts per stencil in parts (nothing earlier can have any); everything else is kept
+    if (fromVersion < 9) {
+      // v9: Set Piece and Steady Landing changed rules (a finished split version) after the v17 to v20 builds had saved under v8. A land entry saved before the change has no `st`,
+      // so its `ok` was earned without knowing the piece was finished and is not trusted; entries saved since carry `st` and are kept. Those two badges are then re-derived from
+      // the entries (added or removed); every other badge, and everything else in the save, is kept.
+      const land = data.land || {};
+      for (const id of Object.keys(land)) if (land[id].st === undefined) land[id] = { ...land[id], ok: 0, st: 0 };
+      data.land = land;
+      const p = { land, stars: data.stars || {}, clean: data.clean || {}, cs: data.cs || {} }, badges = { ...(data.badges || {}) };
+      for (const id of ['steady-landing', 'set-piece']) { const g = badgeProgress(BADGES.find((b) => b.id === id), p); if (g.have >= g.need) badges[id] = true; else delete badges[id]; }
+      data.badges = badges;
+    }
     return data;
   },
   TUNING,

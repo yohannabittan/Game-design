@@ -8,8 +8,8 @@
   {
     "slug": "ink",
     "title": "Ink",
-    "status": "v0.5: fifteen stencils on skin, flash-sheet menu, three bosses",
-    "release": false
+    "status": "v0.6: eighteen stencils in parts with landings, missions, daily, skins, timer presets",
+    "release": true
   },
   {
     "slug": "recoil",
