@@ -148,3 +148,12 @@ Not in v0.1: badges, skins, daily, endless, drag gestures (open bag, rotate), pe
 ## Adopted after layer 2 (2026-09-30)
 
 Section 16 now also holds, as built: `bagH` 260 and `bagGap` 64 (so shift 10 lasts about 40 s), `earlyMin` 0.5, `hitMargin` 12, streak steps at 4, 8, 12, 16 (x2 to x5), per-shift columns `newContraband`, `rotMax`, `maxContraband`, `twoShare`, `overlapBias`, `confusableShare`, and the shift 1 opener. Look-alike pairs: gun and hairdryer, knife and pen, box cutter and toothbrush, taser and charger, large and small liquid, large liquid and water bottle, phone and lighter, belt and hammer.
+
+## Amendments after the v2 review (2026-09-30)
+
+1. Save: `saveVersion` 2; migrate derives `unlocked` from the highest shift with stars (plus one); `unlocked` clamped to an integer in 1 to 10 on read.
+2. Difficulty is a slope, not a cliff: belt speed stops being the main lever. Target with the reviewer's human models: an average reader clears every shift at least 60 percent of the time and three-stars shift 10 at least 20 percent; a novice clears shifts 1 to 6 at least 60 percent. Difficulty past shift 6 comes from clutter, look-alikes and overlap, not throughput; shift 10's belt drops so the average reader's queue never saturates.
+3. Rush hour is its own beat: on shifts 5 and 10, bags arrive in bursts (three close together, then a gap) at the normal average rate, with a "RUSH" banner and belt hum; target: a good reader's three-star rate on a rush shift is 10 to 20 points below its neighbours.
+4. Tangles: a contraband item's overlap partners are biased toward the other tint, so metal-on-metal knots are rare.
+5. Look-alike pairs share a tint (the toothbrush and belt become metal-tinted items, or their partners change).
+6. Retry reuses the shift's seed; Next and a fresh start use a new one.
