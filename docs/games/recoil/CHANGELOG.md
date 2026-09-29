@@ -32,3 +32,19 @@
   - The landscape menu column slides between 361 and 336 px tall by the height the viewport leaves above the bottom inset (all buttons stay 44 px or more), so it fits 640x360 and 812x375 with a 21 px inset.
   - A tap dropped inside the fire interval plays a faint click (volume 0.12) and a small faint muzzle flicker; timing and scoring are untouched (held auto fire does not cue).
   - Again after a passed Gauntlet stage replays that stage inside the chain (the card says "Gauntlet stage passed"); after a failed or final stage it starts a plain run. The dim Gauntlet button shows a padlock, and tapping it (or, in portrait, a caption below it) names the levels that still need a star.
+- Skins (Sonnet, per the overnight plan's Unlockables; `game.js` and the `sw.js` cache version only, cache v8): every gun has a default skin plus badge-earned ones, data in `TUNING.art.skins` (a palette override for the silhouette's steel colours, an accent colour and one flat decoration: engraved plate, stripe or tape wrap). The same silhouette code draws them, so hitboxes, physics, shots and scoring are untouched (132 scripted runs of three guns identical to the previous build; 30 and 120 fps runs identical for every gun). Skins are earned by badges only, never by points:
+
+  | Gun | Skin | Earned by | Decoration |
+  | --- | --- | --- | --- |
+  | Pistol | Nickel | Marksman I | engraved brass plate |
+  | Pistol | Blackout | Quick Draw I | slide stripe |
+  | Carbine | Desert | Clay I | tape wrap on the forend |
+  | Carbine | Arctic | Steady | body stripe |
+  | Shotgun | Walnut | Storm | wood furniture, engraved plate |
+  | Shotgun | Tactical | Double | barrel stripe |
+  | Rifle | Carbon | Boss Killer | weave lines |
+  | Rifle | Ghost | Gauntlet | engraved plate on the stock |
+  | Pistol | Gold | Legend | twin stripes |
+
+  The menu shows a row of swatches for the selected gun (worn one ringed in orange, locked ones dimmed with a padlock; tapping a locked one toasts the badge that unlocks it); each gun tile draws the skin that gun wears, and so do the gun in play and a small tile on the result card. The missions screen prints the skin (with a swatch) on each badge, and earning a badge toasts "Skin unlocked". Save version 5 adds `skins { gunId: skinId }`; `migrate` adds `{}` and keeps everything else; a saved skin whose badge is not earned plays as the default.
+- Skins: decisions where the plan is open. The swatch row sits above the ladders on the right of the landscape menu, labelled "Skin", not under the gun tiles: the left column has no height to spare at 360 tall and the swatches need 44 px targets (portrait puts the row under the gun stats). The badge-to-skin mapping follows the order of the guns and of the badges (the pistol's skins from the first two bronze badges, so a new player sees progress on the gun they own; Steady is the carbine's, Storm and Double the shotgun's, Boss Killer and Gauntlet the rifle's). Skins on guns not yet unlocked are earned but not shown until the gun is selected. The stat title reads "Shotgun · Walnut" while a non-default skin is worn.

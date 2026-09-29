@@ -163,6 +163,34 @@ const TUNING = {
         ['rr', 'highlight', -17, -8, 28, 2.6, 1.3], ['rr', 'highlight', -10, -20.5, 32, 2.2, 1.1],
       ] },
     },
+    // Skins (v0.3 section B): the same silhouette with a palette override and one decoration, so a skin is a data entry. `pal` replaces palette keys for
+    // this gun (steel, steelDark) and defines `accent`; `deco` parts are appended after the gun's own in the same format, drawn flat (no outline) and
+    // inside the silhouette, so bounds, hitbox and shots never change. Each skin is earned by the badge named in `badge` (BADGES ids), never by points.
+    // The first skin of a gun is its default. Order matters: the save keeps the id.
+    skins: {
+      pistol: [
+        { id: 'std', name: 'Standard', badge: null, pal: {}, deco: [] },
+        { id: 'nickel', name: 'Nickel', badge: 'marksman1', pal: { steel: '#cfd4da', steelDark: '#8a929c', accent: '#d6a23a' }, deco: [['rr', 'accent', 2, -7.5, 20, 7, 2], ['rr', 'ink', 5, -4.6, 14, 1.4, 0.7]] }, // engraved brass plate
+        { id: 'blackout', name: 'Blackout', badge: 'quickdraw1', pal: { steel: '#3f3c39', steelDark: '#2a2826', accent: '#d9d2c4' }, deco: [['rr', 'accent', -20, -1.5, 58, 2.2, 1]] }, // slide stripe
+        { id: 'gold', name: 'Gold', badge: 'legend', pal: { steel: '#e3b53d', steelDark: '#a8781c', accent: '#fff1b8' }, deco: [['rr', 'accent', -20, -8.2, 58, 1.8, 0.9], ['rr', 'accent', -20, 0.6, 58, 1.8, 0.9]] }, // twin stripes
+      ],
+      carbine: [
+        { id: 'std', name: 'Standard', badge: null, pal: {}, deco: [] },
+        { id: 'desert', name: 'Desert', badge: 'clay1', pal: { steel: '#c2a374', steelDark: '#7d6641', accent: '#ecdcae' }, deco: [['rr', 'accent', 26, -8.2, 2.6, 13.4, 0.8], ['rr', 'accent', 32, -8.2, 2.6, 13.4, 0.8], ['rr', 'accent', 38, -8.2, 2.6, 13.4, 0.8]] }, // tape wrap on the forend
+        { id: 'arctic', name: 'Arctic', badge: 'steady', pal: { steel: '#e2e8f0', steelDark: '#94a3b8', accent: '#4a6fa5' }, deco: [['rr', 'accent', -16, -3, 40, 3.2, 1.4]] }, // body stripe
+      ],
+      shotgun: [
+        { id: 'std', name: 'Standard', badge: null, pal: {}, deco: [] },
+        { id: 'walnut', name: 'Walnut', badge: 'storm', pal: { steelDark: '#7a4a2a', accent: '#d6a23a' }, deco: [['rr', 'accent', -19, -9, 15, 6.5, 1.5], ['rr', 'ink', -16.5, -6.3, 10, 1.3, 0.6]] }, // wood furniture, engraved plate
+        { id: 'tactical', name: 'Tactical', badge: 'double', pal: { steel: '#474c42', steelDark: '#2e322b', accent: '#9aae5c' }, deco: [['rr', 'accent', 0, -6.5, 56, 2.2, 1]] }, // barrel stripe
+      ],
+      rifle: [
+        { id: 'std', name: 'Standard', badge: null, pal: {}, deco: [] },
+        { id: 'carbon', name: 'Carbon', badge: 'bosskiller', pal: { steel: '#34373b', steelDark: '#202225', accent: '#69707a' }, deco: [['rr', 'accent', -19, -6, 30, 2, 1], ['rr', 'accent', -19, -1, 30, 2, 1]] }, // weave lines on the receiver
+        { id: 'ghost', name: 'Ghost', badge: 'gauntlet', pal: { steel: '#eceef2', steelDark: '#aeb7c4', accent: '#b9a6e6' }, deco: [['rr', 'accent', -54, -4, 20, 7, 2], ['rr', 'ink', -51, -1, 14, 1.3, 0.6]] }, // engraved plate on the stock
+      ],
+    },
+    chip: { hit: 44, gap: 8, size: 26, radius: 6, labelW: 46, mini: 14 }, // Skin swatches: menu touch size, spacing, drawn size, corner, the "Skin" label's width; mini is the missions swatch
     flash: { spikes: [28, 10, 14, 8, 6, 8, 14, 10], inner: 4.5, from: 0.7, mid: 0.62, core: 0.3, dropAlpha: 0.3, dropScale: 0.5 }, // Muzzle flash: eight spikes (forward first), scale grows from `from` to 1 as it lives; a dropped tap flickers a small faint one (dropAlpha, dropScale)
     casing: { cap: 10, life: 0.55, gravity: 700, vx: [-75, -30], vy: [-175, -105], spin: [-16, 16], floor: 16, fade: 0.35, line: 1.2 }, // Ejected brass: capped particles
     finder: { gap: 6, rNear: 2.8, rFar: 1.5, farAlpha: 0.25, warm: 0.3, ramp: 4, track: 5.5, trackAlpha: 0.3, capHalf: 6, capWidth: 2.6, capAlpha: 0.55, fanAlpha: 0.22 },
@@ -664,6 +692,21 @@ function gauntletStep(i, stars) {
 }
 function badgeMap(E) { const b = E.save.get('badges', {}); return b && typeof b === 'object' ? b : {}; }
 
+// ---------- Skins: cosmetic, earned by badges ----------
+
+function skinById(gun, id) { const l = A.skins[gun]; return l.find((k) => k.id === id) || l[0]; }
+function skinOpen(E, skin) { return !skin.badge || !!badgeMap(E)[skin.badge]; }
+// The skin a gun wears: the saved choice if its badge is earned, else the default.
+function skinId(E, gun) {
+  const m = E.save.get('skins', {}), k = skinById(gun, m && typeof m === 'object' ? m[gun] : null);
+  return skinOpen(E, k) ? k.id : 'std';
+}
+// The skin a badge unlocks, or null: { gun, skin }.
+function skinOfBadge(badge) {
+  for (const gun of GUN_IDS) { const skin = A.skins[gun].find((k) => k.badge === badge); if (skin) return { gun, skin }; }
+  return null;
+}
+
 // ---------- Drawing ----------
 // Everything below reads TUNING.art. Guns, the muzzle flash and the backdrop are built once (Path2D, an offscreen canvas), and the
 // per-frame loops keep no arrays or closures, so a frame allocates nothing beyond the engine's own text calls.
@@ -714,25 +757,36 @@ function drawSprite(ctx, key, ext, paint, x, y, a, b) {
   if (s) ctx.drawImage(s, x - ext, y - ext, 2 * ext, 2 * ext);
   else { ctx.save(); ctx.translate(x, y); paint(ctx, a, b); ctx.restore(); }
 }
+const SKIN_SLOTS = 4; // most skins one gun has (the pistol's default, two badge skins and Gold), so every sprite key is unique
 const K_CARD = 1e6, K_FLAT = 2e6, K_CLAY = 3e6, K_PLATE = 4e6, K_CORE = 5e6, K_GUN = 6e6;
 
-// Builds every cached shape: each gun's parts, the muzzle flash and the finder colour ramp. Runs once (init), and lazily if a harness skips init.
+// One gun in one skin: parts (the gun's own, then the skin's decoration) coloured through the skin's palette override, and its bounds.
+const NO_LINE = new Set(['ink', 'highlight', 'accent']); // fills that get no outline
+function buildGun(id, skin, idx) {
+  const spec = A.guns[id], parts = [], sil = new Path2D();
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  const grow = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+  for (const [kind, fill, a, b, c, d, e] of spec.parts.concat(skin.deco)) {
+    const path = new Path2D(), line = !NO_LINE.has(fill);
+    if (kind === 'rr') { rrPath(path, a, b, c, d, e); grow(a, b); grow(a + c, b + d); } else { polyPath(path, a); for (let i = 0; i < a.length; i += 2) grow(a[i], a[i + 1]); }
+    if (line) sil.addPath(path);
+    parts.push({ path, fill: skin.pal[fill] || P[fill], line });
+  }
+  return { idx, parts, sil, x0, y0, x1, y1, muzzle: spec.muzzle, port: spec.port, shell: spec.shell };
+}
+
+// Builds every cached shape: each gun in each skin, the muzzle flash and the finder colour ramp. Runs once (init), and lazily if a harness skips init.
+// GUN_ART holds a gun's default under its id and the other skins under 'id/skin'. The tile scale comes from the default skins.
 function buildArt() {
   if (FLASH) return;
   let w = 0, h = 0;
-  for (const id of GUN_IDS) {
-    const spec = A.guns[id], parts = [], sil = new Path2D();
-    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    const grow = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
-    for (const [kind, fill, a, b, c, d, e] of spec.parts) {
-      const path = new Path2D(), line = fill !== 'ink' && fill !== 'highlight';
-      if (kind === 'rr') { rrPath(path, a, b, c, d, e); grow(a, b); grow(a + c, b + d); } else { polyPath(path, a); for (let i = 0; i < a.length; i += 2) grow(a[i], a[i + 1]); }
-      if (line) sil.addPath(path);
-      parts.push({ path, fill: P[fill], line });
-    }
-    GUN_ART[id] = { idx: GUN_IDS.indexOf(id), parts, sil, x0, y0, x1, y1, muzzle: spec.muzzle, port: spec.port, shell: spec.shell };
-    w = Math.max(w, x1 - x0); h = Math.max(h, y1 - y0);
-  }
+  GUN_IDS.forEach((id, gi) => {
+    A.skins[id].forEach((skin, si) => {
+      const art = buildGun(id, skin, gi * SKIN_SLOTS + si);
+      GUN_ART[si ? `${id}/${skin.id}` : id] = art;
+      if (!si) { w = Math.max(w, art.x1 - art.x0); h = Math.max(h, art.y1 - art.y0); }
+    });
+  });
   GUN_BOX = { w, h };
   const F = A.flash, n = F.spikes.length;
   FLASH = new Path2D();
@@ -743,7 +797,7 @@ function buildArt() {
   FLASH.closePath();
   for (let i = 0; i < A.finder.ramp; i++) RAMP.push(mixHex(P.orange, P.white, Math.min(1, i / (A.finder.ramp * A.finder.warm))));
 }
-function gunArt(id) { if (!FLASH) buildArt(); return GUN_ART[id] || GUN_ART.pistol; }
+function gunArt(id, skin) { if (!FLASH) buildArt(); return GUN_ART[skin && skin !== 'std' ? `${id}/${skin}` : id] || GUN_ART[id] || GUN_ART.pistol; }
 
 function drawStar(ctx, cx, cy, R, fill, stroke) {
   ctx.beginPath();
@@ -775,8 +829,8 @@ function drawGunArt(ctx, ga, x, y, k, rot, shadow) {
 }
 
 // Every gun drawn at one scale, so sizes stay honest, centred on its own bounds inside a w x h box.
-function drawGunTile(ctx, id, cx, cy, w, h) {
-  const ga = gunArt(id), k = Math.min(w / GUN_BOX.w, h / GUN_BOX.h);
+function drawGunTile(ctx, id, cx, cy, w, h, skin) {
+  const ga = gunArt(id, skin), k = Math.min(w / GUN_BOX.w, h / GUN_BOX.h);
   drawGunArt(ctx, ga, cx - ((ga.x0 + ga.x1) / 2) * k, cy - ((ga.y0 + ga.y1) / 2) * k, k, 0, false);
 }
 
@@ -784,7 +838,7 @@ function drawGunTile(ctx, id, cx, cy, w, h) {
 const GUN_PAD = 6;
 function paintGun(g, ga) { drawGunArt(g, ga, 0, 0, 1, 0, true); }
 function drawGun(ctx, run) {
-  const ga = gunArt(run.gun.id), key = K_GUN + ga.idx, w = ga.x1 - ga.x0 + 2 * GUN_PAD, h = ga.y1 - ga.y0 + 2 * GUN_PAD;
+  const ga = gunArt(run.gun.id, S.skin), key = K_GUN + ga.idx, w = ga.x1 - ga.x0 + 2 * GUN_PAD, h = ga.y1 - ga.y0 + 2 * GUN_PAD;
   ctx.save(); ctx.translate(T.gunX, run.gunY); ctx.rotate(-angleOf(run) * DEG);
   let s = SPR.get(key);
   if (s === undefined) {
@@ -1099,12 +1153,38 @@ function pipRow(ctx, x0, y, lit, total) {
   ctx.fill();
 }
 
+// A skin swatch: the skin's steel, its darker steel and its accent stripe in one rounded square, dimmed when the skin is locked.
+function paintChip(ctx, cx, cy, size, radius, skin, open) {
+  const h = size / 2, pal = skin.pal;
+  ctx.globalAlpha = open ? 1 : 0.4;
+  ctx.save(); rrect(ctx, cx - h, cy - h, size, size, radius); ctx.clip();
+  ctx.fillStyle = pal.steel || P.steel; ctx.fillRect(cx - h, cy - h, size, size);
+  ctx.fillStyle = pal.steelDark || P.steelDark; ctx.fillRect(cx - h, cy + h * 0.25, size, h);
+  ctx.fillStyle = pal.accent || P.orange; ctx.fillRect(cx - h, cy - h * 0.15, size, h * 0.35);
+  ctx.restore();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 2; rrect(ctx, cx - h, cy - h, size, size, radius); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+// A menu swatch on a plate, hit rect r; the worn one is ringed in orange, a locked one carries a padlock.
+function drawChip(ctx, E, r, skin, on, open) {
+  const C = A.chip, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  plate(E, r.x + 2, r.y + 2, r.w - 4, r.h - 4, on ? P.panelHi : P.panel, on ? P.orange : P.panelEdge);
+  paintChip(ctx, cx, cy, C.size, C.radius, skin, open);
+  if (!open) drawLock(ctx, cx, cy, P.text);
+}
+// "Pistol Nickel" with a small swatch to its left, right-aligned at xr: what a badge unlocks, on the missions screen.
+function drawSkinLine(ctx, E, k, xr, y, on) {
+  const C = A.chip, str = `${T.guns[k.gun].short} ${k.skin.name}`;
+  E.text(str, xr, y, { size: TY.small, align: 'right', color: on ? P.text : P.textDim });
+  paintChip(ctx, xr - ctx.measureText(str).width - C.mini / 2 - 6, y, C.mini, 3, k.skin, on);
+}
+
 // ---------- Play state ----------
 
 const S = {};
 
-function newRun(ch, id, gauntlet) {
-  S.ch = ch; S.gunId = id; S.run = makeRun(ch, id); S.gauntlet = gauntlet === undefined ? null : gauntlet;
+function newRun(ch, id, gauntlet, skin) {
+  S.ch = ch; S.gunId = id; S.skin = skin || 'std'; S.run = makeRun(ch, id); S.gauntlet = gauntlet === undefined ? null : gauntlet;
   S.fx = []; S.endT = 0; S.drag = null; S.right = new Set(); S.breachAt = -1;
   S.run.frameReal = performance.now();
 }
@@ -1156,7 +1236,9 @@ function endRun(E) {
   const gaunt = S.gauntlet === null ? null : gauntletStep(S.gauntlet, stars);
   const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, gauntletDone: !!(gaunt && gaunt.done), bests: bests(E), bossGuns, have: badgeMap(E) });
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
-  E.setScene('over', { id: ch.id, gun: r.gun.name, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id) });
+  const unlocked = fresh.map(skinOfBadge).filter(Boolean).map((k) => `${T.guns[k.gun].short} ${k.skin.name}`);
+  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id) });
+  if (unlocked.length) E.toast(`Skin unlocked: ${unlocked.join(', ')}`);
 }
 
 function meterText(r, ch) {
@@ -1195,6 +1277,7 @@ function menuLayout(E) {
     L.play = { x: x0, y: y0 + at('play'), w: lw, h: at('playH') };
     L.missions = { x: x0, y: y0 + at('row'), w: (lw - 8) / 2, h: at('rowH') }; L.mute = { x: x0 + (lw + 8) / 2, y: y0 + at('row'), w: (lw - 8) / 2, h: at('rowH') };
     const rx = x0 + lw + 28;
+    L.skinRow = { lx: rx, x: rx + A.chip.labelW, y: E.safe.top + 8 }; // the left column has no height to spare at 360, so the swatches sit above the ladders
     rowsAt(rx, E.safe.top + 56, x0 + W - rx, 66, 56);
   } else {
     const W = Math.min(E.w - 2 * side, 560), x0 = (E.w - W) / 2, y0 = E.safe.top + 14;
@@ -1202,8 +1285,9 @@ function menuLayout(E) {
     L.next = { x: E.w / 2, y: y0 + 76 };
     L.guns = gunGrid(x0, y0 + 90, W, 62, 56);
     L.stat = { x: E.w / 2, y: y0 + 240 };
-    rowsAt(x0, y0 + 276, W, 66, 56);
-    const by = y0 + 276 + 4 * 66 + 12;
+    L.skinRow = { lx: x0, x: x0 + A.chip.labelW, y: y0 + 272 };
+    rowsAt(x0, y0 + 328, W, 66, 56);
+    const by = y0 + 328 + 4 * 66 + 12;
     L.play = { x: x0, y: by, w: W, h: 48 };
     L.missions = { x: x0, y: by + 58, w: (W - 10) / 2, h: 48 }; L.mute = { x: x0 + (W + 10) / 2, y: by + 58, w: (W - 10) / 2, h: 48 };
   }
@@ -1226,7 +1310,7 @@ function wrapText(ctx, str, maxW, size) {
 // ---------- Scenes ----------
 
 const menu = {
-  enter() { this.tiles = []; this.guns = []; this.btnPlay = null; this.btnMute = null; this.btnMissions = null; },
+  enter() { this.tiles = []; this.guns = []; this.chips = []; this.btnPlay = null; this.btnMute = null; this.btnMissions = null; },
   render(ctx, E) {
     const L = menuLayout(E), sel = T.guns[gunId(E)], pts = pointsTotal(E), nx = nextUnlock(pts);
     E.text('RECOIL', L.title.x, L.title.y, { size: TY.big, weight: TY.strong, color: P.text });
@@ -1241,16 +1325,25 @@ const menu = {
       const on = b.id === sel.id, open = gunUnlocked(E, b.id), cx = b.x + b.w / 2;
       plate(E, b.x, b.y, b.w, b.h, on ? P.panelHi : P.panel, on ? P.orange : P.panelEdge);
       ctx.globalAlpha = open ? 1 : 0.25;
-      drawGunTile(ctx, b.id, cx, b.y + b.h / 2, b.w - 2 * A.tile.pad, b.h - 2 * A.tile.pad);
+      drawGunTile(ctx, b.id, cx, b.y + b.h / 2, b.w - 2 * A.tile.pad, b.h - 2 * A.tile.pad, open ? skinId(E, b.id) : 'std');
       ctx.globalAlpha = 1;
       if (!open) {
         drawLock(ctx, cx, b.y + b.h / 2 - 12, P.textDim);
         E.text(`${T.unlockPoints[GUN_IDS.indexOf(b.id)]} points`, cx, b.y + b.h - 14, { size: TY.small, weight: TY.strong, color: P.textDim });
       }
     }
-    E.text(sel.name, L.stat.x, L.stat.y - 19, { size: TY.mid, weight: TY.strong, color: P.text });
+    const wear = skinById(sel.id, skinId(E, sel.id));
+    E.text(wear.badge ? `${sel.short} · ${wear.name}` : sel.name, L.stat.x, L.stat.y - 19, { size: TY.mid, weight: TY.strong, color: P.text });
     E.text(`Damage ${sel.damage}${sel.pellets > 1 ? ` x${sel.pellets}` : ''}   ${sel.fireRate}/s   Range ${Math.round(sel.accuracy * 100)}%`, L.stat.x, L.stat.y, { size: TY.small, color: P.textDim });
     E.text(sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 17, { size: TY.small, color: P.textDim });
+    // Skin swatches for the selected gun: a chip per skin, the worn one ringed in orange, locked ones dimmed with a padlock.
+    const SK = L.skinRow, C = A.chip;
+    E.text('Skin', SK.lx, SK.y + C.hit / 2, { size: TY.small, align: 'left', color: P.textDim });
+    this.chips = A.skins[sel.id].map((skin, i) => {
+      const r = { x: SK.x + i * (C.hit + C.gap), y: SK.y, w: C.hit, h: C.hit, gun: sel.id, skin }, open = skinOpen(E, skin);
+      drawChip(ctx, E, r, skin, skin.id === wear.id, open);
+      return r;
+    });
     this.tiles = [];
     for (const row of L.rows) {
       E.text(row.label, row.x, row.y + row.th / 2, { size: TY.small, align: 'left', color: P.textDim });
@@ -1273,6 +1366,11 @@ const menu = {
     if (E.hit(this.btnPlay, p)) { E.setScene('play', { id: firstPlayable(E).id }); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
+    for (const c of this.chips) if (E.hit(c, p)) {
+      if (skinOpen(E, c.skin)) { E.save.update('skins', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [c.gun]: c.skin.id }), {}); E.audio.play('tap'); }
+      else { const b = BADGES.find((k) => k.id === c.skin.badge); E.audio.play('tap', 0.3); E.toast(`${c.skin.name}: earn the ${b.name} badge (${b.cond})`); }
+      return;
+    }
     for (const b of this.guns) if (E.hit(b, p)) { if (gunUnlocked(E, b.id)) { E.save.set('gun', b.id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
     for (const t of this.tiles) if (!t.locked && E.hit(t, p)) { E.setScene('play', { id: t.ch.id }); return; }
   },
@@ -1303,21 +1401,23 @@ const missions = {
       if (!land) wrapText(ctx, this.reason, W, TY.small).forEach((ln, k) => E.text(ln, E.w / 2, gy + 42 + k * 18, { size: TY.small, color: P.textDim }));
     }
     BADGES.forEach((b, i) => {
-      const on = !!have[b.id], col = P.tier[b.tier];
+      const on = !!have[b.id], col = P.tier[b.tier], sk = skinOfBadge(b.id);
       if (land) {
         const gap = 10, tw = (W - 2 * gap) / 3, th = 88, x = x0 + (i % 3) * (tw + gap), y = top + Math.floor(i / 3) * 96;
         plate(E, x, y, tw, th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
         E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: TY.small, align: 'left', color: on ? col : P.textDim });
+        if (sk) drawSkinLine(ctx, E, sk, x + tw - 12, y + 14, on);
         E.text(b.name, x + 12, y + 36, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
         wrapText(ctx, b.cond, tw - 24, TY.small).forEach((ln, k) => E.text(ln, x + 12, y + 58 + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
-        if (on) drawStar(ctx, x + tw - 24, y + 24, 12, col);
+        if (on) drawStar(ctx, x + tw - 24, y + 40, 12, col);
       } else {
         const y = top + i * 66, th = 60;
         plate(E, x0, y, W, th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
         E.text(b.name, x0 + 14, y + 18, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
-        E.text(b.tier.toUpperCase(), x0 + W - 14, y + 18, { size: TY.small, align: 'right', color: on ? col : P.textDim });
+        E.text(b.tier.toUpperCase(), x0 + 14 + ctx.measureText(b.name).width + 10, y + 18, { size: TY.small, align: 'left', color: on ? col : P.textDim });
         E.text(b.cond, x0 + 14, y + 42, { size: TY.small, align: 'left', color: P.textDim });
-        if (on) drawStar(ctx, x0 + W - 28, y + 40, 9, col);
+        if (sk) drawSkinLine(ctx, E, sk, x0 + W - 14, y + 18, on);
+        if (on) drawStar(ctx, x0 + W - 22, y + 42, 9, col);
       }
     });
     this.open = open;
@@ -1332,7 +1432,7 @@ const missions = {
 
 const play = {
   enter(E, params) {
-    newRun(CHALLENGES.find((c) => c.id === (params && params.id)) || CHALLENGES[0], gunId(E), params && params.gauntlet);
+    newRun(CHALLENGES.find((c) => c.id === (params && params.id)) || CHALLENGES[0], gunId(E), params && params.gauntlet, skinId(E, gunId(E)));
     this.menuBtn = null;
   },
 
@@ -1443,7 +1543,7 @@ const play = {
     if (key === 'Escape') E.setScene('menu');
     else if (key === ' ') queueInput(S.run, stamp(S.run), 'fire'); // key repeat fires at the gun's rate
   },
-  onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet); }, // closing the app mid-challenge restarts it
+  onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet, S.skin); }, // closing the app mid-challenge restarts it
 };
 
 const over = {
@@ -1464,6 +1564,11 @@ const over = {
     plate(E, cx - pw / 2, y0 - 18, pw, H + 30, P.panel, P.panelEdge, 16);
     E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Gauntlet ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 10, { size: TY.small, color: P.textDim });
     E.text(`${p.score}`, cx, y0 + 56, { size: TY.big + 16, weight: TY.strong, color: P.text });
+    if (p.gunId) { // the gun as it was worn, on the left of the score
+      const tx = cx - pw / 2 + 14 + 42, ws = skinById(p.gunId, p.skin);
+      drawGunTile(ctx, p.gunId, tx, y0 + 58, 84, 34, p.skin);
+      if (ws.badge) E.text(ws.name, tx, y0 + 86, { size: TY.small, color: P.textDim });
+    }
     const age = E.time - this.t0;
     for (let i = 0; i < 3; i++) {
       const sx = cx + (i - 1) * 60, sy = y0 + 112;
@@ -1524,15 +1629,16 @@ const TUNE_KEYS = new Set([...EXPERIMENTS.map((e) => e.key), ...PRESETS.flatMap(
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 4,
-  // Save shape: best { challengeId: { score, stars } }, gun (id), badges { badgeId: 1 }, bossGuns { gunId: 1 }, __tune, __muted.
+  saveVersion: 5,
+  // Save shape: best { challengeId: { score, stars } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, bossGuns { gunId: 1 }, __tune, __muted.
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
-  // that the existing bests already earn. Nothing else changes, and the whole save stays under a kilobyte or two.
+  // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default). Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (!data.gun) data.gun = 'pistol';
     if (!data.badges || typeof data.badges !== 'object') data.badges = {};
     if (!data.bossGuns || typeof data.bossGuns !== 'object') data.bossGuns = {};
+    if (!data.skins || typeof data.skins !== 'object') data.skins = {};
     const b = data.best || {}, three = (id) => b[id] && b[id].stars === 3;
     for (const [badge, id] of [['marksman1', 'a1'], ['quickdraw1', 's1'], ['clay1', 'k1'], ['storm', 's4']]) if (three(id)) data.badges[badge] = 1;
     if (CHALLENGES.every((c) => three(c.id))) data.badges.legend = 1;
