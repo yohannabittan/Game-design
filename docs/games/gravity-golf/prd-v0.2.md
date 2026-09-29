@@ -94,4 +94,4 @@ The space motif is the brand. In the art layer: parallax starfield and nebula gr
 
 ## F. Scope fence additions
 
-Not in v0.2: black holes, sun gravity, planets with atmospheres or drag, moving holes, portals, collectibles.
+Not in v0.2: black holes, comets, sun gravity, planets with atmospheres or drag, moving holes, portals, collectibles. Comets (fast bodies crossing on the clock) and black holes (swallow the ball: penalty and reset) are v0.3 candidates from the 2026-09-29 playtest.
