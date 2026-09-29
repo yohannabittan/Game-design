@@ -1,6 +1,6 @@
-// Recoil, v0.2: the mechanic plus guns, barrel sway, moving targets, skeet and a boss. One thumb drags the gun up
-// and down, the other fires, and every shot kicks the barrel up. Instant shot lines scored by zone, a combo
-// multiplier, four ladders, stars, points, menu and card. Grey box: shapes and three colours only.
+// Recoil, v0.3: the mechanic plus guns, barrel sway, moving targets, skeet, a boss, and progression (four guns unlocked by
+// points, nine badges, a gauntlet). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
+// Instant shot lines scored by zone, a combo multiplier, four ladders, stars, points, menu and card. Grey box: shapes and three colours only.
 // Landscape, two thumbs (ADR-0013).
 
 import { makeRng, ease, clamp } from './engine.js';
@@ -45,9 +45,14 @@ const TUNING = {
   // Guns (v0.2 section A): data, so a later layer adds more. kickPerShot and kickRecovery are per gun now.
   // magSize and reloadSeconds are carried but not used yet: Accuracy keeps its own ammo, the other ladders are unlimited.
   guns: {
-    pistol: { id: 'pistol', name: 'Service pistol', damage: 1, fireRate: 9, accuracy: 1.0, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, auto: false },
-    carbine: { id: 'carbine', name: 'Carbine', damage: 1, fireRate: 8, accuracy: 0.55, kickPerShot: 5, kickRecovery: 24, magSize: 20, reloadSeconds: 1.5, auto: true },
+    pistol: { id: 'pistol', name: 'Service pistol', short: 'Pistol', damage: 1, fireRate: 9, accuracy: 1.0, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, auto: false },
+    carbine: { id: 'carbine', name: 'Carbine', short: 'Carbine', damage: 1, fireRate: 8, accuracy: 0.55, kickPerShot: 5, kickRecovery: 24, magSize: 20, reloadSeconds: 1.5, auto: true },
+    // v0.3. `pellets` lines leave the barrel in a fixed fan of shotSpread degrees; each pellet deals `damage` on its own.
+    shotgun: { id: 'shotgun', name: 'Shotgun', short: 'Shotgun', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.0, auto: false },
+    rifle: { id: 'rifle', name: 'Marksman rifle', short: 'Rifle', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 2.0, auto: false },
   },
+  shotSpread: 10,        // v0.3: total fan angle of the shotgun's five pellets, degrees
+  unlockPoints: [0, 60, 150, 300], // v0.3: points needed per gun, in GUN_IDS order
 
   // Additions, not in the PRDs.
   swayWindow: 0.05,      // Seconds over which the gun's speed is measured for sway
@@ -84,7 +89,9 @@ const TUNING = {
 const T = TUNING;
 const STEP = T.physicsStep;
 const DEG = Math.PI / 180;
-const GUN_IDS = ['pistol', 'carbine'];
+const GUN_IDS = ['pistol', 'carbine', 'shotgun', 'rifle'];
+// Gauntlet: one level of each ladder in a row, each at two stars or better.
+const GAUNTLET = ['a2', 's2', 'k2', 'b1'];
 
 // Challenge data. Positions come from makeRng(seed) in setup only (build below); resolution is deterministic.
 // x is the range of target centres, yBand the fraction (0 top, 1 bottom) of the legal height band, minDy the least
@@ -153,6 +160,8 @@ const CHALLENGES = [
     id: 'b1', ladder: 'boss', level: 1, name: 'Boss 1', seed: 44001,
     bossSeconds: 40, scale: 1.1, x: [430, 560], coreX: 520, coreScale: 0.9, coreBull: 0.6,
     stars: { one: 1130, two: 2060, three: 3190 },
+    // The shotgun and rifle finish in five scoring hits (perfect run 1000 for both), so their stars are 30/55/85 of that.
+    starsByGun: { shotgun: { one: 300, two: 550, three: 850 }, rifle: { one: 300, two: 550, three: 850 } },
   },
 ];
 const LADDERS = [['accuracy', 'Accuracy'], ['speed', 'Speed'], ['skeet', 'Skeet'], ['boss', 'Boss']];
@@ -240,7 +249,7 @@ function makeRun(ch, gunId) {
     kUp: false, kDown: false, holding: false, nextFire: 0,
     score: 0, streak: 0, shots: 0, hits: 0, bulls: 0, misses: 0,
     ammo: ch.ladder === 'accuracy' ? ch.accAmmo : Infinity,
-    nextAt: T.startDelay, done: false, cleared: false,
+    nextAt: T.startDelay, done: false, cleared: false, pairHits: {}, double: false,
   };
 }
 
@@ -303,7 +312,7 @@ function spawnSpeed(run, t) {
 function spawnSkeet(run, t) {
   const ch = run.ch, e = run.list[run.idx++], lg = legal(ch.scale), v = T.skeetSpeed * ch.skeetMul, g = T.skeetGravity;
   const a = Math.min(e.a * DEG, Math.asin(Math.min(1, Math.sqrt(2 * g * (lg.y1 - lg.y0)) / v))); // apex stays on the field
-  addTarget(run, { kind: 'skeet', x0: e.x0, y0: lg.y1, vx: -v * Math.cos(a), vy: -v * Math.sin(a), g, sc: ch.scale }, t);
+  addTarget(run, { kind: 'skeet', x0: e.x0, y0: lg.y1, vx: -v * Math.cos(a), vy: -v * Math.sin(a), g, sc: ch.scale, group: ch.pair ? (run.idx - 1) >> 1 : undefined }, t);
 }
 
 function spawnBoss(run, t) {
@@ -330,51 +339,64 @@ function checkEnd(run) {
   else if (run.ch.ladder === 'boss' && run.cleared) finish(run);
 }
 
-// One shot along the true barrel line, then the kick. The shot stops at the first target it crosses.
+// The angle offsets of a gun's pellets from the barrel: one line straight ahead, or a fixed fan of shotSpread degrees.
+function fanOffsets(g) {
+  const n = g.pellets || 1;
+  return Array.from({ length: n }, (_, i) => (n > 1 ? T.shotSpread * (i / (n - 1) - 0.5) : 0));
+}
+
+// One shot: every pellet flies its own line from the gun and stops at the first target it crosses; then the kick.
+// The shot scores once, by its best pellet's zone. Each pellet damages separately. A pellet on an inactive boss part is neutral.
 function fire(run) {
   if (run.done || run.ammo <= 0) return;
   const g = run.gun, now = run.steps * STEP;
   if (now < run.nextFire - STEP - 1e-9) return; // one step of slack, so a tap at the nominal interval is not lost to step rounding
   run.nextFire = Math.max(now, run.nextFire) + 1 / g.fireRate; // held fire keeps the exact rate
-  const a = angleOf(run) * DEG, sn = Math.sin(a), cs = Math.cos(a);
-  const gx = T.gunX, gy = run.gunY;
+  const gx = T.gunX, gy = run.gunY, a0 = angleOf(run);
+  const lines = fanOffsets(g).map((off) => { const a = (a0 + off) * DEG; return { sn: Math.sin(a), cs: Math.cos(a) }; });
   let dodged = false;
   for (const tg of run.targets) {
     if (tg.kind !== 'dodge' || now < tg.nextDodge - 1e-9) continue;
     const vx = tg.x - gx, vy = tg.y - gy;
-    if (vx * cs - vy * sn > 0 && Math.abs(vx * sn + vy * cs) <= T.dodgeRange) { dodge(tg, now); dodged = true; }
+    if (lines.some((l) => vx * l.cs - vy * l.sn > 0 && Math.abs(vx * l.sn + vy * l.cs) <= T.dodgeRange)) { dodge(tg, now); dodged = true; }
   }
-  let hit = null, hitAlong = Infinity, hitPerp = 0;
-  for (const tg of run.targets) {
-    const vx = tg.x - gx, vy = tg.y - gy;
-    const along = vx * cs - vy * sn, perp = Math.abs(vx * sn + vy * cs);
-    if (along > 0 && perp <= targetRadius(tg) && along < hitAlong) { hit = tg; hitAlong = along; hitPerp = perp; }
-  }
-  const ev = { type: 'shot', x0: gx + cs * T.barrelLen, y0: gy - sn * T.barrelLen, hit: !!hit, dodged: dodged && !hit };
-  if (hit && hit.kind === 'part' && hit.idx !== run.stage) {
-    // A hit on an inactive boss part is neutral: no points, no damage, no combo change, not a hit. It spends the shot.
-    Object.assign(ev, { hit: false, neutral: true, x1: gx + cs * hitAlong, y1: gy - sn * hitAlong, streak: run.streak });
-  } else if (hit) {
-    const R = T.zoneR, sc = hit.sc;
-    const z = hit.flat ? 2 : hitPerp <= R[0] * sc * (hit.bullMul || 1) ? 0 : hitPerp <= R[1] * sc ? 1 : 2;
-    const mult = Math.min(T.comboCap, 1 + T.comboStep * run.streak);
-    const pts = Math.round(T.zonePoints[z] * mult);
-    run.score += pts; run.streak++; run.hits++;
-    if (z === 0) run.bulls++;
-    let killed = false;
-    if (hit.hp === undefined) killed = true;
-    else { hit.hp -= g.damage; killed = hit.hp <= 0; }
-    if (killed) {
-      run.targets.splice(run.targets.indexOf(hit), 1);
-      if (run.ch.ladder === 'accuracy') run.nextAt = now + T.accGap;
-      if (hit.kind === 'part') { run.stage++; if (run.stage >= run.list.parts.length) spawnCore(run, now); }
-      if (hit.kind === 'core') run.cleared = true;
+  const res = lines.map((l) => {
+    let tg = null, along = Infinity, perp = 0;
+    for (const t of run.targets) {
+      const vx = t.x - gx, vy = t.y - gy, al = vx * l.cs - vy * l.sn, pe = Math.abs(vx * l.sn + vy * l.cs);
+      if (al > 0 && pe <= targetRadius(t) && al < along) { tg = t; along = al; perp = pe; }
     }
-    Object.assign(ev, { x1: gx + cs * hitAlong, y1: gy - sn * hitAlong, tx: hit.x, ty: hit.y, zone: z, pts, mult, streak: run.streak, killed, damaged: hit.hp !== undefined });
+    const len = tg ? along : (T.designW - gx) / l.cs;
+    return { tg, perp, x1: gx + l.cs * len, y1: gy - l.sn * len, neutral: !!tg && tg.kind === 'part' && tg.idx !== run.stage };
+  });
+  const R = T.zoneR;
+  const zoneOf = (r) => (r.tg.flat ? 2 : r.perp <= R[0] * r.tg.sc * (r.tg.bullMul || 1) ? 0 : r.perp <= R[1] * r.tg.sc ? 1 : 2);
+  const scoring = res.filter((r) => r.tg && !r.neutral);
+  const mid = res[(res.length - 1) >> 1];
+  const ev = { type: 'shot', x0: gx + Math.cos(a0 * DEG) * T.barrelLen, y0: gy - Math.sin(a0 * DEG) * T.barrelLen, lines: res.map((r) => ({ x1: r.x1, y1: r.y1 })), x1: mid.x1, y1: mid.y1, hit: scoring.length > 0, dodged: dodged && !scoring.length, neutral: !scoring.length && res.some((r) => r.neutral) };
+  if (scoring.length) {
+    let best = scoring[0], bz = zoneOf(best);
+    for (const r of scoring) { const z = zoneOf(r); if (z < bz) { best = r; bz = z; } }
+    const mult = Math.min(T.comboCap, 1 + T.comboStep * run.streak);
+    const pts = Math.round(T.zonePoints[bz] * mult);
+    run.score += pts; run.streak++; run.hits++;
+    if (bz === 0) run.bulls++;
+    const down = new Set();
+    for (const r of scoring) {
+      if (r.tg.hp === undefined) down.add(r.tg);
+      else { r.tg.hp -= g.damage; if (r.tg.hp <= 0) down.add(r.tg); }
+    }
+    for (const tg of down) {
+      run.targets.splice(run.targets.indexOf(tg), 1);
+      if (run.ch.ladder === 'accuracy') run.nextAt = now + T.accGap;
+      if (tg.kind === 'part') { run.stage++; if (run.stage >= run.list.parts.length) spawnCore(run, now); }
+      if (tg.kind === 'core') run.cleared = true;
+      if (tg.group !== undefined) { run.pairHits[tg.group] = (run.pairHits[tg.group] || 0) + 1; if (run.pairHits[tg.group] >= 2) run.double = true; }
+    }
+    Object.assign(ev, { tx: best.tg.x, ty: best.tg.y, zone: bz, pts, mult, streak: run.streak, killed: down.size > 0, damaged: best.tg.hp !== undefined });
   } else {
-    if (!dodged) { run.streak = 0; run.misses++; }
-    const len = (T.designW - gx) / cs;
-    Object.assign(ev, { x1: gx + cs * len, y1: gy - sn * len, streak: run.streak });
+    if (!dodged && !ev.neutral) { run.streak = 0; run.misses++; }
+    ev.streak = run.streak;
   }
   run.events.push(ev);
   run.kick = Math.min(T.kickMax, run.kick + g.kickPerShot);
@@ -473,7 +495,10 @@ function stamp(run) {
   return run.steps * STEP + run.acc + Math.min(0.05, Math.max(0, (performance.now() - run.frameReal) / 1000));
 }
 
-function starsFor(ch, score) { return score >= ch.stars.three ? 3 : score >= ch.stars.two ? 2 : score >= ch.stars.one ? 1 : 0; }
+// Thresholds are pistol-derived. Boss 1 is the exception: a one-hit gun has only five scoring hits in it (about 1000 at best),
+// so the shotgun and rifle carry their own thresholds from their own perfect runs, or Boss Killer could never be earned.
+function thresholds(ch, gun) { return (ch.starsByGun && ch.starsByGun[gun]) || ch.stars; }
+function starsFor(ch, score, gun) { const t = thresholds(ch, gun); return score >= t.three ? 3 : score >= t.two ? 2 : score >= t.one ? 1 : 0; }
 
 // ---------- Save ----------
 
@@ -487,7 +512,56 @@ function isUnlocked(E, ch) {
 function pointsTotal(E) { return CHALLENGES.reduce((n, ch) => n + T.starPoints[starsOf(E, ch)], 0); }
 // Play on the menu: the first unlocked challenge with no stars yet, else the first challenge.
 function firstPlayable(E) { return CHALLENGES.find((ch) => isUnlocked(E, ch) && starsOf(E, ch) === 0) || CHALLENGES[0]; }
-function gunId(E) { const id = E.save.get('gun', 'pistol'); return T.guns[id] ? id : 'pistol'; }
+// ---------- Guns: unlocked by points ----------
+
+function gunUnlockedAt(points, id) { return points >= T.unlockPoints[GUN_IDS.indexOf(id)]; }
+function gunUnlocked(E, id) { return gunUnlockedAt(pointsTotal(E), id); }
+function gunId(E) { const id = E.save.get('gun', 'pistol'); return T.guns[id] && gunUnlocked(E, id) ? id : 'pistol'; }
+// The next gun to unlock, or null: { id, need, from } (points needed, threshold of the gun before it).
+function nextUnlock(points) {
+  const i = GUN_IDS.findIndex((id) => !gunUnlockedAt(points, id));
+  return i < 0 ? null : { id: GUN_IDS[i], need: T.unlockPoints[i], from: T.unlockPoints[i - 1] };
+}
+
+// ---------- Badges (v0.3 section B): skill acts, tiered ----------
+
+const TIER_COLOR = { Bronze: '#d08a4a', Silver: '#cbd5e1', Gold: '#fbbf24' };
+const BADGES = [
+  { id: 'marksman1', tier: 'Bronze', name: 'Marksman I', cond: 'Three stars on Accuracy 1' },
+  { id: 'quickdraw1', tier: 'Bronze', name: 'Quick Draw I', cond: 'Three stars on Speed 1' },
+  { id: 'clay1', tier: 'Bronze', name: 'Clay I', cond: 'Three stars on Skeet 1' },
+  { id: 'steady', tier: 'Silver', name: 'Steady', cond: 'Accuracy 4, three stars, carbine' },
+  { id: 'storm', tier: 'Silver', name: 'Storm', cond: 'Three stars on Speed 4' },
+  { id: 'double', tier: 'Silver', name: 'Double', cond: 'Hit both clays of a Skeet 2 pair' },
+  { id: 'bosskiller', tier: 'Gold', name: 'Boss Killer', cond: 'Boss 1 three stars, every gun' },
+  { id: 'gauntlet', tier: 'Gold', name: 'Gauntlet', cond: 'A2, S2, K2, B1 in a row, two stars each' },
+  { id: 'legend', tier: 'Gold', name: 'Legend', cond: 'Three stars on every challenge' },
+];
+
+// Badges a finished run earns that are not already `have`. o: { ch, gun, stars, double, gauntletDone, bests, bossGuns, have }.
+// bests and bossGuns already include this run.
+function newBadges(o) {
+  const id = o.ch.id, three = o.stars === 3;
+  const met = {
+    marksman1: id === 'a1' && three,
+    quickdraw1: id === 's1' && three,
+    clay1: id === 'k1' && three,
+    steady: id === 'a4' && three && o.gun === 'carbine',
+    storm: id === 's4' && three,
+    double: id === 'k2' && !!o.double,
+    bosskiller: id === 'b1' && three && GUN_IDS.every((g) => o.bossGuns[g]),
+    gauntlet: !!o.gauntletDone,
+    legend: CHALLENGES.every((c) => o.bests[c.id] && o.bests[c.id].stars === 3),
+  };
+  return BADGES.filter((b) => met[b.id] && !o.have[b.id]).map((b) => b.id);
+}
+
+// After a gauntlet stage: passes at two stars or better; done after the last stage.
+function gauntletStep(i, stars) {
+  const ok = stars >= 2, done = ok && i + 1 >= GAUNTLET.length;
+  return { i, ok, done, next: ok && !done ? GAUNTLET[i + 1] : null };
+}
+function badgeMap(E) { const b = E.save.get('badges', {}); return b && typeof b === 'object' ? b : {}; }
 
 // ---------- Drawing ----------
 
@@ -555,21 +629,30 @@ function drawRangeFinder(ctx, run) {
     ctx.beginPath(); ctx.arc(T.gunX + cs * d, run.gunY - sn * d, 2, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
+  if (run.gun.pellets > 1) { // the fan's outer pellets, faint
+    const offs = fanOffsets(run.gun);
+    ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = 0.22; ctx.lineWidth = 1;
+    for (const off of [offs[0], offs[offs.length - 1]]) {
+      const b = (angleOf(run) + off) * DEG;
+      ctx.beginPath(); ctx.moveTo(T.gunX + Math.cos(b) * d0, run.gunY - Math.sin(b) * d0); ctx.lineTo(T.gunX + Math.cos(b) * d1, run.gunY - Math.sin(b) * d1); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ---------- Play state ----------
 
 const S = {};
 
-function newRun(ch, id) {
-  S.ch = ch; S.gunId = id; S.run = makeRun(ch, id);
+function newRun(ch, id, gauntlet) {
+  S.ch = ch; S.gunId = id; S.run = makeRun(ch, id); S.gauntlet = gauntlet === undefined ? null : gauntlet;
   S.fx = []; S.endT = 0; S.drag = null; S.right = new Set(); S.breachAt = -1;
   S.run.frameReal = performance.now();
 }
 
 function cosmetics(E, ev) {
   if (ev.type === 'shot') {
-    S.fx.push({ k: 'tracer', x0: ev.x0, y0: ev.y0, x1: ev.x1, y1: ev.y1, t: T.tracerLife, max: T.tracerLife });
+    for (const l of ev.lines) S.fx.push({ k: 'tracer', x0: ev.x0, y0: ev.y0, x1: l.x1, y1: l.y1, t: T.tracerLife, max: T.tracerLife });
     S.fx.push({ k: 'flash', x: ev.x0, y: ev.y0, t: T.flashLife, max: T.flashLife });
     E.audio.play('tap'); E.haptic(8);
     if (ev.hit) {
@@ -585,12 +668,18 @@ function cosmetics(E, ev) {
 }
 
 function endRun(E) {
-  const r = S.run, ch = S.ch, stars = starsFor(ch, r.score);
+  const r = S.run, ch = S.ch, stars = starsFor(ch, r.score, r.gun.id);
   const prev = bests(E)[ch.id];
   const isNew = !prev || r.score > prev.score;
   if (isNew) E.save.update('best', (b) => ({ ...(b && typeof b === 'object' ? b : {}), [ch.id]: { score: r.score, stars } }), {});
   const bestStars = Math.max(stars, prev && prev.stars ? prev.stars : 0);
-  E.setScene('over', { id: ch.id, gun: r.gun.name, score: r.score, stars, best: isNew ? r.score : prev.score, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots });
+  let bossGuns = E.save.get('bossGuns', {});
+  if (!bossGuns || typeof bossGuns !== 'object') bossGuns = {};
+  if (ch.id === 'b1' && stars === 3 && !bossGuns[r.gun.id]) { bossGuns = { ...bossGuns, [r.gun.id]: 1 }; E.save.set('bossGuns', bossGuns); }
+  const gaunt = S.gauntlet === null ? null : gauntletStep(S.gauntlet, stars);
+  const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, gauntletDone: !!(gaunt && gaunt.done), bests: bests(E), bossGuns, have: badgeMap(E) });
+  if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
+  E.setScene('over', { id: ch.id, gun: r.gun.name, score: r.score, stars, best: isNew ? r.score : prev.score, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id) });
 }
 
 function meterText(r, ch) {
@@ -611,44 +700,70 @@ function menuLayout(E) {
       L.rows.push({ ladder, label, x, y: top + row * pitch, th, labelW: lab, tw, gap, n: count(ladder) });
     });
   };
+  const gunGrid = (x, y, w, pitch, h) => GUN_IDS.map((id, i) => ({ id, x: x + (i % 2) * ((w + 8) / 2), y: y + Math.floor(i / 2) * pitch, w: (w - 8) / 2, h }));
   if (land) {
-    const W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, lw = 236, H = 318;
+    const W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, lw = 236, H = 342;
     const y0 = Math.max(E.safe.top + 6, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
-    L.title = { x: x0 + lw / 2, y: y0 + 16 }; L.points = { x: x0 + lw / 2, y: y0 + 46 };
-    L.guns = GUN_IDS.map((id, i) => ({ id, x: x0, y: y0 + 66 + i * 52, w: lw, h: 46 }));
-    L.stat = { x: x0 + lw / 2, y: y0 + 178 };
-    L.play = { x: x0, y: y0 + 218, w: lw, h: 48 }; L.mute = { x: x0, y: y0 + 274, w: lw, h: 44 };
+    L.title = { x: x0 + lw / 2, y: y0 + 14 }; L.points = { x: x0 + lw / 2, y: y0 + 40 }; L.bar = { x: x0, y: y0 + 54, w: lw, h: 6 };
+    L.next = { x: x0 + lw / 2, y: y0 + 72 };
+    L.guns = gunGrid(x0, y0 + 84, lw, 54, 48);
+    L.stat = { x: x0 + lw / 2, y: y0 + 213 };
+    L.play = { x: x0, y: y0 + 242, w: lw, h: 48 };
+    L.missions = { x: x0, y: y0 + 298, w: (lw - 8) / 2, h: 44 }; L.mute = { x: x0 + (lw + 8) / 2, y: y0 + 298, w: (lw - 8) / 2, h: 44 };
     const rx = x0 + lw + 28;
     rowsAt(rx, E.safe.top + 56, x0 + W - rx, 66, 56);
   } else {
     const W = Math.min(E.w - 2 * side, 560), x0 = (E.w - W) / 2, y0 = E.safe.top + 14;
-    L.title = { x: E.w / 2, y: y0 + 16 }; L.points = { x: E.w / 2, y: y0 + 46 };
-    const gw = (W - 10) / 2;
-    L.guns = GUN_IDS.map((id, i) => ({ id, x: x0 + i * (gw + 10), y: y0 + 70, w: gw, h: 48 }));
-    L.stat = { x: E.w / 2, y: y0 + 140 };
-    rowsAt(x0, y0 + 182, W, 66, 56);
-    const by = y0 + 182 + 4 * 66 + 12, mw = 130;
-    L.play = { x: x0, y: by, w: W - mw - 10, h: 48 }; L.mute = { x: x0 + W - mw, y: by, w: mw, h: 48 };
+    L.title = { x: E.w / 2, y: y0 + 16 }; L.points = { x: E.w / 2, y: y0 + 44 }; L.bar = { x: x0, y: y0 + 58, w: W, h: 6 };
+    L.next = { x: E.w / 2, y: y0 + 76 };
+    L.guns = gunGrid(x0, y0 + 90, W, 56, 48);
+    L.stat = { x: E.w / 2, y: y0 + 226 };
+    rowsAt(x0, y0 + 262, W, 66, 56);
+    const by = y0 + 262 + 4 * 66 + 12;
+    L.play = { x: x0, y: by, w: W, h: 48 };
+    L.missions = { x: x0, y: by + 58, w: (W - 10) / 2, h: 48 }; L.mute = { x: x0 + (W + 10) / 2, y: by + 58, w: (W - 10) / 2, h: 48 };
   }
   return L;
+}
+
+// Splits text into lines no wider than maxW at the given size.
+function wrapText(ctx, str, maxW, size) {
+  ctx.font = `600 ${size}px system-ui, sans-serif`;
+  const lines = [];
+  let cur = '';
+  for (const w of str.split(' ')) {
+    const t = cur ? `${cur} ${w}` : w;
+    if (cur && ctx.measureText(t).width > maxW) { lines.push(cur); cur = w; } else cur = t;
+  }
+  if (cur) lines.push(cur);
+  return lines;
 }
 
 // ---------- Scenes ----------
 
 const menu = {
-  enter() { this.tiles = []; this.guns = []; this.btnPlay = null; this.btnMute = null; },
+  enter() { this.tiles = []; this.guns = []; this.btnPlay = null; this.btnMute = null; this.btnMissions = null; },
   render(ctx, E) {
-    const L = menuLayout(E), sel = T.guns[gunId(E)];
+    const L = menuLayout(E), sel = T.guns[gunId(E)], pts = pointsTotal(E), nx = nextUnlock(pts);
     E.text('RECOIL', L.title.x, L.title.y, { size: 30, weight: '800' });
-    E.text(`Points ${pointsTotal(E)}`, L.points.x, L.points.y, { size: 16, color: T.cyan });
+    E.text(`Points ${pts}`, L.points.x, L.points.y, { size: 16, color: T.cyan });
+    E.text(nx ? `Next: ${T.guns[nx.id].name} at ${nx.need}` : 'All guns unlocked', L.next.x, L.next.y, { size: 14, color: '#9aa4b2' });
+    E.roundRect(L.bar.x, L.bar.y, L.bar.w, L.bar.h, 3, '#1f2937');
+    const frac = nx ? clamp((pts - nx.from) / (nx.need - nx.from), 0, 1) : 1;
+    if (frac > 0) E.roundRect(L.bar.x, L.bar.y, Math.max(6, L.bar.w * frac), L.bar.h, 3, T.cyan);
     this.guns = L.guns;
     for (const b of L.guns) {
-      const g = T.guns[b.id], on = b.id === sel.id;
+      const g = T.guns[b.id], on = b.id === sel.id, open = gunUnlocked(E, b.id);
       E.roundRect(b.x, b.y, b.w, b.h, 10, on ? '#1a2338' : '#0c1220', on ? T.orange : '#1d2740');
-      E.text(g.name, b.x + b.w / 2, b.y + b.h / 2, { size: 16, weight: on ? '800' : '600', color: on ? '#ffffff' : '#94a3b8' });
+      if (open) E.text(g.short, b.x + b.w / 2, b.y + b.h / 2, { size: 14, weight: on ? '800' : '600', color: on ? '#ffffff' : '#94a3b8' });
+      else {
+        E.text(g.short, b.x + b.w / 2, b.y + 15, { size: 14, color: '#475569' });
+        E.text(`${T.unlockPoints[GUN_IDS.indexOf(b.id)]} points`, b.x + b.w / 2, b.y + 34, { size: 14, color: T.slateEdge });
+      }
     }
-    E.text(`Damage ${sel.damage}   ${sel.fireRate}/s   Range ${Math.round(sel.accuracy * 100)}%`, L.stat.x, L.stat.y, { size: 14, color: '#9aa4b2' });
-    E.text(sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 20, { size: 14, color: '#64748b' });
+    E.text(sel.name, L.stat.x, L.stat.y - 17, { size: 14, weight: '800', color: '#ffffff' });
+    E.text(`Damage ${sel.damage}${sel.pellets > 1 ? ` x${sel.pellets}` : ''}   ${sel.fireRate}/s   Range ${Math.round(sel.accuracy * 100)}%`, L.stat.x, L.stat.y, { size: 14, color: '#9aa4b2' });
+    E.text(sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 17, { size: 14, color: '#64748b' });
     this.tiles = [];
     for (const row of L.rows) {
       E.text(row.label, row.x, row.y + row.th / 2, { size: 14, align: 'left', color: '#9aa4b2' });
@@ -662,21 +777,63 @@ const menu = {
         this.tiles.push({ x, y: top, w: tw, h: th, ch, locked });
       });
     }
-    const p = L.play, m = L.mute;
+    const p = L.play, m = L.mute, ms = L.missions, earned = BADGES.filter((b) => badgeMap(E)[b.id]).length;
     this.btnPlay = E.button(`Play ${firstPlayable(E).name}`, p.x + p.w / 2, p.y + p.h / 2, { w: p.w, h: p.h, fill: T.orange, color: '#1a0a02', size: 18 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', m.x + m.w / 2, m.y + m.h / 2, { w: m.w, h: m.h, fill: T.slate, size: 15 });
+    this.btnMissions = E.button(`Missions ${earned}/${BADGES.length}`, ms.x + ms.w / 2, ms.y + ms.h / 2, { w: ms.w, h: ms.h, fill: '#1f2937', size: 14 });
+    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', m.x + m.w / 2, m.y + m.h / 2, { w: m.w, h: m.h, fill: T.slate, size: 14 });
   },
   onTap(p, E) {
     if (E.hit(this.btnPlay, p)) { E.setScene('play', { id: firstPlayable(E).id }); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
-    for (const b of this.guns) if (E.hit(b, p)) { E.save.set('gun', b.id); E.audio.play('tap'); return; }
+    if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
+    for (const b of this.guns) if (E.hit(b, p)) { if (gunUnlocked(E, b.id)) { E.save.set('gun', b.id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
     for (const t of this.tiles) if (!t.locked && E.hit(t, p)) { E.setScene('play', { id: t.ch.id }); return; }
+  },
+};
+
+// Missions: the badge tiers. Earned badges are lit; the rest show what earns them. The gauntlet starts here.
+const missions = {
+  enter() { this.back = null; this.btnGauntlet = null; },
+  render(ctx, E) {
+    const have = badgeMap(E), land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right);
+    const W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, top = E.safe.top + 62;
+    const earned = BADGES.filter((b) => have[b.id]).length;
+    this.back = E.button('Back', x0 + 42, E.safe.top + 30, { w: 84, h: 44, size: 15, fill: '#334155' });
+    E.text(`Missions  ${earned}/${BADGES.length}`, E.w / 2, E.safe.top + 30, { size: 20, weight: '800' });
+    const open = GAUNTLET.every((id) => isUnlocked(E, CHALLENGES.find((c) => c.id === id)));
+    const gw = land ? 120 : W, gy = land ? E.safe.top + 30 : top + BADGES.length * 66 + 8 + 24, gx = land ? x0 + W - 60 : E.w / 2;
+    this.btnGauntlet = E.button('Gauntlet', gx, gy, { w: gw, h: land ? 44 : 48, size: 15, fill: open ? T.orange : '#1f2937', color: open ? '#1a0a02' : '#64748b' });
+    BADGES.forEach((b, i) => {
+      const on = !!have[b.id], col = TIER_COLOR[b.tier];
+      if (land) {
+        const gap = 10, tw = (W - 2 * gap) / 3, th = 88, x = x0 + (i % 3) * (tw + gap), y = top + Math.floor(i / 3) * 96;
+        E.roundRect(x, y, tw, th, 12, on ? '#1a2338' : '#0c1220', on ? col : '#1d2740');
+        E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: 14, align: 'left', color: on ? col : '#475569' });
+        E.text(b.name, x + 12, y + 36, { size: 18, weight: '800', align: 'left', color: on ? '#ffffff' : '#94a3b8' });
+        wrapText(ctx, b.cond, tw - 24, 14).forEach((ln, k) => E.text(ln, x + 12, y + 58 + k * 18, { size: 14, align: 'left', color: on ? '#9aa4b2' : '#64748b' }));
+        if (on) drawStar(ctx, x + tw - 24, y + 24, 12, col);
+      } else {
+        const y = top + i * 66, th = 60;
+        E.roundRect(x0, y, W, th, 12, on ? '#1a2338' : '#0c1220', on ? col : '#1d2740');
+        E.text(b.name, x0 + 14, y + 18, { size: 16, weight: '800', align: 'left', color: on ? '#ffffff' : '#94a3b8' });
+        E.text(b.tier.toUpperCase(), x0 + W - 14, y + 18, { size: 14, align: 'right', color: on ? col : '#475569' });
+        E.text(b.cond, x0 + 14, y + 42, { size: 14, align: 'left', color: on ? '#9aa4b2' : '#64748b' });
+        if (on) drawStar(ctx, x0 + W - 28, y + 40, 9, col);
+      }
+    });
+    this.open = open;
+  },
+  onTap(p, E) {
+    if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    if (E.hit(this.btnGauntlet, p)) {
+      if (this.open) { E.audio.play('tap'); E.setScene('play', { id: GAUNTLET[0], gauntlet: 0 }); } else E.audio.play('tap', 0.3);
+    }
   },
 };
 
 const play = {
   enter(E, params) {
-    newRun(CHALLENGES.find((c) => c.id === (params && params.id)) || CHALLENGES[0], gunId(E));
+    newRun(CHALLENGES.find((c) => c.id === (params && params.id)) || CHALLENGES[0], gunId(E), params && params.gauntlet);
     this.menuBtn = null;
   },
 
@@ -799,20 +956,24 @@ const play = {
     if (key === 'Escape') E.setScene('menu');
     else if (key === ' ') queueInput(S.run, stamp(S.run), 'fire'); // key repeat fires at the gun's rate
   },
-  onPause() { newRun(S.ch, S.gunId); }, // closing the app mid-challenge restarts it
+  onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet); }, // closing the app mid-challenge restarts it
 };
 
 const over = {
   enter(E, params) {
     this.p = params; this.ch = CHALLENGES.find((c) => c.id === params.id); this.t0 = E.time;
-    this.next = CHALLENGES.find((c) => c.ladder === this.ch.ladder && c.level === this.ch.level + 1);
-    this.canNext = !!this.next && params.bestStars >= T.unlockStars;
+    const g = params.gaunt;
+    if (g) { this.next = g.next ? CHALLENGES.find((c) => c.id === g.next) : null; this.canNext = !!this.next; }
+    else {
+      this.next = CHALLENGES.find((c) => c.ladder === this.ch.ladder && c.level === this.ch.level + 1);
+      this.canNext = !!this.next && params.bestStars >= T.unlockStars;
+    }
     E.audio.play(params.stars >= 1 ? 'win' : 'lose'); E.haptic(30);
   },
   render(ctx, E) {
-    const p = this.p, ch = this.ch, cx = E.w / 2;
-    const H = 290, y0 = Math.max(E.safe.top + 8, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
-    E.text(`${ch.name}  ·  ${p.gun}`, cx, y0 + 10, { size: 16, color: '#9aa4b2' });
+    const p = this.p, ch = this.ch, cx = E.w / 2, g = p.gaunt;
+    const H = 310, y0 = Math.max(E.safe.top + 8, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
+    E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Gauntlet ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 10, { size: 16, color: '#9aa4b2' });
     E.text(`${p.score}`, cx, y0 + 56, { size: 46, weight: '800' });
     const age = E.time - this.t0;
     for (let i = 0; i < 3; i++) {
@@ -825,11 +986,17 @@ const over = {
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
     E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 158, { size: 16, color: '#cbd5e1' });
     E.text(p.isNew ? `New best ${p.best}` : `Best ${p.best}`, cx, y0 + 182, { size: 16, color: p.isNew ? T.orange : '#9aa4b2' });
-    E.text(`Stars at ${ch.stars.one} / ${ch.stars.two} / ${ch.stars.three}`, cx, y0 + 206, { size: 14, color: '#64748b' });
+    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}`, cx, y0 + 206, { size: 14, color: '#64748b' });
+    if (p.badges.length) { // a badge pop: the name scales in
+      const k = ease.outBack(clamp((age - 0.5) / 0.35, 0, 1)), names = p.badges.map((id) => BADGES.find((b) => b.id === id).name).join(', ');
+      const col = TIER_COLOR[BADGES.find((b) => b.id === p.badges[0]).tier];
+      if (k > 0) { drawStar(ctx, cx - 92 * k - names.length * 4, y0 + 236, 11 * k, col); E.text(`Badge earned: ${names}`, cx + 12, y0 + 236, { size: Math.round(16 * Math.min(1, k)) || 1, weight: '800', color: col }); }
+    } else if (g && !g.ok) E.text('Gauntlet over: two stars needed', cx, y0 + 236, { size: 16, color: T.red });
+    else if (g && g.done) E.text('Gauntlet complete', cx, y0 + 236, { size: 16, color: T.cyan });
     const btns = [['Again', T.orange, '#1a0a02', 'again']];
     if (this.canNext) btns.push(['Next', T.cyan, '#04141a', 'next']);
     btns.push(['Menu', T.slate, '#e6e6e6', 'menu']);
-    const bw = Math.min(140, (E.w - 32 - 16) / 3), by = y0 + 262;
+    const bw = Math.min(140, (E.w - 32 - 16) / 3), by = y0 + 282;
     this.btns = btns.map(([label, fill, color, act], i) => {
       const x = cx + (i - (btns.length - 1) / 2) * (bw + 12);
       return { act, ...E.button(label, x, by, { w: bw, h: 52, fill, color, size: 18 }) };
@@ -841,33 +1008,39 @@ const over = {
     if (!b) return;
     E.audio.play('tap');
     if (b.act === 'again') E.setScene('play', { id: this.ch.id });
-    else if (b.act === 'next') E.setScene('play', { id: this.next.id });
+    else if (b.act === 'next') E.setScene('play', this.p.gaunt ? { id: this.next.id, gauntlet: this.p.gaunt.i + 1 } : { id: this.next.id });
     else E.setScene('menu');
   },
 };
 
+// Handling experiment (v0.3 section C): how much fight in the gun is fun. Kick is per gun, so the sliders and presets tune the
+// pistol's kick; sway is shared by every gun.
 const EXPERIMENTS = [
-  { key: 'weaveAmp', label: 'Weave amplitude', min: 10, max: 80, step: 5 },
-  { key: 'skeetSpeed', label: 'Skeet launch speed', min: 300, max: 480, step: 10 },
-  { key: 'guns.carbine.accuracy', label: 'Carbine accuracy (range finder)', min: 0.3, max: 1, step: 0.05 },
+  { key: 'guns.pistol.kickPerShot', label: 'Pistol kick per shot (deg)', min: 2, max: 15, step: 0.5 },
   { key: 'swayPerSpeed', label: 'Sway per speed', min: 0, max: 0.06, step: 0.005 },
 ];
 const PRESETS = [
-  { label: 'Fair', values: { dodgeRange: 30, dodgeCooldown: 1.2 } },
-  { label: 'Twitchy', values: { dodgeRange: 45, dodgeCooldown: 0.8 } },
-  { label: 'Lazy', values: { dodgeRange: 20, dodgeCooldown: 1.8 } },
+  { label: 'Steady', values: { 'guns.pistol.kickPerShot': 5, swayPerSpeed: 0.01 } },
+  { label: 'Standard', values: { 'guns.pistol.kickPerShot': 8, swayPerSpeed: 0.02 } },
+  { label: 'Wild', values: { 'guns.pistol.kickPerShot': 12, swayPerSpeed: 0.04 } },
 ];
 const TUNE_KEYS = new Set([...EXPERIMENTS.map((e) => e.key), ...PRESETS.flatMap((p) => Object.keys(p.values))]);
 
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 3,
-  // v2 added the chosen gun and the new challenges; v3 prunes saved tune values to the declared keys (ADR-0014).
-  // Existing bests and stars carry over unchanged.
+  saveVersion: 4,
+  // Save shape: best { challengeId: { score, stars } }, gun (id), badges { badgeId: 1 }, bossGuns { gunId: 1 }, __tune, __muted.
+  // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
+  // that the existing bests already earn. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (!data.gun) data.gun = 'pistol';
+    if (!data.badges || typeof data.badges !== 'object') data.badges = {};
+    if (!data.bossGuns || typeof data.bossGuns !== 'object') data.bossGuns = {};
+    const b = data.best || {}, three = (id) => b[id] && b[id].stars === 3;
+    for (const [badge, id] of [['marksman1', 'a1'], ['quickdraw1', 's1'], ['clay1', 'k1'], ['storm', 's4']]) if (three(id)) data.badges[badge] = 1;
+    if (CHALLENGES.every((c) => three(c.id))) data.badges.legend = 1;
     if (data.__tune && typeof data.__tune === 'object') data.__tune = Object.fromEntries(Object.entries(data.__tune).filter(([k]) => TUNE_KEYS.has(k)));
     return data;
   },
@@ -875,5 +1048,5 @@ export const game = {
   experiments: EXPERIMENTS,
   presets: PRESETS,
   start: 'menu',
-  scenes: { menu, play, over },
+  scenes: { menu, play, over, missions },
 };

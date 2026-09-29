@@ -16,7 +16,7 @@ Guns unlock at points thresholds (points from the v0.1 rule: 10/25/50 per challe
 | --- | --- | --- | --- |
 | Service pistol | 0 | v0.2 | the baseline |
 | Carbine | 60 | v0.2 | fast, short range finder, hold to fire |
-| Shotgun | 150 | damage 1 per pellet, 5 pellets in a fixed deterministic fan of `shotSpread` degrees centred on the barrel, fireRate 2, accuracy 0.4, kick 14, recovery 30, mag 6 | boss parts and hordes; hopeless at far bullseyes |
+| Shotgun | 150 | damage 1 per pellet, 5 pellets in a fixed deterministic fan of `shotSpread` degrees centred on the barrel, fireRate 2.3 (interval shorter than its kick recovery of 0.47 s, per the v0.2 rule), accuracy 0.4, kick 14, recovery 30, mag 6 | boss parts and hordes; hopeless at far bullseyes |
 | Marksman rifle | 300 | damage 3, fireRate 1.5, accuracy 1.0, kick 16, recovery 20, mag 5 | one-shot boss parts, long waits; sway matters most |
 
 Pellet fans are deterministic: the same barrel angle gives the same five lines every time. A pellet scores its own zone; the shot's score is the best pellet's zone (not the sum), so the shotgun is about hitting, not about multiplying points. Each pellet deals damage separately to boss parts, which is the shotgun's reason to exist.
