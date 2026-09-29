@@ -116,3 +116,12 @@ Gun mastery:
 6. A legs-down zombie keeps its body hittable: the crawling pose moves the head forward and down but leaves at least half the body circle exposed, so legs, then body, then brain is a real order.
 7. Rule 5: the Endless force timer, the Endless wave size and the Kickback count move into TUNING.
 8. games/index.json status line updated for v0.5; the ledger writes the result before the mastery event; the changelog's newest line reads "Review: pending" until the review after this round clears it.
+
+## P. Release-gate fixes (from the v19 review; build before the first release)
+
+1. Shotgun scoring on hordes and zombies (replaces the O1 fallback for the shotgun): a horde member or zombie part hit by the centre pellet scores full; one hit only by an outer pellet scores half (damage unchanged). Bars for the shotgun on Speed 4, Speed 5 and Zombies 1 to 3 regenerate from the noisy bots under this rule; the O1 fallback stays as a safety net for any pair that still collapses, and the report lists any pair that does. Observable: a 3 degree shotgun bot lands in the two-star band or below at least 30 percent of the time on each of those rungs, and a 0.75 degree bot earns three stars at least 35 percent.
+2. Bar bots fire at the centre: the Accuracy 4 and 5 bar bot probed 24 units off the card so a quarter of probes never triggered the dodge; the straightforward rule (section O3) means a centre-firing bot with two shots per dodger. Regenerate a4 and a5 bars for every gun.
+3. First run only: a controls line for three seconds on the first play of a fresh save, "Left thumb drags the gun. Right thumb fires." (no other tutorial; the concept's no-tutorial rule stands for everything else). It is a plate like the Bunker intro.
+4. The Menu button and score never paint over a zombie's head: a near-lane Brute's head is drawn under the HUD; either lower the Brute's near-lane head or move the HUD plate; verify with the review's brute-shot script.
+5. Stats card: the shotgun's Reload row text clear of its bar; the over card's doubled "unlocked" fixed; the Endless card's "Brain shots" equal to the headshots credited.
+6. Rule 5: the zombie pose offsets in ZTYPES into TUNING.
