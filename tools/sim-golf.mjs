@@ -7,6 +7,8 @@
 //   node tools/sim-golf.mjs <hole.json> --escape                               escape sweep and 1500 chained random shots (PRD v0.2 D);
 //                                                                              black holes have no surface: swallows are counted
 //   node tools/sim-golf.mjs <hole.json> --three DX,DY[,CLOCK][/DX,DY[,CLOCK]...]  verify a three-star route (30/60/144 fps, jitter)
+//   node tools/sim-golf.mjs <hole.json> --two-shot [--step-deg 2 --step-px 6 --clocks 8 --cell 10 --workers N]
+//                                                                              untimed two-shot sinks from every tee-reachable rest
 //   node tools/sim-golf.mjs --index N ...                                      use hole N (0-based) from game.js instead of a file
 //   node tools/sim-golf.mjs --list                                             holes with star thresholds and boss flags
 //
@@ -15,14 +17,17 @@
 // seconds at release. Exit code 0 when every check run passes, 1 when one fails, 2 on a usage error.
 
 import { readFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { game } from '../games/gravity-golf/src/game.js';
 import { makeRng, hashString } from '../games/gravity-golf/src/engine.js';
 
 const T = game.TUNING, sim = game.sim, STEP = T.physicsStep;
+if (!isMainThread) console.log = () => {}; // a --two-shot worker thread reports through its message only
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const value = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
-const valueFlags = new Set(['--drag', '--clock', '--fps', '--index', '--three']);
+const valueFlags = new Set(['--drag', '--clock', '--fps', '--index', '--three', '--step-deg', '--step-px', '--clocks', '--cell', '--workers']);
 const positional = args.filter((a, i) => !a.startsWith('--') && !valueFlags.has(args[i - 1]));
 const die = (msg) => { console.error(`sim-golf: ${msg}`); process.exit(2); };
 const nums = (s, name, n) => { const v = String(s).split(',').map(Number); if (v.length < n || v.some((x) => !Number.isFinite(x))) die(`${name} needs ${n} numbers, comma separated`); return v; };
@@ -302,6 +307,94 @@ if (flag('--three')) {
   if (ok !== tot) fail('the three-star route is not robust');
 }
 
-if (!ran.any) die('nothing to do: give --drag, --sweep, --escape, --three or --list');
+if (flag('--two-shot')) {
+  ran.any = true;
+  // First shots from the tee over a grid of drags (and release clocks when there are movers) give the tee-reachable rests,
+  // one per `--cell` square (and per moon ridden); each keeps how many clocks its best first drag reaches it on. From each
+  // rest, every second drag on the same grid is tried at every clock: one that sinks on more than half of them is an
+  // untimed second shot, and a rest also reached on more than half the clocks makes a fully untimed route. Clocks are
+  // spread over the longest mover cycle. Both phases are split across `--workers` threads (default: one per core).
+  const deg = Number(value('--step-deg') ?? 2), px = Number(value('--step-px') ?? 6), cellU = Number(value('--cell') ?? 10);
+  if (!(deg > 0 && px > 0 && cellU > 0)) die('--step-deg, --step-px and --cell must be positive');
+  const cycle = (m) => (m.type === 'bar' ? (2 * Math.PI) / T.barAngularSpeed : m.period || T.moverPeriod);
+  const nClk = lv.movers.length ? Math.max(1, Math.round(Number(value('--clocks') ?? 8))) : 1;
+  const span = lv.movers.length ? Math.max(...lv.movers.map(cycle)) : 0;
+  const clocks = Array.from({ length: nClk }, (_, k) => +((k * span) / nClk).toFixed(4)), need = Math.floor(nClk / 2) + 1;
+  const drags = [];
+  for (let a = 0; a < 360; a += deg) for (let L = 15; L <= 150; L += px) { const r = (a * Math.PI) / 180; drags.push({ a, L, dx: L * Math.cos(r), dy: L * Math.sin(r), l: sim.launchFromDrag(L * Math.cos(r), L * Math.sin(r)) }); }
+  // Phase 1, for drags i0, i0 + n, ...: where each first drag rests, and on how many clocks.
+  const firstShots = (i0, n) => {
+    const out = [];
+    for (let i = i0; i < drags.length; i += n) {
+      const d = drags[i], seen = new Map();
+      for (const c of clocks) {
+        const b = sim.newBall(lv.ball.x, lv.ball.y), r = flight(b, d.l, c, null);
+        if (r.res !== 'rest' || r.swallowed) continue;
+        const key = `${Math.round(b.x / cellU)},${Math.round(b.y / cellU)},${b.on}`;
+        if (!seen.has(key)) seen.set(key, { i, key, n: 0, b: { ...b }, c, pen: r.penalties });
+        seen.get(key).n++;
+      }
+      out.push(...seen.values());
+    }
+    return out;
+  };
+  // Phase 2, for one rest: its untimed second shots, summarised by the widest run of sinking aims at one drag length.
+  const secondShots = (rest) => {
+    const hits = new Map();
+    for (const d of drags) {
+      let ok = 0, bad = 0, pen = 0;
+      for (const c of clocks) {
+        const b = { ...rest.b }; sim.carry(lv, b, c);
+        const r = flight(b, d.l, c, null);
+        if (r.res === 'sink') { ok++; pen = Math.max(pen, r.penalties); } else if (++bad > nClk - need) break;
+      }
+      if (ok >= need) { if (!hits.has(d.L)) hits.set(d.L, []); hits.get(d.L).push({ a: d.a, ok, pen }); }
+    }
+    if (!hits.size) return null;
+    let best = null;
+    for (const [L, list] of hits) {
+      let run = [];
+      const flush = () => { if (run.length && (!best || run.length > best.run.length)) best = { L, run: run.slice() }; };
+      for (const h of list) { if (run.length && Math.abs(h.a - run[run.length - 1].a - deg) > 1e-9) { flush(); run = []; } run.push(h); }
+      flush();
+    }
+    const mid = best.run[Math.floor(best.run.length / 2)];
+    return { key: rest.key, count: [...hits.values()].reduce((s, l) => s + l.length, 0), width: best.run.length * deg, L: best.L, a: mid.a, ok: mid.ok, strokes: 2 + rest.pen + mid.pen };
+  };
+  if (!isMainThread) { // a worker thread: do this share and hand it back
+    parentPort.postMessage(workerData.phase === 1 ? firstShots(workerData.i0, workerData.n) : workerData.rests.map(secondShots).filter(Boolean));
+    process.exit(0);
+  }
+  const W = Math.max(1, Math.round(Number(value('--workers') ?? availableParallelism())));
+  const wargv = [...(flag('--index') ? ['--index', value('--index')] : [positional[0]]), '--two-shot', '--step-deg', deg, '--step-px', px, '--clocks', nClk, '--cell', cellU].map(String);
+  const run = (data) => new Promise((ok, no) => { const w = new Worker(new URL(import.meta.url), { argv: wargv, workerData: data }); w.once('message', ok); w.once('error', no); });
+  const parts = await Promise.all(Array.from({ length: W }, (_, k) => run({ phase: 1, i0: k, n: W })));
+  const rests = new Map();
+  for (const s of parts.flat().sort((x, y) => x.i - y.i)) {
+    const d = drags[s.i];
+    if (!rests.has(s.key)) rests.set(s.key, { key: s.key, b: s.b, pen: s.pen, firstClocks: 0, first: '' });
+    const rest = rests.get(s.key);
+    if (s.n > rest.firstClocks) { rest.firstClocks = s.n; rest.first = `(${f1(d.dx)},${f1(d.dy)})${s.n === 1 && s.c ? ` at ${s.c}` : ''}`; }
+  }
+  const list = [...rests.values()], chunks = Array.from({ length: W }, (_, k) => list.filter((r, j) => j % W === k));
+  const found = (await Promise.all(chunks.map((rs) => run({ phase: 2, rests: rs })))).flat().map((f) => {
+    const rest = rests.get(f.key), rad = (f.a * Math.PI) / 180, untimedRoute = nClk > 1 && rest.firstClocks >= need;
+    return { ...f, untimedRoute, text: `rest (${f1(rest.b.x)}, ${f1(rest.b.y)})${rest.b.on >= 0 ? ' riding a moon' : ''} after ${rest.first}` +
+      `${nClk > 1 ? ` (reached on ${rest.firstClocks} of ${nClk} clocks${untimedRoute ? ', untimed' : ''})` : ''}: ${f.count} untimed drags; widest ${f.width.toFixed(1)} deg at ${f.L} px ` +
+      `around (${f1(f.L * Math.cos(rad))}, ${f1(f.L * Math.sin(rad))}), sinks on ${f.ok} of ${nClk} clock${nClk > 1 ? 's' : ''}, ${f.strokes} strokes` };
+  });
+  found.sort((x, y) => (y.untimedRoute - x.untimedRoute) || (y.width - x.width) || (x.key < y.key ? -1 : 1));
+  const both = found.filter((f) => f.untimedRoute);
+  console.log(`two-shot search: ${drags.length} drags (every ${deg} deg, 15 to 150 px every ${px} px) x ${nClk} clock${nClk > 1 ? `s (0 to ${span.toFixed(2)} s)` : ''}; ` +
+    `${rests.size} tee-reachable rests (${cellU}-unit cells); ${found.length} rests with an untimed second shot (sinks on more than half the clocks)` +
+    `${nClk > 1 ? `, ${both.length} of them also reached by a first shot on more than half the clocks (a fully untimed route)` : ''}`);
+  for (const f of found.slice(0, 8)) console.log(`  ${f.text}`);
+  if (found.length > 8) console.log(`  ... and ${found.length - 8} more rests`);
+  const fewest = found.length ? Math.min(...found.map((f) => f.strokes)) : Infinity;
+  if (fewest < lv.stars.three) fail(`an untimed two-shot route (${fewest} strokes) beats the three-star count (${lv.stars.three})`);
+  else if (fewest === lv.stars.three && lv.movers.length) console.log(`NOTE an untimed two-shot route matches the three-star count (${fewest}) on a hole with movers: check the timing lesson still holds`);
+}
+
+if (!ran.any) die('nothing to do: give --drag, --sweep, --escape, --three, --two-shot or --list');
 console.log(failed ? 'RESULT: FAIL' : 'RESULT: PASS');
 process.exit(failed ? 1 : 0);

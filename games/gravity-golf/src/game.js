@@ -272,7 +272,7 @@ const TUNING = {
       swirlRate: 0.55,        // Radians per second, clockwise
       ringRate: 0.45,         // Inward drifting rings per second
       rings: 3, ringAlpha: 0.55,
-      armAlpha: 0.5,
+      armAlpha: 1,            // Full strength: the arms read at about 4:1 on the field and stay far below the ball's white highlight
       lens: 1.7, lensAlpha: 0.5, // Soft purple glow just outside the horizon
       rimW: 2.2,              // Horizon ring width (design units)
       flareGrow: 0.5,         // Extra glow radius at the start of a swallow flare, in horizon radii
@@ -438,10 +438,11 @@ const LEVELS = [
     walls: [{ x: 0, y: 178, w: 290, h: 22 }, { x: 120, y: 70, w: 22, h: 108 }], planets: [{ x: 180, y: 400, r: 52, mass: 1.2 }], suns: [{ x: 140, y: 548, r: 20 }], movers: [{ type: "moon", parent: 0, orbitR: 96, period: 4, r: 12, mass: 0.4, phase: 0 }],
   },
   {
-    // Teaches timing a crossing comet: the planet and the wall gap force one line up the middle, and at release clock 0 the comet is on it, so let it pass. three: drag (3, 150) released at clock 0.5 (safe from about 0.2 to 1.4 s of the 1.47 s cycle, kicked at 0 to 0.15 and 1.45 to 1.65), one shot, passing 25 from the planet; aim window 4.85 degrees, drag 138.5 px to full power. two: (0, 60) lands on the planet, then (39, 129), both at clock 0.5. Sweep at clocks 0, 0.5 and 1.0: 0 straight sinks.
+    // Teaches timing a crossing comet: the planet and the wall gap force one line up the middle, and a slow, broad comet crosses it just under the door, so let it pass. three: drag (3, 150) released at clock 0.55 (safe from 0.27 to 0.88 s of the 1.2 s cycle; at 0 to 0.26 and 0.89 to 1.19 the comet knocks it back onto the planet), one shot, passing 25 from the planet; aim window 4.85 degrees, drag 138.5 px to full power. two: (0, 60) lands on the planet, then (39, 129) at clock 0.3. Sweep at clocks 0, 0.3, 0.55 and 0.9: 0 straight sinks.
+    // v0.3 (v11 review): the comet blocked the route on 13 percent of release clocks (a 440-unit path at 300 u/s); it now runs 110 units under the door at 92 u/s, r 18, 18 below the walls, and blocks 48 percent.
     name: "Comet Lane", boss: false, stars: { three: 1, two: 3 },
     ball: { x: 250, y: 590 }, hole: { x: 110, y: 110 },
-    walls: [{ x: 0, y: 177, w: 115, h: 22 }, { x: 265, y: 177, w: 95, h: 22 }], planets: [{ x: 170, y: 380, r: 44, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 400, y: 230 }, b: { x: -40, y: 230 }, period: 1.47, r: 16 }],
+    walls: [{ x: 0, y: 177, w: 115, h: 22 }, { x: 265, y: 177, w: 95, h: 22 }], planets: [{ x: 170, y: 380, r: 44, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 245, y: 235 }, b: { x: 135, y: 235 }, period: 1.2, r: 18 }],
   },
   {
     // Teaches skirting a black hole's pull for a bend: the wall blocks the straight line, so go up the right side and let the hole whip the ball over its top and left into the cup; aim a little closer and it is swallowed. three: drag (9, 150), one shot at full power, passing 45 from the horizon; aim window 5.2 degrees, drag 145.8 px to full power. two: (-30, 0) rests at (329, 568), then (25, 148); or a swallowed first try then (9, 150). Sweep: 0 straight sinks.
@@ -450,10 +451,11 @@ const LEVELS = [
     walls: [{ x: 0, y: 330, w: 210, h: 22 }], planets: [], suns: [], blackholes: [{ x: 180, y: 240 }], movers: [],
   },
   {
+    // v0.3 (v11 review): a lip on the door's right edge (150..170, up to y 282) and a fin (188..210, y 150..300) close the right wall top as a staging shelf: the shortcut (76, 124) then (29, 105), which rested on the wall top at (230.9, 291) and sank at every clock, now sinks 0 of 36. Both keep 18 from the comet paths. two (4 strokes): (-128, 57), (20, 128) at clock 1.0 is knocked back onto the planet, (8.8, 71.5) back to the top, (20, 128) at clock 1.4.
     // Teaches finding the gap between two comets: the wall shuts every line from the tee, so land on the planet, wait out the meteors, then fly the door at clock 1.4. three: (-128, 57) lands on the planet at (141.3, 442.3), then (20, 128) released at clock 1.4 (gap 1.20 to 1.58 s; at 1.0 or 1.8 a comet knocks it back), 0 bounces, sinks over 5.95 degrees of aim. Sweep at clocks 0, 0.5, 1.0, 1.4, 2.4: 0 straight sinks, 0 one-shot sinks of any kind from the tee.
     name: "Meteor Shower", boss: false, stars: { three: 2, two: 4 },
     ball: { x: 300, y: 585 }, hole: { x: 75, y: 120 },
-    walls: [{ x: 0, y: 300, w: 85, h: 22 }, { x: 150, y: 300, w: 210, h: 22 }], planets: [{ x: 110, y: 480, r: 40, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 55, y: 250 }, b: { x: 155, y: 250 }, period: 1, r: 14 }, { type: "comet", a: { x: 155, y: 195 }, b: { x: 55, y: 195 }, period: 1.4, r: 14 }],
+    walls: [{ x: 0, y: 300, w: 85, h: 22 }, { x: 150, y: 300, w: 210, h: 22 }, { x: 150, y: 282, w: 20, h: 18 }, { x: 188, y: 150, w: 22, h: 150 }], planets: [{ x: 110, y: 480, r: 40, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 55, y: 250 }, b: { x: 155, y: 250 }, period: 1, r: 14 }, { type: "comet", a: { x: 155, y: 195 }, b: { x: 55, y: 195 }, period: 1.4, r: 14 }],
   },
   {
     // Teaches a slingshot through a black hole's pull: the wall and the pull shut every line from the tee and the sun sits on the lazy tee-to-cup line, so land on the planet, then whip past the black hole and back to the cup. three: (68, -15) lands on the planet at (142.5, 452.6), then (-49, 142) at full power passes the horizon at 22.3 units without crossing it and sinks with 0 bounces over 7.3 degrees of aim. Lazy line (75, 130) hits the sun (+1) then is swallowed (3 strokes). Sweep: 0 straight sinks, 0 one-shot sinks of any kind.

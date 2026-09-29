@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'gravity-golf-v12';
+const CACHE_VERSION = 'gravity-golf-v13';
 const ASSETS = [
   './',
   './index.html',
