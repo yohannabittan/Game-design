@@ -1,9 +1,9 @@
-// Gravity Golf v0.3: planets, suns, rotating bars, orbiting moons, comets and black holes on the v0.1 mechanic, juice, scenes and the space look.
+// Gravity Golf v0.4: planets, suns, rotating bars, orbiting moons, comets and black holes on the v0.1 mechanic, juice, scenes and the space look.
 // Slingshot aim, fixed-step ball physics, strokes against per-hole star thresholds, the hole card, hole select.
 
 import { makeRng, hashString, ease, clamp, lerp, dist } from './engine.js';
 
-// Design-space units unless stated. Names match PRD v0.1 section 16, v0.2 section E and v0.3 section E; the rest are marked.
+// Design-space units unless stated. Names match PRD v0.1 section 16, v0.2 section E, v0.3 section E and v0.4 section D; the rest are marked.
 const TUNING = {
   designW: 360,          // Design space width
   designH: 640,          // Design space height
@@ -30,6 +30,10 @@ const TUNING = {
   bhMass: 1.4,           // Black hole pull strength as a planet mass (unless the black hole sets `mass`)
   bhPullR: 26,           // Distance below which a black hole's pull stops growing (equals the horizon)
   bhPenalty: 1,          // Strokes per swallow
+  bhReach: 150,          // PRD v0.4 A: a black hole's influence ring (unless it sets `reach`); inside it the pull is the full law
+  bhFade: 1.5,           // Between reach and bhFade times reach the pull fades smoothly to zero; beyond, the black hole does nothing
+  ghostSeconds: 3,       // PRD v0.4 B: the last shot's ghost keeps at most this much of the end of its flight
+  ghostAlpha: 0.32,      // How strongly the ghost's dots show
   previewFullHoles: 3,   // Holes 1 to this show the full preview
   previewFullSeconds: 2.0,   // Length of the full preview in simulated seconds
   previewShortSeconds: 0.4,  // Length of the preview after the full-preview holes
@@ -211,6 +215,7 @@ const TUNING = {
       bossAccent: '#e879f9', bannerBg: '#1a0d2e',
       moon: { light: '#c9d6ea', mid: '#8b9dbb', dark: '#46587a' }, moonCrater: '#5f7294', // cool blue-grey: the ball is the only white sphere
       amber: '#fbbf24', // the range finder warms white to amber; orange is kept for full power
+      violet: '#a78bfa', // the range finder while the shot's projected flight enters a black hole's influence ring
       orange: '#f97316', sunCore: '#fffbeb', sunMid: '#fde047', sunRim: '#ea580c', sunRay: '#fdba74',
       slate: '#64748b', slateLight: '#94a3b8', slateDark: '#334155', slateDeep: '#1e293b', // Walls, bars, bumpers, border
       white: '#ffffff', ballMid: '#e2e8f0', ballEdge: '#a3b1c6', ballRim: '#0b1226', ballSpin: '#5f6f8a',
@@ -268,7 +273,9 @@ const TUNING = {
       pathAlpha: 0.16,        // The faint dashed path from a to b
     },
     blackhole: {
-      arms: 3, armTurns: 0.45, reach: 2.3, // Swirl arms: count, turns from the outer end to the horizon, outer radius in horizon radii
+      arms: 3, armTurns: 0.7, // Swirl arms: count, and turns from the influence ring in to the horizon
+      armOuter: 0.3,          // The arms fade to this alpha at the influence ring
+      reachAlpha: 0.75, reachDash: [5, 7], reachW: 1.6, // The influence ring: a dashed circle at `reach` (design units for the dash and width)
       swirlRate: 0.55,        // Radians per second, clockwise
       ringRate: 0.45,         // Inward drifting rings per second
       rings: 3, ringAlpha: 0.55,
@@ -283,6 +290,7 @@ const TUNING = {
       spinMax: 12,            // Radians per second (a marking that turns faster than this only strobes)
       seam: 0.13,
     },
+    ghost: { dotR: 1.3, every: 2 }, // The last shot's ghost: dot radius, and one dot per this many trail samples
     trail: {
       minSpeed: 90,           // Below this the trail drains
       speedRef: 700,          // Speed at which the trail is at full strength
@@ -299,13 +307,14 @@ const TUNING = {
       backAlpha: 0.4, backGrow: 1,   // Dark backing under each dot for pale backgrounds
       gaugeGap: 5, gaugeW: 2.4, gaugeTrack: 0.22, // Power gauge ring around the ball
       capLen: 8, capW: 3, capGap: 5.5, capAlpha: 1, capGlowR: 13, capGlowA: 0.4, // Soft end cap of a preview cut by time
+      violetMin: 0.65,        // While violet (the path enters an influence ring) no dot fades below this, so every dot keeps 3:1 on the field
     },
     cup: {
       haloR: 2.3, haloIdle: 0.16, haloGlow: 0.5,
       glowIdle: 0.12, glowMax: 0.75, glowRate: 12, // Per second, easing toward the sinkable state
       flagH: 26, flagW: 13, flagRate: 3.2, flagWave: 1.4,
     },
-    tile: { number: 14, icon: 37, iconR: 10, sunR: 7, stars: 10, starR: 5.5 }, // Offsets from the tile top (stars from the bottom), design px
+    tile: { number: 14, icon: 37, iconR: 10, sunR: 7, stars: 10, starR: 5.5, bhReach: 1.45 }, // Offsets from the tile top (stars from the bottom), design px; bhReach: a badge black hole's ring in icon radii
     menu: { titleGap: 26, tabBottom: 42, starsGap: 40, gridGap: 34, missionsW: 150, rowGap: 12 }, // Title sits titleGap below the engine's TUNE tab (safe top + 42)
     missions: { top: 64, headH: 32, rowH: 58, rowGap: 6, medalR: 15, bottom: 156, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17, toastBand: 96 }, // rowH for a one-line condition; each extra line adds lineH. Back sits above toastBand: the engine's toast (24 px up, two lines) takes taps while it shows
     swatch: { size: 46, gap: 10, perRow: 6, headH: 26, rowGap: 10, ring: 3, ballR: 13 }, // The Skins block on the missions screen (swatches at least 44 px)
@@ -362,8 +371,9 @@ TUNING.bg = TUNING.art.palette.space; // the engine reads TUNING.bg for the lett
 //     { type: 'moon', parent, orbitR, period, r, mass, phase }: a small planet circling planets[parent] clockwise; phase is its angle at clock 0.
 //     { type: 'comet', a: { x, y }, b: { x, y }, period, r? }: a body crossing from a to b in period seconds, then back at a;
 //       no pull; contact adds cometPush times its velocity to the ball on top of a wallBounce reflection. r defaults to cometR.
-//   blackholes: { x, y, r?, mass? }: pulls like a planet of mass `mass` (bhMass) with the distance floored at bhPullR; a ball
-//     whose centre crosses the horizon (r, holeR2) is swallowed: bhPenalty strokes and back to where the shot started.
+//   blackholes: { x, y, r?, mass?, reach? }: pulls like a planet of mass `mass` (bhMass) with the distance floored at bhPullR
+//     inside its influence ring (reach, bhReach), fading smoothly to nothing at bhFade times the ring; a ball whose centre
+//     crosses the horizon (r, holeR2) is swallowed: bhPenalty strokes and back to where the shot started.
 //   A ball never comes to rest where a mover would sweep it (a bar's disc, a moon's orbit band, a slide's or comet's path); it waits
 //   there until the part knocks it on. A ball that lands on a moon rides it. So keep tees, cups and other objects clear of
 //   those zones, keep orbitR at least parent r + moon r + 2 ball radii, and keep moon orbits clear of walls and suns.
@@ -373,6 +383,7 @@ const LEVELS = [
   {
     // Teaches drag, power and release, and that a planet bends the flight: a straight shot curves into it, so aim off the line.
     // three: drag (14, 119), one shot, passing 38 units from the surface; sinks over 11 degrees of aim and 113 to 142 px of drag.
+    // v0.4 (PRD v0.4 C window rule): the route is drag (27, 102), passing farther left of the planet; it sinks over 17.1 degrees of aim and 93 to 128 px of drag, its whole-pixel neighbours over at least 16.25 degrees and 31.5 px ((14, 119) has a 10 px neighbour).
     name: 'First Light', boss: false, stars: { three: 1, two: 2 },
     ball: { x: 180, y: 530 }, hole: { x: 180, y: 200 },
     walls: [], planets: [{ x: 240, y: 360, r: 34, mass: 0.8 }], suns: [], movers: [],
@@ -395,12 +406,14 @@ const LEVELS = [
   },
   {
     // Teaches landing: the wall blocks every line from the tee to the cup (and banks), so put the first shot on the planet, then leave its right side and go straight up through the gap on the left. three: drag (86, 28) lands on the planet at (123, 528) (any shot at the planet lands there), then drag (-23, 143) sinks in one flight with 0 bounces. two (3 strokes): (91, 24) rests at (111, 553), (0, 30) rests at (122, 533), (-30, 142) sinks. Sweep from the tee: 0 straight sinks; last-shot aim window 9.6 degrees (-5.8 / +3.8), drag 131.8 px to full power.
+    // v0.4 (PRD v0.4 C window rule): the route lands on the planet's top instead: (114, 0) runs left under the planet, bounces off the left edge and curls onto its top at (89.9, 473.3), then (-7, 128) goes straight up through the gap over 12.1 degrees of aim and 120.7 px to full power (neighbours at least 11.95 degrees and 29.2 px); from v0.3's landing point the last shot has 18.2 px.
     name: "Landing", boss: false, stars: { three: 2, two: 3 },
     ball: { x: 300, y: 590 }, hole: { x: 95, y: 110 },
     walls: [{ x: 150, y: 300, w: 210, h: 22 }], planets: [{ x: 75, y: 520, r: 40, mass: 1 }], suns: [], movers: [],
   },
   {
     // Teaches the double pass between two planets: the lower planet blocks the line to the cup, the upper one sits under it, and the lower right wall shuts the corridor a tee shot would need, so land on the lower planet first, then launch from its top so it bends the ball toward the upper planet, which whips it over its top and down into the cup. three: drag (-7, 50) lands on the lower planet at (155.3, 410.2), then drag (54, 134) sinks with 0 bounces, passing the lower planet at 14.5 and the upper at 38.5. two (4 strokes): (-7, 50), (0, 20) rests (161.2, 404.0), (40, 30) rests (159.8, 405.3), (54, 134) sinks; (-7, 50), (0, 20), (54, 134) sinks in 3. Sweep from the tee: 0 straight sinks; last-shot aim window 7.5 degrees (-3.8 / +3.7), drag 137 px to full power.
+    // v0.4 (PRD v0.4 C window rule, boss): the route lands on the lower planet's top instead: (42, 0) rolls left, curls up round the lower planet and lands on its top at (205.9, 398.1), then (69, 118) sinks over 9.95 degrees of aim and 132.2 px to full power (neighbours at least 9.2 degrees and 17.4 px); from v0.3's landing point the last shot has 13 px.
     name: "Binary", boss: true, stars: { three: 2, two: 4 },
     ball: { x: 228, y: 581 }, hole: { x: 167, y: 110 },
     walls: [{ x: 73, y: 264, w: 22, h: 196 }, { x: 238, y: 470, w: 122, h: 22 }], planets: [{ x: 188, y: 435, r: 32, mass: 1.1 }, { x: 188, y: 223, r: 36, mass: 1.5 }], suns: [], movers: [],
@@ -445,10 +458,11 @@ const LEVELS = [
     walls: [{ x: 0, y: 177, w: 115, h: 22 }, { x: 265, y: 177, w: 95, h: 22 }], planets: [{ x: 170, y: 380, r: 44, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 245, y: 235 }, b: { x: 135, y: 235 }, period: 1.2, r: 18 }],
   },
   {
-    // Teaches skirting a black hole's pull for a bend: the wall blocks the straight line, so go up the right side and let the hole whip the ball over its top and left into the cup; aim a little closer and it is swallowed. three: drag (9, 150), one shot at full power, passing 45 from the horizon; aim window 5.2 degrees, drag 145.8 px to full power. two: (-30, 0) rests at (329, 568), then (25, 148); or a swallowed first try then (9, 150). Sweep: 0 straight sinks.
+    // Teaches skirting a black hole's pull for a bend: the wall blocks the straight line, so go up through the gap and let the black hole bend the ball round its right side and left into the cup; aim a little closer and it is swallowed. three: drag (40, 128), one shot, passing 64 from the horizon; aim window 12.55 degrees (-6.45 / +6.10), drag 119.6 px to full power. The greedy line (60, 120) is swallowed; the obvious straight shot at the cup (90, 120) hits the wall. two: straight up the right side, e.g. (-5, 70), rests outside the pull at (328.6, 179.6), then (73, 75) sinks over 10.2 degrees and 72.7 to 131.2 px. Sweep: 0 straight sinks.
+    // v0.4 (PRD v0.4 A, C): re-authored for the influence ring. v0.3's route sank only from 145.8 px to full power and every soft shot past the wall was swallowed; the black hole sits higher and farther left, the tee is closer to the wall, and the right side above the wall is outside the pull, so a two-stroke fallback rests there.
     name: "Event Horizon", boss: false, stars: { three: 1, two: 3 },
-    ball: { x: 290, y: 580 }, hole: { x: 70, y: 140 },
-    walls: [{ x: 0, y: 330, w: 210, h: 22 }], planets: [], suns: [], blackholes: [{ x: 180, y: 240 }], movers: [],
+    ball: { x: 310, y: 440 }, hole: { x: 55, y: 100 },
+    walls: [{ x: 0, y: 330, w: 245, h: 22 }], planets: [], suns: [], blackholes: [{ x: 100, y: 160 }], movers: [],
   },
   {
     // v0.3 (v11 review): a lip on the door's right edge (150..170, up to y 282) and a fin (188..210, y 150..300) close the right wall top as a staging shelf: the shortcut (76, 124) then (29, 105), which rested on the wall top at (230.9, 291) and sank at every clock, now sinks 0 of 36. Both keep 18 from the comet paths. two (4 strokes): (-128, 57), (20, 128) at clock 1.0 is knocked back onto the planet, (8.8, 71.5) back to the top, (20, 128) at clock 1.4.
@@ -458,16 +472,18 @@ const LEVELS = [
     walls: [{ x: 0, y: 300, w: 85, h: 22 }, { x: 150, y: 300, w: 210, h: 22 }, { x: 150, y: 282, w: 20, h: 18 }, { x: 188, y: 150, w: 22, h: 150 }], planets: [{ x: 110, y: 480, r: 40, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 55, y: 250 }, b: { x: 155, y: 250 }, period: 1, r: 14 }, { type: "comet", a: { x: 155, y: 195 }, b: { x: 55, y: 195 }, period: 1.4, r: 14 }],
   },
   {
-    // Teaches a slingshot through a black hole's pull: the wall and the pull shut every line from the tee and the sun sits on the lazy tee-to-cup line, so land on the planet, then whip past the black hole and back to the cup. three: (68, -15) lands on the planet at (142.5, 452.6), then (-49, 142) at full power passes the horizon at 22.3 units without crossing it and sinks with 0 bounces over 7.3 degrees of aim. Lazy line (75, 130) hits the sun (+1) then is swallowed (3 strokes). Sweep: 0 straight sinks, 0 one-shot sinks of any kind.
+    // Teaches a slingshot through a black hole's pull: the wall and the pull shut every line from the tee and the sun sits on the lazy tee-to-cup line, so land on the planet, then whip round the black hole's left side and up into the cup. three: (68, -15) lands on the planet at (139.9, 452.0), then (95, 86) passes the horizon at 37.6 units and sinks with 0 bounces; aim window 14.8 degrees (-4.25 / +10.55), drag 117.6 px to full power. Lazy line (85, 123) hits the sun (+1). two: (68, -15), (0, -30) shuffles to (120.4, 451.9), (95, 86) sinks. Sweep: 0 straight sinks.
+    // v0.4 (PRD v0.4 A, C): under the influence ring the v0.3 whip ((-49, 142) to a cup at (60, 110), outside the ring) sank only from 145.5 px to full power; the cup moves down to (80, 220), inside the ring, and the whip is re-authored. A one-shot double whip past the planet and the black hole exists from the tee (a 3.5 degree cluster at full power, around (111.5, 100.4)); it stays as an expert find.
     name: "Singularity", boss: false, stars: { three: 2, two: 4 },
-    ball: { x: 330, y: 580 }, hole: { x: 60, y: 110 },
+    ball: { x: 330, y: 580 }, hole: { x: 80, y: 220 },
     walls: [{ x: 215, y: 300, w: 145, h: 22 }], planets: [{ x: 130, y: 500, r: 40, mass: 1 }], suns: [{ x: 245, y: 430, r: 24 }], blackholes: [{ x: 120, y: 350 }], movers: [],
   },
   {
-    // Boss: land on the planet, time the moon to get through the door, then time the comet to run the top lane past the black hole into the cup. three: (10, 53) lands on the planet's upper right; (-74, 76) at clock 0.45 (window 0.2 to 0.7: at 0.05 the moon holds it on the door lip, at 0.85 the moon catches it) climbs through the door and sticks to the pillar; (-57, 69) at clock 0.5 (window 0.3 to 0.75: at 0.1 the comet kicks it back, at 0.9 it kicks it into the black hole) banks off the right wall, runs the top lane behind the comet and curls past the black hole into the cup. Last-shot aim window 5.95 degrees. Sweep: 0 straight sinks. Lesson not carried: the straight line at the cup is walled, not swallowed. A narrow two-stroke route may exist from the right shelf (search unfinished); if playtest finds it, close it with a bumper.
+    // Boss: land on the planet, time the moon to get through the door, then time the comet to cross the top lane past the black hole into the cup. three: (10, 53) lands on the planet's upper left at (114.7, 407.7); (-112, 100) at clock 0.8 (full power; the route still finishes for release clocks 0.1 to 1.8 of the 3.2 s moon cycle, 18 of 32 tried; otherwise the moon turns it away) rests at (327.3, 175.1); (-84, 68) at clock 0.5 (finishes for clocks 0.35 to 0.75 of the 1.2 s comet cycle, 9 of 24 tried; otherwise the comet knocks it away) banks off the right wall, crosses the top lane over the pillar, bounces off the ceiling and drops through the black hole's ring into the cup; aim window 7.0 degrees (-2.50 / +4.50), drag 100.1 px to full power. Sweep: 0 straight sinks. Lesson not carried: the straight line at the cup is walled, not swallowed.
+    // v0.4 (PRD v0.4 A, C): under the influence ring every shot of the v0.3 route changed (its black hole pulled across the whole field); the pillar top drops from y 90 to 120 (a wider top lane) and the comet now falls through the lane at x 200 (from y -20 to 110, r 18, 1.2 s) instead of running along the ceiling, so the last shot has a wide window at the right clock and misses on the rest. The black hole moves down from y 190 to 215, over the gap at the left end of the long wall: a timed two-stroke shortcut up that gap, whipped round the black hole into the cup (a 4 degree untimed second shot), is now swallowed.
     name: "Collapse", boss: true, stars: { three: 3, two: 5 },
     ball: { x: 40, y: 610 }, hole: { x: 80, y: 100 },
-    walls: [{ x: 30, y: 250, w: 242, h: 22 }, { x: 250, y: 90, w: 22, h: 160 }, { x: 245, y: 390, w: 115, h: 22 }], planets: [{ x: 130, y: 450, r: 36, mass: 0.8 }], suns: [], blackholes: [{ x: 28, y: 190 }], movers: [{ type: "moon", parent: 0, orbitR: 74, period: 3.2, r: 13, mass: 0.45, phase: 0 }, { type: "comet", a: { x: -70, y: 30 }, b: { x: 380, y: 30 }, period: 1.8 }],
+    walls: [{ x: 30, y: 250, w: 242, h: 22 }, { x: 250, y: 120, w: 22, h: 130 }, { x: 245, y: 390, w: 115, h: 22 }], planets: [{ x: 130, y: 450, r: 36, mass: 0.8 }], suns: [], blackholes: [{ x: 28, y: 215 }], movers: [{ type: "moon", parent: 0, orbitR: 74, period: 3.2, r: 13, mass: 0.45, phase: 0 }, { type: "comet", a: { x: 200, y: -20 }, b: { x: 200, y: 110 }, period: 1.2, r: 18 }],
   },
 ];
 // Clamps a hole to the size and mass limits and fills the optional fields; also applied by tools/sim-golf.mjs to a shard's JSON.
@@ -591,6 +607,15 @@ function bounceComet(b, m, i, clock) {
   } else if (b.cometIn & bit && dist(b.x, b.y, c.x, c.y) > m.r + T.ballR + T.cometRearm) b.cometIn &= ~bit;
 }
 
+// How much of a black hole's pull reaches (x, y): 1 inside its influence ring, fading smoothly to 0 at bhFade times the ring.
+function bhInfluence(h, x, y) {
+  const R = h.reach || T.bhReach, R1 = R * T.bhFade, d = dist(x, y, h.x, h.y);
+  if (d <= R) return 1;
+  if (d >= R1) return 0;
+  const u = (R1 - d) / (R1 - R);
+  return u * u * (3 - 2 * u);
+}
+
 function pull(b, x, y, r, mass) {
   const dx = x - b.x, dy = y - b.y, d = Math.hypot(dx, dy) || 1e-6, dd = Math.max(d, r);
   const a = (T.planetGravity * mass) / (dd * dd);
@@ -639,7 +664,7 @@ function stepBall(lv, b, clock) {
   ACC.x = 0; ACC.y = 0;
   for (const p of lv.planets) if (p.mass > 0) pull(b, p.x, p.y, p.r, p.mass);
   for (const m of lv.movers) if (m.type === 'moon') { const c = moonAt(lv, m, clock); pull(b, c.x, c.y, m.r, m.mass); }
-  for (const h of lv.blackholes) pull(b, h.x, h.y, T.bhPullR, h.mass);
+  for (const h of lv.blackholes) { const k = bhInfluence(h, b.x, b.y); if (k > 0) pull(b, h.x, h.y, T.bhPullR, h.mass * k); }
   const gx = ACC.x, gy = ACC.y;
   b.vx += gx * STEP; b.vy += gy * STEP;
   const hx = lv.hole.x - b.x, hy = lv.hole.y - b.y, hd = Math.hypot(hx, hy);
@@ -733,6 +758,27 @@ function previewPoints(lv, b, l, clock, seconds) {
     if (i % every === 0) { PV[n].x = PB.x; PV[n++].y = PB.y; }
   }
   return n;
+}
+
+// True when the shot, flown on with the preview's physics until it would stop, comes inside a black hole's influence ring:
+// the range finder turns violet (PRD v0.4 A). Only the finder's colour tells; the drawn preview keeps its length.
+const PR = newBall(0, 0);
+function flightEntersRing(lv, b, l, clock) {
+  if (!lv.blackholes.length) return false;
+  const v = launchVel(lv, b, l, clock);
+  Object.assign(PR, b); PR.vx = v.vx; PR.vy = v.vy; PR.on = -1;
+  if (inRing(lv, PR)) return true;
+  const steps = Math.round(T.maxFlightSeconds / STEP);
+  for (let i = 1; i <= steps; i++) {
+    const r = stepBall(lv, PR, clock + i * STEP);
+    if (inRing(lv, PR)) return true;
+    if (r) return false;
+  }
+  return false;
+}
+function inRing(lv, b) {
+  for (const h of lv.blackholes) if (dist(b.x, b.y, h.x, h.y) < (h.reach || T.bhReach)) return true;
+  return false;
 }
 
 // ---------- Helpers ----------
@@ -889,7 +935,6 @@ function buildGradients(ctx) {
     cometTail: linear(ctx, 0, 0, -1, 0, [0, rgba(P.cometHead, 0.85), 0.35, rgba(P.cometTail, 0.4), 1, rgba(P.cometTail, 0)]),
     bhLens: radial(ctx, 0, 0, 0.95, 0, 0, A.blackhole.lens, [0, rgba(P.bhGlow, 0.9), 0.3, rgba(P.bhSwirl, 0.35), 1, rgba(P.bhGlow, 0)]),
     bhCore: radial(ctx, 0, 0, 0, 0, 0, 1, [0, P.bhCore, 0.75, P.bhCore, 1, rgba(P.bhGlow, 0.9)]),
-    bhArms: spiralArms(),
   };
 }
 
@@ -899,17 +944,25 @@ function linear(ctx, x0, y0, x1, y1, stops) {
   return g;
 }
 
-// A black hole's swirl arms in horizon radii, from `reach` in to the horizon. They wind back against the clockwise spin,
-// so as they turn each arm's points slide inward.
-function spiralArms() {
-  const bh = A.blackhole, p = new Path2D();
-  for (let j = 0; j < bh.arms; j++) {
-    for (let i = 0; i <= 24; i++) {
-      const s = i / 24, rr = bh.reach - (bh.reach - 1) * s, a = (j * PI2) / bh.arms - s * bh.armTurns * PI2;
-      p[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+// A black hole's swirl arms in horizon radii, from the influence ring (q horizon radii out) in to the horizon, and the
+// stroke that fades them outward. They wind back against the clockwise spin, so as they turn each arm's points slide
+// inward. Built once per ring size.
+const ARMS = new Map();
+function spiralArms(ctx, q) {
+  const key = q.toFixed(2);
+  let s = ARMS.get(key);
+  if (!s) {
+    const bh = A.blackhole, p = new Path2D();
+    for (let j = 0; j < bh.arms; j++) {
+      for (let i = 0; i <= 48; i++) {
+        const u = i / 48, rr = q - (q - 1) * u, a = (j * PI2) / bh.arms - u * bh.armTurns * PI2;
+        p[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+      }
     }
+    s = { path: p, stroke: radial(ctx, 0, 0, 1, 0, 0, q, [0, rgba(P.bhSwirl, 1), 1, rgba(P.bhSwirl, bh.armOuter)]) };
+    ARMS.set(key, s);
   }
-  return p;
+  return s;
 }
 
 // Ball gradients per skin: the body (radial from the upper left, or a linear horizon band for chrome) and the shadow tint.
@@ -1233,19 +1286,22 @@ function drawComet(ctx, m, clock) {
 // `flare` runs 0 to 1 after a swallow.
 
 function drawBlackHole(ctx, h, t, flare) {
-  const bh = A.blackhole, r = h.r, f = 1 - flare;
-  ctx.save(); ctx.translate(h.x, h.y); ctx.scale(r, r);
+  const bh = A.blackhole, r = h.r, f = 1 - flare, q = (h.reach || T.bhReach) / r, arms = spiralArms(ctx, q);
+  ctx.save(); ctx.translate(h.x, h.y);
+  ctx.setLineDash(bh.reachDash); ctx.lineWidth = bh.reachW; ctx.strokeStyle = P.bhRim; ctx.globalAlpha = bh.reachAlpha; // the influence ring
+  ctx.beginPath(); ctx.arc(0, 0, q * r, 0, PI2); ctx.stroke(); ctx.setLineDash(NO_DASH);
+  ctx.scale(r, r);
   ctx.save(); const L = 1 + bh.flareGrow * f; ctx.scale(L, L);
   ctx.globalAlpha = Math.min(1, bh.lensAlpha + 0.5 * f); ctx.fillStyle = G.bhLens;
   ctx.beginPath(); ctx.arc(0, 0, bh.lens, 0, PI2); ctx.fill(); ctx.restore();
   ctx.lineCap = 'round'; ctx.strokeStyle = P.bhSwirl; ctx.lineWidth = A.line.hair / r;
   for (let i = 0; i < bh.rings; i++) { // rings drifting in to the horizon and fading as they arrive
-    const k = (t * bh.ringRate + i / bh.rings) % 1, rr = bh.reach - (bh.reach - 1) * k;
+    const k = (t * bh.ringRate + i / bh.rings) % 1, rr = q - (q - 1) * k;
     ctx.globalAlpha = bh.ringAlpha * Math.sin(Math.PI * k);
     ctx.beginPath(); ctx.arc(0, 0, rr, 0, PI2); ctx.stroke();
   }
   ctx.save(); ctx.rotate(t * bh.swirlRate);
-  ctx.globalAlpha = bh.armAlpha; ctx.lineWidth = (A.line.edge * 1.2) / r; ctx.stroke(G.bhArms);
+  ctx.globalAlpha = bh.armAlpha; ctx.lineWidth = (A.line.edge * 1.2) / r; ctx.strokeStyle = arms.stroke; ctx.stroke(arms.path);
   ctx.restore();
   ctx.globalAlpha = 1; ctx.fillStyle = G.bhCore; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
   ctx.strokeStyle = P.bhRim; ctx.lineWidth = bh.rimW / r; ctx.globalAlpha = 0.85 + 0.15 * f;
@@ -1350,7 +1406,7 @@ function iconOf(lv) {
 function drawBadge(ctx, lv, cx, cy, t) {
   const k = iconOf(lv), tl = A.tile, r = tl.iconR;
   if (k.kind === 'bh') {
-    BADGE_BH.x = cx; BADGE_BH.y = cy; BADGE_BH.r = r * 0.62;
+    BADGE_BH.x = cx; BADGE_BH.y = cy; BADGE_BH.r = r * 0.62; BADGE_BH.reach = r * tl.bhReach;
     drawBlackHole(ctx, BADGE_BH, t, 1);
     if (lv.boss) drawBossHalo(ctx, cx, cy, r);
   } else if (k.kind === 'comet') {
@@ -1375,7 +1431,7 @@ function drawBadge(ctx, lv, cx, cy, t) {
   if (k.moon) drawPlanet(ctx, cx + r * 1.35, cy - r * 0.95, r * 0.36, k.moon, k.moon.mass, lv.boss);
 }
 
-const BADGE_BH = { x: 0, y: 0, r: 0 }, BADGE_COMET = { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, period: 1, r: 0 };
+const BADGE_BH = { x: 0, y: 0, r: 0, reach: 0 }, BADGE_COMET = { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, period: 1, r: 0 };
 
 function drawBossHalo(ctx, cx, cy, r) {
   ctx.strokeStyle = P.bossAccent; ctx.lineWidth = A.line.hair; ctx.globalAlpha = 0.8;
@@ -1401,6 +1457,7 @@ function loadHole(idx) {
   S.aim = null;          // active pointer aim: { id, sx, sy, x, y }
   S.key = { on: false, angle: Math.atan2(lv.hole.y - lv.ball.y, lv.hole.x - lv.ball.x), power: T.keyPowerStart };
   S.sinkT = 0; S.sinkFrom = null;
+  ghostClear();
 }
 
 // The clock the moving parts are drawn at: the flight's own clock while it runs (and on through a swallow), the aiming clock otherwise.
@@ -1418,6 +1475,7 @@ function currentLaunch() {
 
 function launch(l) {
   S.strokes++;
+  ghostClear(); // the ghost goes at the release; this flight is recorded for the next one
   const v = launchVel(S.lv, S.ball, l, S.clock), f = S.from;
   f.x = S.ball.x; f.y = S.ball.y; f.on = S.ball.on; f.onA = S.ball.onA; f.planet = S.restPlanet;
   S.ball.vx = v.vx; S.ball.vy = v.vy; S.ball.on = -1;
@@ -1429,6 +1487,7 @@ function launch(l) {
 }
 
 function comeToRest() {
+  ghostKeep();
   S.ball.vx = S.ball.vy = 0;
   S.phase = 'aim';
   S.clock = 0;
@@ -1552,9 +1611,9 @@ function drawRing(ctx, x, y, r, w, col, a) {
 // The range finder: the honest simulation, drawn as dots that shrink and fade with distance (evenly spaced in simulated
 // time, so spacing shows speed), coloured like the ball and warming with power, with a brighter first segment. `maxN` is
 // the dot count of a full-length preview: a preview that reaches it was cut by time, so it ends in a soft cap; one that
-// stops earlier ended at a rest or the cup and gets none.
-function drawRange(ctx, b, l, n, maxN) {
-  const R = A.range, p = l.power, col = p >= 1 ? P.orange : WARM[Math.round(p * (WARM.length - 1))], grow = 1 + R.powerGrow * p, head = Math.min(n, R.firstDots);
+// stops earlier ended at a rest or the cup and gets none. `violet`: the shot's flight enters a black hole's influence ring.
+function drawRange(ctx, b, l, n, maxN, violet) {
+  const R = A.range, p = l.power, col = violet ? P.violet : p >= 1 ? P.orange : WARM[Math.round(p * (WARM.length - 1))], grow = 1 + R.powerGrow * p, head = Math.min(n, R.firstDots);
   const gr = T.ballR + R.gaugeGap;
   ctx.lineCap = 'round'; ctx.strokeStyle = col; ctx.lineWidth = R.gaugeW;
   ctx.globalAlpha = R.gaugeTrack; ctx.beginPath(); ctx.arc(b.x, b.y, gr, 0, PI2); ctx.stroke();
@@ -1573,7 +1632,7 @@ function drawRange(ctx, b, l, n, maxN) {
   ctx.fillStyle = col;
   for (let g = 0; g < n; g += R.dotGroup) { // dots in groups of dotGroup share one fill, and one alpha
     const mid = Math.min(n - 1, g + (R.dotGroup - 1) / 2);
-    ctx.globalAlpha = Math.min(1, lerp(R.a0, R.a1, mid / maxN) + (mid < R.firstDots ? R.headBoost : 0));
+    ctx.globalAlpha = Math.min(1, Math.max(violet ? R.violetMin : 0, lerp(R.a0, R.a1, mid / maxN) + (mid < R.firstDots ? R.headBoost : 0)));
     ctx.beginPath();
     for (let i = g; i < Math.min(n, g + R.dotGroup); i++) { const r = lerp(R.r0, R.r1, i / maxN) * grow; ctx.moveTo(PV[i].x + r, PV[i].y); ctx.arc(PV[i].x, PV[i].y, r, 0, PI2); }
     ctx.fill();
@@ -1586,6 +1645,28 @@ function drawRange(ctx, b, l, n, maxN) {
     ctx.beginPath(); ctx.moveTo(cx - uy * R.capLen, cy + ux * R.capLen); ctx.lineTo(cx + uy * R.capLen, cy - ux * R.capLen); ctx.stroke();
   }
   ctx.globalAlpha = 1;
+}
+
+// ----- The last shot's ghost (PRD v0.4 B): the end of the previous flight as faint dots, shown while aiming, cleared by Retry -----
+
+const GHOST_N = Math.ceil(T.ghostSeconds / (STEP * J.trailEvery));
+const GHOST = { rec: new Float32Array(2 * GHOST_N), head: 0, count: 0, show: new Float32Array(2 * GHOST_N), n: 0 };
+function ghostRecord(x, y) { // a ring of the last ghostSeconds of the flight in progress
+  GHOST.rec[2 * GHOST.head] = x; GHOST.rec[2 * GHOST.head + 1] = y;
+  GHOST.head = (GHOST.head + 1) % GHOST_N; GHOST.count = Math.min(GHOST.count + 1, GHOST_N);
+}
+function ghostKeep() { // the flight ended: its recording becomes the ghost, oldest first
+  const start = (GHOST.head - GHOST.count + GHOST_N) % GHOST_N;
+  for (let i = 0; i < GHOST.count; i++) { const k = (start + i) % GHOST_N; GHOST.show[2 * i] = GHOST.rec[2 * k]; GHOST.show[2 * i + 1] = GHOST.rec[2 * k + 1]; }
+  GHOST.n = GHOST.count; GHOST.count = 0; GHOST.head = 0;
+}
+function ghostClear() { GHOST.n = 0; GHOST.count = 0; GHOST.head = 0; }
+function drawGhost(ctx) {
+  if (!GHOST.n) return;
+  ctx.globalAlpha = T.ghostAlpha; ctx.fillStyle = P.trail; ctx.beginPath();
+  const g = A.ghost;
+  for (let i = 0; i < GHOST.n; i += g.every) { const x = GHOST.show[2 * i], y = GHOST.show[2 * i + 1]; ctx.moveTo(x + g.dotR, y); ctx.arc(x, y, g.dotR, 0, PI2); }
+  ctx.fill(); ctx.globalAlpha = 1;
 }
 
 // Per frame: glow follows the touch, pull rings speed up near the ball, the trail drains when the ball is not flying.
@@ -1961,6 +2042,7 @@ const play = {
       if (b.cometHits !== cometsBefore) cometFx(E);
       if (b.sunHits !== sunsBefore) { S.strokes += T.sunPenalty * (b.sunHits - sunsBefore); sunFx(E, b.sunLast); }
       if (S.steps % J.trailEvery === 0) {
+        ghostRecord(b.x, b.y);
         if (Math.hypot(b.vx, b.vy) < A.trail.minSpeed) trailDrop();
         else trailPush(b.x, b.y, SK.trail.badge || !planetNear(S.lv, b, S.clock0 + S.steps * STEP) ? SK.trail.col : planetColor(S.lv)); // a chosen trail keeps its colour
       }
@@ -2002,6 +2084,7 @@ const play = {
     drawCup(ctx, lv.hole.x, lv.hole.y, FX.cup, t);
     if (FX.sink < 1) drawRing(ctx, lv.hole.x, lv.hole.y, T.holeR + J.sinkRingR * FX.sink, 4, P.green, 1 - FX.sink);
 
+    if (S.phase === 'aim') drawGhost(ctx);
     drawTrail(ctx, b.x, b.y);
 
     const aiming = S.phase === 'aim' ? currentLaunch() : null;
@@ -2009,7 +2092,7 @@ const play = {
       FX.power = aiming.power;
       const seconds = S.idx < T.previewFullHoles ? T.previewFullSeconds : T.previewShortSeconds;
       const n = previewPoints(lv, b, aiming, S.clock, seconds);
-      drawRange(ctx, b, aiming, n, Math.floor(Math.round(seconds / STEP) / Math.round(T.previewDotEvery / STEP)));
+      drawRange(ctx, b, aiming, n, Math.floor(Math.round(seconds / STEP) / Math.round(T.previewDotEvery / STEP)), flightEntersRing(lv, b, aiming, S.clock));
     }
 
     for (let i = 0; i < mv.length; i++) if (mv[i].type === 'comet') drawComet(ctx, mv[i], clock);
@@ -2205,6 +2288,8 @@ export const game = {
     { key: 'friction', label: 'Friction (speed kept per s)', min: 0.15, max: 0.5, step: 0.01 },
     { key: 'powerMax', label: 'Max power', min: 500, max: 1100, step: 10 },
     { key: 'sunPenalty', label: 'Sun penalty', min: 0, max: 3, step: 1 },
+    { key: 'bhReach', label: 'Black hole reach', min: 100, max: 250, step: 5 },
+    { key: 'bhFade', label: 'Black hole fade (x reach)', min: 1.2, max: 2, step: 0.05 },
   ],
   // Read by tools/sim-golf.mjs so the simulator runs the real physics.
   sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt },

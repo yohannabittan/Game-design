@@ -9,6 +9,7 @@
 //   node tools/sim-golf.mjs <hole.json> --three DX,DY[,CLOCK][/DX,DY[,CLOCK]...]  verify a three-star route (30/60/144 fps, jitter)
 //   node tools/sim-golf.mjs <hole.json> --two-shot [--step-deg 2 --step-px 6 --clocks 8 --cell 10 --workers N]
 //                                                                              untimed two-shot sinks from every tee-reachable rest
+//   node tools/sim-golf.mjs <hole.json> --windows DX,DY[,CLOCK][/...]          the power-window rule (PRD v0.4 C) on a route's last shot
 //   node tools/sim-golf.mjs --index N ...                                      use hole N (0-based) from game.js instead of a file
 //   node tools/sim-golf.mjs --list                                             holes with star thresholds and boss flags
 //
@@ -27,7 +28,7 @@ if (!isMainThread) console.log = () => {}; // a --two-shot worker thread reports
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const value = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
-const valueFlags = new Set(['--drag', '--clock', '--fps', '--index', '--three', '--step-deg', '--step-px', '--clocks', '--cell', '--workers']);
+const valueFlags = new Set(['--drag', '--clock', '--fps', '--index', '--three', '--step-deg', '--step-px', '--clocks', '--cell', '--workers', '--windows']);
 const positional = args.filter((a, i) => !a.startsWith('--') && !valueFlags.has(args[i - 1]));
 const die = (msg) => { console.error(`sim-golf: ${msg}`); process.exit(2); };
 const nums = (s, name, n) => { const v = String(s).split(',').map(Number); if (v.length < n || v.some((x) => !Number.isFinite(x))) die(`${name} needs ${n} numbers, comma separated`); return v; };
@@ -395,6 +396,59 @@ if (flag('--two-shot')) {
   else if (fewest === lv.stars.three && lv.movers.length) console.log(`NOTE an untimed two-shot route matches the three-star count (${fewest}) on a hole with movers: check the timing lesson still holds`);
 }
 
-if (!ran.any) die('nothing to do: give --drag, --sweep, --escape, --three, --two-shot or --list');
+if (flag('--windows')) {
+  ran.any = true;
+  // PRD v0.4 C: the route's last shot, played from where the earlier shots rest and at its release clock, must sink over at
+  // least 20 px of drag and 4 degrees of aim at the same time (boss holes: 15 px and 3 degrees). Both windows are measured
+  // through the drag, as --sweep --drag does: the aim window at its drag length (0.05 degree steps) and the drag-length window
+  // along its aim (0.5 px steps, up to full power at dragMax: a longer drag is the same shot). So that a lucky line through a
+  // ragged sink region does not pass, the drag's 8 whole-pixel neighbours must meet the rule too. Sun and swallow penalties
+  // count as a miss.
+  const route = String(value('--windows')).split('/').map((sh) => { const [dx, dy, c = 0] = nums(sh, '--windows shot', 2); return { dx, dy, c }; });
+  const needPx = lv.boss ? 15 : 20, needDeg = lv.boss ? 3 : 4;
+  const b0 = sim.newBall(lv.ball.x, lv.ball.y);
+  for (const sh of route.slice(0, -1)) {
+    const l = sim.launchFromDrag(sh.dx, sh.dy);
+    if (!l) die('a shot of the route is inside the dead zone');
+    sim.carry(lv, b0, sh.c);
+    const r = flight(b0, l, sh.c, null);
+    if (r.res !== 'rest') die(`an earlier shot of the route ends in ${r.res}`);
+  }
+  const last = route[route.length - 1];
+  const sinksAt = (L, a) => {
+    const l = sim.launchFromDrag(L * Math.cos(a), L * Math.sin(a));
+    if (!l) return false;
+    const b = { ...b0 }; sim.carry(lv, b, last.c);
+    const r = flight(b, l, last.c, null);
+    return r.res === 'sink' && r.penalties === 0;
+  };
+  const st = (0.05 * Math.PI) / 180;
+  const windows = (dx, dy) => { // null when the drag does not sink
+    const L0 = Math.min(Math.hypot(dx, dy), T.dragMax), a0 = Math.atan2(dy, dx);
+    if (!sinksAt(L0, a0)) return null;
+    let lo = 0, hi = 0; while (lo < 3600 && sinksAt(L0, a0 - (lo + 1) * st)) lo++; while (hi < 3600 && sinksAt(L0, a0 + (hi + 1) * st)) hi++;
+    let p0 = L0, p1 = L0; while (p0 > T.dragDead && sinksAt(p0 - 0.5, a0)) p0 -= 0.5; while (p1 < T.dragMax && sinksAt(Math.min(T.dragMax, p1 + 0.5), a0)) p1 = Math.min(T.dragMax, p1 + 0.5);
+    return { aim: (lo + hi) * 0.05, lo: lo * 0.05, hi: hi * 0.05, p0, p1, pow: p1 - p0 };
+  };
+  const ok = (w) => w && w.aim >= needDeg && w.pow >= needPx;
+  const w = windows(last.dx, last.dy), from = route.length > 1 ? ` from (${f1(b0.x)}, ${f1(b0.y)})` : '';
+  if (!w) fail(`the route's last shot (${last.dx},${last.dy})${from} does not sink without a penalty`);
+  else {
+    let aimMin = Infinity, powMin = Infinity; const bad = [];
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      if (!i && !j) continue;
+      const n = windows(last.dx + i, last.dy + j);
+      aimMin = Math.min(aimMin, n ? n.aim : 0); powMin = Math.min(powMin, n ? n.pow : 0);
+      if (!ok(n)) bad.push(`(${last.dx + i},${last.dy + j}) ${n ? `${n.aim.toFixed(2)} deg, ${f1(n.pow)} px` : 'does not sink'}`);
+    }
+    console.log(`windows of the last shot (${last.dx},${last.dy})${last.c ? ` at clock ${last.c}` : ''}${from}: aim ${w.aim.toFixed(2)} deg (-${w.lo.toFixed(2)} / +${w.hi.toFixed(2)}), ` +
+      `drag ${f1(w.p0)} to ${w.p1 >= T.dragMax ? 'full power' : f1(w.p1)} px = ${f1(w.pow)} px; its 8 whole-pixel neighbours: at least ${aimMin.toFixed(2)} deg and ${f1(powMin)} px; ` +
+      `rule ${needDeg} deg and ${needPx} px${lv.boss ? ' (boss)' : ''}`);
+    for (const m of bad) console.log(`  under the rule: ${m}`);
+    if (!ok(w) || bad.length) fail(`the last shot is under the power-window rule (${needDeg} deg of aim and ${needPx} px of drag at the same time)`);
+  }
+}
+
+if (!ran.any) die('nothing to do: give --drag, --sweep, --escape, --three, --two-shot, --windows or --list');
 console.log(failed ? 'RESULT: FAIL' : 'RESULT: PASS');
 process.exit(failed ? 1 : 0);
