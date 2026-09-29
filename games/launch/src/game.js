@@ -133,6 +133,9 @@ const TUNING = {
     splat: 16, mudShake: 6, mudShakeTime: 0.25,
     bannerTime: 1.8, countUp: 0.6, cardSlide: 0.35,
     holdHint: 3,           // seconds "Hold to boost" shows on the first flight after buying Rocket 1
+    tapHint: 2.5,          // seconds "Tap to boost" shows from the top of a fresh save's first arc
+    pipPulse: 0.6,         // the fuel pips pulse once with it
+    ghostPull: 0.95,       // the ghost thumb's stroke, as a power (at least 0.9: PRD amendment 2 after the v4 gate)
     stars: 90,
     haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20 },
   },
@@ -147,19 +150,67 @@ const DEG = Math.PI / 180;
 // Fairness rules every template keeps (tools/sim-launch.mjs --check proves them over many seeds): a spring comes before
 // the first mud of a chunk, no two mud patches without a spring between, and no stretch of 150 m without a spring.
 
-// The fixed first chunk teaches: a spring where a clean full-pull launch first lands, a bird on the way down from it (the
-// bounce carries the critter over a spring to the next one), then the first mud with that spring before it. A launch that
-// misses the bird comes down on the middle spring instead.
+// The first chunk teaches, and it is laid out for this flight's full-pull range (Band and Aero change it), so no purchase
+// can make a habitual full pull worse (PRD amendment 1 after the v4 release gate). From a clean pull at `angle`:
+//   spring A catches the first landing of every power in `powers` (a careless short pull too);
+//   a bird sits on the full pull's way down from A, where the critter is `birdHeight` up; its bounce lands on spring C;
+//   the middle spring M catches the second landing of every power in `powers` that misses the bird;
+//   the first mud comes after C, with C before it.
+// The layout is found by flying the real physics (setup only: the same levels always give the same chunk).
 const FIRST_CHUNK = {
   name: 'First flight',
-  objects: [
-    { kind: 'spring', x: 670, y: 0, w: 320 },
-    { kind: 'bird', x: 1853, y: 192 },
-    { kind: 'spring', x: 1500, y: 0, w: 820 },
-    { kind: 'spring', x: 2600, y: 0, w: 180 },
-    { kind: 'mud', x: 2850, y: 0, w: 120 },
-  ],
+  angle: 40, powers: [0.6, 1], powerStep: 0.02, // from a short pull to a full one
+  padA: [30, 40],          // units of spring A before the weakest and after the strongest first landing
+  birdHeight: 180,         // the critter's height on the way down where the bird meets it (units)
+  padM: [30, 60],          // units of spring M before and after the second landings it catches
+  halfC: 90,               // half the width of spring C around the bird bounce's landing
+  gapM: 60,                // units kept between A and M, and between M and C
+  mudGap: 70, mudW: 120,   // the first mud patch, after C
+  tail: 250,               // units after the mud to the chunk's end (at least chunkLen in all)
 };
+
+// A probe flight at `power` over `field` with no input, to its first contact after `after` contacts.
+function probe(up, power, field, after = 0) {
+  const r = newRun(0, { angle: FIRST_CHUNK.angle, power }, up, field);
+  let n = 0, path = [];
+  while (!r.ended && r.steps < 20000) {
+    const mode = r.mode;
+    stepRun(r);
+    const hit = r.ev.some((e) => e.k !== 'boost') || (mode === 'air' && r.mode === 'ground');
+    r.ev.length = 0;
+    if (n === after && r.mode === 'air') path.push([r.x, r.y, r.vy, flightTime(r)]);
+    if (hit && n++ === after) return { x: r.x, path };
+  }
+  return { x: r.x, path };
+}
+
+const TEACH = new Map(); // layouts by upgrade levels that change the unboosted path
+function teachingChunk(up) {
+  const key = `${up.band || 0},${up.aero || 0}`;
+  if (TEACH.has(key)) return TEACH.get(key);
+  const F = FIRST_CHUNK, open = () => ({ seed: 0, rng: null, ground: [], birds: [], end: 1e12, chunks: 1 });
+  const spring = (x0, x1) => ({ kind: 'spring', x0, x1, w: x1 - x0, h: 0, spent: false });
+  const powers = []; for (let p = F.powers[0]; p <= F.powers[1] + 1e-9; p += F.powerStep) powers.push(+p.toFixed(3));
+  // A: the first landings.
+  const first = powers.map((p) => probe(up, p, open()).x);
+  const A = spring(Math.round(Math.min(...first) - F.padA[0]), Math.round(Math.max(...first) + F.padA[1]));
+  const withA = () => { const f = open(); f.ground.push({ ...A }); return f; };
+  // The bird: on the full pull's way down from A.
+  const down = probe(up, F.powers[1], withA(), 1).path.find(([, y, vy]) => vy < 0 && y <= F.birdHeight);
+  const bird = { x0: Math.round(down[0] - T.birdSwing * Math.sin((down[3] / T.birdPeriod) * Math.PI * 2)), y: Math.round(F.birdHeight + T.critterR), phase: 0, hit: false };
+  // C: where the bird's bounce comes down.
+  const fb = withA(); fb.birds.push({ ...bird });
+  const x3 = probe(up, F.powers[1], fb, 2).x;
+  const C = spring(Math.round(x3 - F.halfC), Math.round(x3 + F.halfC));
+  // M: the second landings of the pulls that miss the bird.
+  // (a weak pull's second landing on A itself, now spent, is plain ground: it had its spring)
+  const second = powers.map((p) => probe(up, p, withA(), 1).x).filter((x) => x > A.x1 && x < C.x0);
+  const M = spring(Math.round(Math.max(A.x1 + F.gapM, Math.min(...second) - F.padM[0])), Math.round(Math.min(C.x0 - F.gapM, Math.max(...second) + F.padM[1])));
+  const mud = { kind: 'mud', x0: C.x1 + F.mudGap, x1: C.x1 + F.mudGap + F.mudW, w: F.mudW, h: 0, spent: false };
+  const out = { ground: [A, M, C, mud], bird, len: Math.max(T.chunkLen, Math.ceil((mud.x1 + F.tail) / 100) * 100) };
+  TEACH.set(key, out);
+  return out;
+}
 
 // tiers: which distance tiers (TUNING.tierFrom) may draw the template.
 const CHUNKS = [
@@ -215,9 +266,12 @@ const CHUNKS = [
 
 function tierAt(metres) { let t = 0; T.tierFrom.forEach((m, i) => { if (metres >= m) t = i; }); return t; }
 
-function makeField(seed) {
+function makeField(seed, up = T.upgrades) {
   const f = { seed, rng: makeRng(seed), ground: [], birds: [], end: 0, chunks: 0 };
-  addChunk(f, FIRST_CHUNK, false);
+  const t = teachingChunk(up);
+  for (const g of t.ground) f.ground.push({ ...g });
+  f.birds.push({ ...t.bird });
+  f.end = t.len; f.chunks = 1;
   return f;
 }
 
@@ -282,10 +336,9 @@ function launchFromDrag(dx, dy) {
   return { angle: ang, power: Math.min(1, L / T.pullMax) };
 }
 
-function newRun(seed, launch, up = T.upgrades) {
+function newRun(seed, launch, up = T.upgrades, field = null) {
   const st = stats(up), sp = launch.power * st.launchSpeed, a = launch.angle * DEG;
-  const field = makeField(seed);
-  ensureField(field, 0);
+  if (!field) { field = makeField(seed, up); ensureField(field, 0); }
   return {
     seed, launch, up: { ...up }, st, field,
     x: 0, y: T.slingH, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, u: 0,
@@ -640,7 +693,7 @@ function drawWorld(ctx, E, v, c, r, pull, hint) {
     ctx.fillRect(X(wx) - 1, gy + 12 * s, 2, (big ? 10 : 5) * s);
   }
   ctx.globalAlpha = 1;
-  for (let wx = Math.ceil(c.x / (5 * u10)) * 5 * u10; wx < c.x + span + u10; wx += 5 * u10) if (wx > 0) E.text(`${wx / T.unitsPerMetre} m`, X(wx), gy + 34 * s, { size: TY.sm, color: P.text, weight: '600' });
+  for (let wx = Math.ceil(c.x / (5 * u10)) * 5 * u10; wx < c.x + span + u10; wx += 5 * u10) if (wx > 0) E.text(`${wx / T.unitsPerMetre} m`, X(wx), Math.min(gy + 34 * s, E.h - E.safe.bottom - 10), { size: TY.sm, color: P.text, weight: '600' });
 
   // The slingshot: a wooden fork with a rubber band (drawn behind the critter, band in front).
   const fx = X(0), fy = (h) => gy - h * z * s, forkTop = fy(T.slingH + 14), forkMid = fy(T.slingH - 6), fw = 9 * s * z;
@@ -665,10 +718,11 @@ function drawWorld(ctx, E, v, c, r, pull, hint) {
     }
   }
 
-  if (hint) { // a fresh save's first launch: a ghost thumb pulling back and down, behind the critter
-    const k = (E.time % 1.6) / 1.2;
+  if (hint) { // a fresh save's first launch: a ghost thumb pulling back and down along a clean pull, behind the critter
+    const k = (E.time % 1.6) / 1.2, L = J.ghostPull * T.pullMax, a = FIRST_CHUNK.angle * DEG; // the stroke is a pull of ghostPull power
     if (k <= 1) {
-      const hx = X(0) + (90 - 80 * k) * s, hy = gy - (T.slingH + 60) * s + 60 * k * s;
+      const x0 = X(0) + 40 + Math.cos(a) * L * 0.5, y0 = gy - (T.slingH + 40) * s - Math.sin(a) * L;
+      const hx = x0 - Math.cos(a) * L * k, hy = y0 + Math.sin(a) * L * k;
       ctx.globalAlpha = 0.55 * Math.sin(Math.PI * k);
       ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
       ctx.beginPath(); ctx.arc(hx, hy, 16 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
@@ -729,6 +783,7 @@ function drawSpring(ctx, x, gy, w, s, spent, pop) {
   ctx.stroke();
   const ph = 5 * s;
   roundRectPath(ctx, x, gy - hgt - ph, w, ph, ph / 2);
+  ctx.strokeStyle = P.halo; ctx.lineWidth = T.style.line * s * 2.4; ctx.stroke(); // the light halo keeps 3:1 on the dusk sky
   ctx.fillStyle = spent ? P.tealSpent : P.teal; ctx.fill();
   ctx.strokeStyle = P.ink; ctx.lineWidth = T.style.line * s * 0.8; ctx.stroke();
   if (!spent) { ctx.fillStyle = P.tealLight; ctx.fillRect(x + ph, gy - hgt - ph + 1.2 * s, Math.max(0, w - 2 * ph), 1.4 * s); }
@@ -804,7 +859,7 @@ function updateFx(dt) {
     e.t -= dt;
     if (e.t <= 0) { S.fx[i] = S.fx[S.fx.length - 1]; S.fx.pop(); continue; }
     e.vy += e.g * dt; e.x += e.vx * dt; e.y += e.vy * dt;
-    if (e.k === 'tumble') e.rot += e.spin * dt;
+    if (e.k === 'tumble') { e.rot += e.spin * dt; if (e.y < T.birdR) { e.y = T.birdR; e.vx = e.vy = e.g = e.spin = 0; } } // it lands on the band
   }
   for (const [g, p] of S.pops) { p.t -= dt; if (p.t <= 0) S.pops.delete(g); }
 }
@@ -861,7 +916,8 @@ function drawHud(E, r, fuel, fuelMax, info) {
   E.text('Fuel', x0, top + 10, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
   for (let i = 0; i < fuelMax; i++) {
     const k = clamp(fuel - i, 0, 1), popping = S.gaugePop > 0 && i === Math.floor(fuel + 1e-6);
-    const g = popping ? 1 + 0.5 * (S.gaugePop / J.gaugePop) : 1, cx = x0 + i * 18 + 7, cy = y0 + 1;
+    const pulse = S.pipT > 0 ? 0.35 * Math.sin(Math.PI * (1 - S.pipT / J.pipPulse)) : 0; // every pip pulses once with "Tap to boost"
+    const g = (popping ? 1 + 0.5 * (S.gaugePop / J.gaugePop) : 1) + pulse, cx = x0 + i * 18 + 7, cy = y0 + 1;
     E.roundRect(cx - 7 * g, cy - 7 * g, 14 * g, 14 * g, 4, P.panelSolid, P.panelEdge);
     if (k > 0) E.roundRect(cx - 5, cy + 5 - 10 * k, 10, 10 * k, 3, P.coin);
   }
@@ -873,6 +929,7 @@ function drawHud(E, r, fuel, fuelMax, info) {
     E.ctx.globalAlpha = 1;
   }
   if (S.holdT > 0) { E.ctx.globalAlpha = clamp(S.holdT / 0.3, 0, 1); pill(E, 'Hold to boost', E.w / 2, sf.top + 100, TY.md); E.ctx.globalAlpha = 1; }
+  else if (S.tapT > 0) { E.ctx.globalAlpha = clamp(S.tapT / 0.3, 0, 1); pill(E, 'Tap to boost', E.w / 2, sf.top + 100, TY.md); E.ctx.globalAlpha = 1; }
 }
 
 // ---------- Scenes ----------
@@ -909,6 +966,7 @@ const play = {
     S.fx.length = 0; S.pops = new Map(); S.sq = { amt: 0, t: 0 }; S.creak = 0;
     S.snapT = 0; S.speedT = 0; S.gaugePop = 0; S.distPop = 0; S.chainT = 0; S.banner = null; S.holdT = 0;
     S.teachHold = S.up.rocket >= 1 && !E.save.get('holdTaught', false);
+    S.teachTap = E.save.get('flights', 0) === 0; S.tapT = 0; S.pipT = 0; S.prevVy = 0; S.quit = false;
   },
   stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)); },
   launch(E, l) {
@@ -922,7 +980,7 @@ const play = {
   update(dt, E) {
     S.frameReal = performance.now();
     const r = S.run;
-    for (const k of ['nudge', 'snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT']) if (S[k] > 0) S[k] -= dt;
+    for (const k of ['nudge', 'snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT', 'tapT', 'pipT']) if (S[k] > 0) S[k] -= dt;
     if (S.sq.t > 0) S.sq.t -= dt;
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
     updateFx(dt);
@@ -933,6 +991,9 @@ const play = {
       if (r.st.hold && !r.ended) queueInput(r, this.stamp(r), 'holdOff');
     }
     advance(r, dt);
+    if (S.teachTap && r.mode === 'air' && S.prevVy > 0 && r.vy <= 0) { S.teachTap = false; S.tapT = J.tapHint; S.pipT = J.pipPulse; } // the top of the first arc
+    if (r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone')) S.teachTap = false; // only the first arc teaches
+    S.prevVy = r.vy;
     for (const e of r.ev) this.onEvent(e, E);
     r.ev.length = 0;
     if (r.holding && Math.random() < 0.5) emit('flame', r.x, r.y + T.critterR, 1, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.6, speed: 120, g: 0, life: J.flameLife, size: 3, color: P.flame });
@@ -981,7 +1042,8 @@ const play = {
   onPointerMove(p, E) {
     if (S.run || !S.pull || p.id !== S.pid) return;
     S.pull.dx = p.x - S.pull.sx; S.pull.dy = p.y - S.pull.sy;
-    const pw = Math.min(1, Math.hypot(S.pull.dx, S.pull.dy) / T.pullMax);
+    const raw = Math.hypot(S.pull.dx, S.pull.dy), pw = Math.min(1, raw / T.pullMax);
+    if (raw >= T.dragDead) S.nudge = 0; // "Pull further" clears the moment a valid pull starts
     if (Math.abs(pw - S.creak) >= J.creakStep) { S.creak = pw; SFX.creak(E, pw); } // the band creaks as it stretches
   },
   onPointerUp(p, E) {
@@ -1028,9 +1090,13 @@ const play = {
     drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.st.fuelMax : S.st.fuelMax, r ? info : null);
     if (!r && (short || S.nudge > 0)) { E.ctx.globalAlpha = short ? 1 : clamp(S.nudge / 0.3, 0, 1); pill(E, 'Pull further', info.sx, info.sy - 40, TY.md); E.ctx.globalAlpha = 1; }
   },
-  onPause(E) { // closing mid-flight discards it (PRD section 3); the ledger notes the quit
+  onPause(E) { // backgrounding mid-flight ends it (PRD section 3, amendment 6 after the v4 gate): logged once as a quit; back to the menu
     const r = S.run;
-    if (r && !r.ended) E.ledger.add('quit', { m: metres(r), t: +flightTime(r).toFixed(1), seed: r.seed });
+    if (!r || S.quit) return;
+    S.quit = true;
+    if (!r.ended) E.ledger.add('quit', { m: metres(r), t: +flightTime(r).toFixed(1), seed: r.seed });
+    else finishFlight(E, r); // it had already stopped: keep its coins
+    E.setScene('menu');
   },
 };
 
@@ -1046,7 +1112,7 @@ const over = {
     ctx.fillStyle = P.shadow; ctx.fillRect(0, 0, E.w, E.h);
     const aw = E.w - sf.left - sf.right, ah = E.h - sf.top - sf.bottom;
     const pw = Math.min(440, aw - 32), ph = Math.min(310, ah - 24), px = sf.left + (aw - pw) / 2;
-    const py = sf.top + (ah - ph) / 2 + (1 - this.k) * (E.h - sf.top);
+    const py = Math.max(sf.top + 4, sf.top + (ah - ph) / 2 + (1 - this.k) * (E.h - sf.top)); // the slide's overshoot never passes the top
     E.roundRect(px, py, pw, ph, 18, P.panelSolid, P.panelEdge);
     const cx = px + pw / 2, count = clamp((E.time - this.t0 - J.cardSlide) / J.countUp, 0, 1);
     E.text(p.why === 'mud' ? 'Stuck in mud' : 'Flight over', cx, py + 30, { size: TY.sm + 2, color: P.textDim, weight: '600' });
@@ -1096,7 +1162,7 @@ export const game = {
     { key: 'airDrag', label: 'Air drag', min: 0, max: 0.1, step: 0.005 },
   ],
   // Read by tools/sim-launch.mjs so the harness runs the real physics.
-  sim: { STEP, FIRST_CHUNK, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, previewArc, UPGRADES, effectText, predictLanding, newCamera, cameraStep, toView },
+  sim: { STEP, FIRST_CHUNK, teachingChunk, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, previewArc, UPGRADES, effectText, predictLanding, newCamera, cameraStep, toView },
   start: 'menu',
   scenes: { menu, play, over, shop },
 };

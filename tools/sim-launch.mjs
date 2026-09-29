@@ -195,15 +195,15 @@ function cameraFlight(seed, up) {
   return { m: sim.metres(r), cams: cams.map(({ sz, c, apex, ...rest }) => rest) };
 }
 
-// The review's sloppy human: aims 40 degrees with 3 degrees of noise (normal), pulls to the launch speed of a base full pull
-// (with Band levels the arc preview shows a full pull overshooting the first spring), and fires a burst of every
+// The review's sloppy human: aims 40 degrees with 3 degrees of noise (normal), always pulls fully (a full pull is a full pull,
+// whatever the Band level), and fires a burst of every
 // pulse 0.15 to 0.4 s apart, starting 0.15 to 0.4 s after the second spring (or after the first plain-ground touch, if that
 // comes first: the player sees the chain is broken). With the Rocket the burst is one press, held until the arc tops out.
 function sloppyFlight(seed, up) {
   const rng = makeRng(seed * 104729 + 7);
   const gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
   const angle = 40 + 3 * gauss(), gaps = Array.from({ length: 12 }, () => rng.range(0.15, 0.4));
-  const r = sim.newRun(seed, { angle, power: 1 / (1 + T.bandStep * (up.band || 0)) }, up);
+  const r = sim.newRun(seed, { angle, power: 1 }, up);
   let springs = 0, fired = false, holding = false;
   while (!r.ended) {
     if (holding && r.mode === 'air' && r.vy <= 0) { sim.queueInput(r, r.steps * STEP, 'holdOff'); holding = false; }
@@ -219,6 +219,17 @@ function sloppyFlight(seed, up) {
     r.ev.length = 0;
     sim.stepRun(r);
   }
+  return { m: sim.metres(r), angle, coins: sim.coinsOf(r) };
+}
+
+// The release-gate reviewer's careless player: a pull of 90 plus or minus 40 px (so rarely full), 40 plus or minus 15 degrees,
+// and two taps somewhere in the first three seconds of the flight.
+function carelessFlight(seed, up) {
+  const rng = makeRng(seed * 7727 + 3);
+  const L = 90 + (rng() * 2 - 1) * 40, angle = 40 + (rng() * 2 - 1) * 15, taps = [rng.range(0.2, 3), rng.range(0.2, 3)].sort((a, b) => a - b);
+  const r = sim.newRun(seed, { angle, power: Math.min(1, L / T.pullMax) }, up);
+  for (const t of taps) sim.queueInput(r, t, 'pulse');
+  while (!r.ended) { r.ev.length = 0; sim.stepRun(r); }
   return { m: sim.metres(r), angle, coins: sim.coinsOf(r) };
 }
 
@@ -295,8 +306,9 @@ if (flag('--why')) {
 
 if (flag('--clean')) {
   ran = true;
-  // A clean launch: no boost on the way to the first spring, then every pulse on the rising half of the arc the first spring
-  // gives, fired as soon as it rises. The field past the first chunk is seeded, so the proof holds on every seed tried.
+  // A clean launch: no boost until two springs, then every pulse on the rising half of the next arc, fired as soon as it
+  // rises. The field past the teaching chunk is seeded, so the proof is run on every seed; then again at every Band and
+  // Aero level (PRD amendment 1 after the v4 gate: no purchase may make a habitual full pull worse).
   const seeds = Array.from({ length: nSeeds(200) }, (_, i) => i + 1), none = parseUp('');
   const cleanCtl = () => { let springs = 0, last = -1; return (r) => {
     for (const e of r.ev) if (e.k === 'spring') springs++;
@@ -327,6 +339,14 @@ if (flag('--clean')) {
   console.log(`  powers at 40 deg whose first landing is the teaching spring: ${runs(first, 0.01)}`);
   const grid = []; for (let a = 30; a <= 50; a += 1) for (let p = 0.8; p <= 1.0001; p += 0.02) if (minOver(a, +p.toFixed(2)) >= 500) grid.push(1);
   console.log(`  of the 21 x 11 grid 30 to 50 deg by power 0.80 to 1.00: ${grid.length} cells reach 500 m on every seed`);
+  console.log(`  at every Band and Aero level (40 deg, all pulses after the second spring): lowest distance at full pull over ${seeds.length} seeds; powers reaching 500 m on every seed`);
+  for (let b = 0; b <= T.upgradeMax; b++) for (let a = 0; a <= T.upgradeMax; a++) {
+    const up = parseUp(`band=${b},aero=${a}`), flyU = (p, s) => fly(s, { angle: 40, power: p }, up, cleanCtl());
+    let low = Infinity; for (const s of seeds) low = Math.min(low, sim.metres(flyU(1, s)));
+    const ok = []; for (let p = 0.84; p <= 1.0001; p += 0.02) { let m = Infinity; for (const s of seeds) { m = Math.min(m, sim.metres(flyU(+p.toFixed(2), s))); if (m < 500) break; } if (m >= 500) ok.push(+p.toFixed(2)); }
+    console.log(`    band ${b} aero ${a}: lowest ${low} m at full pull; powers ${runs(ok, 0.02)}`);
+    if (low < 500) fail(`band ${b} aero ${a}: a clean full pull does not reach 500 m on every seed`);
+  }
 }
 
 if (flag('--expert')) {
@@ -427,27 +447,35 @@ if (flag('--buys')) {
 
 if (flag('--pacing')) {
   ran = true;
-  // A fresh save flown by the sloppy human, one seed per flight (1, 2, ...), buying the cheapest next level as soon as it is
-  // affordable; coins are the flight's coins plus the one-time milestone bonuses.
+  // A fresh save flown by one player model, one seed per flight (1, 2, ...), buying the cheapest next level as soon as it is
+  // affordable; coins are the flight's coins plus the one-time milestone bonuses. Two models: the review's sloppy human (full
+  // pull, noisy aim, a burst of taps) and the release-gate reviewer's careless player (short pulls, wide aim, two taps).
   const keys = ['band', 'fuel', 'aero', 'rocket'], M = T.upgradeMax, maxFlights = Number(value('--flights') ?? 300);
-  let u = { band: 0, fuel: 0, aero: 0, rocket: 0 }, coins = 0, flights = 0, earned = 0;
-  const reached = new Set(), rows = [], dists = [];
-  const next = () => keys.filter((k) => u[k] < M).map((k) => ({ k, price: T.upgradePrices[k][u[k]] })).sort((a, b) => a.price - b.price)[0];
-  while (next() && flights < maxFlights) {
-    const f = sloppyFlight(++flights, u);
-    let bonus = 0; T.milestones.forEach((m, i) => { if (f.m >= m && !reached.has(m)) { reached.add(m); bonus += T.milestoneBonus[i]; } });
-    coins += f.coins + bonus; earned += f.coins + bonus; dists.push(f.m);
-    for (let n = next(); n && coins >= n.price; n = next()) {
-      coins -= n.price; u = { ...u, [n.k]: u[n.k] + 1 };
-      const recent = dists.slice(-10).sort((a, b) => a - b);
-      rows.push(`| ${rows.length + 1} | ${n.k} ${u[n.k]} | ${n.price} | ${flights} | ${earned} | ${recent[Math.floor(recent.length / 2)]} |`);
+  const pace = (name, flightFn) => {
+    let u = { band: 0, fuel: 0, aero: 0, rocket: 0 }, coins = 0, flights = 0, earned = 0;
+    const reached = new Set(), rows = [], dists = [];
+    const next = () => keys.filter((k) => u[k] < M).map((k) => ({ k, price: T.upgradePrices[k][u[k]] })).sort((a, b) => a.price - b.price)[0];
+    while (next() && flights < maxFlights) {
+      const f = flightFn(++flights, u);
+      let bonus = 0; T.milestones.forEach((m, i) => { if (f.m >= m && !reached.has(m)) { reached.add(m); bonus += T.milestoneBonus[i]; } });
+      coins += f.coins + bonus; earned += f.coins + bonus; dists.push(f.m);
+      for (let n = next(); n && coins >= n.price; n = next()) {
+        coins -= n.price; u = { ...u, [n.k]: u[n.k] + 1 };
+        const recent = dists.slice(-10).sort((a, b) => a - b);
+        rows.push({ flight: flights, text: `| ${rows.length + 1} | ${n.k} ${u[n.k]} | ${n.price} | ${flights} | ${earned} | ${recent[Math.floor(recent.length / 2)]} |` });
+      }
     }
-  }
-  console.log(`sloppy human from a fresh save, cheapest next level first:`);
-  console.log('| buy | upgrade | price | after flight | coins earned so far | median of the last 10 flights (m) |');
-  console.log('| --- | --- | --- | --- | --- | --- |');
-  for (const r of rows) console.log(r);
-  if (next()) console.log(`not finished after ${maxFlights} flights`);
+    console.log(`${name} from a fresh save, cheapest next level first (coins per flight so far: ${(earned / flights).toFixed(0)}):`);
+    console.log('| buy | upgrade | price | after flight | coins earned so far | median of the last 10 flights (m) |');
+    console.log('| --- | --- | --- | --- | --- | --- |');
+    for (const r of rows) console.log(r.text);
+    if (next()) console.log(`not finished after ${maxFlights} flights`);
+    return rows;
+  };
+  const sloppy = pace('sloppy human', sloppyFlight);
+  const careless = pace('careless player', carelessFlight);
+  if (!sloppy.length || sloppy[0].flight > 5) fail('the sloppy human\'s first purchase comes after flight 5');
+  if (!careless.length || careless[0].flight > 10) fail('the careless player\'s first purchase comes after flight 10');
 }
 
 if (flag('--camera')) {
