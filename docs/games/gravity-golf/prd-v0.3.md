@@ -52,6 +52,33 @@ Badges in four themed tiers: Meteorite, Moon, Planet, Star. Each badge is earned
 
 A missions screen on the menu shows the tiers, earned badges lit, unearned with their condition. Earning a badge pops it on the card. Saved per badge.
 
+## C2. Skins (added 2026-09-29, late; from the overnight plan's unlockables rule)
+
+Skins are earned by badges only, never by grind, and are data entries in the art layer: a ball palette (body, seam, shadow tint) and a trail colour. No change to physics, the range finder or the cup.
+
+| Skin | Kind | Earned by |
+| --- | --- | --- |
+| Comet | ball: ice-blue body, cyan trail | First Orbit |
+| Brass | ball: brass body, warm trail | Banker |
+| Ember | ball: dark red body, orange trail | Slingshot |
+| Moonstone | ball: pale grey body, white trail | Touchdown |
+| Solar | ball: yellow body with a corona seam, gold trail | Untouched |
+| Nebula | ball: purple body, magenta trail | Binary Star |
+| Chrome | ball: mirror grey, silver trail | Clockwork |
+| Void | ball: black body with a thin white rim, violet trail | Never Landed |
+| Eclipse | ball: white with a black crescent seam, no trail | Eclipse |
+| Gold | ball: gold body, gold trail | Perfect Run |
+| Under Par | trail only: green | Under Par |
+
+Readability rule: the ball must stay the brightest sphere on the field for every skin (the style anchor says the ball is the only white sphere; for dark skins the rim carries the brightness). Sample the ball against the darkest backdrop band per skin and keep at least 3:1. A Skins row on the missions screen picks the ball and the trail; locked swatches toast their badge; the choice persists with one save bump and a migrate that keeps everything. The skin shows in play, on the card and on the menu.
+
+## C3. Fixes from the v8 review (do in the same build as C and C2)
+
+1. Hole 6: the sun move opened a 21-unit slot between the left wall and the sun where a soft shot stacks three to five penalties (`--index 5 --drag 48.8,48.8` charges four). Keep the 24-unit gain from the planet and leave at least 30 units between the sun and the wall (move it up or down, not sideways); re-run the soft-shot sweep and report doubles and triples.
+2. The menu title sits at 9 percent of the height with no safe-area term, so on a notched phone the engine's TUNE tab covers its end ("GRAVITY GOL"). Place the title below `E.safe.top + 42`.
+3. Comet kick when the ball is slow: the code reflects, adds 0.8 times the comet's velocity, then reflects again against the comet's velocity, so a ball at rest leaves a 200 u/s comet at 234 instead of 160. Rule, added to A: a comet overtaking a slow ball pushes it on like a moving wall, so the ball leaves at no less than the comet's speed along the comet's direction and the 0.8 kick applies on top only when the ball's approach speed exceeds 0.235 of the comet's. Keep the code, state the rule, and make sure the synthetic-hole numbers still match at 30, 60 and 144 fps.
+4. Changelog: the v0.3 line says the cache was not bumped (it is v8), and claims a 2 percent field shrink with a 47 px notch (measured scale 1.037 both ways). Fix both.
+
 ## D. Experiment for tomorrow
 
 The review of v0.2 measured that 83 to 90 percent of missed shots on holes 1, 3, 6 and 8 end landed on the planet, and that `planetGravity` 3e6 brings that to 66 to 75 percent, 2e6 to 51 to 60 percent, and `stopSpeed` 80 at 3e6 to about 50 percent. That is the "planet catches me" feel, so the experiment is gravity, not field friction. Presets on the tune panel: "Heavy" (planetGravity 4.5e6, stopSpeed 50, the proven defaults), "Medium" (3e6, 50), "Light" (2e6, 50), "Light and rolling" (3e6, stopSpeed 80); sliders for planetGravity and stopSpeed. The routes are proven at Heavy only; once the designer picks, the routes are re-proven and re-authored where they break, and the pick becomes the default. Field friction presets wait for a later round.
