@@ -48,15 +48,26 @@ const TUNING = {
   coreOpen: 4,           // Plates that must be down before the Bunker's core can be hurt
   decoyPenalty: 1,       // A decoy hit costs this times its zone value (a shot that hits one also breaks the combo)
 
+  // v0.5 section A: a star bar is read off BARS at these aim noises (degrees of Gaussian error on the barrel angle): the noise that earns three stars, two, one.
+  // TUNE has the three as sliders and Pro, Skilled and Casual as presets. Section D: the slow-motion last kill and the card's score ticker.
+  starNoise: { three: 0.75, two: 1.5, one: 3.0 },
+  starGrid: 0.25,        // Degrees between the samples of a BARS curve
+  starCap: 0.95,         // A bar never exceeds this share of the perfect run, so perfect centred play always earns three stars
+  starRound: 10,         // Bars are rounded to this
+  slowLife: 0.4,         // Seconds of real time the last kill of a Speed or Skeet run plays in slow motion
+  slowScale: 0.25,       // Game speed during it
+  tickerLife: 0.9,       // Seconds the card takes to count the score up
+  calloutLife: 1.0,      // Seconds a streak call-out stays on the field
+
   // Guns (v0.2 section A): data, so a later layer adds more. kickPerShot and kickRecovery are per gun now.
   // magSize and reloadSeconds are carried but not used yet: Accuracy keeps its own ammo, the other ladders are unlimited.
   guns: {
-    pistol: { id: 'pistol', name: 'Service pistol', short: 'Pistol', damage: 1, fireRate: 9, accuracy: 1.0, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, auto: false },
-    carbine: { id: 'carbine', name: 'Carbine', short: 'Carbine', damage: 1, fireRate: 8, accuracy: 0.55, kickPerShot: 5, kickRecovery: 24, magSize: 20, reloadSeconds: 1.5, auto: true },
+    pistol: { id: 'pistol', job: 'The all-rounder: clean bullseyes and long combos.', name: 'Service pistol', short: 'Pistol', damage: 1, fireRate: 9, accuracy: 1.0, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, auto: false },
+    carbine: { id: 'carbine', job: 'Hold to fire: fast targets, hordes and clays.', name: 'Carbine', short: 'Carbine', damage: 1, fireRate: 8, accuracy: 0.55, kickPerShot: 5, kickRecovery: 24, magSize: 20, reloadSeconds: 1.5, auto: true },
     // v0.3. `pellets` lines leave the barrel in a fixed fan of shotSpread degrees; each pellet deals `damage` on its own. Only the centre
     // pellet scores zone points on ring targets; on hordes every member any pellet hits scores.
-    shotgun: { id: 'shotgun', name: 'Shotgun', short: 'Shotgun', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.0, auto: false },
-    rifle: { id: 'rifle', name: 'Marksman rifle', short: 'Rifle', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 2.0, auto: false },
+    shotgun: { id: 'shotgun', job: 'Five pellets: boss plates and hordes; hopeless at far bullseyes.', name: 'Shotgun', short: 'Shotgun', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.0, auto: false },
+    rifle: { id: 'rifle', job: 'One-shots plates; long waits and sway matter most.', name: 'Marksman rifle', short: 'Rifle', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 2.0, auto: false },
   },
   shotSpread: 10,        // v0.3: total fan angle of the shotgun's five pellets, degrees
   unlockPoints: [0, 60, 150, 300], // v0.3: points needed per gun, in GUN_IDS order
@@ -212,9 +223,10 @@ const TUNING = {
     plate: { shut: 0.45, r: 1.1, inner: 0.86, rivet: 2.2, glow: [1.2, 1.32], dash: 12, ring: 7, pip: 5, pipGap: 8, pipTray: 3 },
     core: { pulse: 5, glow: [7, 14], glowAlpha: [0.22, 0.12], amp: 3, spec: 0.68 },
     pip: { w: 6, h: 9, gap: 11 }, // Combo pips drawn as brass casings
+    mult: { size: 24, swell: 0.5, pulse: 0.25, x: 128, dy: 50, flip: 170 }, // The multiplier beside the lane: size in design units, swell on a step, seconds it swells, where it sits, and the gun height below which it goes under the line
     intro: { y: 52, hold: 5, fade: 1.5 }, // Boss 2's "Every plate scores" line: design-space height, seconds shown, seconds to fade
     missions: { th: 104, gap: 8, rail: 44, lock: 16, lockGap: 10 }, // Missions tile height, gap, scroll rail width, the Gauntlet padlock's size and its gap to the label
-    tile: { pad: 6 }, // Gun tiles on the menu: padding round the silhouette
+    tile: { pad: 6, info: 22 }, // Gun tiles on the menu: padding round the silhouette
   },
 };
 const T = TUNING;
@@ -232,111 +244,185 @@ const GAUNTLET = ['a2', 's2', 'k2', 'b1'];
 // approach, weave, horde (Speed). speedMul scales approachSpeed (Speed 1, 2, 3 = 60, 80, 100 at the default tuning).
 // Skeet: launches at skeetEvery seconds, angle range in degrees, skeetMul scales skeetSpeed, pair launches two at once.
 // Boss: parts in order, then the core (coreScale, coreBull scale the core and its bullseye).
-// Stars: three at 85 percent of the scripted perfect pistol run (every shot a bullseye timed to the recovery, sway
-// settled), two at 55, one at 30, rounded to 10. The perfect-run score is in each comment. The carbine plays the same thresholds.
+// Stars (PRD v0.5 A): the bars come from BARS, the scores of noisy bots with the challenge's `bestGun` (per gun on the bosses), read at the noise TUNE sets. The
+// perfect-run score in each comment is the ceiling every bar sits under (starCap).
 const CHALLENGES = [
   { // Teaches the kick: the second quick shot sails high. Perfect run 2150.
-    id: 'a1', ladder: 'accuracy', level: 1, name: 'Accuracy 1', seed: 41001, behaviour: 'still',
+    id: 'a1', bestGun: 'pistol', ladder: 'accuracy', level: 1, name: 'Accuracy 1', seed: 41001, behaviour: 'still',
     accTargets: 8, accAmmo: 12, scale: 1.3, x: [370, 430], yBand: [0.15, 0.9], minDy: 50,
-    stars: { one: 650, two: 1180, three: 1830 },
   },
   { // Teaches tip 2: nudge down as you fire. Perfect run 2950.
-    id: 'a2', ladder: 'accuracy', level: 2, name: 'Accuracy 2', seed: 41002, behaviour: 'still',
+    id: 'a2', bestGun: 'pistol', ladder: 'accuracy', level: 2, name: 'Accuracy 2', seed: 41002, behaviour: 'still',
     accTargets: 10, accAmmo: 13, scale: 1.0, x: [300, 560], yBand: [0, 1], minDy: 70,
-    stars: { one: 890, two: 1620, three: 2510 },
   },
   { // Teaches tip 5: every third target is high and the one before it low (the rest sit mid-height), so every change is at least
     // minDy and the kick can carry the barrel to the high ones. Perfect run 3750.
-    id: 'a3', ladder: 'accuracy', level: 3, name: 'Accuracy 3', seed: 41003, behaviour: 'still',
+    id: 'a3', bestGun: 'pistol', ladder: 'accuracy', level: 3, name: 'Accuracy 3', seed: 41003, behaviour: 'still',
     accTargets: 12, accAmmo: 14, scale: 0.8, x: [520, 612], yBand: [0.35, 0.6], minDy: 70,
     high: { every: 3, band: [0, 0.2], before: [0.6, 1] },
-    stars: { one: 1130, two: 2060, three: 3190 },
   },
   { // Dodgers: a shot near a flickering target makes it jump, so fire once to make it jump, then again at where it landed. Perfect run 2950.
-    id: 'a4', ladder: 'accuracy', level: 4, name: 'Accuracy 4', seed: 41004, behaviour: 'dodge',
+    id: 'a4', bestGun: 'pistol', ladder: 'accuracy', level: 4, name: 'Accuracy 4', seed: 41004, behaviour: 'dodge',
     accTargets: 10, accAmmo: 24, scale: 0.9, x: [400, 600], yBand: [0, 1], minDy: 70,
-    stars: { one: 890, two: 1620, three: 2510 },
   },
   { // v0.4. Small far targets: the dodgers of Accuracy 4 (fire once to make it jump, then again where it landed) and every third target a flip
     // target that shows for flipWindow seconds and turns away, a miss costing nothing but the window. Tests sway control and the first shot.
     // Naked run: the pistol's kick recovery (0.25 s) is inside the window. Perfect run 3750 (twelve bullseyes). Windows by the perfect-path rule: the flip window
     // is 1.5 times the slowest flip target on a keyboard-speed perfect path (0.97 s, gun travelling at keyMoveSpeed), accLife 4 s is 2.25 times the slowest dodger (1.78 s).
-    id: 'a5', ladder: 'accuracy', level: 5, name: 'Accuracy 5', seed: 41005, behaviour: 'dodge', needStars: 2,
+    id: 'a5', bestGun: 'pistol', ladder: 'accuracy', level: 5, name: 'Accuracy 5', seed: 41005, behaviour: 'dodge', needStars: 2,
     accTargets: 12, accAmmo: 22, scale: 0.7, x: [500, 612], yBand: [0, 1], minDy: 70, accLife: 4, flipEvery: 3, flipWindow: 1.5,
-    stars: { one: 1130, two: 2060, three: 3190 },
   },
   { // Teaches prioritising: one target at a time. Perfect run 4150.
-    id: 's1', ladder: 'speed', level: 1, name: 'Speed 1', seed: 42001, behaviour: 'approach',
+    id: 's1', bestGun: 'carbine', ladder: 'speed', level: 1, name: 'Speed 1', seed: 42001, behaviour: 'approach',
     speedSeconds: 25, spawnEvery: 2.0, speedMul: 1, maxTargets: 1, scale: 1.2, yBand: [0.1, 0.9], minDy: 60,
-    stars: { one: 1250, two: 2280, three: 3530 },
   },
   { // Perfect run 7350.
-    id: 's2', ladder: 'speed', level: 2, name: 'Speed 2', seed: 42002, behaviour: 'approach',
+    id: 's2', bestGun: 'carbine', ladder: 'speed', level: 2, name: 'Speed 2', seed: 42002, behaviour: 'approach',
     speedSeconds: 30, spawnEvery: 1.4, speedMul: 4 / 3, maxTargets: 2, scale: 1.0, yBand: [0, 1], minDy: 80,
-    stars: { one: 2210, two: 4040, three: 6250 },
   },
   { // Weavers: every target oscillates, so the line has to keep chasing it. The band leaves room for the weave and
     // is only 106 tall, so minDy is 50, the most it allows. Perfect run 12950.
-    id: 's3', ladder: 'speed', level: 3, name: 'Speed 3', seed: 42003, behaviour: 'weave',
+    id: 's3', bestGun: 'carbine', ladder: 'speed', level: 3, name: 'Speed 3', seed: 42003, behaviour: 'weave',
     speedSeconds: 35, spawnEvery: 1.0, speedMul: 5 / 3, maxTargets: 3, scale: 0.9, yBand: [0.22, 0.78], minDy: 50,
-    stars: { one: 3890, two: 7120, three: 11010 },
   },
   { // Hordes: a column of small targets drifting left, each worth outer-ring points. Perfect run 3630.
-    id: 's4', ladder: 'speed', level: 4, name: 'Speed 4', seed: 42004, behaviour: 'horde',
+    id: 's4', bestGun: 'carbine', ladder: 'speed', level: 4, name: 'Speed 4', seed: 42004, behaviour: 'horde',
     speedSeconds: 35, spawnEvery: 4.5, speedMul: 0.7, maxTargets: 12, scale: 0.55, yBand: [0, 1], minDy: 60,
     hordeSpacing: 30, hordeJitterX: 16, hordeJitterY: 3, // column spacing, and how loose the column is (x and y)
-    stars: { one: 1090, two: 2000, three: 3090 },
   },
   { // v0.4. Two hordes back to back with a weaving pair between them, twice, on a tighter clock than Speed 4. Burst discipline: the fire interval is
     // under the kick recovery, so holding fire climbs off the column. Naked run: every member is worth outer points, the pair can be left alone at a cost
     // of the combo only. Perfect run 3310 (28 hits, last kill 18.34 s); the timer is that rounded up to a multiple of 5 like Speed 1 to 4 (20 s against Speed 4's 35).
-    id: 's5', ladder: 'speed', level: 5, name: 'Speed 5', seed: 42005, behaviour: 'horde', needStars: 2,
+    id: 's5', bestGun: 'carbine', ladder: 'speed', level: 5, name: 'Speed 5', seed: 42005, behaviour: 'horde', needStars: 2,
     speedSeconds: 20, speedMul: 0.8, maxTargets: 16, scale: 0.55, yBand: [0, 1], minDy: 60,
     hordeSpacing: 30, hordeJitterX: 16, hordeJitterY: 3, pairScale: 0.9, pairMul: 1.4, pairBand: [0.2, 0.8], pairGap: 70,
     waves: [{ at: 0.6, horde: true }, { at: 3.6, pair: true }, { at: 6.6, horde: true }, { at: 11.6, horde: true }, { at: 14.6, pair: true }, { at: 17.6, horde: true }],
-    stars: { one: 990, two: 1820, three: 2810 },
   },
   { // Clay pigeons from the bottom right; only bullseye and inner count. Perfect run 2950.
-    id: 'k1', ladder: 'skeet', level: 1, name: 'Skeet 1', seed: 43001,
+    id: 'k1', bestGun: 'pistol', ladder: 'skeet', level: 1, name: 'Skeet 1', seed: 43001,
     skeetCount: 10, skeetEvery: 2.4, skeetMul: 0.9, pair: false, angle: [58, 68], launchSpread: 30, scale: 1.2,
-    stars: { one: 890, two: 1620, three: 2510 },
   },
   { // Two at once. Perfect run 3750.
-    id: 'k2', ladder: 'skeet', level: 2, name: 'Skeet 2', seed: 43002,
+    id: 'k2', bestGun: 'pistol', ladder: 'skeet', level: 2, name: 'Skeet 2', seed: 43002,
     skeetCount: 12, skeetEvery: 2.6, skeetMul: 1.0, pair: true, angle: [56, 66], pairSplit: 0.4, pairDx: 46, scale: 1.0, // the pair's angles come from the low and high 40 percent of the range; the second launches pairDx to the left
-    stars: { one: 1130, two: 2060, three: 3190 },
   },
   { // v0.4. Three launches a volley from alternating sides, one of them a decoy in the player's orange: shot, it costs its zone value and the combo.
     // Goal clays stay cyan. Tests target discrimination under speed. Naked run: leave the decoy, shoot the two cyan ones. Perfect run 2950 (ten bullseyes on the goal clays).
     // The 0.6 s between launches is 1.5 times the 0.4 s a keyboard-speed perfect path needs to switch clays (at 0.3 s it drops one). The left station sits mid-field
     // (leftX) and lobs steeply toward the wall, so no clay is launched near the gun; every clay is smaller than Skeet 2's (0.75), so the angle that hits a bullseye is
     // about Skeet 2's from the left station (4.5 units at 360, against 6 at 512) and tighter from the right (4.5 at 515), and a bot at 1 and 2 degrees does no better here.
-    id: 'k3', ladder: 'skeet', level: 3, name: 'Skeet 3', seed: 43003, needStars: 2,
+    id: 'k3', bestGun: 'pistol', ladder: 'skeet', level: 3, name: 'Skeet 3', seed: 43003, needStars: 2,
     skeetEvery: 4.0, volleys: 5, volley: 3, volleyGap: 0.6, skeetMul: 1.0, angle: [56, 66], launchSpread: 30, leftX: 430, leftAngle: [64, 68], scale: 0.75,
-    stars: { one: 890, two: 1620, three: 2510 },
   },
   { // Three parts in order, then a drifting core. Perfect run 3750.
     id: 'b1', ladder: 'boss', level: 1, name: 'Boss 1', seed: 44001,
     bossSeconds: 40, scale: 1.1, x: [430, 560], coreX: 520, coreScale: 0.9, coreBull: 0.6,
-    stars: { one: 1130, two: 2060, three: 3190 },
-    // Per-gun stars are 30/55/85 percent of each gun's maximum over centred shots (PRD v0.3 F: a route that needs an off-centre shot never sets the bar):
-    // pistol and carbine 3750 (twelve one-damage bullseyes), rifle and shotgun 1000 (five bullseyes: a centred shotgun shot kills a plate, and two kill the core).
-    starsByGun: { shotgun: { one: 300, two: 550, three: 850 }, rifle: { one: 300, two: 550, three: 850 } },
+    // Perfect centred runs: pistol and carbine 3750 (twelve one-damage bullseyes), rifle and shotgun 1000 (five bullseyes: a centred shotgun shot kills a plate, and two kill the core).
   },
   { // v0.4, "the Bunker": a wall of six 3-hp plates, each in a bolted frame, two revealed at a time in a seeded order (the next one plateReveal seconds after a
     // plate falls); behind them a core that cannot be hurt until coreOpen plates are down. Tests damage per shot: the rifle one-shots a plate, the pistol needs
     // three centred hits, the shotgun its centre pellet plus two outers on the same plate. Naked run: the pistol clears it with 27 bullseyes.
-    // Stars per gun are 30/55/85 percent of the gun's maximum over centred shots (searched, then replayed in the sim): pistol and carbine 9750 (27 bullseyes: six plates
-    // of three, then the core's nine), shotgun 4061 (the best expected score with the aim error a gaussian of 1 unit: any error over 0.86 units lands a second
-    // pellet on the core, which is fewer scoring shots; centred with no error it is 4950), rifle 2550 (9). bossSeconds is 1.6 times the slowest gun's keyboard-speed perfect path (the pistol's 14.9 s), rounded up.
+    // Perfect centred runs (searched, then replayed in the sim): pistol and carbine 9750 (27 bullseyes: six plates of three, then the core's nine), shotgun 4950 (15),
+    // rifle 2550 (9). bossSeconds is 1.6 times the slowest gun's keyboard-speed perfect path (the pistol's 14.9 s), rounded up.
     id: 'b2', ladder: 'boss', level: 2, name: 'Boss 2', seed: 44002, needStars: 2, needGun: 'rifle',
     bossSeconds: 24, scale: 0.85, plateHp: 3, startReveal: 2,
     wall: [[430, 80], [350, 116], [495, 153], [385, 189], [465, 226], [350, 262]], // plate positions: no two share a height band, so a level shot at any plate never crosses another
     coreX: 585, coreBand: [145, 205], coreScale: 0.9, coreBull: 0.6, coreHp: 9, coreDrift: 35,
-    stars: { one: 2930, two: 5360, three: 8290 },
-    starsByGun: { shotgun: { one: 1220, two: 2230, three: 3450 }, rifle: { one: 770, two: 1400, three: 2170 } },
   },
 ];
+
+// Star bars (PRD v0.5 A): for each challenge, the noisy bot's scores by aim noise. `m` is the mean score and `q` the 25th percentile, over 100 seeds of a bot whose
+// every shot's barrel angle is off by a Gaussian of sigma degrees, sigma from 0 to 5 in steps of starGrid (index 0 is the perfect run). The gun is the challenge's `bestGun`
+// (per gun on the bosses). Generated by the harness described in the changelog; a bar is read off these curves at the active noise (TUNE), so a slider needs no re-run.
+const BARS = {
+  a1: {
+    pistol: { m: [2150, 2150, 2133, 2041, 1925, 1796, 1688, 1601, 1477, 1366, 1242, 1152, 1082, 1035, 980, 919, 877, 811, 775, 730, 697],
+      q: [2150, 2150, 2150, 1950, 1850, 1675, 1525, 1445, 1270, 1170, 995, 885, 835, 780, 760, 710, 690, 610, 585, 550, 540] },
+  },
+  a2: {
+    pistol: { m: [2950, 2949, 2802, 2585, 2365, 2122, 1919, 1722, 1549, 1401, 1244, 1137, 1046, 958, 871, 802, 735, 665, 613, 579, 532],
+      q: [2950, 2950, 2750, 2425, 2195, 1885, 1645, 1390, 1215, 1095, 945, 835, 775, 650, 575, 500, 485, 435, 390, 380, 340] },
+  },
+  a3: {
+    pistol: { m: [3750, 3690, 3248, 2816, 2373, 1956, 1564, 1246, 1023, 845, 718, 604, 520, 437, 404, 346, 282, 250, 228, 198, 189],
+      q: [3750, 3650, 3100, 2605, 2075, 1660, 1205, 935, 675, 550, 475, 380, 315, 240, 215, 120, 100, 50, 50, 20, 20] },
+  },
+  a4: {
+    pistol: { m: [2950, 2938, 2514, 1918, 1592, 1346, 1123, 926, 767, 645, 550, 456, 398, 309, 264, 225, 194, 155, 136, 114, 106],
+      q: [2950, 2950, 2150, 1570, 1225, 1075, 845, 700, 580, 445, 340, 270, 240, 140, 90, 40, 20, 20, 0, 0, 0] },
+  },
+  a5: {
+    pistol: { m: [3750, 3639, 2835, 2046, 1523, 1159, 861, 658, 507, 390, 306, 262, 219, 183, 147, 133, 109, 97, 86, 79, 71],
+      q: [3750, 3550, 2545, 1650, 1100, 795, 575, 410, 300, 220, 175, 120, 70, 80, 50, 20, 0, 20, 0, 0, 0] },
+  },
+  s1: {
+    carbine: { m: [4150, 4147, 3909, 3517, 3175, 2801, 2443, 2130, 1869, 1639, 1478, 1330, 1228, 1170, 1096, 1053, 998, 979, 961, 942, 906],
+      q: [4150, 4150, 3800, 3350, 2985, 2555, 2125, 1690, 1525, 1315, 1215, 1090, 1010, 990, 930, 910, 845, 825, 790, 780, 770] },
+  },
+  s2: {
+    carbine: { m: [7350, 7318, 6565, 5745, 5017, 4239, 3605, 3065, 2630, 2340, 2154, 1987, 1870, 1773, 1685, 1636, 1556, 1489, 1439, 1391, 1338],
+      q: [7350, 7350, 6350, 5460, 4595, 3825, 3195, 2590, 2215, 2025, 1860, 1690, 1620, 1525, 1450, 1380, 1355, 1265, 1205, 1175, 1120] },
+  },
+  s3: {
+    carbine: { m: [12950, 12817, 11275, 9763, 8233, 6790, 5593, 4646, 3966, 3497, 3213, 2981, 2813, 2654, 2565, 2440, 2318, 2248, 2139, 2045, 1993],
+      q: [12950, 12750, 10900, 9365, 7720, 6185, 4875, 4005, 3460, 3155, 2845, 2650, 2535, 2360, 2275, 2190, 2020, 1970, 1845, 1735, 1745] },
+  },
+  s4: {
+    carbine: { m: [3630, 3630, 3597, 3145, 2611, 2222, 1984, 1820, 1649, 1539, 1481, 1377, 1344, 1262, 1240, 1229, 1199, 1207, 1194, 1203, 1215],
+      q: [3630, 3630, 3630, 3000, 2380, 2000, 1760, 1660, 1520, 1410, 1350, 1290, 1230, 1140, 1110, 1130, 1110, 1140, 1120, 1140, 1140] },
+  },
+  s5: {
+    carbine: { m: [3310, 3290, 3042, 2596, 2092, 1776, 1497, 1360, 1188, 1040, 969, 932, 863, 833, 810, 786, 774, 770, 767, 756, 761],
+      q: [3310, 3310, 2910, 2350, 1715, 1520, 1260, 1190, 1015, 895, 840, 775, 755, 750, 710, 710, 710, 690, 700, 700, 680] },
+  },
+  k1: {
+    pistol: { m: [2950, 2949, 2791, 2447, 2104, 1782, 1519, 1350, 1249, 1155, 1095, 1047, 1015, 993, 959, 942, 925, 919, 904, 903, 894],
+      q: [2950, 2950, 2700, 2275, 1725, 1400, 1250, 1075, 1000, 975, 925, 900, 825, 850, 850, 825, 825, 825, 800, 800, 800] },
+  },
+  k2: {
+    pistol: { m: [3750, 3738, 3394, 2832, 2253, 1861, 1613, 1440, 1334, 1258, 1204, 1170, 1144, 1126, 1118, 1105, 1069, 1052, 1045, 1034, 1028],
+      q: [3750, 3750, 3275, 2475, 1850, 1500, 1300, 1225, 1100, 1075, 1050, 1025, 1025, 1000, 975, 975, 950, 950, 950, 925, 925] },
+  },
+  k3: {
+    pistol: { m: [2950, 2915, 2523, 2036, 1616, 1356, 1190, 1084, 992, 966, 939, 872, 817, 800, 778, 754, 713, 709, 712, 688, 665],
+      q: [2950, 2950, 2350, 1700, 1275, 1075, 975, 875, 850, 825, 775, 775, 700, 700, 650, 675, 625, 600, 600, 575, 575] },
+  },
+  b1: {
+    pistol: { m: [3750, 3577, 2961, 2448, 1984, 1580, 1222, 962, 831, 790, 772, 745, 736, 738, 699, 698, 650, 558, 443, 349, 295],
+      q: [3750, 3550, 2775, 2260, 1790, 1330, 1015, 830, 720, 660, 640, 610, 585, 575, 535, 570, 500, 400, 205, 140, 140] },
+    carbine: { m: [3750, 3591, 3011, 2605, 2285, 1955, 1644, 1396, 1218, 1089, 975, 909, 850, 810, 762, 724, 678, 607, 523, 460, 410],
+      q: [3750, 3550, 2800, 2430, 2125, 1715, 1385, 1165, 950, 805, 695, 675, 630, 630, 605, 570, 555, 490, 290, 235, 225] },
+    shotgun: { m: [1000, 1138, 1120, 1006, 911, 814, 692, 605, 535, 489, 428, 387, 351, 333, 308, 293, 285, 269, 253, 242, 233],
+      q: [1000, 1000, 1000, 900, 800, 690, 525, 405, 355, 325, 295, 245, 215, 200, 190, 160, 170, 145, 140, 120, 120] },
+    rifle: { m: [1000, 955, 863, 764, 695, 636, 586, 540, 496, 472, 442, 409, 388, 380, 364, 347, 342, 326, 315, 297, 269],
+      q: [1000, 875, 775, 700, 600, 525, 475, 415, 390, 360, 350, 315, 305, 300, 275, 265, 260, 235, 225, 190, 160] },
+  },
+  b2: {
+    pistol: { m: [9750, 9481, 8637, 7790, 6972, 6210, 5573, 4967, 4543, 4133, 3883, 3671, 3515, 3352, 3217, 3096, 3016, 2983, 2848, 2763, 2631],
+      q: [9750, 9350, 8400, 7500, 6570, 5805, 5085, 4455, 4055, 3680, 3465, 3245, 3035, 2970, 2850, 2670, 2705, 2505, 2430, 2395, 2215] },
+    carbine: { m: [9750, 9481, 8637, 7786, 6971, 6205, 5575, 4956, 4521, 4109, 3829, 3635, 3418, 3236, 3095, 3017, 2923, 2911, 2843, 2801, 2664],
+      q: [9750, 9350, 8400, 7500, 6570, 5805, 5085, 4455, 4050, 3665, 3380, 3125, 2945, 2750, 2740, 2675, 2575, 2515, 2415, 2350, 2300] },
+    shotgun: { m: [4550, 3268, 2995, 2668, 2400, 2075, 1804, 1543, 1385, 1249, 1114, 996, 881, 807, 729, 690, 669, 635, 599, 563, 533],
+      q: [4550, 2950, 2750, 2385, 2075, 1790, 1465, 1165, 1035, 890, 815, 695, 600, 565, 505, 485, 470, 455, 400, 385, 395] },
+    rifle: { m: [2550, 2454, 2190, 1949, 1747, 1580, 1402, 1225, 1135, 1045, 993, 925, 880, 851, 825, 800, 773, 745, 735, 730, 695],
+      q: [2550, 2350, 2075, 1800, 1555, 1365, 1170, 990, 960, 810, 775, 740, 685, 645, 645, 610, 610, 600, 565, 550, 530] },
+  },
+};
+
+const BAR_CACHE = {}; // by challenge and gun, rebuilt when the noise sliders move
+function curveAt(a, x) { const f = clamp(x / T.starGrid, 0, a.length - 1), i = Math.min(a.length - 2, Math.floor(f)); return a[i] + (a[i + 1] - a[i]) * (f - i); }
+// The bars {one, two, three} of a challenge for a gun: the mean score of the bot at the three-star and two-star noise, and the 25th percentile at the one-star noise
+// (the mean of a skewed score is beaten by fewer than half the bots, and most of the one-star bots must earn the first star), each capped at starCap of the perfect run.
+function thresholds(ch, gun) {
+  const N = T.starNoise, sig = N.three * 1e4 + N.two * 100 + N.one, g = ch.ladder === 'boss' ? gun : ch.bestGun, by = BARS[ch.id], key = by[g] ? g : 'pistol';
+  const C = BAR_CACHE[ch.id] || (BAR_CACHE[ch.id] = {}), hit = C[key];
+  if (hit && hit.sig === sig) return hit.b;
+  const c = by[key], cap = T.starCap * c.m[0], R = T.starRound, r = (x) => Math.round(Math.min(x, cap) / R) * R;
+  const three = r(curveAt(c.m, N.three)), two = Math.min(r(curveAt(c.m, N.two)), three - R), one = Math.min(r(curveAt(c.q, N.one)), two - R);
+  const b = { one: Math.max(R, one), two: Math.max(2 * R, two), three: Math.max(3 * R, three) };
+  C[key] = { sig, b };
+  return b;
+}
 const LADDERS = [['accuracy', 'Accuracy'], ['speed', 'Speed'], ['skeet', 'Skeet'], ['boss', 'Boss']];
 
 // ---------- Setup (seeded) ----------
@@ -724,15 +810,15 @@ function stamp(run) {
   return run.steps * STEP + run.acc + Math.min(0.05, Math.max(0, (performance.now() - run.frameReal) / 1000));
 }
 
-// Thresholds are pistol-derived. The bosses are the exception: the shotgun and rifle finish them in far fewer scoring shots (Boss 1 maxima 1000 and
-// 1000 against the pistol's 3750), so they carry their own thresholds from their own centred maxima, or Boss Killer and Sniper could never be earned.
-function thresholds(ch, gun) { return (ch.starsByGun && ch.starsByGun[gun]) || ch.stars; }
 function starsFor(ch, score, gun) { const t = thresholds(ch, gun); return score >= t.three ? 3 : score >= t.two ? 2 : score >= t.one ? 1 : 0; }
+function presetName() { const p = PRESETS.find((q) => q.group === 'stars' && Object.entries(q.values).every(([k, v]) => Math.abs(getPath(k) - v) < 1e-9)); return p ? p.label : 'Custom'; }
 
 // ---------- Save ----------
 
 function bests(E) { const b = E.save.get('best', {}); return b && typeof b === 'object' ? b : {}; }
-function starsOf(E, ch) { const b = bests(E)[ch.id]; return b && b.stars ? b.stars : 0; }
+// Stars shown for a saved best: the stars saved, or what its score earns against the bars now if that is more (never fewer: saved stars are never revoked). A boss
+// best does not say which gun set it, so it is read against the pistol's bars, the hardest.
+function starsOf(E, ch) { const b = bests(E)[ch.id]; return b ? Math.max(b.stars || 0, starsFor(ch, b.score || 0, 'pistol')) : 0; }
 function isUnlocked(E, ch) {
   if (ch.level === 1) return true;
   const prev = CHALLENGES.find((c) => c.ladder === ch.ladder && c.level === ch.level - 1);
@@ -764,6 +850,10 @@ const BADGES = [
   { id: 'marksman2', tier: 'Silver', name: 'Marksman II', cond: 'Three stars on Accuracy 5' },
   { id: 'quickdraw2', tier: 'Silver', name: 'Quick Draw II', cond: 'Three stars on Speed 5' },
   { id: 'clay2', tier: 'Silver', name: 'Clay II', cond: 'Skeet 3, no decoy hit, three stars' },
+  { id: 'sprint', tier: 'Silver', name: "Marksman's Sprint", cond: 'Rifle on Speed 3, two stars' }, // Wrong Tool: the gun a challenge was not made for; each unlocks only its badge
+  { id: 'scatter', tier: 'Silver', name: 'Scatter Precision', cond: 'Shotgun on Accuracy 2, two stars' },
+  { id: 'sidearm', tier: 'Silver', name: 'Sidearm Only', cond: 'Pistol on Boss 2, two stars' },
+  { id: 'claycarbine', tier: 'Silver', name: 'Clay Carbine', cond: 'Carbine on Skeet 2, three stars' },
   { id: 'bosskiller', tier: 'Gold', name: 'Boss Killer', cond: 'Boss 1 three stars, every gun' },
   { id: 'gauntlet', tier: 'Gold', name: 'Gauntlet', cond: 'A2, S2, K2, B1 in a row, two stars each' },
   { id: 'legend', tier: 'Gold', name: 'Legend', cond: 'Three stars on every challenge' },
@@ -782,6 +872,10 @@ function newBadges(o) {
     storm: id === 's4' && three,
     double: id === 'k2' && !!o.double,
     marksman2: id === 'a5' && three,
+    sprint: id === 's3' && o.gun === 'rifle' && o.stars >= 2,
+    scatter: id === 'a2' && o.gun === 'shotgun' && o.stars >= 2,
+    sidearm: id === 'b2' && o.gun === 'pistol' && o.stars >= 2,
+    claycarbine: id === 'k2' && o.gun === 'carbine' && three,
     quickdraw2: id === 's5' && three,
     clay2: id === 'k3' && three && !o.decoyHits,
     sniper: id === 'b2' && three && o.gun === 'rifle',
@@ -1155,6 +1249,17 @@ function drawTargetHp(ctx, tg, alpha) {
   ctx.globalAlpha = alpha; drawHp(ctx, tg.x, tg.y + (tg.kind === 'core' ? R2 + A.core.glow[0] + 2 : R2 * A.plate.r) + 6, tg.hp, tg.hpMax); ctx.globalAlpha = 1;
 }
 
+// The combo multiplier beside the lane: big, at the muzzle end of the range finder (below it when the gun is high, above when low, so the HUD is never under it),
+// dim at x1, orange while the streak lives, lighter at the cap, and it swells for a moment on every step. It draws the combo that already exists.
+function drawMult(ctx, run) {
+  const mult = Math.min(T.comboCap, 1 + T.comboStep * run.streak), live = run.streak > 0, pulse = clamp(1 - (run.steps * STEP - S.multAt) / A.mult.pulse, 0, 1);
+  const size = A.mult.size * (1 + A.mult.swell * pulse), x = A.mult.x, y = run.gunY + (run.gunY < A.mult.flip ? A.mult.dy : -A.mult.dy);
+  ctx.font = `${TY.strong} ${size}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  const str = `x${mult.toFixed(1)}`;
+  ctx.globalAlpha = live ? 1 : 0.55; ctx.lineWidth = A.popLine; ctx.strokeStyle = P.ink; ctx.strokeText(str, x, y);
+  ctx.fillStyle = !live ? P.textDim : mult >= T.comboCap ? P.orangeLight : P.orange; ctx.fillText(str, x, y); ctx.globalAlpha = 1;
+}
+
 // ---- Range finder and hit feedback ----
 
 // Dots along the true barrel line, scaled and faded with distance, orange near the muzzle. It ends `accuracy` of the way to the right
@@ -1209,9 +1314,9 @@ function drawHitRing(ctx, f) {
 }
 
 // Score pop: bold, zone-coloured, with a dark outline so it reads on card, wall and sky alike.
-function popText(E, str, x, y, color, alpha) {
+function popText(E, str, x, y, color, alpha, size) {
   const ctx = E.ctx;
-  ctx.globalAlpha = alpha; ctx.font = `${TY.strong} ${TY.mid + 2}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.globalAlpha = alpha; ctx.font = `${TY.strong} ${size || TY.mid + 2}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round'; ctx.lineWidth = A.popLine; ctx.strokeStyle = P.ink; ctx.strokeText(str, x, y);
   ctx.fillStyle = color; ctx.fillText(str, x, y); ctx.globalAlpha = 1;
 }
@@ -1318,7 +1423,7 @@ const S = {};
 
 function newRun(ch, id, gauntlet, skin) {
   S.ch = ch; S.gunId = id; S.skin = skin || 'std'; S.run = makeRun(ch, id); S.gauntlet = gauntlet === undefined ? null : gauntlet;
-  S.fx = []; S.endT = 0; S.drag = null; S.right = new Set(); S.breachAt = -1;
+  S.fx = []; S.endT = 0; S.drag = null; S.right = new Set(); S.breachAt = -1; S.multAt = -9; S.killAt = -9; S.slow = 0; S.slowed = false; S.swept = false;
   S.run.frameReal = performance.now();
 }
 
@@ -1347,6 +1452,9 @@ function cosmetics(E, ev) {
       E.audio.play('miss', 0.6); E.haptic(20);
     }
     if (ev.hit) {
+      S.multAt = S.run.steps * STEP; if (ev.killed) S.killAt = S.multAt;
+      const word = ev.streak === 2 ? 'Double' : ev.streak === 3 ? 'Triple' : ev.streak >= 5 && ev.streak % 5 === 0 ? `${ev.streak} in a row` : null; // streak call-outs, in the goal colour
+      if (word) S.fx.push({ k: 'callout', x: ev.tx, y: ev.ty - 46, text: word, t: T.calloutLife, max: T.calloutLife });
       S.fx.push({ k: 'pop', x: ev.tx, y: ev.ty, text: `${ev.pts}`, color: P.zone[ev.zone], t: T.popLife, max: T.popLife });
       if (ev.zone === 0) { E.audio.play('coin'); E.haptic(16); }
       E.audio.play('hit', 0.5);
@@ -1363,7 +1471,7 @@ function cosmetics(E, ev) {
 
 function endRun(E) {
   const r = S.run, ch = S.ch, stars = starsFor(ch, r.score, r.gun.id);
-  const prev = bests(E)[ch.id], prevStars = prev && prev.stars ? prev.stars : 0;
+  const prev = bests(E)[ch.id], prevStars = starsOf(E, ch);
   // Stars are monotonic and kept apart from the best score: a higher score with fewer stars (another gun's thresholds) never lowers them.
   const isNew = !prev || r.score > prev.score, bestScore = isNew ? r.score : prev.score, bestStars = Math.max(stars, prevStars);
   if (isNew || bestStars !== prevStars) E.save.update('best', (b) => ({ ...(b && typeof b === 'object' ? b : {}), [ch.id]: { score: bestScore, stars: bestStars } }), {});
@@ -1371,13 +1479,13 @@ function endRun(E) {
   if (!bossGuns || typeof bossGuns !== 'object') bossGuns = {};
   if (ch.id === 'b1' && stars === 3 && !bossGuns[r.gun.id]) { bossGuns = { ...bossGuns, [r.gun.id]: 1 }; E.save.set('bossGuns', bossGuns); }
   const gaunt = S.gauntlet === null ? null : gauntletStep(S.gauntlet, stars);
-  const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, decoyHits: r.decoyHits, gauntletDone: !!(gaunt && gaunt.done), bests: bests(E), bossGuns, have: badgeMap(E) });
+  const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, decoyHits: r.decoyHits, gauntletDone: !!(gaunt && gaunt.done), bests: Object.fromEntries(CHALLENGES.map((c) => [c.id, { stars: starsOf(E, c) }])), bossGuns, have: badgeMap(E) });
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
   const unlocked = fresh.map(skinOfBadge).filter(Boolean).map((k) => `${T.guns[k.gun].short} ${k.skin.name}`); // shown on the card's badge line
   // A Bunker cleared early leaves plates standing; say what they were worth (a full combo, the shots the gun needs per plate).
   const left = ch.wall && r.cleared ? r.targets.filter((t) => t.kind === 'part').length : 0;
   const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
-  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id), skins: unlocked });
+  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id), preset: presetName(), skins: unlocked });
 }
 
 function meterText(r, ch) {
@@ -1457,7 +1565,7 @@ function wrapText(ctx, str, maxW, size) {
 // ---------- Scenes ----------
 
 const menu = {
-  enter() { this.tiles = []; this.guns = []; this.chips = []; this.btnPlay = null; this.btnMute = null; this.btnMissions = null; },
+  enter() { this.tiles = []; this.guns = []; this.infos = []; this.chips = []; this.btnPlay = null; this.btnMute = null; this.btnMissions = null; },
   render(ctx, E) {
     const L = menuLayout(E), sel = T.guns[gunId(E)], pts = pointsTotal(E), nx = nextUnlock(pts);
     E.text('RECOIL', L.title.x, L.title.y, { size: TY.big, weight: TY.strong, color: P.text });
@@ -1467,17 +1575,21 @@ const menu = {
     E.roundRect(L.bar.x, L.bar.y, L.bar.w, L.bar.h, 3, P.panelEdge);
     const frac = nx ? clamp((pts - nx.from) / (nx.need - nx.from), 0, 1) : 1;
     if (frac > 0) E.roundRect(L.bar.x, L.bar.y, Math.max(6, L.bar.w * frac), L.bar.h, 3, P.cyan);
-    this.guns = L.guns;
+    this.guns = L.guns; this.infos = [];
     for (const b of L.guns) {
       const on = b.id === sel.id, open = gunUnlocked(E, b.id), cx = b.x + b.w / 2;
       plate(E, b.x, b.y, b.w, b.h, on ? P.panelHi : P.panel, on ? P.orange : P.panelEdge);
       ctx.globalAlpha = open ? 1 : 0.25;
-      drawGunTile(ctx, b.id, cx, b.y + b.h / 2, b.w - 2 * A.tile.pad, b.h - 2 * A.tile.pad, open ? skinId(E, b.id) : 'std');
+      drawGunTile(ctx, b.id, cx - A.tile.info / 2, b.y + b.h / 2, b.w - 2 * A.tile.pad - A.tile.info, b.h - 2 * A.tile.pad, open ? skinId(E, b.id) : 'std'); // clear of the info corner
       ctx.globalAlpha = 1;
       if (!open) {
         drawLock(ctx, cx, b.y + b.h / 2 - 12, P.textDim);
         E.text(`${T.unlockPoints[GUN_IDS.indexOf(b.id)]} points`, cx, b.y + b.h - 14, { size: TY.small, weight: TY.strong, color: P.textDim });
       }
+      const info = { x: b.x + b.w - 44, y: b.y, w: 44, h: 44, id: b.id }; // the info corner opens the stats card; the rest of the tile selects the gun
+      this.infos.push(info);
+      ctx.strokeStyle = P.textDim; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(info.x + 26, info.y + 18, 9, 0, PI2); ctx.stroke();
+      E.text('i', info.x + 26, info.y + 18.5, { size: TY.small, weight: TY.strong, color: P.textDim });
     }
     const wear = skinById(sel.id, skinId(E, sel.id));
     E.text(wear.badge ? `${sel.short} · ${wear.name}` : sel.name, L.stat.x, L.stat.y - 19, { size: TY.mid, weight: TY.strong, color: P.text });
@@ -1520,6 +1632,7 @@ const menu = {
       else { const b = BADGES.find((k) => k.id === c.skin.badge); E.audio.play('tap', 0.3); E.toast(`${c.skin.name}: earn the ${b.name} badge (${b.cond})`); }
       return;
     }
+    for (const i of this.infos) if (E.hit(i, p)) { E.audio.play('tap'); E.setScene('gun', { id: i.id }); return; }
     for (const b of this.guns) if (E.hit(b, p)) { if (gunUnlocked(E, b.id)) { E.save.set('gun', b.id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
     for (const t of this.tiles) if (!t.locked && E.hit(t, p)) { E.setScene('play', { id: t.ch.id }); return; }
   },
@@ -1568,7 +1681,9 @@ const missions = {
       const on = !!have[b.id], col = P.tier[b.tier], sk = skinOfBadge(b.id);
       plate(E, x, y, tw, M.th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
       E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: TY.small, align: 'left', color: on ? col : P.textDim });
-      E.text(fitText(ctx, b.name, tw - 24, TY.mid, TY.strong), x + 12, y + 34, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
+      ctx.font = `${TY.strong} ${TY.mid}px system-ui, sans-serif`;
+      const ns = clamp(Math.floor(TY.mid * (tw - 24) / ctx.measureText(b.name).width), TY.small, TY.mid); // a long name shrinks, never under the small size
+      E.text(fitText(ctx, b.name, tw - 24, ns, TY.strong), x + 12, y + 34, { size: ns, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
       if (on) drawStar(ctx, x + tw - 24, y + 14, 9, col); // on the tier row, clear of the name below
       if (sk) drawSkinLine(ctx, E, sk, x + 12, y + 54, on);
       wrapText(ctx, b.cond, tw - 24, TY.small).forEach((ln, k) => E.text(ln, x + 12, y + (sk ? 74 : 56) + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
@@ -1608,6 +1723,62 @@ const missions = {
   },
 };
 
+// The gun stats card: the six numbers as bars against the four-gun maximum, its job in a line, and its skin swatches with the badge each needs, locked or not.
+const STAT_ROWS = [
+  ['Damage', (g) => g.damage * (g.pellets || 1), (g) => `${g.damage}${g.pellets > 1 ? ` x${g.pellets}` : ''}`],
+  ['Fire rate', (g) => g.fireRate, (g) => `${g.fireRate}/s`],
+  ['Range', (g) => g.accuracy, (g) => `${Math.round(g.accuracy * 100)}%`],
+  ['Kick', (g) => g.kickPerShot, (g) => `${g.kickPerShot}\u00b0`],
+  ['Recovery', (g) => g.kickRecovery, (g) => `${g.kickRecovery}\u00b0/s`],
+  ['Magazine', (g) => g.magSize, (g) => `${g.magSize}`],
+];
+const gunCard = {
+  enter(E, params) { this.id = (params && params.id) || 'pistol'; this.chips = []; this.back = null; this.use = null; },
+  render(ctx, E) {
+    const id = this.id, g = T.guns[id], land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2;
+    const open = gunUnlocked(E, id), worn = skinId(E, id), top = E.safe.top, need = T.unlockPoints[GUN_IDS.indexOf(id)];
+    this.back = btn(E, 'Back', x0 + 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
+    E.text(g.name, E.w / 2, top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
+    const cur = gunId(E) === id;
+    this.use = btn(E, open ? (cur ? 'In use' : 'Use') : 'Locked', x0 + W - 42, top + 30, { w: 84, h: 44, size: TY.small, fill: open && !cur ? P.orange : P.panelHi, color: open && !cur ? P.ink : P.textDim });
+    const lw = land ? 236 : W, y0 = top + 62;
+    plate(E, x0, y0, lw, 92, P.panel, P.panelEdge, 12);
+    ctx.globalAlpha = open ? 1 : 0.3; drawGunTile(ctx, id, x0 + lw / 2, y0 + 46, lw - 32, 70, worn); ctx.globalAlpha = 1;
+    if (!open) drawLock(ctx, x0 + lw / 2, y0 + 46, P.textDim);
+    const lines = wrapText(ctx, g.job, lw - 8, TY.small);
+    lines.forEach((ln, k) => E.text(ln, x0 + 4, y0 + 108 + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
+    if (!open) E.text(`Unlocks at ${need} points`, x0 + 4, y0 + 108 + lines.length * 18, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange });
+    // bars against the four-gun maximum
+    const bx = land ? x0 + lw + 20 : x0, bw = land ? W - lw - 20 : W, by = land ? y0 : y0 + 108 + (lines.length + 1) * 18 + 6, rowH = 26;
+    STAT_ROWS.forEach(([label, val, txt], i) => {
+      const max = Math.max(...GUN_IDS.map((k) => val(T.guns[k]))), y = by + i * rowH + 12, tx = bx + 84, tw = bw - 84 - 64;
+      E.text(label, bx + 4, y, { size: TY.small, align: 'left', color: P.text });
+      E.roundRect(tx, y - 5, tw, 10, 5, P.panelEdge); E.roundRect(tx, y - 5, Math.max(8, tw * val(g) / max), 10, 5, P.cyan);
+      E.text(txt(g), bx + bw - 4, y, { size: TY.small, weight: TY.strong, align: 'right', color: P.text });
+    });
+    // skin swatches: every gun shows its own, the badge each needs beside it
+    const sy = land ? y0 + 170 : by + STAT_ROWS.length * rowH + 14, list = A.skins[id], cols = land ? list.length : 2, cw = W / cols;
+    this.chips = list.map((skin, i) => {
+      const cx = x0 + (i % cols) * cw, cy = sy + Math.floor(i / cols) * 52, r = { x: cx, y: cy, w: 44, h: 44, skin }, have = skinOpen(E, skin), b = skin.badge && BADGES.find((k) => k.id === skin.badge);
+      drawChip(ctx, E, r, skin, open && skin.id === worn, have);
+      E.text(fitText(ctx, skin.name, cw - 56, TY.small, TY.strong), cx + 52, cy + 12, { size: TY.small, weight: TY.strong, align: 'left', color: have ? P.text : P.textDim });
+      E.text(fitText(ctx, b ? b.name : 'Default', cw - 56, TY.small, TY.normal), cx + 52, cy + 32, { size: TY.small, align: 'left', color: P.textDim });
+      return r;
+    });
+  },
+  onTap(p, E) {
+    const id = this.id, g = T.guns[id];
+    if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    if (E.hit(this.use, p)) { if (gunUnlocked(E, id) && gunId(E) !== id) { E.save.set('gun', id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
+    for (const c of this.chips) if (E.hit(c, p)) {
+      if (!gunUnlocked(E, id)) { E.audio.play('tap', 0.3); E.toast(`The ${g.short} unlocks at ${T.unlockPoints[GUN_IDS.indexOf(id)]} points`); }
+      else if (skinOpen(E, c.skin)) { E.save.update('skins', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [id]: c.skin.id }), {}); E.audio.play('tap'); }
+      else { const b = BADGES.find((k) => k.id === c.skin.badge); E.audio.play('tap', 0.3); E.toast(`${c.skin.name}: earn the ${b.name} badge (${b.cond})`); }
+      return;
+    }
+  },
+};
+
 const play = {
   enter(E, params) {
     newRun(CHALLENGES.find((c) => c.id === (params && params.id)) || CHALLENGES[0], gunId(E), params && params.gauntlet, skinId(E, gunId(E)));
@@ -1615,17 +1786,23 @@ const play = {
   },
 
   update(dt, E) {
-    const r = S.run;
-    for (const f of S.fx) f.t -= dt;
+    const r = S.run, gdt = S.slow > 0 ? dt * T.slowScale : dt; // the last kill of a Speed or Skeet run plays in slow motion; only the show slows, the sim is over
+    S.slow = Math.max(0, S.slow - dt);
+    for (const f of S.fx) f.t -= gdt;
     let n = 0;
-    for (const f of S.fx) { f.t -= 0; if (f.t > 0) S.fx[n++] = f; }
+    for (const f of S.fx) if (f.t > 0) S.fx[n++] = f;
     S.fx.length = n;
     r.kUp = E.keys.has('ArrowUp'); r.kDown = E.keys.has('ArrowDown');
     advance(r, dt);
     r.frameReal = performance.now();
     for (const ev of r.events) cosmetics(E, ev);
     r.events.length = 0;
-    if (r.done) { S.endT += dt; if (S.endT >= T.endDelay) endRun(E); }
+    if (r.done) {
+      const l = S.ch.ladder;
+      if (!S.slowed && (l === 'speed' || l === 'skeet') && r.steps * STEP - S.killAt < 0.1) { S.slowed = true; S.slow = T.slowLife; }
+      if (!S.swept && r.misses === 0 && r.hits >= 3) { S.swept = true; S.fx.push({ k: 'callout', x: T.designW / 2, y: 130, text: 'Clean sweep', t: T.calloutLife * 1.4, max: T.calloutLife * 1.4, big: true }); }
+      S.endT += dt; if (S.endT >= T.endDelay) endRun(E);
+    }
   },
 
   render(ctx, E) {
@@ -1657,6 +1834,7 @@ const play = {
     for (const f of S.fx) if (f.k === 'tracer') drawTracer(ctx, f);
     for (const f of S.fx) if (f.k === 'pop') drawHitRing(ctx, f);
     drawGun(ctx, r);
+    drawMult(ctx, r);
     for (const f of S.fx) if (f.k === 'flash') drawFlash(ctx, r, f);
     for (const f of S.fx) if (f.k === 'casing') drawCasing(ctx, f);
     ctx.restore();
@@ -1672,6 +1850,10 @@ const play = {
     if (ch.wall && now < A.intro.hold + A.intro.fade) { // the Bunker's one-line intro: plates 5 and 6 are optional but they score
       const a = clamp((A.intro.hold + A.intro.fade - now) / A.intro.fade, 0, 1);
       E.text('Every plate scores', v.ox + (T.designW / 2) * v.s, v.oy + A.intro.y * v.s, { size: TY.small, weight: TY.strong, color: P.text, alpha: a });
+    }
+    for (const f of S.fx) if (f.k === 'callout') {
+      const k = 1 - f.t / f.max, big = f.big ? 1.35 : 1, x = clamp(v.ox + f.x * v.s, v.ox + 70, v.ox + v.w - 70);
+      popText(E, f.text, x, v.oy + (f.y - 26 * k) * v.s, P.cyan, Math.min(1, 3 * (1 - k)), TY.mid * big + 4);
     }
     this.hud(E, v, r, ch);
     if (E.h > E.w) { // portrait: playable, but say what it wants, in the letterbox below the field
@@ -1733,7 +1915,7 @@ const play = {
 
 const over = {
   enter(E, params) {
-    this.p = params; this.ch = CHALLENGES.find((c) => c.id === params.id); this.t0 = E.time;
+    this.p = params; this.ch = CHALLENGES.find((c) => c.id === params.id); this.t0 = E.time; this.tick = -1;
     const g = params.gaunt;
     if (g) { this.next = g.next ? CHALLENGES.find((c) => c.id === g.next) : null; this.canNext = !!this.next; }
     else {
@@ -1742,13 +1924,18 @@ const over = {
     }
     E.audio.play(params.stars >= 1 ? 'win' : 'lose'); E.haptic(30);
   },
+  update(dt, E) { // a soft tick, rising, while the score counts up
+    const a = E.time - this.t0 - 0.15;
+    if (a >= 0 && a < T.tickerLife && Math.floor(a / 0.07) !== this.tick) { this.tick = Math.floor(a / 0.07); E.audio.beep({ freq: 300 + 500 * (a / T.tickerLife), dur: 0.03, type: 'triangle', gain: 0.05 }); }
+  },
   render(ctx, E) {
     const p = this.p, ch = this.ch, cx = E.w / 2, g = p.gaunt;
     const H = 310, y0 = Math.max(E.safe.top + 8, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
     const pw = Math.min(E.w - 16, 500);
     plate(E, cx - pw / 2, y0 - 18, pw, H + 30, P.panel, P.panelEdge, 16);
     E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Gauntlet ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 10, { size: TY.small, color: P.textDim });
-    E.text(`${p.score}`, cx, y0 + 46, { size: TY.big + 16, weight: TY.strong, color: P.text });
+    const age0 = E.time - this.t0, shown = Math.round(p.score * ease.outQuad(clamp((age0 - 0.15) / T.tickerLife, 0, 1))); // the score counts up
+    E.text(`${shown}`, cx, y0 + 46, { size: TY.big + 16, weight: TY.strong, color: P.text });
     if (p.gunId) { // the gun as it was worn, on the left of the score
       const tx = cx - pw / 2 + 14 + 42, ws = skinById(p.gunId, p.skin);
       drawGunTile(ctx, p.gunId, tx, y0 + 48, 84, 34, p.skin);
@@ -1765,7 +1952,7 @@ const over = {
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
     E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 134, { size: TY.mid, color: P.text });
     E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 156, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
-    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}`, cx, y0 + 178, { size: TY.small, color: P.textDim });
+    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}  ·  ${p.preset}`, cx, y0 + 178, { size: TY.small, color: P.textDim });
     // Optional lines stack under the thresholds (a cursor, not fixed rows): the Bunker's plates, the badge, its skin, a gauntlet note. The buttons start at y0 + 256;
     // with all four the last line ends at y0 + 247.
     let yy = y0 + 178;
@@ -1810,29 +1997,107 @@ const over = {
 // Handling experiment (v0.3 section C): how much fight in the gun is fun. Kick is per gun, so the sliders and presets tune the
 // pistol's kick; sway is shared by every gun.
 const EXPERIMENTS = [
-  { key: 'guns.pistol.kickPerShot', label: 'Pistol kick per shot (deg)', min: 2, max: 15, step: 0.5 },
-  { key: 'swayPerSpeed', label: 'Sway per speed', min: 0, max: 0.06, step: 0.005 },
+  { group: 'stars', key: 'starNoise.three', label: 'Three stars: aim noise (deg)', min: 0.25, max: 5, step: 0.25 },
+  { group: 'stars', key: 'starNoise.two', label: 'Two stars: aim noise (deg)', min: 0.25, max: 5, step: 0.25 },
+  { group: 'stars', key: 'starNoise.one', label: 'One star: aim noise (deg)', min: 0.25, max: 5, step: 0.25 },
+  { group: 'handling', key: 'guns.pistol.kickPerShot', label: 'Pistol kick per shot (deg)', min: 2, max: 15, step: 0.5 },
+  { group: 'handling', key: 'swayPerSpeed', label: 'Sway per speed', min: 0, max: 0.06, step: 0.005 },
 ];
 const PRESETS = [
-  { label: 'Steady', values: { 'guns.pistol.kickPerShot': 5, swayPerSpeed: 0.01 } },
-  { label: 'Standard', values: { 'guns.pistol.kickPerShot': 8, swayPerSpeed: 0.02 } },
-  { label: 'Wild', values: { 'guns.pistol.kickPerShot': 12, swayPerSpeed: 0.04 } },
+  { group: 'stars', label: 'Pro', values: { 'starNoise.three': 0.5, 'starNoise.two': 1, 'starNoise.one': 2 } },
+  { group: 'stars', label: 'Skilled', values: { 'starNoise.three': 0.75, 'starNoise.two': 1.5, 'starNoise.one': 3 } },
+  { group: 'stars', label: 'Casual', values: { 'starNoise.three': 1, 'starNoise.two': 2, 'starNoise.one': 4 } },
+  { group: 'handling', label: 'Steady', values: { 'guns.pistol.kickPerShot': 5, swayPerSpeed: 0.01 } },
+  { group: 'handling', label: 'Standard', values: { 'guns.pistol.kickPerShot': 8, swayPerSpeed: 0.02 } },
+  { group: 'handling', label: 'Wild', values: { 'guns.pistol.kickPerShot': 12, swayPerSpeed: 0.04 } },
 ];
 const TUNE_KEYS = new Set([...EXPERIMENTS.map((e) => e.key), ...PRESETS.flatMap((p) => Object.keys(p.values))]);
+function getPath(key) { return key.split('.').reduce((o, k) => o[k], T); }
+function setPath(key, v) { const ks = key.split('.'); ks.slice(0, -1).reduce((o, k) => o[k], T)[ks[ks.length - 1]] = v; }
+const TUNE_DEFAULTS = Object.fromEntries([...TUNE_KEYS].map((k) => [k, getPath(k)]));
+
+// The TUNE screen (the engine's own has room for two sliders; this has two panels): star bars and handling, each a row of presets and its sliders. Values persist the
+// way the engine's do, in __tune, which the engine restores at boot for the declared keys.
+function tuneLayout(E) {
+  const land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, top = E.safe.top + 56, gap = 16;
+  const pw = land ? (W - gap) / 2 : W, out = { land, x0, W, back: { x: x0, y: E.safe.top + 8, w: 84, h: 44 }, reset: { x: x0 + W - 84, y: E.safe.top + 8, w: 84, h: 44 }, panels: [] };
+  let y = top;
+  [['stars', 'Star bars'], ['handling', 'Handling']].forEach(([group, title], i) => {
+    const x = land ? x0 + i * (pw + gap) : x0, py = land ? top : y, ps = PRESETS.filter((p) => p.group === group), ss = EXPERIMENTS.filter((e) => e.group === group);
+    const bw = (pw - (ps.length - 1) * 8) / ps.length;
+    const panel = { group, title, x, y: py, w: pw, presets: ps.map((p, k) => ({ p, x: x + k * (bw + 8), y: py + 24, w: bw, h: 44 })), sliders: ss.map((e, k) => ({ e, x, y: py + 76 + k * 56, w: pw, h: 56 })) };
+    panel.h = 76 + ss.length * 56;
+    out.panels.push(panel); y = py + panel.h + 12;
+  });
+  return out;
+}
+const tune = {
+  enter() { this.drag = null; },
+  render(ctx, E) {
+    const L = tuneLayout(E); this.L = L;
+    btn(E, 'Back', L.back.x + L.back.w / 2, L.back.y + 22, { w: L.back.w, h: 44, size: TY.small, fill: P.slate });
+    btn(E, 'Reset', L.reset.x + L.reset.w / 2, L.reset.y + 22, { w: L.reset.w, h: 44, size: TY.small, fill: P.slate });
+    E.text('Tune', E.w / 2, E.safe.top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
+    for (const pn of L.panels) {
+      E.text(pn.title.toUpperCase(), pn.x + 4, pn.y + 8, { size: TY.small, weight: TY.strong, align: 'left', color: P.textDim });
+      for (const b of pn.presets) {
+        const on = Object.entries(b.p.values).every(([k, v]) => Math.abs(getPath(k) - v) < 1e-9);
+        plate(E, b.x, b.y, b.w, b.h, on ? P.orange : P.panelHi, P.ink);
+        E.text(b.p.label, b.x + b.w / 2, b.y + b.h / 2, { size: TY.small, weight: TY.strong, color: on ? P.ink : P.text });
+      }
+      for (const r of pn.sliders) {
+        const v = getPath(r.e.key), k = clamp((v - r.e.min) / (r.e.max - r.e.min), 0, 1), dec = r.e.step < 1 ? Math.min(3, Math.ceil(-Math.log10(r.e.step))) : 0;
+        E.text(r.e.label, r.x + 4, r.y + 12, { size: TY.small, align: 'left', color: P.text });
+        E.text(v.toFixed(dec), r.x + r.w - 4, r.y + 12, { size: TY.small, weight: TY.strong, align: 'right', color: P.orange });
+        E.roundRect(r.x + 14, r.y + 34, r.w - 28, 8, 4, P.panelEdge);
+        E.roundRect(r.x + 14, r.y + 34, (r.w - 28) * k, 8, 4, P.cyan);
+        disc(ctx, r.x + 14 + (r.w - 28) * k, r.y + 38, 12, P.text); ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.stroke();
+      }
+      if (pn.group === 'stars') { // what the bars are now, on two ladders
+        const a = thresholds(CHALLENGES.find((c) => c.id === 'a3'), 'pistol'), b = thresholds(CHALLENGES.find((c) => c.id === 's3'), 'carbine'), y = pn.y + pn.h + 2;
+        E.text(`Accuracy 3: ${a.one} / ${a.two} / ${a.three}`, pn.x + 4, y + 8, { size: TY.small, align: 'left', color: P.textDim });
+        E.text(`Speed 3: ${b.one} / ${b.two} / ${b.three}   (${presetName()})`, pn.x + 4, y + 28, { size: TY.small, align: 'left', color: P.textDim });
+      }
+    }
+  },
+  set(E, r, px) {
+    const k = clamp((px - (r.x + 14)) / (r.w - 28), 0, 1);
+    let v = r.e.min + k * (r.e.max - r.e.min);
+    v = +(Math.round(v / r.e.step) * r.e.step).toFixed(6);
+    setPath(r.e.key, v); E.save.update('__tune', (t) => ({ ...t, [r.e.key]: v }), {}); E.save.set('starPreset', presetName());
+  },
+  onPointerDown(p, E) {
+    const r = this.L && this.L.panels.flatMap((pn) => pn.sliders).find((r) => E.hit(r, p));
+    if (r) { this.drag = r; this.set(E, r, p.x); }
+  },
+  onPointerMove(p, E) { if (this.drag) this.set(E, this.drag, p.x); },
+  onPointerUp() { this.drag = null; },
+  onTap(p, E) {
+    const L = this.L;
+    if (!L) return;
+    if (E.hit(L.back, p)) { E.setScene('menu'); return; }
+    if (E.hit(L.reset, p)) { for (const [k, v] of Object.entries(TUNE_DEFAULTS)) setPath(k, v); E.save.set('__tune', {}); E.save.set('starPreset', presetName()); return; }
+    for (const pn of L.panels) for (const b of pn.presets) if (E.hit(b, p)) {
+      for (const [k, v] of Object.entries(b.p.values)) setPath(k, v);
+      E.save.update('__tune', (t) => ({ ...t, ...b.p.values }), {}); E.save.set('starPreset', presetName()); E.audio.play('tap');
+    }
+  },
+};
 
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 5,
-  // Save shape: best { challengeId: { score, stars } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, bossGuns { gunId: 1 }, __tune, __muted.
+  saveVersion: 6,
+  // Save shape: best { challengeId: { score, stars } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, bossGuns { gunId: 1 }, starPreset (the star-bar preset's name), __tune, __muted.
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
-  // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default). Nothing else changes, and the whole save stays under a kilobyte or two.
+  // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default); v6 adds the star-bar preset's name. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (!data.gun) data.gun = 'pistol';
     if (!data.badges || typeof data.badges !== 'object') data.badges = {};
     if (!data.bossGuns || typeof data.bossGuns !== 'object') data.bossGuns = {};
     if (!data.skins || typeof data.skins !== 'object') data.skins = {};
+    if (typeof data.starPreset !== 'string') data.starPreset = 'Skilled';
     const b = data.best || {}, three = (id) => b[id] && b[id].stars === 3;
     for (const [badge, id] of [['marksman1', 'a1'], ['quickdraw1', 's1'], ['clay1', 'k1'], ['storm', 's4']]) if (three(id)) data.badges[badge] = 1;
     if (CHALLENGES.every((c) => three(c.id))) data.badges.legend = 1;
@@ -1844,5 +2109,5 @@ export const game = {
   experiments: EXPERIMENTS,
   presets: PRESETS,
   start: 'menu',
-  scenes: { menu, play, over, missions },
+  scenes: { menu, play, over, missions, tune, gun: gunCard },
 };
