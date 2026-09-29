@@ -19,7 +19,7 @@ A gun is data: `{ name, damage, fireRate, accuracy, kickPerShot, kickRecovery, m
 - **accuracy:** 0 to 1. Sets the range finder length: the dotted line extends `accuracy` of the way from the gun to the right edge. At 1 the line reaches the edge; at 0.4 it stops less than halfway and the player extrapolates. Accuracy never adds spread; shots are still exact. Deterministic.
 - **kickPerShot, kickRecovery, magSize, reloadSeconds** as in v0.1, now per gun.
 
-v0.2 ships two guns so the profile is exercised: **Service pistol** (damage 1, fireRate 4, accuracy 1.0, kick 8, recovery 32, mag 12, semi-auto) and **Carbine** (damage 1, fireRate 8, accuracy 0.55, kick 5, recovery 40, mag 20, auto: hold to fire). The gun is chosen on the menu before a challenge. The unlock table (guns gated by points) is the progression layer; in v0.2 both guns are available and the menu shows which one is selected.
+v0.2 ships two guns so the profile is exercised: **Service pistol** (damage 1, fireRate 9, accuracy 1.0, kick 8, recovery 32, mag 12, semi-auto) and **Carbine** (damage 1, fireRate 8, accuracy 0.55, kick 5, recovery 24, mag 20, auto: hold to fire). Rule learned in the build: a gun's fire interval must be shorter than the time its recovery takes to undo one kick (kickPerShot / kickRecovery), or the kick can never stack and the mechanic vanishes. Pistol: 0.11 s interval against 0.25 s recovery; carbine: 0.125 s against 0.21 s. The gun is chosen on the menu before a challenge. The unlock table (guns gated by points) is the progression layer; in v0.2 both guns are available and the menu shows which one is selected.
 
 ## A2. Barrel sway from movement
 

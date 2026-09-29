@@ -263,7 +263,7 @@ export class Engine {
     if (!ex || !ex.length) return;
     this._tune = ex.map((e) => ({ ...e, def: this._getPath(e.key) }));
     const saved = this.save.get('__tune', {});
-    for (const e of this._tune) if (e.key in saved) this._setPath(e.key, saved[e.key]);
+    for (const k of Object.keys(saved)) this._setPath(k, saved[k]); // slider keys and preset-only keys alike
     const E = this;
     this.game.scenes.tune = this.game.scenes.tune || {
       enter() { this.drag = null; },
