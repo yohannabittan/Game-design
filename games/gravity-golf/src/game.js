@@ -437,7 +437,36 @@ const LEVELS = [
     ball: { x: 60, y: 590 }, hole: { x: 60, y: 130 },
     walls: [{ x: 0, y: 178, w: 290, h: 22 }, { x: 120, y: 70, w: 22, h: 108 }], planets: [{ x: 180, y: 400, r: 52, mass: 1.2 }], suns: [{ x: 140, y: 548, r: 20 }], movers: [{ type: "moon", parent: 0, orbitR: 96, period: 4, r: 12, mass: 0.4, phase: 0 }],
   },
-  // Holes 11 to 15 (PRD v0.3 B) are pasted here from the content shards.
+  {
+    // Teaches timing a crossing comet: the planet and the wall gap force one line up the middle, and at release clock 0 the comet is on it, so let it pass. three: drag (3, 150) released at clock 0.5 (safe from about 0.2 to 1.4 s of the 1.47 s cycle, kicked at 0 to 0.15 and 1.45 to 1.65), one shot, passing 25 from the planet; aim window 4.85 degrees, drag 138.5 px to full power. two: (0, 60) lands on the planet, then (39, 129), both at clock 0.5. Sweep at clocks 0, 0.5 and 1.0: 0 straight sinks.
+    name: "Comet Lane", boss: false, stars: { three: 1, two: 3 },
+    ball: { x: 250, y: 590 }, hole: { x: 110, y: 110 },
+    walls: [{ x: 0, y: 177, w: 115, h: 22 }, { x: 265, y: 177, w: 95, h: 22 }], planets: [{ x: 170, y: 380, r: 44, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 400, y: 230 }, b: { x: -40, y: 230 }, period: 1.47, r: 16 }],
+  },
+  {
+    // Teaches skirting a black hole's pull for a bend: the wall blocks the straight line, so go up the right side and let the hole whip the ball over its top and left into the cup; aim a little closer and it is swallowed. three: drag (9, 150), one shot at full power, passing 45 from the horizon; aim window 5.2 degrees, drag 145.8 px to full power. two: (-30, 0) rests at (329, 568), then (25, 148); or a swallowed first try then (9, 150). Sweep: 0 straight sinks.
+    name: "Event Horizon", boss: false, stars: { three: 1, two: 3 },
+    ball: { x: 290, y: 580 }, hole: { x: 70, y: 140 },
+    walls: [{ x: 0, y: 330, w: 210, h: 22 }], planets: [], suns: [], blackholes: [{ x: 180, y: 240 }], movers: [],
+  },
+  {
+    // Teaches finding the gap between two comets: the wall shuts every line from the tee, so land on the planet, wait out the meteors, then fly the door at clock 1.4. three: (-128, 57) lands on the planet at (141.3, 442.3), then (20, 128) released at clock 1.4 (gap 1.20 to 1.58 s; at 1.0 or 1.8 a comet knocks it back), 0 bounces, sinks over 5.95 degrees of aim. Sweep at clocks 0, 0.5, 1.0, 1.4, 2.4: 0 straight sinks, 0 one-shot sinks of any kind from the tee.
+    name: "Meteor Shower", boss: false, stars: { three: 2, two: 4 },
+    ball: { x: 300, y: 585 }, hole: { x: 75, y: 120 },
+    walls: [{ x: 0, y: 300, w: 85, h: 22 }, { x: 150, y: 300, w: 210, h: 22 }], planets: [{ x: 110, y: 480, r: 40, mass: 1 }], suns: [], blackholes: [], movers: [{ type: "comet", a: { x: 55, y: 250 }, b: { x: 155, y: 250 }, period: 1, r: 14 }, { type: "comet", a: { x: 155, y: 195 }, b: { x: 55, y: 195 }, period: 1.4, r: 14 }],
+  },
+  {
+    // Teaches a slingshot through a black hole's pull: the wall and the pull shut every line from the tee and the sun sits on the lazy tee-to-cup line, so land on the planet, then whip past the black hole and back to the cup. three: (68, -15) lands on the planet at (142.5, 452.6), then (-49, 142) at full power passes the horizon at 22.3 units without crossing it and sinks with 0 bounces over 7.3 degrees of aim. Lazy line (75, 130) hits the sun (+1) then is swallowed (3 strokes). Sweep: 0 straight sinks, 0 one-shot sinks of any kind.
+    name: "Singularity", boss: false, stars: { three: 2, two: 4 },
+    ball: { x: 330, y: 580 }, hole: { x: 60, y: 110 },
+    walls: [{ x: 215, y: 300, w: 145, h: 22 }], planets: [{ x: 130, y: 500, r: 40, mass: 1 }], suns: [{ x: 245, y: 430, r: 24 }], blackholes: [{ x: 120, y: 350 }], movers: [],
+  },
+  {
+    // Boss: land on the planet, time the moon to get through the door, then time the comet to run the top lane past the black hole into the cup. three: (10, 53) lands on the planet's upper right; (-74, 76) at clock 0.45 (window 0.2 to 0.7: at 0.05 the moon holds it on the door lip, at 0.85 the moon catches it) climbs through the door and sticks to the pillar; (-57, 69) at clock 0.5 (window 0.3 to 0.75: at 0.1 the comet kicks it back, at 0.9 it kicks it into the black hole) banks off the right wall, runs the top lane behind the comet and curls past the black hole into the cup. Last-shot aim window 5.95 degrees. Sweep: 0 straight sinks. Lesson not carried: the straight line at the cup is walled, not swallowed. A narrow two-stroke route may exist from the right shelf (search unfinished); if playtest finds it, close it with a bumper.
+    name: "Collapse", boss: true, stars: { three: 3, two: 5 },
+    ball: { x: 40, y: 610 }, hole: { x: 80, y: 100 },
+    walls: [{ x: 30, y: 250, w: 242, h: 22 }, { x: 250, y: 90, w: 22, h: 160 }, { x: 245, y: 390, w: 115, h: 22 }], planets: [{ x: 130, y: 450, r: 36, mass: 0.8 }], suns: [], blackholes: [{ x: 28, y: 190 }], movers: [{ type: "moon", parent: 0, orbitR: 74, period: 3.2, r: 13, mass: 0.45, phase: 0 }, { type: "comet", a: { x: -70, y: 30 }, b: { x: 380, y: 30 }, period: 1.8 }],
+  },
 ];
 // Clamps a hole to the size and mass limits and fills the optional fields; also applied by tools/sim-golf.mjs to a shard's JSON.
 function prepareLevel(lv) {
