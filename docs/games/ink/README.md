@@ -47,14 +47,10 @@ node tools/sim-ink.mjs stencil.json path.json --speed 300      # finger speed in
 node tools/sim-ink.mjs stencil.json path.json --timer-from-path
 node tools/sim-ink.mjs --index 0 path.json                     # use stencil N of game.js
 node tools/sim-ink.mjs --list                                  # names and timers in game.js
-node tools/sim-ink.mjs --index 0 path.json --needle classic    # the v0.1 fixed-radius needle
-node tools/sim-ink.mjs --index 0 path.json --needle dynamic    # the v0.2 speed-driven radius
 node tools/sim-ink.mjs --index 0 path.json --events 30         # cut finger movement into 30 events per second of path time
 ```
 
-`--needle classic|dynamic` picks the needle mode; without it the game's own default (`TUNING.needleMode`, dynamic) applies. Every report names the mode that ran. To reproduce the v0.1 numbers, pass `--needle classic`: a path without speeds is then scored exactly as before (circle spiral plus lap: 99 percent at 14.9 s; snake: 100 percent at 13.6 s).
 
-`--preset NAME` (Crisp, Flowy, Heavy or Marker, case-insensitive) applies that preset's `growRate`, `shrinkRate` and `floorScale` before the run (v0.3 needle inertia). Without it the game defaults apply, which are Flowy. The report names the preset. The radius no longer jumps to the value the speed dictates: at every path sample it moves toward that target by `growRate` (widening) or `shrinkRate` (narrowing) radius units per second times the time since the previous sample, never below `needleR * floorScale`. Sample times come from the segment speeds, so the result does not depend on how the movement is cut into events. Classic mode ignores all of this.
 
 A path entry `{ "hold": 1.5 }` keeps the finger still for that many seconds: the simulator runs the game's own `update` in frames of 1/60 s (1/HZ with `--events`), so the radius swells in fixed 1/120 s steps, the disc it lays grows with it (never past `needleR * wideScale`) and the timer runs. Example: `[[180,320],{"hold":1}]`.
 
@@ -74,3 +70,6 @@ Output is the percentage, slips, path length, time, the moment 99 percent is rea
 4. A check that a naive path (a plain back-and-forth sweep of the bounding box) does not reach 99 percent clean, so the tips matter.
 
 The intended path should be something a thumb can plausibly do: no turns tighter than the needle radius, lifts at sharp corners.
+
+
+Needle mode: since v0.4 there is one needle (dynamic with Flowy inertia). Path points may still carry a speed as `[x, y, speed]`, and `{ "hold": seconds }` entries pause the needle in place.

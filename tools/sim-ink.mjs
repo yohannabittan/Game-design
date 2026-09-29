@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // sim-ink: run a scripted needle path through Ink's real coverage and slip code (games/ink/src/game.js).
 //
-//   node tools/sim-ink.mjs <stencil.json> <path.json> [--speed 300] [--needle classic|dynamic] [--preset NAME] [--events HZ] [--timer-from-path]
-//   node tools/sim-ink.mjs --index N <path.json> [--speed 300] [--needle classic|dynamic] [--preset NAME] [--events HZ] [--timer-from-path]
+//   node tools/sim-ink.mjs <stencil.json> <path.json> [--speed 300] [--events HZ] [--timer-from-path]
+//   node tools/sim-ink.mjs --index N <path.json> [--speed 300] [--events HZ] [--timer-from-path]
 //   node tools/sim-ink.mjs --list
 //
 // stencil.json: one stencil entry exactly as in the STENCILS array of game.js, so it can be pasted there unchanged.
@@ -18,11 +18,9 @@
 //   A point may carry a third element, the finger speed in units per second for the segment ENDING at that point:
 //   [x, y, speed]. Missing speed uses --speed. Speed only matters to the dynamic needle (it sets the ink radius) and to the clock.
 //
-// --needle classic|dynamic picks the needle mode (default: the game's own default, TUNING.needleMode, currently dynamic). classic is the
-//   v0.1 fixed radius. The report says which mode ran.
-// --preset NAME applies one of the game's tune presets (Crisp, Flowy, Heavy, Marker: growRate, shrinkRate, floorScale) before the run; without
-//   it the game's defaults apply (Flowy). The ink radius has inertia (PRD v0.3): it is integrated over every path sample from the time the
-//   sample would have had on its segment, so [x, y, speed] paths give the same result at any event rate.
+// The ink radius follows the finger speed with inertia (dynamic needle, Flowy values; PRD v0.2 and v0.3, the only needle since v0.4): it is integrated
+//   over every path sample from the time the sample would have had on its segment, so [x, y, speed] paths give the same result at any event rate.
+//   The old --needle and --preset flags were removed in v0.4 and now stop with an error.
 // { "hold": seconds } in the path keeps the finger still for that long (the game's own update runs, the radius swells, the timer runs).
 // --events HZ cuts the finger movement into events HZ times per second of path time (default: events of sampleSpacing units). The score
 //   must not depend on it; use it to check frame-rate independence.
@@ -40,7 +38,7 @@ const T = game.TUNING, sim = game.sim, play = game.scenes.play;
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const value = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
-const valueFlags = new Set(['--speed', '--index', '--needle', '--events', '--preset']);
+const valueFlags = new Set(['--speed', '--index', '--events']);
 const positional = args.filter((a, i) => !a.startsWith('--') && !valueFlags.has(args[i - 1]));
 const die = (msg) => { console.error(`sim-ink: ${msg}`); process.exit(2); };
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch (e) { die(`cannot read ${f}: ${e.message}`); } };
@@ -52,14 +50,7 @@ if (flag('--list')) {
 
 const speed = Number(value('--speed') ?? 300);
 if (!(speed > 0)) die('--speed must be a positive number');
-const needle = value('--needle');
-if (needle !== undefined && needle !== 'classic' && needle !== 'dynamic') die('--needle must be classic or dynamic');
-const presetName = value('--preset');
-if (presetName !== undefined) {
-  const pr = (game.presets || []).find((q) => q.label.toLowerCase() === presetName.toLowerCase());
-  if (!pr) die(`--preset must be one of: ${(game.presets || []).map((q) => q.label).join(', ')}`);
-  Object.assign(T, pr.values);
-}
+if (flag('--needle') || flag('--preset')) die('--needle and --preset were removed in v0.4: dynamic needle with Flowy inertia is the only needle');
 const eventsHz = value('--events') === undefined ? null : Number(value('--events'));
 if (eventsHz !== null && !(eventsHz > 0)) die('--events must be a positive number');
 
@@ -85,12 +76,11 @@ if (!pathFile) die('missing path.json');
 const path = readJson(pathFile);
 if (!Array.isArray(path) || !path.every((p) => p === null || (p && typeof p === 'object' && !Array.isArray(p) && p.hold > 0) || (Array.isArray(p) && (p.length === 2 || p.length === 3) && p.every(Number.isFinite) && (p.length === 2 || p[2] > 0)))) die('path must be an array of [x, y], [x, y, speed] (speed > 0), { hold: seconds } or null');
 const st = sim.stencils[idx];
-const presetLabel = (game.presets || []).find((q) => Object.entries(q.values).every(([k, v]) => T[k] === v))?.label;
 
 // A stand-in engine: only what the play scene touches.
 const E = {
   w: T.designW, h: T.designH, time: 0, safe: { top: 0, bottom: 0 }, pointers: new Map(), sounds: [], scene: null,
-  save: { d: needle ? { needleMode: needle } : {}, get(k, d) { return k in this.d ? this.d[k] : d; }, set(k, v) { this.d[k] = v; } },
+  save: { d: {}, get(k, d) { return k in this.d ? this.d[k] : d; }, set(k, v) { this.d[k] = v; } },
   audio: { muted: false, play(n) { E.sounds.push(n); }, beep() {}, toggleMute() {} },
   setScene(n, p) { E.scene = n; },
 };
@@ -136,10 +126,10 @@ for (const pt of path) {
 }
 
 const pct = sim.percent(), slips = sim.slips(), ruined = sim.ended() === 'ruined';
-const time = clock, time99 = t99, mode = E.save.get('needleMode', T.needleMode) === 'classic' ? 'classic' : 'dynamic';
+const time = clock, time99 = t99;
 const ok = time99 !== null && time99 <= st.timer && !ruined;
 const f1 = (v) => v.toFixed(1);
-console.log(`stencil   ${st.name}  (timer ${st.timer}s)  needle ${mode}${mode === 'dynamic' && presetLabel ? `, preset ${presetLabel}` : ''}`);
+console.log(`stencil   ${st.name}  (timer ${st.timer}s)  needle dynamic (Flowy)`);
 console.log(`percent   ${pct}%${sim.ended() === 'full' ? '  (100%, ended)' : ''}`);
 console.log(`slips     ${slips}/${T.maxSlips}${ruined ? '  RUINED, stencil ended at the third slip' : ''}`);
 console.log(`length    ${length.toFixed(0)} units${lifted ? ` (${lifted.toFixed(0)} while lifted)` : ''}`);

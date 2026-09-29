@@ -1,4 +1,4 @@
-// Ink, layers 1 to 3 and the v0.2 dynamic needle and the v0.3 needle inertia: the mechanic, the progression, the juice and a speed-driven ink radius with momentum. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
+// Ink, layers 1 to 3 and the v0.2 dynamic needle, the v0.3 needle inertia and the v0.4 gap hint: the mechanic, the progression, the juice, a speed-driven ink radius with momentum, and a highlight for the gaps that are hard to find. Hold the tattoo gun, lay ink inside the stencil, never leave the line three times.
 // Grey box: shapes and four colours only. Ten stencils, authored as data and verified with tools/sim-ink.mjs.
 
 import { clamp, dist, ease } from './engine.js';
@@ -49,20 +49,27 @@ const TUNING = {
   lockColor: '#7a6558',
   inkLayerMaxDpr: 2,     // The cached ink layer is drawn at most this many pixels per CSS pixel
 
-  // v0.2 dynamic needle (experiment, PRD v0.2 section E). Speeds are design units per second of finger travel.
-  needleMode: 'dynamic', // Default mode; the menu toggle overrides it and is saved
+  // v0.2 dynamic needle (PRD v0.2 section E; the game since v0.4). Speeds are design units per second of finger travel.
   slowSpeed: 175,        // At or below this speed the ink radius is needleR * wideScale
   fastSpeed: 520,        // At or above this speed the ink radius is needleR * thinScale
   wideScale: 1.8,        // Radius multiplier when slow
   thinScale: 0.65,       // Radius multiplier when fast
   speedWindow: 24,       // Units of travel over which speed is measured (never per frame)
 
-  // v0.3 needle inertia (PRD v0.3 sections A, B, E). Defaults are the Flowy preset. Radius units are design units per second.
+  // v0.3 needle inertia (PRD v0.3 sections A, E). The Flowy values won the phone playtest. Radius units are design units per second.
   growRate: 14,          // Radius units per second the ink radius widens toward its target
   shrinkRate: 30,        // Radius units per second it narrows toward its target
   floorScale: 0.8,       // The radius never drops below needleR * floorScale
   physicsStep: 1 / 120,  // Fixed step (seconds) for integrating the radius while the finger holds still
   holdGap: 0.06,         // Seconds without a movement event before the finger counts as holding still
+
+  // v0.4 gap hint (PRD v0.4 section E). Cosmetic: never changes coverage, slips, the timer or stars.
+  hintPercent: 95,       // Fill percentage at which the hint turns on (101 turns it off)
+  hintShare: 0.1,        // A cluster of unfilled cells is shown when it holds at least this share of the unfilled cells
+  hintEvery: 0.25,       // Seconds between hint recomputations
+  hintAlphaMin: 0.15,    // Pulse floor
+  hintAlphaMax: 0.45,    // Pulse peak
+  hintPeriod: 1.2,       // Pulse period, seconds
 
   // Layer 3: feel only. Nothing here touches coverage, slips, the timer, stars or saves. Seconds, screen px and design units as marked.
   juice: {
@@ -181,6 +188,65 @@ let menuPopIdx = -1; // set by the card when stars went up; the menu pops that t
 function view(E) {
   const s = Math.min(E.w / T.designW, E.h / T.designH);
   return { s, ox: (E.w - T.designW * s) / 2, oy: (E.h - T.designH * s) / 2 };
+}
+
+// ---------- Gap hint (v0.4) ----------
+// Once the fill reaches hintPercent, the unfilled cells are grouped into 4-neighbour clusters on the coverage grid, and every cluster holding at least
+// hintShare of all unfilled cells is glowed (drawn in drawPiece). Recomputed every hintEvery seconds from update; reads coverage, never writes it.
+
+const newHint = (g) => {
+  const n = g.cols * g.rows;
+  return { label: new Int32Array(n), queue: new Int32Array(n), size: new Int32Array(n + 1), shown: new Int32Array(n), n: 0, clusters: 0, remaining: 0 };
+};
+
+function computeHint() {
+  const h = S.hint, { cols, rows, inside } = S.g, inked = S.inked, lab = h.label, q = h.queue, total = cols * rows;
+  lab.fill(0);
+  let id = 0, remaining = 0;
+  for (let k0 = 0; k0 < total; k0++) {
+    if (!inside[k0] || inked[k0] || lab[k0]) continue;
+    id++; lab[k0] = id;
+    let qh = 0, qt = 0; q[qt++] = k0;
+    while (qh < qt) {
+      const k = q[qh++], i = k % cols;
+      if (i > 0 && inside[k - 1] && !inked[k - 1] && !lab[k - 1]) { lab[k - 1] = id; q[qt++] = k - 1; }
+      if (i < cols - 1 && inside[k + 1] && !inked[k + 1] && !lab[k + 1]) { lab[k + 1] = id; q[qt++] = k + 1; }
+      if (k >= cols && inside[k - cols] && !inked[k - cols] && !lab[k - cols]) { lab[k - cols] = id; q[qt++] = k - cols; }
+      if (k < total - cols && inside[k + cols] && !inked[k + cols] && !lab[k + cols]) { lab[k + cols] = id; q[qt++] = k + cols; }
+    }
+    h.size[id] = qt; remaining += qt;
+  }
+  h.clusters = id; h.remaining = remaining;
+  const need = T.hintShare * remaining;
+  let n = 0;
+  for (let k = 0; k < total; k++) if (lab[k] && h.size[lab[k]] >= need) h.shown[n++] = k;
+  h.n = n;
+}
+
+function hintStep(dt) {
+  if (S.ended || !S.started) return;
+  if (percent() < T.hintPercent) { S.hint.n = 0; S.hintT = 0; return; }
+  S.hintT -= dt;
+  if (S.hintT <= 0) { S.hintT = T.hintEvery; computeHint(); }
+}
+
+// The glow is a pulsing stencil-blue fill over the shown clusters' cells, drawn under the ink layer and under the outline (see drawPiece), so ink hides it
+// at once and the outline stays clean. Two passes, a faint slightly larger one first, give it soft edges. Cells are not clipped to the stencil (a clip
+// per frame costs more than the glow); a boundary cell can spill about two pixels past the outline.
+function drawHint(ctx, E, v) {
+  const h = S.hint, g = S.g, cs = T.cellSize;
+  const a = T.hintAlphaMin + (T.hintAlphaMax - T.hintAlphaMin) * (0.5 - 0.5 * Math.cos((2 * Math.PI * E.time) / T.hintPeriod));
+  ctx.save();
+  ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
+  ctx.fillStyle = T.stencilBlue;
+  for (let pass = 0; pass < 2; pass++) {
+    const pad = pass ? 0 : 0.9;
+    ctx.globalAlpha = pass ? a : a * 0.4;
+    ctx.beginPath();
+    for (let i = 0; i < h.n; i++) { const k = h.shown[i]; ctx.rect(g.x0 + (k % g.cols) * cs - pad, g.y0 + Math.floor(k / g.cols) * cs - pad, cs + 2 * pad, cs + 2 * pad); }
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 // ---------- Juice (layer 3) ----------
@@ -311,9 +377,10 @@ function newAttempt(idx) {
     strokes: [], stroke: null, marks: [],
     slips: 0, time: st.timer, started: false, ended: null, holdT: 0,
     pid: null, last: null, lastT: 0, carry: 0, armed: false,
-    finger: null, mode: 'dynamic', r: T.needleR, hist: newHist(), sT: 0, idle: 0, acc: 0, pushR: 0,
+    finger: null, r: T.needleR, hist: newHist(), sT: 0, idle: 0, acc: 0, pushR: 0,
     layer: null, layerK: 0, inkDone: [],
     grey: null, greyK: 0, fx: newFx(),
+    hint: newHint(g), hintT: 0,
   });
 }
 
@@ -350,9 +417,8 @@ function radiusFor(speed) {
   const u = clamp((speed - T.slowSpeed) / Math.max(T.fastSpeed - T.slowSpeed, 1e-6), 0, 1);
   return Math.max(T.needleR * (T.wideScale + (T.thinScale - T.wideScale) * u), T.needleR * T.floorScale);
 }
-// Inertia: the radius moves toward its target over dt seconds at growRate while widening and shrinkRate while narrowing (classic mode keeps needleR).
+// Inertia: the radius moves toward its target over dt seconds at growRate while widening and shrinkRate while narrowing.
 function stepRadius(dt, speed) {
-  if (S.mode !== 'dynamic') { S.r = T.needleR; return; }
   const goal = radiusFor(speed);
   S.r = clamp(S.r < goal ? Math.min(goal, S.r + T.growRate * dt) : Math.max(goal, S.r - T.shrinkRate * dt), T.needleR * T.floorScale, Infinity);
 }
@@ -406,7 +472,7 @@ function moveNeedle(E, x, y, tm) {
   if (!S.last) {
     S.last = { x, y }; S.lastT = tm; S.carry = 0; S.sT = tm; S.idle = 0; S.acc = 0;
     h.n = 0; h.cum = 0; histPush(h, 0, tm);
-    S.r = S.mode === 'dynamic' ? Math.max(T.needleR, T.needleR * T.floorScale) : T.needleR;
+    S.r = Math.max(T.needleR, T.needleR * T.floorScale);
     sample(E, x, y, S.r);
     return;
   }
@@ -430,7 +496,7 @@ function moveNeedle(E, x, y, tm) {
 // Holding still: the finger sends no events, but time passes. In fixed steps the radius keeps swelling toward the slow size, and the disc it lays
 // grows with it (never past the slow radius). Runs from update, so it is the same code the simulator's holds use.
 function holdStep(E, dt) {
-  if (S.mode !== 'dynamic' || S.pid === null || !S.last || S.ended) return;
+  if (S.pid === null || !S.last || S.ended) return;
   S.idle += dt;
   if (S.idle < T.holdGap) return;
   S.acc += dt;
@@ -521,6 +587,7 @@ function drawPiece(ctx, E) {
   const v = view(E), shape = S.st.shape, f = S.fx, now = E.time;
   syncInk(E, v);
   const W = T.designW * v.s, H = T.designH * v.s;
+  if (!S.ended && S.hint.n) drawHint(ctx, E, v); // under the ink, over the skin
   ctx.drawImage(S.layer, v.ox, v.oy, W, H);
   if (f.smear > 0) {
     syncGrey(v);
@@ -606,22 +673,19 @@ function drawLock(ctx, cx, cy) {
 }
 
 // ---------- Progress (saved) ----------
-// unlocked: highest unlocked stencil index. bests: percentage per stencil, per needle mode. stars: best stars per stencil. clean: a zero-slip pass per stencil.
-// Stars, clean and the unlock are shared between the two needle modes; only the best percentage is kept apart so the modes can be compared.
-
-const curMode = (E) => (E.save.get('needleMode', T.needleMode) === 'classic' ? 'classic' : 'dynamic');
+// unlocked: highest unlocked stencil index. best: percentage per stencil. stars: best stars per stencil. clean: a zero-slip pass per stencil.
 
 function progress(E) {
-  const mode = curMode(E), best = E.save.get('bests', {})[mode] || {}, stars = E.save.get('stars', {}), clean = E.save.get('clean', {});
+  const best = E.save.get('best', {}), stars = E.save.get('stars', {}), clean = E.save.get('clean', {});
   const unlocked = clamp(E.save.get('unlocked', 0), 0, STENCILS.length - 1);
   let total = 0;
   for (let i = 0; i < STENCILS.length; i++) total += stars[i] || 0;
-  return { best, stars, clean, unlocked, total, mode };
+  return { best, stars, clean, unlocked, total };
 }
 
 function recordResult(E, idx, { pct, stars, ruined, clean }) {
   const p = progress(E);
-  if (!ruined && pct > (p.best[idx] || 0)) E.save.update('bests', (b) => ({ ...b, [p.mode]: { ...b[p.mode], [idx]: pct } }), {});
+  if (!ruined && pct > (p.best[idx] || 0)) E.save.set('best', { ...p.best, [idx]: pct });
   if (stars > (p.stars[idx] || 0)) E.save.set('stars', { ...p.stars, [idx]: stars });
   if (clean && !p.clean[idx]) E.save.set('clean', { ...p.clean, [idx]: true });
   if (stars >= 1) E.save.set('unlocked', Math.max(p.unlocked, Math.min(idx + 1, STENCILS.length - 1)));
@@ -630,7 +694,7 @@ function recordResult(E, idx, { pct, stars, ruined, clean }) {
 // ---------- Scenes ----------
 
 const menu = {
-  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnNeedle = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; },
+  enter(E) { this.btnPlay = null; this.btnMute = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; },
   render(ctx, E) {
     const cx = E.w / 2, p = progress(E), gap = T.gridGap, cols = T.gridCols;
     E.text('INK', cx, E.safe.top + E.h * 0.08, { size: 48, weight: '800', color: T.textColor });
@@ -659,12 +723,10 @@ const menu = {
 
     const py = top + Math.ceil(STENCILS.length / cols) * (th + gap) + 44;
     this.btnPlay = E.button(p.unlocked > 0 ? `Play ${p.unlocked + 1}` : 'Play', cx, py, { fill: T.buttonFill, h: 64, size: 24 });
-    this.btnNeedle = E.button(`Needle: ${p.mode}`, cx, py + 72, { fill: T.buttonAltFill, w: 220, h: 48, size: 16 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', cx, py + 132, { fill: T.buttonAltFill, w: 170, h: 48, size: 16 });
+    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', cx, py + 80, { fill: T.buttonAltFill, w: 170, h: 48, size: 16 });
   },
   onTap(p, E) {
     if (E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play', { stencil: progress(E).unlocked }); return; }
-    if (E.hit(this.btnNeedle, p)) { E.save.set('needleMode', curMode(E) === 'classic' ? 'dynamic' : 'classic'); E.audio.play('tap'); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
     const t = this.tiles.find((t) => !t.locked && E.hit(t, p));
     if (t) { E.audio.play('tap'); E.setScene('play', { stencil: t.idx }); }
@@ -672,9 +734,10 @@ const menu = {
 };
 
 const play = {
-  enter(E, { stencil = 0 } = {}) { newAttempt(clamp(stencil, 0, STENCILS.length - 1)); S.mode = curMode(E); },
+  enter(E, { stencil = 0 } = {}) { newAttempt(clamp(stencil, 0, STENCILS.length - 1)); },
   update(dt, E) {
     holdStep(E, dt);
+    hintStep(dt);
     fxUpdate(dt, E);
     if (S.ended) {
       S.holdT -= dt;
@@ -692,7 +755,7 @@ const play = {
     const clean = !failed && S.slips === 0;
     const starsUp = stars > (progress(E).stars[S.idx] || 0);
     recordResult(E, S.idx, { pct, stars, ruined, clean });
-    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, mode: S.mode, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp });
+    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp });
   },
   onPointerDown(p, E) {
     if (S.ended) return;
@@ -778,7 +841,7 @@ const over = {
       const ck = pop(t - this.sweepAt, J.cleanPopSec, 0);
       if (t >= this.sweepAt) scaledText(ctx, E, 'Clean', cx, y + 180, ck, { size: 22, weight: '800', color: T.stencilBlue });
     }
-    E.text(`Best ${p.best}% (${p.mode})`, cx, y + 214, { size: 18, color: '#b8a698' });
+    E.text(`Best ${p.best}%`, cx, y + 214, { size: 18, color: '#b8a698' });
     ctx.restore();
 
     if (p.clean && t >= this.sweepAt) this.drawSweep(ctx, E, (t - this.sweepAt) / J.cleanSweepSec);
@@ -826,8 +889,9 @@ const over = {
 export const game = {
   slug: 'ink',
   title: 'Ink',
-  saveVersion: 3,
-  // v1 saved only best percentages: derive stars and the unlock from them. v2 to v3: bests are kept per needle mode; every v0.1 best was made with the classic needle.
+  saveVersion: 4,
+  // v1 saved only best percentages: derive stars and the unlock from them. v3 kept bests per needle mode; v4 has one needle, so the dynamic bests become the bests
+  // and every earlier best (all made with the classic needle) is dropped. Stars, clean and unlocks are kept.
   migrate(data, fromVersion) {
     if (fromVersion < 2) {
       const best = data.best || {}, stars = {};
@@ -838,26 +902,25 @@ export const game = {
       }
       data.stars = stars; data.clean = {}; data.unlocked = Math.min(unlocked, STENCILS.length - 1);
     }
-    if (fromVersion < 3) { data.bests = { classic: data.best || {}, dynamic: {} }; delete data.best; }
+    if (fromVersion < 4) { data.best = (fromVersion >= 3 && data.bests && data.bests.dynamic) || {}; delete data.bests; delete data.needleMode; }
+    // The tune panel now holds only the hint; drop saved needle and juice experiment values so they cannot override the new defaults.
+    if (fromVersion < 4 && data.__tune) data.__tune = Object.fromEntries(Object.entries(data.__tune).filter(([k]) => k.startsWith('hint')));
     return data;
   },
   TUNING,
-  // Playtest sliders (TUNE tab on the menu). All are read from TUNING at use time, so they apply live.
+  // TUNE tab: the gap hint only. Whole feels first (presets), two sliders under them. Both read TUNING at use time, so they apply live.
   experiments: [
-    { key: 'growRate', label: 'Grow rate (radius units/s)', min: 4, max: 80, step: 1 },
-    { key: 'shrinkRate', label: 'Shrink rate (radius units/s)', min: 4, max: 100, step: 1 },
-    { key: 'floorScale', label: 'Floor scale (min radius)', min: 0.5, max: 1, step: 0.05 },
-    { key: 'wideScale', label: 'Wide scale (slow)', min: 1, max: 2.5, step: 0.05 },
+    { key: 'hintPercent', label: 'Hint starts at (percent)', min: 85, max: 100, step: 1 },
+    { key: 'hintShare', label: 'Gap share shown (of what is left)', min: 0.02, max: 0.5, step: 0.01 },
   ],
-  // Whole feels first, sliders second (TUNE tab). Flowy is the default.
   presets: [
-    { label: 'Crisp', values: { growRate: 60, shrinkRate: 80, floorScale: 0.65 } },
-    { label: 'Flowy', values: { growRate: 14, shrinkRate: 30, floorScale: 0.8 } },
-    { label: 'Heavy', values: { growRate: 8, shrinkRate: 18, floorScale: 0.9 } },
-    { label: 'Marker', values: { growRate: 25, shrinkRate: 25, floorScale: 0.75 } },
+    { label: 'Late', values: { hintPercent: 97, hintShare: 0.15 } },
+    { label: 'Standard', values: { hintPercent: 95, hintShare: 0.1 } },
+    { label: 'Early', values: { hintPercent: 90, hintShare: 0.05 } },
+    { label: 'Off', values: { hintPercent: 101, hintShare: 1 } },
   ],
   start: 'menu',
   scenes: { menu, play, over },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
-  sim: { stencils: STENCILS, percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g, radius: () => S.r },
+  sim: { stencils: STENCILS, percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g, radius: () => S.r, hint: () => S.hint, computeHint },
 };

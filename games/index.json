@@ -7,7 +7,7 @@
   {
     "slug": "ink",
     "title": "Ink",
-    "status": "v0.3 experiment: needle inertia presets (Crisp, Flowy, Heavy, Marker) on the TUNE tab"
+    "status": "v0.4: Flowy needle; gap hint above 95% with presets on the TUNE tab"
   },
   {
     "slug": "recoil",
