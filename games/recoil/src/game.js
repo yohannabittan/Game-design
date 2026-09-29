@@ -48,7 +48,8 @@ const TUNING = {
   guns: {
     pistol: { id: 'pistol', name: 'Service pistol', short: 'Pistol', damage: 1, fireRate: 9, accuracy: 1.0, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, auto: false },
     carbine: { id: 'carbine', name: 'Carbine', short: 'Carbine', damage: 1, fireRate: 8, accuracy: 0.55, kickPerShot: 5, kickRecovery: 24, magSize: 20, reloadSeconds: 1.5, auto: true },
-    // v0.3. `pellets` lines leave the barrel in a fixed fan of shotSpread degrees; each pellet deals `damage` on its own.
+    // v0.3. `pellets` lines leave the barrel in a fixed fan of shotSpread degrees; each pellet deals `damage` on its own. Only the centre
+    // pellet scores zone points on ring targets; on hordes every member any pellet hits scores.
     shotgun: { id: 'shotgun', name: 'Shotgun', short: 'Shotgun', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.0, auto: false },
     rifle: { id: 'rifle', name: 'Marksman rifle', short: 'Rifle', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 2.0, auto: false },
   },
@@ -79,8 +80,9 @@ const TUNING = {
   hudPad: 8,             // HUD padding in screen px
   // Layer 5 (art). Every colour and every effect number the drawing uses lives here; nothing below reads a literal colour.
   // Look: chunky flat vector, warm-black outlines (line, gunLine), one soft highlight per shape, a drop shadow (shadowX, shadowY, palette.shadow),
-  // corner radius `radius` on panels. Light comes from the upper left. Semantic colours keep their meaning: cyan is the goal (targets),
-  // orange is the player (gun, shots, muzzle, clays), red is danger (the breach line and edge). World art is in design units; HUD and menus in screen px.
+  // corner radius `radius` on panels. Light comes from the upper left. Semantic colours keep their meaning: cyan is the goal (targets, clays,
+  // the selected boss plate), orange is the player (gun, shots, muzzle, range finder), red is danger (the breach line and edge only).
+  // World art is in design units; HUD and menus in screen px.
   art: {
     palette: {
       letterbox: '#0f1115',  // Outside the field (the engine reads TUNING.bg, set from this)
@@ -94,7 +96,7 @@ const TUNING = {
       // Gunmetal, warm
       steel: '#8d877e', steelDark: '#57524b', steelLight: '#b4ada1',
       // Accents
-      orange: '#f97316', orangeDark: '#a8480d', orangeLight: '#fdba74', flashCore: '#fff4dc',
+      orange: '#f97316', orangeLight: '#fdba74', flashCore: '#fff4dc',
       brass: '#d6a23a', brassDark: '#8a5d16',
       // Targets
       cyan: '#22d3ee', cyanGlow: 'rgba(34,211,238,0.2)', orbShell: '#123a4a',
@@ -161,7 +163,7 @@ const TUNING = {
         ['rr', 'highlight', -17, -8, 28, 2.6, 1.3], ['rr', 'highlight', -10, -20.5, 32, 2.2, 1.1],
       ] },
     },
-    flash: { spikes: [28, 10, 14, 8, 6, 8, 14, 10], inner: 4.5, from: 0.7, mid: 0.62, core: 0.3 }, // Muzzle flash: eight spikes (forward first), scale grows from `from` to 1 as it lives
+    flash: { spikes: [28, 10, 14, 8, 6, 8, 14, 10], inner: 4.5, from: 0.7, mid: 0.62, core: 0.3, dropAlpha: 0.3, dropScale: 0.5 }, // Muzzle flash: eight spikes (forward first), scale grows from `from` to 1 as it lives; a dropped tap flickers a small faint one (dropAlpha, dropScale)
     casing: { cap: 10, life: 0.55, gravity: 700, vx: [-75, -30], vy: [-175, -105], spin: [-16, 16], floor: 16, fade: 0.35, line: 1.2 }, // Ejected brass: capped particles
     finder: { gap: 6, rNear: 2.8, rFar: 1.5, farAlpha: 0.25, warm: 0.3, ramp: 4, track: 5.5, trackAlpha: 0.3, capHalf: 6, capWidth: 2.6, capAlpha: 0.55, fanAlpha: 0.22 },
     tracer: { width: 2.5 },
@@ -170,7 +172,7 @@ const TUNING = {
     backdrop: { skyLowY: 120, wallTop: 208, coping: 7, seam: 64, marker: 128, markerW: 14, markerH: 22, tape: [10, 8], tick: 5 },
     card: { pad: 3, radius: 0.6, ringLine: 1, timerK: 1.17, timerGap: 4, timerWidth: 3, post: 4, foot: 13 }, // Paper target: pad beyond the outer ring, corner as a fraction of the half size
     trolley: { w: 0.8, h: 4, wheel: 2.6, tie: 24, tieLen: 2.5, tieW: 5, rail: 2, railAlpha: 0.55 },
-    clay: { dome: 0.62, rim: 0.82, rimLine: 1.2 },
+    clay: { disc: 0.74, rimLine: 1.2 },
     plate: { r: 1.1, inner: 0.86, rivet: 2.2, glow: [1.2, 1.32], dash: 12, ring: 7, pip: 5, pipGap: 8, pipTray: 3 },
     core: { pulse: 5, glow: [7, 14], glowAlpha: [0.22, 0.12], amp: 3, spec: 0.68 },
     pip: { w: 6, h: 9, gap: 11 }, // Combo pips drawn as brass casings
@@ -253,8 +255,10 @@ const CHALLENGES = [
     id: 'b1', ladder: 'boss', level: 1, name: 'Boss 1', seed: 44001,
     bossSeconds: 40, scale: 1.1, x: [430, 560], coreX: 520, coreScale: 0.9, coreBull: 0.6,
     stars: { one: 1130, two: 2060, three: 3190 },
-    // The shotgun and rifle finish in five scoring hits (perfect run 1000 for both), so their stars are 30/55/85 of that.
-    starsByGun: { shotgun: { one: 300, two: 550, three: 850 }, rifle: { one: 300, two: 550, three: 850 } },
+    // Per-gun stars are 30/55/85 percent of each gun's true maximum run (searched over every aim error, streak and pellet count, then replayed
+    // in the sim): pistol and carbine 3750 (twelve one-damage bullseyes), rifle 1000 (five bullseyes, damage 3), shotgun 1350 (six scoring
+    // bullseyes: the core takes three shots when the centre pellet sits in the bullseye and only one outer pellet lands on the core too).
+    starsByGun: { shotgun: { one: 410, two: 740, three: 1150 }, rifle: { one: 300, two: 550, three: 850 } },
   },
 ];
 const LADDERS = [['accuracy', 'Accuracy'], ['speed', 'Speed'], ['skeet', 'Skeet'], ['boss', 'Boss']];
@@ -439,11 +443,13 @@ function fanOffsets(g) {
 }
 
 // One shot: every pellet flies its own line from the gun and stops at the first target it crosses; then the kick.
-// The shot scores once, by its best pellet's zone. Each pellet damages separately. A pellet on an inactive boss part is neutral.
-function fire(run) {
+// Scoring (PRD v0.3 section A): only the centre pellet scores zone points on ring targets, so the fan never makes aiming easier; every
+// pellet damages boss parts separately; on horde targets every member any pellet hits scores outer points. The shot is one hit for the
+// combo. A pellet on an inactive boss part is neutral. `cue` is true for a tap (not held fire): a tap dropped inside the interval says so.
+function fire(run, cue) {
   if (run.done || run.ammo <= 0) return;
   const g = run.gun, now = run.steps * STEP;
-  if (now < run.nextFire - STEP - 1e-9) return; // one step of slack, so a tap at the nominal interval is not lost to step rounding
+  if (now < run.nextFire - STEP - 1e-9) { if (cue) run.events.push({ type: 'dropped' }); return; } // one step of slack, so a tap at the nominal interval is not lost to step rounding
   run.nextFire = Math.max(now, run.nextFire) + 1 / g.fireRate; // held fire keeps the exact rate
   const gx = T.gunX, gy = run.gunY, a0 = angleOf(run);
   const lines = fanOffsets(g).map((off) => { const a = (a0 + off) * DEG; return { sn: Math.sin(a), cs: Math.cos(a) }; });
@@ -462,34 +468,37 @@ function fire(run) {
     const len = tg ? along : (T.designW - gx) / l.cs;
     return { tg, perp, x1: gx + l.cs * len, y1: gy - l.sn * len, neutral: !!tg && tg.kind === 'part' && tg.idx !== run.stage };
   });
-  const R = T.zoneR;
+  const R = T.zoneR, ci = (res.length - 1) >> 1;
   const zoneOf = (r) => (r.tg.flat ? 2 : r.perp <= R[0] * r.tg.sc * (r.tg.bullMul || 1) ? 0 : r.perp <= R[1] * r.tg.sc ? 1 : 2);
-  const scoring = res.filter((r) => r.tg && !r.neutral);
-  const mid = res[(res.length - 1) >> 1];
-  const ev = { type: 'shot', x0: gx + Math.cos(a0 * DEG) * T.barrelLen, y0: gy - Math.sin(a0 * DEG) * T.barrelLen, lines: res.map((r) => ({ x1: r.x1, y1: r.y1 })), x1: mid.x1, y1: mid.y1, hit: scoring.length > 0, dodged: dodged && !scoring.length, neutral: !scoring.length && res.some((r) => r.neutral) };
-  if (scoring.length) {
-    let best = scoring[0], bz = zoneOf(best);
-    for (const r of scoring) { const z = zoneOf(r); if (z < bz) { best = r; bz = z; } }
+  const scored = new Map(), hurt = new Set(); // target -> zone it scores; boss targets a pellet damaged
+  res.forEach((r, i) => {
+    if (!r.tg || r.neutral) return;
+    if (r.tg.flat) scored.set(r.tg, 2);
+    else if (i === ci) scored.set(r.tg, zoneOf(r));
+    if (r.tg.hp !== undefined) { r.tg.hp -= g.damage; hurt.add(r.tg); }
+  });
+  const down = new Set();
+  for (const tg of scored.keys()) if (tg.hp === undefined) down.add(tg);
+  for (const tg of hurt) if (tg.hp <= 0) down.add(tg);
+  const mid = res[ci];
+  const ev = { type: 'shot', x0: gx + Math.cos(a0 * DEG) * T.barrelLen, y0: gy - Math.sin(a0 * DEG) * T.barrelLen, lines: res.map((r) => ({ x1: r.x1, y1: r.y1 })), x1: mid.x1, y1: mid.y1, hit: scored.size > 0, dodged: dodged && !scored.size, neutral: !scored.size && !hurt.size && res.some((r) => r.neutral) };
+  if (scored.size) {
     const mult = Math.min(T.comboCap, 1 + T.comboStep * run.streak);
-    const pts = Math.round(T.zonePoints[bz] * mult);
-    run.score += pts; run.streak++; run.hits++;
+    let pts = 0, bz = 3, tx = 0, ty = 0;
+    for (const [tg, z] of scored) { pts += Math.round(T.zonePoints[z] * mult); bz = Math.min(bz, z); tx += tg.x; ty += tg.y; }
+    run.score += pts; run.streak++; run.hits += scored.size;
     if (bz === 0) run.bulls++;
-    const down = new Set();
-    for (const r of scoring) {
-      if (r.tg.hp === undefined) down.add(r.tg);
-      else { r.tg.hp -= g.damage; if (r.tg.hp <= 0) down.add(r.tg); }
-    }
-    for (const tg of down) {
-      run.targets.splice(run.targets.indexOf(tg), 1);
-      if (run.ch.ladder === 'accuracy') run.nextAt = now + T.accGap;
-      if (tg.kind === 'part') { run.stage++; if (run.stage >= run.list.parts.length) spawnCore(run, now); }
-      if (tg.kind === 'core') run.cleared = true;
-      if (tg.group !== undefined) { run.pairHits[tg.group] = (run.pairHits[tg.group] || 0) + 1; if (run.pairHits[tg.group] >= 2) run.double = true; }
-    }
-    Object.assign(ev, { tx: best.tg.x, ty: best.tg.y, zone: bz, pts, mult, streak: run.streak, killed: down.size > 0, damaged: best.tg.hp !== undefined });
+    Object.assign(ev, { tx: tx / scored.size, ty: ty / scored.size, zone: bz, pts, mult, streak: run.streak, killed: down.size > 0 });
   } else {
     if (!dodged && !ev.neutral) { run.streak = 0; run.misses++; }
     ev.streak = run.streak;
+  }
+  for (const tg of down) {
+    run.targets.splice(run.targets.indexOf(tg), 1);
+    if (run.ch.ladder === 'accuracy') run.nextAt = now + T.accGap;
+    if (tg.kind === 'part') { run.stage++; if (run.stage >= run.list.parts.length) spawnCore(run, now); }
+    if (tg.kind === 'core') run.cleared = true;
+    if (tg.group !== undefined) { run.pairHits[tg.group] = (run.pairHits[tg.group] || 0) + 1; if (run.pairHits[tg.group] >= 2) run.double = true; }
   }
   run.events.push(ev);
   run.kick = Math.min(T.kickMax, run.kick + g.kickPerShot);
@@ -574,7 +583,7 @@ function advance(run, dt) {
     while (run.q.length && run.q[0].at <= tEnd + 1e-9) {
       const e = run.q.shift();
       if (e.kind === 'move') moveGun(run, e.value);
-      else if (e.kind === 'fire') fire(run);
+      else if (e.kind === 'fire') fire(run, true);
       else run.holding = !!e.value;
     }
     if (run.holding && run.gun.auto) fire(run);
@@ -588,8 +597,8 @@ function stamp(run) {
   return run.steps * STEP + run.acc + Math.min(0.05, Math.max(0, (performance.now() - run.frameReal) / 1000));
 }
 
-// Thresholds are pistol-derived. Boss 1 is the exception: a one-hit gun has only five scoring hits in it (about 1000 at best),
-// so the shotgun and rifle carry their own thresholds from their own perfect runs, or Boss Killer could never be earned.
+// Thresholds are pistol-derived. Boss 1 is the exception: the shotgun and rifle finish it in far fewer scoring shots (maxima 1350 and 1000
+// against the pistol's 3750), so they carry their own thresholds from their own maxima, or Boss Killer could never be earned.
 function thresholds(ch, gun) { return (ch.starsByGun && ch.starsByGun[gun]) || ch.stars; }
 function starsFor(ch, score, gun) { const t = thresholds(ch, gun); return score >= t.three ? 3 : score >= t.two ? 2 : score >= t.one ? 1 : 0; }
 
@@ -792,9 +801,9 @@ function drawGun(ctx, run) {
 
 // The muzzle flash sprite at the barrel tip, turned with the barrel. It grows as it fades.
 function drawFlash(ctx, run, f) {
-  const F = A.flash, a = angleOf(run) * DEG, m = gunArt(run.gun.id).muzzle, life = f.t / f.max, s = F.from + (1 - F.from) * (1 - life);
+  const F = A.flash, a = angleOf(run) * DEG, m = gunArt(run.gun.id).muzzle, life = f.t / f.max, s = (F.from + (1 - F.from) * (1 - life)) * (f.faint ? F.dropScale : 1);
   ctx.save(); ctx.translate(T.gunX + Math.cos(a) * m, run.gunY - Math.sin(a) * m); ctx.rotate(-a); ctx.scale(s, s);
-  ctx.globalAlpha = life;
+  ctx.globalAlpha = life * (f.faint ? F.dropAlpha : 1);
   ctx.fillStyle = P.orangeLight; ctx.fill(FLASH);
   ctx.scale(F.mid, F.mid); ctx.fillStyle = P.orange; ctx.fill(FLASH);
   ctx.scale(F.core / F.mid, F.core / F.mid); ctx.fillStyle = P.flashCore; ctx.fill(FLASH);
@@ -814,7 +823,7 @@ function drawCasing(ctx, f) {
 
 // ---- Targets ----
 
-// A paper range target: a card with three printed rings (a horde card prints two and no bullseye). Returns the card's half size.
+// A paper range target: a card with three printed rings, cyan and white for the goal (a horde card prints two and no bullseye). Returns the card's half size.
 function drawCard(ctx, x, y, sc, bullMul, flat) {
   const R = T.zoneR, C = A.card, r2 = R[2] * sc, half = r2 + C.pad * sc, lw = Math.max(1.5, A.line * Math.min(1, sc + 0.25));
   ctx.lineJoin = 'round';
@@ -824,7 +833,7 @@ function drawCard(ctx, x, y, sc, bullMul, flat) {
   if (flat) { disc(ctx, x, y, r2, P.slate); disc(ctx, x, y, R[1] * sc, P.cyan); return; } // a horde member is small: no printed edges, no shadow
   ctx.lineWidth = C.ringLine; ctx.strokeStyle = P.inkSoft;
   ringDisc(ctx, x, y, r2, P.slate); ringDisc(ctx, x, y, R[1] * sc, P.cyan);
-  const b = R[0] * sc * bullMul; ringDisc(ctx, x, y, b, P.white); disc(ctx, x, y, b * 0.42, P.red);
+  ringDisc(ctx, x, y, R[0] * sc * bullMul, P.white);
 }
 
 function paintCard(g, sc, flat) { drawCard(g, 0, 0, sc, 1, flat); }
@@ -854,17 +863,16 @@ function drawTrolley(ctx, x, y, half, sc, rail) {
   disc(ctx, x - w * 0.55, wy, wr, P.steel); ctx.stroke(); disc(ctx, x + w * 0.55, wy, wr, P.steel); ctx.stroke();
 }
 
-// A clay pigeon: an orange disc with a rim, a lighter dome, a highlight and the bullseye dot. Its radius is exactly the hit radius.
+// A clay pigeon in the goal colour: a cyan rim round a neutral paper disc, a highlight and the white bullseye. Its radius is exactly the hit radius.
 function paintClay(g, sc) { drawClay(g, 0, 0, sc); }
 function drawClay(ctx, x, y, sc) {
   const C = A.clay, r = T.zoneR[1] * sc;
   ctx.lineJoin = 'round';
   disc(ctx, x + A.shadowX, y + A.shadowY, r, P.shadow);
-  ctx.fillStyle = P.orange; ctx.strokeStyle = P.ink; ctx.lineWidth = A.line * Math.min(1, sc + 0.3);
+  ctx.fillStyle = P.cyan; ctx.strokeStyle = P.ink; ctx.lineWidth = A.line * Math.min(1, sc + 0.3);
   ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill(); ctx.stroke();
-  disc(ctx, x, y, r * C.dome, P.orangeLight);
-  ctx.strokeStyle = P.orangeDark; ctx.lineWidth = C.rimLine; ctx.beginPath(); ctx.arc(x, y, r * C.rim, 0, PI2); ctx.stroke();
-  ctx.strokeStyle = P.highlight; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 0.8, Math.PI * 1.05, Math.PI * 1.45); ctx.stroke();
+  ctx.strokeStyle = P.inkSoft; ctx.lineWidth = C.rimLine; ringDisc(ctx, x, y, r * C.disc, P.paper);
+  ctx.strokeStyle = P.highlight; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 0.6, Math.PI * 1.05, Math.PI * 1.45); ctx.stroke();
   ctx.lineWidth = 1; ctx.strokeStyle = P.inkSoft; ringDisc(ctx, x, y, T.zoneR[0] * sc, P.white);
 }
 
@@ -874,7 +882,7 @@ function octagon(g, x, y, r) {
   g.closePath();
 }
 
-// A boss part: a bolted octagonal armour plate with the rings printed on it. The active one is lit: orange bolts, a cyan glow and a marching ring.
+// A boss part: a bolted octagonal armour plate with the rings printed on it. The active one is lit in the goal colour: cyan bolts, glow and marching ring.
 function paintPlate(g, sc, active) {
   const B = A.plate, R = T.zoneR, r2 = R[2] * sc, pr = r2 * B.r;
   g.lineJoin = 'round';
@@ -885,18 +893,18 @@ function paintPlate(g, sc, active) {
   g.strokeStyle = P.highlight; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, pr * 0.93, Math.PI * 1.08, Math.PI * 1.42); g.stroke();
   g.lineWidth = 1; g.strokeStyle = P.inkSoft;
   ringDisc(g, 0, 0, r2, P.slate); ringDisc(g, 0, 0, R[1] * sc, P.cyan);
-  const b = R[0] * sc; ringDisc(g, 0, 0, b, P.white); disc(g, 0, 0, b * 0.42, P.red);
+  ringDisc(g, 0, 0, R[0] * sc, P.white);
   g.strokeStyle = P.ink; g.lineWidth = 1.2;
   for (let k = 0; k < 4; k++) {
     const a = Math.PI / 4 + (k * Math.PI) / 2;
-    disc(g, Math.cos(a) * pr * 0.905, Math.sin(a) * pr * 0.905, B.rivet * Math.min(1, sc + 0.2), active ? P.orange : P.steelLight); g.stroke();
+    disc(g, Math.cos(a) * pr * 0.905, Math.sin(a) * pr * 0.905, B.rivet * Math.min(1, sc + 0.2), active ? P.cyan : P.steelLight); g.stroke();
   }
 }
 function drawPlate(ctx, tg, active, time) {
   const B = A.plate, pr = T.zoneR[2] * tg.sc * B.r, x = tg.x, y = tg.y;
   drawSprite(ctx, K_PLATE + Math.round(tg.sc * 100) * 2 + (active ? 1 : 0), pr * B.glow[1] + 6, paintPlate, x, y, tg.sc, active);
   if (active) {
-    ctx.strokeStyle = P.orangeLight; ctx.lineWidth = 2; ctx.setLineDash(SEL_DASH); ctx.lineDashOffset = -time * B.dash;
+    ctx.strokeStyle = P.cyan; ctx.lineWidth = 2; ctx.setLineDash(SEL_DASH); ctx.lineDashOffset = -time * B.dash;
     ctx.beginPath(); ctx.arc(x, y, pr * B.glow[1] + 2, 0, PI2); ctx.stroke(); ctx.setLineDash(NO_DASH); ctx.lineDashOffset = 0;
   }
 }
@@ -1029,7 +1037,7 @@ function buildBackdrop() {
   const W = T.designW, hz = HORIZON, b = A.backdrop, base = b.wallTop + b.coping;
   BGP.seams = new Path2D(); BGP.boards = new Path2D(); BGP.chevrons = new Path2D(); BGP.plaques = new Path2D(); BGP.ticks = new Path2D();
   for (let x = b.seam; x < W; x += b.seam) BGP.seams.rect(x - 1, base + 2, 2, hz - base - 2);
-  for (let x = b.marker; x < W - 20; x += b.marker) { // a paper lane board with an orange chevron
+  for (let x = b.marker; x < W - 20; x += b.marker) { // a grey lane board with a darker chevron (neutral: nothing on the wall is a target)
     rrPath(BGP.boards, x - b.markerW / 2, base + 10, b.markerW, b.markerH, 2);
     BGP.chevrons.moveTo(x - 5, base + 15); BGP.chevrons.lineTo(x + 5, base + 15); BGP.chevrons.lineTo(x, base + 23); BGP.chevrons.closePath();
     BGP.plaques.rect(x - 5, base + 27, 10, 3);
@@ -1047,8 +1055,8 @@ function drawBackdrop(ctx) {
   ctx.fillStyle = P.highlight; ctx.fillRect(0, top, W, 2);
   ctx.fillStyle = P.ink; ctx.fillRect(0, base, W, 2);
   ctx.fillStyle = P.wallSeam; ctx.fill(BGP.seams);
-  ctx.fillStyle = P.paper; ctx.strokeStyle = P.ink; ctx.lineJoin = 'round'; ctx.lineWidth = 1.6; ctx.fill(BGP.boards); ctx.stroke(BGP.boards);
-  ctx.fillStyle = P.orange; ctx.fill(BGP.chevrons);
+  ctx.fillStyle = P.steel; ctx.strokeStyle = P.ink; ctx.lineJoin = 'round'; ctx.lineWidth = 1.6; ctx.fill(BGP.boards); ctx.stroke(BGP.boards);
+  ctx.fillStyle = P.steelDark; ctx.fill(BGP.chevrons);
   ctx.fillStyle = P.slate; ctx.fill(BGP.plaques);
   ctx.fillStyle = P.shadow; ctx.fillRect(0, hz - 6, W, 6);
   ctx.fillStyle = P.ground; ctx.fillRect(0, hz, W, H - hz);
@@ -1127,6 +1135,9 @@ function cosmetics(E, ev) {
       E.audio.play('hit', 0.5);
       E.audio.beep({ freq: 440 * Math.pow(2, Math.min(ev.streak, 12) / 12), dur: 0.06, type: 'triangle', gain: 0.1 });
     }
+  } else if (ev.type === 'dropped') { // a tap inside the fire interval: a faint click and a flicker, no effect on timing
+    E.audio.play('tap', 0.12);
+    S.fx.push({ k: 'flash', faint: true, t: T.flashLife * 0.6, max: T.flashLife * 0.6 });
   } else if (ev.type === 'breach') {
     S.fx.push({ k: 'edge', t: T.edgeLife, max: T.edgeLife });
     if (E.time - S.breachAt >= T.breachGap) { S.breachAt = E.time; E.audio.play('miss'); E.haptic(30); } // a horde breaching together sounds once
@@ -1135,17 +1146,17 @@ function cosmetics(E, ev) {
 
 function endRun(E) {
   const r = S.run, ch = S.ch, stars = starsFor(ch, r.score, r.gun.id);
-  const prev = bests(E)[ch.id];
-  const isNew = !prev || r.score > prev.score;
-  if (isNew) E.save.update('best', (b) => ({ ...(b && typeof b === 'object' ? b : {}), [ch.id]: { score: r.score, stars } }), {});
-  const bestStars = Math.max(stars, prev && prev.stars ? prev.stars : 0);
+  const prev = bests(E)[ch.id], prevStars = prev && prev.stars ? prev.stars : 0;
+  // Stars are monotonic and kept apart from the best score: a higher score with fewer stars (another gun's thresholds) never lowers them.
+  const isNew = !prev || r.score > prev.score, bestScore = isNew ? r.score : prev.score, bestStars = Math.max(stars, prevStars);
+  if (isNew || bestStars !== prevStars) E.save.update('best', (b) => ({ ...(b && typeof b === 'object' ? b : {}), [ch.id]: { score: bestScore, stars: bestStars } }), {});
   let bossGuns = E.save.get('bossGuns', {});
   if (!bossGuns || typeof bossGuns !== 'object') bossGuns = {};
   if (ch.id === 'b1' && stars === 3 && !bossGuns[r.gun.id]) { bossGuns = { ...bossGuns, [r.gun.id]: 1 }; E.save.set('bossGuns', bossGuns); }
   const gaunt = S.gauntlet === null ? null : gauntletStep(S.gauntlet, stars);
   const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, gauntletDone: !!(gaunt && gaunt.done), bests: bests(E), bossGuns, have: badgeMap(E) });
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
-  E.setScene('over', { id: ch.id, gun: r.gun.name, score: r.score, stars, best: isNew ? r.score : prev.score, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id) });
+  E.setScene('over', { id: ch.id, gun: r.gun.name, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, shots: r.shots, badges: fresh, gaunt, thr: thresholds(ch, r.gun.id) });
 }
 
 function meterText(r, ch) {
@@ -1155,6 +1166,11 @@ function meterText(r, ch) {
 }
 
 // ---------- Menu layout ----------
+
+// The landscape left column, top to bottom, as [roomy, tight] offsets from its top: the roomy column is 361 tall, the tight one 336
+// (the least that keeps every button 44 px). The layout slides between them by how much height the viewport leaves above the bottom inset.
+const MENU_COL = { title: [14, 12], points: [40, 34], bar: [54, 46], next: [72, 63], guns: [84, 74], pitch: [62, 56], tile: [56, 50], stat: [232, 209], play: [261, 240], playH: [48, 44], row: [317, 292], rowH: [44, 44] };
+const MENU_MARGIN = 6;
 
 function menuLayout(E) {
   const land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right);
@@ -1168,14 +1184,16 @@ function menuLayout(E) {
   };
   const gunGrid = (x, y, w, pitch, h) => GUN_IDS.map((id, i) => ({ id, x: x + (i % 2) * ((w + 8) / 2), y: y + Math.floor(i / 2) * pitch, w: (w - 8) / 2, h }));
   if (land) {
-    const W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, lw = 236, H = 361;
-    const y0 = Math.max(E.safe.top + 6, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
-    L.title = { x: x0 + lw / 2, y: y0 + 14 }; L.points = { x: x0 + lw / 2, y: y0 + 40 }; L.bar = { x: x0, y: y0 + 54, w: lw, h: 6 };
-    L.next = { x: x0 + lw / 2, y: y0 + 72 };
-    L.guns = gunGrid(x0, y0 + 84, lw, 62, 56);
-    L.stat = { x: x0 + lw / 2, y: y0 + 232 };
-    L.play = { x: x0, y: y0 + 261, w: lw, h: 48 };
-    L.missions = { x: x0, y: y0 + 317, w: (lw - 8) / 2, h: 44 }; L.mute = { x: x0 + (lw + 8) / 2, y: y0 + 317, w: (lw - 8) / 2, h: 44 };
+    const W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, lw = 236, C = MENU_COL;
+    const avail = E.h - E.safe.top - E.safe.bottom - 2 * MENU_MARGIN, tall = C.row[0] + C.rowH[0], short = C.row[1] + C.rowH[1];
+    const k = clamp((avail - short) / (tall - short), 0, 1), at = (key) => Math.round(C[key][1] + (C[key][0] - C[key][1]) * k), H = at('row') + at('rowH');
+    const y0 = E.safe.top + MENU_MARGIN + Math.max(0, (avail - H) / 2);
+    L.title = { x: x0 + lw / 2, y: y0 + at('title') }; L.points = { x: x0 + lw / 2, y: y0 + at('points') }; L.bar = { x: x0, y: y0 + at('bar'), w: lw, h: 6 };
+    L.next = { x: x0 + lw / 2, y: y0 + at('next') };
+    L.guns = gunGrid(x0, y0 + at('guns'), lw, at('pitch'), at('tile'));
+    L.stat = { x: x0 + lw / 2, y: y0 + at('stat') };
+    L.play = { x: x0, y: y0 + at('play'), w: lw, h: at('playH') };
+    L.missions = { x: x0, y: y0 + at('row'), w: (lw - 8) / 2, h: at('rowH') }; L.mute = { x: x0 + (lw + 8) / 2, y: y0 + at('row'), w: (lw - 8) / 2, h: at('rowH') };
     const rx = x0 + lw + 28;
     rowsAt(rx, E.safe.top + 56, x0 + W - rx, 66, 56);
   } else {
@@ -1232,7 +1250,7 @@ const menu = {
     }
     E.text(sel.name, L.stat.x, L.stat.y - 19, { size: TY.mid, weight: TY.strong, color: P.text });
     E.text(`Damage ${sel.damage}${sel.pellets > 1 ? ` x${sel.pellets}` : ''}   ${sel.fireRate}/s   Range ${Math.round(sel.accuracy * 100)}%`, L.stat.x, L.stat.y, { size: TY.small, color: P.textDim });
-    E.text(sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 17, { size: TY.small, color: P.textFaint });
+    E.text(sel.auto ? 'Hold the right thumb to fire' : 'Tap the right thumb to fire', L.stat.x, L.stat.y + 17, { size: TY.small, color: P.textDim });
     this.tiles = [];
     for (const row of L.rows) {
       E.text(row.label, row.x, row.y + row.th / 2, { size: TY.small, align: 'left', color: P.textDim });
@@ -1240,7 +1258,7 @@ const menu = {
         const x = row.x + row.labelW + i * (row.tw + row.gap), top = row.y, tw = row.tw, th = row.th;
         const locked = !isUnlocked(E, ch), st = starsOf(E, ch);
         plate(E, x, top, tw, th, locked ? P.ink : P.panelHi, st ? P.brass : locked ? P.panelEdge : P.slateEdge);
-        E.text(`${ch.level}`, x + tw / 2, top + 17, { size: TY.mid, weight: TY.strong, color: locked ? P.textFaint : P.text });
+        E.text(`${ch.level}`, x + tw / 2, top + 17, { size: TY.mid, weight: TY.strong, color: locked ? P.textDim : P.text });
         if (locked) drawLock(ctx, x + tw / 2, top + th - 16, P.textFaint);
         else for (let k = 0; k < 3; k++) drawStar(ctx, x + tw / 2 + (k - 1) * 16, top + th - 15, 6, k < st ? P.brass : null, k < st ? null : P.panelEdge);
         this.tiles.push({ x, y: top, w: tw, h: th, ch, locked });
@@ -1260,9 +1278,16 @@ const menu = {
   },
 };
 
+// Why the Gauntlet is locked: the level before each locked stage needs a star (Boss 1 is always open).
+function gauntletReason(E) {
+  const need = GAUNTLET.map((id) => CHALLENGES.find((c) => c.id === id)).filter((c) => !isUnlocked(E, c))
+    .map((c) => CHALLENGES.find((p) => p.ladder === c.ladder && p.level === c.level - 1).name);
+  return `Locked: earn a star on ${need.join(', ')} first`;
+}
+
 // Missions: the badge tiers. Earned badges are lit; the rest show what earns them. The gauntlet starts here.
 const missions = {
-  enter() { this.back = null; this.btnGauntlet = null; },
+  enter() { this.back = null; this.btnGauntlet = null; this.reason = ''; },
   render(ctx, E) {
     const have = badgeMap(E), land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right);
     const W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, top = E.safe.top + 62;
@@ -1270,23 +1295,28 @@ const missions = {
     this.back = btn(E, 'Back', x0 + 42, E.safe.top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
     E.text(`Missions  ${earned}/${BADGES.length}`, E.w / 2, E.safe.top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     const open = GAUNTLET.every((id) => isUnlocked(E, CHALLENGES.find((c) => c.id === id)));
+    this.reason = open ? '' : gauntletReason(E);
     const gw = land ? 120 : W, gy = land ? E.safe.top + 30 : top + BADGES.length * 66 + 8 + 24, gx = land ? x0 + W - 60 : E.w / 2;
-    this.btnGauntlet = btn(E, 'Gauntlet', gx, gy, { w: gw, h: land ? 44 : 48, size: TY.small, fill: open ? P.orange : P.panelHi, color: open ? P.ink : P.textFaint });
+    this.btnGauntlet = btn(E, 'Gauntlet', open ? gx : gx + 10, gy, { w: gw, h: land ? 44 : 48, size: TY.small, fill: open ? P.orange : P.panelHi, color: open ? P.ink : P.textDim });
+    if (!open) {
+      drawLock(ctx, gx - 34, gy, P.textDim); // the dim button says why: a lock here, the reason below (portrait) or on tap (toast)
+      if (!land) wrapText(ctx, this.reason, W, TY.small).forEach((ln, k) => E.text(ln, E.w / 2, gy + 42 + k * 18, { size: TY.small, color: P.textDim }));
+    }
     BADGES.forEach((b, i) => {
       const on = !!have[b.id], col = P.tier[b.tier];
       if (land) {
         const gap = 10, tw = (W - 2 * gap) / 3, th = 88, x = x0 + (i % 3) * (tw + gap), y = top + Math.floor(i / 3) * 96;
         plate(E, x, y, tw, th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
-        E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: TY.small, align: 'left', color: on ? col : P.textFaint });
+        E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: TY.small, align: 'left', color: on ? col : P.textDim });
         E.text(b.name, x + 12, y + 36, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
-        wrapText(ctx, b.cond, tw - 24, TY.small).forEach((ln, k) => E.text(ln, x + 12, y + 58 + k * 18, { size: TY.small, align: 'left', color: on ? P.textDim : P.textFaint }));
+        wrapText(ctx, b.cond, tw - 24, TY.small).forEach((ln, k) => E.text(ln, x + 12, y + 58 + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
         if (on) drawStar(ctx, x + tw - 24, y + 24, 12, col);
       } else {
         const y = top + i * 66, th = 60;
         plate(E, x0, y, W, th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
         E.text(b.name, x0 + 14, y + 18, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
-        E.text(b.tier.toUpperCase(), x0 + W - 14, y + 18, { size: TY.small, align: 'right', color: on ? col : P.textFaint });
-        E.text(b.cond, x0 + 14, y + 42, { size: TY.small, align: 'left', color: on ? P.textDim : P.textFaint });
+        E.text(b.tier.toUpperCase(), x0 + W - 14, y + 18, { size: TY.small, align: 'right', color: on ? col : P.textDim });
+        E.text(b.cond, x0 + 14, y + 42, { size: TY.small, align: 'left', color: P.textDim });
         if (on) drawStar(ctx, x0 + W - 28, y + 40, 9, col);
       }
     });
@@ -1295,7 +1325,7 @@ const missions = {
   onTap(p, E) {
     if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
     if (E.hit(this.btnGauntlet, p)) {
-      if (this.open) { E.audio.play('tap'); E.setScene('play', { id: GAUNTLET[0], gauntlet: 0 }); } else E.audio.play('tap', 0.3);
+      if (this.open) { E.audio.play('tap'); E.setScene('play', { id: GAUNTLET[0], gauntlet: 0 }); } else { E.audio.play('tap', 0.3); E.toast(this.reason); }
     }
   },
 };
@@ -1352,7 +1382,7 @@ const play = {
 
     for (const tg of r.targets) if (tg.kind === 'part') {
       const on = tg.idx === r.stage;
-      E.text(PART_NUM[tg.idx], v.ox + (tg.x - T.zoneR[2] * tg.sc * A.plate.r - 10) * v.s, v.oy + tg.y * v.s, { size: TY.small, weight: TY.strong, color: on ? P.text : P.textFaint });
+      E.text(PART_NUM[tg.idx], v.ox + (tg.x - T.zoneR[2] * tg.sc * A.plate.r - 10) * v.s, v.oy + tg.y * v.s, { size: TY.small, weight: TY.strong, color: on ? P.text : P.textDim });
     }
     for (const f of S.fx) if (f.k === 'pop') {
       const k = 1 - f.t / f.max;
@@ -1385,7 +1415,7 @@ const play = {
     const pips = Math.round((T.comboCap - 1) / T.comboStep), gap = A.pip.gap;
     const cy = compact ? top + 58 : v.oy + (T.designH - T.thumbLane * 0.5) * v.s;
     const cx = compact ? xr - 44 - pips * gap : v.ox + v.w / 2 - 50;
-    E.text(`x${mult.toFixed(1)}`, compact ? xr : cx, cy, { size: TY.mid, weight: TY.strong, align: compact ? 'right' : 'left', color: live ? P.orange : P.textFaint });
+    E.text(`x${mult.toFixed(1)}`, compact ? xr : cx, cy, { size: TY.mid, weight: TY.strong, align: compact ? 'right' : 'left', color: live ? P.orange : P.textDim });
     pipRow(ctx, compact ? cx : cx + 50, cy, Math.min(pips, r.streak), pips);
   },
 
@@ -1444,14 +1474,20 @@ const over = {
     }
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
     E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 158, { size: TY.mid, color: P.text });
-    E.text(p.isNew ? `New best ${p.best}` : `Best ${p.best}`, cx, y0 + 182, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
-    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}`, cx, y0 + 206, { size: TY.small, color: P.textFaint });
-    if (p.badges.length) { // a badge pop: the name scales in
-      const k = ease.outBack(clamp((age - 0.5) / 0.35, 0, 1)), names = p.badges.map((id) => BADGES.find((b) => b.id === id).name).join(', ');
-      const col = P.tier[BADGES.find((b) => b.id === p.badges[0]).tier];
-      if (k > 0) { const msg = `Badge earned: ${names}`; E.text(msg, cx + 12, y0 + 236, { size: Math.round(TY.mid * Math.min(1, k)) || 1, weight: TY.strong, color: col }); drawStar(ctx, cx + 12 - ctx.measureText(msg).width / 2 - 16, y0 + 236, 11 * k, col); }
+    E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 182, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
+    E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}`, cx, y0 + 206, { size: TY.small, color: P.textDim });
+    if (p.badges.length) { // a badge pop: the line pops in by transform, from popFrom of its size (never under the small text size), fading up
+      const t = clamp((age - 0.5) / 0.35, 0, 1), k = ease.outBack(t), names = p.badges.map((id) => BADGES.find((b) => b.id === id).name).join(', ');
+      const col = P.tier[BADGES.find((b) => b.id === p.badges[0]).tier], from = TY.small / TY.mid, sc = from + (1 - from) * k, msg = `Badge earned: ${names}`;
+      if (t > 0) {
+        ctx.save(); ctx.translate(cx + 12, y0 + 236); ctx.scale(sc, sc);
+        E.text(msg, 0, 0, { size: TY.mid, weight: TY.strong, color: col, alpha: t }); ctx.globalAlpha = t;
+        drawStar(ctx, -ctx.measureText(msg).width / 2 - 16, 0, 11, col);
+        ctx.restore();
+      }
     } else if (g && !g.ok) E.text('Gauntlet over: two stars needed', cx, y0 + 236, { size: TY.mid, color: P.red });
     else if (g && g.done) E.text('Gauntlet complete', cx, y0 + 236, { size: TY.mid, color: P.cyan });
+    else if (g) E.text('Gauntlet stage passed', cx, y0 + 236, { size: TY.mid, color: P.cyan });
     const btns = [['Again', P.orange, P.ink, 'again']];
     if (this.canNext) btns.push(['Next', P.cyan, P.ink, 'next']);
     btns.push(['Menu', P.slate, P.text, 'menu']);
@@ -1466,7 +1502,7 @@ const over = {
     const b = this.btns.find((b) => E.hit(b, p));
     if (!b) return;
     E.audio.play('tap');
-    if (b.act === 'again') E.setScene('play', { id: this.ch.id });
+    if (b.act === 'again') { const g = this.p.gaunt; E.setScene('play', g && g.ok && !g.done ? { id: this.ch.id, gauntlet: g.i } : { id: this.ch.id }); } // a passed stage replayed stays in the chain
     else if (b.act === 'next') E.setScene('play', this.p.gaunt ? { id: this.next.id, gauntlet: this.p.gaunt.i + 1 } : { id: this.next.id });
     else E.setScene('menu');
   },
