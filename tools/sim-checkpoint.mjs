@@ -35,7 +35,9 @@ const seedOf = (tag, shift, k) => hashString(`checkpoint-${tag}-${shift}-${k}`);
 // ---------- the play scene on a stand-in engine ----------
 const makeE = (w = 360, h = 640) => {
   const e = {
-    w, h, time: 0, safe: { top: 0, bottom: 0, left: 0, right: 0 }, scene: null, params: null, haptics: [], sounds: [], beeps: [], shakes: 0,
+    w, h, time: 0, safe: { top: 0, bottom: 0, left: 0, right: 0 }, scene: null, params: null, haptics: [], sounds: [], beeps: [], shakes: 0, dpr: 1, toasts: [],
+    ledger: { entries: [], add(k, d) { e.ledger.entries.push({ k, d }); return e.ledger.entries.length; } },
+    toast(m) { e.toasts.push(m); },
     rng: makeRng(1),
     save: { d: {}, get(k, d) { return k in this.d ? this.d[k] : d; }, set(k, v) { this.d[k] = v; return v; }, update(k, fn, d) { return this.set(k, fn(this.get(k, d))); } },
     audio: { muted: false, play(n) { e.sounds.push(n); }, beep(o) { e.beeps.push(o); }, noise() {}, toggleMute() {} },
@@ -121,6 +123,7 @@ function recordRender(e, scene = play) {
   });
   const re = { ...e, ctx, text: (str, x, y, o = {}) => log.push({ c: String(o.color || ''), text: str }), roundRect: (x, y, w, h, r, fill, stroke) => { if (fill) log.push({ c: String(fill) }); if (stroke) log.push({ c: String(stroke) }); }, button: (label, cx, cy, o = {}) => { log.push({ c: String(o.fill || ''), text: label }); return e.button(label, cx, cy, o); } };
   scene.render(ctx, re);
+  if (re.titleArea) e.titleArea = re.titleArea;
   return log;
 }
 const RED = /255,\s*59,\s*71|#ff3b47/i;
@@ -226,10 +229,12 @@ console.log(`  look-alikes: ${items.filter((i) => i.confusable).map((i) => `${i.
 console.log(`\nPacking, ${BAGS} bags per shift (${Math.ceil(BAGS / T.bagsPerShift)} seeds of ${T.bagsPerShift}); visibility measured on finer grids than packing used`);
 console.log(' shift  items  minArea  minOutline  clean  clean/shift  two-contra  look-alike bags  overlap (mean hidden area)  overlapping pairs/bag  metal-on-metal share');
 const packSeed = (shift, k) => hashString(`checkpoint-pack-${shift}-${k}`);
+const tints = [];
 for (let shift = 1; shift <= (BAGS > 0 ? SHIFTS : 0); shift++) {
   const [lo, hi] = T.itemsPerBag[shift - 1], pool = new Set(T.newContraband.slice(0, shift).flat());
   const rot = T.rotMax[shift - 1], maxC = T.maxContraband[shift - 1];
   let n = 0, minArea = 1, minLine = 1, clean = 0, two = 0, conf = 0, itemsSum = 0, maxCl = 0, minCl = 99, contraBags = 0, hidSum = 0, hidN = 0, pairs = 0, mm = 0;
+  const tc = { organic: [0, 0], metal: [0, 0] };   // [contraband items, items] per tint
   for (let k = 0; n < BAGS; k++) {
     const g = sim.genShift(packSeed(shift, k), shift);
     let cl = 0;
@@ -248,6 +253,7 @@ for (let shift = 1; shift <= (BAGS > 0 ? SHIFTS : 0); shift++) {
       if (cs.length === 2) two++;
       const hasConf = bag.items.some((it) => it.def.confusable);
       if (hasConf) conf++;
+      for (const it of bag.items) { tc[it.def.tint][1]++; if (it.contraband) tc[it.def.tint][0]++; }
       const opener = shift === T.opener.shift && bi === 0;
       if (T.confusableShare[shift - 1] === 0 && !opener) check(!hasConf, `${where}: look-alike in a shift that has none`);
       for (const [a, b] of sim.overlapPairs(bag)) { pairs++; if (a.def.tint === 'metal' && b.def.tint === 'metal') mm++; }
@@ -271,9 +277,20 @@ for (let shift = 1; shift <= (BAGS > 0 ? SHIFTS : 0); shift++) {
   const share = clean / n;
   check(share >= 0.4 && share <= 0.55, `shift ${shift}: clean share ${f3(share)} outside 0.40-0.55`);
   console.log(`${pad(shift, 6)}  ${pad(f2(itemsSum / n), 5)}  ${pad(f3(minArea), 7)}  ${pad(f3(minLine), 10)}  ${pad(f3(share), 5)}  ${pad(`${minCl}-${maxCl}`, 11)}  ${pad(f2(two / Math.max(1, contraBags)), 10)}  ${pad(f2(conf / n), 15)}  ${pad(f3(hidSum / hidN), 8)}                     ${pad(f2(pairs / n), 5)}                 ${pad(pairs ? f2(mm / pairs) : '-', 5)}`);
+  tints.push({ shift, po: tc.organic[0] / tc.organic[1], pm: tc.metal[0] / tc.metal[1] });
   if (pairs > 200) check(mm / pairs <= 0.2, `shift ${shift}: ${f2(mm / pairs)} of overlapping pairs are metal on metal (tangle bias should keep this rare)`);
 }
 
+
+if (tints.length) {
+  console.log(`\nTint prior, P(contraband | tint) from the packed bags (shifts 1 and 2 teach it: all contraband is metal; from shift ${T.tintFrom} organic must be at least half as often)`);
+  console.log(' shift  P(c|organic)  P(c|metal)  ratio');
+  for (const t of tints) {
+    console.log(`${pad(t.shift, 6)}  ${pad(f3(t.po), 12)}  ${pad(f3(t.pm), 10)}  ${pad(t.shift >= T.tintFrom ? f2(t.po / t.pm) : '-', 5)}`);
+    if (t.shift >= T.tintFrom) check(t.po >= 0.5 * t.pm, `shift ${t.shift}: P(contraband|organic) ${f3(t.po)} is under half of P(contraband|metal) ${f3(t.pm)}`);
+    else check(t.po === 0, `shift ${t.shift}: organic contraband before shift ${T.tintFrom}`);
+  }
+}
 
 console.log(`\nBots through the play scene at 60 fps (fast, late: ${SEEDS} seeds per shift; the four failing bots ${Math.min(SEEDS, FAILSEEDS)})`);
 console.log(' shift  fast bot   late one-strike at 70%: score, ratio fast/late (mean, median)   at 60%: score, ratio   pulse-waiting  late-blind  tap-all  never');
@@ -299,6 +316,7 @@ for (let shift = 1; shift <= SHIFTS; shift++) {
 }
 
 // ---------- the human models ----------
+if (!args.includes('--skip-human')) {
 const table = await humanTable(HUMANSEEDS);
 console.log(`\nHuman models, ${HUMANSEEDS} seeds per cell. Cleared / three stars, percent (mean strikes: missed + false alarms)`);
 for (const m of Object.keys(MODELS)) {
@@ -317,6 +335,7 @@ for (const rush of T.rush) {
   console.log(`Rush shift ${rush}: the good reader three-stars ${Math.round(100 * rate('good', rush, 'three'))} percent, ${f1(dip)} points below its neighbours' ${Math.round(100 * mean(neigh))} (target 10 to 20)`);
   check(dip >= 6 && dip <= 30, `rush shift ${rush}: the good reader's three-star dip is ${f1(dip)} points (target 10 to 20)`);
 }
+}
 if (args.includes('--curve-only')) process.exit(failed ? 1 : 0);
 // ---------- the miss cue ----------
 console.log('\nMiss cue');
@@ -334,12 +353,12 @@ console.log('\nMiss cue');
     play.update(1 / 60, E); E.time += 1 / 60;
     const log = recordRender(E);
     if (log.some((r) => RED.test(r.c))) redAfter++;
-    if (log.some((r) => r.text === 'Missed')) label = true;
+    if (log.some((r) => /^Missed: \w/.test(r.text || ''))) label = true;
     ghost = Math.max(ghost, S.ghosts.length);
   }
   check(redBefore === 0, `red was drawn ${redBefore} frames before the first strike`);
   check(ghost === 1 && label && redAfter >= 30, `the ghost cue after the strike is missing (ghosts ${ghost}, label ${label}, red frames ${redAfter})`);
-  console.log(`  frames drawn with red before the first strike: ${redBefore}; after it: ${redAfter} of 90, ghost outline ${ghost ? 'yes' : 'no'}, "Missed" label ${label ? 'yes' : 'no'}`);
+  console.log(`  frames drawn with red before the first strike: ${redBefore}; after it: ${redAfter} of 90, ghost outline ${ghost ? 'yes' : 'no'}, named "Missed: item" label ${label ? 'yes' : 'no'}`);
 }
 
 // ---------- the render is item-neutral ----------
@@ -391,13 +410,18 @@ console.log('\nJuice');
   check(en.haptics.length === 3 && en.haptics.every((h) => h === J.haptic.miss) && en.sounds.filter((x) => x === 'lose').length === 1 && !en.sounds.includes('win'), `three misses should give three ${J.haptic.miss} ms buzzes and one lose (got ${en.haptics}, ${en.sounds})`);
   check(en.beeps.filter((b) => b.freq === J.tones.miss.freq).length === 3 && Sn.stamp.text === 'SHIFT OVER' && en.shakes === 4, `misses: low buzz x3, SHIFT OVER stamp, 3 miss shakes and one for the stamp (got ${en.shakes} shakes)`);
   const all = run(3, seedOf('juice', 3, 2), 60, tapAllBot()), ea = all.E, Sa = sim.state();
-  check(Sa.falseAlarms > 0 && ea.haptics.filter((h) => h === J.haptic.falseAlarm).length === Sa.falseAlarms && ea.sounds.filter((x) => x === 'miss').length === Sa.falseAlarms, 'each false alarm gives the buzzer and 30 ms');
-  console.log(`  never-tap run: haptics ${en.haptics.join('/')} ms, low buzz x3, lose, ${en.shakes} shakes; tap-all run: ${Sa.falseAlarms} false alarms with buzzer and ${J.haptic.falseAlarm} ms each`);
+  const faBeeps = ea.beeps.filter((b) => b.freq === J.tones.falseAlarm[0].freq && b.type === J.tones.falseAlarm[0].type);
+  check(Sa.falseAlarms > 0 && ea.haptics.filter((h) => Array.isArray(h) && h.join() === J.haptic.falseAlarm.join()).length === Sa.falseAlarms && faBeeps.length === 2 * Sa.falseAlarms && !ea.sounds.includes('miss'), 'each false alarm gives two blips and a double pulse');
+  check(Array.isArray(J.haptic.falseAlarm) && J.haptic.falseAlarm.length === 3 && !Array.isArray(J.haptic.miss) && J.haptic.miss > Math.max(...J.haptic.falseAlarm), 'a false alarm is a double pulse and a miss is one long pulse');
+  const humTop = J.hum.base + J.hum.step * J.hum.maxStreak, lo = Math.min(J.tones.falseAlarm[0].freq, J.tones.miss.freq), hi = Math.max(J.tones.falseAlarm[0].freq, J.tones.miss.freq);
+  check(lo > humTop * 1.2 && Math.abs(hi / lo - 2) < 1e-9, `the false alarm (${J.tones.falseAlarm[0].freq} Hz) and the miss (${J.tones.miss.freq} Hz) should be an octave apart and above the hum (top ${humTop} Hz)`);
+  console.log(`  never-tap run: haptics ${en.haptics.join('/')} ms, miss buzz x3, lose, ${en.shakes} shakes; tap-all run: ${Sa.falseAlarms} false alarms, each two blips and a ${J.haptic.falseAlarm.join('-')} ms double pulse`);
 }
 {
   // Catching the last contraband slides the bag into the tray; it takes no taps after that.
   E = makeE(); play.enter(E, { shift: 3, seed: 7 });
   const S = sim.state(), bag = S.bags.find((b) => b.kind === 'contra');
+  for (const o of S.bags) if (o !== bag) o.gone = true;
   bag.y0 = 100 - S.dist; bag.y = 100;
   const k = bag.items.find((i) => i.contraband), h = bag.items.find((i) => !i.contraband);
   play.onPointerDown({ x: 30 + k.x, y: 100 + k.y }, E);
@@ -414,13 +438,17 @@ console.log('\nJuice');
   const r = { shift: 4, seed: 12345, result: 'clear', score: 999, strikes: 0, stars: 3, best: 999, isNew: true };
   game.scenes.over.enter(e, r);
   recordRender(e, game.scenes.over);
-  game.scenes.over.onTap({ x: e.w / 2, y: e.h * 0.6 }, e);
+  game.scenes.over.onTap({ x: e.w / 2, y: e.h * 0.55 }, e);
   check(!e.scene, 'a tap during the card beat must not press a button');
   e.time = 5 + T.juice.cardButtons + 0.5; recordRender(e, game.scenes.over);
-  game.scenes.over.onTap({ x: e.w / 2, y: e.h * 0.6 + 68 }, e);
+  const B = game.scenes.over.btns, mid = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+  game.scenes.over.onTap(mid(B.retry), e);
   check(e.scene === 'play' && e.params.seed === 12345 && e.params.shift === 4, `Retry should replay shift 4 with seed 12345 (got ${e.scene} ${JSON.stringify(e.params)})`);
-  e.scene = null; game.scenes.over.onTap({ x: e.w / 2, y: e.h * 0.6 }, e);
-  check(e.scene === 'play' && e.params.shift === 5 && e.params.seed === undefined, 'Next should start shift 5 with a fresh seed');
+  check(e.ledger.entries.some((x) => x.k === 'retry' && x.d.shift === 4 && x.d.seed === 12345), 'Retry should write a ledger entry');
+  e.scene = null; game.scenes.over.onTap(mid(B.next), e);
+  check(e.scene === 'brief' && e.params.shift === 5, 'Next should open the shift 5 card');
+  const texts = recordRender(e, game.scenes.over).filter((x) => x.text).map((x) => x.text);
+  check(!texts.some((t) => /^Seed/.test(t)), 'the card no longer shows the seed line');
   console.log('Card: buttons appear after the beat; Retry reuses the seed, Next starts fresh');
 }
 {
@@ -449,6 +477,144 @@ console.log('\nJuice');
   }
 }
 
+// ---------- the sprite path and the frame budget logic ----------
+console.log('\nSprites and bloom');
+{
+  // A stand-in OffscreenCanvas records what is painted into each sprite, so the sprite path is checked like the direct one.
+  const made = []; 
+  globalThis.OffscreenCanvas = class { constructor(w, h) { this.w = w; this.h = h; this.log = []; made.push(this); }
+    getContext() { const log = this.log; const t = {}; return new Proxy(t, { get: (o, k) => (k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : k === 'measureText' ? () => ({ width: 100 }) : k === 'stroke' || k === 'fill' ? (p) => log.push({ item: p && p.sig ? sigOf[p.sig] : null, style: `${k}:${k === 'stroke' ? o.strokeStyle : o.fillStyle}|w${o.lineWidth}|${o.globalCompositeOperation}` }) : k in o ? o[k] : () => {}), set: (o, k, v) => { o[k] = v; return true; } }); } };
+  const settle = () => { E = makeE(); play.enter(E, { shift: 10, seed: 9 }); for (let f = 0; f < 60 * 3; f++) { play.update(1 / 60, E); E.time += 1 / 60; } };   // a fast shift puts the bloom back to 3 passes
+  settle();
+  E = makeE(); E.dpr = 3; play.enter(E, { shift: 8, seed: hashString('checkpoint-sprites') });
+  let draws = 0;
+  const S = sim.state();
+  for (let f = 0; f < 60 * 3; f++) { play.update(1 / 60, E); E.time += 1 / 60; if (f % 30 === 0) { const c = { ...E, ctx: null }; recordRender(E); } }
+  const first = made.length;
+  for (let f = 0; f < 60; f++) { play.update(1 / 60, E); E.time += 1 / 60; }
+  const items = S.bags.filter((b) => b.items.some((i) => i.spr)).reduce((n, b) => n + b.items.filter((i) => i.spr).length, 0);
+  check(first > 0 && items > 0, 'no sprites were painted');
+  check(made.length - first <= 4 * 60, `sprites should be painted a few a frame, not repainted (${made.length - first} more in a second)`);
+  // every sprite paints its item with one style per tint
+  const byTint = new Map();
+  for (const cv of made) {
+    const item = cv.log.find((x) => x.item);
+    if (!item) continue;
+    const def = sim.ITEMS.find((d) => d.name === item.item), key = def.tint, sig = cv.log.map((x) => x.style).join(';');
+    if (!byTint.has(key)) byTint.set(key, new Set());
+    byTint.get(key).add(sig);
+  }
+  for (const [tint, sigs] of byTint) check(sigs.size === 1, `${tint}: sprites paint with ${sigs.size} different styles`);
+  check(made.filter((cv) => cv.log.some((x) => x.item)).every((cv) => cv.log.filter((x) => /source-over/.test(x.style) && /^stroke/.test(x.style)).length === 1 && cv.log.filter((x) => /lighter/.test(x.style)).length >= 2), 'each sprite: additive fill and bloom, then one non-additive core stroke');
+  console.log(`  sprite path: ${made.length} sprites painted in 4 s (${first} in the first 3 s), 1 style per tint (${[...byTint.keys()].join(', ')}), core stroke non-additive`);
+  // the bloom decision: made once in the first seconds of a shift, from the median frame time, and never again that shift
+  // A frame pattern with a given share of slow (40 ms) frames among 60 fps ones.
+  const level = (slow) => { settle(); E = makeE(); play.enter(E, { shift: 10, seed: 9 }); const lv = [], dts = []; let acc = 0;
+    for (let f = 0; f < 60 * 4 && !E.scene; f++) { acc += slow; const dt = acc >= 1 ? (acc -= 1, 0.04) : 1 / 60; dts.push(dt); play.update(dt, E); E.time += dt; lv.push(sim.bloom().level); }
+    let t = 0, at = -1; lv.forEach((v, i) => { t += dts[i]; if (i && v !== lv[i - 1] && at < 0) at = t; }); return { lv, at }; };
+  const r0 = level(0), r15 = level(0.15), r40 = level(0.4);
+  check(r0.lv.at(-1) === 3 && r15.lv.at(-1) === 1 && r40.lv.at(-1) === 0, `bloom with 0, 15 and 40 percent slow frames should be 3, 1, 0 passes (got ${r0.lv.at(-1)}, ${r15.lv.at(-1)}, ${r40.lv.at(-1)})`);
+  const changes = (lv) => lv.filter((v, i) => i && v !== lv[i - 1]).length;
+  check(changes(r0.lv) === 0 && changes(r15.lv) === 1 && changes(r40.lv) === 1, 'the bloom level must change at most once in a shift');
+  console.log(`  bloom level: all frames on time stays at ${r0.lv.at(-1)} passes; 15 percent slow frames drop to ${r15.lv.at(-1)} at ${r15.at.toFixed(1)} s; 40 percent drop to ${r40.lv.at(-1)} at ${r40.at.toFixed(1)} s; no flicker afterwards`);
+  settle();
+  delete globalThis.OffscreenCanvas;
+}
+
+// ---------- no hitch entering a shift ----------
+console.log('\nEntering a shift');
+{
+  const seed = hashString('checkpoint-prep'), sig = (g) => g.bags.map((b) => b.kind + ':' + b.items.map((i) => `${i.name}@${i.x.toFixed(2)},${i.y.toFixed(2)},${i.rot.toFixed(1)}`).join('|')).join('/');
+  const times = [], t0 = performance.now(), full = sim.genShift(seed, 10), tFull = performance.now() - t0;
+  const steps = [...sim.genShiftSteps(seed, 10)].filter(Boolean);
+  check(sig(full) === sig({ bags: steps }), 'generating a bag at a time must give the same shift as generating it whole');
+  const e = makeE(); e.time = 0;
+  sim.prepare(10, seed);
+  let pumps = 0;
+  for (; pumps < 200; pumps++) { const t = performance.now(); sim.pump(e); times.push(performance.now() - t); if (sim.prepare(10, seed).ready) break; }
+  const worst = Math.max(...times), tEnter = (() => { const t = performance.now(); play.enter(e, { shift: 10, seed }); return performance.now() - t; })();
+  check(sig({ bags: sim.state().bags }) === sig(full), 'a prepared shift must be the shift the seed makes');
+  const t1 = performance.now(); play.enter(makeE(), { shift: 10, seed: seed + 1 }); const tCold = performance.now() - t1;
+  check(worst < 0.35 * tFull && tEnter < 0.1 * tCold, `spreading should keep each frame's share small (worst pump ${worst.toFixed(1)} ms of ${tFull.toFixed(1)} ms; prepared entry ${tEnter.toFixed(1)} ms against ${tCold.toFixed(1)} ms cold)`);
+  console.log(`  shift 10 whole: ${tFull.toFixed(1)} ms; spread over ${pumps + 1} frames, worst frame ${worst.toFixed(1)} ms; entering play prepared ${tEnter.toFixed(2)} ms, unprepared ${tCold.toFixed(1)} ms (node, unthrottled)`);
+}
+
+// ---------- the shift card, labels, toasts, ledger ----------
+console.log('\nCards and labels');
+{
+  const brief = game.scenes.brief, expect = [['knife', 'scissors', 'gun'], ['hammer', 'lighter'], ['large liquid', 'batteries'], ['fireworks'], ['taser'], ['box cutter'], [], [], [], []];
+  for (let shift = 1; shift <= SHIFTS; shift++) {
+    const e = makeE(); e.time = 0; brief.enter(e, { shift });
+    let n = 0; for (; n < 100; n++) { brief.update(1 / 60, e); e.time += 1 / 60; if (sim.prepare(shift, brief.seed).ready) break; }
+    const texts = recordRender(e, brief).filter((x) => x.text).map((x) => x.text);
+    const want = expect[shift - 1];
+    check(want.every((n2) => texts.includes(n2)) && (want.length === 0 || texts.includes('New today')) && (want.length > 0 || !texts.includes('New today')), `shift ${shift} card should name ${want.join(', ') || 'nothing new'} (shows ${texts.join(' / ')})`);
+    check(!!brief.btnStart, `shift ${shift}: Start should be ready once the shift is built`);
+    check(want.length === 0 || e.ledger.entries.some((x) => x.k === 'newshapes' && x.d.shapes === want.join(',')), `shift ${shift}: a newshapes ledger entry`);
+    if (shift === 1) {
+      brief.onTap({ x: brief.btnStart.x + 5, y: brief.btnStart.y + 5 }, e);
+      check(e.scene === 'play' && e.params.shift === 1 && e.params.seed === brief.seed, 'Start should begin the shift with the card\'s seed');
+    }
+    if (shift === 10) console.log(`  shift 10 card: ${texts.filter((x) => x !== 'X-RAY').join(' / ')}`);
+  }
+  console.log('  cards: shift 1 knife/scissors/gun, 2 hammer/lighter, 3 large liquid/batteries, 4 fireworks, 5 taser, 6 box cutter, 7 to 10 a note only');
+  // first-timer labels
+  E = makeE(); play.enter(E, { shift: 2, seed: 4 });
+  const S = sim.state();
+  let hud = recordRender(E).filter((x) => x.text).map((x) => x.text);
+  check(hud.includes('Streak'), 'the streak badge should be labelled');
+  const bag = S.bags.find((b) => b.kind === 'contra'), k = bag.items.find((i) => i.contraband);
+  for (const o of S.bags) if (o !== bag) o.gone = true;
+  bag.y0 = 80 - S.dist; bag.y = 80;
+  play.onPointerDown({ x: 30 + k.x, y: bag.y + k.y }, E);
+  check(S.fx.some((f) => /^\+\d+, early$/.test(f.text)), `an early catch should say early (${S.fx.map((f) => f.text)})`);
+  E = makeE(); play.enter(E, { shift: 2, seed: 4 });
+  const S2 = sim.state(), b2 = S2.bags.find((b) => b.kind === 'contra'), k2 = b2.items.find((i) => i.contraband);
+  for (const o of S2.bags) if (o !== b2) o.gone = true;
+  b2.y0 = 500 - S2.dist; b2.y = 500;
+  play.onPointerDown({ x: 30 + k2.x, y: 500 + k2.y }, E);
+  check(S2.fx.some((f) => /^\+\d+$/.test(f.text)), `a late catch should not say early (${S2.fx.map((f) => f.text)})`);
+  const clean = run(2, 4, 60, () => [], null, makeE());
+  const S3 = sim.state();
+  check(S3.log.some((x) => x.e === 'pass'), 'the never-tap run should have passed a clean bag');
+  E = makeE(); play.enter(E, { shift: 2, seed: 4 }); const S4 = sim.state();
+  for (let f = 0; f < 60 * 12 && !S4.log.some((x) => x.e === 'pass'); f++) { play.update(1 / 60, E); E.time += 1 / 60; }
+  check(S4.fx.some((f) => /^Clean \+\d+$/.test(f.text)), `a clean pass should say "Clean +N" (${S4.fx.map((f) => f.text)})`);
+  // the menu: locked shifts toast
+  const e = makeE(); e.save.set('unlocked', 3); const menu = game.scenes.menu; menu.enter(e); recordRender(e, menu);
+  const cell = menu.cells.find((c) => c.shift === 8);
+  menu.onTap({ x: cell.x + 5, y: cell.y + 5 }, e);
+  check(e.toasts[0] === 'Clear shift 7 first' && !e.scene, `a locked shift should toast "Clear shift 7 first" (got ${e.toasts[0]})`);
+  check(!!e.titleArea && e.titleArea.y > 0, 'the menu should set E.titleArea');
+  console.log(`  labels: badge "Streak", early catch "${S.fx.find((f) => /early/.test(f.text)).text}", clean pass "${S4.fx.find((f) => /Clean/.test(f.text)).text}", locked shift toast "${e.toasts[0]}", no seed line on the card`);
+}
+{
+  // the ledger (ADR-0016): a shift result with every count, a retry, a quit, the shapes seen
+  const e = makeE(), r = run(4, seedOf('ledger', 4, 0), 60, centreBot(), null, e);
+  const rec = e.ledger.entries.find((x) => x.k === 'shift');
+  const need = ['shift', 'seed', 'result', 'score', 'strikes', 'missed', 'falseAlarms', 'stars', 'catches', 'passes', 'time'];
+  check(rec && need.every((f) => f in rec.d && (typeof rec.d[f] === 'number' || typeof rec.d[f] === 'string')), `the shift ledger entry needs ${need.join(', ')} (has ${rec && Object.keys(rec.d)})`);
+  E = makeE(); play.enter(E, { shift: 3, seed: 5 }); play.onPause(E);
+  check(E.ledger.entries.some((x) => x.k === 'quit') && E.scene === 'menu', 'leaving mid-shift should write a quit entry and return to the menu');
+  console.log(`  ledger: shift ${JSON.stringify(rec.d)}; quit written on pause`);
+}
+{
+  // hardening: malformed saves read as empty; colours meet the contrast floors
+  const bad = [null, 'x', 7, [], [1, 2], { a: 1 }, { 1: null }, { 1: 'x' }, { 2: { best: 'a', stars: 9 } }, { 3: { best: -5, stars: -1 } }];
+  for (const v of bad) {
+    const e = makeE(); e.save.set('shifts', v); e.save.set('unlocked', v);
+    let ok = true; try { const m = game.scenes.menu; m.enter(e); recordRender(e, m); const r2 = run(1, 3, 60, () => [], null, makeE()); e.save.set('shifts', v); } catch (err) { ok = false; console.log(err.message); }
+    const c = sim.cleanShifts(v);
+    check(ok && Object.values(c).every((r) => Number.isFinite(r.best) && r.best >= 0 && r.stars >= 0 && r.stars <= 3), `malformed shifts ${JSON.stringify(v)} should read as clean records`);
+  }
+  check(Object.keys(sim.cleanShifts(null)).length === 0 && Object.keys(sim.cleanShifts([1, 2])).length === 0 && sim.cleanShifts({ 2: { best: 'a', stars: 9 } })[2].stars === 3, 'cleanShifts');
+  const lum = (hex) => { const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const Pal = T.palette, pairs = [['Next and Retry text', Pal.text, Pal.button, 4.5], ['Menu button text', Pal.text, Pal.buttonQuiet, 4.5], ['Mute button text', Pal.text, Pal.buttonMute, 4.5], ['RUSH label', Pal.organic, Pal.panel, 3], ['locked RUSH label', Pal.rushOff, Pal.panelOff, 3], ['HUD text', Pal.text, Pal.bg, 4.5], ['dim text', Pal.dim, Pal.bg, 4.5], ['stamp text CLEARED', Pal.clean, Pal.bg, 4.5], ['stamp text SHIFT OVER', Pal.catch, Pal.bg, 3]];
+  const out = pairs.map(([name, a, b, floor]) => { const r = ratio(a, b); check(r >= floor, `${name}: contrast ${r.toFixed(2)} is under ${floor}`); return `${name} ${r.toFixed(1)}`; });
+  console.log(`  malformed saves read as empty; contrast: ${out.join(', ')}`);
+}
+
 // ---------- determinism ----------
 console.log('\nDeterminism: same seed and tap times at 30, 60 and 120 fps');
 for (const shift of [1, 5, 10]) {
@@ -471,6 +637,7 @@ for (const shift of [1, 5, 10]) {
   E = makeE();
   play.enter(E, { shift: 3, seed: 7 });
   const S = sim.state(), bag = S.bags.find((b) => b.kind === 'contra');
+  for (const o of S.bags) if (o !== bag) o.gone = true;
   bag.y0 = 100 - S.dist; bag.y = 100;
   const k = bag.items.find((i) => i.contraband), h = bag.items.find((i) => !i.contraband);
   h.parts = k.parts.map((poly) => poly.map(([x, y]) => [x + 3, y + 2]));
