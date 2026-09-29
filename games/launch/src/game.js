@@ -4,10 +4,10 @@
 // y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight time, so the same seed,
 // launch and input times give the same flight at any frame rate (ADR-0008). tools/sim-launch.mjs drives game.sim.
 
-import { makeRng, clamp } from './engine.js';
+import { makeRng, clamp, ease } from './engine.js';
 
 const TUNING = {
-  bg: '#1f2736',
+  bg: '#2d2238',
   designW: 640,            // landscape design space (ADR-0013); the world fills the width, the ground sits at groundY
   designH: 360,
   groundY: 300,            // design y of the ground line
@@ -89,14 +89,52 @@ const TUNING = {
   skyFill: 0.8,            // share of the sky (ground line to skyTop) the critter climbs into before the view zooms or pans
   spriteMin: 0.65,         // the critter and birds never draw smaller than this zoom
   endDelay: 0.9,           // seconds from the stop to the card
-  cardGrace: 0.4,          // seconds the card ignores taps after it appears
+  cardGrace: 0.4,          // seconds the card ignores taps after it appears (the card has slid in by then)
   nudgeLife: 1.2,          // seconds "Pull further" stays after a too-short drag
-  calloutLife: 1.4,
 
-  color: {
-    sky: '#1f2736', ground: '#394150', groundTop: '#4d5667', tick: '#5b6577',
-    critter: '#ff8a1a', eye: '#1f2736', teal: '#2ec4b6', tealDim: '#1c6f69', mud: '#4a2c17', mudRim: '#d39a62',
-    ramp: '#6b7280', rampTop: '#8b93a1', sling: '#8b8f98', band: '#94a3b8', bandTaut: '#ffffff', text: '#e6e6e6', dim: '#9aa4b2', panel: '#141a24',
+  // Art (layer 5; docs/games/launch/style.md): "flat round shapes, warm sky, soft shadows, one orange hero".
+  // The critter is the only orange; teal is good (springs, birds); dark brown with a light rim is danger (mud).
+  // Every play object has an ink outline so it reads on the light day sky, and a fill that reads on the night sky.
+  palette: {
+    skyDay: ['#fff1dc', '#f5c1c6'],   // horizon (at the ground band), top of the view
+    skyDusk: ['#f3a9b8', '#8f6fb0'],
+    skyNight: ['#4a3a78', '#1d1a3a'],
+    hillFar: '#ecc0c4', hillNear: '#dca5b3',
+    grass: '#7fae6a', soil: '#5f8a58',
+    ink: '#2d2238',                    // outlines, ticks, text on light ground
+    critter: '#ff8a1a', critterLight: '#ffb366', eye: '#ffffff',
+    teal: '#1ea896', tealLight: '#7fe0d2', tealSpent: '#8fb3ad', coil: '#d8d2e4',
+    mud: '#3d2414', mudRim: '#f0d2ae',
+    ramp: '#b3a7c9', rampPlank: '#8e82a8',
+    wood: '#b98b5e', rubber: '#6b3a6e', rubberTaut: '#d6336c',
+    star: '#fff6e0', coin: '#ffd84d',  // accent one: coins, stars, beaks
+    button: '#6b5aa6', buttonOff: '#4a3f5e', // accent two: buttons
+    panel: 'rgba(45,34,56,0.84)', panelSolid: '#2d2238', panelEdge: '#5a4a72',
+    text: '#fff6ec', textDim: '#cbbfdc', textOff: '#8f84a3',
+    shadow: 'rgba(45,34,56,0.28)', dust: '#efe2cf', flame: '#fff2b0', white: '#ffffff', halo: '#fff6ec',
+  },
+  duskAt: 120,             // metres of altitude at the top of the view where the sky is dusk ...
+  nightAt: 300,            // ... and night, with stars
+  hillFadeLift: 40,        // metres the sky has panned up by when the hills are gone
+  style: { line: 2, radius: 14 }, // outline width (design px at zoom 1) and panel corner radius (CSS px)
+  type: { sm: 14, md: 18, lg: 28, xl: 44 }, // one weight rule: numbers and titles '800', words '600'
+
+  // Juice (layer 3): all cosmetic, never read by the physics.
+  juice: {
+    particleCap: 160,
+    pullSquash: 0.22,      // critter stretch along the pull at full power
+    creakStep: 0.1,        // power change between creak ticks while pulling
+    snapTime: 0.22, kick: 3, kickTime: 0.12, dust: 10,
+    flame: 7, flameLife: 0.35, gaugePop: 0.25,
+    landSquash: 0.35, squashTime: 0.28,
+    springPop: 0.3, speedLines: 0.45, boingLife: 0.8,
+    feathers: 12, tumbleTime: 1.3,
+    chainPop: 0.35, chainLife: 1.0, coins: [0, 3, 5, 8],
+    splat: 16, mudShake: 6, mudShakeTime: 0.25,
+    bannerTime: 1.8, countUp: 0.6, cardSlide: 0.35,
+    holdHint: 3,           // seconds "Hold to boost" shows on the first flight after buying Rocket 1
+    stars: 90,
+    haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20 },
   },
 };
 const T = TUNING;
@@ -406,7 +444,7 @@ function previewArc(launch, st) {
 }
 
 // ---------- Save ----------
-// v3: { best: metres, coins, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket } }
+// v4: { best: metres, coins, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket }, holdTaught }
 
 function finishFlight(E, r) {
   const m = metres(r), best = E.save.get('best', 0);
@@ -419,7 +457,9 @@ function finishFlight(E, r) {
   if (firsts.length) E.save.set('ms', reached.concat(firsts));
   if (m > best) E.save.set('best', m);
   E.save.update('flights', (n) => n + 1, 0);
-  E.ledger.add('flight', { m, why: r.ended, coins: earned, chain: r.chainMax, springs: r.springs, birds: r.birds, pulses: r.pulses, angle: r.launch.angle, power: r.launch.power, seed: r.seed });
+  const up = r.up;
+  E.ledger.add('flight', { m, why: r.ended, coins: earned, bonus, chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, pulses: r.pulses,
+    angle: +r.launch.angle.toFixed(1), power: +r.launch.power.toFixed(2), up: `b${up.band}f${up.fuel}a${up.aero}r${up.rocket}`, seed: r.seed });
   return { m, best: Math.max(best, m), isNew: m > best, coins: earned, bonus, chainMax: r.chainMax, stars: r.stars.slice(), firsts, seed: r.seed, why: r.ended };
 }
 
@@ -450,24 +490,25 @@ function buy(E, id) {
 const shop = {
   enter(E, p = {}) { this.from = p.from || 'menu'; this.card = p.card || null; this.cells = []; },
   render(ctx, E) {
-    const C = T.color, sf = E.safe, left = sf.left + 16, right = E.w - sf.right - 16, top = sf.top + 8;
-    ctx.fillStyle = C.sky; ctx.fillRect(0, 0, E.w, E.h);
-    this.btnBack = E.button('Back', left + 40, top + 22, { w: 80, h: 44, size: 15, fill: '#334155' });
-    E.text('Shop', E.w / 2, top + 22, { size: 24, weight: '800', color: C.text });
+    const sf = E.safe, left = sf.left + 16, right = E.w - sf.right - 16, top = sf.top + 8;
+    const grad = ctx.createLinearGradient(0, 0, 0, E.h); grad.addColorStop(0, P.skyDusk[1]); grad.addColorStop(1, P.skyNight[1]);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, E.w, E.h);
+    this.btnBack = btn(E, 'Back', left + 40, top + 22, { w: 80, h: 44, size: 15, fill: P.buttonOff });
+    E.text('Shop', E.w / 2, top + 22, { size: TY.lg, weight: '800', color: P.text });
     const coins = E.save.get('coins', 0), up = levelsOf(E);
-    E.text(`${coins} coins`, right, top + 22, { size: 18, align: 'right', color: C.text });
+    E.text(`${coins} coins`, right, top + 22, { size: TY.md, align: 'right', color: P.coin, weight: '800' });
     const gy = top + 56, gap = 12, cw = (right - left - gap) / 2, ch = (E.h - sf.bottom - 12 - gy - gap) / 2;
     this.cells = UPGRADES.map((u, i) => {
       const x = left + (i % 2) * (cw + gap), y = gy + Math.floor(i / 2) * (ch + gap), lvl = up[u.id], max = lvl >= T.upgradeMax;
       const price = max ? 0 : T.upgradePrices[u.id][lvl], can = !max && coins >= price;
-      E.roundRect(x, y, cw, ch, 14, C.panel, '#334155');
-      E.text(u.name, x + 14, y + 22, { size: 18, weight: '800', align: 'left', color: C.text });
-      for (let k = 0; k < T.upgradeMax; k++) E.roundRect(x + cw - 16 - (T.upgradeMax - k) * 22, y + 14, 16, 16, 4, k < lvl ? C.teal : '#2a3342', '#4b5567');
-      E.text(max ? 'Fully upgraded' : `Level ${lvl + 1}: ${effectText(u.id, lvl + 1)}`, x + 14, y + 50, { size: 14, align: 'left', color: max ? C.dim : C.text });
+      E.roundRect(x, y, cw, ch, T.style.radius, P.panel, P.panelEdge);
+      E.text(u.name, x + 14, y + 22, { size: TY.md, weight: '800', align: 'left', color: P.text });
+      for (let k = 0; k < T.upgradeMax; k++) E.roundRect(x + cw - 16 - (T.upgradeMax - k) * 22, y + 14, 16, 16, 4, k < lvl ? P.teal : P.panelSolid, P.panelEdge);
+      E.text(max ? 'Fully upgraded' : `Level ${lvl + 1}: ${effectText(u.id, lvl + 1)}`, x + 14, y + 50, { size: TY.sm, align: 'left', color: max ? P.textDim : P.text, weight: '600' });
       if (max) return { u, btn: null };
-      E.text(`${price} coins`, x + 14, y + ch - 26, { size: 16, align: 'left', color: can ? C.text : C.dim });
-      const btn = E.button('Buy', x + cw - 14 - 48, y + ch - 26, { w: 96, h: 44, size: 16, fill: can ? '#3b82f6' : '#2a3342', color: can ? '#fff' : '#6b7587' });
-      return { u, btn };
+      E.text(`${price} coins`, x + 14, y + ch - 26, { size: 16, align: 'left', color: can ? P.coin : P.textOff, weight: '800' });
+      const b = btn(E, 'Buy', x + cw - 14 - 48, y + ch - 26, { w: 96, h: 44, size: 16, fill: can ? P.button : P.buttonOff, color: can ? P.text : P.textOff });
+      return { u, btn: b };
     });
   },
   onTap(p, E) {
@@ -528,63 +569,109 @@ const toView = (c, wx, wy) => [(wx - c.x) * c.z, T.groundY - (wy - c.y) * c.z];
 
 // ---------- View ----------
 
+const P = T.palette, J = T.juice, TY = T.type;
+
 function view(E) {
   const s = Math.min(E.w / T.designW, E.h / T.designH);
   return { s, oy: (E.h - T.designH * s) / 2, vw: E.w / s };
 }
 
-const S = { run: null, cam: null, seed: 0 };
+// S: the play scene's state; S.fx: cosmetic effects in world units (particles, tumbling birds, words), capped.
+const S = { run: null, cam: null, seed: 0, fx: [], sq: { amt: 0, t: 0 } };
+
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function mix(a, b, t) { const x = hexRgb(a), y = hexRgb(b); return `rgb(${Math.round(x[0] + (y[0] - x[0]) * t)},${Math.round(x[1] + (y[1] - x[1]) * t)},${Math.round(x[2] + (y[2] - x[2]) * t)})`; }
+// The sky at an altitude (metres at the top of the view): horizon and top colours, and how far into the night it is.
+function skyAt(alt) {
+  const d = clamp((alt - 30) / (T.duskAt - 30), 0, 1), n = clamp((alt - T.duskAt) / (T.nightAt - T.duskAt), 0, 1);
+  if (n > 0) return { h: mix(P.skyDusk[0], P.skyNight[0], n), t: mix(P.skyDusk[1], P.skyNight[1], n), night: n };
+  return { h: mix(P.skyDay[0], P.skyDusk[0], d), t: mix(P.skyDay[1], P.skyDusk[1], d), night: 0 };
+}
+
+let STARS = null; // cosmetic star field, made once
+function stars() {
+  if (!STARS) STARS = Array.from({ length: J.stars }, () => ({ x: Math.random(), y: Math.random() * 0.8, r: 0.6 + Math.random() * 1.2, tw: Math.random() * 6 }));
+  return STARS;
+}
+
+// Rolling hills: a sum of two sines, scrolled at `par` of the camera; heights in design px.
+function hillY(x, seed) { return Math.sin(x * 0.006 + seed) * 0.5 + Math.sin(x * 0.0137 + seed * 2.1) * 0.35 + 0.5; }
 
 function drawWorld(ctx, E, v, c, r, pull, hint) {
-  const C = T.color, s = v.s, z = c.z;
+  const s = v.s, z = c.z, lw = T.style.line * s;
   const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - (wy - c.y) * z) * s;
-  const gy = v.oy + T.groundY * s, lift = c.y * z * s; // lift: how far the sky is panned above the pinned band
-  const sprite = Math.max(z, T.spriteMin); // critter and birds shrink less than the world so they still read
-  ctx.fillStyle = C.sky; ctx.fillRect(0, 0, E.w, E.h);
-  ctx.fillStyle = C.ground; ctx.fillRect(0, gy, E.w, E.h - gy);
-  ctx.fillStyle = C.groundTop; ctx.fillRect(0, gy, E.w, 3 * s);
+  const gy = v.oy + T.groundY * s, lift = c.y * z * s, liftM = c.y / T.unitsPerMetre;
+  const sprite = Math.max(z, T.spriteMin);
+  const alt = (c.y + T.groundY / z) / T.unitsPerMetre, sky = skyAt(alt);
 
-  // Distance ticks every 10 m, labels every 50 m.
+  // Sky, stars, hills.
+  const grad = ctx.createLinearGradient(0, 0, 0, gy);
+  grad.addColorStop(0, sky.t); grad.addColorStop(1, sky.h);
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, E.w, gy);
+  if (sky.night > 0) {
+    ctx.fillStyle = P.star;
+    for (const st of stars()) {
+      ctx.globalAlpha = sky.night * (0.6 + 0.4 * Math.sin(E.time * 2 + st.tw));
+      const sx = (((st.x * E.w - c.x * z * s * 0.02) % E.w) + E.w) % E.w;
+      ctx.fillRect(sx, st.y * gy, st.r * s, st.r * s);
+    }
+    ctx.globalAlpha = 1;
+  }
+  const hillA = (1 - clamp(liftM / T.hillFadeLift, 0, 1)) * (1 - sky.night);
+  if (hillA > 0.01) {
+    for (const [par, amp, base, col, seed] of [[0.15, 46, 70, P.hillFar, 1.3], [0.35, 34, 40, P.hillNear, 4.1]]) {
+      ctx.globalAlpha = hillA; ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(0, gy);
+      const off = c.x * z * par, drop = lift * 0.6;
+      for (let px = 0; px <= E.w + 24 * s; px += 24 * s) ctx.lineTo(px, gy + drop - (base + amp * hillY((px / s + off), seed)) * s);
+      ctx.lineTo(E.w, gy); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // The ground band: grass edge, soil, distance ticks every 10 m and labels every 50 m.
+  ctx.fillStyle = P.soil; ctx.fillRect(0, gy, E.w, E.h - gy);
+  ctx.fillStyle = P.grass; ctx.fillRect(0, gy, E.w, 12 * s);
   const u10 = 10 * T.unitsPerMetre, span = v.vw / z;
+  ctx.fillStyle = P.ink; ctx.globalAlpha = 0.45;
   for (let wx = Math.floor(c.x / u10) * u10; wx < c.x + span + u10; wx += u10) {
     if (wx < 0) continue;
     const big = wx % (5 * u10) === 0;
-    ctx.fillStyle = C.tick; ctx.fillRect(X(wx) - 1, gy + 4 * s, 2, (big ? 12 : 6) * s);
-    if (big && wx > 0) E.text(`${wx / T.unitsPerMetre} m`, X(wx), gy + 28 * s, { size: 14, color: C.dim, weight: '600' });
+    ctx.fillRect(X(wx) - 1, gy + 12 * s, 2, (big ? 10 : 5) * s);
   }
+  ctx.globalAlpha = 1;
+  for (let wx = Math.ceil(c.x / (5 * u10)) * 5 * u10; wx < c.x + span + u10; wx += 5 * u10) if (wx > 0) E.text(`${wx / T.unitsPerMetre} m`, X(wx), gy + 34 * s, { size: TY.sm, color: P.text, weight: '600' });
 
-  // Slingshot fork (on the band).
-  const fx = X(0), fy = (h) => gy - h * z * s, top = fy(T.slingH + 14);
-  ctx.strokeStyle = C.sling; ctx.lineWidth = 5 * s * z; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(fx, gy); ctx.lineTo(fx, fy(T.slingH - 6));
-  ctx.moveTo(fx, fy(T.slingH - 6)); ctx.lineTo(fx - 9 * s * z, top); ctx.moveTo(fx, fy(T.slingH - 6)); ctx.lineTo(fx + 9 * s * z, top); ctx.stroke();
+  // The slingshot: a wooden fork with a rubber band (drawn behind the critter, band in front).
+  const fx = X(0), fy = (h) => gy - h * z * s, forkTop = fy(T.slingH + 14), forkMid = fy(T.slingH - 6), fw = 9 * s * z;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const [w, col] of [[7 * s * z + 2 * lw, P.ink], [7 * s * z, P.wood]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(fx, gy + 2 * s); ctx.lineTo(fx, forkMid); ctx.lineTo(fx - fw, forkTop); ctx.moveTo(fx, forkMid); ctx.lineTo(fx + fw, forkTop); ctx.stroke();
+  }
 
   if (r) {
     const f = r.field, t = flightTime(r), x0 = c.x - 400, x1 = c.x + span + 400;
     for (const g of f.ground) {
       if (g.x1 < x0 || g.x0 > x1) continue;
-      if (g.kind === 'spring') drawSpring(ctx, X(g.x0), gy, g.w * z * s, s, g.spent);
-      else if (g.kind === 'mud') {
-        ctx.fillStyle = C.mud; roundBlob(ctx, X(g.x0), gy - 5 * s, g.w * z * s, 12 * s);
-        ctx.fillStyle = C.mudRim; roundBlob(ctx, X(g.x0), gy - 6 * s, g.w * z * s, 4 * s); // the light top edge: 3:1 or better on sky and ground
-      } else if (g.kind === 'ramp') {
-        ctx.fillStyle = C.ramp; ctx.beginPath(); ctx.moveTo(X(g.x0), gy); ctx.lineTo(X(g.x1), gy - g.h * z * s); ctx.lineTo(X(g.x1), gy); ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = C.rampTop; ctx.lineWidth = 3 * s; ctx.beginPath(); ctx.moveTo(X(g.x0), gy); ctx.lineTo(X(g.x1), gy - g.h * z * s); ctx.stroke();
-      }
+      if (g.kind === 'spring') drawSpring(ctx, X(g.x0), gy, g.w * z * s, s, g.spent, S.pops.get(g));
+      else if (g.kind === 'mud') drawMud(ctx, X(g.x0), gy, g.w * z * s, s, E.time);
+      else if (g.kind === 'ramp') drawRamp(ctx, X(g.x0), gy, g.w * z * s, g.h * z * s, s, lw);
     }
     for (const b of f.birds) {
       if (b.hit || b.x0 < x0 || b.x0 > x1) continue;
       const by = Y(b.y);
-      if (by < gy - 4 * s) drawBird(ctx, X(birdX(b, t)), by, s * sprite, Math.cos((t / T.birdPeriod) * Math.PI * 2 + b.phase) >= 0);
+      if (by < gy - 4 * s) drawBird(ctx, X(birdX(b, t)), by, s * sprite, E.time + b.phase, Math.cos((t / T.birdPeriod) * Math.PI * 2 + b.phase) >= 0 ? -1 : 1, 0);
     }
   }
 
-  if (hint) { // first launch: a ghost thumb pulling back and down, behind the critter
+  if (hint) { // a fresh save's first launch: a ghost thumb pulling back and down, behind the critter
     const k = (E.time % 1.6) / 1.2;
     if (k <= 1) {
       const hx = X(0) + (90 - 80 * k) * s, hy = gy - (T.slingH + 60) * s + 60 * k * s;
-      ctx.globalAlpha = 0.28 * Math.sin(Math.PI * k); ctx.fillStyle = C.text;
-      ctx.beginPath(); ctx.arc(hx, hy, 16 * s, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.55 * Math.sin(Math.PI * k);
+      ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.arc(hx, hy, 16 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
     }
   }
 
@@ -594,88 +681,216 @@ function drawWorld(ctx, E, v, c, r, pull, hint) {
   else if (r) { cx = r.x; cy = r.y; }
   else { cx = 0; cy = T.slingH; }
   const rr = T.critterR * s * sprite, sx = X(cx), sy = Y(cy) - rr;
-  if (pull || !r) {
-    const taut = pull && pull.full;
-    ctx.strokeStyle = taut ? C.bandTaut : C.band; ctx.lineWidth = (taut ? 3.5 : 2.5) * s;
-    ctx.beginPath(); ctx.moveTo(fx - 9 * s, top); ctx.lineTo(sx, sy); ctx.lineTo(fx + 9 * s, top); ctx.stroke();
-  }
+  // Soft shadow on the band while low.
+  const hgt = cy * z * s;
+  if (lift === 0 && hgt < 160 * s) { ctx.globalAlpha = 1 - hgt / (160 * s); ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(sx, gy + 2 * s, rr * 1.1, rr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  for (const e of S.fx) drawFx(ctx, E, e, X, Y, s, sprite, lw, true);
   if (pull && pull.arc) {
-    ctx.fillStyle = C.text;
-    for (const [px, py] of pull.arc) { ctx.beginPath(); ctx.arc(X(px), Y(py + T.critterR), 2.4 * s, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5;
+    for (const [px, py] of pull.arc) { ctx.beginPath(); ctx.arc(X(px), Y(py + T.critterR), 2.6 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   }
   if (lift > 0) { // panned sky: a dotted drop line from the critter to the band
-    ctx.strokeStyle = C.dim; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]);
-    ctx.beginPath(); ctx.moveTo(sx, sy + rr + 4); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = sky.night > 0.5 ? P.star : P.ink; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]);
+    ctx.beginPath(); ctx.moveTo(sx, sy + rr + 4); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
-  drawCritter(ctx, sx, sy, rr, r && !pull ? Math.atan2(-r.vy, r.vx) : 0);
-  return { sx, sy, rr, height: cy, lifted: lift > 0 };
+  // Speed lines after a spring.
+  if (r && S.speedT > 0) {
+    const sp = Math.hypot(r.vx, r.vy) || 1, ux = r.vx / sp, uy = -r.vy / sp;
+    ctx.strokeStyle = P.white; ctx.lineWidth = 2 * s; ctx.globalAlpha = S.speedT / J.speedLines;
+    for (let i = -1; i <= 1; i++) {
+      const ox = -uy * i * rr * 0.7, oy = ux * i * rr * 0.7;
+      ctx.beginPath(); ctx.moveTo(sx - ux * rr * 1.4 + ox, sy - uy * rr * 1.4 + oy); ctx.lineTo(sx - ux * rr * (2.6 + (i & 1)) + ox, sy - uy * rr * (2.6 + (i & 1)) + oy); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // The band: plum rubber, red-pink and thicker when taut at full power; it twangs for a moment after the launch.
+  if (pull || !r || S.snapT > 0) {
+    const taut = pull && pull.full, snap = !pull && r ? S.snapT / J.snapTime : 0;
+    const bx = pull || !r ? sx : fx + Math.sin(E.time * 60) * 10 * s * snap, by = pull || !r ? sy : forkTop + 4 * s;
+    ctx.strokeStyle = taut ? P.rubberTaut : P.rubber; ctx.lineWidth = (taut ? 4 : 2.5) * s * Math.max(z, 0.7);
+    ctx.beginPath(); ctx.moveTo(fx - fw, forkTop); ctx.lineTo(bx, by); ctx.lineTo(fx + fw, forkTop); ctx.stroke();
+  }
+  // Squash: stretched along the pull while aiming, flattened on a landing and wobbling back.
+  let ang = 0, sqx = 1, sqy = 1;
+  if (pull) { const p = pull.power || 0; ang = Math.atan2(-pull.py, -pull.px) || 0; sqx = 1 + J.pullSquash * p; sqy = 1 - J.pullSquash * 0.6 * p; }
+  else if (S.sq.t > 0) { const k = S.sq.t / J.squashTime, w = S.sq.amt * k * Math.cos((1 - k) * Math.PI * 1.5); sqx = 1 + w; sqy = 1 - w; }
+  else if (r && r.ended === 'mud') { sqx = 1 + J.landSquash; sqy = 1 - J.landSquash; }
+  const look = r && !pull ? Math.atan2(-r.vy, r.vx) : pull ? Math.atan2(pull.py, -pull.px) * -1 : 0;
+  drawCritter(ctx, sx, sy + (1 - sqy) * rr, rr, look, ang, sqx, sqy, lw);
+  return { sx, sy, rr, height: cy, lifted: lift > 0, night: sky.night };
 }
 
-function roundBlob(ctx, x, y, w, h) {
-  const rr = Math.min(h / 2, w / 2);
-  ctx.beginPath(); ctx.moveTo(x + rr, y); ctx.lineTo(x + w - rr, y); ctx.arc(x + w - rr, y + rr, rr, -Math.PI / 2, Math.PI / 2);
-  ctx.lineTo(x + rr, y + h); ctx.arc(x + rr, y + rr, rr, Math.PI / 2, Math.PI * 1.5); ctx.fill();
-}
-
-function drawSpring(ctx, x, gy, w, s, spent) {
-  const C = T.color, hgt = (spent ? 3 : 8) * s, col = spent ? C.tealDim : C.teal;
-  ctx.strokeStyle = col; ctx.lineWidth = 2 * s;
+function drawSpring(ctx, x, gy, w, s, spent, pop) {
+  const k = pop ? pop.t / J.springPop : 0; // 1 at the hit: compressed, then pops past rest
+  const rest = (spent ? 4 : 10) * s, hgt = pop ? rest * (k > 0.6 ? 0.35 : 1 + 0.5 * Math.sin((1 - k / 0.6) * Math.PI)) : rest;
+  ctx.strokeStyle = P.coil; ctx.lineWidth = 2.2 * s; ctx.lineJoin = 'round';
   ctx.beginPath();
-  const n = 5;
-  for (let i = 0; i <= n; i++) { const yy = gy - (hgt * i) / n; const xx = x + w * 0.25 + (i % 2 ? w * 0.5 : 0); if (i) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy); }
+  for (let i = 0; i <= 5; i++) { const yy = gy - (hgt * i) / 5, xx = x + w * 0.3 + (i % 2 ? w * 0.4 : 0); if (i) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy); }
   ctx.stroke();
-  ctx.fillStyle = col; ctx.fillRect(x, gy - hgt - 4 * s, w, 4 * s);
+  const ph = 5 * s;
+  roundRectPath(ctx, x, gy - hgt - ph, w, ph, ph / 2);
+  ctx.fillStyle = spent ? P.tealSpent : P.teal; ctx.fill();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = T.style.line * s * 0.8; ctx.stroke();
+  if (!spent) { ctx.fillStyle = P.tealLight; ctx.fillRect(x + ph, gy - hgt - ph + 1.2 * s, Math.max(0, w - 2 * ph), 1.4 * s); }
 }
 
-function drawBird(ctx, x, y, s, up) {
-  const C = T.color, r = T.birdR * s;
-  ctx.fillStyle = C.teal;
-  ctx.beginPath(); ctx.arc(x, y, r * 0.75, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(x - r * 0.1, y); ctx.lineTo(x + r * 0.9, y); ctx.lineTo(x + r * 0.5, y + (up ? -r * 1.3 : r * 1.1)); ctx.fill();
-  ctx.fillStyle = C.tealDim; ctx.beginPath(); ctx.moveTo(x - r * 0.9, y - r * 0.15); ctx.lineTo(x - r * 1.35, y); ctx.lineTo(x - r * 0.9, y + r * 0.15); ctx.fill();
-  ctx.fillStyle = C.eye; ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.2, 1.8 * s, 0, Math.PI * 2); ctx.fill();
+// Mud: a dark puddle (it reads on the light skies) with a light glossy rim (it reads on the night sky and on the grass).
+function drawMud(ctx, x, gy, w, s, time) {
+  roundRectPath(ctx, x, gy - 5 * s, w, 13 * s, 6 * s);
+  ctx.fillStyle = P.mud; ctx.fill();
+  ctx.strokeStyle = P.mudRim; ctx.lineWidth = 2.4 * s; ctx.beginPath(); ctx.moveTo(x + 5 * s, gy - 4.5 * s); ctx.lineTo(x + w - 5 * s, gy - 4.5 * s); ctx.stroke();
+  ctx.fillStyle = P.mudRim;
+  for (let i = 0; i < 2; i++) { const bx = x + w * (0.3 + 0.4 * i), br = (1.5 + Math.sin(time * 2 + i * 2) * 0.6) * s; ctx.beginPath(); ctx.arc(bx, gy + 2 * s, br, 0, Math.PI * 2); ctx.fill(); }
 }
 
-function drawCritter(ctx, x, y, r, a) {
-  const C = T.color;
-  ctx.fillStyle = C.critter; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  const ex = Math.cos(a) * r * 0.35, ey = Math.sin(a) * r * 0.35;
-  ctx.fillStyle = C.eye;
-  ctx.beginPath(); ctx.arc(x + ex - r * 0.18, y + ey - r * 0.25, r * 0.16, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + ex + r * 0.3, y + ey - r * 0.25, r * 0.16, 0, Math.PI * 2); ctx.fill();
+function drawRamp(ctx, x, gy, w, h, s, lw) {
+  ctx.fillStyle = P.ramp; ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy - h); ctx.lineTo(x + w, gy); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = P.rampPlank; ctx.lineWidth = 1.5 * s;
+  for (let i = 1; i < 4; i++) { const px = x + (w * i) / 4; ctx.beginPath(); ctx.moveTo(px, gy - 2 * s); ctx.lineTo(px, gy - (h * i) / 4 + 3 * s); ctx.stroke(); }
 }
 
-// HUD in CSS px, inside all four safe insets. The fuel gauge sits top left, clear of the sling pocket.
-function drawHud(E, r, fuel, fuelMax, info, callout) {
-  const C = T.color, sf = E.safe, right = E.w - sf.right - 16, top = sf.top + 12;
-  E.text(`${r ? metres(r) : 0} m`, right, top + 16, { size: 28, weight: '800', align: 'right', color: C.text });
-  if (r && r.chain > 0) E.text(`Chain x${mult(r)}`, right, top + 46, { size: 16, align: 'right', color: C.teal });
-  const x0 = sf.left + 16, y0 = top + 30;
-  E.roundRect(x0 - 8, top - 4, Math.max(58, fuelMax * 18 + 12), 50, 10, C.panel);
-  E.text('Fuel', x0, top + 10, { size: 14, align: 'left', color: C.dim });
-  for (let i = 0; i < fuelMax; i++) {
-    const k = clamp(fuel - i, 0, 1);
-    E.roundRect(x0 + i * 18, y0 - 6, 14, 14, 4, '#2a3342', '#4b5567');
-    if (k > 0) E.roundRect(x0 + i * 18 + 2, y0 - 4 + 10 * (1 - k), 10, 10 * k, 3, C.text);
+// A bird: a round teal body with an ink outline, a flapping wing, a yellow beak toward `dir` (-1 left, 1 right).
+function drawBird(ctx, x, y, s, time, dir, rot) {
+  const r = T.birdR * s * 0.75, flap = Math.sin(time * 14) * 0.9;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(dir, 1);
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = T.style.line * s * 0.8;
+  ctx.fillStyle = P.coin; ctx.beginPath(); ctx.moveTo(r * 0.8, -r * 0.2); ctx.lineTo(r * 1.6, 0); ctx.lineTo(r * 0.8, r * 0.25); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.strokeStyle = P.halo; ctx.lineWidth = T.style.line * s * 2.4; ctx.stroke();
+  ctx.fillStyle = P.teal; ctx.strokeStyle = P.ink; ctx.lineWidth = T.style.line * s * 0.8; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.tealLight; ctx.beginPath(); ctx.moveTo(-r * 0.5, -r * 0.1); ctx.lineTo(r * 0.3, -r * 0.1); ctx.lineTo(-r * 0.3, -r * 0.1 - r * 1.3 * flap); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.eye; ctx.beginPath(); ctx.arc(r * 0.4, -r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.3, r * 0.14, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// The hero: a round orange critter with an ink outline, a light cheek, and eyes that look where it is going.
+function drawCritter(ctx, x, y, r, look, ang, sx, sy, lw) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(sx, sy); ctx.rotate(-ang);
+  // A light halo outside the ink outline keeps the edge readable where the dusk sky is neither light nor dark.
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.strokeStyle = P.halo; ctx.lineWidth = (3 * lw) / Math.max(sx, sy); ctx.stroke();
+  ctx.fillStyle = P.critter; ctx.strokeStyle = P.ink; ctx.lineWidth = lw / Math.max(sx, sy); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.critterLight; ctx.beginPath(); ctx.arc(-r * 0.35, -r * 0.4, r * 0.28, 0, Math.PI * 2); ctx.fill();
+  const ex = Math.cos(look) * r * 0.3, ey = Math.sin(look) * r * 0.3;
+  for (const ox of [-0.05, 0.42]) {
+    ctx.fillStyle = P.eye; ctx.beginPath(); ctx.arc(ox * r + ex * 0.4, -r * 0.12 + ey * 0.4, r * 0.24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(ox * r + ex * 0.7, -r * 0.12 + ey * 0.7, r * 0.12, 0, Math.PI * 2); ctx.fill();
   }
-  if (info && info.lifted) E.text(`${Math.round(info.height / T.unitsPerMetre)} m up`, info.sx + info.rr + 8, info.sy, { size: 14, align: 'left', color: C.text });
-  if (callout) E.text(callout.text, E.w / 2, sf.top + 60, { size: 24, weight: '800', color: C.text, alpha: clamp(callout.t / 0.3, 0, 1) });
+  ctx.restore();
+}
+
+function roundRectPath(ctx, x, y, w, h, rad) {
+  const r = Math.min(rad, w / 2, h / 2);
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// ---------- Effects ----------
+// World-space and cosmetic only: particles (dust, flame, feathers, splat, coins), a tumbling bird, a floating word.
+
+function emit(kind, x, y, n, o) {
+  for (let i = 0; i < n; i++) {
+    if (S.fx.length >= J.particleCap) S.fx.shift();
+    const a = (o.angle ?? Math.PI / 2) + (Math.random() - 0.5) * (o.spread ?? Math.PI * 2), sp = (o.speed ?? 120) * (0.4 + Math.random() * 0.8);
+    S.fx.push({ k: kind, x, y, vx: Math.cos(a) * sp + (o.vx || 0), vy: Math.sin(a) * sp + (o.vy || 0), g: o.g ?? -300, t: o.life ?? 0.5, max: o.life ?? 0.5, size: (o.size ?? 3) * (0.6 + Math.random() * 0.8), color: o.color });
+  }
+}
+function word(text, x, y, size, life) { S.fx.push({ k: 'word', text, x, y, vx: 0, vy: 60, g: 0, t: life, max: life, size, color: P.text }); }
+
+function updateFx(dt) {
+  for (let i = S.fx.length - 1; i >= 0; i--) {
+    const e = S.fx[i];
+    e.t -= dt;
+    if (e.t <= 0) { S.fx[i] = S.fx[S.fx.length - 1]; S.fx.pop(); continue; }
+    e.vy += e.g * dt; e.x += e.vx * dt; e.y += e.vy * dt;
+    if (e.k === 'tumble') e.rot += e.spin * dt;
+  }
+  for (const [g, p] of S.pops) { p.t -= dt; if (p.t <= 0) S.pops.delete(g); }
+}
+
+function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
+  const x = X(e.x), y = Y(e.y), k = e.t / e.max;
+  if (e.k === 'tumble') { ctx.globalAlpha = Math.min(1, k * 2); drawBird(ctx, x, y, s * sprite, 0, 1, e.rot); ctx.globalAlpha = 1; return; }
+  if (e.k === 'word') {
+    const pop = k > 0.8 ? ease.outBack((1 - k) / 0.2) : 1;
+    ctx.globalAlpha = Math.min(1, k * 3);
+    ctx.fillStyle = P.panel; const w = e.text.length * e.size * 0.62 + 16; roundRectPath(ctx, x - w / 2, y - e.size * 0.8 * pop, w, e.size * 1.6 * pop, 10); ctx.fill();
+    E.text(e.text, x, y, { size: Math.max(TY.sm, e.size * pop), weight: '800', color: e.color });
+    ctx.globalAlpha = 1; return;
+  }
+  ctx.globalAlpha = Math.min(1, k * 1.5); ctx.fillStyle = e.color;
+  const r = e.size * s * Math.max(0.5, k);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  if (e.k === 'coin') { ctx.strokeStyle = P.ink; ctx.lineWidth = 1.2; ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- Sounds ----------
+// Engine synth only (PRD section 12), through E.audio so the mute flag holds.
+const SFX = {
+  creak: (E, p) => E.audio.beep({ freq: 160 + 260 * p, dur: 0.05, type: 'triangle', gain: 0.05 }),
+  launch: (E) => { E.audio.beep({ freq: 300, dur: 0.1, slide: 1.5, gain: 0.15 }); E.audio.noise({ dur: 0.06, gain: 0.1 }); },
+  boost: (E) => { E.audio.noise({ dur: 0.12, gain: 0.1 }); E.audio.beep({ freq: 220, dur: 0.12, type: 'sine', slide: 2, gain: 0.06 }); },
+  spring: (E) => { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 420, dur: 0.18, type: 'sine', slide: 2.2, gain: 0.1 }); },
+  bird: (E) => { E.audio.beep({ freq: 900, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.08 }); E.audio.beep({ freq: 1000, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.07, delay: 0.09 }); },
+  chain: (E, n) => E.audio.beep({ freq: 520 * Math.pow(1.26, n), dur: 0.14, type: 'triangle', gain: 0.12 }),
+};
+
+// ---------- HUD ----------
+// CSS px, inside all four safe insets; light text on ink pills so it reads on every sky.
+
+function pill(E, text, x, y, size, align = 'center', color = P.text) {
+  const ctx = E.ctx; ctx.font = `800 ${size}px system-ui, sans-serif`;
+  const w = ctx.measureText(text).width + 20, h = size + 14, lx = align === 'right' ? x - w : align === 'left' ? x : x - w / 2;
+  E.roundRect(lx, y - h / 2, w, h, h / 2, P.panel);
+  E.text(text, lx + w / 2, y, { size, weight: '800', color });
+  return { x: lx, y: y - h / 2, w, h };
+}
+
+function drawHud(E, r, fuel, fuelMax, info) {
+  const sf = E.safe, right = E.w - sf.right - 12, top = sf.top + 10;
+  const pop = S.distPop > 0 ? 1 + 0.3 * (S.distPop / 0.3) : 1;
+  pill(E, `${r ? metres(r) : 0} m`, right, top + 20, Math.round(TY.lg * pop), 'right');
+  if (r && r.chain > 0) {
+    const k = S.chainT > 0 ? ease.outBack(clamp(1 - (S.chainT - (J.chainLife - J.chainPop)) / J.chainPop, 0, 1)) : 1;
+    pill(E, `Chain x${mult(r)}`, right, top + 60, Math.max(TY.sm, Math.round((TY.sm + 3 * r.chain) * k)), 'right', P.tealLight);
+  }
+  const x0 = sf.left + 16, y0 = top + 32;
+  E.roundRect(x0 - 8, top - 4, Math.max(64, fuelMax * 18 + 14), 54, T.style.radius, P.panel);
+  E.text('Fuel', x0, top + 10, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
+  for (let i = 0; i < fuelMax; i++) {
+    const k = clamp(fuel - i, 0, 1), popping = S.gaugePop > 0 && i === Math.floor(fuel + 1e-6);
+    const g = popping ? 1 + 0.5 * (S.gaugePop / J.gaugePop) : 1, cx = x0 + i * 18 + 7, cy = y0 + 1;
+    E.roundRect(cx - 7 * g, cy - 7 * g, 14 * g, 14 * g, 4, P.panelSolid, P.panelEdge);
+    if (k > 0) E.roundRect(cx - 5, cy + 5 - 10 * k, 10, 10 * k, 3, P.coin);
+  }
+  if (info && info.lifted) pill(E, `${Math.round(info.height / T.unitsPerMetre)} m up`, info.sx + info.rr + 8, info.sy, TY.sm, 'left');
+  if (S.banner) {
+    const k = S.banner.t / J.bannerTime, inK = ease.outBack(clamp((1 - k) / 0.2, 0, 1)), a = clamp(k / 0.15, 0, 1);
+    E.ctx.globalAlpha = a;
+    pill(E, `★ ${S.banner.text}`, E.w / 2, sf.top + 22 + 40 * inK, TY.lg, 'center', P.coin);
+    E.ctx.globalAlpha = 1;
+  }
+  if (S.holdT > 0) { E.ctx.globalAlpha = clamp(S.holdT / 0.3, 0, 1); pill(E, 'Hold to boost', E.w / 2, sf.top + 100, TY.md); E.ctx.globalAlpha = 1; }
 }
 
 // ---------- Scenes ----------
 
 const newSeed = () => (Math.random() * 2 ** 32) >>> 0; // the seed is setup; the flight itself never draws randomness
+const btn = (E, label, cx, cy, o = {}) => E.button(label, cx, cy, { fill: P.button, color: P.text, ...o });
 
 const menu = {
   render(ctx, E) {
-    const C = T.color, v = view(E);
+    const v = view(E);
     drawWorld(ctx, E, v, newCamera(v.vw), null, null, false);
     const cy = E.h * 0.26;
-    E.text('LAUNCH', E.w / 2, cy, { size: 44, weight: '800', color: C.text });
-    E.text(`Best ${E.save.get('best', 0)} m    Coins ${E.save.get('coins', 0)}`, E.w / 2, cy + 40, { size: 16, color: C.dim });
-    this.btnPlay = E.button('Play', E.w / 2, E.h * 0.58, { w: 220, h: 56 });
-    this.btnShop = E.button('Shop', E.w / 2 - 58, E.h * 0.58 + 64, { fill: '#334155', w: 104, h: 44, size: 16 });
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2 + 58, E.h * 0.58 + 64, { fill: '#334155', w: 104, h: 44, size: 15 });
+    E.text('LAUNCH', E.w / 2, cy, { size: TY.xl, weight: '800', color: P.ink });
+    E.titleArea = { x: E.w / 2 - 110, y: cy - 30, w: 220, h: 60 }; // release: five taps on the title show TUNE
+    pill(E, `Best ${E.save.get('best', 0)} m    Coins ${E.save.get('coins', 0)}`, E.w / 2, cy + 44, TY.sm);
+    this.btnPlay = btn(E, 'Play', E.w / 2, E.h * 0.58, { w: 220, h: 56 });
+    this.btnShop = btn(E, 'Shop', E.w / 2 - 58, E.h * 0.58 + 64, { fill: P.panelSolid, w: 104, h: 44, size: 16 });
+    this.btnMute = btn(E, E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2 + 58, E.h * 0.58 + 64, { fill: P.panelSolid, w: 104, h: 44, size: 15 });
   },
   onTap(p, E) {
     if (this.btnPlay && E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play'); }
@@ -688,21 +903,29 @@ const menu = {
 const play = {
   enter(E, params = {}) {
     S.seed = params.seed ?? newSeed();
-    S.run = null; S.pull = null; S.key = null; S.endT = 0; S.callout = null; S.frameReal = performance.now(); S.pid = null; S.spaceDown = false;
+    S.run = null; S.pull = null; S.key = null; S.endT = 0; S.frameReal = performance.now(); S.pid = null; S.spaceDown = false;
     S.up = levelsOf(E); S.st = stats(S.up); S.cam = newCamera(view(E).vw); S.nudge = 0;
     S.hint = E.save.get('flights', 0) === 0 && !S.pulled; // a fresh save's first launch, until the first pull begins
+    S.fx.length = 0; S.pops = new Map(); S.sq = { amt: 0, t: 0 }; S.creak = 0;
+    S.snapT = 0; S.speedT = 0; S.gaugePop = 0; S.distPop = 0; S.chainT = 0; S.banner = null; S.holdT = 0;
+    S.teachHold = S.up.rocket >= 1 && !E.save.get('holdTaught', false);
   },
   stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)); },
   launch(E, l) {
     S.run = newRun(S.seed, l, S.up);
     S.pull = null; S.key = null;
-    E.audio.play('hit', 0.4);
+    SFX.launch(E); E.haptic(J.haptic.launch); E.shake(J.kick, J.kickTime);
+    S.snapT = J.snapTime;
+    emit('dust', 0, 0, J.dust, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 90, g: -200, life: 0.5, size: 3, color: P.dust });
+    if (S.teachHold) { S.holdT = J.holdHint; E.save.set('holdTaught', true); }
   },
   update(dt, E) {
     S.frameReal = performance.now();
     const r = S.run;
-    if (S.callout) { S.callout.t -= dt; if (S.callout.t <= 0) S.callout = null; }
-    if (S.nudge > 0) S.nudge -= dt;
+    for (const k of ['nudge', 'snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT']) if (S[k] > 0) S[k] -= dt;
+    if (S.sq.t > 0) S.sq.t -= dt;
+    if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
+    updateFx(dt);
     cameraStep(S.cam, r, view(E).vw, dt);
     if (!r) return;
     if (S.spaceDown && !E.keys.has(' ')) { // key repeat is ignored: one pulse per press, a held key is the Rocket's hold
@@ -712,28 +935,54 @@ const play = {
     advance(r, dt);
     for (const e of r.ev) this.onEvent(e, E);
     r.ev.length = 0;
+    if (r.holding && Math.random() < 0.5) emit('flame', r.x, r.y + T.critterR, 1, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.6, speed: 120, g: 0, life: J.flameLife, size: 3, color: P.flame });
     if (r.ended) { S.endT += dt; if (S.endT >= T.endDelay) E.setScene('over', finishFlight(E, r)); }
   },
+  squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
   onEvent(e, E) {
-    if (e.k === 'spring') E.audio.play('hit');
-    else if (e.k === 'bird') E.audio.play('coin', 0.6);
-    else if (e.k === 'boost') E.audio.play('tap', 0.3);
-    else if (e.k === 'mud') E.audio.play('miss');
-    else if (e.k === 'milestone') { E.audio.play('win'); S.callout = { text: `${e.m} m!`, t: T.calloutLife }; }
-    else if (e.k === 'stop' && !S.run.stars.length) E.audio.play('lose', 0.3);
-    if ((e.k === 'spring' || e.k === 'bird') && e.chain >= 2) S.callout = { text: `Chain x${T.chainSteps[Math.min(e.chain, T.chainSteps.length - 1)]}`, t: 0.8 };
+    const r = S.run, cx = r.x, cy = r.y + T.critterR;
+    if (e.k === 'spring') {
+      SFX.spring(E); E.haptic(J.haptic.spring); this.squash(0.12 + r.vy / 2500); S.speedT = J.speedLines;
+      const g = groundAt(r.field, r.x); if (g) S.pops.set(g, { t: J.springPop });
+      word('Boing', r.x - 40, 70, TY.md, J.boingLife); // above the pad, behind the critter flying off
+    } else if (e.k === 'bird') {
+      SFX.bird(E); E.haptic(J.haptic.bird);
+      emit('feather', cx, cy, J.feathers, { speed: 140, g: -120, life: 0.7, size: 2.6, color: P.tealLight });
+      let b = null, d = Infinity; // the bird just hit, for its tumble
+      for (const q of r.field.birds) if (q.hit && !q.tumbled && Math.abs(q.x0 - r.x) < d) { d = Math.abs(q.x0 - r.x); b = q; }
+      if (b) { b.tumbled = true; S.fx.push({ k: 'tumble', x: birdX(b, flightTime(r)), y: b.y, vx: r.vx * 0.3, vy: -80, g: -500, t: J.tumbleTime, max: J.tumbleTime, rot: 0, spin: 9, size: 0 }); }
+    } else if (e.k === 'boost') {
+      SFX.boost(E); E.haptic(J.haptic.boost); S.gaugePop = J.gaugePop;
+      emit('flame', r.x, r.y + T.critterR, J.flame, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.7, speed: 160, g: 0, life: J.flameLife, size: 3.4, color: P.flame });
+    } else if (e.k === 'bounce' || e.k === 'ramp') this.squash(0.1);
+    else if (e.k === 'mud') {
+      E.audio.play('miss'); E.haptic(J.haptic.mud); E.shake(J.mudShake, J.mudShakeTime);
+      emit('splat', cx, 0, J.splat, { angle: Math.PI / 2, spread: Math.PI * 0.8, speed: 150, g: -400, life: 0.6, size: 3, color: P.mud });
+    } else if (e.k === 'milestone') {
+      E.audio.play('win'); E.haptic(J.haptic.milestone); S.banner = { text: `${e.m} m!`, t: J.bannerTime }; S.distPop = 0.3;
+    } else if (e.k === 'stop') {
+      this.squash(0.18);
+      if (!r.stars.length) E.audio.play('lose', 0.3);
+    }
+    if ((e.k === 'spring' || e.k === 'bird') && e.chain >= 1) {
+      S.chainT = J.chainLife;
+      if (e.chain >= 2) SFX.chain(E, e.chain);
+      emit('coin', cx, cy, J.coins[Math.min(e.chain, J.coins.length - 1)], { angle: Math.PI / 2, spread: 1.2, speed: 200, g: -500, life: 0.7, size: 3.2, color: P.coin });
+    }
   },
   onPointerDown(p, E) {
     const r = S.run;
-    if (!r) { if (S.pid === null) { S.pid = p.id; S.pull = { sx: p.x, sy: p.y, dx: 0, dy: 0 }; S.hint = false; S.pulled = true; } return; }
+    if (!r) { if (S.pid === null) { S.pid = p.id; S.pull = { sx: p.x, sy: p.y, dx: 0, dy: 0 }; S.hint = false; S.pulled = true; S.creak = 0; } return; }
     if (r.ended) return;
     const at = this.stamp(r);
     queueInput(r, at, 'pulse');
     if (r.st.hold) { S.pid = p.id; queueInput(r, at + T.holdDelay, 'holdOn'); }
   },
-  onPointerMove(p) {
+  onPointerMove(p, E) {
     if (S.run || !S.pull || p.id !== S.pid) return;
     S.pull.dx = p.x - S.pull.sx; S.pull.dy = p.y - S.pull.sy;
+    const pw = Math.min(1, Math.hypot(S.pull.dx, S.pull.dy) / T.pullMax);
+    if (Math.abs(pw - S.creak) >= J.creakStep) { S.creak = pw; SFX.creak(E, pw); } // the band creaks as it stretches
   },
   onPointerUp(p, E) {
     if (p.id !== S.pid) return;
@@ -773,63 +1022,70 @@ const play = {
       const raw = S.pull ? Math.hypot(S.pull.dx, S.pull.dy) : S.key.power * T.pullMax;
       const L = Math.min(raw, T.pullMax) / T.pullMax, a = l ? l.angle * DEG : 0;
       short = !!S.pull && raw < T.dragDead;
-      pull = { px: -Math.cos(a) * L * T.pullVisual, py: Math.max(4 - T.slingH, -Math.sin(a) * L * T.pullVisual), arc: l ? previewArc(l, S.st) : null, full: raw >= T.pullMax };
+      pull = { px: -Math.cos(a) * L * T.pullVisual, py: Math.max(4 - T.slingH, -Math.sin(a) * L * T.pullVisual), arc: l ? previewArc(l, S.st) : null, full: raw >= T.pullMax, power: l ? L : 0 };
     }
     const info = drawWorld(ctx, E, v, S.cam, r, pull, S.hint && !r && !S.pull);
-    drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.st.fuelMax : S.st.fuelMax, r ? info : null, S.callout);
-    if (!r && (short || S.nudge > 0)) E.text('Pull further', info.sx, info.sy - 34, { size: 16, color: T.color.text, alpha: short ? 1 : clamp(S.nudge / 0.3, 0, 1) });
+    drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.st.fuelMax : S.st.fuelMax, r ? info : null);
+    if (!r && (short || S.nudge > 0)) { E.ctx.globalAlpha = short ? 1 : clamp(S.nudge / 0.3, 0, 1); pill(E, 'Pull further', info.sx, info.sy - 40, TY.md); E.ctx.globalAlpha = 1; }
   },
-  onPause() { /* a flight is short: closing mid-flight discards it (PRD section 3) */ },
+  onPause(E) { // closing mid-flight discards it (PRD section 3); the ledger notes the quit
+    const r = S.run;
+    if (r && !r.ended) E.ledger.add('quit', { m: metres(r), t: +flightTime(r).toFixed(1), seed: r.seed });
+  },
 };
 
 const over = {
   enter(E, p) {
-    this.p = p; this.t0 = p.again ? -Infinity : E.time; // back from the shop: no grace, no sound
-    if (p.stars.length && !p.again) E.audio.play('coin', 0.5);
+    this.p = p; this.k = p.again ? 1 : 0; this.t0 = p.again ? -Infinity : E.time;
+    if (!p.again) E.tween(J.cardSlide, (t) => { this.k = t; }, ease.outBack); // the card slides up; the buttons come after it
   },
-  ready(E) { return E.time - this.t0 >= T.cardGrace; }, // boost taps still landing must not dismiss the card
+  ready(E) { return this.k >= 1 && E.time - this.t0 >= T.cardGrace; }, // boost taps still landing must not dismiss the card
   render(ctx, E) {
-    const C = T.color, v = view(E), p = this.p, sf = E.safe;
+    const v = view(E), p = this.p, sf = E.safe;
     if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null, false);
-    ctx.fillStyle = 'rgba(15,17,21,0.55)'; ctx.fillRect(0, 0, E.w, E.h);
+    ctx.fillStyle = P.shadow; ctx.fillRect(0, 0, E.w, E.h);
     const aw = E.w - sf.left - sf.right, ah = E.h - sf.top - sf.bottom;
-    const pw = Math.min(440, aw - 32), ph = Math.min(310, ah - 24), px = sf.left + (aw - pw) / 2, py = sf.top + (ah - ph) / 2;
-    E.roundRect(px, py, pw, ph, 18, C.panel, '#334155');
-    const cx = px + pw / 2;
-    E.text(p.why === 'mud' ? 'Stuck in mud' : 'Flight over', cx, py + 30, { size: 16, color: C.dim });
-    E.text(`${p.m} m`, cx, py + 70, { size: 44, weight: '800', color: C.text });
-    E.text(p.isNew ? 'New best!' : `Best ${p.best} m`, cx, py + 108, { size: 16, color: p.isNew ? C.teal : C.dim });
-    E.text(`+${p.coins} coins${p.chainMax ? `   best chain x${T.chainSteps[Math.min(p.chainMax, T.chainSteps.length - 1)]}` : ''}`, cx, py + 136, { size: 18, color: C.text });
+    const pw = Math.min(440, aw - 32), ph = Math.min(310, ah - 24), px = sf.left + (aw - pw) / 2;
+    const py = sf.top + (ah - ph) / 2 + (1 - this.k) * (E.h - sf.top);
+    E.roundRect(px, py, pw, ph, 18, P.panelSolid, P.panelEdge);
+    const cx = px + pw / 2, count = clamp((E.time - this.t0 - J.cardSlide) / J.countUp, 0, 1);
+    E.text(p.why === 'mud' ? 'Stuck in mud' : 'Flight over', cx, py + 30, { size: TY.sm + 2, color: P.textDim, weight: '600' });
+    E.text(`${p.m} m`, cx, py + 70, { size: TY.xl, weight: '800', color: P.text });
+    E.text(p.isNew ? 'New best!' : `Best ${p.best} m`, cx, py + 108, { size: TY.sm + 2, color: p.isNew ? P.tealLight : P.textDim, weight: '600' });
+    E.text(`+${Math.round(p.coins * count)} coins${p.chainMax ? `   best chain x${T.chainSteps[Math.min(p.chainMax, T.chainSteps.length - 1)]}` : ''}`, cx, py + 136, { size: TY.md, color: P.coin, weight: '800' });
     const n = T.milestones.length, gap = Math.min(76, (pw - 40) / n);
     T.milestones.forEach((ms, i) => {
       const x = cx + (i - (n - 1) / 2) * gap, got = p.stars.includes(ms);
-      E.text(got ? '★' : '☆', x, py + 170, { size: 20, color: got ? C.text : '#4b5567' });
-      E.text(ms >= 1000 ? `${ms / 1000}k` : `${ms}`, x, py + 192, { size: 14, color: got ? C.text : '#4b5567' });
+      E.text(got ? '★' : '☆', x, py + 170, { size: 20, color: got ? P.coin : P.textOff });
+      E.text(ms >= 1000 ? `${ms / 1000}k` : `${ms}`, x, py + 192, { size: TY.sm, color: got ? P.text : P.textOff, weight: '600' });
     });
-    E.text(`Seed ${p.seed}`, px + pw - 14, py + 20, { size: 14, align: 'right', color: '#6b7587' });
-    this.btnMenu = E.button('Menu', px + 14 + 40, py + 26, { w: 80, h: 44, size: 15, fill: '#334155' });
+    E.text(`Seed ${p.seed}`, px + pw - 14, py + 20, { size: TY.sm, align: 'right', color: P.textOff, weight: '600' });
+    if (!this.ready(E)) { this.btnMenu = this.btnAgain = this.btnShop = null; return; }
+    this.btnMenu = btn(E, 'Menu', px + 14 + 40, py + 26, { w: 80, h: 44, size: 15, fill: P.buttonOff });
     const bw = Math.min(230, pw - 150);
-    this.btnAgain = E.button('Launch Again', px + 20 + bw / 2, py + ph - 42, { w: bw, h: 56 });
-    this.btnShop = E.button(`Shop (${E.save.get('coins', 0)})`, px + pw - 20 - 55, py + ph - 42, { w: 110, h: 56, size: 16, fill: '#334155' });
+    this.btnAgain = btn(E, 'Launch Again', px + 20 + bw / 2, py + ph - 42, { w: bw, h: 56 });
+    this.btnShop = btn(E, `Shop (${E.save.get('coins', 0)})`, px + pw - 20 - 55, py + ph - 42, { w: 110, h: 56, size: 16, fill: P.buttonOff });
   },
   onTap(p, E) {
     if (!this.ready(E)) return;
-    if (this.btnAgain && E.hit(this.btnAgain, p)) { E.audio.play('tap'); E.setScene('play'); }
+    if (this.btnAgain && E.hit(this.btnAgain, p)) { E.audio.play('tap'); E.ledger.add('retry', { m: this.p.m, seed: this.p.seed }); E.setScene('play'); }
     else if (this.btnMenu && E.hit(this.btnMenu, p)) E.setScene('menu');
     else if (this.btnShop && E.hit(this.btnShop, p)) { E.audio.play('tap'); E.setScene('shop', { from: 'over', card: this.p }); }
   },
-  onKey(k, E) { if ((k === ' ' || k === 'Enter') && this.ready(E)) E.setScene('play'); },
+  onKey(k, E) { if ((k === ' ' || k === 'Enter') && this.ready(E)) { E.ledger.add('retry', { m: this.p.m, seed: this.p.seed }); E.setScene('play'); } },
 };
 
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 3,
+  saveVersion: 4,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
-  // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend).
+  // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`,
+  // false until the first flight with Rocket 1 has shown "Hold to boost" (an older save with Rocket 1 sees it once).
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
     if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
+    if (fromVersion < 4) data.holdTaught = false;
     return data;
   },
   TUNING,
@@ -840,7 +1096,7 @@ export const game = {
     { key: 'airDrag', label: 'Air drag', min: 0, max: 0.1, step: 0.005 },
   ],
   // Read by tools/sim-launch.mjs so the harness runs the real physics.
-  sim: { STEP, FIRST_CHUNK, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, UPGRADES, effectText, predictLanding, newCamera, cameraStep, toView },
+  sim: { STEP, FIRST_CHUNK, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, previewArc, UPGRADES, effectText, predictLanding, newCamera, cameraStep, toView },
   start: 'menu',
   scenes: { menu, play, over, shop },
 };

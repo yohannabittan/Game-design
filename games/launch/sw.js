@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'launch-v3';
+const CACHE_VERSION = 'launch-v4';
 const ASSETS = [
   './',
   './index.html',
