@@ -51,3 +51,20 @@ Timer feel presets: "Relaxed" (all timers 2.6x the perfect path), "Standard" (cu
 | --- | --- | --- |
 | dailyTimerMult | 1.4 | Daily stencil timer as a multiple of its perfect-path time |
 | timerGlobalMult | 1.0 | Experiment: scales every timer (presets set it) |
+
+## F. Skins (added 2026-09-29, late; from the overnight plan's unlockables rule)
+
+Skins are earned by badges only, never by grind, and are data entries in the art layer: a palette override and one decoration on the existing machine silhouette, plus an ink colour. No change to inking, scoring or timers.
+
+| Skin | Kind | Earned by |
+| --- | --- | --- |
+| Brass | machine: brass body, black grip band | Steady Hand |
+| Rose Gold | machine: warm pink metal, engraved plate | Cornered |
+| Obsidian | machine: matte black, a single white ring | Flash Sheet |
+| Bone | machine: ivory body, dark cable | Bone |
+| Blue ink | ink colour: deep blue, halo to match | Five Stars |
+| Red ink | ink colour: deep red, halo to match (slips stay the slip red, so the slip cue must remain distinct: use a lighter body red and keep the slip mark's colour and shape) | Thin Line |
+| Green ink | ink colour: forest green | Serpent |
+| Gold ink | ink colour: warm gold, only on the finished piece too | Full Sleeve |
+
+Picker: a Skins row on the missions screen (machine swatches, then ink swatches); locked swatches show the badge name on tap as a toast. The chosen machine and ink persist (one save bump with a migrate that keeps everything). The chosen ink colour shows in play, on the finished piece and on the card; the machine shows in play and on the menu's pen. The stencil outline and hint colours do not change with the ink, so contrast numbers from the fix round hold.

@@ -36,7 +36,7 @@ Decision rule: keep 1 unless at 0 the sun became a deliberate tool and that was 
 
 ## Ink
 
-### INK-1. Timer feel (pending: tonight's missions build adds the presets)
+### INK-1. Timer feel (ready)
 
 Why: timers are multiples of the perfect-path time (2.2x on early stencils, down to 1.35x on the skull). Nobody has checked yet whether three stars is a first-try result and five stars a real achievement.
 
@@ -48,13 +48,13 @@ Note:
 1. Stars per stencil per preset, and whether the timer ran out.
 2. On Tight, where did you lose time: hunting the last gaps, or slow inking?
 
-Decision rule: if you got five stars first try on Standard on two of three, the default drops toward Tight. If Tight ran out on Heart, Standard stays.
+Decision rule: if you got five stars first try on Standard on two of three, the default drops toward Tight. If Tight ran out on Heart, Standard stays. Stars earned under Relaxed still count, so play Relaxed last if you try it.
 
 ### INK-2. Gap hint timing (ready)
 
 Why: above 95 percent the remaining gaps are small clusters. The hint shows them once they are under a share of the remainder.
 
-Presets on TUNE: Late, Standard, Early, Off.
+Sliders on TUNE (the preset row is taken by the timer presets, so set these two by hand): hintPercent and hintShare. Late is 97 and 0.15, Standard is 95 and 0.10, Early is 90 and 0.05, Off is hintPercent 101.
 
 Play: Star and Rose on Standard, then on Off, then on Early.
 
