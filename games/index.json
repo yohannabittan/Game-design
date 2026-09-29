@@ -17,5 +17,18 @@
     "status": "v0.5: six guns with reload, per-gun ladders, stars and mastery skins; zombies and Endless; target cues; range art with real gun silhouettes",
     "orientation": "landscape",
     "release": true
+  },
+  {
+    "slug": "launch",
+    "title": "Launch",
+    "status": "v0.1 in progress: slingshot, boost, bounce, upgrades",
+    "release": false,
+    "orientation": "landscape"
+  },
+  {
+    "slug": "checkpoint",
+    "title": "Checkpoint",
+    "status": "v0.1 in progress: X-ray belt, spot the contraband",
+    "release": false
   }
 ]

@@ -1,0 +1,142 @@
+# PRD v0.1: Launch
+
+| | |
+| --- | --- |
+| Slug | `launch` |
+| Version | 0.1 |
+| Pattern | P1 + P8 |
+| Date | 2026-09-30 |
+| Status | locked |
+
+This document is the one-shot contract. A builder session gets this, the skeleton, and the layer prompt. If something is not in here, the builder should not invent it.
+
+## 1. Pitch
+
+Slingshot a round critter as far as you can, burning a little fuel and bouncing off the world to keep going. The fantasy: a ridiculous flight engineered to the metre.
+
+## 2. The first ten seconds
+
+The critter sits in a slingshot at the left of a landscape screen. Press anywhere and drag back (left and down); the band stretches from the fork to the critter, the critter follows the thumb up to a maximum pull, and a dotted arc shows the first 0.6 s of flight. Release: the critter flies, the camera follows it (the critter stays in the left third while climbing), the ground scrolls, distance ticks in the top corner. It touches a spring pad and bounces with a boing. It slows to a stop. Card: distance, best, coins earned, and a single Launch Again button.
+
+## 3. Core loop and session shape
+
+- Loop: drag back, release, watch and tap boost during flight, bounce, stop; card; shop between flights; repeat.
+- A flight lasts 8 to 40 seconds. A sitting is several flights.
+- A flight ends when the critter's speed stays under `stopSpeed` for 0.5 s, or it lands in mud.
+- Closing the app mid-flight discards the flight (flights are short).
+
+## 4. Controls
+
+Landscape (ADR-0013: the flight is a long horizontal arc). One thumb.
+
+| Gesture | Where | Does |
+| --- | --- | --- |
+| Press and drag | anywhere, before launch | pulls the slingshot; angle and power from the drag vector (opposite direction), power capped at full pull |
+| Release | | launches; a drag shorter than `dragDead` cancels |
+| Tap | anywhere, in flight | fires one boost pulse (costs fuel) |
+| Hold | anywhere, in flight | continuous boost while fuel lasts (the shop's Rocket upgrade unlocks hold; base is tap pulses only) |
+
+Keyboard fallback: arrows set angle and power, Space launches and boosts.
+
+Occlusion: the pull is measured from where the thumb lands, anywhere on screen, so the thumb never covers the critter or the arc preview. In flight the critter sits in the upper left third and taps can be anywhere.
+
+## 5. Skill model
+
+- **Skill axis:** launch angle and boost timing.
+- **Intermediate tips:** launch around 38 to 42 degrees; boost while rising.
+- **Expert tips:** aim the first landing onto a spring; skim birds (a bird bounce keeps horizontal speed and adds lift); save a pulse to clear a mud patch.
+- **Legendary:** chaining springs at speed so the critter never touches plain ground.
+- **Naked run:** the first milestone (500 m) is reachable with no upgrades: a clean launch plus two spring hits clears it. Every milestone after that is reachable by an expert with at most two upgrade levels (proven by the harness).
+- **Outsized reward for skill:** a spring hit at high speed multiplies vertical speed; consecutive springs or birds without touching plain ground build a chain multiplier on coins (x1, x1.5, x2, x3).
+
+## 6. Randomness policy
+
+- Random in setup: the field (positions of springs, birds, mud, ramps) from a seed per flight, placed in chunks so the density is fair (no two mud patches without a spring between, a spring within reach of every 150 m).
+- Deterministic in resolution: the same seed, launch vector and boost times give the same flight at any frame rate (fixed step).
+- Seed: per flight for v0.1, shown on the card; a daily seed is deferred.
+
+## 7. Goal, fail, score
+
+- A flight ends as in section 3. There is no fail, only distance.
+- Score: distance in metres (1 m = 10 design units). Coins: 1 per 10 m times the chain multiplier at the time, plus 5 per bird bounce.
+- Milestones: 500, 1000, 2000, 3500, 5000 m; each pays a one-time coin bonus and a star on the card.
+- End card: distance, best, coins earned (with chain), Launch Again. Shop button beside it.
+
+## 8. Progression in v0.1
+
+Coins persist. A shop between flights with four upgrades, three levels each, prices rising: Band (launch power), Fuel (boost tank), Rocket (level 1 unlocks hold-to-boost, then thrust), Aero (less drag). Upgrades raise the ceiling but the milestones are set so skill matters at every level (section 5). Deferred: skins, badges, missions, daily seed, other critters.
+
+## 9. Content plan
+
+- One endless field generated in 300 m chunks from a data table of chunk templates (each: a list of objects with x offset, y, kind).
+- Objects: ground (plain, loses speed), spring pad (bounces, multiplies vertical speed), bird (moving at a height; a hit from above bounces the critter up and keeps horizontal speed), mud (stops the flight), ramp (redirects along its slope).
+- The first chunk is fixed and teaches: a spring at the natural first landing of a clean launch, then a bird, then the first mud patch with a spring before it.
+- Difficulty: chunk templates are tiered by distance (more mud and fewer springs past 2000 m).
+
+## 10. Juice list
+
+| Event | Visual | Sound | Haptic |
+| --- | --- | --- | --- |
+| Pull | band stretches, critter squashes, arc preview | rising creak | none |
+| Launch | band snap, dust puff, camera kick | `hit` (low) | 12 ms |
+| Boost | flame puff behind the critter, fuel gauge ticks | short whoosh | 6 ms |
+| Spring | pad compresses and pops, speed lines, "Boing" | `hit` (high) | 10 ms |
+| Bird | feather burst, the bird tumbles off screen | squawk (synth) | 8 ms |
+| Chain step | chain call-out grows (x1.5, x2, x3) | rising tone | none |
+| Mud | splat, critter sticks | `miss` | 30 ms |
+| Milestone | banner "500 m!" with a star | `win` | 20 ms |
+| Stop | critter settles, card slides up | `lose` (soft) if no milestone | none |
+
+## 11. Art direction
+
+Flat shapes, a warm sky gradient, a ground band with parallax hills. Player: the orange critter (the only orange thing). Good: springs and birds in teal. Danger: mud in dark brown with a glossy top. The critter must read at arm's length against every sky band. Style sentence for later layers: "flat round shapes, warm sky, soft shadows, one orange hero".
+
+## 12. Audio
+
+Engine synth sounds per the juice list. No music.
+
+## 13. Modes
+
+One mode (endless flight with the shop). Later: daily seed, challenges (land exactly at 1000 m), other critters.
+
+## 14. Scope fence
+
+Not in v0.1: skins, badges, missions, daily, multiple critters, obstacles that hurt, weather, a map, leaderboards, ads, anything portrait.
+
+## 15. Acceptance criteria
+
+- [ ] Loads from the home-screen icon in airplane mode; locks landscape
+- [ ] A first-time player launches within ten seconds without reading anything
+- [ ] Card to next launch in one tap, under one second
+- [ ] 500 m reachable with no upgrades (harness shows a clean launch and the fixed first chunk)
+- [ ] Each milestone reachable by an expert bot with at most two upgrade levels in total (harness)
+- [ ] Same seed and inputs give the same distance at 30, 60 and 120 fps
+- [ ] Spring, bird, mud and plain ground are distinguishable with sound off
+- [ ] No text under 14 px, targets at least 44 px, HUD inside all four safe insets
+- [ ] `npm run smoke` passes
+
+## 16. Tuning table
+
+| Name | Value | Meaning |
+| --- | --- | --- |
+| pullMax | 140 | drag distance (screen px) for full pull |
+| dragDead | 14 | shorter drags cancel |
+| launchSpeedMax | 700 | launch speed at full pull, base Band (units/s) |
+| gravity | 520 | units/s² |
+| airDrag | 0.035 | fraction of speed lost per second in air, base Aero |
+| groundFriction | 0.35 | fraction of horizontal speed lost per ground touch |
+| groundBounce | 0.35 | vertical speed kept on a plain ground touch |
+| springBounce | 1.25 | vertical speed multiplier on a spring (min launch 380) |
+| birdLift | 320 | upward speed given by a bird bounce |
+| boostPulse | 110 | speed added per tap along the flight direction |
+| fuelMax | 5 | pulses in a full tank, base Fuel |
+| stopSpeed | 25 | below this for 0.5 s ends the flight |
+| unitsPerMetre | 10 | |
+| coinPer10m | 1 | |
+| chainSteps | 1, 1.5, 2, 3 | coin multiplier by consecutive springs or birds |
+| upgradePrices | 50, 150, 400 | per level, per upgrade |
+
+## 17. Open questions
+
+- Does the camera zoom out at great heights? Simplest: no zoom in v0.1; a height marker at the top edge when the critter is above the screen.
+- Hold-to-boost at base or only with Rocket 1? PRD says Rocket 1; builder notes feel in the changelog.

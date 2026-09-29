@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Launch</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="Launch - a small skill game">
+  <meta name="theme-color" content="#0f1115">
+  <!-- iOS home-screen app hints -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Launch">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    :root { color-scheme: dark; --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom); --sal: env(safe-area-inset-left); --sar: env(safe-area-inset-right); }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: #0f1115; color: #e6e6e6;
+      overflow: hidden; overscroll-behavior: none;
+      -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    #game {
+      display: block; position: fixed; inset: 0;
+      width: 100%; height: 100%; touch-action: none;
+    }
+    #toast {
+      position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      background: #222834; color: #fff; padding: 10px 16px; border-radius: 999px;
+      font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .25s;
+      box-shadow: 0 6px 24px rgba(0,0,0,.4);
+    }
+    #toast.show { opacity: 1; pointer-events: auto; }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="toast" role="status"></div>
+  <script type="module">
+    import { Engine } from './src/engine.js';
+    import { game } from './src/game.js';
+    const engine = new Engine(document.getElementById('game'), game);
+    engine.start();
+    window.__engine = engine; // handy for debugging and smoke tests
+
+    // Offline support: register the service worker and surface updates.
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      navigator.serviceWorker.register('./sw.js').then(reg => {
+        reg.addEventListener('updatefound', () => {
+          const sw = reg.installing;
+          sw && sw.addEventListener('statechange', () => {
+            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+              engine.toast('Update ready. Tap to reload.', () => location.reload());
+            }
+          });
+        });
+      }).catch(() => {});
+    }
+  </script>
+</body>
+</html>
