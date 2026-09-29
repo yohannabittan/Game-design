@@ -128,6 +128,25 @@ const TUNING = {
     hud: { plateAlpha: 0.5, plateH: 46, timerW: 74, pipGap: 22, pipR: 7, pipW: 3.2 }, // Timer and slip plates
     menu: { margin: 16, tilt: 0.03, tileWant: 116, tileMin: 100, tileMax: 132, titleMin: 0.55, topPad: 8, rowH: 44, gapTag: 8, gapDaily: 10, dailyH: 52, gapPlay: 10, playH: 52, soundW: 56, missionsW: 124, botPad: 10, slackTop: 0.4, numH: 22, badgeW: 46, badgeH: 18, cleanW: 56, pinR: 4.5, cardR: 5, fiberDensity: 0.0032, boardMaxDpr: 1.5, tab: { w: 74, y: 10, h: 32 } }, // Flash-sheet menu: tile heights it wants, its limits and the title's, gaps and button heights (44 px at least), and the engine's TUNE tab it must clear
     missions: { top: 60, rowH: 60, rowGap: 8, headH: 30, medalR: 18, bottom: 84, backW: 224, backH: 52, scrollBar: 3 }, // Missions screen: the list scrolls between the heading and the Back button
+    // Skins (PRD v0.5 section F): data entries, each earned by one badge and never by grind. A machine skin overrides the machine palette and adds one decoration to the same
+    // silhouette; an ink skin overrides the ink, its sheen, gloss and bleed halo. Anything a skin leaves out is the default palette. The outline, the hint and the slip colours never change.
+    skins: {
+      machines: [
+        { id: 'steel', name: 'Steel', badge: null },
+        { id: 'brass', name: 'Brass', badge: 'steady-hand', body: '#a9822f', hi: '#e2c06a', steel: '#cfa84c', steelDark: '#6e5216', band: '#0d0d10', cable: '#12141b', deco: 'gripband' },
+        { id: 'rose', name: 'Rose Gold', badge: 'cornered', body: '#b8746f', hi: '#efc0b4', steel: '#e8b4a6', steelDark: '#7a4642', band: '#f1d4c8', cable: '#3a1f24', deco: 'plate' },
+        { id: 'obsidian', name: 'Obsidian', badge: 'flash-sheet', body: '#101116', hi: '#242631', steel: '#3a3d4a', steelDark: '#0a0a0e', band: '#3a3d4a', cable: '#0a0a0e', deco: 'ring' },
+        { id: 'bone', name: 'Bone', badge: 'bone', body: '#d9cfb4', hi: '#fff6dc', steel: '#efe6cc', steelDark: '#8a7f68', band: '#8a7f68', cable: '#2a2320', deco: null },
+      ],
+      inks: [
+        { id: 'black', name: 'Black', badge: null },
+        { id: 'blue', name: 'Blue', badge: 'five-stars', ink: '#0a1c66', sheen: '#3a63f0', gloss: '#8fb0ff', halo: '#0a1c66', sheenA: 0.3 },
+        { id: 'red', name: 'Red', badge: 'thin-line', ink: '#560c14', sheen: '#a83333', gloss: '#e88a80', halo: '#560c14', sheenA: 0.3 },
+        { id: 'green', name: 'Green', badge: 'serpent', ink: '#082b15', sheen: '#237a42', gloss: '#8fdcaa', halo: '#082b15', sheenA: 0.28 },
+        { id: 'gold', name: 'Gold', badge: 'full-sleeve', ink: '#2e2006', sheen: '#b8892a', gloss: '#ffe08a', halo: '#2e2006', sheenA: 0.22 },
+      ],
+      swatch: { size: 52, gap: 12, headH: 24, rowGap: 6, ring: 3, pen: 0.62 }, // The Skins block on the missions screen (swatch size at least 44 px) and the menu pen's scale
+    },
     badge: { h: 32, w: 320, popSec: 0.3, delay: 0.25, medalR: 11 }, // The badge ticket over the result card
     title: { size: 92, w: 280, h: 130, glyphHalf: 100, glyphTop: 22, seed: 4242, passes: 18, jitter: 1.7, edge: 2.4, edgePasses: 7, streaks: 90, streakMin: 14, streakMax: 64, shadowDx: 4, shadowDy: 4, swash: 8 }, // Brush-stroke title
     card: { h: 318, w: 340, pad: 14, topPad: 26, pieceGap: 46, sidePad: 34, minScale: 0.5, maxScale: 1, starR: 17, starGap: 44, stampW: 112, stampH: 34, stampTilt: -0.1, blushMargin: 48, blushScale: 0.9, blush: 0.42, blushBlur: 34 }, // Result card
@@ -321,6 +340,20 @@ function earnedBadges(p) {
   return out;
 }
 
+// The skins as the art code uses them (every field filled from the default palette), the ones in use, and the rule that a skin counts only while its badge is earned: a saved
+// choice whose badge is missing renders as the default.
+const SKINS = {
+  machines: A.skins.machines.map((m) => ({ deco: null, body: P.machine, hi: P.machineHi, steel: P.steel, steelDark: P.steelDark, band: P.band, cable: P.cable, ...m })),
+  inks: A.skins.inks.map((i) => ({ ink: P.ink, sheen: P.inkSheen, gloss: P.inkGloss, halo: P.inkHalo, sheenA: A.ink.sheenAlpha, ...i })),
+};
+const SK = { m: SKINS.machines[0], i: SKINS.inks[0] };
+const skinOwned = (sk, badges) => !sk.badge || !!badges[sk.badge];
+function applySkins(E) {
+  const sv = E.save.get('skin', {}), had = E.save.get('badges', {});
+  SK.m = SKINS.machines.find((x) => x.id === sv.machine && skinOwned(x, had)) || SKINS.machines[0];
+  SK.i = SKINS.inks.find((x) => x.id === sv.ink && skinOwned(x, had)) || SKINS.inks[0];
+}
+
 // ---------- Geometry ----------
 
 function pointInShape(shape, x, y) {
@@ -477,7 +510,7 @@ function sprayTip(E, p) {
   const f = S.fx;
   if (!f.laid || S.ended || f.speed < J.sprayMinSpeed || E.time - f.sprayT < J.sprayGap) return;
   f.sprayT = E.time;
-  emit(E, p.x, p.y - T.needleOffset, J.sprayCount, P.ink, J.spraySpeed, J.sprayLife, J.spraySize);
+  emit(E, p.x, p.y - T.needleOffset, J.sprayCount, SK.i.ink, J.spraySpeed, J.sprayLife, J.spraySize);
 }
 
 // A slip was just counted at the exit point (x, y in design units).
@@ -519,7 +552,7 @@ function fxBurst(E) {
     const ax = poly[j][0], ay = poly[j][1], bx = poly[i][0], by = poly[i][1], el = dist(ax, ay, bx, by);
     while (next <= run + el && n < J.burstPoints) {
       const t = el ? (next - run) / el : 0;
-      emit(E, v.ox + (ax + (bx - ax) * t) * v.s, v.oy + (ay + (by - ay) * t) * v.s, J.burstPer, n % 2 ? P.inkGloss : P.ink, J.burstSpeed, J.burstLife, J.burstSize);
+      emit(E, v.ox + (ax + (bx - ax) * t) * v.s, v.oy + (ay + (by - ay) * t) * v.s, J.burstPer, n % 2 ? SK.i.gloss : SK.i.ink, J.burstSpeed, J.burstLife, J.burstSize);
       next += step; n++;
     }
     run += el;
@@ -738,8 +771,8 @@ const NUM = Array.from({ length: 201 }, (_, i) => `${i}`), PCT = Array.from({ le
 
 // Caches of everything built once. Body layers are per body part; the rest are per size or per stencil.
 const AC = {
-  warm: 0, body: {}, comp: [null, null], ol: null, olIdx: -1, olK: 0, grain: null, gw: 0, gh: 0, inkTile: null, outline: [], bbox: [], mini: [], blush: null, blushIdx: -1,
-  title: null, titleK: 0, board: null, bw: 0, bh: 0, mach: null, tilt: null,
+  warm: 0, inkTile: {}, mach: {}, body: {}, comp: [null, null], ol: null, olIdx: -1, olK: 0, grain: null, gw: 0, gh: 0, outline: [], bbox: [], mini: [], blush: null, blushIdx: -1,
+  title: null, titleK: 0, board: null, bw: 0, bh: 0, shapes: null, tilt: null,
 };
 
 function bboxOf(idx) {
@@ -982,14 +1015,14 @@ function outlineLayer(idx, k) {
 // seams). The bleed at the edge of a stroke is a wider, very faint stroke laid under every core stroke: overlaps stack, so it is strongest beside the stroke and
 // fades outward. It lives in the same layer, so it is clipped to the stencil like the ink.
 
-function inkTile() {
-  if (AC.inkTile) return AC.inkTile;
-  const I = A.ink, n = I.tile, cv = mk(n, n), c = cv.getContext('2d');
-  c.fillStyle = P.ink; c.fillRect(0, 0, n, n);
+function inkTile(sk) {
+  if (AC.inkTile[sk.id]) return AC.inkTile[sk.id];
+  const n = A.ink.tile, cv = mk(n, n), c = cv.getContext('2d');
+  c.fillStyle = sk.ink; c.fillRect(0, 0, n, n);
   const g = c.createLinearGradient(0, 0, n, n); // period 0.5 in t, so the diagonal bands tile in x and y
-  for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rgba(P.inkSheen, i % 2 ? I.sheenAlpha : 0));
+  for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rgba(sk.sheen, i % 2 ? sk.sheenA : 0));
   c.fillStyle = g; c.fillRect(0, 0, n, n);
-  return (AC.inkTile = cv);
+  return (AC.inkTile[sk.id] = cv);
 }
 
 // The ink lives on an offscreen layer (design space, clipped to the stencil like the score) that only ever receives new
@@ -1003,10 +1036,10 @@ function syncInk(E, s) {
     const c = S.layer.getContext('2d');
     c.setTransform(k, 0, 0, k, 0, 0);
     shapePath(c, S.st.shape); c.clip('evenodd');
-    c.strokeStyle = c.fillStyle = c.createPattern(inkTile(), 'repeat');
+    c.strokeStyle = c.fillStyle = c.createPattern(inkTile(SK.i), 'repeat');
     c.lineCap = 'round'; c.lineJoin = 'round';
   }
-  const c = S.layer.getContext('2d'), pad = A.ink.haloPad, tol = A.ink.widthTol, halo = rgba(P.inkHalo, A.ink.haloAlpha), core = c.strokeStyle;
+  const c = S.layer.getContext('2d'), pad = A.ink.haloPad, tol = A.ink.widthTol, halo = rgba(SK.i.halo, A.ink.haloAlpha), core = c.strokeStyle;
   // Strokes are flat lists of x, y, radius. New segments are drawn as one path per run of similar width (a slow stroke is fat and a fast one thin), the bleed halo
   // first and the sheen-filled core over it: a frame that lays a dozen segments costs a couple of strokes, not two dozen.
   const wk = T.inkStrokeWidth / (2 * T.needleR);
@@ -1181,15 +1214,12 @@ function drawPiece(ctx, E, v, ct) {
 }
 
 // ----- The tattoo machine -----
-// A pen-style machine, in screen px, tip at the local origin and the finger at (0, needleOffset): the needle and a steel nozzle with a brass band, a short neck, a
-// knurled grip under the finger, a tail, and a cable trailing off the bottom of the screen. Shapes and gradients are built once.
-function machineGfx(ctx) {
-  if (AC.mach) return AC.mach;
+// A pen-style machine, in screen px, tip at the local origin and the finger at (0, needleOffset): the needle and a steel nozzle with a band, a short neck, a
+// knurled grip under the finger, a tail, and a cable trailing off the bottom of the screen. Shapes are built once; gradients once per skin. A skin recolours it and adds
+// one decoration (`deco`): a black band across the grip, an engraved plate, or a single ring.
+function machineShapes() {
+  if (AC.shapes) return AC.shapes;
   const M = A.machine, g = {};
-  const lin = (x0, stops) => { const gr = ctx.createLinearGradient(x0, 0, -x0, 0); for (const [t, col] of stops) gr.addColorStop(t, col); return gr; };
-  g.steel = lin(-M.nozzleW / 2, [[0, P.steelDark], [0.4, P.steel], [0.55, P.glint], [1, P.steelDark]]);
-  g.body = lin(-M.gripW / 2, [[0, P.machine], [0.32, P.machineHi], [0.5, P.machineHi], [1, P.machine]]);
-  g.dark = lin(-M.tailW / 2, [[0, P.machine], [0.45, P.machineHi], [1, P.machine]]);
   g.noz = new Path2D(); g.noz.moveTo(-M.nozzleTopW / 2, M.needleLen - 2); g.noz.lineTo(M.nozzleTopW / 2, M.needleLen - 2); g.noz.lineTo(M.nozzleW / 2, M.nozzleEnd); g.noz.lineTo(-M.nozzleW / 2, M.nozzleEnd); g.noz.closePath();
   g.band = new Path2D(); g.band.rect(-M.nozzleW / 2 - 1, M.nozzleEnd, M.nozzleW + 2, M.bandLen);
   g.neck = new Path2D(); g.neck.moveTo(-M.nozzleW / 2, M.nozzleEnd + M.bandLen); g.neck.lineTo(M.nozzleW / 2, M.nozzleEnd + M.bandLen); g.neck.lineTo(M.neckW / 2, M.neckEnd); g.neck.lineTo(-M.neckW / 2, M.neckEnd); g.neck.closePath();
@@ -1198,12 +1228,44 @@ function machineGfx(ctx) {
   g.sil = new Path2D(); for (const p of [g.noz, g.neck, g.grip, g.tail]) g.sil.addPath(p);
   g.knurl = new Path2D(); for (let y = M.neckEnd + 6; y < M.gripEnd - 4; y += M.knurl) { g.knurl.moveTo(-M.gripW / 2 + 3, y); g.knurl.lineTo(M.gripW / 2 - 3, y); }
   g.hi = new Path2D(); g.hi.moveTo(-M.gripW / 2 + 5, M.neckEnd + 2); g.hi.lineTo(-M.gripW / 2 + 5, M.gripEnd - 6);
-  return (AC.mach = g);
+  const gy = M.neckEnd + 20, hw = M.gripW / 2;
+  g.gripband = new Path2D(); g.gripband.rect(-hw + 1, gy - 5, M.gripW - 2, 10);
+  g.plate = new Path2D(); rr(g.plate, -6, M.gripEnd - 30, 12, 20, 3);
+  g.plateLines = new Path2D(); for (const dy of [-22, -17, -12]) { g.plateLines.moveTo(-3.5, M.gripEnd + dy); g.plateLines.lineTo(3.5, M.gripEnd + dy); }
+  g.ring = new Path2D(); g.ring.moveTo(-hw + 1, gy); g.ring.quadraticCurveTo(0, gy + 3, hw - 1, gy);
+  return (AC.shapes = g);
+}
+function machineGfx(ctx, sk) {
+  if (AC.mach[sk.id]) return AC.mach[sk.id];
+  const M = A.machine;
+  const lin = (x0, stops) => { const gr = ctx.createLinearGradient(x0, 0, -x0, 0); for (const [t, col] of stops) gr.addColorStop(t, col); return gr; };
+  return (AC.mach[sk.id] = {
+    ...machineShapes(),
+    steelG: lin(-M.nozzleW / 2, [[0, sk.steelDark], [0.4, sk.steel], [0.55, P.glint], [1, sk.steelDark]]),
+    bodyG: lin(-M.gripW / 2, [[0, sk.body], [0.32, sk.hi], [0.5, sk.hi], [1, sk.body]]),
+    tailG: lin(-M.tailW / 2, [[0, sk.body], [0.45, sk.hi], [1, sk.body]]),
+  });
+}
+// The machine body (tail, grip, neck, nozzle, band and the skin's decoration) with its drop shadow, at the current transform; `base` is the alpha it is drawn at.
+function drawMachineBody(ctx, g, sk, base) {
+  const M = A.machine;
+  ctx.save(); ctx.translate(M.shadowDx, M.shadowDy); ctx.globalAlpha = base * M.shadowAlpha; ctx.fillStyle = P.shadow; ctx.fill(g.sil); ctx.restore();
+  ctx.fillStyle = g.tailG; ctx.fill(g.tail);
+  ctx.fillStyle = g.bodyG; ctx.fill(g.grip);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.globalAlpha = base * 0.5; ctx.stroke(g.knurl); ctx.globalAlpha = base;
+  ctx.strokeStyle = sk.steelDark; ctx.lineWidth = 1.2; ctx.stroke(g.grip);
+  ctx.strokeStyle = sk.hi; ctx.lineWidth = 1.5; ctx.globalAlpha = base * 0.7; ctx.stroke(g.hi); ctx.globalAlpha = base;
+  if (sk.deco === 'gripband') { ctx.fillStyle = P.ink; ctx.fill(g.gripband); }
+  else if (sk.deco === 'plate') { ctx.fillStyle = sk.hi; ctx.fill(g.plate); ctx.strokeStyle = sk.steelDark; ctx.lineWidth = 1; ctx.stroke(g.plate); ctx.stroke(g.plateLines); }
+  else if (sk.deco === 'ring') { ctx.strokeStyle = P.glint; ctx.lineWidth = 2.2; ctx.stroke(g.ring); }
+  ctx.fillStyle = g.bodyG; ctx.fill(g.neck);
+  ctx.fillStyle = g.steelG; ctx.fill(g.noz); ctx.strokeStyle = sk.steelDark; ctx.lineWidth = 1; ctx.stroke(g.noz);
+  ctx.fillStyle = sk.band; ctx.fill(g.band);
 }
 
 function drawMachine(ctx, E) {
   const f = S.finger; if (!f) return;
-  const fx = S.fx, now = E.time, s = view(E).s, off = T.needleOffset, M = A.machine, g = machineGfx(ctx);
+  const fx = S.fx, now = E.time, s = view(E).s, off = T.needleOffset, M = A.machine, sk = SK.m, g = machineGfx(ctx, sk);
   const out = fx.endT > 0 ? clamp((now - fx.endT) / J.machineFadeSec, 0, 1) : 0;
   if (out >= 1) return;
   const vib = now - fx.inkT < J.vibHold && !S.ended ? Math.sin(now * J.vibHz * 2 * Math.PI) * J.vibAmp : 0;
@@ -1216,29 +1278,21 @@ function drawMachine(ctx, E) {
   // the cable, from the tail out to the bottom right of the screen
   const ex = E.w - f.x + 30, ey = E.h - (f.y - off) + 40;
   ctx.lineCap = 'round';
-  ctx.strokeStyle = P.cable; ctx.lineWidth = M.cableW; ctx.globalAlpha = base * M.cableAlpha;
+  ctx.strokeStyle = sk.cable; ctx.lineWidth = M.cableW; ctx.globalAlpha = base * M.cableAlpha;
   ctx.beginPath(); ctx.moveTo(0, M.tailEnd); ctx.bezierCurveTo(-8, M.tailEnd + 60, ex * 0.3, ey - 140, ex, ey); ctx.stroke();
-  ctx.strokeStyle = P.machineHi; ctx.lineWidth = 1.1; ctx.globalAlpha = base * 0.4;
+  ctx.strokeStyle = sk.hi; ctx.lineWidth = 1.1; ctx.globalAlpha = base * 0.4;
   ctx.beginPath(); ctx.moveTo(-1, M.tailEnd); ctx.bezierCurveTo(-9, M.tailEnd + 60, ex * 0.3 - 1, ey - 140, ex - 1, ey); ctx.stroke();
   ctx.globalAlpha = base;
   ctx.save();
   ctx.translate(vib, 0);
-  ctx.save(); ctx.translate(M.shadowDx, M.shadowDy); ctx.globalAlpha = base * M.shadowAlpha; ctx.fillStyle = P.shadow; ctx.fill(g.sil); ctx.restore();
-  ctx.fillStyle = g.dark; ctx.fill(g.tail);
-  ctx.fillStyle = g.body; ctx.fill(g.grip);
-  ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.globalAlpha = base * 0.5; ctx.stroke(g.knurl); ctx.globalAlpha = base;
-  ctx.strokeStyle = P.steelDark; ctx.lineWidth = 1.2; ctx.stroke(g.grip);
-  ctx.strokeStyle = P.machineHi; ctx.lineWidth = 1.5; ctx.globalAlpha = base * 0.7; ctx.stroke(g.hi); ctx.globalAlpha = base;
-  ctx.fillStyle = g.body; ctx.fill(g.neck);
-  ctx.fillStyle = g.steel; ctx.fill(g.noz); ctx.strokeStyle = P.steelDark; ctx.lineWidth = 1; ctx.stroke(g.noz);
-  ctx.fillStyle = P.band; ctx.fill(g.band);
+  drawMachineBody(ctx, g, sk, base);
   ctx.restore();
   // the needle: a bright steel pin out of the nozzle, tipped with a bead of ink
   ctx.strokeStyle = P.steel; ctx.lineWidth = M.needleW; ctx.beginPath(); ctx.moveTo(0, M.needleLen); ctx.lineTo(0, 0.5); ctx.stroke();
   ctx.strokeStyle = P.steel;
   ctx.beginPath(); ctx.arc(0, 0, S.r * s, 0, TAU); ctx.lineWidth = 1.5; ctx.globalAlpha = base * 0.8; ctx.stroke(); ctx.globalAlpha = base;
-  ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, TAU); ctx.fill();
-  ctx.fillStyle = P.inkGloss; ctx.beginPath(); ctx.arc(-0.8, -0.8, 0.9, 0, TAU); ctx.fill();
+  ctx.fillStyle = SK.i.ink; ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, TAU); ctx.fill();
+  ctx.fillStyle = SK.i.gloss; ctx.beginPath(); ctx.arc(-0.8, -0.8, 0.9, 0, TAU); ctx.fill();
   // Glint: a small four-point sparkle that breathes, brighter and longer while inking.
   const gl = 0.5 + 0.5 * Math.sin(now * J.glintHz), laying = now - fx.inkT < J.vibHold, L = J.glintLen * (0.5 + gl) * (laying ? 1.5 : 1);
   ctx.globalAlpha = base * (laying ? 0.5 + 0.5 * gl : 0.25 + 0.35 * gl);
@@ -1376,7 +1430,7 @@ function miniPath(idx) {
 
 // ---------- Progress (saved) ----------
 // unlocked: highest unlocked stencil index. best: percentage per stencil. stars: best stars per stencil. clean: a zero-slip pass per stencil. cs: best stars of a zero-slip
-// pass per stencil. badges: { id: true } once earned. daily: { 'YYYY-MM-DD': { idx, vi, first, best } } for the last dailyKeep days.
+// pass per stencil. badges: { id: true } once earned. skin: { machine, ink } skin ids (each counts only while its badge is earned). daily: { 'YYYY-MM-DD': { idx, vi, first, best } } for the last dailyKeep days.
 
 function progress(E) {
   const best = E.save.get('best', {}), stars = E.save.get('stars', {}), clean = E.save.get('clean', {}), cs = E.save.get('cs', {}), badges = E.save.get('badges', {});
@@ -1398,7 +1452,7 @@ function recordResult(E, idx, { pct, stars, ruined, clean }) {
 // ---------- Scenes ----------
 
 const menu = {
-  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnDaily = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; this.daily = dailyToday(E); },
+  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnDaily = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; this.daily = dailyToday(E); applySkins(E); },
   // The vertical layout comes from the height there is: the title shrinks first (to titleWant), then the tiles (to tileMin), then the title again (to titleMin). The
   // title also drops below the engine's TUNE tab when its letters would run under it. `out` is filled with the y positions (nothing is allocated per frame).
   layout(E, rows, out) {
@@ -1422,6 +1476,7 @@ const menu = {
 
     const Y = this.layout(E, rows, this.pos || (this.pos = {})), m = M.margin, tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = Y.th;
     ctx.drawImage(titleLayer(E), cx - (A.title.w * Y.ts) / 2, Y.y0, A.title.w * Y.ts, A.title.h * Y.ts);
+    drawPen(ctx, m + (cx - A.title.glyphHalf * Y.ts - m) / 2 - 2, Y.y0 + A.title.h * Y.ts * 0.42, clamp((cx - A.title.glyphHalf * Y.ts - m - 8) / 60, 0.3, A.skins.swatch.pen));
     const str = `${p.total} / ${STENCILS.length * T.starPercents.length}`;
     drawStar(ctx, m + 11, Y.rowY - 1, 10, true);
     label(ctx, str, m + 26, Y.rowY, FONT.mid, P.textDark, 'left');
@@ -1503,6 +1558,15 @@ const menu = {
   },
 };
 
+// The chosen machine drawn small and static, tip down-left, centred on (cx, cy): the menu's pen and the machine swatches.
+function drawPen(ctx, cx, cy, k, angle = Math.PI + 0.7, sk = SK.m) {
+  const M = A.machine, g = machineGfx(ctx, sk);
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(angle); ctx.scale(k, k); ctx.translate(0, -M.tailEnd / 2);
+  drawMachineBody(ctx, g, sk, 1);
+  ctx.strokeStyle = P.steel; ctx.lineWidth = M.needleW * 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, M.needleLen); ctx.lineTo(0, 0.5); ctx.stroke();
+  ctx.restore();
+}
+
 // The sound toggle: a speaker on a paper button, struck through when muted.
 function soundButton(ctx, cx, cy, w, h, muted) {
   const x = cx - w / 2, y = cy - h / 2, L = A.line;
@@ -1526,8 +1590,9 @@ function drawMedal(ctx, cx, cy, r, tier, earned) {
 
 // The missions screen: the badges by tier, earned ones in colour and the rest with how far along they are. The list scrolls by dragging; Back is fixed at the bottom.
 const missions = {
-  enter(E) { this.scroll = 0; this.drag = null; this.btnBack = null; this.moved = 0; },
-  content(E) { const M = A.missions; return BADGE_TIERS.length * M.headH + BADGES.length * (M.rowH + M.rowGap); },
+  enter(E) { this.scroll = 0; this.drag = null; this.btnBack = null; this.moved = 0; this.swatches = []; applySkins(E); },
+  skinsH() { const M = A.missions, W = A.skins.swatch; return M.headH + 2 * (W.headH + W.size + W.rowGap) + 6; },
+  content(E) { const M = A.missions; return this.skinsH() + BADGE_TIERS.length * M.headH + BADGES.length * (M.rowH + M.rowGap); },
   view(E) { const M = A.missions, top = E.safe.top + M.top, bot = E.h - E.safe.bottom - M.bottom; return { top, bot, max: Math.max(0, this.content(E) - (bot - top)) }; },
   render(ctx, E) {
     const M = A.missions, p = progress(E), V = this.view(E), m = A.menu.margin, w = E.w - 2 * m, L = A.line;
@@ -1538,6 +1603,7 @@ const missions = {
     this.scroll = clamp(this.scroll, 0, V.max);
     ctx.save(); ctx.beginPath(); ctx.rect(0, V.top, E.w, V.bot - V.top); ctx.clip();
     let y = V.top - this.scroll;
+    y = this.drawSkins(ctx, E, p, y, V, m, w);
     BADGE_TIERS.forEach((tn, tier) => {
       const inTier = BADGES.filter((b) => b.tier === tier);
       ctx.fillStyle = P.medal[tier]; ctx.beginPath(); ctx.arc(m + 6, y + M.headH / 2 + 2, 6, 0, TAU); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; ctx.stroke();
@@ -1565,10 +1631,51 @@ const missions = {
     }
     this.btnBack = inkButton(ctx, 'Back', E.w / 2, E.h - E.safe.bottom - 16 - M.backH / 2, M.backW, M.backH, true, FONT.big);
   },
+  // The Skins block: a row of machine swatches and a row of ink swatches. An owned swatch picks it (ringed when chosen); a locked one shows the badge that earns it.
+  drawSkins(ctx, E, p, y, V, m, w) {
+    const W = A.skins.swatch, M = A.missions, L = A.line, sv = { machine: SK.m.id, ink: SK.i.id };
+    this.swatches.length = 0;
+    label(ctx, 'SKINS', m + 20, y + M.headH / 2 + 2, FONT.small, P.textDark, 'left');
+    ctx.fillStyle = P.medal[2]; ctx.beginPath(); ctx.arc(m + 6, y + M.headH / 2 + 2, 6, 0, TAU); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; ctx.stroke();
+    y += M.headH;
+    for (const kind of ['machine', 'ink']) {
+      const list = kind === 'machine' ? SKINS.machines : SKINS.inks, gap = Math.min(20, (w - list.length * W.size) / (list.length - 1));
+      label(ctx, kind === 'machine' ? 'MACHINE' : 'INK', m, y + W.headH / 2, FONT.small, P.textMute, 'left');
+      label(ctx, (kind === 'machine' ? SK.m : SK.i).name, m + w, y + W.headH / 2, FONT.small, P.textDark, 'right');
+      y += W.headH;
+      list.forEach((sk, i) => {
+        const x = m + i * (W.size + gap), owned = skinOwned(sk, p.badges), on = sv[kind] === sk.id;
+        ctx.globalAlpha = L.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, x + L.shadowDx, y + L.shadowDy, W.size, W.size, A.menu.cardR + 3); ctx.fill(); ctx.globalAlpha = 1;
+        ctx.fillStyle = owned ? P.paper : P.paperShade; ctx.beginPath(); rr(ctx, x, y, W.size, W.size, A.menu.cardR + 3); ctx.fill();
+        ctx.strokeStyle = owned ? P.ink : P.paperEdge; ctx.lineWidth = owned ? 1.6 : 1; ctx.stroke();
+        if (on) { ctx.strokeStyle = P.stamp; ctx.lineWidth = W.ring; ctx.beginPath(); rr(ctx, x - 3, y - 3, W.size + 6, W.size + 6, A.menu.cardR + 6); ctx.stroke(); }
+        const cx = x + W.size / 2, cy = y + W.size / 2;
+        if (kind === 'machine') { ctx.globalAlpha = owned ? 1 : 0.35; drawPen(ctx, cx, cy, 0.34, Math.PI, sk); ctx.globalAlpha = 1; }
+        else {
+          ctx.globalAlpha = owned ? 1 : 0.35;
+          ctx.fillStyle = sk.ink; ctx.beginPath(); ctx.arc(cx, cy, 17, 0, TAU); ctx.fill();
+          ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, 17, 0, TAU); ctx.clip();
+          ctx.strokeStyle = sk.sheen; ctx.globalAlpha *= 0.8; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(cx - 20, cy + 6); ctx.lineTo(cx + 6, cy - 20); ctx.stroke(); ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+        if (!owned) drawLock(ctx, cx, cy - 2, 0.9);
+        if (y + W.size > V.top && y < V.bot) this.swatches.push({ x, y, w: W.size, h: W.size, sk, kind, owned });
+      });
+      y += W.size + W.rowGap;
+    }
+    return y + 6;
+  },
   onPointerDown(p) { this.drag = { y: p.y, scroll: this.scroll }; this.moved = 0; },
   onPointerMove(p, E) { if (this.drag) { this.scroll = clamp(this.drag.scroll - (p.y - this.drag.y), 0, this.view(E).max); this.moved = Math.max(this.moved, Math.abs(p.y - this.drag.y)); } },
   onPointerUp() { this.drag = null; },
-  onTap(p, E) { if (E.hit(this.btnBack, p)) { E.audio.play('tap'); E.setScene('menu'); } },
+  onTap(p, E) {
+    if (E.hit(this.btnBack, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    const V = this.view(E), sw = p.y >= V.top && p.y <= V.bot && this.swatches.find((s) => E.hit(s, p));
+    if (!sw) return;
+    if (!sw.owned) { E.toast(`${sw.sk.name} ${sw.kind === 'machine' ? 'machine' : 'ink'}: earn the ${BADGES.find((b) => b.id === sw.sk.badge).name} badge`); return; }
+    E.save.set('skin', { ...E.save.get('skin', {}), [sw.kind]: sw.sk.id });
+    applySkins(E); E.audio.play('tap');
+  },
 };
 
 // The HUD: the percentage is the hero, big and centred, with a dark outline so it holds on skin; the timer and the slips sit on small dark plates either side.
@@ -1604,7 +1711,7 @@ function drawHud(ctx, E) {
 }
 
 const play = {
-  enter(E, { stencil = 0, daily = false } = {}) { newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); },
+  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); },
   update(dt, E) {
     holdStep(E, dt);
     hintStep(dt);
@@ -1812,7 +1919,7 @@ const over = {
 export const game = {
   slug: 'ink',
   title: 'Ink',
-  saveVersion: 6,
+  saveVersion: 7,
   // v1 saved only best percentages: derive stars and the unlock from them. v3 kept bests per needle mode; v4 has one needle, so the dynamic bests become the bests
   // and every earlier best (all made with the classic needle) is dropped. Stars, clean and unlocks are kept.
   migrate(data, fromVersion) {
@@ -1849,6 +1956,7 @@ export const game = {
       data.daily = {};
       data.badges = earnedBadges({ stars: data.stars || {}, clean: data.clean || {}, cs: data.cs });
     }
+    if (fromVersion < 7) data.skin = { machine: 'steel', ink: 'black' }; // v7: the chosen machine and ink skins
     return data;
   },
   TUNING,
@@ -1867,5 +1975,5 @@ export const game = {
   start: 'menu',
   scenes: { menu, play, over, missions },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
-  sim: { stencils: STENCILS, timerFor, percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g, radius: () => S.r, hint: () => S.hint, computeHint },
+  sim: { stencils: STENCILS, timerFor, skins: () => ({ machine: SK.m.id, ink: SK.i.id }), percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, grid: () => S.g, radius: () => S.r, hint: () => S.hint, computeHint },
 };
