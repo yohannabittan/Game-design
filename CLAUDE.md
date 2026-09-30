@@ -17,7 +17,8 @@ This repository is a library of small, touch-first, offline-capable skill games 
 | `prompts/` | One prompt per build layer |
 | `skeleton/` | The template every game is copied from. `skeleton/README.md` is the engine contract. |
 | `games/<slug>/` | One folder per game, self-contained and deployable |
-| `tools/` | `new-game.sh`, `make-icons.py`, `smoke.mjs` |
+| `tools/` | `new-game.sh`, `make-icons.py`, `smoke.mjs`, `usage.py` (token ledger) |
+| `docs/usage/` | Token ledger: API-equivalent cost by game, role, model and day (`tools/usage.py`) |
 
 ## Hard rules for builder sessions
 
@@ -42,6 +43,7 @@ The session the designer talks to is the orchestrator. It writes and reviews doc
 - **Escalation:** builder retry with findings, then next model up, then fix the PRD or prompt.
 - **Parallelism:** across games, and within a content layer as data shards merged by the orchestrator (ADR-0012). Never two builders on one game's mechanic.
 - **Log it:** each changelog line names the model that built the layer and whether it passed review first time.
+- **Count it:** after a build or review lands, run `python3 tools/usage.py` and commit `docs/usage/` with it, so the ledger outlives the container.
 
 ## Starting a new game
 
