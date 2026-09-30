@@ -71,3 +71,18 @@ Other critters, skins, badges, daily seed, leaderboards, generated image assets 
 
 - Names: the hero is "Mochi" and his love "Daifuku" in any text. The designer may rename them.
 - The needle wedge's zone colours: gold for Perfect, then warm to cool toward Weak, all distinct with colour blindness (check with a simulator), never orange (the hero's colour).
+
+## Amendments after the Build 1 review (2026-09-30)
+
+The review failed release on one blocker that is this document's fault: section A set `sweetAngle` by open-ground range and never required the gold to pay. On the real field a Perfect stop out-flies nothing: burst medians Perfect 641, Great 809, Good 669 m; unboosted Perfect stops end in the first mud at 510 m while Great stops clear it.
+
+1. **Perfect beats Great beats Good beats Weak, on the real field.** For each profile (unboosted, two random taps, burst after two springs, expert), the median distance ranks Perfect > Great > Good > Weak, with Perfect at least 15 percent over Great for the unboosted and burst profiles, and an unboosted Perfect stop never ends in the first mud. Set `sweetAngle` and `zonePower` against the chain field (not open ground), and give Perfect a payoff of its own if the angle alone cannot do it (for example the chain starting at x1.5). Weak has no cliff: distance rises smoothly from the edge of Weak to the edge of Good.
+2. **Weak power is 0.55** (replaces 0.6 in A).
+3. **The first 500 m asks for input.** The chain of springs stays, but it is not a free ride: an unboosted Good stop reaches 500 m on at most 60 percent of seeds, and a Good stop with a good player's boosts on at least 90 percent (the careless 40 to 70 percent target stands).
+4. **Skill goals need skill.** A goal named for a skill (a chain, springs, a boost on a spring) is met by a zero-input Good-or-better launch on at most 20 percent of stops; raise its count or change its condition until it is.
+5. **Pacing:** the good profile clears the shop no sooner than flight 40 and every goal no sooner than flight 35 (v0.1's shop took 45); the careless first purchase stays within ten flights.
+6. **No dead or harmful purchase:** every upgrade level raises the good profile's median distance (Band 3 at 650 m against Band 2's 849, and Steady and Rocket adding nothing, break this and the v0.1 rule).
+7. **Legibility:** card tickets carry the goal's condition under its name (principle 11, rule 6); the needle is thin enough that the gold shows under it; the bird call-out sits clear of the tumbling bird; springs' idle bob is visible at arm's length (at least 3 px).
+8. **Input:** taps in the first `readyGrace` (0.3 s) after the launcher is ready are ignored, so a double tap on Launch Again cannot fire a Weak launch.
+9. **TUNE fits:** at most four sliders, all inside 812x375 (needlePeriod, sweetAngle, a zone-width scale, and launchSpeedMax).
+10. **Hygiene:** `GOAL_SLOTS` and the ticket cap live in TUNING; the changelog carries the text-item counts that prompt 04 requires; `landingMark` stays under 2 ms per call on the highest arcs.
