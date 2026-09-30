@@ -312,8 +312,10 @@ const TUNING = {
     mult: { size: 24, swell: 0.5, pulse: 0.25, x: 128, dy: 50, flip: 170 }, // The multiplier beside the lane: size in design units, swell on a step, seconds it swells, where it sits, and the gun height below which it goes under the line
     first: { text: 'Left thumb drags the gun. Right thumb fires.', hold: 3, fade: 0.5 }, // v0.5 P: the first-run controls line, in seconds
     intro: { y: 66, hold: 5, fade: 1.5 }, // The one-line intro (Boss 2's "Every plate scores", Accuracy 4 and 5's dodge line): design-space height, seconds shown, seconds to fade
-    menu: { ext: 18, rackH: 58, gap: 4, tileMin: 46, tileMax: 66, selMin: 178, selMax: 236, laneGap: 2, label: 74, btnH: 44, edge: 4 }, // The menu (v0.5 N): the rung art's half size, the gun rack's height and gap, its small and selected tiles' widths, the space between lanes, the lane label's width, the corner buttons' height, the margin to the screen edge
-    missions: { th: 104, gap: 8, rail: 44, lock: 16, lockGap: 10 }, // Missions tile height, gap, scroll rail width, the Gauntlet padlock's size and its gap to the label
+    menu: { ext: 18, rackH: 66, gap: 4, tileMin: 46, tileMax: 66, selMin: 200, selMax: 236, selFrac: 0.46, laneGap: 2, label: 74, btnH: 44, edge: 4, dotR: 5, playMin: 120, playMax: 210, missionsW: 80, soundW: 48, endlessW: 112, playPad: 20 }, // The menu (v0.5 N, Q): the rung art's half size, the gun rack's height (the headline, name, bar and tier stack in the selected tile) and gap, its small and selected tiles' widths, the space between lanes, the lane label's width, the corner buttons' height and widths, the margin to the screen edge, the radius of the Missions dot, the Play button's least and most width and the room round its label
+    pop: { sec: 0.5, delay: 0.25, amp: 0.2 }, // v0.5 Q: a rung whose stars rose swells once on return to the menu: seconds, seconds of delay, the extra size at the peak (never under full size, so its text stays 14 px)
+    missions: { cardH: 56, gap: 6, headH: 34, medalR: 17, pad: 12, lineH: 18, gunW: 52, gunH: 24, newR: 5, rail: 44, lock: 16, lockGap: 10 }, // v0.5 Q, the list: a card's height (a wrapped line adds lineH), the gap between cards, a tier heading's height, the medal's radius, the card padding, the silhouette of the gun a badge opens, the radius of the new-badge dot, the scroll rail's width, the Gauntlet padlock's size and its gap to the label
+    tickets: { max: 3, y: 232, noteY: 200, h: 34, gap: 6, pad: 8, icon: 26, medal: 22, iconGap: 4, edge: 8, more: 26, delay: 0.5, stagger: 0.12, pop: 0.3, swell: 0.12, rank: { Bronze: 1, Silver: 2, Trick: 3, Gold: 4, gun: 5, skin: 0.5, tier: [0, 2, 3, 4] } }, // v0.5 Q: tickets on the result card, at most `max`, in a row centred `y` below the card's top with `noteY` the note line above them; their height, gap, padding, icon width (a medal's is `medal`), the gap after it, the least margin to the card's edge when the card widens, the room a "+n" takes, the delay and stagger of their pops, the swell; rank: highest first (a badge by tier, a badge that opens a gun, a skin, a mastery tier by number)
   },
 };
 const T = TUNING;
@@ -1275,8 +1277,14 @@ function isUnlocked(E, ch, gun) {
 }
 // Points are every gun's stars on every rung, summed.
 function pointsTotal(E) { return CHALLENGES.reduce((n, ch) => n + GUN_IDS.reduce((m, g) => m + T.starPoints[starsOf(E, ch, g)], 0), 0); }
-// Play on the menu: this gun's first unlocked rung with no stars yet, else the first rung.
-function firstPlayable(E, gun) { return CHALLENGES.find((ch) => isUnlocked(E, ch, gun) && starsOf(E, ch, gun) === 0) || CHALLENGES[0]; }
+// The gun's stars over every rung, and the most there are (the menu's one headline).
+function starTotal(E, gun) { return CHALLENGES.reduce((n, ch) => n + starsOf(E, ch, gun), 0); }
+// Where Play goes (v0.5 Q): this gun's frontier, the first open rung it has not passed (passing is the unlock rule's two stars), so it is the rung the hint line is waiting on;
+// with every open rung passed, the first short of three stars; with all three-starred, the first rung.
+function frontier(E, gun) {
+  const open = CHALLENGES.filter((ch) => isUnlocked(E, ch, gun));
+  return open.find((ch) => starsOf(E, ch, gun) < T.unlockStars) || open.find((ch) => starsOf(E, ch, gun) < 3) || CHALLENGES[0];
+}
 // Rungs where a gun has two stars or better.
 function rungsDone(E, gun) { return CHALLENGES.filter((ch) => starsOf(E, ch, gun) >= 2).length; }
 // ---------- Guns: unlocked by badges ----------
@@ -1299,27 +1307,38 @@ const BADGES = [
   { id: 'clay1', tier: 'Bronze', name: 'Clay I', cond: 'Three stars on Skeet 1', met: (o) => at(o, 'k1') && three(o) },
   { id: 'steady', tier: 'Silver', name: 'Steady', cond: 'Accuracy 4, three stars, carbine', met: (o) => at(o, 'a4') && three(o) && o.gun === 'carbine' },
   { id: 'storm', tier: 'Silver', name: 'Storm', cond: 'Three stars on Speed 4', met: (o) => at(o, 's4') && three(o) },
-  { id: 'double', tier: 'Silver', name: 'Double', cond: 'Hit both clays of a Skeet 2 pair', met: (o) => at(o, 'k2') && !!o.double },
+  { id: 'double', tier: 'Silver', name: 'Double', cond: 'Hit both clays of a Skeet 2 pair', short: 'Both clays of a Skeet pair', met: (o) => at(o, 'k2') && !!o.double },
   { id: 'marksman2', tier: 'Silver', name: 'Marksman II', cond: 'Three stars on Accuracy 5', met: (o) => at(o, 'a5') && three(o) },
   { id: 'quickdraw2', tier: 'Silver', name: 'Quick Draw II', cond: 'Three stars on Speed 5', met: (o) => at(o, 's5') && three(o) },
-  { id: 'clay2', tier: 'Silver', name: 'Clay II', cond: 'Skeet 3, no decoy hit, three stars', met: (o) => at(o, 'k3') && three(o) && !o.decoyHits },
+  { id: 'clay2', tier: 'Silver', name: 'Clay II', cond: 'Skeet 3, no decoy hit, three stars', short: 'Skeet 3: no decoy, three stars', met: (o) => at(o, 'k3') && three(o) && !o.decoyHits },
   // Wrong Tool: the gun a challenge was not made for; each unlocks only its badge
   { id: 'sprint', tier: 'Silver', name: "Marksman's Sprint", cond: 'Rifle on Speed 3, two stars', met: (o) => at(o, 's3') && o.gun === 'rifle' && o.stars >= 2 },
   { id: 'scatter', tier: 'Silver', name: 'Scatter Precision', cond: 'Shotgun on Accuracy 2, two stars', met: (o) => at(o, 'a2') && o.gun === 'shotgun' && o.stars >= 2 },
   { id: 'sidearm', tier: 'Silver', name: 'Sidearm Only', cond: 'Pistol on Boss 2, two stars', met: (o) => at(o, 'b2') && o.gun === 'pistol' && o.stars >= 2 },
   { id: 'claycarbine', tier: 'Silver', name: 'Clay Carbine', cond: 'Carbine on Skeet 2, three stars', met: (o) => at(o, 'k2') && o.gun === 'carbine' && three(o) },
   // Delighters (PRD v0.5 J): one act, never grind; each pops a ticket on the card
-  { id: 'kickback', tier: 'Trick', name: 'Kickback', cond: `${T.kickCount} hits in a row in ${T.kickWindow} s, on ${T.kickTargets}+ targets`, met: (o) => o.run.kickback },
-  { id: 'lastround', tier: 'Trick', name: 'Last Round', cond: 'Accuracy, three stars, the last bullet the last hit', met: (o) => o.ch.ladder === 'accuracy' && three(o) && o.run.ammo === 0 && o.run.lastShotHit },
-  { id: 'coldbarrel', tier: 'Trick', name: 'Cold Barrel', cond: 'A bullseye on the first shot, five runs in a row', met: (o) => o.cold >= T.coldRuns },
-  { id: 'claysweep', tier: 'Trick', name: 'Clay Sweep', cond: 'Skeet, every goal clay hit before it peaks', met: (o) => o.ch.ladder === 'skeet' && o.run.misses === 0 && !o.run.lateClay && !o.run.decoyHits && o.run.hits >= o.run.list.filter((e) => !e.decoy).length },
-  { id: 'walkline', tier: 'Trick', name: 'Walk the Line', cond: 'A horde cleared left to right, no miss', met: (o) => o.run.walked },
-  { id: 'bosskiller', tier: 'Gold', name: 'Boss Killer', cond: 'Boss 1 three stars, every gun', met: (o) => at(o, 'b1') && three(o) && GUN_IDS.every((g) => o.bests.b1[g].stars === 3) },
-  { id: 'gauntlet', tier: 'Gold', name: 'Gauntlet', cond: 'A2, S2, K2, B1 in a row, two stars each', met: (o) => !!o.gauntletDone },
-  { id: 'legend', tier: 'Gold', name: 'Legend', cond: 'Every challenge at three stars', met: (o) => CHALLENGES.every((c) => GUN_IDS.some((g) => o.bests[c.id][g].stars === 3)) },
-  { id: 'arsenal', tier: 'Gold', name: 'Arsenal', cond: 'Three stars on every challenge, every gun', met: (o) => CHALLENGES.every((c) => GUN_IDS.every((g) => o.bests[c.id][g].stars === 3)) },
+  { id: 'kickback', tier: 'Trick', name: 'Kickback', cond: `${T.kickCount} hits in a row in ${T.kickWindow} s, on ${T.kickTargets}+ targets`, short: `${T.kickCount} hits in ${T.kickWindow} s, ${T.kickTargets}+ targets`, met: (o) => o.run.kickback },
+  { id: 'lastround', tier: 'Trick', name: 'Last Round', cond: 'Accuracy, three stars, the last bullet the last hit', short: 'Accuracy: last bullet hits, three stars', met: (o) => o.ch.ladder === 'accuracy' && three(o) && o.run.ammo === 0 && o.run.lastShotHit },
+  { id: 'coldbarrel', tier: 'Trick', name: 'Cold Barrel', cond: 'A bullseye on the first shot, five runs in a row', short: 'First-shot bullseye, five runs running', met: (o) => o.cold >= T.coldRuns, count: (E) => ({ have: Math.min(E.save.get('cold', 0), T.coldRuns), need: T.coldRuns }) },
+  { id: 'claysweep', tier: 'Trick', name: 'Clay Sweep', cond: 'Skeet, every goal clay hit before it peaks', short: 'Skeet: every clay before it peaks', met: (o) => o.ch.ladder === 'skeet' && o.run.misses === 0 && !o.run.lateClay && !o.run.decoyHits && o.run.hits >= o.run.list.filter((e) => !e.decoy).length },
+  { id: 'walkline', tier: 'Trick', name: 'Walk the Line', cond: 'A horde cleared left to right, no miss', short: 'Horde left to right, no miss', met: (o) => o.run.walked },
+  { id: 'bosskiller', tier: 'Gold', name: 'Boss Killer', cond: 'Boss 1 three stars, every gun', met: (o) => at(o, 'b1') && three(o) && GUN_IDS.every((g) => o.bests.b1[g].stars === 3), count: (E) => ({ have: GUN_IDS.filter((g) => starsOf(E, chById('b1'), g) === 3).length, need: GUN_IDS.length }) },
+  { id: 'gauntlet', tier: 'Gold', name: 'Gauntlet', cond: 'A2, S2, K2, B1 in a row, two stars each', short: 'Four rungs in a row, two stars each', met: (o) => !!o.gauntletDone },
+  { id: 'legend', tier: 'Gold', name: 'Legend', cond: 'Every challenge at three stars', met: (o) => CHALLENGES.every((c) => GUN_IDS.some((g) => o.bests[c.id][g].stars === 3)), count: (E) => ({ have: CHALLENGES.filter((c) => GUN_IDS.some((g) => starsOf(E, c, g) === 3)).length, need: CHALLENGES.length }) },
+  { id: 'arsenal', tier: 'Gold', name: 'Arsenal', cond: 'Three stars on every challenge, every gun', short: 'Every challenge, three stars, every gun', met: (o) => CHALLENGES.every((c) => GUN_IDS.every((g) => o.bests[c.id][g].stars === 3)), count: (E) => ({ have: CHALLENGES.reduce((n, c) => n + GUN_IDS.filter((g) => starsOf(E, c, g) === 3).length, 0), need: CHALLENGES.length * GUN_IDS.length }) },
   { id: 'sniper', tier: 'Gold', name: 'Sniper', cond: 'Boss 2, three stars, rifle', met: (o) => at(o, 'b2') && three(o) && o.gun === 'rifle' },
 ];
+
+// The four tiers on the missions screen, in the range's trade: the data's tier key and the name it goes by, lowest first.
+const BADGE_TIERS = [{ key: 'Bronze', name: 'Plinker' }, { key: 'Silver', name: 'Sharpshooter' }, { key: 'Trick', name: 'Trick Shot' }, { key: 'Gold', name: 'Deadeye' }];
+// A badge's card line: the short form if it has one. A counter { have, need } only where an unearned badge counts something, else null.
+const badgeLine = (b) => b.short || b.cond;
+const badgeCount = (E, b) => (b.count ? b.count(E) : null);
+// What a badge opens, in words: a gun, or a skin. Null when it opens nothing but itself.
+function badgeOpens(b) {
+  const gun = GUN_IDS.find((g) => T.unlockBadges[g] === b.id), skin = skinOfBadge(b.id);
+  return gun ? `the ${T.guns[gun].name}` : skin ? `the ${T.guns[skin.gun].short} ${skin.skin.name} skin` : null;
+}
 
 // Badges a finished run earns that are not already `have`.
 function newBadges(o) { return BADGES.filter((b) => b.met(o) && !o.have[b.id]).map((b) => b.id); }
@@ -1330,6 +1349,9 @@ function gauntletStep(i, stars) {
   return { i, ok, done, next: ok && !done ? GAUNTLET[i + 1] : null };
 }
 function badgeMap(E) { const b = E.save.get('badges', {}); return b && typeof b === 'object' ? b : {}; }
+// The badges already shown on the missions screen (v12): the dot on the menu's Missions button marks an earned badge that is not in it.
+function seenMap(E) { const b = E.save.get('seen', {}); return b && typeof b === 'object' ? b : {}; }
+function unseenBadges(E) { const have = badgeMap(E), seen = seenMap(E); return BADGES.filter((b) => have[b.id] && !seen[b.id]).map((b) => b.id); }
 
 // ---------- Gun mastery (v0.5 N) ----------
 // Per gun, lifetime counters in the save: shots, hits, bulls (Accuracy and Skeet bullseyes and boss-core bullseyes), heads (zombie brain hits) and plates (boss plates destroyed).
@@ -1508,6 +1530,12 @@ function drawLock(ctx, cx, cy, col) {
   ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, cy - 3, 5, Math.PI, 0); ctx.stroke();
   ctx.fillStyle = col; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; rrect(ctx, cx - 8, cy - 3, 16, 12, 2.5); ctx.fill(); ctx.stroke();
   disc(ctx, cx, cy + 3, 1.8, P.ink);
+}
+// A badge medal: a disc in its tier's colour with a star, or a dull disc with a padlock while it is unearned.
+function drawMedal(ctx, cx, cy, r, tier, earned) {
+  ctx.lineWidth = 2; ctx.strokeStyle = earned ? P.ink : P.panelEdge;
+  disc(ctx, cx, cy, r, earned ? P.tier[tier] : P.panel); ctx.stroke();
+  if (earned) drawStar(ctx, cx, cy + 0.5, r * 0.62, P.ink); else drawLock(ctx, cx, cy, P.textDim);
 }
 
 // ---- Guns ----
@@ -1994,7 +2022,7 @@ function plate(E, x, y, w, h, fill, edge, r) {
 function btn(E, label, cx, cy, o) {
   const x = cx - o.w / 2, y = cy - o.h / 2;
   plate(E, x, y, o.w, o.h, o.fill, P.ink);
-  E.text(label, cx, cy, { size: o.size, color: o.color || P.text, weight: TY.strong });
+  if (label) E.text(label, cx, cy, { size: o.size, color: o.color || P.text, weight: TY.strong });
   return { x, y, w: o.w, h: o.h };
 }
 // The combo pips as casings, two paths for the whole row: `lit` brass ones with a primer, and the spent, empty ones.
@@ -2083,6 +2111,7 @@ function drawChip(ctx, E, r, skin, on, open) {
 // ---------- Play state ----------
 
 const S = {};
+let popRung = null; // set when a run raised a rung's stars (and which gun), read once by the menu
 
 function newRun(ch, id, gauntlet, skin) {
   S.ch = ch; S.gunId = id; S.skin = skin || 'std'; S.run = makeRun(ch, id); S.gauntlet = gauntlet === undefined ? null : gauntlet;
@@ -2192,16 +2221,26 @@ function endRun(E) {
   E.ledger.add('result', { id: ch.id, gun: gid, score: r.score, accuracy: acc, stars, best: bestStars, time: r.steps * STEP, hits: r.hits, hitShots: r.hitShots, shots: r.shots, bulls: r.cBull, heads: r.cHead, plates: r.cPlate, ...(r.ammo === Infinity ? {} : { ammo: r.ammo }), reloads: r.reloads, ...(ch.ladder === 'zombie' ? { wave: r.wave, down: r.zdown, fence: !!r.breach } : {}), ...(S.gauntlet === null ? {} : { gauntlet: S.gauntlet }) });
   for (const id of fresh) E.ledger.add('badge', { id, gun: gid, on: ch.id });
   for (let t = t0 + 1; t <= t1; t++) E.ledger.add('mastery', { gun: gid, tier: TIER_NAMES[t], score: m1.bulls + m1.heads }); // after the result that earned it
+  const newGuns = GUN_IDS.filter((g) => fresh.includes(T.unlockBadges[g]) && !gunUnlocked(E, g)); // guns these badges open, before the badges are saved
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
   const badgeSkins = fresh.map(skinOfBadge).filter(Boolean);
-  const unlocked = badgeSkins.map((k) => `${T.guns[k.gun].short} ${k.skin.name}`).concat(tierSkins.map((k) => `${T.guns[gid].short} ${k.name}`)); // shown on the card's skin line
+  // Everything earned on the run becomes a ticket on its card (v0.5 Q), highest first. A badge that opens a gun is one ticket ("Quick Draw I: Shotgun", the gun's icon) and ranks above
+  // everything, so a gun opening is never pushed behind "+n"; a mastery tier and a skin name only themselves, and their icon shows the gun.
+  const K = A.tickets, tickets = fresh.map((id) => {
+    const b = BADGES.find((k) => k.id === id), gun = newGuns.find((g) => T.unlockBadges[g] === id);
+    return gun ? { kind: 'badge', tier: b.tier, gun, name: `${b.name}: ${T.guns[gun].short}`, rank: K.rank.gun } : { kind: 'badge', tier: b.tier, name: b.name, rank: K.rank[b.tier] };
+  });
+  for (let t = t0 + 1; t <= t1; t++) tickets.push({ kind: 'tier', gun: gid, tier: t, name: TIER_NAMES[t], rank: K.rank.tier[t] });
+  for (const [g, sk] of badgeSkins.map((k) => [k.gun, k.skin]).concat(tierSkins.map((k) => [gid, k]))) tickets.push({ kind: 'skin', gun: g, skin: sk, name: sk.name, rank: K.rank.skin });
+  tickets.sort((a, b) => b.rank - a.rank);
+  if (!ch.endless && bestStars > prevStars) popRung = { id: ch.id, gun: gid }; // the menu swells that rung once on return
   const news = tierSkins.map((k) => [gid, k.id]).concat(badgeSkins.map((k) => [k.gun, k.skin.id]));
   if (news.length) E.save.update('skinsNew', (m) => { const o = { ...(m && typeof m === 'object' ? m : {}) }; for (const [g, id] of news) o[g] = [...new Set([...(o[g] || []), id])]; return o; }, {}); // the rack marks a gun with a skin not yet looked at
   // A Bunker cleared early leaves plates standing; say what they were worth (a full combo, the shots the gun needs per plate).
   const left = ch.wall && r.cleared ? r.targets.filter((t) => t.kind === 'part').length : 0;
   const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
   const zom = ch.ladder === 'zombie' ? { zdown: r.zdown, ztotal: ch.endless ? 0 : r.list.reduce((n, w) => n + w.length, 0), zwave: r.wave, zwaves: ch.endless ? 0 : r.list.length, breach: r.breach, day, bestWave } : {};
-  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, badges: fresh, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), skins: unlocked, tierUp: t1 > t0 ? { gun: T.guns[gid].short, name: TIER_NAMES[t1] } : null, ...zom });
+  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, tickets, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), ...zom });
 }
 
 function meterText(r, ch) {
@@ -2216,19 +2255,23 @@ function meterText(r, ch) {
 // ---- The menu (v0.5 N): the gun is the context ----
 // Landscape: the gun rack across the top (EXPORT and TUNE keep their corners), the selected gun's five lanes under it, and one row of corner buttons and the hint line at the bottom. Portrait
 // (the fallback) stacks the selected gun's panel, the rack's row, the lanes, the hint and the buttons. Every tile and button is 44 px or more.
-function menuLayout(E) {
+function menuLayout(E, playLabel) {
   const M = A.menu, land = E.w >= E.h * 1.2, sl = E.safe.left, sr = E.safe.right, st = E.safe.top, sb = E.safe.bottom, sel = gunId(E), L = { land, rows: [], rack: [] };
   const nl = LADDERS.length, count = (ladder) => CHALLENGES.filter((c) => c.ladder === ladder).length;
   if (land) {
     const x0 = sl + 90, x1 = E.w - sr - 84, rackW = x1 - x0, y = st + 4; // the engine's EXPORT tab ends 82 px in from the left, its TUNE tab starts 74 px in from the right
-    const selW = clamp(rackW * 0.4, M.selMin, M.selMax), uw = clamp((rackW - selW - 5 * M.gap) / 5, M.tileMin, M.tileMax);
+    const selW = clamp(rackW * M.selFrac, M.selMin, M.selMax), uw = clamp((rackW - selW - 5 * M.gap) / 5, M.tileMin, M.tileMax);
     let x = x0;
     for (const id of GUN_IDS) { const w = id === sel ? selW : uw; L.rack.push({ id, x, y, w, h: M.rackH, sel: id === sel }); x += w + M.gap; }
     const lx = sl + 10, lw = E.w - sl - sr - 20, laneTop = y + M.rackH + 6, btnY = E.h - sb - M.edge - M.btnH, pitch = Math.max(M.btnH + M.laneGap, (btnY - 6 - laneTop) / nl), gap = 6;
     LADDERS.forEach(([ladder, label], i) => L.rows.push({ ladder, label, x: lx, y: laneTop + i * pitch, h: pitch - M.laneGap, labelW: M.label, tw: (lw - M.label - 4 * gap) / 5, gap, n: count(ladder) }));
-    const mw = 104, sw = 92, ew = 136;
-    L.missions = { x: lx, y: btnY, w: mw, h: M.btnH }; L.mute = { x: lx + lw - sw, y: btnY, w: sw, h: M.btnH }; L.endless = { x: L.mute.x - 8 - ew, y: btnY, w: ew, h: M.btnH };
-    L.hint = { x: lx + mw + 12, y: btnY, w: L.endless.x - 12 - (lx + mw + 12), h: M.btnH };
+    // The bottom row: Missions and Sound, the hint line, then Endless and Play at the right thumb's end (Play is as wide as its label).
+    const E2 = E.ctx; E2.font = `${TY.strong} ${TY.mid}px system-ui, sans-serif`;
+    const pw = clamp(E2.measureText(playLabel).width + M.playPad, M.playMin, M.playMax);
+    L.missions = { x: lx, y: btnY, w: M.missionsW, h: M.btnH }; L.mute = { x: lx + M.missionsW + 8, y: btnY, w: M.soundW, h: M.btnH };
+    L.play = { x: lx + lw - pw, y: btnY, w: pw, h: M.btnH }; L.endless = { x: L.play.x - 8 - M.endlessW, y: btnY, w: M.endlessW, h: M.btnH };
+    const hx = L.mute.x + M.soundW + 10;
+    L.hint = { x: hx, y: btnY, w: L.endless.x - 10 - hx, h: M.btnH };
     L.word = { x: sl + 46, y: st + 57 }; L.titleArea = { x: sl + 6, y: st + 48, w: 84, h: 44 };
   } else {
     const side = 16 + Math.max(sl, sr), W = Math.min(E.w - 2 * side, 560), x0 = (E.w - W) / 2, y = st + 56, gap = 4, uw = (W - 5 * gap) / 6;
@@ -2237,8 +2280,8 @@ function menuLayout(E) {
     GUN_IDS.forEach((id, i) => L.rack.push({ id, x: x0 + i * (uw + gap), y: y + M.rackH + 4, w: uw, h: M.btnH, sel: id === sel, small: true }));
     const laneTop = y + M.rackH + 4 + M.btnH + 8, pitch = M.btnH + 6, labelW = 78, lg = 4;
     LADDERS.forEach(([ladder, label], i) => L.rows.push({ ladder, label, x: x0, y: laneTop + i * pitch, h: pitch - M.laneGap, labelW, tw: (W - labelW - 4 * lg) / 5, gap: lg, n: count(ladder) }));
-    const hy = laneTop + nl * pitch + 4, by = hy + 40, bw = (W - 16) / 3;
-    L.hint = { x: x0, y: hy, w: W, h: 36 };
+    const hy = laneTop + nl * pitch + 4, by = hy + 40 + 52 + 8, bw = (W - 16) / 3;
+    L.hint = { x: x0, y: hy, w: W, h: 36 }; L.play = { x: x0, y: hy + 40, w: W, h: 52 };
     L.missions = { x: x0, y: by, w: bw, h: 48 }; L.endless = { x: x0 + bw + 8, y: by, w: bw, h: 48 }; L.mute = { x: x0 + 2 * (bw + 8), y: by, w: bw, h: 48 };
   }
   return L;
@@ -2268,7 +2311,8 @@ function wrapText(ctx, str, maxW, size) {
 // ---------- Scenes ----------
 
 // One rung: the target, the level, that gun's stars (a padlock if the rung is closed); ringed when it is the rung to play next. Narrow tiles (portrait) stack the art over the stars.
-function drawRungTile(ctx, E, x, y, w, h, ch, locked, st, ring) {
+function drawRungTile(ctx, E, x, y, w, h, ch, locked, st, ring, k0) {
+  ctx.save(); if (k0 !== 1) { ctx.translate(x + w / 2, y + h / 2); ctx.scale(k0, k0); ctx.translate(-x - w / 2, -y - h / 2); }
   const narrow = w < 84, k = narrow ? 0.8 : 1, ext = A.menu.ext, ax = narrow ? x + w / 2 + 5 : x + 36, ay = narrow ? y + 19 : y + h / 2;
   plate(E, x, y, w, h, locked ? P.panel : P.panelHi, ring ? P.orange : P.panelEdge, 8);
   ctx.globalAlpha = locked ? 0.3 : 1; menuSprite(ctx, K_ICON + CHALLENGES.indexOf(ch), ext, paintRung, ax, ay, ch, 0, k); ctx.globalAlpha = 1;
@@ -2276,21 +2320,24 @@ function drawRungTile(ctx, E, x, y, w, h, ch, locked, st, ring) {
   const sx = narrow ? x + w / 2 : x + 56 + (w - 62) / 2, sy = narrow ? y + h - 10 : y + h / 2, r = narrow ? 4.4 : 5.4, dx = narrow ? 12 : 16;
   if (locked) { ctx.save(); ctx.translate(sx, sy); ctx.scale(narrow ? 0.6 : 0.8, narrow ? 0.6 : 0.8); drawLock(ctx, 0, 0, P.textDim); ctx.restore(); }
   else for (let i = 0; i < 3; i++) drawStar(ctx, sx + (i - 1) * dx, sy, r, i < st ? P.brass : null, i < st ? null : P.panelEdge);
+  ctx.restore();
 }
 // The mastery bar and the tier: a track with a cyan fill toward the next tier (brass once Master).
 function drawMasteryBar(E, x, y, w, info) {
   E.roundRect(x, y, w, 6, 3, P.panelEdge);
   E.roundRect(x, y, Math.max(6, w * info.frac), 6, 3, info.tier === 3 ? P.brass : P.cyan);
 }
-// The selected gun on the rack: the gun larger, its name, the mastery bar and tier, and the skin it wears (a star and "New skin" while one is waiting).
+// The selected gun on the rack: the gun larger, the headline (its stars over the most there are), its name, the mastery bar and tier; a star waits in the corner while a skin
+// has not been looked at (the skins are on the stats card).
 function drawRackSelected(ctx, E, b, id) {
   const g = T.guns[id], info = masteryInfo(masteryOf(E, id)), worn = skinById(id, skinId(E, id)), fresh = ((E.save.get('skinsNew', {}) || {})[id] || []).length > 0, tx = b.x + 90, tw = b.w - 90 - 8;
   plate(E, b.x, b.y, b.w, b.h, P.panelHi, P.orange);
   drawGunTile(ctx, id, b.x + 46, b.y + b.h / 2, 78, 42, worn.id);
-  E.text(g.short, tx, b.y + 11, { size: TY.small, weight: TY.strong, align: 'left', color: P.text });
-  drawMasteryBar(E, tx, b.y + 22, tw, info);
-  E.text(TIER_NAMES[info.tier], tx, b.y + 37, { size: TY.small, weight: TY.strong, align: 'left', color: info.tier ? P.cyan : P.textDim });
-  E.text(fresh ? 'New skin!' : worn.name, tx, b.y + 51, { size: TY.small, align: 'left', color: fresh ? P.cyan : P.textDim });
+  drawStar(ctx, tx + 8, b.y + 13, 8, P.brass);
+  E.text(`${starTotal(E, id)} / ${CHALLENGES.length * 3}`, tx + 22, b.y + 13, { size: TY.mid, weight: TY.strong, align: 'left', color: P.text });
+  E.text(g.short, tx, b.y + 32, { size: TY.small, weight: TY.strong, align: 'left', color: P.textDim });
+  drawMasteryBar(E, tx, b.y + 43, tw, info);
+  E.text(TIER_NAMES[info.tier], tx, b.y + 56, { size: TY.small, weight: TY.strong, align: 'left', color: info.tier ? P.cyan : P.textDim });
   if (fresh) drawStar(ctx, b.x + b.w - 12, b.y + 12, 7, P.cyan);
 }
 // A gun on the rack that is not selected: the silhouette, and three pips for its tier; a locked one shows a padlock and the star of the badge that opens it.
@@ -2307,13 +2354,27 @@ function menuHint(E, gid) {
   if (locked) return `${locked.name}: two stars on ${CHALLENGES.find((p) => p.ladder === locked.ladder && p.level === locked.level - 1).name}`;
   const info = masteryInfo(masteryOf(E, gid));
   if (info.accShort) return `Master needs ${Math.round(T.mastery.accuracy * 100)}% accuracy (now ${Math.round(info.acc * 100)}%)`;
-  if (info.next !== null) return `${TIER_NAMES[info.tier + 1]}: ${info.next} bullseyes and headshots (${info.score} so far)`;
-  return `Every rung is open and ${T.guns[gid].short} is Master`;
+  if (info.next !== null) return `${TIER_NAMES[info.tier + 1]}: ${info.score}/${info.next} bullseyes+headshots`;
+  return `Every rung open, ${T.guns[gid].short} is Master`;
+}
+// The sound toggle: a speaker on a slate plate, waves when on and a cross when off (drawn, not written).
+function soundButton(ctx, E, r, muted) {
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  plate(E, r.x, r.y, r.w, r.h, P.slate, P.ink);
+  ctx.fillStyle = ctx.strokeStyle = P.text; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - 11, cy - 5); ctx.lineTo(cx - 5, cy - 5); ctx.lineTo(cx + 2, cy - 11); ctx.lineTo(cx + 2, cy + 11); ctx.lineTo(cx - 5, cy + 5); ctx.lineTo(cx - 11, cy + 5); ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  if (muted) { ctx.moveTo(cx + 7, cy - 6); ctx.lineTo(cx + 16, cy + 6); ctx.moveTo(cx + 16, cy - 6); ctx.lineTo(cx + 7, cy + 6); } else { ctx.arc(cx + 2, cy, 8, -0.9, 0.9); ctx.moveTo(cx + 2 + 14 * Math.cos(-0.9), cy + 14 * Math.sin(-0.9)); ctx.arc(cx + 2, cy, 14, -0.9, 0.9); }
+  ctx.stroke(); ctx.lineCap = 'butt';
+  return { x: r.x, y: r.y, w: r.w, h: r.h };
 }
 const menu = {
-  enter() { this.tiles = []; this.guns = []; this.btnEndless = null; this.btnMute = null; this.btnMissions = null; },
+  enter(E) {
+    this.tiles = []; this.guns = []; this.btnEndless = null; this.btnMute = null; this.btnMissions = null; this.btnPlay = null; this.play = null; this.dot = false;
+    this.pop = popRung && popRung.gun === gunId(E) ? { id: popRung.id, t0: E.time } : null; popRung = null; // a rung whose stars rose swells once
+  },
   render(ctx, E) {
-    const L = menuLayout(E), gid = gunId(E), play = firstPlayable(E, gid), earned = BADGES.filter((b) => badgeMap(E)[b.id]).length;
+    const gid = gunId(E), play = frontier(E, gid), L = menuLayout(E, `Play ${play.name}`);
     prepMenu(E.dpr, ctx);
     E.titleArea = L.titleArea; // release: five taps on the small wordmark show TUNE
     E.text('RECOIL', L.word.x, L.word.y, { size: TY.small, weight: TY.strong, color: P.textDim });
@@ -2325,24 +2386,31 @@ const menu = {
       else if (b.sel) drawRackSelected(ctx, E, b, b.id); else drawRackSmall(ctx, E, b, open);
       this.guns.push(b);
     }
-    this.tiles = [];
+    this.tiles = []; this.play = play;
+    const pu = this.pop ? clamp((E.time - this.pop.t0 - A.pop.delay) / A.pop.sec, 0, 1) : 0, popK = 1 + A.pop.amp * Math.sin(Math.PI * pu); // the swelling rung is drawn last, over its neighbours
+    let popped = null;
     for (const row of L.rows) {
       E.text(row.label, row.x, row.y + row.h / 2, { size: TY.small, align: 'left', color: P.textDim });
       CHALLENGES.filter((c) => c.ladder === row.ladder).forEach((ch, i) => {
-        const x = row.x + row.labelW + i * (row.tw + row.gap), locked = !isUnlocked(E, ch, gid);
-        drawRungTile(ctx, E, x, row.y, row.tw, row.h, ch, locked, starsOf(E, ch, gid), ch === play && !locked);
-        this.tiles.push({ x, y: row.y, w: row.tw, h: row.h, ch, locked });
+        const x = row.x + row.labelW + i * (row.tw + row.gap), locked = !isUnlocked(E, ch, gid), t = { x, y: row.y, w: row.tw, h: row.h, ch, locked };
+        this.tiles.push(t);
+        if (this.pop && ch.id === this.pop.id && pu > 0 && pu < 1) popped = t; else drawRungTile(ctx, E, x, row.y, row.tw, row.h, ch, locked, starsOf(E, ch, gid), ch === play && !locked, 1);
       });
     }
+    if (popped) drawRungTile(ctx, E, popped.x, popped.y, popped.w, popped.h, popped.ch, popped.locked, starsOf(E, popped.ch, gid), popped.ch === play && !popped.locked, popK);
     const h = L.hint, lines = wrapText(ctx, menuHint(E, gid), h.w, TY.small).slice(0, 2);
     lines.forEach((ln, i) => E.text(ln, h.x + h.w / 2, h.y + h.h / 2 + (i - (lines.length - 1) / 2) * 18, { size: TY.small, color: P.textDim }));
-    const two = (r, a, b2, fill, edge) => { plate(E, r.x, r.y, r.w, r.h, fill, edge); E.text(a, r.x + r.w / 2, r.y + r.h / 2 - 8, { size: TY.small, weight: TY.strong }); E.text(b2, r.x + r.w / 2, r.y + r.h / 2 + 9, { size: TY.small, color: P.textDim }); return r; };
+    const two = (r, a, b2, fill, edge) => { plate(E, r.x, r.y, r.w, r.h, fill, edge); E.text(a, r.x + r.w / 2, r.y + r.h / 2 - (b2 ? 8 : 0), { size: TY.small, weight: TY.strong }); if (b2) E.text(fitText(E.ctx, b2, r.w - 12, TY.small, TY.normal), r.x + r.w / 2, r.y + r.h / 2 + 9, { size: TY.small, color: P.textDim }); return r; }; // the second line only when there is something to say
     const zz = E.save.get('zend', null), d = zz && typeof zz === 'object' ? zz : {}, today = d.day === (E.dailySeed ? E.dailySeed() : 0) && d.today ? d.today.score : 0;
-    this.btnMissions = two(L.missions, 'Missions', `${earned}/${BADGES.length}`, P.panelHi, P.ink);
-    this.btnEndless = two(L.endless, 'Endless', today ? `Today ${today}` : 'New today', P.panelHi, P.cyan);
-    this.btnMute = btn(E, E.audio.muted ? 'Sound: off' : 'Sound: on', L.mute.x + L.mute.w / 2, L.mute.y + L.mute.h / 2, { w: L.mute.w, h: L.mute.h, fill: P.slate, size: TY.small });
+    this.btnMissions = btn(E, 'Missions', L.missions.x + L.missions.w / 2, L.missions.y + L.missions.h / 2, { w: L.missions.w, h: L.missions.h, fill: P.panelHi, size: TY.small });
+    this.dot = unseenBadges(E).length > 0; // an earned badge not yet seen on the missions screen
+    if (this.dot) { ctx.lineWidth = 2; ctx.strokeStyle = P.ink; disc(ctx, L.missions.x + L.missions.w - 6, L.missions.y + 6, A.menu.dotR, P.orange); ctx.stroke(); }
+    this.btnEndless = two(L.endless, 'Endless', today ? `Today ${today < 10000 ? today : `${Math.round(today / 1000)}k`}` : '', P.panelHi, P.cyan);
+    this.btnMute = soundButton(ctx, E, L.mute, E.audio.muted);
+    this.btnPlay = btn(E, `Play ${play.name}`, L.play.x + L.play.w / 2, L.play.y + L.play.h / 2, { w: L.play.w, h: L.play.h, fill: P.orange, color: P.ink, size: TY.mid });
   },
   onTap(p, E) {
+    if (E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play', { id: this.play.id }); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
     if (E.hit(this.btnEndless, p)) { E.audio.play('tap'); E.setScene('play', { id: ENDLESS.id }); return; }
@@ -2366,10 +2434,25 @@ function gauntletReason(E) {
   return `Locked: two stars with the ${T.guns[gun].short} on ${need.join(', ')} first`;
 }
 
-// Missions: the badge tiers, in a list that scrolls by drag (or the 44 px rail on its right) when it does not fit. Earned badges are lit; the rest show what
-// earns them and the skin each unlocks. The gauntlet starts here.
+// Missions (v0.5 Q, the Ink standard): the badges in four named tiers, each headed "earned / total", in one column that scrolls by drag (or the 44 px rail on its right). A card is a
+// medal, the name and a condition of about six words; an unearned badge that counts something carries its counter, and one that opens a gun shows the gun. Earned cards are bright
+// and bordered, unearned ones shaded; a badge earned since the last visit carries a dot. A tap on an unearned card says, in one line, what earns it and what it opens. The gauntlet starts here.
 const missions = {
-  enter() { this.back = null; this.btnGauntlet = null; this.reason = ''; this.scroll = 0; this.drag = null; this.v = null; this.rail = null; },
+  enter(E) {
+    this.back = null; this.btnGauntlet = null; this.reason = ''; this.scroll = 0; this.drag = null; this.v = null; this.rail = null; this.cards = [];
+    const fresh = unseenBadges(E); this.fresh = new Set(fresh); this.focus = fresh.length > 0; // the dot on the menu clears: these are seen now
+    if (fresh.length) E.save.update('seen', (m) => ({ ...(m && typeof m === 'object' ? m : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
+  },
+  // The list laid out top to bottom: a heading per tier, then its cards (a long condition wraps and the card grows). Offsets are from the top of the list.
+  rows(ctx, textW) {
+    const M = A.missions, out = []; let y = 0;
+    for (const tier of BADGE_TIERS) {
+      const list = BADGES.filter((b) => b.tier === tier.key);
+      out.push({ tier, list, y, h: M.headH }); y += M.headH;
+      for (const b of list) { const lines = wrapText(ctx, badgeLine(b), textW, TY.small), h = M.cardH + (lines.length - 1) * M.lineH; out.push({ b, lines, y, h, gun: GUN_IDS.find((g) => T.unlockBadges[g] === b.id) }); y += h + M.gap; }
+    }
+    return { out, h: y - M.gap };
+  },
   render(ctx, E) {
     const have = badgeMap(E), land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), M = A.missions, top = E.safe.top;
     const W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, earned = BADGES.filter((b) => have[b.id]).length;
@@ -2391,28 +2474,36 @@ const missions = {
     if (!open && !land) { // portrait has the room to say why, under the header; landscape says it on tap
       wrapText(ctx, this.reason, W, TY.small).forEach((ln, k) => E.text(ln, E.w / 2, listTop - 6 + k * 18, { size: TY.small, color: P.textDim })); listTop += 40;
     }
-    const listBottom = E.h - E.safe.bottom - 8, viewH = listBottom - listTop, cols = land ? 3 : 1, rows = Math.ceil(BADGES.length / cols);
-    const contentH = rows * (M.th + M.gap) - M.gap, max = Math.max(0, contentH - viewH), listW = max > 0 ? W - M.rail - 8 : W;
+    const listBottom = E.h - E.safe.bottom - 8, viewH = listBottom - listTop, listW = W - M.rail - 8; // the rail always has its room: the list is longer than any screen
+    const textW = listW - M.pad * 2 - 2 * M.medalR - M.pad - M.gunW - M.pad, R = this.rows(ctx, textW), max = Math.max(0, R.h - viewH);
+    if (this.focus) { this.focus = false; const f = R.out.find((r) => r.b && this.fresh.has(r.b.id)), h = f && R.out.find((r) => r.tier && r.tier.key === f.b.tier); if (h) this.scroll = h.y; } // open on the tier of the first badge that is new
     this.scroll = clamp(this.scroll, 0, max);
-    const tw = (listW - (cols - 1) * M.gap) / cols;
-    this.v = { x0, W, listTop, listBottom, viewH, max, listW, contentH };
+    this.v = { x0, W, listTop, listBottom, viewH, max, listW, contentH: R.h };
+    this.cards = [];
     ctx.save(); ctx.beginPath(); ctx.rect(x0 - 8, listTop, W + 16, viewH); ctx.clip();
-    BADGES.forEach((b, i) => {
-      const x = x0 + (i % cols) * (tw + M.gap), y = listTop + Math.floor(i / cols) * (M.th + M.gap) - this.scroll;
-      if (y + M.th < listTop || y > listBottom) return;
-      const on = !!have[b.id], col = P.tier[b.tier];
-      plate(E, x, y, tw, M.th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
-      E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: TY.small, align: 'left', color: on ? col : P.textDim });
-      ctx.font = `${TY.strong} ${TY.mid}px system-ui, sans-serif`;
-      const ns = clamp(Math.floor(TY.mid * (tw - 24) / ctx.measureText(b.name).width), TY.small, TY.mid); // a long name shrinks, never under the small size
-      E.text(fitText(ctx, b.name, tw - 24, ns, TY.strong), x + 12, y + 34, { size: ns, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
-      if (on) drawStar(ctx, x + tw - 24, y + 14, 9, col); // on the tier row, clear of the name below
-      wrapText(ctx, b.cond, tw - 24, TY.small).forEach((ln, k) => E.text(ln, x + 12, y + 56 + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
-    });
+    for (const r of R.out) {
+      const y = listTop + r.y - this.scroll;
+      if (y + r.h < listTop || y > listBottom) continue;
+      if (r.tier) { // "Plinker  2 / 4": the tier's medal colour and how many of its badges are earned
+        const col = P.tier[r.tier.key], n = r.list.filter((b) => have[b.id]).length;
+        disc(ctx, x0 + M.pad, y + r.h / 2, 6, col);
+        E.text(`${r.tier.name}  ${n} / ${r.list.length}`, x0 + M.pad + 14, y + r.h / 2, { size: TY.mid, weight: TY.strong, align: 'left', color: col });
+        continue;
+      }
+      const b = r.b, on = !!have[b.id], col = P.tier[b.tier], cnt = on ? null : badgeCount(E, b), cy = y + r.h / 2, tx = x0 + M.pad + 2 * M.medalR + M.pad, right = x0 + listW - M.pad;
+      plate(E, x0, y, listW, r.h, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
+      drawMedal(ctx, x0 + M.pad + M.medalR, cy, M.medalR, b.tier, on);
+      E.text(fitText(ctx, b.name, textW, TY.mid, TY.strong), tx, y + M.cardH * 0.34, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
+      r.lines.forEach((ln, k) => E.text(ln, tx, y + M.cardH * 0.71 + k * M.lineH, { size: TY.small, align: 'left', color: P.textDim }));
+      if (r.gun) { ctx.globalAlpha = on ? 1 : 0.45; drawGunTile(ctx, r.gun, right - M.gunW / 2, cy, M.gunW, M.gunH, 'std'); ctx.globalAlpha = 1; } // the gun this badge opens
+      else if (cnt) E.text(`${cnt.have}/${cnt.need}`, right, cy, { size: TY.small, weight: TY.strong, align: 'right', color: P.textDim });
+      if (on && this.fresh.has(b.id)) { ctx.lineWidth = 2; ctx.strokeStyle = P.ink; disc(ctx, x0 + listW - M.pad + 2, y + M.pad - 2, M.newR, P.orange); ctx.stroke(); } // new since the last visit
+      this.cards.push({ x: x0, y, w: listW, h: r.h, id: b.id, b });
+    }
     ctx.restore();
     this.rail = null;
     if (max > 0) { // the scroll affordance: a 44 px rail with chevrons, a track and a thumb; drag it or tap the chevrons
-      const rx = x0 + W - M.rail, cx = rx + M.rail / 2, tt = listTop + M.rail, tb = listBottom - M.rail, th = Math.max(M.rail, (tb - tt) * viewH / contentH), ty = tt + (tb - tt - th) * (this.scroll / max);
+      const rx = x0 + W - M.rail, cx = rx + M.rail / 2, tt = listTop + M.rail, tb = listBottom - M.rail, th = Math.max(M.rail, (tb - tt) * viewH / R.h), ty = tt + (tb - tt - th) * (this.scroll / max);
       this.rail = { x: rx, y: listTop, w: M.rail, h: viewH, tt, tb, th };
       plate(E, rx, listTop, M.rail, viewH, P.panel, P.panelEdge, 10);
       ctx.fillStyle = this.scroll > 0 ? P.text : P.textDim; ctx.beginPath(); ctx.moveTo(cx - 8, listTop + 27); ctx.lineTo(cx + 8, listTop + 27); ctx.lineTo(cx, listTop + 15); ctx.closePath(); ctx.fill();
@@ -2440,7 +2531,9 @@ const missions = {
       return;
     }
     const r = this.rail; // a chevron pages the list
-    if (r && E.hit(r, p)) { if (p.y < r.tt) this.scroll = clamp(this.scroll - this.v.viewH * 0.75, 0, this.v.max); else if (p.y > r.tb) this.scroll = clamp(this.scroll + this.v.viewH * 0.75, 0, this.v.max); }
+    if (r && E.hit(r, p)) { if (p.y < r.tt) this.scroll = clamp(this.scroll - this.v.viewH * 0.75, 0, this.v.max); else if (p.y > r.tb) this.scroll = clamp(this.scroll + this.v.viewH * 0.75, 0, this.v.max); return; }
+    const v = this.v, c = v && p.y >= v.listTop && p.y <= v.listBottom && this.cards.find((c) => E.hit(c, p));
+    if (c && !badgeMap(E)[c.id]) { const o = badgeOpens(c.b); E.audio.play('tap', 0.3); E.toast(`${c.b.name}: ${c.b.cond}${o ? `. Opens ${o}` : ''}`); } // a tap on an unearned card: what earns it, and what it opens
   },
 };
 
@@ -2713,7 +2806,7 @@ const over = {
   render(ctx, E) {
     const p = this.p, ch = this.ch, cx = E.w / 2, g = p.gaunt;
     const H = 310, y0 = Math.max(E.safe.top + 8, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
-    const pw = Math.min(E.w - 16, 500);
+    const tm = this.ticketMetrics(ctx, E), pw = Math.min(E.w - 16, Math.max(500, tm.total + 2 * A.tickets.edge)); // the card widens for three tickets
     plate(E, cx - pw / 2, y0 - 18, pw, H + 30, P.panel, P.panelEdge, 16);
     E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Gauntlet ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 10, { size: TY.small, color: P.textDim });
     const age0 = E.time - this.t0, shown = Math.round(p.score * ease.outQuad(clamp((age0 - 0.15) / T.tickerLife, 0, 1))); // the score counts up
@@ -2741,40 +2834,14 @@ const over = {
       E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 156, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
       E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}  ·  ${p.preset}`, cx, y0 + 178, { size: TY.small, color: P.textDim });
     }
-    // Optional lines stack under the thresholds (a cursor, not fixed rows): the Bunker's plates, the badge, its skin, a gauntlet note. The buttons start at y0 + 256;
-    // with all four the last line ends at y0 + 247.
-    let yy = y0 + 178;
-    if (ch.wall) {
-      yy += 20;
-      E.text(p.platesLeft ? `${p.platesLeft} plates left, worth up to ${p.platesValue} more` : 'Every plate scores', cx, yy, { size: TY.small, color: p.platesLeft ? P.cyan : P.textDim });
-    }
-    if (ch.ladder === 'zombie') { // which one reached the fence, and how far the waves got
-      yy += 20;
+    // One note line under the thresholds (the Bunker's plates, the zombie that reached the fence, a gauntlet result), then the tickets earned on the run (v0.5 Q).
+    const K = A.tickets, ny = y0 + K.noteY;
+    if (ch.wall) E.text(p.platesLeft ? `${p.platesLeft} plates left, worth up to ${p.platesValue} more` : 'Every plate scores', cx, ny, { size: TY.small, color: p.platesLeft ? P.cyan : P.textDim });
+    else if (ch.ladder === 'zombie') { // which one reached the fence, and how far the waves got
       const b = p.breach;
-      E.text(b ? `A ${ZTYPES[b.cls].name.toLowerCase()}${b.legs && !ZTYPES[b.cls].ground ? ' on its hands' : ''} reached the fence: zombie ${b.n} of wave ${b.wave}${p.zwaves ? ' of ' + p.zwaves : ''}` : 'The fence held', cx, yy, { size: TY.small, weight: TY.strong, color: b ? P.red : P.cyan });
-    }
-    if (p.badges.length) { // a badge pop: the line pops in by transform, from popFrom of its size (never under the small text size), fading up
-      yy += 22;
-      const t = clamp((age - 0.5) / 0.35, 0, 1), k = ease.outBack(t), names = p.badges.map((id) => BADGES.find((b) => b.id === id).name).join(', ');
-      const col = P.tier[BADGES.find((b) => b.id === p.badges[0]).tier], from = TY.small / TY.mid, sc = from + (1 - from) * k, msg = `Badge earned: ${names}`;
-      if (t > 0) {
-        ctx.save(); ctx.translate(cx + 12, yy); ctx.scale(sc, sc);
-        ctx.font = `${TY.strong} ${TY.mid}px system-ui, sans-serif`; // the engine's text font, set here to measure the line the ticket goes behind
-        const mw = ctx.measureText(msg).width;
-        ctx.globalAlpha = t;
-        if (p.badges.some((id) => BADGES.find((b) => b.id === id).tier === 'Trick')) drawTicket(ctx, 0, 0, mw + 68, 28, col); // a delighter pops a ticket behind its line
-        E.text(msg, 0, 0, { size: TY.mid, weight: TY.strong, color: col, alpha: t }); ctx.globalAlpha = t;
-        drawStar(ctx, -mw / 2 - 16, 0, 11, col);
-        ctx.restore();
-      }
-    } else if (g && !g.ok) E.text('Gauntlet over: two stars needed', cx, yy += 22, { size: TY.mid, color: P.red });
-    else if (g && g.done) E.text('Gauntlet complete', cx, yy += 22, { size: TY.mid, color: P.cyan });
-    else if (g) E.text('Gauntlet stage passed', cx, yy += 22, { size: TY.mid, color: P.cyan });
-    if (p.tierUp || (p.skins && p.skins.length)) { // mastery (v0.5 N): a tier reached, and the skin it opens
-      yy += 22;
-      const a = clamp((age - 0.7) / 0.35, 0, 1), sk = p.skins && p.skins.length ? `${p.skins.join(', ')} unlocked` : '';
-      E.text(p.tierUp ? `${p.tierUp.gun} is now ${p.tierUp.name}${sk ? ': ' + sk : ''}` : `Skin unlocked: ${p.skins.join(', ')}`, cx, yy, { size: TY.small, weight: TY.strong, color: P.cyan, alpha: a });
-    }
+      E.text(b ? `A ${ZTYPES[b.cls].name.toLowerCase()}${b.legs && !ZTYPES[b.cls].ground ? ' on its hands' : ''} reached the fence: zombie ${b.n} of wave ${b.wave}${p.zwaves ? ' of ' + p.zwaves : ''}` : 'The fence held', cx, ny, { size: TY.small, weight: TY.strong, color: b ? P.red : P.cyan });
+    } else if (g) E.text(!g.ok ? 'Gauntlet over: two stars needed' : g.done ? 'Gauntlet complete' : 'Gauntlet stage passed', cx, ny, { size: TY.mid, color: g.ok ? P.cyan : P.red });
+    this.drawTickets(ctx, E, cx, y0 + K.y, age, tm);
     const btns = [['Again', P.orange, P.ink, 'again']];
     if (this.canNext) btns.push(['Next', P.cyan, P.ink, 'next']);
     btns.push(['Menu', P.slate, P.text, 'menu']);
@@ -2782,6 +2849,39 @@ const over = {
     this.btns = btns.map(([label, fill, color, act], i) => {
       const x = cx + (i - (btns.length - 1) / 2) * (bw + 12);
       return { act, ...btn(E, label, x, by, { w: bw, h: 52, fill, color, size: TY.mid }) };
+    });
+  },
+  // The tickets earned on the run, in one row centred on cy: up to `max`, highest first, each a notched stub with its icon and one line; the last carries "+n" for the ones
+  // that did not fit. They swell in one after another and never below full size, so their text stays 14 px.
+  // The row: the tickets (up to `max`, fewer if the widest card the screen allows cannot hold their names whole: the rest count in "+n", so no name is ever cut), each ticket's icon
+  // width and padding, each one's text width (the last also holds "+n") and the row's width.
+  ticketMetrics(ctx, E) {
+    const K = A.tickets, all = this.p.tickets, room = E.w - 16 - 2 * K.edge;
+    ctx.font = `${TY.strong} ${TY.small}px system-ui, sans-serif`;
+    let m;
+    for (let n = Math.min(K.max, all.length); n >= 0; n--) {
+      const list = all.slice(0, n), more = all.length - n, ic = list.map((t) => (t.kind === 'badge' && !t.gun ? K.medal : K.icon)), ch = ic.map((w) => K.pad * 2 + w + K.iconGap);
+      const tw = list.map((t, i) => ctx.measureText(t.name).width + (more && i === n - 1 ? K.more : 0));
+      m = { list, more, ic, ch, tw, total: n ? tw.reduce((sum, w, i) => sum + w + ch[i], 0) + (n - 1) * K.gap : 0 };
+      if (m.total <= room || n <= 1) break;
+    }
+    return m;
+  },
+  drawTickets(ctx, E, cx, cy, age, tm) {
+    const K = A.tickets, { list, more, ic, ch, tw, total } = tm;
+    let x = cx - total / 2;
+    list.forEach((t, i) => {
+      const w = tw[i] + ch[i], a = clamp((age - K.delay - i * K.stagger) / K.pop, 0, 1);
+      if (a <= 0) { x += w + K.gap; return; }
+      const mx = x + w / 2, col = t.kind === 'badge' ? P.tier[t.tier] : t.kind === 'tier' ? P.cyan : P.orange, ix = x + K.pad + ic[i] / 2, last = more && i === list.length - 1;
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(mx, cy); const sw = 1 + K.swell * Math.sin(Math.PI * a); ctx.scale(sw, sw); ctx.translate(-mx, -cy);
+      drawTicket(ctx, mx, cy, w, K.h, col);
+      if (t.kind === 'badge' && !t.gun) drawMedal(ctx, ix, cy, ic[i] / 2, t.tier, true);
+      else drawGunTile(ctx, t.gun, ix, cy, ic[i], K.h * 0.55, t.kind === 'skin' ? t.skin.id : 'std'); // a gun opened, or the gun a tier or a skin belongs to (a skin shown worn)
+      E.text(t.name, x + K.pad + ic[i] + K.iconGap, cy, { size: TY.small, weight: TY.strong, align: 'left', color: P.text, alpha: a });
+      if (last) E.text(`+${more}`, x + w - K.pad, cy, { size: TY.small, weight: TY.strong, align: 'right', color: P.textDim, alpha: a });
+      ctx.restore();
+      x += w + K.gap;
     });
   },
   onTap(p, E) {
@@ -2908,10 +3008,10 @@ function migrateGuns(data) {
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 11,
+  saveVersion: 12,
   // Save shape: best { challengeId: { gunId: { score, stars, accuracy } } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, gunsHad { gunId: 1 } (guns a save from
   // before v7 already had), cold (Cold Barrel's runs in a row), zend (the endless mode's bests), mastery { gunId: { shots, hits, bulls, heads, plates } } and skinsHad { gunId: { skinId: 1 } } and skinsNew { gunId: [skinId] } (v10), starPreset (the star-bar preset's name), __tune, __muted.
-  // controlsSeen (v11: the first-run controls line has been shown).
+  // controlsSeen (v11: the first-run controls line has been shown), seen { badgeId: 1 } (v12: the badges already shown on the missions screen; the dot on the menu's Missions button marks an earned one that is not in it).
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
   // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default); v6 adds the star-bar preset's name. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
@@ -2934,6 +3034,8 @@ export const game = {
       data.skinsHad = had;
     }
     if (fromVersion < 11) data.controlsSeen = true; // v11: a save that already exists has played; only a fresh one sees the controls line
+    if (fromVersion < 12) data.seen = Object.fromEntries(Object.keys(data.badges).map((id) => [id, 1])); // v12: every badge the save had is marked seen, so the dot waits for the next one
+    else if (!data.seen || typeof data.seen !== 'object') data.seen = {};
     if (data.mastery !== undefined && (typeof data.mastery !== 'object' || data.mastery === null)) delete data.mastery;
     delete data.bossGuns;
     if (data.__tune && typeof data.__tune === 'object') data.__tune = Object.fromEntries(Object.entries(data.__tune).filter(([k]) => TUNE_KEYS.has(k)));
