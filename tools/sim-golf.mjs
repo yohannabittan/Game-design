@@ -6,6 +6,7 @@
 //                                                                              any-bounce sinks and the widest aim cluster
 //   node tools/sim-golf.mjs <hole.json> --escape                               escape sweep and 1500 chained random shots (PRD v0.2 D);
 //                                                                              black holes have no surface: swallows are counted
+//                                                                              a sun's surface also needs 30 of 360 directions that reach its rest radius
 //   node tools/sim-golf.mjs <hole.json> --three DX,DY[,CLOCK][/DX,DY[,CLOCK]...]  verify a three-star route (30/60/144 fps, jitter)
 //   node tools/sim-golf.mjs <hole.json> --two-shot [--step-deg 2 --step-px 6 --clocks 8 --cell 10 --workers N]
 //                                                                              untimed two-shot sinks from every tee-reachable rest
@@ -64,7 +65,7 @@ const bodies = [
   ...lv.planets.map((p, i) => ({ label: `planet ${i}`, r: p.r, at: () => p, planet: i })).filter((b, i) => lv.planets[i].mass > 0),
   ...lv.movers.map((m, i) => ({ m, i })).filter((o) => o.m.type === 'moon').map(({ m, i }) => ({ label: `moon (mover ${i})`, r: m.r, at: (c) => sim.moonAt(lv, m, c), mover: i })),
   ...lv.blackholes.map((h, i) => ({ label: `black hole ${i}`, r: h.r, at: () => h, bh: i })),
-  ...lv.suns.map((s, i) => ({ label: `sun ${i}`, r: s.r, at: () => s, sun: i })), // PRD v0.5 B: suns pull; a ball pressed against one can rest there
+  ...lv.suns.map((s, i) => ({ label: `sun ${i}`, r: s.r, at: () => s, sun: i })), // suns pull within their reach; a ball pressed against one can rest there
 ];
 
 // ---------- One flight, exactly as the play scene runs it ----------
@@ -224,13 +225,14 @@ if (flag('--escape')) {
   if (!bodies.some((b) => b.bh === undefined)) console.log('escape sweep: no planets or moons with mass on this hole');
   for (const o of bodies.filter((b) => b.bh === undefined)) {
     const row = []; let worst = Infinity;
+    const restR = o.sun !== undefined ? sim.sunRestR(lv.suns[o.sun]) : 0; // a sun point also needs 30 directions that get clear of its pull
     for (let k = 0; k < 8; k++) {
       const ang = (k * Math.PI) / 4, c0 = o.at(0), R = o.r + T.ballR;
       const b0 = sim.newBall(c0.x + Math.cos(ang) * R, c0.y + Math.sin(ang) * R);
       if (o.mover !== undefined) { b0.on = o.mover; b0.onA = ang; }
       const bad = overlap(b0.x, b0.y, 0, o.planet ?? -1, o.mover ?? -1);
       if (bad) { row.push(`${k * 45}: blocked (${bad})`); continue; }
-      let best = 0, n = 0;
+      let best = 0, n = 0, clear = 0;
       for (let deg = 0; deg < 360; deg++) {
         const b = { ...b0 }, rad = (deg * Math.PI) / 180;
         const l = { vx: Math.cos(rad) * T.powerMax, vy: Math.sin(rad) * T.powerMax, power: 1 };
@@ -240,10 +242,11 @@ if (flag('--escape')) {
           res = sim.stepBall(lv, b, s * STEP);
           const c = o.at(s * STEP); far = Math.max(far, Math.hypot(b.x - c.x, b.y - c.y));
         }
-        best = Math.max(best, far); if (far >= 250) n++;
+        best = Math.max(best, far); if (far >= 250) n++; if (o.sun !== undefined && far >= restR) clear++;
       }
       worst = Math.min(worst, best);
-      row.push(`${k * 45}: ${best.toFixed(0)} (${n} of 360 directions reach 250)`);
+      row.push(`${k * 45}: ${best.toFixed(0)} (${n} of 360 directions reach 250${o.sun !== undefined ? `, ${clear} reach the rest radius` : ''})`);
+      if (o.sun !== undefined && clear < 30) fail(`${o.label}: from ${k * 45} degrees only ${clear} of 360 directions reach its rest radius (${restR.toFixed(1)}); 30 needed`);
     }
     console.log(`escape from ${o.label}, best full-power reach from each surface point (degrees clockwise from east): ${row.join('; ')}`);
     if (worst < 250) fail(`${o.label}: a surface point cannot reach 250 units`);

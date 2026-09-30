@@ -1,7 +1,31 @@
 # Gravity Golf changelog
 
 ## v0.5 (unreleased)
-- PRD v0.5 C (sectors) and hole 15's timed first shot, built by Opus 5.5; cache `gravity-golf-v17`. D and E are not built. Review: pending
+- Gate fix for PRD v0.5 B (a sun's whip is felt but never captures), built by Opus 5.5; cache bumped by the orchestrator. Review: pending
+- **Suns have a reach** like black holes. A sun keeps its mass (`sunMass` 1.6, pull floored at `sunPullR` 60), but it pulls with the full law only within `sunReach` (12) of its surface. Past that ring the pull fades smoothly to nothing at `sunFade` (1.2) times the ring's radius. A sun can set its own `reach`. Both values are in TUNING and on TUNE (Sun reach 0 to 80, Sun fade 1.1 to 2.0).
+  - A slow ball now rests anywhere outside the rest radius: 38 units from an r 20 sun's centre, 45 for r 26, 50 for r 30. The v17 rest radius was 336. `sim.sunRestR` gives it.
+  - The reach is measured from the surface, so suns of different sizes get the same band. Candidates tried against the targets on holes 6, 10 and 14: 10 to 20 past the surface, and 40 to 90 from the centre, with fades from 1.15 to 1.5. At 20 past the surface, hole 10's soft misses touched its sun 45.9 percent of the time, over the limit. Moving hole 10's sun away from the tee brought that under 41 percent, but it opened a timed two-stroke lane past the wall's right end, so the sun stays and the reach is 12.
+- **Drawn** as a faint warm dashed ring at the reach (`sun.reachAlpha` 0.6, `sunRay` colour, dash 4/6, width 1.4). It sits over the rays. The rays still reach twice the sun's radius, past the ring. **"More power to leave the sun"**: three shots from rest against a sun that each end back against the same sun give this toast once per hole, as the planet toast does. Checked in Chromium on hole 6 (four soft shots, eight strokes, then the toast).
+- **Harness**: `--escape` now requires, from each of a sun's eight surface points, at least 30 of 360 full-power directions to reach the sun's rest radius, and fails otherwise. Every sun point on holes 6, 9, 10 and 14 reaches it in all 360 directions. The golf README's sun row and constraint were updated to match.
+- **Soft-shot table**. Every tee shot from 15 to 75 px, every 0.5 degrees and 1 px (43,920 shots), counted by sun touches. "Pressed" is the share that comes to rest against a sun.
+
+  | Hole | Build | Touch 0 / 1 / 2 / 3+ | Touch | Twice or more | Pressed |
+  | --- | --- | --- | --- | --- | --- |
+  | 6 | v15 | 25,493 / 16,824 / 1,580 / 23 | 42.0% | 3.6% | 13.1% |
+  | 6 | v17 | 448 / 33,888 / 9,536 / 48 | 99.0% | 21.8% | 96.7% |
+  | 6 | new | 29,533 / 14,111 / 276 / 0 | 32.8% | 0.6% | 29.5% |
+  | 10 | v15 | 30,255 / 13,010 / 655 / 0 | 31.1% | 1.5% | 1.4% |
+  | 10 | v17 | 2,392 / 31,101 / 10,015 / 412 | 94.6% | 23.7% | 71.5% |
+  | 10 | new | 27,243 / 16,132 / 545 / 0 | 38.0% | 1.2% | 22.6% |
+  | 14 | v15 | 38,929 / 4,898 / 93 / 0 | 11.4% | 0.2% | 0.3% |
+  | 14 | v17 | 15,518 / 18,908 / 9,488 / 6 | 64.7% | 21.6% | 34.9% |
+  | 14 | new | 39,189 / 4,726 / 5 / 0 | 10.8% | 0.0% | 6.7% |
+
+  Targets: touch at most v15 plus 10 points (52.0, 41.1, 21.4), twice or more at most 5 percent: all met.
+- **Novice and whole-route noise.** Novice: aim at the cup ±3 degrees, drag 60 to 150 px, a random clock per shot, 300 plays, finish within 30 strokes. Hole 6: v15 300, v17 70, new 300 of 300 (mean 6.7 strokes). Whole-route noise: every shot of the route ±3 degrees and ±10 px, 200 plays, sink within the three-star count. Hole 9: v15 76.0, v17 40.0, new 76.0 percent. Hole 14: v15 77.0, v17 36.5, new 77.0 percent. Targets were at least 280 of 300 and 60 percent.
+- **Routes**. With the pull this short, the v15 routes of 9, 10 and 14 hold again and are used as before. Hole 6 keeps its v16 layout with a new drag, (-89, 80): 15.45 degrees and 103.2 px (neighbours at least 14.0 degrees and 46.4 px), noisy human 100 percent. The v16 drag (-108, 82) still passes `--three` but a noisy human sank it only 65 percent. Hole 10's windows are v15's: shot 1 at release clocks 0 to 0.75 and 3.25 up, shot 2 at 3.75 round to 2.4. The last shot is at any clock (9.95 degrees and 74.0 px). Its whole route with noise is 57.5 percent, the same as v15. Noisy human (last shot) is 100 percent on 6, 9, 10 and 14.
+- **Re-proof, all fifteen holes**: `--three` 36/36, `--windows` with the neighbour check, `--sweep` at the route clocks (0 straight sinks from hole 2 on; hole 1's straight ace is the teaching shot, as before), `--escape` and `--two-shot` all pass. Holes without suns are unchanged: no data or physics they use moved. Smoke passes.
+- PRD v0.5 C (sectors) and hole 15's timed first shot, built by Opus 5.5; cache `gravity-golf-v17`. D and E are not built. Review: release gate held v16 and v17 on sun capture (PRD v0.5 B), fixed in the line above
   - Orchestrator, engine and service worker (ADR-0017): this game's worker now clears only its own old caches, so installing another game no longer breaks this one offline; informational toasts let touches through. Cache `gravity-golf-v18`.
 - **Sectors** (C). Holes come in sectors of five (`art.sectorSize`). Each sector has its own backdrop settings in `art.sectors` and colours in `art.palette.sectors`, and one style sentence under the anchor in `style.md`. The backdrop is drawn behind everything and nothing in it touches the physics.
   - 1 Starfield (holes 1 to 5): the v16 sky, pixel for pixel. Same seeds and settings.

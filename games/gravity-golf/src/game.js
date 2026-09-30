@@ -24,6 +24,8 @@ const TUNING = {
   sunPenalty: 1,         // Strokes added per sun touch
   sunMass: 1.6,          // PRD v0.5 B: a sun pulls like a planet of this mass (unless the sun sets `mass`)
   sunPullR: 60,          // Distance below which a sun's pull stops growing: at 60 a sun's floor pull matches the heaviest planet's at its surface (1.2 / 52^2) and stays far under a black hole's (1.4 / 26^2), so a ball on a sun can always shoot free
+  sunReach: 12,          // A sun pulls with the full law only within this distance of its surface (unless it sets `reach`)
+  sunFade: 1.2,          // and fades smoothly to nothing at sunFade times that ring's radius, so a slow ball can rest just clear of it
   landSpeed: 60,         // Below this speed, a ball touching a planet comes to rest on it
   moonMassMax: 0.5,      // Cap on moon mass
   barAngularSpeed: 1.2,  // Radians per second for a rotating bar (clockwise on screen)
@@ -307,6 +309,7 @@ const TUNING = {
       shimmerRate: 2.6,       // Heat shimmer ring: radians per second of its breathing
       shimmerAmp: 0.05,
       shimmerAlpha: 0.5,
+      reachAlpha: 0.6, reachDash: [4, 6], reachW: 1.4, // The reach ring: a faint warm dashed circle where the pull starts (sunReach past the surface)
     },
     metal: { bevel: 1.5, boltMin: 16, boltR: 1.9, railW: 6 },
     comet: {
@@ -338,7 +341,7 @@ const TUNING = {
     retry: { pad: 14, icon: 7, iconW: 2.2, head: 4.5, gap: 9 }, // The HUD Retry button: left padding, arrow radius, line width, arrowhead size, gap to the word (screen px)
     hint: { text: 'Drag anywhere away from the ball to aim, release to shoot.', fade: 0.5, y: 0.14, pad: 14, lineH: 20, margin: 28 }, // The first-run hint: on a fresh save until the first release, then it fades (seconds; y as a fraction of the field's height from its top)
     further: { text: 'Drag further', time: 1.2, dy: 30 }, // A release inside the dead zone: this call-out above the ball for `time` seconds (dy in design units)
-    stuckShots: 3, // Shots from a planet that end on the same planet before the 'More power to leave the planet' toast (once per hole)
+    stuckShots: 3, // Shots from a planet (or sun) that end on the same one before the 'More power to leave the planet (sun)' toast, once per hole
     hudRun: { line1: 12, line2: 32 }, // The run counter and the landed mark, left of Retry: baselines below the HUD (screen px)
     trail: {
       minSpeed: 90,           // Below this the trail drains
@@ -413,7 +416,8 @@ TUNING.bg = TUNING.art.palette.space; // the engine reads TUNING.bg for the lett
 //   stars: { three, two }: three is the fewest strokes proved in the harness; two is par, shown on the card.
 //   walls: axis-aligned rectangles { x, y, w, h }.
 //   planets: { x, y, r, mass }; mass 1.0 is standard, up to 1.5 on bosses if the escape rule holds; mass 0 is a bumper.
-//   suns: { x, y, r, mass? }: pull like a planet of mass `mass` (sunMass) with the distance floored at sunPullR; a touch costs
+//   suns: { x, y, r, mass?, reach? }: pull like a planet of mass `mass` (sunMass) with the distance floored at sunPullR, within
+//     `reach` (sunReach) of the surface, fading smoothly to nothing at sunFade times that ring's radius; a touch costs
 //     sunPenalty strokes and the ball bounces on (no landing).
 //   movers, all on the hole clock (restarts at 0 whenever the ball comes to rest):
 //     { type: 'slide', w, h, a: { x, y }, b: { x, y }, period? }: a wall easing from a to b and back (period defaults to moverPeriod).
@@ -477,6 +481,7 @@ const LEVELS = [
     // Teaches choosing the safe side: a sun sits in front of the tee and shuts the short near-side lane (no near-side sink at one stroke), so go the long way round the far side with more power. three: drag (-91, 100), one shot, passing 30 from the surface; sinks over 8.85 degrees of aim and 118 to 147 px. two: (-46, 39) lands on the planet, then (-3, 90). Sweep (0.5 degrees, 5 px): 0 straight sinks.
     // v0.3: the sun sits at (86, 492), 184 from the planet centre (v0.2: 158) and 46 from the left edge, so no slot opens between them. Soft shots (15 to 75 px, every 0.5 degrees and 1 px) charge two penalties in 4227 and three in 404, never four (v0.2 at (100, 470): 5788 and 249; v8 at (61, 469): 2279, 207 and 2 of four). The remaining doubles and triples are balls the planet presses back into the sun's underside.
     // v0.5 (PRD v0.5 B, suns have mass): the old sun 78 from the tee pulled every soft shot in, so it moves to (100, 405), r 30, beside the near-side lane, and the cup to (245, 225). three: drag (-108, 82), the far side round the planet, 0 bounces: 13.7 degrees and 122.6 px to full power (neighbours at least 13.6 degrees and 26.6 px); noisy human 97.5 percent. One clean one-shot sink goes up the near side (of 89). two: (34, 106) rests on the planet's top at (209.4, 295.0), then (-69, 95).
+    // v18 (sun reach): a sun now pulls only within sunReach (12) of its surface, fading out by 1.2 times that ring, so the v0.5 layout stays and the route is re-found: drag (-89, 80), 0 bounces, passes the planet at 52: 15.45 degrees and 103.2 px to full power (neighbours at least 14.0 degrees and 46.4 px); noisy human 100 percent. Soft tee misses (15 to 75 px) touching the sun: 32.8 percent, twice 0.6 percent (v15 42.0 and 3.6, v17 99.0 and 21.8). two: (-46, 39) rests on the planet, then (-3, 90).
     name: "Solar Flare", boss: false, stars: { three: 1, two: 3 },
     ball: { x: 90, y: 570 }, hole: { x: 245, y: 225 },
     walls: [{ x: 0, y: 300, w: 70, h: 22 }], planets: [{ x: 190, y: 340, r: 40, mass: 1 }], suns: [{ x: 100, y: 405, r: 30 }], movers: [],
@@ -499,6 +504,7 @@ const LEVELS = [
   {
     // Teaches timing a moving part: the bar spins in the door and the planet is the staging post. three: (-30, 18) at clock 0 lands on the planet top, then (-51, 120) released at clock 1.45 passes the bar and sinks, the sun guarding the left lane; it sinks for clocks 1.15 to 1.75 and over 10.3 degrees of aim. two: four shots, (-30,18) / (-51,120) at clock 0.3 misses / (127,27) / (-51,120) at clock 1.45. Sweep: 0 straight sinks.
     // v0.5 (PRD v0.5 B): the sun's pull moves every rest, so the route changes and the hole does not: (147, 31) runs off the left edge and settles on the planet's top at (233.5, 432.4) at any release clock (9 of 9 one-pixel nudges still finish), then (-60, 121) at clock 1.35 passes the bar and sinks (the bar allows 13 of 53 release clocks): 6.35 degrees, 123.1 to 145.1 px (neighbours at least 6.15 degrees and 20.5 px); noisy human 89 percent. two: (147, 31), (0, -20), (-60, 121) at clock 1.35.
+    // v18 (sun reach): the v0.3 route holds again: (-30, 18) settles on the planet's top at (244.4, 431.0), then (-51, 120) at clock 1.45 (clocks 1.18 to 1.70 of each half-turn of the bar): 10.25 degrees and 37.6 px (neighbours at least 10.05 degrees and 37.1 px); noisy human 100 percent, the whole route with every shot noisy 76 percent. two: (-30, 18), (-51, 120) at 0.3 misses, (127, 27), (-51, 120) at 1.45.
     name: "Windmill", boss: false, stars: { three: 2, two: 4 },
     ball: { x: 40, y: 470 }, hole: { x: 315, y: 110 },
     walls: [{ x: 0, y: 289, w: 195, h: 22 }, { x: 173, y: 311, w: 22, h: 100 }, { x: 335, y: 289, w: 25, h: 22 }], planets: [{ x: 245, y: 480, r: 40, mass: 0.7 }], suns: [{ x: 250, y: 185, r: 20 }], movers: [{ type: "bar", x: 265, y: 300, len: 90, phase: 0 }],
@@ -506,6 +512,7 @@ const LEVELS = [
   {
     // Boss: a heavy planet with an orbiting moon sits under the door; the moon closes the slingshot window on a 4 s cycle and a sun blocks the low approach from the tee. three: (-6, 90) at clock 0 (fine at 0 to 0.75 and 3.25 up; at 1 to 3 the ball meets the moon) lobs up the left and lands on the planet top, then (-69, 98) at clock 1.25 (works at clocks 3.7 to 2.4; 2.5 to 3.6 the moon spoils it) banks off the right edge through the door and settles on the ceiling, then (58, 94) sinks over 9.95 degrees of aim at any clock. two: (-6,90) / (-69,98) at 1.25 / (90,0) / (52,120). Sweep: 0 straight sinks.
     // v0.5 (PRD v0.5 B): under the sun's pull the old first shot no longer reached the planet's top; new route, same hole: (70, 114) at clock 0 lands on the planet's upper right at (235.5, 374.6) (release clocks 0 to 0.8 and 3.3 up: the moon, as before), (-66, 111) at clock 1.25 goes through the door onto the wall top at (241.1, 169.0) (26 of 40 moon clocks), then (63, 93) at any clock: 11.9 degrees, 75.3 px to full power (neighbours at least 11.15 degrees and 73.9 px); noisy human 100 percent. two: the same with a nudge (20, 0) along the wall top before the last shot.
+    // v18 (sun reach): the v0.3 route holds again: (-6, 90) lands on the planet's top at (214.6, 349.7) (release clocks 0 to 0.75 and 3.25 up of the 4 s moon cycle), (-69, 98) at clock 1.25 settles on the wall top at (227.7, 169.0) (clocks 3.75 round to 2.4), then (58, 94) at any clock: 9.95 degrees and 74.0 px (neighbours at least 9.2 degrees and 73.4 px); noisy human 100 percent. The sun stays at (140, 548): moved away from the tee it opens a timed two-stroke lane past the wall's right end. Soft tee misses touching the sun 38.0 percent, twice 1.2 (v15 31.1 and 1.5). two: (-6, 90), (-69, 98) at 1.25, (90, 0), (52, 120).
     name: "Eclipse", boss: true, stars: { three: 3, two: 5 },
     ball: { x: 60, y: 590 }, hole: { x: 60, y: 130 },
     walls: [{ x: 0, y: 178, w: 290, h: 22 }, { x: 120, y: 70, w: 22, h: 108 }], planets: [{ x: 180, y: 400, r: 52, mass: 1.2 }], suns: [{ x: 140, y: 548, r: 20 }], movers: [{ type: "moon", parent: 0, orbitR: 96, period: 4, r: 12, mass: 0.4, phase: 0 }],
@@ -536,6 +543,7 @@ const LEVELS = [
     // Teaches a slingshot through a black hole's pull: the wall and the pull shut every line from the tee and the sun sits on the lazy tee-to-cup line, so land on the planet, then whip round the black hole's left side and up into the cup. three: (68, -15) lands on the planet at (139.9, 452.0), then (95, 86) passes the horizon at 37.6 units and sinks with 0 bounces; aim window 14.8 degrees (-4.25 / +10.55), drag 117.6 px to full power. Lazy line (85, 123) hits the sun (+1). two: (68, -15), (0, -30) shuffles to (120.4, 451.9), (95, 86) sinks. Sweep: 0 straight sinks.
     // v0.4 (PRD v0.4 A, C): under the influence ring the v0.3 whip ((-49, 142) to a cup at (60, 110), outside the ring) sank only from 145.5 px to full power; the cup moves down to (80, 220), inside the ring, and the whip is re-authored. A one-shot double whip past the planet and the black hole exists from the tee (a 3.5 degree cluster at full power, around (111.5, 100.4)); it stays as an expert find.
     // v0.5 (PRD v0.5 B): the sun moves to (225, 405), r 26, still on the lazy tee-to-cup line, where a ball resting on it can still shoot free (the escape rule now covers suns); (68, -15) lands at (92.4, 468.6), then (85, 106) whips round the black hole: 15.9 degrees and 123.9 px to full power (neighbours at least 15.3 degrees and 25.8 px); noisy human 96.5 percent. two: (68, -15), (0, -20), (85, 106).
+    // v18 (sun reach): the v0.4 route holds again: (68, -15) lands at (139.9, 452.0), then (95, 86) whips round the black hole: 14.8 degrees and 32.4 px (neighbours at least 13.6 degrees and 32.3 px); noisy human 100 percent, the whole route with every shot noisy 77 percent. Soft tee misses touching the sun 10.8 percent (v15 11.4). two: (68, -15), (0, -30), (95, 86).
     name: "Singularity", boss: false, stars: { three: 2, two: 4 },
     ball: { x: 330, y: 580 }, hole: { x: 80, y: 220 },
     walls: [{ x: 215, y: 300, w: 145, h: 22 }], planets: [{ x: 130, y: 500, r: 40, mass: 1 }], suns: [{ x: 225, y: 405, r: 26 }], blackholes: [{ x: 120, y: 350 }], movers: [],
@@ -670,15 +678,18 @@ function bounceComet(b, m, i, clock) {
   } else if (b.cometIn & bit && dist(b.x, b.y, c.x, c.y) > m.r + T.ballR + T.cometRearm) b.cometIn &= ~bit;
 }
 
-// How much of a black hole's pull reaches distance d: 1 inside its influence ring R, fading smoothly to 0 at bhFade times R.
-function bhFall(R, d) {
-  const R1 = R * T.bhFade;
+// How much of a pull reaches distance d: 1 inside the ring R, fading smoothly to 0 at `fade` times R.
+function fall(R, fade, d) {
+  const R1 = R * fade;
   if (d <= R) return 1;
   if (d >= R1) return 0;
   const u = (R1 - d) / (R1 - R);
   return u * u * (3 - 2 * u);
 }
+function bhFall(R, d) { return fall(R, T.bhFade, d); }
 function bhInfluence(h, x, y) { return bhFall(h.reach || T.bhReach, dist(x, y, h.x, h.y)); }
+function sunReach(s) { return s.r + (s.reach || T.sunReach); } // the ring's radius from the sun's centre
+function sunMassOf(s) { return s.mass === undefined ? T.sunMass : s.mass; }
 
 // The rest radius: beyond it the pull is under restPull(), so a slow ball can stop; inside it, it crawls in and is swallowed.
 // This is the line drawn as the black hole's outer ring (the "you will be pulled in" line).
@@ -687,6 +698,15 @@ function bhRestR(h) {
   if (gm / (R * R) < need) return Math.max(T.bhPullR, Math.sqrt(gm / need));
   let lo = R, hi = R * T.bhFade;
   for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if ((gm / (m * m)) * bhFall(R, m) >= need) lo = m; else hi = m; }
+  return lo;
+}
+
+// A sun's rest radius: inside it a slow ball is pulled back onto the sun; beyond it, it can stop.
+function sunRestR(s) {
+  const R = sunReach(s), need = restPull(), gm = T.planetGravity * sunMassOf(s), g = (d) => gm / (Math.max(d, T.sunPullR) ** 2);
+  if (g(R) < need) return Math.max(s.r, Math.sqrt(gm / need));
+  let lo = R, hi = R * T.sunFade;
+  for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (g(m) * fall(R, T.sunFade, m) >= need) lo = m; else hi = m; }
   return lo;
 }
 
@@ -737,7 +757,7 @@ function stepBall(lv, b, clock) {
   b.touch = false; b.land = false; b.moon = -1;
   ACC.x = 0; ACC.y = 0;
   for (const p of lv.planets) if (p.mass > 0) pull(b, p.x, p.y, p.r, p.mass);
-  for (const s of lv.suns) pull(b, s.x, s.y, T.sunPullR, s.mass === undefined ? T.sunMass : s.mass);
+  for (const s of lv.suns) { const k = fall(sunReach(s), T.sunFade, dist(b.x, b.y, s.x, s.y)); if (k > 0) pull(b, s.x, s.y, T.sunPullR, sunMassOf(s) * k); }
   for (const m of lv.movers) if (m.type === 'moon') { const c = moonAt(lv, m, clock); pull(b, c.x, c.y, m.r, m.mass); }
   for (const h of lv.blackholes) { const k = bhInfluence(h, b.x, b.y); if (k > 0) pull(b, h.x, h.y, T.bhPullR, h.mass * k); }
   const gx = ACC.x, gy = ACC.y;
@@ -1394,7 +1414,8 @@ function drawPlanet(ctx, x, y, r, o, mass, boss, phase) {
 
 // ----- Suns: bright core, rotating soft rays, a breathing heat shimmer. `flare` runs 0 to 1 after a touch. -----
 
-function drawSun(ctx, x, y, r, flare, t) {
+// reach: the pull's ring radius on the field, 0 for a menu badge.
+function drawSun(ctx, x, y, r, flare, t, reach) {
   const sa = A.sun, f = 1 - flare, R = r * (J.corona + J.flareGrow * f);
   ctx.save(); ctx.translate(x, y);
   ctx.save(); ctx.scale(R, R); ctx.globalAlpha = Math.min(1, J.coronaAlpha + 0.5 * f); ctx.fillStyle = G.corona;
@@ -1422,6 +1443,10 @@ function drawSun(ctx, x, y, r, flare, t) {
   ctx.strokeStyle = P.sunRim; ctx.lineWidth = A.line.edge / r;
   ctx.beginPath(); ctx.arc(0, 0, 1 - A.line.edge / r / 2, 0, PI2); ctx.stroke();
   ctx.restore();
+  if (reach) {
+    ctx.setLineDash(sa.reachDash); ctx.lineWidth = sa.reachW; ctx.strokeStyle = P.sunRay; ctx.globalAlpha = sa.reachAlpha;
+    ctx.beginPath(); ctx.arc(x, y, reach, 0, PI2); ctx.stroke(); ctx.setLineDash(NO_DASH); ctx.globalAlpha = 1;
+  }
 }
 
 // ----- Comets: a bright cyan head and a tail trailing its motion; the path is a faint dashed line -----
@@ -1587,7 +1612,7 @@ function drawBadge(ctx, lv, cx, cy, t) {
     BADGE_COMET.r = r * 0.45;
     drawComet(ctx, BADGE_COMET, 0.999);
     if (lv.boss) drawBossHalo(ctx, cx, cy, r);
-  } else if (k.kind === 'sun') drawSun(ctx, cx, cy, tl.sunR, 1, t);
+  } else if (k.kind === 'sun') drawSun(ctx, cx, cy, tl.sunR, 1, t, 0);
   else if (k.kind === 'planet') {
     drawPlanet(ctx, cx, cy, r, k.obj, k.obj.mass, lv.boss);
     if (lv.boss && !lookOf(k.obj, k.obj.mass, lv.boss).ring) drawBossHalo(ctx, cx, cy, r);
@@ -1631,7 +1656,7 @@ function loadHole(idx) {
   S.key = { on: false, angle: Math.atan2(lv.hole.y - lv.ball.y, lv.hole.x - lv.ball.x), power: T.keyPowerStart };
   S.sinkT = 0; S.sinkFrom = null;
   S.time = 0; S.swallows = 0; S.lands = 0; // for the ledger and the badge progress
-  S.stuck = 0; S.stuckSaid = false;       // shots from a planet that ended back on it (the 'More power' toast)
+  S.stuck = 0; S.stuckSaid = false;       // shots from a planet or sun that ended back on it (the 'More power' toast)
   ghostClear();
 }
 
@@ -1652,7 +1677,7 @@ function launch(l) {
   S.strokes++;
   ghostClear(); // the ghost goes at the release; this flight is recorded for the next one
   const v = launchVel(S.lv, S.ball, l, S.clock), f = S.from;
-  f.x = S.ball.x; f.y = S.ball.y; f.on = S.ball.on; f.onA = S.ball.onA; f.planet = S.restPlanet; f.pi = S.ball.on >= 0 ? -1 : planetAt(S.lv, S.ball);
+  f.x = S.ball.x; f.y = S.ball.y; f.on = S.ball.on; f.onA = S.ball.onA; f.planet = S.restPlanet; f.pi = S.ball.on >= 0 ? -1 : bodyAt(S.lv, S.ball);
   S.ball.vx = v.vx; S.ball.vy = v.vy; S.ball.on = -1;
   S.ball.sunIn = 0; S.ball.cometIn = 0; // a shot from rest against a sun is charged if it goes back into it
   S.clock0 = S.clock;
@@ -1673,12 +1698,20 @@ function comeToRest() {
 }
 
 // PRD v0.5 A2: after a flight comes to rest, the one-line notes. Three shots from a planet that all end back on it say
-// 'More power to leave the planet' (once per hole); the landing that breaks Never Landed says so, once the run is showing.
+// 'More power to leave the planet' (once per hole), and the same from a sun says '... the sun'; the landing that breaks
+// Never Landed says so, once the run is showing.
 function restNotes(E, brokeRun) {
-  const pi = planetAt(S.lv, S.ball);
-  S.stuck = pi >= 0 && pi === S.from.pi ? S.stuck + 1 : 0;
-  if (S.stuck >= A.stuckShots && !S.stuckSaid) { S.stuckSaid = true; E.toast('More power to leave the planet'); }
+  const pi = bodyAt(S.lv, S.ball);
+  S.stuck = pi !== -1 && pi === S.from.pi ? S.stuck + 1 : 0;
+  if (S.stuck >= A.stuckShots && !S.stuckSaid) { S.stuckSaid = true; E.toast(pi >= 0 ? 'More power to leave the planet' : 'More power to leave the sun'); }
   else if (brokeRun && S.idx > 0 && !E.save.get('badges', {})['never-landed']) E.toast(`Never Landed lost: landed on hole ${S.idx + 1}`);
+}
+// The body a resting ball sits on: a planet's index, -2 - i for sun i (pressed against it), or -1.
+function bodyAt(lv, b) {
+  const i = planetAt(lv, b);
+  if (i >= 0) return i;
+  for (let j = 0; j < lv.suns.length; j++) { const s = lv.suns[j]; if (dist(b.x, b.y, s.x, s.y) < s.r + T.ballR + 1) return -2 - j; }
+  return -1;
 }
 function planetAt(lv, b) {
   for (let i = 0; i < lv.planets.length; i++) { const p = lv.planets[i]; if (p.mass > 0 && dist(b.x, b.y, p.x, p.y) < p.r + T.ballR + 0.5) return i; }
@@ -2315,7 +2348,7 @@ const play = {
       else if (m.type === 'comet') drawCometPath(ctx, m);
     }
     for (let i = 0; i < lv.blackholes.length; i++) drawBlackHole(ctx, lv.blackholes[i], t, FX.bhFlare[i]);
-    for (let i = 0; i < lv.suns.length; i++) { const s = lv.suns[i]; drawSun(ctx, s.x, s.y, s.r, FX.flare[i], t); }
+    for (let i = 0; i < lv.suns.length; i++) { const s = lv.suns[i]; drawSun(ctx, s.x, s.y, s.r, FX.flare[i], t, sunReach(s)); }
     for (let i = 0; i < lv.planets.length; i++) { const p = lv.planets[i]; drawPlanet(ctx, p.x, p.y, p.r, p, p.mass, lv.boss, FX.ring[i]); }
     for (let i = 0; i < lv.walls.length; i++) drawWall(ctx, lv.walls[i]);
     for (let i = 0; i < mv.length; i++) {
@@ -2550,11 +2583,13 @@ export const game = {
     { key: 'powerMax', label: 'Max power', min: 500, max: 1100, step: 10 },
     { key: 'sunPenalty', label: 'Sun penalty', min: 0, max: 3, step: 1 },
     { key: 'sunMass', label: 'Sun mass', min: 0, max: 3, step: 0.1 },
+    { key: 'sunReach', label: 'Sun reach (past its edge)', min: 0, max: 80, step: 5 },
+    { key: 'sunFade', label: 'Sun fade (x reach)', min: 1.1, max: 2, step: 0.05 },
     { key: 'bhReach', label: 'Black hole reach', min: 100, max: 250, step: 5 },
     { key: 'bhFade', label: 'Black hole fade (x reach)', min: 1.2, max: 2, step: 0.05 },
   ],
   // Read by tools/sim-golf.mjs so the simulator runs the real physics.
-  sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt },
+  sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt, sunRestR },
   start: 'menu',
   scenes: { menu, play, over, missions },
 };
