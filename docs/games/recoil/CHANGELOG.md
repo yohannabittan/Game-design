@@ -428,3 +428,4 @@
   - Casual: Zombies 1 Rifle, Zombies 2 Carbine, Zombies 2 Rifle, Zombies 2 SMG, Zombies 3 Pistol, Zombies 3 Carbine, Zombies 3 SMG
 
 - P is Sonnet (Review: passed (release gate, v20)); `game.js`, the cache version recoil-v20 and this file only.
+  - Orchestrator, engine and service worker (ADR-0017): this game's worker now clears only its own old caches, so installing another game no longer breaks this one offline; informational toasts let touches through. Cache `recoil-v21`.

@@ -2,6 +2,7 @@
 
 ## v0.5 (unreleased)
 - PRD v0.5 C (sectors) and hole 15's timed first shot, built by Opus 5.5; cache `gravity-golf-v17`. D and E are not built. Review: pending
+  - Orchestrator, engine and service worker (ADR-0017): this game's worker now clears only its own old caches, so installing another game no longer breaks this one offline; informational toasts let touches through. Cache `gravity-golf-v18`.
 - **Sectors** (C). Holes come in sectors of five (`art.sectorSize`). Each sector has its own backdrop settings in `art.sectors` and colours in `art.palette.sectors`, and one style sentence under the anchor in `style.md`. The backdrop is drawn behind everything and nothing in it touches the physics.
   - 1 Starfield (holes 1 to 5): the v16 sky, pixel for pixel. Same seeds and settings.
   - 2 Nebula (6 to 10): three or four large, dim clouds in deep purples and indigos over a slightly darker field. They stay dim so they never read as gravity.
