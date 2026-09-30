@@ -10,7 +10,7 @@ Read:
 1. `CLAUDE.md`
 2. `docs/games/SLUG/prd-vVERSION.md` (the delta PRD; it says what progression is in)
 3. `docs/games/SLUG/prd-v0.1.md` sections 5 and 8 (the naked-run rule and what was deferred)
-4. `docs/design-principles.md`, principles 3, 4 and 7
+4. `docs/design-principles.md`, principles 3, 4, 7 and 11 (the meta screens standard: tiles, badges, rewards)
 5. `docs/pattern-library.md`, layer pattern L5 (tiered badges) and any layer the delta PRD names
 6. `games/SLUG/src/game.js`
 
@@ -43,3 +43,4 @@ Only what the delta PRD lists, from this menu:
 - Run `npm run smoke`.
 - Describe the save shape in the changelog under vVERSION, plus the migration.
 - List the unlocks and badges as a table with what earns each.
+- Count the text items on the select screen, one tile and one badge card, and put the counts in the changelog (principle 11).

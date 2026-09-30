@@ -59,6 +59,10 @@ Two builds, in order, never in parallel: **Build 1** is A, B, C, D and G (the me
   - The careless profile's first purchase comes within ten flights including goal rewards.
 - Every new object in Build 2 is proven deterministic (same seed, taps and boost times give the same flight at 30, 60 and 120 fps) and the milestone rules re-proven with them.
 
+## G2. Meta screens (both builds)
+
+The goals list, the journey strip, the card and the shop follow design principle 11 (the Ink standard): one headline number on the menu, goals as medal-free cards of name and a short condition with a counter only when counting, rewards as tickets on the result card (at most three), text 14 px or larger in two or three sizes, names in the world's own trade (the candy kitchen).
+
 ## H. Out of scope
 
 Other critters, skins, badges, daily seed, leaderboards, generated image assets (all art stays procedural canvas), music, portrait, a text story or dialogue beyond the banners named here, anything that makes the flight longer than the v0.1 amendment's "under 60 s for 90 percent of expert flights".

@@ -72,3 +72,18 @@ Every game must be fully playable with the phone in airplane mode, from a home-s
 ## 10. Pacing beats
 
 The ball-to-hole game had a boss every few levels and the rest was map design. That cadence works: a run of normal levels teaching one idea, then a bigger test of everything so far. Plan the beat in the PRD: every X levels something changes shape.
+
+## 11. Meta screens: the Ink standard
+
+The level select and the badges screen are read between plays, in a second. Ink got them right (designer's playtest, 2026-09-30); every game follows it.
+
+1. **A tile is identity, state and one result.** A number or a small picture, its stars (or one best), at most two short tags (BOSS, CLEAN), and no more than three text items. Names, timers, attempts and badge hints live one tap away, never on the tile.
+2. **State is drawn, not written.** Locked, open, cleared and mastered look different through the object's own art (ghosted and padlocked, outlined, filled, gilded). A tap on a locked tile says in one line what opens it.
+3. **One unlock rule per ladder, and a resume button.** "One star opens the next" (per gun, per mode, where there are several ladders). A Play N button goes to the frontier, and the grid opens scrolled to it; a tile whose result improved pops once on return.
+4. **One headline number, detail one tap away.** The menu shows one total (stars, or the game's one currency) and a button to the badges screen. Skins live on the badges screen, each locked swatch naming the badge that opens it. A small dot on that button marks a badge earned and not yet seen.
+5. **A badge card is medal, name, condition.** The condition is about six words and always visible. A counter ("6/10") shows only on an unearned badge that counts something. Cards are grouped in three or four named tiers, each headed with "earned / total". Earned cards look earned (bright, bordered); unearned ones are shaded, never hidden.
+6. **Rewards arrive where they were earned.** Badges and unlocks earned on a play appear as tickets on its result card, at most three (highest tier first, then "+n"). Toasts are for taps on locked things, not for rewards.
+7. **Few sizes, nothing small.** Text is 14 px or larger in two or three size classes (for example 14, 20, 34). Tiles have no secondary line.
+8. **Named in the game's own trade.** Tiers and badges speak the game's world (the tattoo trade in Ink: Apprentice, Artist, Master; Steady Hand, Full Sleeve). The fun is in the name; the condition stays plain.
+
+Test: count the text items on the select screen and on one badge card, and time a first-timer finding "what do I do next" and "what did I just earn". Under two seconds each.

@@ -125,3 +125,14 @@ Gun mastery:
 4. The Menu button and score never paint over a zombie's head: a near-lane Brute's head is drawn under the HUD; either lower the Brute's near-lane head or move the HUD plate; verify with the review's brute-shot script.
 5. Stats card: the shotgun's Reload row text clear of its bar; the over card's doubled "unlocked" fixed; the Endless card's "Brain shots" equal to the headshots credited.
 6. Rule 5: the zombie pose offsets in ZTYPES into TUNING.
+
+## Q. Meta screens to the Ink standard (design principle 11; from the 2026-09-30 evening session)
+
+Finding: "Ink is one of the best games in terms of the quality of the achievements and the level selector having the right amount of information; Recoil could benefit from it." Research on v21 (orchestrator, with screenshots): the gun-first menu of N is in place (33 text items, rung tiles already one number and stars), but the missions screen is a flat 3-column grid of 23 cards with about 85 text items, no progress on any badge, nothing saying what a badge opens, and rewards arrive as one "Badge earned" line or a toast.
+
+- **Missions screen:** badges grouped in four named tiers, each headed "earned / total" (the tiers keep their current membership; names in the range's trade: Plinker, Sharpshooter, Deadeye, Trick Shot). A card is medal, name and a condition of about six words; a counter ("6/10") only on an unearned badge that counts something; earned cards bright and bordered, unearned shaded. One column list that scrolls, so a card is never squeezed; at most four text items per card and about 50 visible on the screen at 844x390.
+- **Tickets on the result card:** badges, gun unlocks, mastery tiers and skins earned on a run appear as tickets on its card (at most three, highest first, then "+n"), replacing the "Badge earned" line and the unlock toasts. Toasts stay only for taps on locked things.
+- **A dot on Missions** when a badge is earned and not yet seen on that screen.
+- **Menu:** above the lanes, one headline for the selected gun ("★ 23 / 54"). The selected gun's panel keeps its name and mastery tier with the bar; the skin line moves to the stats card. A Play button goes to this gun's frontier rung ("Play Speed 3"), and a rung whose stars rose pops once on return. The hint line stays.
+- **Counts in the changelog:** text items on the menu, one rung tile, the missions screen and one card, before and after.
+- Save: only a `seen` set for the dot (bump `saveVersion`, migrate with every earned badge seen). No badge, condition, unlock rule or skin changes.
