@@ -528,7 +528,19 @@ function effectText(id, lvl) {
   if (id === 'fuel') return `+${T.fuelStep} fuel pulses`;
   if (id === 'aero') return `${Math.round(T.aeroStep * 100)}% less air drag`;
   const k = T.rocketThrust / T.holdFuelRate / T.boostPulse;
-  return lvl === 1 ? (Math.abs(k - 2) < 0.01 ? 'Hold to boost: twice the push per fuel' : `Hold to boost: +${Math.round((k - 1) * 100)}% push per fuel`) : `+${Math.round(T.rocketStep * 100)}% hold thrust`;
+  return lvl === 1 ? `Hold to boost, ${+k.toFixed(1)}x push per fuel` : `+${Math.round(T.rocketStep * 100)}% hold thrust`;
+}
+
+// Greedy word wrap to `maxW` px at a text size and weight (system font, as E.text draws it).
+function wrap(E, text, maxW, size, weight) {
+  const ctx = E.ctx; ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+  const out = []; let line = '';
+  for (const w of text.split(' ')) {
+    const next = line ? `${line} ${w}` : w;
+    if (line && ctx.measureText(next).width > maxW) { out.push(line); line = w; } else line = next;
+  }
+  if (line) out.push(line);
+  return out;
 }
 
 function buy(E, id) {
@@ -542,6 +554,7 @@ function buy(E, id) {
 
 const shop = {
   enter(E, p = {}) { this.from = p.from || 'menu'; this.card = p.card || null; this.cells = []; },
+  // Each card: name and level pips, the next level's effect wrapped to the card's width, and a Buy button carrying the price.
   render(ctx, E) {
     const sf = E.safe, left = sf.left + 16, right = E.w - sf.right - 16, top = sf.top + 8;
     const grad = ctx.createLinearGradient(0, 0, 0, E.h); grad.addColorStop(0, P.skyDusk[1]); grad.addColorStop(1, P.skyNight[1]);
@@ -550,18 +563,19 @@ const shop = {
     E.text('Shop', E.w / 2, top + 22, { size: TY.lg, weight: '800', color: P.text });
     const coins = E.save.get('coins', 0), up = levelsOf(E);
     E.text(`${coins} coins`, right, top + 22, { size: TY.md, align: 'right', color: P.coin, weight: '800' });
-    const gy = top + 56, gap = 12, cw = (right - left - gap) / 2, ch = (E.h - sf.bottom - 12 - gy - gap) / 2;
+    const gy = top + 52, gap = 10, cw = (right - left - gap) / 2, ch = (E.h - sf.bottom - 10 - gy - gap) / 2, pad = 14;
     this.cells = UPGRADES.map((u, i) => {
       const x = left + (i % 2) * (cw + gap), y = gy + Math.floor(i / 2) * (ch + gap), lvl = up[u.id], max = lvl >= T.upgradeMax;
       const price = max ? 0 : T.upgradePrices[u.id][lvl], can = !max && coins >= price;
       E.roundRect(x, y, cw, ch, T.style.radius, P.panel, P.panelEdge);
-      E.text(u.name, x + 14, y + 22, { size: TY.md, weight: '800', align: 'left', color: P.text });
-      for (let k = 0; k < T.upgradeMax; k++) E.roundRect(x + cw - 16 - (T.upgradeMax - k) * 22, y + 14, 16, 16, 4, k < lvl ? P.teal : P.panelSolid, P.panelEdge);
-      E.text(max ? 'Fully upgraded' : `Level ${lvl + 1}: ${effectText(u.id, lvl + 1)}`, x + 14, y + 50, { size: TY.sm, align: 'left', color: max ? P.textDim : P.text, weight: '600' });
-      if (max) return { u, btn: null };
-      E.text(`${price} coins`, x + 14, y + ch - 26, { size: 16, align: 'left', color: can ? P.coin : P.textOff, weight: '800' });
-      const b = btn(E, 'Buy', x + cw - 14 - 48, y + ch - 26, { w: 96, h: 44, size: 16, fill: can ? P.button : P.buttonOff, color: can ? P.text : P.textOff });
-      return { u, btn: b };
+      E.text(u.name, x + pad, y + 20, { size: TY.md, weight: '800', align: 'left', color: P.text });
+      for (let k = 0; k < T.upgradeMax; k++) E.roundRect(x + cw - pad - (T.upgradeMax - k) * 20 + 4, y + 12, 16, 16, 4, k < lvl ? P.teal : P.panelSolid, P.panelEdge);
+      const words = wrap(E, max ? 'Fully upgraded' : `Level ${lvl + 1}: ${effectText(u.id, lvl + 1)}`, cw - 2 * pad, TY.sm, '600');
+      words.forEach((line, n) => E.text(line, x + pad, y + 44 + n * 17, { size: TY.sm, align: 'left', color: max ? P.textDim : P.text, weight: '600' }));
+      if (max) return { u, btn: null, rect: { x, y, w: cw, h: ch } };
+      const bw = Math.min(cw - 2 * pad, 170);
+      const b = btn(E, `Buy for ${price}`, x + pad + bw / 2, y + ch - 30, { w: bw, h: 44, size: 16, fill: can ? P.button : P.buttonOff, color: can ? P.text : P.textOff });
+      return { u, btn: b, rect: { x, y, w: cw, h: ch } };
     });
   },
   onTap(p, E) {
@@ -897,7 +911,8 @@ const SFX = {
 
 function pill(E, text, x, y, size, align = 'center', color = P.text) {
   const ctx = E.ctx; ctx.font = `800 ${size}px system-ui, sans-serif`;
-  const w = ctx.measureText(text).width + 20, h = size + 14, lx = align === 'right' ? x - w : align === 'left' ? x : x - w / 2;
+  const w = ctx.measureText(text).width + 20, h = size + 14, sf = E.safe;
+  const lx = clamp(align === 'right' ? x - w : align === 'left' ? x : x - w / 2, sf.left + 4, E.w - sf.right - 4 - w); // never past a safe inset
   E.roundRect(lx, y - h / 2, w, h, h / 2, P.panel);
   E.text(text, lx + w / 2, y, { size, weight: '800', color });
   return { x: lx, y: y - h / 2, w, h };
@@ -925,11 +940,11 @@ function drawHud(E, r, fuel, fuelMax, info) {
   if (S.banner) {
     const k = S.banner.t / J.bannerTime, inK = ease.outBack(clamp((1 - k) / 0.2, 0, 1)), a = clamp(k / 0.15, 0, 1);
     E.ctx.globalAlpha = a;
-    pill(E, `★ ${S.banner.text}`, E.w / 2, sf.top + 22 + 40 * inK, TY.lg, 'center', P.coin);
+    pill(E, `★ ${S.banner.text}`, E.w / 2, sf.top + 56 + 40 * inK, TY.lg, 'center', P.coin); // below the fuel panel's row
     E.ctx.globalAlpha = 1;
   }
-  if (S.holdT > 0) { E.ctx.globalAlpha = clamp(S.holdT / 0.3, 0, 1); pill(E, 'Hold to boost', E.w / 2, sf.top + 100, TY.md); E.ctx.globalAlpha = 1; }
-  else if (S.tapT > 0) { E.ctx.globalAlpha = clamp(S.tapT / 0.3, 0, 1); pill(E, 'Tap to boost', E.w / 2, sf.top + 100, TY.md); E.ctx.globalAlpha = 1; }
+  if (S.holdT > 0) { E.ctx.globalAlpha = clamp(S.holdT / 0.3, 0, 1); pill(E, 'Hold to boost', E.w / 2, sf.top + 150, TY.md); E.ctx.globalAlpha = 1; }
+  else if (S.tapT > 0) { E.ctx.globalAlpha = clamp(S.tapT / 0.3, 0, 1); pill(E, 'Tap to boost', E.w / 2, sf.top + 150, TY.md); E.ctx.globalAlpha = 1; }
 }
 
 // ---------- Scenes ----------
@@ -1130,7 +1145,7 @@ const over = {
     this.btnMenu = btn(E, 'Menu', px + 14 + 40, py + 26, { w: 80, h: 44, size: 15, fill: P.buttonOff });
     const bw = Math.min(230, pw - 150);
     this.btnAgain = btn(E, 'Launch Again', px + 20 + bw / 2, py + ph - 42, { w: bw, h: 56 });
-    this.btnShop = btn(E, `Shop (${E.save.get('coins', 0)})`, px + pw - 20 - 55, py + ph - 42, { w: 110, h: 56, size: 16, fill: P.buttonOff });
+    this.btnShop = btn(E, 'Shop', px + pw - 20 - 55, py + ph - 42, { w: 110, h: 56, size: 16, fill: P.buttonOff });
   },
   onTap(p, E) {
     if (!this.ready(E)) return;
@@ -1140,6 +1155,24 @@ const over = {
   },
   onKey(k, E) { if ((k === ' ' || k === 'Enter') && this.ready(E)) { E.ledger.add('retry', { m: this.p.m, seed: this.p.seed }); E.setScene('play'); } },
 };
+
+// ---------- Portrait ----------
+// Launch is landscape (ADR-0013). While the phone is held upright the game pauses under a dimmed prompt and takes no input.
+const upright = (E) => E.h > E.w;
+function landscapeOnly(scene) {
+  const out = { ...scene };
+  for (const k of ['update', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onTap', 'onSwipe', 'onKey']) {
+    if (scene[k]) out[k] = function (a, E) { if (!upright(E)) return scene[k].call(this, a, E); };
+  }
+  out.render = function (ctx, E) {
+    if (scene.render) scene.render.call(this, ctx, E);
+    if (!upright(E)) return;
+    ctx.fillStyle = P.panel; ctx.fillRect(0, 0, E.w, E.h);
+    const lines = wrap(E, 'Turn your phone sideways', E.w - 64, TY.lg, '800');
+    lines.forEach((l, n) => E.text(l, E.w / 2, E.h / 2 + (n - (lines.length - 1) / 2) * (TY.lg + 8), { size: TY.lg, weight: '800', color: P.text }));
+  };
+  return out;
+}
 
 export const game = {
   slug: 'launch',
@@ -1161,8 +1194,8 @@ export const game = {
     { key: 'boostPulse', label: 'Boost pulse', min: 60, max: 180, step: 5 },
     { key: 'airDrag', label: 'Air drag', min: 0, max: 0.1, step: 0.005 },
   ],
-  // Read by tools/sim-launch.mjs so the harness runs the real physics.
-  sim: { STEP, FIRST_CHUNK, teachingChunk, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, previewArc, UPGRADES, effectText, predictLanding, newCamera, cameraStep, toView },
+  // Read by tools/sim-launch.mjs so the harness runs the real physics (S, the play scene's state, lets a browser check set up the HUD).
+  sim: { STEP, FIRST_CHUNK, teachingChunk, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, previewArc, UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView },
   start: 'menu',
-  scenes: { menu, play, over, shop },
+  scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop) },
 };

@@ -21,8 +21,8 @@
   {
     "slug": "launch",
     "title": "Launch",
-    "status": "v0.1 in progress: slingshot, boost, bounce, upgrades",
-    "release": false,
+    "status": "v0.1: slingshot flights with springs, birds and mud, a shop of four upgrades, milestones to 5000 m",
+    "release": true,
     "orientation": "landscape"
   },
   {
