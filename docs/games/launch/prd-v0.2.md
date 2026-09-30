@@ -86,3 +86,13 @@ The review failed release on one blocker that is this document's fault: section 
 8. **Input:** taps in the first `readyGrace` (0.3 s) after the launcher is ready are ignored, so a double tap on Launch Again cannot fire a Weak launch.
 9. **TUNE fits:** at most four sliders, all inside 812x375 (needlePeriod, sweetAngle, a zone-width scale, and launchSpeedMax).
 10. **Hygiene:** `GOAL_SLOTS` and the ticket cap live in TUNING; the changelog carries the text-item counts that prompt 04 requires; `landingMark` stays under 2 ms per call on the highest arcs.
+
+## Decision after Build 1 round 2 (2026-09-30)
+
+Round 2 showed amendments 1 and 3 conflict when Perfect's lead comes from the spring layout: every layout that ranks Perfect 15 percent over Great drops Good-with-boosts to about 48 percent and the careless profile to 6 percent (the designer stalled at 400 to 450 m under the old model; a layout that punishes first-timers is worse). The designer's own wish settles it: "the closer you get to 45 the more boost you get ... there should be levels". Perfect's payoff comes from the launch, not the layout.
+
+1. **Layout serves everyone.** The teaching run goes back to a generous run laid out per the player's current Band and Aero (v0.1 amendment 1), so the first-timer targets of amendment 3 and G hold (Good with boosts at least 90 percent to 500 m; careless 40 to 70 percent; unboosted Good at most 60 percent).
+2. **Power carries the ranking.** `zonePower` may exceed 1.0: Perfect launches above full power, then Great, then Good, set by the harness so the medians rank Perfect > Great > Good > Weak for every profile, with Perfect at least 15 percent over Great for the unboosted and burst profiles on that generous layout. `perfectFuel` stays at whatever the harness needs (1 or 2).
+3. **No cliff inside Weak.** Weak power ramps linearly with distance from the Good edge (from `weakPowerMin` at the wedge's ends up to `zonePower` Weak at the Good edge) so no one-degree step more than doubles the distance; Weak with a burst still reaches 500 m under 30 percent.
+4. **Upgrades never hurt:** with the layout per the player's Band and Aero, every upgrade level raises the good profile's median (amendment 6 stands).
+5. **Flight length:** expert flights under 75 s at the 90th percentile (was 60 s; longer Perfect rides are the reward, and the designer has not found flights long).
