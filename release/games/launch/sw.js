@@ -1,8 +1,8 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'recoil-release-v1.2';
+const CACHE_VERSION = 'launch-release-v1.2';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
-const CACHE_PREFIX = 'recoil-release-';
+const CACHE_PREFIX = 'launch-release-';
 const ASSETS = [
   './',
   './index.html',

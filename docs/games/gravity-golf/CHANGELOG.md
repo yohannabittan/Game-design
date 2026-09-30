@@ -1,7 +1,7 @@
 # Gravity Golf changelog
 
 ## v0.5 (unreleased)
-- Gate fix for PRD v0.5 B (a sun's whip is felt but never captures), built by Opus 5.5; cache bumped by the orchestrator. Review: pending
+- Gate fix for PRD v0.5 B (a sun's whip is felt but never captures), built by Opus 5.5; cache `gravity-golf-v19`, bumped by the orchestrator. Review: passed first time (release gate, v19; fresh Sonnet reviewer). Not blocking: the reach ring reads as one of three concentric rings between the sun's shimmer rings; card and HUD Retry still differ on hole 1
 - **Suns have a reach** like black holes. A sun keeps its mass (`sunMass` 1.6, pull floored at `sunPullR` 60), but it pulls with the full law only within `sunReach` (12) of its surface. Past that ring the pull fades smoothly to nothing at `sunFade` (1.2) times the ring's radius. A sun can set its own `reach`. Both values are in TUNING and on TUNE (Sun reach 0 to 80, Sun fade 1.1 to 2.0).
   - A slow ball now rests anywhere outside the rest radius: 38 units from an r 20 sun's centre, 45 for r 26, 50 for r 30. The v17 rest radius was 336. `sim.sunRestR` gives it.
   - The reach is measured from the surface, so suns of different sizes get the same band. Candidates tried against the targets on holes 6, 10 and 14: 10 to 20 past the surface, and 40 to 90 from the centre, with fades from 1.15 to 1.5. At 20 past the surface, hole 10's soft misses touched its sun 45.9 percent of the time, over the limit. Moving hole 10's sun away from the tee brought that under 41 percent, but it opened a timed two-stroke lane past the wall's right end, so the sun stays and the reach is 12.
@@ -46,7 +46,7 @@
   - Shot 3: clocks 0.25 to 0.7, 0.5 s of the 1.2 s comet cycle, 10 of 24.
   - Every window is more than a third of its cycle. `--three` 36/36, `--windows` 7.15 degrees and 49.9 px (neighbours at least 6.95 degrees and 44.1 px). `--sweep` at clocks 0, 0.5, 1.5 and 2.9 finds 0 straight sinks. `--escape` and `--two-shot` pass with no untimed route. Noisy human: 91.0 percent.
   - Hole 6's sun mass is kept, pending the designer's call on soft misses.
-- PRD v0.5 A2 (fixes from the v15 gate) and B (suns have mass), built by Opus 5.5; cache `gravity-golf-v16`. C, D and E are not built. Hole 15's first shot is still clock-sensitive: see the last bullet. Review: pending
+- PRD v0.5 A2 (fixes from the v15 gate) and B (suns have mass), built by Opus 5.5; cache `gravity-golf-v16`. C, D and E are not built. Hole 15's first shot is still clock-sensitive: see the last bullet. Review: release gate held v16 on sun capture (PRD v0.5 B), fixed by the v19 gate fix
 - **Suns have mass** (B). A sun pulls like a planet of mass `sunMass` (1.6, or the sun's own `mass`) with the distance floored at `sunPullR`. TUNE has a Sun mass slider (0 to 3).
   - `sunPullR` is 60, a builder choice. At 40 a ball resting on a small sun could not shoot 250 units clear (hole 14 reached 211), which is the capture the PRD rules out. At 60 a sun's floor pull matches the heaviest planet's at its surface and stays far under a black hole's.
   - `tools/sim-golf.mjs` now counts suns as pulling bodies: the closest-pass line, the sweep's 80-unit test, and the escape sweep, since a ball pressed against a sun can rest there. Holes without suns print exactly as before. A route shot inside the dead zone now stops `--three` with a message instead of crashing it. The README's sun row and a new "Suns pull" constraint say so.

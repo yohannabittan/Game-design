@@ -1,13 +1,13 @@
 {
-  "name": "v1.2 Gravity Golf",
-  "short_name": "Gravity Golf",
-  "description": "Gravity Golf - a small skill game",
+  "name": "v1.2 Checkpoint",
+  "short_name": "Checkpoint",
+  "description": "Checkpoint - tap the contraband on the X-ray belt",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f1115",
-  "theme_color": "#0f1115",
+  "background_color": "#070f24",
+  "theme_color": "#070f24",
   "icons": [
     {
       "src": "icons/icon-192.png",

@@ -1,11 +1,11 @@
 {
-  "name": "v1.2 Gravity Golf",
-  "short_name": "Gravity Golf",
-  "description": "Gravity Golf - a small skill game",
+  "name": "v1.2 Launch",
+  "short_name": "Launch",
+  "description": "Launch - a small skill game",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "landscape",
   "background_color": "#0f1115",
   "theme_color": "#0f1115",
   "icons": [

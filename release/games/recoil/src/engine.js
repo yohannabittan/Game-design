@@ -311,6 +311,7 @@ export class Engine {
   haptic(ms = 10) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
   toast(msg, onTap) {
     this._toast.textContent = msg; this._toast.classList.add('show');
+    this._toast.style.pointerEvents = onTap ? 'auto' : 'none';
     this._toastCb = onTap || null;
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => this._toast.classList.remove('show'), onTap ? 15000 : 2500);
