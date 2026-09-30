@@ -35,3 +35,4 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0014](0014-tune-panel-persistence.md) | The tune panel restores only declared keys, prunes the rest; Reset restores every declared key | accepted |
 | [0015](0015-generated-assets.md) | Generated image assets carry one style anchor per game and a cost ledger | accepted |
 | [0016](0016-release-channel-and-playtest-ledger.md) | A release channel beside the dev channel, and a local playtest ledger with export | accepted |
+| [0017](0017-scoped-cache-cleanup-and-passive-toasts.md) | Service workers clean up only their own game's channel; a toast without an action lets touches through | accepted |

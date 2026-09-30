@@ -1,6 +1,8 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'launch-v6';
+const CACHE_VERSION = 'launch-v7';
+// Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
+const CACHE_PREFIX = 'launch-v';
 const ASSETS = [
   './',
   './index.html',
@@ -21,7 +23,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

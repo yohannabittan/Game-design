@@ -70,6 +70,8 @@ for g in marked:
     p = os.path.join(dst, 'sw.js'); t = open(p, encoding='utf-8').read()
     t, n = re.subn(r"const CACHE_VERSION = '[^']*';", f"const CACHE_VERSION = '{slug}-release-{version}';", t)
     assert n == 1, f'{slug}: sw.js has no CACHE_VERSION line'
+    t, n = re.subn(r"const CACHE_PREFIX = '[^']*';", f"const CACHE_PREFIX = '{slug}-release-';", t)
+    assert n == 1, f'{slug}: sw.js has no CACHE_PREFIX line'
     # The worker's scope is its own folder, release/games/<slug>/, so every path must stay relative for the release cache to hold it.
     assert not re.search(r"'/[^/]", t.split('const ASSETS')[1].split('];')[0]), f'{slug}: sw.js ASSETS must be relative'
     open(p, 'w', encoding='utf-8').write(t)
