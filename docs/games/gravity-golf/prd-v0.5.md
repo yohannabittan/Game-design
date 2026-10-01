@@ -34,6 +34,10 @@ The v0.4 build found their routes' drag windows at 20, 14.6, 12 and 11.5 px agai
 
 Ten holes under every rule from v0.3 B and v0.4 C (power windows, --two-shot, escape), using all objects including heavy suns: at least two with a moon, two with two black holes, one with three comets, and bosses at 20 and 25. Sector 4 and 5 themes as above.
 
+## D2. Saves when holes are added (from the D sequence review)
+
+Adding holes must never lock a player out or leave a run record measured on fewer holes. Bump `saveVersion` and `migrate` so `unlocked` is at least the highest cleared hole plus one, and drop `prog.runBest` and `prog.lastRun` (a run over 15 holes is not comparable with one over 25); earned badges and stars are kept. Every later content addition does the same.
+
 ## E. Modes (after D)
 
 - Driving Range: one shot from a tee on a long field that scrolls with the ball; distance is the score; planets and comets along the way; a daily seed and a best.
