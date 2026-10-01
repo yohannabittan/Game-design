@@ -16,6 +16,15 @@ One sentence per place, each read after the anchor above; the sky by day, the tw
 - **Gingerbread Town (3500 to 5000 m):** a butter-cream sky over flat biscuit hills lined with small gingerbread houses with white icing eaves, on a gingerbread ground band under pink cotton-candy clouds.
 - **Home (from 5000 m):** a strawberry-milk sky over pink and pale green hills dotted with tiny strawberries, a cottage with a strawberry-red roof, and the round white daifuku waiting by the road.
 
+## Objects added in v0.4 (drawn in games/launch/src/game.js)
+
+One sentence per object, each read after the anchor above.
+
+- **Oven-vent thermal:** a low rose-brick grate with glowing sugar-yellow slots under a tall, translucent cream column of wavy rose heat lines rising, ink outline and a light halo on the grate.
+- **Freezer vent:** a low icy pale-blue grate with slate slots under a tall, translucent pale-blue column where white snowflakes and slate chevrons drift down, ink outline and a light halo on the grate.
+- **Candy-cane hill:** one smooth round bump striped berry-red and white on the diagonal with a plum ink outline and a light halo, its uphill (left) face in soft shade so the face that crashes reads darker than the face that launches.
+- **Marshmallow pad:** a row of fat, soft white pillows with round ends, a lilac shade along their bottoms and a few sugar specks, ink outline and a light halo, never teal so it never reads as a jelly.
+
 ## Palette (TUNING.palette in games/launch/src/game.js)
 
 | Role | Colour | Notes |

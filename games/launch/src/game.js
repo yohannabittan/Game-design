@@ -1,15 +1,17 @@
 // Launch: an apricot mochi fired from the Mochi Maker 3000, a steampunk machine at the bakery, toward his love, the daifuku,
-// at 5000 m (PRD v0.3). Two beats launch him: the barrel sweeps and a tap locks its angle, then a pressure gauge swings and
-// a tap fires with the power of the zone it stopped in. In flight one thumb has three actions, decided by the first
-// gestureWindow of a press: hold to boost (cola thrust along the flight, drains fizz), swipe up to open a dough parachute
-// (slow fall, bleeds horizontal speed), swipe down to condense (drop fast; a hard landing bounces big). The mochi bounces
-// and skims off plain ground; jellies, birds, geysers, wafers and clouds as in v0.2; caramel stops him. The code keeps the
-// v0.1 names for the physics objects: a `spring` is a mint jelly, `mud` is a caramel pit, a `ramp` is a wafer, coins are
-// sugar. World units: x to the right from the machine's pivot, y is height above the ground (10 units = 1 m); the critter's
-// y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight time; the barrel's angle is a
-// function of the time from ready to the first tap, the gauge's reading of the time from the lock to the second tap and
-// the flight's seed, so the same seed, tap times and gestures give the same flight at any frame rate (ADR-0008).
-// tools/sim-launch.mjs drives game.sim.
+// at 5000 m (PRD v0.3, v0.4). Two beats launch him: the barrel sweeps and a tap locks its angle, then a pressure gauge
+// swings and a tap fires with the power of the zone it stopped in. In flight one thumb has three actions, decided by the
+// first gestureWindow of a press: hold to boost (cola thrust along the flight, drains fizz), swipe up and hold to glide (a
+// dough sail that turns fall into forward speed, spending height for distance), swipe down to slam (drop fast; the impact
+// relaunches by what it meets: a jelly's centre pays, plain ground and marshmallow cost, a hill's downhill face rockets,
+// its uphill face crashes). Thermals lift a glider and freezer vents push it down. The mochi bounces and skims off plain
+// ground; jellies, birds, geysers, wafers and clouds as in v0.2; caramel stops him. The code keeps the v0.1 names for the
+// physics objects: a `spring` is a mint jelly, `mud` is a caramel pit, a `ramp` is a wafer, coins are sugar, `chute` is the
+// glider and `ball` the condensed slam. World units: x to the right from the machine's pivot, y is height above the ground
+// (10 units = 1 m); the critter's y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight
+// time; the barrel's angle is a function of the time from ready to the first tap, the gauge's reading of the time from the
+// lock to the second tap and the flight's seed, so the same seed, tap times and gestures give the same flight at any frame
+// rate (ADR-0008). tools/sim-launch.mjs drives game.sim.
 
 import { makeRng, clamp, ease } from './engine.js';
 
@@ -60,8 +62,8 @@ const TUNING = {
   skimLift: 0.12,
   settleSpeed: 45,
   slideFriction: 0.8,      // sliding speed decays as exp(-slideFriction x seconds)
-  springBounce: 1.2,       // a jelly gives this times the fall speed back ...
-  springMin: 420,          // ... and always at least this
+  springBounce: 1,         // a jelly touched without a slam gives this times the fall speed back ...
+  springMin: 300,          // ... and always at least this
   maxBounce: 1000,         // no bounce leaves faster than this
   birdLift: 340,           // upward speed given by a bird bounce
   stopSpeed: 25,           // horizontal speed under this for stopTime ends the flight (on the ground, or at the next touch)
@@ -69,7 +71,7 @@ const TUNING = {
   maxFlight: 150,          // seconds: a safety stop only (tools/sim-launch.mjs --stuck: no flight reaches it)
 
   // Three flight actions (PRD v0.3 B). A press is decided by its first gestureWindow: a swipe up or down of swipeMin CSS px
-  // opens the parachute or condenses, otherwise it boosts (held: until release; a quick tap: tapBurst seconds).
+  // glides (held) or slams, otherwise it boosts (held: until release; a quick tap: tapBurst seconds).
   gestureWindow: 0.1,
   swipeMin: 22,
   tapBurst: 0.2,
@@ -78,14 +80,51 @@ const TUNING = {
   boostFloor: 0,
   boostDrain: 2.5,         // pips of fizz per second of boost
   fuelMax: 5,              // pips in a full tank, base Fizz Tank
-  chuteFall: 80,           // the parachute caps the fall at this (units/s), reaching it at chuteGrip per second ...
+  // The dough glider (PRD v0.4 A): above stallSpeed, fall faster than glideSink turns into forward speed (speed kept, only
+  // its direction turns, at glideGrip per second) and the sail's drag is gravity / glideRatio along the flight, so a steady
+  // glide covers glideRatio metres per metre of height. Slower, it stalls: it floats down at glideSink and drifts, bleeding
+  // chuteBleed of its horizontal speed a second down to stallDrift. Opening it while falling faster than flareMin flares:
+  // the fall above glideSink becomes an upward pop of flare x it.
+  glideRatio: 4.5,
+  glideSink: 70,
+  glideGrip: 14,
+  stallSpeed: 240,
+  stallDrift: 60,
   chuteGrip: 6,
-  chuteBleed: 0.5,         // ... and bleeds this fraction of horizontal speed per second (control, not distance)
-  condenseDrop: 620,       // a condense drops at least this fast at once and falls under gravity x condenseGrav; its
-  condenseGrav: 1.4,       // touch bounces back up to condenseLift x the height it dropped from (plain ground keeps far
-  condenseLift: 0.92,      // less), a jelly x condenseJelly more: the hard landing's big bounce, never an endless pump
-  condenseJelly: 1.6,
-  condenseKeep: 0.75,      // horizontal speed kept by a condensed touch (ground or jelly): a drop every arc runs down
+  chuteBleed: 0.5,
+  flare: 0.4,
+  flareMin: 300,
+  // The slam (PRD v0.4 A): a condense drops at least condenseDrop at once and falls under gravity x condenseGrav. Its impact
+  // is the energy it had when it condensed (the speed it would meet the ground with: higher hits harder), plus a boost held
+  // while condensed. It relaunches at slamAngle with that x the surface's factor x slamPower, capped at maxSpeed: plain
+  // ground slamGround (the miss), a jelly slamJelly in its centre band (jellySweet of its width, refilling slamFizz pips)
+  // falling to slamGround at its edge, a hill's downhill face slamDown at the flat slamDownAngle (the rocket), its uphill
+  // face slamUp (the crash), marshmallow slamMarsh (it swallows the bounce).
+  condenseDrop: 620,
+  condenseGrav: 1.4,
+  slamAngle: 40,
+  slamPower: 1,
+  slamGround: 0.72,
+  slamJelly: 1.08,
+  jellySweet: 0.4,
+  slamFizz: 1,
+  slamDown: 1.18,
+  slamDownAngle: 24,
+  slamUp: 0.3,
+  slamUpAngle: 62,         // the crash pops it up steeply, its forward speed gone
+  slamMarsh: 0.22,
+  slamBoost: 0.5,          // a boost held while condensed adds this x its thrust to the impact
+  maxSpeed: 1500,
+  // Marshmallow (a light touch): rolls off slow, keeping marshKeep of the horizontal speed and marshBounce of the fall.
+  marshKeep: 0.55,
+  marshBounce: 0.15,
+  // Oven-vent thermals and freezer vents (PRD v0.4 B): a column ventH tall over the vent. Gliding inside a thermal lifts at
+  // thermalLift (more than gravity: a rise); inside a freezer column the sail ices (no glide) and it is pushed down at
+  // freezerPush. Not gliding, ventLoose of either.
+  ventH: 300,
+  thermalLift: 1000,
+  freezerPush: 700,
+  ventLoose: 0.15,
   groundBoostAngle: 35,    // a boost on the ground hops at this angle
 
   // The range finder (PRD v0.3 D): a dotted arc of the real physics with the current action, rangeLook seconds ahead.
@@ -119,7 +158,7 @@ const TUNING = {
   coinPer10m: 1,
   chainSteps: [1, 1.5, 2, 3], // coin multiplier by consecutive springs or birds
   birdCoins: 5,
-  milestones: [500, 1000, 2000, 3500, 5000], // metres
+  milestones: [500, 1000, 1500, 2200, 5000], // metres: where each place after the Bakery starts (PRD v0.4 B: Soda Springs and Gingerbread Town earlier)
   milestoneBonus: [25, 50, 100, 200, 400],
 
   // A soda geyser (Soda Springs on) erupts for geyserOn every geyserPeriod on the flight clock (phase seeded at setup);
@@ -139,17 +178,19 @@ const TUNING = {
   placeBlend: 400,         // units over which the sky and hills of one place blend into the next (the ground changes at the line)
   homeAhead: 120,          // the daifuku waits this far past the Home line (units)
   jellyCube: 34,           // design px per jelly cube along a jelly (a long jelly is a row of cubes, never a rail)
+  marshPuff: 44,           // design px per marshmallow pillow along a pad
   menuTitleMinH: 344,      // CSS px of safe height the menu needs to show its title above the strip, the best and three goals
   slingScreen: 0.26,       // the machine's pivot at this fraction of the view width before launch
   followX: 0.3,            // the camera keeps the critter at this fraction of the view width
   followXMin: 0.1,         // ... or as far left as this when the arc's landing is too far ahead for zoomMin
-  zoomMin: 0.45,
+  zoomMin: 0.3,
   zoomLook: 1.0,           // seconds of horizontal travel kept in view ahead of the critter
   zoomOutTime: 0.35,
   zoomInTime: 0.9,
   landMargin: 30,
   skyTop: 50,
   skyFill: 0.8,
+  trueShare: 0.5,          // above the height zoomMin fits, the lowest trueShare of the sky stays true to scale (PRD v0.4 C)
   spriteMin: 0.65,
   endDelay: 0.9,
   endDelayTaught: 2.4,
@@ -181,11 +222,16 @@ const TUNING = {
     panel: 'rgba(45,34,56,0.84)', panelSolid: '#2d2238', panelEdge: '#5a4a72',
     text: '#fff6ec', textDim: '#cbbfdc', textOff: '#8f84a3',
     shadow: 'rgba(45,34,56,0.28)', dust: '#efe2cf', white: '#ffffff', halo: '#fff6ec',
-    arc: ['#ffffff', '#bfe6ff', '#fff0d6', '#ffd2a8'], // range finder dots: plain, boosting, parachute, condensed
+    arc: ['#ffffff', '#bfe6ff', '#fff0d6', '#ffd2a8'], // range finder dots: plain, boosting, gliding, condensed
+    // PRD v0.4 B: oven vents warm (rose brick, sugar-yellow slots, a cream column with rose heat lines), freezer vents icy;
+    // candy-cane hills berry and white with the uphill face in shade; marshmallow white with a lilac shade (never teal).
+    ovenBrick: '#c9726b', thermal: '#ffd84d', thermalAir: '#fff0c8', thermalLine: '#f29bb5',
+    freezerBody: '#e2f2ff', freezer: '#bfe6ff', freezerAir: '#d6f0ff', freezerLine: '#6f8fb8',
+    hillShade: 'rgba(45,34,56,0.18)', marsh: '#fffaf6', marshShade: '#e9dcf0',
+    rocket: '#7fe0a8', crash: '#e8476a', miss: '#9a8fb0',
   },
   duskAt: 120,
   nightAt: 300,
-  hillFadeLift: 40,
   style: { line: 2, radius: 14 },
   type: { sm: 14, md: 18, lg: 28, xl: 44 },
 
@@ -215,6 +261,7 @@ const TUNING = {
     callout: 2.6,
     actionHint: 3.6,       // seconds the three-action hint shows from the top of the first arc
     springWobble: 0.3,
+    ventGlow: 0.6,         // seconds a column glows after the mochi enters it
     stars: 90,
     whoosh: 0.16,          // seconds between whoosh puffs while boosting
     haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, lock: 10, chute: 6, drop: 8, home: [30, 60, 30, 60, 60] },
@@ -281,12 +328,15 @@ function launchOf(seed, t1, t2, streak = 0, up = T.upgrades) {
 // The barrel's mouth at an angle: where the mochi sits and leaves from (world units, y the critter's bottom).
 const mouth = (deg) => [Math.cos(deg * DEG) * T.barrelLen, T.pivotH + Math.sin(deg * DEG) * T.barrelLen - T.critterR];
 
-// ---------- Field (PRD v0.3 C) ----------
+// ---------- Field (PRD v0.3 C, v0.4 B) ----------
 // One consistent field, laid out gap by gap from a seeded stream: a jelly, then plain ground to the next jelly that grows
-// gently with distance (no free early carpet, no cliff), holding at most one caramel pit, one bird or cloud, and one wafer or
-// geyser. Every gap draws the same count of numbers, so a seed always gives the same field. Kept by construction (and flown
-// by tools/sim-launch.mjs --check): a jelly before the first caramel and between any two, no stretch longer than gapMax
-// without a jelly, geysers from Soda Springs, clouds from Gingerbread Town, at most one air object per gap. Metres.
+// gently with distance (no free early carpet, no cliff). Each gap's objects are laid left to right from a cursor, each
+// only where it fits, in this order: a wafer or geyser, an oven-vent thermal or freezer vent, a candy-cane hill, a
+// marshmallow pad, a caramel pit; and one bird or cloud in the air. Every gap draws the same count of numbers, so a seed
+// always gives the same field. The first thermal and freezer, and the first hill and marshmallow, are placed in fixed gaps
+// so a normal flight meets them early (PRD v0.4 B). Kept by construction (and flown by tools/sim-launch.mjs --check): a
+// jelly before the first caramel and between any two, no stretch longer than gapMax without a jelly, at most one air object
+// per gap. Metres.
 const FIELD = {
   first: 75,               // the first jelly starts here
   gap: 42,                 // plain ground between jellies: gap + gapGrow x distance, +- gapJitter of it, at most gapMax
@@ -298,53 +348,86 @@ const FIELD = {
   jellyWMin: 6,
   mudFrom: 400,            // caramel from here, with this chance per gap rising to mudMax by mudFull
   mudChance: 0.2,
-  mudMax: 0.55,
-  mudFull: 3500,
+  mudMax: 0.5,
+  mudFull: 3000,
   mudW: [9, 15],
   birdChance: 0.4,         // a bird in a gap ...
   birdY: [10, 24],         // ... this high (its centre)
   rampFrom: 400,           // a wafer from here, with this chance per gap
-  rampChance: 0.2,
+  rampChance: 0.15,
   rampW: [20, 28], rampH: [6, 8],
-  geyserFrom: 2000,        // Soda Springs on: a ground object is a geyser this often
+  geyserFrom: 1500,        // Soda Springs on: a ground object is a geyser this often
   geyserShare: 0.65,
-  extraFrom: 2000,         // ... and ground objects come this often from here
+  extraFrom: 1500,         // ... and ground objects come this often from here
   extraChance: 0.4,
-  cloudFrom: 3500,         // Gingerbread Town on: the air object is a cloud this often
+  cloudFrom: 2200,         // Gingerbread Town on: the air object is a cloud this often
   cloudChance: 0.45,
   cloudY: [20, 30],
+  ventFrom: 100,           // thermals and freezer vents (the Bakery on): one in a gap with this chance, rising to ventMax
+  ventChance: 0.3,         // by ventFull; a thermal ventShare of the time
+  ventMax: 0.5,
+  ventFull: 2000,
+  ventShare: 0.55,
+  ventW: [14, 22],
+  firstThermal: 1,         // the gap (counting from 0) that always holds a thermal, and the one that holds a freezer vent
+  firstFreezer: 3,
+  hillFrom: 500,           // candy-cane hills (Candy Meadow on): one in a gap with this chance, rising to hillMax by hillFull
+  hillChance: 0.3,
+  hillMax: 0.5,
+  hillFull: 2500,
+  hillW: [22, 34], hillH: [5, 8],
+  marshFrom: 500,          // marshmallow pads (Candy Meadow on), the same way
+  marshChance: 0.2,
+  marshMax: 0.4,
+  marshFull: 2500,
+  marshW: [7, 12],
+  room: 3,                 // ground objects keep this far from each other and from the jellies
 };
 
 function makeField(seed) {
-  return { seed, rng: makeRng(seed), ground: [], birds: [], clouds: [], end: 0, next: FIELD.first * T.unitsPerMetre };
+  return { seed, rng: makeRng(seed), ground: [], birds: [], clouds: [], end: 0, n: 0, hill: false, marsh: false, next: FIELD.first * T.unitsPerMetre };
 }
 
 function addGap(f) {
   const F = FIELD, U = T.unitsPerMetre, rng = f.rng, x0 = f.next, m = x0 / U, lerp = (a, k) => a[0] + (a[1] - a[0]) * k;
-  const r = Array.from({ length: 12 }, () => rng());
+  const ramp = (from, p0, p1, full) => (m < from ? 0 : p0 + (p1 - p0) * clamp((m - from) / (full - from), 0, 1));
+  const r = Array.from({ length: 24 }, () => rng());
   const w = Math.round(Math.max(F.jellyWMin, F.jellyW - F.jellyShrink * m) * U);
   f.ground.push({ kind: 'spring', x0, x1: x0 + w, w, h: 0, spent: false });
-  const L = Math.round(Math.min(F.gapMax, (F.gap + F.gapGrow * m) * (1 + (r[0] * 2 - 1) * F.gapJitter)) * U), a = x0 + w, b = a + L;
-  let free = a + 3 * U; // ground objects keep 3 m from each other and from the jellies
+  const L = Math.round(Math.min(F.gapMax, (F.gap + F.gapGrow * m) * (1 + (r[0] * 2 - 1) * F.gapJitter)) * U), a = x0 + w, b = a + L, room = F.room * U;
+  let free = a + room;
+  // Lays an object `ow` wide at the cursor plus a seeded share `k` of the slack, if it fits before the next jelly.
+  const lay = (ow, k, o) => {
+    const slack = b - room - ow - free;
+    if (slack < 0) return false;
+    const ox = Math.round(free + slack * k * 0.35);
+    f.ground.push({ x0: ox, x1: ox + ow, w: ow, h: 0, spent: false, ...o }); free = ox + ow + room;
+    return true;
+  };
   const extraP = m >= F.extraFrom ? F.extraChance : m >= F.rampFrom ? F.rampChance : 0;
-  if (r[1] < extraP) {
-    const geyser = m >= F.geyserFrom && r[2] < F.geyserShare, gx = Math.round(a + L * (0.08 + 0.1 * r[3]));
-    if (geyser) { f.ground.push({ kind: 'geyser', x0: gx, x1: gx + 40, w: 40, h: 0, spent: false, phase: Math.round(r[4] * T.geyserPeriod * 100) / 100 }); free = gx + 40 + 3 * U; }
-    else {
-      const rw = Math.round(Math.min(lerp(F.rampW, r[4]) * U, L * 0.3)), rh = Math.round(lerp(F.rampH, r[4]) * U);
-      f.ground.push({ kind: 'ramp', x0: gx, x1: gx + rw, w: rw, h: rh, spent: false, a: Math.atan2(rh, rw) }); free = gx + rw + 3 * U;
-    }
+  if (r[1] < extraP && !(m >= F.hillFrom && !f.hill)) {
+    if (m >= F.geyserFrom && r[2] < F.geyserShare) lay(40, r[3], { kind: 'geyser', phase: Math.round(r[4] * T.geyserPeriod * 100) / 100 });
+    else { const rw = Math.round(Math.min(lerp(F.rampW, r[4]) * U, L * 0.3)), rh = Math.round(lerp(F.rampH, r[4]) * U); lay(rw, r[3], { kind: 'ramp', h: rh, a: Math.atan2(rh, rw) }); }
   }
-  const mudP = m < F.mudFrom ? 0 : F.mudChance + (F.mudMax - F.mudChance) * clamp((m - F.mudFrom) / (F.mudFull - F.mudFrom), 0, 1);
+  const forced = f.n === F.firstThermal ? 'thermal' : f.n === F.firstFreezer ? 'freezer' : null, firstHill = m >= F.hillFrom && !f.hill;
+  const hill = () => { if (lay(Math.round((firstHill ? F.hillW[0] : lerp(F.hillW, r[17])) * U), firstHill ? 0 : r[18], { kind: 'hill', h: Math.round(lerp(F.hillH, r[17]) * U) })) f.hill = true; };
+  const marsh = (first) => { if (lay(Math.round((first ? F.marshW[0] : lerp(F.marshW, r[20])) * U), first ? 0 : r[21], { kind: 'marsh' })) f.marsh = true; };
+  if (firstHill) hill(); // the first hill, and then the first marshmallow, come before anything else in their gaps
+  if (m >= F.marshFrom && !f.marsh && f.hill) marsh(true);
+  if (forced || r[12] < ramp(F.ventFrom, F.ventChance, F.ventMax, F.ventFull)) lay(Math.round(lerp(F.ventW, r[14]) * U), r[15], { kind: forced || (r[13] < F.ventShare ? 'thermal' : 'freezer') });
+  if (!firstHill && m >= F.hillFrom && r[16] < ramp(F.hillFrom, F.hillChance, F.hillMax, F.hillFull)) hill();
+  if (m >= F.marshFrom && !f.marsh && f.hill) marsh(true);
+  else if (m >= F.marshFrom && r[19] < ramp(F.marshFrom, F.marshChance, F.marshMax, F.marshFull)) marsh(false);
+  const mudP = ramp(F.mudFrom, F.mudChance, F.mudMax, F.mudFull);
   if (r[5] < mudP) {
-    const mw = Math.round(lerp(F.mudW, r[6]) * U), c0 = Math.max(free + mw / 2, a + L * 0.4), c1 = b - 3 * U - mw / 2;
+    const mw = Math.round(lerp(F.mudW, r[6]) * U), c0 = Math.max(free + mw / 2, a + L * 0.4), c1 = b - room - mw / 2;
     if (c1 >= c0) { const mx = Math.round(c0 + (c1 - c0) * r[7] - mw / 2); f.ground.push({ kind: 'mud', x0: mx, x1: mx + mw, w: mw, h: 0, spent: false }); }
   }
   const ax = Math.round(a + L * (0.3 + 0.4 * r[9]));
   if (m >= F.cloudFrom && r[8] < F.cloudChance) f.clouds.push({ x: ax, y: Math.round(lerp(F.cloudY, r[10]) * U), used: false });
   else if (r[8] < F.birdChance) f.birds.push({ x0: ax, y: Math.round(lerp(F.birdY, r[10]) * U), phase: r[11] * Math.PI * 2, hit: false });
   f.ground.sort((p, q) => p.x0 - q.x0);
-  f.next = b; f.end = b;
+  f.next = b; f.end = b; f.n++;
 }
 
 function ensureField(f, x) { while (f.end < x + T.lookahead) addGap(f); }
@@ -359,7 +442,12 @@ function groundAt(f, x) {
   }
   return null;
 }
-const surfaceH = (g, x) => (g && g.kind === 'ramp' ? (g.h * (x - g.x0)) / g.w : 0);
+// A candy-cane hill is one smooth bump, h tall: its uphill face rises from x0 to the crest at its middle, the downhill face
+// falls to x1. Height, slope and curvature at x.
+const HILL = (g, x) => (2 * Math.PI * (x - g.x0)) / g.w;
+const surfaceH = (g, x) => (!g ? 0 : g.kind === 'ramp' ? (g.h * (x - g.x0)) / g.w : g.kind === 'hill' ? (g.h * (1 - Math.cos(HILL(g, x)))) / 2 : 0);
+const slopeAt = (g, x) => (!g ? 0 : g.kind === 'ramp' ? g.h / g.w : g.kind === 'hill' ? ((g.h * Math.PI) / g.w) * Math.sin(HILL(g, x)) : 0);
+const bendAt = (g, x) => (g && g.kind === 'hill' ? (g.h / 2) * ((2 * Math.PI) / g.w) ** 2 * Math.cos(HILL(g, x)) : 0);
 const geyserOn = (g, t) => (t + g.phase) % T.geyserPeriod < T.geyserOn;
 const inCloud = (c, x, cy) => { const dx = (c.x - x) / (T.cloudRX + T.critterR), dy = (c.y - cy) / (T.cloudRY + T.critterR); return dx * dx + dy * dy < 1; };
 const birdX = (b, t) => b.x0 + T.birdSwing * Math.sin((t / T.birdPeriod) * Math.PI * 2 + b.phase);
@@ -388,16 +476,19 @@ function newRun(seed, launch, up = T.upgrades, field = null) {
   const fuel = st.fuelMax + (launch.zone === 0 ? T.perfectFuel : 0);
   return {
     seed, launch, up: { ...up }, st, field,
-    x, y, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, u: 0,
-    fuel, fuelCap: fuel, boost: false, burstEnd: -1, chute: false, ball: false, dropTop: 0, steps: 0, acc: 0, q: [], ev: [],
+    x, y, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, hill: null, u: 0, e: 0,
+    fuel, fuelCap: fuel, boost: false, burstEnd: -1, chute: false, ball: false, steps: 0, acc: 0, q: [], ev: [],
     chain: 0, chainMax: 0, birds: 0, springs: 0, geysers: 0, clouds: 0, bounces: 0, combo: 0, comboMax: 0,
-    boosts: 0, boostT: 0, chutes: 0, drops: 0, coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: x,
+    boosts: 0, boostT: 0, chutes: 0, drops: 0, slams: 0, centred: 0, rockets: 0, crashes: 0, marshes: 0, thermals: 0, freezers: 0, glideT: 0, vent: null, topSpeed: 0, topY: 0,
+    coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: x,
     msIdx: 0, stars: [], slowT: 0, ended: null, timeout: false, boosted: false, boostSprings: 0,
   };
 }
 
 const flightTime = (r) => r.steps * STEP;
 const mult = (r) => T.chainSteps[Math.min(r.chain, T.chainSteps.length - 1)];
+// The speed a fall from here meets the ground with (no drag): a slam's impact, so dropping from higher hits harder.
+const impactOf = (s) => Math.sqrt(s.vx * s.vx + s.vy * s.vy + 2 * T.gravity * Math.max(0, s.y));
 
 // Queue an input at flight time `at` (seconds); it applies on the step that contains that time. Kinds: boostOn, boostOff,
 // burst (a quick tap: boost for tapBurst), chuteOn, chuteOff, condense.
@@ -406,52 +497,116 @@ function queueInput(r, at, kind) {
   r.q.sort((a, b) => a.at - b.at);
 }
 
+// Opening the sail while falling fast flares: the fall above glideSink becomes a short upward pop (PRD v0.4 A).
+function openChute(s) {
+  if (-s.vy > T.flareMin) { s.vy = T.flare * (-s.vy - T.glideSink); return true; }
+  return false;
+}
+// A condense: the slam's impact is fixed now (its energy), then it drops fast.
+function condense(s) { s.e = impactOf(s); s.ball = true; s.chute = false; s.vy = Math.min(s.vy, -T.condenseDrop); }
+
 function applyInput(r, e) {
   const k = e.kind;
   if (k === 'boostOn' || k === 'burst') {
     if (!r.boost) { r.boosts++; r.ev.push({ k: 'boost' }); }
     r.boost = true; r.burstEnd = k === 'burst' ? e.at + T.tapBurst : -1;
   } else if (k === 'boostOff') { r.boost = false; r.burstEnd = -1; }
-  else if (k === 'chuteOn') { if (!r.chute) { r.chutes++; r.ev.push({ k: 'chute' }); } r.chute = true; r.ball = false; }
-  else if (k === 'chuteOff') { if (r.chute) r.ev.push({ k: 'chuteOff' }); r.chute = false; }
-  else if (k === 'condense' && r.mode === 'air') {
-    r.dropTop = r.y + Math.max(0, r.vy) ** 2 / (2 * T.gravity); // the top of this arc: what the hard landing gives back
-    r.ball = true; r.chute = false; r.vy = Math.min(r.vy, -T.condenseDrop); r.drops++; r.ev.push({ k: 'drop' });
-  }
+  else if (k === 'chuteOn') {
+    if (!r.chute) { r.chutes++; const fl = r.mode === 'air' && openChute(r); r.ev.push({ k: 'chute', flare: fl }); }
+    r.chute = true; r.ball = false;
+  } else if (k === 'chuteOff') { if (r.chute) r.ev.push({ k: 'chuteOff' }); r.chute = false; }
+  else if (k === 'condense' && r.mode === 'air' && !r.ball) { condense(r); r.drops++; r.ev.push({ k: 'drop' }); }
 }
 
-// One air step of `dt` for a state { x, y, vx, vy, boost, chute, ball, fuel }: thrust while boosting (along the flight, never
-// pointing below boostFloor, fading to nothing at boostTop), gravity (heavier while condensed), drag, then the parachute's bleed and capped fall. `kd` and
-// `kc` are the drag and bleed factors for `dt`. The flight and the range finder both step with this.
-function airStep(s, st, dt, kd, kc) {
+// The vent column over x at height y, or null: 'thermal' or 'freezer'.
+function ventAt(f, x, y) {
+  if (!f || y >= T.ventH) return null;
+  const g = groundAt(f, x);
+  return g && (g.kind === 'thermal' || g.kind === 'freezer') ? g.kind : null;
+}
+
+// One air step of `dt` for a state { x, y, vx, vy, boost, chute, ball, fuel, e } over field `f`: thrust while boosting (along
+// the flight, never pointing below boostFloor, fading to nothing at boostTop; condensed, it adds slamBoost of itself to the
+// slam's impact instead), gravity (heavier while condensed), drag, a vent's column, then the glider (PRD v0.4 A). `kd` and
+// `kc` are the drag and bleed factors for `dt`. The flight, the range finder and the camera all step with this.
+function airStep(s, st, dt, kd, kc, f = null) {
   if (s.boost && s.fuel > 0) {
-    const sp = Math.hypot(s.vx, s.vy), part = Math.min(1, s.fuel / (T.boostDrain * dt)) * Math.max(0, 1 - sp / T.boostTop), floor = Math.sin(T.boostFloor * DEG);
-    let ux = sp > 1 ? s.vx / sp : Math.cos(T.groundBoostAngle * DEG), uy = sp > 1 ? s.vy / sp : Math.sin(T.groundBoostAngle * DEG);
-    if (uy < floor) { uy = floor; ux = Math.sqrt(1 - floor * floor); }
+    const sp = Math.hypot(s.vx, s.vy), have = Math.min(1, s.fuel / (T.boostDrain * dt)), floor = Math.sin(T.boostFloor * DEG);
     s.fuel = Math.max(0, s.fuel - T.boostDrain * dt);
-    s.vx += ux * st.thrust * dt * part; s.vy += uy * st.thrust * dt * part;
+    if (s.ball) s.e += st.thrust * dt * have * T.slamBoost;
+    else {
+      const part = have * Math.max(0, 1 - sp / T.boostTop);
+      let ux = sp > 1 ? s.vx / sp : Math.cos(T.groundBoostAngle * DEG), uy = sp > 1 ? s.vy / sp : Math.sin(T.groundBoostAngle * DEG);
+      if (uy < floor) { uy = floor; ux = Math.sqrt(1 - floor * floor); }
+      s.vx += ux * st.thrust * dt * part; s.vy += uy * st.thrust * dt * part;
+    }
   }
   s.vy -= T.gravity * (s.ball ? T.condenseGrav : 1) * dt;
   s.vx *= kd; s.vy *= kd;
-  if (s.chute) { s.vx *= kc; if (s.vy < -T.chuteFall) s.vy += (-T.chuteFall - s.vy) * Math.min(1, T.chuteGrip * dt); }
+  const vent = ventAt(f, s.x, s.y);
+  if (vent) s.vy += (vent === 'thermal' ? T.thermalLift : -T.freezerPush) * dt * (s.chute ? 1 : T.ventLoose);
+  if (s.chute) {
+    const sp = Math.hypot(s.vx, s.vy);
+    if (sp > T.stallSpeed && vent !== 'freezer') { // gliding: fall turns into forward speed; the sail's drag is weight / glideRatio
+      const fall = -s.vy;
+      if (fall > T.glideSink) { const vy = s.vy + (fall - T.glideSink) * Math.min(1, T.glideGrip * dt); s.vx = Math.sqrt(Math.max(0, s.vx * s.vx + s.vy * s.vy - vy * vy)); s.vy = vy; }
+      const k = Math.max(0, 1 - ((T.gravity / T.glideRatio) * dt) / sp); s.vx *= k; s.vy *= k;
+    } else { // stalled (or iced in a freezer column): floats down at glideSink, drifting
+      if (s.vy < -T.glideSink) s.vy += (-T.glideSink - s.vy) * Math.min(1, T.chuteGrip * dt);
+      if (s.vx > T.stallDrift) s.vx = Math.max(T.stallDrift, s.vx * kc);
+    }
+  }
   s.x += s.vx * dt; s.y += s.vy * dt;
+  return vent;
+}
+
+// Whether a state at (x, y) moving (vx, vy) meets the surface of `g` (plain ground when null): below it and moving into it.
+function touching(g, s) {
+  if (s.y > surfaceH(g, s.x)) return false;
+  if (g && g.kind === 'ramp') return true;
+  return s.vy - slopeAt(g, s.x) * s.vx <= 0;
 }
 
 function end(r, why) { r.ended = why; r.vx = r.vy = 0; r.boost = r.chute = r.ball = false; r.ev.push({ k: why }); }
 const bump = (r) => { r.chain++; r.chainMax = Math.max(r.chainMax, r.chain); r.combo++; r.comboMax = Math.max(r.comboMax, r.combo); };
 
-// A jelly: at least springMin up, or springBounce of the fall; condensed, condenseJelly x the condensed bounce (the big one).
-const dropBack = (r) => Math.sqrt(2 * T.gravity * Math.max(0, r.dropTop)) * T.condenseLift;
+// What a slam meeting `g` at x gives back (PRD v0.4 A, B): the factor of its impact, the launch angle, and what it met.
+function slamOf(g, x) {
+  if (g && g.kind === 'spring' && !g.spent) {
+    const off = Math.abs(x - (g.x0 + g.x1) / 2) / (g.w / 2), c = clamp((off - T.jellySweet) / (1 - T.jellySweet), 0, 1);
+    return { k: T.slamJelly + (T.slamGround - T.slamJelly) * c, a: T.slamAngle, on: c === 0 ? 'centre' : 'jelly' };
+  }
+  if (g && g.kind === 'hill') return slopeAt(g, x) > 0 ? { k: T.slamUp, a: T.slamUpAngle, on: 'up' } : { k: T.slamDown, a: T.slamDownAngle, on: 'down' };
+  if (g && g.kind === 'marsh') return { k: T.slamMarsh, a: T.slamAngle, on: 'marsh' };
+  return { k: T.slamGround, a: T.slamAngle, on: 'ground' };
+}
+
+// A slam relaunches: the impact x the surface's factor x slamPower, at its angle, capped at maxSpeed. A jelly is used up; a
+// centred one refills slamFizz pips.
+function slam(r, g) {
+  const o = slamOf(g, r.x), sp = Math.min(T.maxSpeed, o.k * T.slamPower * r.e);
+  r.ball = false; r.boosted = false; r.mode = 'air'; r.y = surfaceH(g, r.x);
+  r.vx = sp * Math.cos(o.a * DEG); r.vy = sp * Math.sin(o.a * DEG);
+  r.slams++; r.topSpeed = Math.max(r.topSpeed, sp);
+  if (o.on === 'centre' || o.on === 'jelly') {
+    g.spent = true; r.springs++; bump(r);
+    if (o.on === 'centre') { r.centred++; r.fuel = Math.min(r.fuelCap, r.fuel + T.slamFizz); }
+  } else {
+    r.chain = 0;
+    if (o.on === 'down') r.rockets++; else if (o.on === 'up') r.crashes++; else if (o.on === 'marsh') r.marshes++;
+  }
+  r.ev.push({ k: 'slam', on: o.on, x: r.x, y: r.y, v: sp, e: r.e, chain: r.chain });
+}
+
+// A jelly touched without a slam: at least springMin up, or springBounce of the fall, keeping the forward speed.
 function hitSpring(r, g, vyIn) {
   g.spent = true;
   if (r.boosted) r.boostSprings++;
   r.boosted = false;
-  const big = r.ball;
-  if (big) r.vx *= T.condenseKeep;
-  r.vy = Math.min(T.maxBounce, Math.max(T.springMin, big ? dropBack(r) * T.condenseJelly : -vyIn * T.springBounce));
-  r.y = 0; r.mode = 'air'; r.ball = false;
+  r.vy = Math.min(T.maxBounce, Math.max(T.springMin, -vyIn * T.springBounce));
+  r.y = 0; r.mode = 'air';
   r.springs++; bump(r);
-  r.ev.push({ k: 'spring', x: r.x, chain: r.chain, big, v: -vyIn });
+  r.ev.push({ k: 'spring', x: r.x, chain: r.chain, v: -vyIn });
 }
 
 function hitGeyser(r, g) {
@@ -469,19 +624,26 @@ function enterRamp(r, g, speed) {
   r.ev.push({ k: 'ramp' });
 }
 
-// A plain-ground touch (PRD v0.3 C): the bounce keeps groundBounce of the fall (condensed: back to condenseLift x the height
-// it dropped from), and a grazing
-// touch skims, hopping on skimLift of its horizontal speed; horizontal speed kept from skimKeep (grazing) to groundKeep
-// (straight down), condenseKeep when condensed. A flight slow for stopTime ends here.
-function plainTouch(r) {
-  r.chain = 0; r.boosted = false; r.y = 0;
+// A plain touch on the ground or a hill's face (PRD v0.3 C; v0.4 B: hills are terrain, so the bounce is off the slope): of
+// the speed into the surface it keeps groundBounce, along it skimKeep (grazing) down to groundKeep (straight in), and a
+// grazing touch hops on skimLift of the speed along it, so a fast flat mochi skips like a stone. Under settleSpeed it slides
+// (on a hill, along the face). Marshmallow swallows it: marshKeep along, marshBounce off. A flight slow for stopTime ends here.
+function plainTouch(r, g) {
+  r.chain = 0; r.boosted = false; r.y = surfaceH(g, r.x);
   if (r.slowT >= T.stopTime) { end(r, 'stop'); return; }
-  const vin = -r.vy, sp = Math.hypot(r.vx, r.vy) || 1, steep = vin / sp, ball = r.ball;
-  r.ball = false;
-  r.vx *= ball ? T.condenseKeep : T.skimKeep + (T.groundKeep - T.skimKeep) * steep;
-  const out = Math.min(T.maxBounce, ball ? dropBack(r) : Math.max(vin * T.groundBounce, Math.abs(r.vx) * T.skimLift * (1 - steep)));
-  if (out >= T.settleSpeed) { r.vy = out; r.bounces++; r.combo++; r.comboMax = Math.max(r.comboMax, r.combo); r.ev.push({ k: 'bounce', v: vin, big: ball, skim: steep < 0.35 }); }
-  else { r.vy = 0; r.mode = 'ground'; r.combo = 0; r.ev.push({ k: 'land', v: vin }); }
+  const sl = slopeAt(g, r.x), n = Math.hypot(1, sl), tx = 1 / n, ty = sl / n, nx = -sl / n, ny = 1 / n;
+  const vn = -(r.vx * nx + r.vy * ny), vt = r.vx * tx + r.vy * ty, steep = vn / (Math.hypot(r.vx, r.vy) || 1), marsh = g && g.kind === 'marsh';
+  const ut = vt * (marsh ? T.marshKeep : T.skimKeep + (T.groundKeep - T.skimKeep) * steep);
+  const out = Math.min(T.maxBounce, marsh ? vn * T.marshBounce : Math.max(vn * T.groundBounce, Math.abs(vt) * T.skimLift * (1 - steep)));
+  if (marsh) { r.marshes++; r.ev.push({ k: 'marsh', v: vn }); }
+  if (out >= T.settleSpeed) {
+    r.vx = ut * tx + out * nx; r.vy = ut * ty + out * ny; r.bounces++; r.combo++; r.comboMax = Math.max(r.comboMax, r.combo);
+    r.ev.push({ k: 'bounce', v: vn, skim: steep < 0.35, soft: marsh });
+  } else {
+    r.combo = 0; r.ev.push({ k: 'land', v: vn });
+    if (g && g.kind === 'hill') { r.mode = 'hill'; r.hill = g; r.u = ut; r.vx = ut * tx; r.vy = ut * ty; }
+    else { r.mode = 'ground'; r.vx = ut; r.vy = 0; }
+  }
 }
 
 // One fixed physics step.
@@ -494,7 +656,9 @@ function stepRun(r) {
   if (fueled) { r.boosted = true; r.boostT += STEP; }
 
   if (r.mode === 'air') {
-    airStep(r, st, STEP, st.dragK, st.chuteK);
+    const vent = airStep(r, st, STEP, st.dragK, st.chuteK, f);
+    if (r.chute) r.glideT += STEP;
+    if (vent !== r.vent) { if (vent) { r[vent === 'thermal' ? 'thermals' : 'freezers']++; r.ev.push({ k: vent, x: r.x, glide: r.chute }); } r.vent = vent; }
     const t = t1, cy = r.y + T.critterR;
     for (const b of f.birds) {
       if (b.hit || Math.abs(b.x0 - r.x) > T.birdSwing + 40) continue;
@@ -514,12 +678,13 @@ function stepRun(r) {
     }
     const g = groundAt(f, r.x);
     if (g && g.kind === 'geyser' && !g.spent && r.y < T.geyserH && geyserOn(g, t)) hitGeyser(r, g);
-    else if (r.y <= surfaceH(g, r.x) && (r.vy <= 0 || (g && g.kind === 'ramp'))) {
+    else if (touching(g, r)) {
       const vyIn = r.vy;
       if (g && g.kind === 'mud') { r.y = 0; end(r, 'mud'); }
-      else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, vyIn);
       else if (g && g.kind === 'ramp') enterRamp(r, g, Math.hypot(r.vx, r.vy));
-      else plainTouch(r);
+      else if (r.ball) slam(r, g);
+      else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, vyIn);
+      else plainTouch(r, g);
     }
   } else if (r.mode === 'ground') {
     if (fueled) { // a boost on the ground hops
@@ -534,7 +699,8 @@ function stepRun(r) {
       else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, 0);
       else if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t1)) hitGeyser(r, g);
       else if (g && g.kind === 'ramp') enterRamp(r, g, Math.abs(r.vx));
-      else r.chain = 0;
+      else if (g && g.kind === 'hill') { r.mode = 'hill'; r.hill = g; r.u = r.vx; }
+      else { r.chain = 0; if (g && g.kind === 'marsh') r.vx *= st.slideK; }
     }
   } else if (r.mode === 'ramp') {
     const g = r.ramp;
@@ -545,9 +711,21 @@ function stepRun(r) {
     if (r.x >= g.x1) { r.mode = 'air'; r.y = g.h; r.ramp = null; }
     else if (r.x <= g.x0) { r.mode = 'ground'; r.y = 0; r.vy = 0; r.ramp = null; }
     else r.y = surfaceH(g, r.x);
+  } else if (r.mode === 'hill') { // sliding along a hill's face; it flies off where the face curves away faster than gravity holds it
+    const g = r.hill, sl = slopeAt(g, r.x), c = 1 / Math.hypot(1, sl);
+    r.u = r.u * st.dragK - T.gravity * sl * c * STEP + (fueled ? st.thrust * STEP : 0);
+    if (fueled) r.fuel = Math.max(0, r.fuel - T.boostDrain * STEP);
+    r.x += r.u * c * STEP;
+    if (r.x >= g.x1 || r.x <= g.x0) { r.mode = 'ground'; r.y = 0; r.vx = r.u; r.vy = 0; r.hill = null; }
+    else {
+      const s2 = slopeAt(g, r.x), c2 = 1 / Math.hypot(1, s2);
+      r.y = surfaceH(g, r.x); r.vx = r.u * c2; r.vy = r.u * s2 * c2;
+      if (-bendAt(g, r.x) * c2 * c2 * c2 * r.u * r.u > T.gravity * c2) { r.mode = 'air'; r.hill = null; r.y += 0.01; r.ev.push({ k: 'launch' }); }
+    }
   }
 
   r.steps++;
+  if (r.y > r.topY) r.topY = r.y;
   if (r.x > r.maxX) {
     r.maxX = r.x;
     while (r.maxX >= r.nextMark) { r.coinAcc += T.coinPer10m * mult(r); r.nextMark += 10 * T.unitsPerMetre; }
@@ -572,30 +750,37 @@ function advance(r, dt) {
 const metres = (r) => Math.floor(r.maxX / T.unitsPerMetre);
 const coinsOf = (r) => Math.floor(r.coinAcc) + r.birds * T.birdCoins;
 
-// ---------- The range finder (PRD v0.3 D) ----------
+// ---------- The range finder (PRD v0.3 D, v0.4 B) ----------
 // The flight's own air step run forward from a copy of its state with the current action kept (a held boost until the
-// fizz runs out, a tap's burst to its end, the parachute, the condensed drop), for `look` seconds or to the first contact:
-// a bird, an erupting geyser's column, or the ground (a jelly, caramel, a wafer or plain). The field is only read. Dots
-// every rangeDot steps go into `out` as x, y pairs. Returns { n: dots, hit: contact reached, x, kind } or null off the air.
+// fizz runs out, a tap's burst to its end, the glider, the condensed drop), for `look` seconds or to the first contact:
+// a bird, an erupting geyser's column, or the ground (a jelly, caramel, a wafer, a hill's face, marshmallow or plain). The
+// field is only read. Dots every rangeDot steps go into `out` as x, y pairs. Returns { n: dots, hit: contact reached, x, y,
+// kind, slam: what a condensed touch meets (slamOf), vent: the first thermal or freezer column it enters { x, y, kind } }, or
+// null off the air.
 function rangeArc(r, look, out) {
   if (r.mode !== 'air' || r.ended) return null;
-  const f = r.field, st = r.st, s = { x: r.x, y: r.y, vx: r.vx, vy: r.vy, boost: r.boost, chute: r.chute, ball: r.ball, fuel: r.fuel };
+  const f = r.field, st = r.st, s = { x: r.x, y: r.y, vx: r.vx, vy: r.vy, boost: r.boost, chute: r.chute, ball: r.ball, fuel: r.fuel, e: r.e };
   const R = T.critterR + T.birdR, near = f.birds.filter((b) => !b.hit && Math.abs(b.x0 - r.x) < 4000);
-  let n = 0, t = flightTime(r);
+  let n = 0, t = flightTime(r), vent = null, was = r.vent;
   const steps = Math.ceil(look / STEP);
   for (let i = 1; i <= steps; i++) {
     t += STEP;
     if (r.burstEnd >= 0 && t > r.burstEnd) s.boost = false;
-    airStep(s, st, STEP, st.dragK, st.chuteK);
+    const v = airStep(s, st, STEP, st.dragK, st.chuteK, f);
+    if (v && v !== was && !vent) vent = { x: s.x, y: s.y, kind: v };
+    was = v;
     if (out && i % T.rangeDot === 0) { out[2 * n] = s.x; out[2 * n + 1] = s.y; n++; }
     const cy = s.y + T.critterR;
-    for (const b of near) if (Math.abs(b.x0 - s.x) <= T.birdSwing + 40 && Math.hypot(birdX(b, t) - s.x, b.y - cy) < R) return { n, hit: true, x: s.x, y: s.y, kind: 'bird' };
+    for (const b of near) if (Math.abs(b.x0 - s.x) <= T.birdSwing + 40 && Math.hypot(birdX(b, t) - s.x, b.y - cy) < R) return { n, hit: true, x: s.x, y: s.y, kind: 'bird', vent };
     if (s.y > T.geyserH) continue; // high up: nothing on the ground reaches
     const g = groundAt(f, s.x);
-    if (g && g.kind === 'geyser' && !g.spent && s.y < T.geyserH && geyserOn(g, t)) return { n, hit: true, x: s.x, y: s.y, kind: 'geyser' };
-    if (s.y <= surfaceH(g, s.x) && (s.vy <= 0 || (g && g.kind === 'ramp'))) return { n, hit: true, x: s.x, y: surfaceH(g, s.x), kind: !g ? 'ground' : g.kind === 'spring' ? (g.spent ? 'ground' : 'spring') : g.kind === 'geyser' ? 'ground' : g.kind };
+    if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t)) return { n, hit: true, x: s.x, y: s.y, kind: 'geyser', vent };
+    if (touching(g, s)) {
+      const kind = !g ? 'ground' : g.kind === 'spring' ? (g.spent ? 'ground' : 'spring') : g.kind === 'hill' ? (slopeAt(g, s.x) > 0 ? 'up' : 'down') : g.kind === 'mud' || g.kind === 'ramp' || g.kind === 'marsh' ? g.kind : 'ground';
+      return { n, hit: true, x: s.x, y: surfaceH(g, s.x), kind, slam: s.ball && kind !== 'mud' && kind !== 'ramp' ? slamOf(g, s.x).on : null, vent };
+    }
   }
-  return { n, hit: false, x: s.x, y: s.y, kind: null };
+  return { n, hit: false, x: s.x, y: s.y, kind: null, vent };
 }
 
 // ---------- Goals (PRD v0.2 B, G2) ----------
@@ -637,7 +822,7 @@ function settleGoals(done, st) {
 const goalLine = (g, have) => (g.count && have !== undefined ? `${g.text}  ${Math.min(have, g.need)}/${g.need}` : g.text);
 
 // ---------- Save ----------
-// v7: { best: metres, sugar, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket, steady, scope },
+// v8: { best: metres, sugar, ms: [milestone metres ever passed, on the v0.4 lines], flights, up: { band, fuel, aero, rocket, steady, scope },
 //       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight (the machine's streak), birdTaught,
 //       mudTaught, home: the mochi has met the daifuku, actionsTaught: the three-action hint has shown }
 
@@ -767,27 +952,43 @@ const shop = {
   onKey(k, E) { if (k === 'Escape') E.setScene(this.from, this.card ? { ...this.card, again: true } : {}); },
 };
 
-// ---------- Camera ----------
+// ---------- Camera (PRD v0.4 C: one honest mapping) ----------
 // The camera zooms out with height, speed and the predicted landing of the current arc, down to zoomMin, so the landing
-// is in view by the top of the arc. The ground band keeps its screen size and position: when even zoomMin cannot fit the
-// critter's height, the sky pans up with the critter and the band stays pinned at the bottom (a drop line and a height
-// label show how far up it is). Everything here is in design px at zoom 1; `vw` is the view width in design px.
+// is in view by the top of the arc. Above the height zoomMin fits, height is compressed (lift): true to scale up to
+// trueShare of the sky room, then each extra metre takes less screen, so the critter's top stays inside the sky room and
+// the ground is always on screen. The mochi, the range finder, birds, clouds, columns and every object use this one
+// mapping, so the arc ends on the drawn ground at the right place. Drawing only: the physics never reads it. Everything here
+// is in design px at zoom 1; `vw` is the view width in design px.
 
 // Where the critter comes down if nothing else touches it: the air step (with the action it holds now) in 4-step strides,
 // onto the ground or a ramp.
 function predictLanding(r) {
   if (r.mode !== 'air') return r.x;
-  const h = STEP * 4, s = { x: r.x, y: r.y, vx: r.vx, vy: r.vy, boost: r.boost && r.burstEnd < 0, chute: r.chute, ball: r.ball, fuel: r.fuel };
+  const h = STEP * 4, s = { x: r.x, y: r.y, vx: r.vx, vy: r.vy, boost: r.boost && r.burstEnd < 0, chute: r.chute, ball: r.ball, fuel: r.fuel, e: r.e };
   const kd = Math.pow(1 - r.st.airDrag, h), kc = Math.exp(-T.chuteBleed * h);
   for (let i = 0; i < 3000; i++) {
-    airStep(s, r.st, h, kd, kc);
-    if (s.vy < 0 && s.y <= surfaceH(groundAt(r.field, s.x), s.x)) return s.x;
+    airStep(s, r.st, h, kd, kc, r.field);
+    if (s.vy < 0 && touching(groundAt(r.field, s.x), s)) return s.x;
   }
   return s.x;
 }
 
-const newCamera = (vw) => ({ x: -vw * T.slingScreen, y: 0, z: 1, a: T.followX });
-const skyRoom = () => (T.groundY - T.skyTop) * T.skyFill; // design px of sky the critter may climb into before the view moves
+const newCamera = (vw) => ({ x: -vw * T.slingScreen, z: 1, a: T.followX, h: 0, L: 1, b: 1, q: 0, lq: 1 });
+const skyRoom = () => (T.groundY - T.skyTop) * T.skyFill; // design px of sky the critter may climb into
+
+// The compression for a camera whose top height is c.h: true to scale to c.b, then log-compressed so that c.h lands at
+// c.L (the sky room in world units at this zoom), with the same slope at c.b (no kink).
+function squeeze(c) {
+  c.L = skyRoom() / c.z; c.b = T.trueShare * c.L;
+  if (c.h <= c.L) { c.q = 0; return; }
+  const m = (c.h - c.b) / (c.L - c.b);
+  let lo = 1e-6, hi = 1e9; // q / ln(1 + q) = m
+  for (let i = 0; i < 60; i++) { const q = Math.sqrt(lo * hi); if (q / Math.log1p(q) < m) lo = q; else hi = q; }
+  c.q = Math.sqrt(lo * hi); c.lq = Math.log1p(c.q);
+}
+// A world height on the view (units at zoom 1), and back.
+const lift = (c, y) => (c.q === 0 || y <= c.b ? y : c.b + ((c.L - c.b) * Math.log1p((c.q * (y - c.b)) / (c.h - c.b))) / c.lq);
+const unlift = (c, v) => (c.q === 0 || v <= c.b ? v : c.b + ((c.h - c.b) * Math.expm1(((v - c.b) / (c.L - c.b)) * c.lq)) / c.q);
 
 function cameraStep(c, r, vw, dt) {
   let zt = 1, at = T.followX;
@@ -810,12 +1011,15 @@ function cameraStep(c, r, vw, dt) {
   c.a += (at - c.a) * k(T.zoomOutTime);
   const start = -vw * T.slingScreen;
   c.x = r ? Math.max(start, r.x - (vw * c.a) / c.z) : start;
-  c.y = r ? Math.max(0, r.y + 2 * T.critterR - skyRoom() / c.z) : 0;
+  // The top height: the critter's top (its sprite never under spriteMin), at once when it climbs, eased when it falls.
+  const need = r ? r.y + 2 * T.critterR * Math.max(1, T.spriteMin / c.z) : 0;
+  c.h = need >= c.h ? need : c.h + (need - c.h) * k(T.zoomInTime);
+  squeeze(c);
   return c;
 }
 
-// A world point in design px at zoom 1 (the ground band pinned at groundY).
-const toView = (c, wx, wy) => [(wx - c.x) * c.z, T.groundY - (wy - c.y) * c.z];
+// A world point in design px at zoom 1.
+const toView = (c, wx, wy) => [(wx - c.x) * c.z, T.groundY - lift(c, wy) * c.z];
 
 // ---------- View ----------
 
@@ -827,7 +1031,7 @@ function view(E) {
 }
 
 // S: the play scene's state; S.fx: cosmetic effects in world units (particles, tumbling birds, words), capped.
-const S = { run: null, cam: null, seed: 0, fx: [], sq: { amt: 0, t: 0 } };
+const S = { run: null, cam: null, seed: 0, fx: [], sq: { amt: 0, t: 0 }, pops: new Map(), vents: new Map() };
 
 const RGB = new Map();
 function hexRgb(h) { let v = RGB.get(h); if (!v) { const n = parseInt(h.slice(1), 16); v = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; RGB.set(h, v); } return v; }
@@ -894,12 +1098,12 @@ function drawMotif(ctx, E, motif, li, top, off, s, gy, time) {
 // range finder. `up`: the gear to draw.
 function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   const s = v.s, z = c.z, lw = T.style.line * s;
-  const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - (wy - c.y) * z) * s;
-  const gy = v.oy + T.groundY * s, lift = c.y * z * s, liftM = c.y / T.unitsPerMetre;
+  const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - lift(c, wy) * z) * s;
+  const gy = v.oy + T.groundY * s, squeezed = c.q > 0;
   const sprite = Math.max(z, T.spriteMin), span = v.vw / z;
   const pv = placeView(c.x + span / 2), A = PLACES[pv.a], B = PLACES[pv.b];
   const day = [lerpRgb(hexRgb(A.sky[0]), hexRgb(B.sky[0]), pv.k), lerpRgb(hexRgb(A.sky[1]), hexRgb(B.sky[1]), pv.k)];
-  const alt = (c.y + T.groundY / z) / T.unitsPerMetre, sky = skyAt(alt, day);
+  const alt = unlift(c, T.groundY / z) / T.unitsPerMetre, sky = skyAt(alt, day);
 
   // Sky, stars, hills.
   const grad = ctx.createLinearGradient(0, 0, 0, gy);
@@ -914,10 +1118,10 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
     }
     ctx.globalAlpha = 1;
   }
-  const hillA = (1 - clamp(liftM / T.hillFadeLift, 0, 1)) * (1 - sky.night);
+  const hillA = 1 - sky.night;
   if (hillA > 0.01) {
     for (const [li, par, key] of [[0, 0.15, 'far'], [1, 0.35, 'near']]) {
-      const off = c.x * z * par, drop = lift * 0.6, ha = A.hills, hb = B.hills, k = pv.k;
+      const off = c.x * z * par, drop = 0, ha = A.hills, hb = B.hills, k = pv.k;
       const hy = (u) => { const a = ha.base[li] + ha.amp[li] * hillY(u, ha, li); return k > 0 ? a + (hb.base[li] + hb.amp[li] * hillY(u, hb, li) - a) * k : a; };
       const top = (u) => gy + drop - hy(u) * s;
       ctx.globalAlpha = hillA; ctx.fillStyle = mix(ha[key], hb[key], k);
@@ -968,7 +1172,10 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
       if (g.kind === 'spring') drawJelly(ctx, X(g.x0), gy, g.w * z * s, s, g.spent, S.pops.get(g), E.time + g.x0 * 0.01, lw);
       else if (g.kind === 'mud') drawMud(ctx, X(g.x0), gy, g.w * z * s, s, E.time + g.x0 * 0.013);
       else if (g.kind === 'ramp') drawRamp(ctx, X(g.x0), gy, g.w * z * s, g.h * z * s, s, lw);
-      else if (g.kind === 'geyser') drawGeyser(ctx, X(g.x0), gy, g.w * z * s, T.geyserH * z * s, s, g, t, E.time, lw);
+      else if (g.kind === 'geyser') drawGeyser(ctx, X(g.x0), gy, g.w * z * s, gy - Y(T.geyserH), s, g, t, E.time, lw);
+      else if (g.kind === 'thermal' || g.kind === 'freezer') drawVent(ctx, X(g.x0), gy, g.w * z * s, gy - Y(T.ventH), s, g.kind, E.time + g.x0 * 0.01, lw, S.vents.get(g));
+      else if (g.kind === 'hill') drawHill(ctx, X(g.x0), gy, g.w * z * s, g.h * z * s, s, lw);
+      else if (g.kind === 'marsh') drawMarsh(ctx, X(g.x0), gy, g.w * z * s, s, lw, S.pops.get(g), E.time + g.x0 * 0.01);
     }
     for (const cl of f.clouds) if (cl.x > x0 && cl.x < x1) drawCloud(ctx, X(cl.x), Y(cl.y), s * z, cl.used, E.time + cl.x * 0.01, lw);
     for (const b of f.birds) {
@@ -986,12 +1193,8 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   let rr = T.critterR * s * (r ? sprite : z);
   const sx = X(cx), sy = Y(cy) - rr;
   const hgt = cy * z * s;
-  if (lift === 0 && hgt < 160 * s && r) { ctx.globalAlpha = 1 - hgt / (160 * s); ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(sx, gy + 2 * s, rr * 1.1, rr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  if (hgt < 160 * s && r) { ctx.globalAlpha = 1 - hgt / (160 * s); ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(sx, gy + 2 * s, rr * 1.1, rr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
   for (const e of S.fx) drawFx(ctx, E, e, X, Y, s, sprite, lw, true);
-  if (lift > 0) { // panned sky: a dotted drop line from the critter to the band
-    ctx.strokeStyle = sky.night > 0.5 ? P.star : P.ink; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]);
-    ctx.beginPath(); ctx.moveTo(sx, sy + rr + 4); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
-  }
   const sp = r ? Math.hypot(r.vx, r.vy) : 0, dir = r && sp > 1 ? Math.atan2(-r.vy, r.vx) : 0;
   // Speed lines: fast, or just off a jelly or a geyser.
   const lines = r && !r.ended ? Math.max(S.speedT > 0 ? S.speedT / J.speedLines : 0, clamp((sp - J.speedLineMin) / 600, 0, 1)) : 0;
@@ -1021,11 +1224,14 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
     for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(sx, sy, rr * 1.35, a0 + i * 2.1, a0 + i * 2.1 + 0.7); ctx.stroke(); }
     ctx.lineCap = 'butt';
   }
-  return { sx, sy, rr, height: cy, lifted: lift > 0, night: sky.night, mx, gy, mk: mk * MACHINE };
+  return { sx, sy, rr, height: cy, lifted: squeezed && cy > c.b, night: sky.night, mx, gy, mk: mk * MACHINE };
 }
 
-// The range finder's dotted arc (PRD v0.3 D): dots in the action's colour, fading out along the arc, ending in the landing
-// marker where it reaches a contact: teal on a jelly, a dark cross on caramel, a white chevron elsewhere.
+// The range finder's dotted arc (PRD v0.3 D, v0.4 B): dots in the action's colour, fading out along the arc, a badge where it
+// enters a thermal (a warm up arrow) or a freezer column (a snowflake), and the landing marker where it reaches a contact.
+// Condensed, the marker says what the slam will meet: a gold star on a jelly's centre, teal on its edge, a mint rocket on
+// a downhill face, a berry crash star on an uphill face, a puff on marshmallow, a slate chevron on plain ground (the miss).
+// Not condensed: teal on a jelly, the face's colour on a hill, a puff on marshmallow, a dark cross on caramel, white elsewhere.
 function drawArc(ctx, a, X, Y, s, sprite, time) {
   const col = P.arc[a.mode], R = T.critterR;
   ctx.lineWidth = 1.2 * s; ctx.strokeStyle = P.ink;
@@ -1034,13 +1240,134 @@ function drawArc(ctx, a, X, Y, s, sprite, time) {
     ctx.globalAlpha = k; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 2.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  if (a.vent) drawVentBadge(ctx, X(a.vent.x), Y(a.vent.y + R), s, a.vent.kind, time);
   if (!a.hit || a.kind === 'bird' || a.kind === 'geyser') return;
-  const x = X(a.x), y = Y(a.y);
+  const x = X(a.x), y = Y(a.y), on = a.slam || a.kind;
   if (a.kind === 'mud') {
     ctx.strokeStyle = P.white; ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
     for (const pass of [0, 1]) { if (pass) { ctx.strokeStyle = P.mud; ctx.lineWidth = 2.6 * s; } ctx.beginPath(); ctx.moveTo(x - 6 * s, y - 16 * s); ctx.lineTo(x + 6 * s, y - 4 * s); ctx.moveTo(x + 6 * s, y - 16 * s); ctx.lineTo(x - 6 * s, y - 4 * s); ctx.stroke(); }
     ctx.lineCap = 'butt';
-  } else drawMark(ctx, x, y, s, time, a.kind === 'spring' ? P.tealLight : P.white);
+  } else if (on === 'centre') { drawMark(ctx, x, y, s, time, P.zones[0]); ctx.fillStyle = P.zones[0]; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.2 * s; starPath(ctx, x, y - 20 * s + Math.sin(time * 7) * 1.5 * s, 6 * s); ctx.fill(); ctx.stroke(); }
+  else if (on === 'up') crashMark(ctx, x, y, s, time);
+  else if (on === 'down') rocketMark(ctx, x, y, s, time);
+  else if (on === 'marsh') puffMark(ctx, x, y, s, time);
+  else drawMark(ctx, x, y, s, time, on === 'spring' || on === 'jelly' ? P.tealLight : a.slam ? P.miss : P.white);
+}
+
+// A five-point star.
+function starPath(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r; ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  ctx.closePath();
+}
+// The downhill face: a mint chevron with a forward arrow over it (the rocket).
+function rocketMark(ctx, x, y, s, time) {
+  drawMark(ctx, x, y, s, time, P.rocket);
+  const b = Math.sin(time * 9) * 2 * s, ay = y - 18 * s;
+  ctx.fillStyle = P.rocket; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4 * s; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 8 * s + b, ay - 3 * s); ctx.lineTo(x + 3 * s + b, ay - 3 * s); ctx.lineTo(x + 3 * s + b, ay - 7 * s); ctx.lineTo(x + 10 * s + b, ay); ctx.lineTo(x + 3 * s + b, ay + 7 * s); ctx.lineTo(x + 3 * s + b, ay + 3 * s); ctx.lineTo(x - 8 * s + b, ay + 3 * s); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+// The uphill face: a berry crash burst (a jagged star) on the face.
+function crashMark(ctx, x, y, s, time) {
+  const k = 1 + 0.12 * Math.sin(time * 10), r = 9 * s * k, cy = y - 10 * s;
+  ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(x, y + 2 * s, 7 * s, 2 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  for (let i = 0; i < 14; i++) { const a = (i * Math.PI) / 7, rr = i % 2 ? r * 0.5 : r; ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+  ctx.closePath(); ctx.fillStyle = P.crash; ctx.strokeStyle = P.white; ctx.lineWidth = 3.4 * s; ctx.lineJoin = 'round'; ctx.stroke(); ctx.fill();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4 * s; ctx.stroke();
+}
+// Marshmallow: a soft white puff sinking (the bounce swallowed).
+function puffMark(ctx, x, y, s, time) {
+  const sink = (Math.sin(time * 4) * 0.5 + 0.5) * 3 * s, cy = y - 9 * s + sink;
+  ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(x, y + 2 * s, 7 * s, 2 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = P.marsh; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4 * s;
+  ctx.beginPath(); ctx.ellipse(x, cy, 9 * s, 6 * s - sink * 0.4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.2 * s; ctx.beginPath(); ctx.moveTo(x - 3 * s, cy - 1 * s); ctx.lineTo(x, cy + 2 * s); ctx.lineTo(x + 3 * s, cy - 1 * s); ctx.stroke();
+}
+// Where the arc enters a column: a warm up arrow (thermal) or a snowflake (freezer) on a small round badge.
+function drawVentBadge(ctx, x, y, s, kind, time) {
+  const r = 8 * s, b = Math.sin(time * 6) * 1.5 * s;
+  ctx.fillStyle = kind === 'thermal' ? P.thermal : P.freezer; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4 * s;
+  ctx.beginPath(); ctx.arc(x, y + b, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineCap = 'round'; ctx.beginPath();
+  if (kind === 'thermal') { ctx.moveTo(x, y + b + 4.5 * s); ctx.lineTo(x, y + b - 4.5 * s); ctx.moveTo(x - 3.5 * s, y + b - 1 * s); ctx.lineTo(x, y + b - 4.5 * s); ctx.lineTo(x + 3.5 * s, y + b - 1 * s); }
+  else for (let i = 0; i < 3; i++) { const a = (i * Math.PI) / 3; ctx.moveTo(x - Math.cos(a) * 5 * s, y + b - Math.sin(a) * 5 * s); ctx.lineTo(x + Math.cos(a) * 5 * s, y + b + Math.sin(a) * 5 * s); }
+  ctx.stroke(); ctx.lineCap = 'butt';
+}
+
+// An oven-vent thermal or a freezer vent (PRD v0.4 B): a low grate on the ground and its column ventH tall. The thermal's
+// grate is warm rose brick with glowing sugar-yellow slots under a shimmering cream column whose heat lines wave upward;
+// the freezer's is icy blue with frosted slots under a pale blue column where snowflakes and chevrons drift down. `hit`
+// glows the column for a moment when the mochi enters it.
+function drawVent(ctx, x, gy, w, colH, s, kind, time, lw, hit) {
+  const warm = kind === 'thermal', top = gy - colH, glow = hit ? hit.t / J.ventGlow : 0;
+  ctx.globalAlpha = 0.28 + 0.2 * glow; ctx.fillStyle = warm ? P.thermalAir : P.freezerAir;
+  ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w * 0.04, top + 8 * s); ctx.quadraticCurveTo(x + w / 2, top - 6 * s, x + w * 0.96, top + 8 * s); ctx.lineTo(x + w, gy); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.75; ctx.strokeStyle = warm ? P.thermalLine : P.freezerLine; ctx.lineWidth = 1.6 * s; ctx.lineCap = 'round';
+  const n = Math.max(2, Math.round(w / (18 * s)));
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const lx = x + (w * (i + 0.5)) / n, ph = ((time * (warm ? 0.6 : 0.35) + i * 0.37) % 1 + 1) % 1, len = Math.min(40 * s, colH * 0.3);
+    const y0 = warm ? gy - 6 * s - ph * (colH - len) : top + ph * (colH - len) + 6 * s; // heat rises, frost falls
+    if (warm) { ctx.moveTo(lx, y0); for (let k = 1; k <= 6; k++) ctx.lineTo(lx + Math.sin(time * 5 + k + i) * 2.5 * s, y0 - (len * k) / 6); }
+    else { ctx.moveTo(lx - 4 * s, y0); ctx.lineTo(lx, y0 + 4 * s); ctx.lineTo(lx + 4 * s, y0); }
+  }
+  ctx.stroke();
+  if (!warm) { // snowflakes drifting down the column
+    ctx.strokeStyle = P.white; ctx.lineWidth = 1.2 * s; ctx.beginPath();
+    for (let i = 0; i < n + 1; i++) {
+      const ph = ((time * 0.25 + i * 0.29) % 1 + 1) % 1, fx = x + (w * (i + 0.2)) / (n + 1) + Math.sin(time * 2 + i) * 4 * s, fy = top + ph * colH, r = 2.6 * s;
+      for (let k = 0; k < 3; k++) { const a = (k * Math.PI) / 3; ctx.moveTo(fx - Math.cos(a) * r, fy - Math.sin(a) * r); ctx.lineTo(fx + Math.cos(a) * r, fy + Math.sin(a) * r); }
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+  const p = lw * 1.2, vh = 7 * s;
+  cached(ctx, `vent${kind}|${lw.toFixed(2)}`, x - 3 * s - p, gy - vh - p, w + 6 * s + 2 * p, vh + 2 * p, (c) => {
+    const ww = w + 6 * s, y0 = vh + p;
+    roundRectPath(c, p, p, ww, vh + 3 * s, 3 * s);
+    c.lineJoin = 'round'; c.strokeStyle = P.halo; c.lineWidth = lw * 2.2; c.stroke();
+    c.fillStyle = warm ? P.ovenBrick : P.freezerBody; c.fill(); c.strokeStyle = P.ink; c.lineWidth = lw * 0.8; c.stroke();
+    const slots = Math.max(2, Math.round(ww / (9 * s)));
+    for (let i = 0; i < slots; i++) { c.fillStyle = warm ? P.coin : P.freezerLine; roundRectPath(c, p + (ww * (i + 0.25)) / slots, y0 - vh + 2.2 * s, (ww * 0.5) / slots, 2.6 * s, 1.2 * s); c.fill(); }
+  });
+}
+
+// A candy-cane hill (PRD v0.4 B): one smooth bump striped berry and white on the diagonal, an ink outline over a light halo.
+// The uphill face (the left half) is shaded and its stripes deeper, so the face that crashes reads darker than the face
+// that launches. One sprite per size.
+function drawHill(ctx, x, gy, w, h, s, lw) {
+  const p = lw * 2;
+  cached(ctx, `hill|${(w / h).toFixed(2)}|${lw.toFixed(2)}`, x - p, gy - h - p, w + 2 * p, h + 2 * p, (c) => hillShape(c, p, h + p, w, h, s, lw));
+}
+function hillShape(ctx, x, gy, w, h, s, lw) {
+  const path = () => { ctx.beginPath(); ctx.moveTo(x, gy); for (let i = 1; i <= 32; i++) { const u = i / 32; ctx.lineTo(x + w * u, gy - (h * (1 - Math.cos(2 * Math.PI * u))) / 2); } ctx.closePath(); };
+  path(); ctx.lineJoin = 'round'; ctx.strokeStyle = P.halo; ctx.lineWidth = lw * 2.4; ctx.stroke();
+  ctx.save(); path(); ctx.fillStyle = P.white; ctx.fill(); ctx.clip();
+  const step = 12 * s; ctx.fillStyle = P.berry;
+  for (let d = -h; d < w + h; d += step * 2) { ctx.beginPath(); ctx.moveTo(x + d, gy); ctx.lineTo(x + d + step, gy); ctx.lineTo(x + d + step + h, gy - h); ctx.lineTo(x + d + h, gy - h); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle = P.hillShade; ctx.fillRect(x, gy - h, w / 2, h); // the uphill face in shade
+  ctx.restore();
+  path(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.stroke();
+}
+
+// A marshmallow pad (PRD v0.4 B): a row of fat, soft white pillows (wider and rounder than jelly cubes, never teal), a lilac
+// shade along the bottom, a dusting of sugar, an ink outline. They squash when hit and slowly puff back.
+function drawMarsh(ctx, x, gy, w, s, lw, pop, time) {
+  const n = Math.max(1, Math.round(w / (T.marshPuff * s))), cw = w / n, k = pop ? pop.t / J.springPop : 0, pad = lw * 1.2;
+  for (let i = 0; i < n; i++) {
+    const h = Math.round(10 * (1 - 0.45 * k) * (1 + 0.03 * Math.sin(time * 2 + i)) * 2) / 2 * s;
+    cached(ctx, `marsh|${h.toFixed(1)}|${lw.toFixed(2)}`, x + i * cw - pad, gy - h - pad, cw + 2 * pad, h + 2 * pad, (c) => marshPillow(c, pad, pad, cw, h, s, lw));
+  }
+}
+function marshPillow(ctx, x, y, cw, h, s, lw) {
+  const gap = Math.min(2 * s, cw * 0.12), x0 = x + gap / 2, ww = cw - gap, rad = Math.min(ww / 2, h * 0.75);
+  roundRectPath(ctx, x0, y, ww, h, rad); ctx.lineJoin = 'round';
+  ctx.strokeStyle = P.halo; ctx.lineWidth = lw * 2; ctx.stroke();
+  ctx.fillStyle = P.marsh; ctx.fill();
+  ctx.save(); ctx.clip(); ctx.fillStyle = P.marshShade; ctx.fillRect(x0, y + h * 0.62, ww, h); ctx.restore();
+  roundRectPath(ctx, x0, y, ww, h, rad); ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.stroke();
+  ctx.fillStyle = P.marshShade; for (const [u, v] of [[0.3, 0.3], [0.55, 0.22], [0.72, 0.4]]) ctx.fillRect(x0 + ww * u, y + h * v, 1.4 * s, 1.4 * s);
 }
 
 // The dough parachute: the mochi's own dough pulled up into a sail over him, two strands down, swaying with the drift.
@@ -1519,7 +1846,7 @@ function updateFx(dt) {
     e.vy += e.g * dt; e.x += e.vx * dt; e.y += e.vy * dt;
     if (e.k === 'tumble') { e.rot += e.spin * dt; if (e.y < T.birdR) { e.y = T.birdR; e.vx = e.vy = e.g = e.spin = 0; } } // it lands on the band
   }
-  for (const [g, p] of S.pops) { p.t -= dt; if (p.t <= 0) S.pops.delete(g); }
+  for (const m of [S.pops, S.vents]) if (m) for (const [g, p] of m) { p.t -= dt; if (p.t <= 0) m.delete(g); }
 }
 
 function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
@@ -1528,8 +1855,9 @@ function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
   if (e.k === 'word') {
     const pop = k > 0.8 ? ease.outBack((1 - k) / 0.2) : 1;
     ctx.globalAlpha = Math.min(1, k * 3);
-    ctx.fillStyle = P.panel; const w = e.text.length * e.size * 0.62 + 16; roundRectPath(ctx, x - w / 2, y - e.size * 0.8 * pop, w, e.size * 1.6 * pop, 10); ctx.fill();
-    E.text(e.text, x, y, { size: Math.max(TY.sm, e.size * pop), weight: '800', color: e.color });
+    ctx.font = `800 ${Math.max(TY.sm, e.size * pop)}px system-ui, sans-serif`; ctx.fillStyle = P.panel; const w = ctx.measureText(e.text).width + 20, wx = clamp(x, E.safe.left + w / 2 + 8, E.w - E.safe.right - w / 2 - 8); // never off the screen's sides
+    roundRectPath(ctx, wx - w / 2, y - e.size * 0.8 * pop, w, e.size * 1.6 * pop, 10); ctx.fill();
+    E.text(e.text, wx, y, { size: Math.max(TY.sm, e.size * pop), weight: '800', color: e.color });
     ctx.globalAlpha = 1; return;
   }
   if (e.k === 'steam') { // a puff that swells and fades as it rises
@@ -1568,17 +1896,30 @@ const SFX = {
   whoosh: (E) => E.audio.noise({ dur: 0.12, gain: 0.04 }),
   chute: (E) => { E.audio.beep({ freq: 260, dur: 0.2, type: 'sine', slide: 1.7, gain: 0.1 }); E.audio.noise({ dur: 0.08, gain: 0.05 }); },
   drop: (E) => E.audio.beep({ freq: 760, dur: 0.16, type: 'sine', slide: 0.35, gain: 0.1 }),
-  // A ground bounce: a boing pitched and loud by the impact; a condensed one adds a deep thump.
-  bounce: (E, v, big) => {
+  // A ground bounce: a boing pitched and loud by the impact.
+  bounce: (E, v) => {
     const k = clamp(v / 900, 0, 1);
     E.audio.beep({ freq: 160 + 220 * k, dur: 0.14 + 0.08 * k, type: 'sine', slide: 1.9, gain: 0.04 + 0.08 * k });
-    if (big) E.audio.beep({ freq: 70, dur: 0.22, type: 'triangle', slide: 0.6, gain: 0.16 });
   },
-  spring: (E, big) => { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 420, dur: 0.18, type: 'sine', slide: 2.2, gain: 0.1 }); if (big) E.audio.beep({ freq: 210, dur: 0.35, type: 'sine', slide: 3, gain: 0.12, delay: 0.05 }); },
+  spring: (E) => { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 420, dur: 0.18, type: 'sine', slide: 2.2, gain: 0.1 }); },
   bird: (E) => { E.audio.beep({ freq: 900, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.08 }); E.audio.beep({ freq: 1000, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.07, delay: 0.09 }); },
   chain: (E, n) => E.audio.beep({ freq: 520 * Math.pow(1.26, Math.min(n, 8)), dur: 0.14, type: 'triangle', gain: 0.12 }),
   geyser: (E) => { E.audio.noise({ dur: 0.35, gain: 0.12 }); E.audio.beep({ freq: 300, dur: 0.3, type: 'sine', slide: 3, gain: 0.1 }); },
   cloud: (E) => { E.audio.beep({ freq: 660, dur: 0.12, type: 'sine', slide: 0.8, gain: 0.08 }); E.audio.beep({ freq: 990, dur: 0.1, type: 'sine', gain: 0.06, delay: 0.08 }); },
+  // PRD v0.4: each slam's outcome, the columns, the flare.
+  slam: (E, on, v) => {
+    const k = clamp(v / 1200, 0, 1);
+    if (on === 'centre') { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 300, dur: 0.4, type: 'sine', slide: 3.2, gain: 0.14 }); [1320, 1760, 2640].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.12, type: 'triangle', gain: 0.07, delay: 0.06 + i * 0.06 })); }
+    else if (on === 'jelly') { E.audio.beep({ freq: 1100, dur: 0.1, slide: 1.4 }); E.audio.beep({ freq: 380, dur: 0.22, type: 'sine', slide: 2.2, gain: 0.1 }); }
+    else if (on === 'down') { E.audio.beep({ freq: 70, dur: 0.2, type: 'triangle', slide: 0.6, gain: 0.16 }); E.audio.noise({ dur: 0.3, gain: 0.1 }); E.audio.beep({ freq: 320, dur: 0.45, type: 'sine', slide: 4, gain: 0.1, delay: 0.04 }); }
+    else if (on === 'up') { E.audio.noise({ dur: 0.28, gain: 0.16 }); E.audio.beep({ freq: 150, dur: 0.3, type: 'sawtooth', slide: 0.4, gain: 0.1 }); E.audio.beep({ freq: 95, dur: 0.2, type: 'square', slide: 0.5, gain: 0.06, delay: 0.08 }); }
+    else if (on === 'marsh') { E.audio.beep({ freq: 210, dur: 0.32, type: 'sine', slide: 0.45, gain: 0.12 }); E.audio.noise({ dur: 0.18, gain: 0.04 }); }
+    else { E.audio.beep({ freq: 80 + 40 * k, dur: 0.18, type: 'triangle', slide: 0.7, gain: 0.14 }); E.audio.noise({ dur: 0.1, gain: 0.07 }); }
+  },
+  thermal: (E) => { E.audio.noise({ dur: 0.3, gain: 0.05 }); E.audio.beep({ freq: 240, dur: 0.4, type: 'sine', slide: 1.9, gain: 0.08 }); E.audio.beep({ freq: 480, dur: 0.3, type: 'triangle', slide: 1.5, gain: 0.04, delay: 0.1 }); },
+  freezer: (E) => { [1900, 1600, 1250].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.09, type: 'triangle', slide: 0.8, gain: 0.06, delay: i * 0.07 })); E.audio.noise({ dur: 0.25, gain: 0.05 }); },
+  flare: (E) => { E.audio.beep({ freq: 180, dur: 0.18, type: 'sine', slide: 2, gain: 0.12 }); E.audio.noise({ dur: 0.12, gain: 0.06 }); },
+  soft: (E) => E.audio.beep({ freq: 230, dur: 0.2, type: 'sine', slide: 0.6, gain: 0.08 }),
   home: (E) => { [523, 659, 784, 1047].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.22, type: 'triangle', gain: 0.12, delay: i * 0.12 })); },
 };
 
@@ -1626,7 +1967,7 @@ function drawHud(E, r, fuel, fuelMax, info) {
   }
   if (S.actT > 0) { // the three actions, once, from the top of the first arc
     E.ctx.globalAlpha = clamp(S.actT / 0.3, 0, 1);
-    pill(E, 'Hold: boost   Swipe up: sail   Swipe down: drop', E.w / 2, E.h - sf.bottom - 30, TY.md); // low, clear of the flight
+    pill(E, 'Hold: boost   Swipe up: glide   Swipe down: slam', E.w / 2, E.h - sf.bottom - 30, TY.md); // low, clear of the flight
     E.ctx.globalAlpha = 1;
   }
 }
@@ -1696,7 +2037,7 @@ function drawPlaceIcon(ctx, i, x, y, r, lw) {
 const menu = {
   render(ctx, E) {
     const v = view(E), sf = E.safe, up = levelsOf(E), best = E.save.get('best', 0);
-    drawWorld(ctx, E, v, newCamera(v.vw), null, null, up);
+    const world = drawWorld(ctx, E, v, newCamera(v.vw), null, null, up);
     journeyStrip(E, sf.left + 92, E.w - sf.right - 84, sf.top + 29, best, E.save.get('home', false), up); // clear of EXPORT and TUNE
     const titled = E.h - sf.top - sf.bottom >= T.menuTitleMinH; // on a short screen the strip is the title
     const cy = titled ? sf.top + 52 + Math.max(32, E.h * 0.12 - 14) : sf.top + 34;
@@ -1704,9 +2045,10 @@ const menu = {
     E.titleArea = titled ? { x: E.w / 2 - 110, y: cy - 30, w: 220, h: 60 } : { x: sf.left + 92, y: sf.top + 6, w: E.w - sf.left - sf.right - 176, h: 46 }; // release: five taps here show TUNE
     pill(E, `Best ${best} m`, E.w / 2, cy + 42, TY.md);
     const goals = activeGoals(E.save.get('goalsDone', [])), have = { flights: E.save.get('flights', 0), perfectRow: E.save.get('perfectRow', 0) };
-    const gw = Math.min(E.w - sf.left - sf.right - 40, 420);
+    const gw = Math.min(E.w - sf.left - sf.right - 40, 420), reach = world.mx + 62 * world.mk; // the barrel's tip
+    const gx = Math.max(E.w / 2 - gw / 2, Math.min(reach + 12, E.w - sf.right - 20 - gw)); // the goals clear the barrel when they fit
     let gy = cy + 66;
-    for (const g of goals) gy += goalRow(E, E.w / 2 - gw / 2, gy, gw, g, goalLine(g, have[g.stat]), false) + 6;
+    for (const g of goals) gy += goalRow(E, gx, gy, gw, g, goalLine(g, have[g.stat]), false) + 6;
     const bottom = E.h - sf.bottom - 8;
     if (gy + 8 + 56 + 8 + 44 <= bottom) { // Play above Shop and Sound
       const py = Math.min(gy + 8 + 28, bottom - 44 - 8 - 28);
@@ -1738,7 +2080,7 @@ const play = {
     S.up = levelsOf(E); S.st = stats(S.up); S.cam = newCamera(view(E).vw);
     S.streak = E.save.get('perfectRow', 0); S.streakNow = S.streak; S.gauge = gaugeOf(S.seed, S.streak, S.up); S.gv = null; S.lit = -1;
     S.hint = E.save.get('flights', 0) < 2; // the two beats are named on a fresh save's first two flights
-    S.fx.length = 0; S.pops = new Map(); S.sq = { amt: 0, t: 0 };
+    S.fx.length = 0; S.pops = new Map(); S.vents = new Map(); S.sq = { amt: 0, t: 0 };
     for (const k of ['speedT', 'gaugePop', 'distPop', 'chainT', 'comboT', 'homeT', 'actT', 'pumpT', 'glowT', 'slowT', 'whooshT', 'streakT']) S[k] = 0;
     S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime };
     S.zonePop = null; S.arc = null; S.arcPts = new Float64Array(800); S.callouts = []; S.endWait = T.endDelay;
@@ -1805,19 +2147,17 @@ const play = {
   onEvent(e, E) {
     const r = S.run, cx = r.x, cy = r.y + T.critterR;
     if (e.k === 'spring') {
-      SFX.spring(E, e.big); E.haptic(J.haptic.spring); this.squash(0.14 + r.vy / 2500); S.speedT = J.speedLines;
+      SFX.spring(E); E.haptic(J.haptic.spring); this.squash(0.14 + r.vy / 2500); S.speedT = J.speedLines;
       const g = groundAt(r.field, r.x); if (g) S.pops.set(g, { t: J.springPop });
-      if (e.big) { E.shake(J.bounceShake, J.bounceShakeTime); emit('dust', cx, 0, J.dust * 2, { angle: Math.PI / 2, spread: Math.PI, speed: 220, g: -300, life: 0.6, size: 3.5, color: P.tealLight }); }
-      word(e.big ? 'BIG BOING!' : 'Boing', r.x - 40, 90, TY.md, J.boingLife);
+      word('Boing', r.x - 40, 90, TY.md, J.boingLife);
       word(`↑ ${Math.round((r.vy * r.vy) / (2 * T.gravity) / T.unitsPerMetre)} m`, r.x - 40, 50, TY.sm, J.boingLife);
       S.comboT = 0.25;
     } else if (e.k === 'bounce') {
       const k = clamp(e.v / 900, 0, 1);
-      SFX.bounce(E, e.v, e.big); this.squash(Math.max(0.08, e.v * J.bounceSquash)); S.comboT = 0.25;
+      SFX.bounce(E, e.v); this.squash(Math.max(0.08, e.v * J.bounceSquash)); S.comboT = 0.25;
       emit('dust', cx, 0, Math.round(4 + J.dust * k), { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 60 + 160 * k, g: -250, life: 0.5, size: 2.6 + 2 * k, color: P.dust });
       if (e.skim) emit('dust', cx, 0, 3, { angle: Math.PI * 0.85, spread: 0.4, speed: 120, g: -200, life: 0.4, size: 2, color: P.white });
-      if (e.big || e.v > J.bigBounce) { E.shake(J.bounceShake * (e.big ? 1 : 0.6), J.bounceShakeTime); E.haptic(J.haptic.drop); }
-      if (e.big) word('Bounce!', r.x - 30, 70, TY.md, J.boingLife);
+      if (e.v > J.bigBounce) { E.shake(J.bounceShake * 0.6, J.bounceShakeTime); E.haptic(J.haptic.drop); }
     } else if (e.k === 'land') { this.squash(Math.max(0.1, e.v * J.bounceSquash)); emit('dust', cx, 0, 5, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 70, g: -250, life: 0.5, size: 2.6, color: P.dust }); }
     else if (e.k === 'bird') {
       SFX.bird(E); E.haptic(J.haptic.bird);
@@ -1830,7 +2170,17 @@ const play = {
       SFX.boost(E); E.haptic(J.haptic.boost); S.gaugePop = J.gaugePop; S.whooshT = J.whoosh;
       emit('fizz', cx, cy, J.fizz, { angle: Math.atan2(-r.vy, -r.vx), spread: 2.2, speed: 200, g: 0, life: J.fizzLife, size: 4, color: P.fizz });
       emit('cola', cx, cy, 5, { angle: Math.atan2(-r.vy, -r.vx), spread: 1, speed: 160, g: 0, life: J.fizzLife, size: 3, color: P.soda });
-    } else if (e.k === 'chute') { SFX.chute(E); E.haptic(J.haptic.chute); emit('puff', cx, cy + 30, 6, { speed: 60, g: 0, life: 0.4, size: 3, color: P.powder }); }
+    } else if (e.k === 'chute') {
+      SFX.chute(E); E.haptic(J.haptic.chute); emit('puff', cx, cy + 30, 6, { speed: 60, g: 0, life: 0.4, size: 3, color: P.powder });
+      if (e.flare) { SFX.flare(E); this.squash(0.18); word('Flare!', r.x - 30, r.y + 70, TY.md, J.boingLife); emit('puff', cx, cy, 10, { angle: -Math.PI / 2, spread: 1.4, speed: 160, g: 0, life: 0.4, size: 3, color: P.powder }); }
+    } else if (e.k === 'slam') this.onSlam(e, E);
+    else if (e.k === 'thermal' || e.k === 'freezer') {
+      const warm = e.k === 'thermal', g = groundAt(r.field, r.x);
+      SFX[e.k](E); E.haptic(J.haptic.cloud); if (g) S.vents.set(g, { t: J.ventGlow });
+      emit('puff', cx, cy, 8, { angle: warm ? Math.PI / 2 : -Math.PI / 2, spread: 1, speed: 120, g: 0, life: 0.5, size: 3, color: warm ? P.thermalAir : P.freezer });
+      if (e.glide) word(warm ? 'Rising!' : 'Iced!', r.x - 30, r.y + 70, TY.sm, J.boingLife);
+    } else if (e.k === 'marsh') { SFX.soft(E); this.squash(0.2); const g = groundAt(r.field, r.x); if (g) S.pops.set(g, { t: J.springPop }); emit('puff', cx, cy - 10, 6, { angle: Math.PI / 2, spread: 2, speed: 60, g: -100, life: 0.5, size: 3, color: P.marsh }); }
+    else if (e.k === 'launch') { SFX.whoosh(E); S.speedT = J.speedLines * 0.6; }
     else if (e.k === 'drop') { SFX.drop(E); E.haptic(J.haptic.drop); this.squash(0.2); emit('puff', cx, cy, 6, { angle: Math.PI / 2, spread: 1.2, speed: 120, g: 0, life: 0.35, size: 2.6, color: P.critterLight }); }
     else if (e.k === 'ramp') this.squash(0.1);
     else if (e.k === 'mud') {
@@ -1862,10 +2212,42 @@ const play = {
       this.squash(0.18);
       if (!r.stars.length) E.audio.play('lose', 0.3);
     }
-    if ((e.k === 'spring' || e.k === 'bird' || e.k === 'geyser') && e.chain >= 1) {
+    if ((e.k === 'spring' || e.k === 'bird' || e.k === 'geyser' || (e.k === 'slam' && (e.on === 'centre' || e.on === 'jelly'))) && e.chain >= 1) {
       S.chainT = J.chainLife;
       if (e.chain >= 2) SFX.chain(E, e.chain);
       emit('coin', cx, cy, J.coins[Math.min(e.chain, J.coins.length - 1)], { angle: Math.PI / 2, spread: 1.2, speed: 200, g: -500, life: 0.7, size: 3.2, color: P.coin });
+    }
+  },
+  // A slam lands (PRD v0.4 A, B): each outcome has its own sound, squash, particles and word; a centred jelly is the big one.
+  onSlam(e, E) {
+    const r = S.run, cx = r.x, on = e.on, up = r.vy * r.vy / (2 * T.gravity) / T.unitsPerMetre, g = groundAt(r.field, r.x);
+    SFX.slam(E, on, e.v);
+    if (g && (g.kind === 'spring' || g.kind === 'marsh')) S.pops.set(g, { t: J.springPop });
+    if (on === 'centre' || on === 'jelly') {
+      const big = on === 'centre';
+      E.haptic(big ? J.haptic.home[0] : J.haptic.spring); this.squash(big ? 0.35 : 0.22); S.speedT = J.speedLines;
+      emit('dust', cx, e.y, J.dust * (big ? 3 : 1.5), { angle: Math.PI / 2, spread: Math.PI, speed: big ? 300 : 200, g: -300, life: 0.6, size: 3.5, color: P.tealLight });
+      if (big) { E.shake(J.bounceShake * 1.4, J.bounceShakeTime); E.flash(P.zones[0], 0.1); S.gaugePop = J.gaugePop; emit('spark', cx, e.y + T.critterR, 14, { angle: Math.PI / 2, spread: Math.PI * 1.2, speed: 220, g: -200, life: 0.6, size: 2.8, color: P.zones[0] }); }
+      word(big ? 'PERFECT SLAM!' : 'Slam', r.x - 90, e.y + 170, big ? TY.lg : TY.md, J.boingLife * 1.3);
+      word(`${big ? '+1 fizz  ' : ''}↑ ${Math.round(up)} m`, r.x - 90, e.y + 110, TY.sm, J.boingLife);
+    } else if (on === 'down') {
+      E.haptic(J.haptic.geyser); E.shake(J.bounceShake, J.bounceShakeTime); this.squash(0.3); S.speedT = J.speedLines * 2;
+      emit('dust', cx, e.y, J.dust * 2, { angle: Math.PI * 0.85, spread: 0.8, speed: 280, g: -250, life: 0.6, size: 3.2, color: P.rocket });
+      emit('fizz', cx, e.y + T.critterR, 10, { angle: Math.PI, spread: 0.5, speed: 260, g: 0, life: 0.45, size: 3, color: P.white });
+      word('ROCKET!', r.x - 90, e.y + 150, TY.lg, J.boingLife * 1.3);
+    } else if (on === 'up') {
+      E.haptic(J.haptic.mud); E.shake(J.mudShake, J.mudShakeTime); this.squash(J.landSquash); E.flash(P.crash, 0.08);
+      emit('splat', cx, e.y, 12, { angle: Math.PI * 0.6, spread: 1.2, speed: 160, g: -400, life: 0.5, size: 2.8, color: P.berry });
+      emit('splat', cx, e.y, 8, { angle: Math.PI * 0.6, spread: 1.2, speed: 140, g: -400, life: 0.5, size: 2.6, color: P.white });
+      word('Crash!', r.x - 90, e.y + 150, TY.md, J.boingLife * 1.3);
+    } else if (on === 'marsh') {
+      E.haptic(J.haptic.chute); this.squash(J.landSquash);
+      emit('puff', cx, e.y + 6, 12, { angle: Math.PI / 2, spread: 2.4, speed: 90, g: -150, life: 0.7, size: 4, color: P.marsh });
+      word('Squish…', r.x - 90, e.y + 150, TY.md, J.boingLife * 1.3);
+    } else {
+      E.haptic(J.haptic.drop); this.squash(0.3); E.shake(J.bounceShake * 0.6, J.bounceShakeTime);
+      emit('dust', cx, e.y, J.dust, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 140, g: -250, life: 0.5, size: 3, color: P.dust });
+      word('Missed', r.x - 90, e.y + 150, TY.md, J.boingLife);
     }
   },
   onPointerDown(p, E) {
@@ -2079,7 +2461,7 @@ function landscapeOnly(scene) {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 7,
+  saveVersion: 8,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
   // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`.
   // v5 (PRD v0.2 B): coins become sugar one for one; `up.steady` at 0; goals start at the top of the list with every distance
@@ -2087,7 +2469,8 @@ export const game = {
   // v6 (PRD v0.2 E) adds `home`, false. v7 (PRD v0.3 F6): the machine replaces the chopsticks; owned levels are kept (Steady
   // Chopsticks becomes Steady Gauge, the Cola Rocket's levels now strengthen the boost every flight has), `up.scope` (the
   // Brass Telescope) 0, `actionsTaught` false so the three actions are shown once; `holdTaught` is gone; `perfectRow` is the
-  // machine's streak.
+  // machine's streak. v8 (PRD v0.4 B): Soda Springs and Gingerbread Town start earlier, so the places passed (`ms`, by
+  // their old lines 500, 1000, 2000, 3500, 5000) map by index onto the new lines; everything else is kept.
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
     if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
@@ -2100,25 +2483,30 @@ export const game = {
     }
     if (fromVersion < 6) data.home = false;
     if (fromVersion < 7) { data.up = { ...data.up, scope: 0 }; data.actionsTaught = false; delete data.holdTaught; }
+    if (fromVersion < 8) { // the hint shows once more, as the actions are now glide and slam
+      const old = [500, 1000, 2000, 3500, 5000]; data.ms = (data.ms || []).map((m) => T.milestones[old.indexOf(m)] ?? m); data.actionsTaught = false;
+    }
     return data;
   },
   TUNING,
-  // The TUNE panel (PRD v0.3 G): four strengths, and two whole feels. Floaty: light gravity, a soft launch, long sails, gentle
-  // boosts, springy ground. Punchy: heavy gravity, a hard launch, short sails, hard drops and a strong boost.
+  // The TUNE panel (PRD v0.4 D): four strengths, and two whole feels. Floaty: light gravity, a soft launch, a long flat glide,
+  // gentle thermals and freezers, soft slams. Punchy: heavy gravity, a hard launch, a short steep glide, hard slams with a
+  // bigger jelly bonus, strong columns and a strong boost.
   experiments: [
-    { key: 'groundBounce', label: 'Bounce', min: 0.3, max: 0.85, step: 0.01 },
-    { key: 'chuteFall', label: 'Parachute fall speed', min: 30, max: 200, step: 5 },
-    { key: 'condenseLift', label: 'Condense bounce', min: 0.6, max: 1.4, step: 0.02 },
+    { key: 'glideRatio', label: 'Glide', min: 2, max: 9, step: 0.1 },
+    { key: 'slamPower', label: 'Slam power', min: 0.6, max: 1.4, step: 0.02 },
+    { key: 'slamJelly', label: 'Jelly bonus', min: 0.8, max: 1.3, step: 0.01 },
     { key: 'boostThrust', label: 'Boost thrust', min: 300, max: 1500, step: 10 },
   ],
   presets: [
-    { label: 'Floaty', values: { gravity: 340, launchSpeedMax: 640, airDrag: 0.012, groundBounce: 0.72, skimLift: 0.14, chuteFall: 45, chuteBleed: 0.35, condenseLift: 0.9, condenseDrop: 480, boostThrust: 600 } },
-    { label: 'Punchy', values: { gravity: 580, launchSpeedMax: 940, airDrag: 0.015, groundBounce: 0.63, skimLift: 0.12, chuteFall: 130, chuteBleed: 0.7, condenseLift: 1.15, condenseDrop: 820, boostThrust: 1050 } },
+    { label: 'Floaty', values: { gravity: 340, launchSpeedMax: 640, airDrag: 0.012, groundBounce: 0.72, skimLift: 0.14, glideRatio: 6, glideSink: 50, stallSpeed: 200, flare: 0.35, condenseDrop: 480, slamPower: 0.96, slamJelly: 1.08, thermalLift: 800, freezerPush: 550, boostThrust: 600 } },
+    { label: 'Punchy', values: { gravity: 580, launchSpeedMax: 940, airDrag: 0.015, groundBounce: 0.63, skimLift: 0.12, glideRatio: 3.5, glideSink: 110, stallSpeed: 300, flare: 0.45, condenseDrop: 820, slamPower: 1.06, slamJelly: 1.12, thermalLift: 1300, freezerPush: 900, boostThrust: 1050 } },
   ],
   // Read by tools/sim-launch.mjs so the harness runs the real physics (S, the play scene's state, lets a browser check set up the HUD).
   sim: { STEP, FIELD, makeField, ensureField, groundAt, surfaceH, birdX, stats, newRun, stepRun, advance, airStep, queueInput, metres, coinsOf, flightTime,
     aimAngle, gaugeOf, gaugeAt, zoneOf, powerOf, launchOf, mouth, ZONES, GOALS, activeGoals, goalStats, settleGoals, rangeArc,
-    UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView, PLACES, placeFrom, placeIndex, geyserOn, inCloud, palette: P },
+    UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView, PLACES, placeFrom, placeIndex, geyserOn, inCloud, palette: P,
+    slamOf, impactOf, slopeAt, touching, ventAt, condense, openChute },
   start: 'menu',
   scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop) },
 };
