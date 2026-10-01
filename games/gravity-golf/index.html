@@ -51,6 +51,8 @@
     // Offline support: register the service worker and surface updates.
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       navigator.serviceWorker.register('./sw.js').then(reg => {
+        // A home-screen app can sit suspended for days: look for a new build whenever it comes back to the front.
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
         reg.addEventListener('updatefound', () => {
           const sw = reg.installing;
           sw && sw.addEventListener('statechange', () => {

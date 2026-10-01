@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>Ink</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="release-version" content="v1.3">
+  <meta name="release-version" content="v1.3.1">
   <meta name="channel" content="release">
   <meta name="description" content="Ink - a small skill game">
   <meta name="theme-color" content="#0f1115">
@@ -53,6 +53,8 @@
     // Offline support: register the service worker and surface updates.
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       navigator.serviceWorker.register('./sw.js').then(reg => {
+        // A home-screen app can sit suspended for days: look for a new build whenever it comes back to the front.
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
         reg.addEventListener('updatefound', () => {
           const sw = reg.installing;
           sw && sw.addEventListener('statechange', () => {

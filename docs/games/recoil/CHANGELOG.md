@@ -452,3 +452,4 @@
     - The horror and night sets' fog-machine box has a plain grey edge instead of teal.
     - Every mode played to its card again at both sizes, with the Montage, a purchase and the stats card: 0 console errors. `node tools/smoke.mjs` passes. The cache is recoil-v23 (orchestrator).
   - Review: passed second time (fresh Sonnet reviewer, cache recoil-v23). The first review failed on play frame time (2.2x to 3.4x v22 at 844x390 dpr 2), fixed in review round 1; the re-check measured parity with v22 within noise (844x390 dpr 2 slightly faster, 640x360 between 20 percent faster and 56 percent slower across batches, fps within 1 to 4 of v22), not the builder's -9 to -31 percent. Kept from the PRD: "Blockbuster" and "Walk of Fame" as generic words.
+  - Orchestrator, service worker (ADR-0018): network first, so an online player sees a new build on the next open; the page checks for updates whenever it returns to the front. Cache `recoil-v24`.

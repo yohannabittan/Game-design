@@ -39,3 +39,4 @@
   - Spring A is 121 m wide at base, because it takes every first landing from Weak next to Good up to Perfect.
   - The first mud now sits past most good flights, so the mud call-out mostly shows on boosted flights.
 - Cache left for the orchestrator. Review: passed (fresh Sonnet reviewer, third build round; the first review failed on Perfect not out-flying Great, the PRD's fault, fixed by the amendments and the round 2 decision). Cache launch-v8.
+  - Orchestrator, service worker (ADR-0018): network first, so an online player sees a new build on the next open; the page checks for updates whenever it returns to the front. Cache `launch-v9`.
