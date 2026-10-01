@@ -8,7 +8,8 @@ Prepend verbatim to every image prompt for this game (ADR-0015):
 
 One sentence per place, each read after the anchor above; the sky by day, the two-sine rolling hills and the ground band change per place, while dusk and night by altitude are shared.
 
-- **The Bakery (0 to 500 m):** a cream-and-rose morning over soft pink rolling hills, a little shopfront with a pink-and-white striped awning beside the chopsticks, and a sage-green ground band.
+- **The Bakery (0 to 500 m):** a cream-and-rose morning over soft pink rolling hills, a little shopfront with a pink-and-white striped awning beside the Mochi Maker 3000, and a sage-green ground band.
+- **The Mochi Maker 3000 (the launcher, from v0.3):** a squat brass steam machine on a plum-iron plinth with a cream pressure gauge banded slate, blue, rose and gold, a row of round bulbs that light green, amber or red, a small iron chimney puffing white steam, and a brass barrel on an iron yoke with the mochi sitting in its mouth, never orange except the mochi.
 - **Candy Meadow (500 to 1000 m):** a pale mint-cream sky over bumpier pink and mint hills dotted with tiny pastel gumdrops, on a fresh green ground band.
 - **Chocolate River (1000 to 2000 m):** a peach-cream sky over long low cocoa-milk hills with a pale milk-chocolate river flowing in front of them, on a milk-chocolate ground band.
 - **Soda Springs (2000 to 3500 m):** an aqua-to-periwinkle sky over tall lilac-blue hills with small white soda bubbles drifting up behind them, on a cool blue ground band where soda geysers fizz.

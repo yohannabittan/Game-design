@@ -1,12 +1,15 @@
-// Launch: an apricot mochi flung from a bakery counter toward his love, the daifuku, at 5000 m (PRD v0.2 E): a needle launch,
-// then tap to boost, bounce off jellies and birds, ride geysers and wafers, pass clouds, stop or stick in caramel; a card with
-// goals that pay. The code keeps the v0.1 names for the physics objects: a `spring` is a mint jelly, `mud` is a caramel pit,
-// a `ramp` is a wafer, coins are sugar (cubes), and the slingshot is the chopsticks with a licorice band.
-// Before launch a needle sweeps a wedge at the launcher; a tap stops it and launches at its angle, with the power of the zone
-// it stopped in (PRD v0.2 A). World units: x to the right from the slingshot fork, y is height above the ground (10 units =
-// 1 m). The critter's y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight time, and the
-// needle's angle is a function of the time since the launcher was ready, so the same seed, tap time and boost times give the
-// same flight at any frame rate (ADR-0008). tools/sim-launch.mjs drives game.sim.
+// Launch: an apricot mochi fired from the Mochi Maker 3000, a steampunk machine at the bakery, toward his love, the daifuku,
+// at 5000 m (PRD v0.3). Two beats launch him: the barrel sweeps and a tap locks its angle, then a pressure gauge swings and
+// a tap fires with the power of the zone it stopped in. In flight one thumb has three actions, decided by the first
+// gestureWindow of a press: hold to boost (cola thrust along the flight, drains fizz), swipe up to open a dough parachute
+// (slow fall, bleeds horizontal speed), swipe down to condense (drop fast; a hard landing bounces big). The mochi bounces
+// and skims off plain ground; jellies, birds, geysers, wafers and clouds as in v0.2; caramel stops him. The code keeps the
+// v0.1 names for the physics objects: a `spring` is a mint jelly, `mud` is a caramel pit, a `ramp` is a wafer, coins are
+// sugar. World units: x to the right from the machine's pivot, y is height above the ground (10 units = 1 m); the critter's
+// y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight time; the barrel's angle is a
+// function of the time from ready to the first tap, the gauge's reading of the time from the lock to the second tap and
+// the flight's seed, so the same seed, tap times and gestures give the same flight at any frame rate (ADR-0008).
+// tools/sim-launch.mjs drives game.sim.
 
 import { makeRng, clamp, ease } from './engine.js';
 
@@ -17,182 +20,204 @@ const TUNING = {
   groundY: 300,            // design y of the ground line
   physicsStep: 1 / 120,
 
-  // The needle launch (PRD v0.2 A): a triangle wave from needleMin up to needleMax and back in needlePeriod, starting at
-  // the bottom. Zones are graded around sweetAngle; each zone launches at its share of launchSpeedMax (Band applied).
-  needleMin: 10,           // degrees
-  needleMax: 80,
-  needlePeriod: 1.6,       // seconds for one sweep up and back, base Steady
-  sweetAngle: 38,          // the gold, set on the real field (tools/sim-launch.mjs --rank): the ranking and the first-timer targets hold here
-  zonePerfect: 3,          // degrees either side of sweetAngle
-  zoneGreat: 8,
-  zoneGood: 15,
-  zoneScale: 1,            // every zone's width x this (the TUNE panel's one zone slider)
-  zonePower: [1.2, 1.05, 0.8, 0.8], // Perfect, Great, Good, Weak at the Good edge (x launchSpeedMax, Band applied): above 1 launches
-                           // past full power, so the launch carries the ranking (decision after Build 1 round 2)
-  weakPowerMin: 0.55,      // Weak's power at the wedge's ends (it ramps up to zonePower Weak at the Good edge)
-  perfectFuel: 2,          // free boost pulses for the flight after a Perfect launch (PRD 1: its payoff with boosts, amendment 1)
-  readyGrace: 0.3,         // seconds after the launcher is ready when taps are ignored (a double tap on Launch Again)
+  // The Mochi Maker 3000 (PRD v0.3 A). Beat 1: the barrel sweeps from aimMin up to aimMax and back at a constant angular
+  // speed (period aimPeriod), from aimMin when the machine is ready; a tap locks it. Beat 2: the gauge swings 0 to 1 and back
+  // in gaugePeriod; its start phase and a small change of speed (gaugeJitter) are seeded per flight, so the fire tap is read,
+  // never a memorised rhythm. Zones are half-widths around gaugeSweet in gauge units: Perfect, Great, Good; Weak elsewhere.
+  aimMin: 12,              // degrees
+  aimMax: 70,
+  aimPeriod: 2.4,          // seconds for one sweep up and back
+  gaugePeriod: 0.9,
+  gaugeJitter: 0.12,       // the gauge's period x (1 +- this), seeded per flight
+  gaugeSweet: 0.78,
+  zoneHalf: [0.03, 0.09, 0.19],
+  zoneScale: 1,
+  zonePower: [1.2, 1.05, 0.88, 0.78], // Perfect, Great, Good, Weak at the Good edge (x launchSpeedMax, Spring Coil applied)
+  weakPowerMin: 0.55,      // Weak's power at the gauge's ends (it ramps up to zonePower Weak at the Good edge)
+  perfectFuel: 1,          // a Perfect launch tops the tank up by this many pips
+  streakSpeedup: 0.08,     // each Perfect in a row: the gauge this much faster ...
+  streakPower: 0.04,       // ... and a Perfect launch this much stronger,
+  streakCap: 5,            // up to this many steps; any other zone resets the streak
+  readyGrace: 0.3,         // seconds after the machine is ready when taps are ignored (a double tap on Launch Again)
+  gaugeGrace: 0.15,        // ... and after the barrel locks (a double tap must not fire at once)
+  steadySlow: 0.12,        // Steady Gauge: gauge period / (1 - 0.12 per level) ...
+  steadyWiden: 0.012,      // ... and every zone this much wider each side per level
+  pivotH: 78,              // the barrel's pivot above the ground (units) ...
+  barrelLen: 44,           // ... and its length: the mochi leaves from its mouth
   goalSlots: 3,            // goals active at a time (PRD v0.2 B)
   ticketCap: 3,            // reward tickets on the card before "+n more" (principle 11, rule 6)
-  steadySlow: 0.12,        // Steady: needle speed x (1 - 0.12 per level)
-  steadyWiden: 1,          // ... and every zone 1 degree wider each side per level
 
-  // PRD section 16
-  launchSpeedMax: 700,     // launch speed of a Perfect launch, base Band (units/s)
-  gravity: 520,            // units/s²
-  airDrag: 0.025,          // fraction of speed lost per second in air, base Aero (PRD 0.035: see the changelog)
-  groundFriction: 0.35,    // fraction of horizontal speed lost per ground touch
-  groundBounce: 0.35,      // vertical speed kept on a plain ground touch
-  springBounce: 1.25,      // vertical speed multiplier on a spring
-  springMin: 380,          // a spring always launches at least this fast
-  birdLift: 320,           // upward speed given by a bird bounce
-  boostPulse: 110,         // speed added per tap along the flight direction
-  fuelMax: 5,              // pulses in a full tank, base Fuel
-  stopSpeed: 25,           // below this for stopTime ends the flight
+  launchSpeedMax: 720,     // launch speed of a Perfect launch at base (units/s)
+  gravity: 440,            // units/s²
+  airDrag: 0.015,           // fraction of speed lost per second in air, base Glaze
+
+  // Bounce (PRD v0.3 C): a plain-ground touch keeps groundBounce of the fall speed and, of the horizontal speed, skimKeep for
+  // a grazing touch down to groundKeep for a straight-down one; a grazing touch also hops on skimLift of its horizontal
+  // speed, so a fast flat mochi skips like a stone. Under settleSpeed it slides.
+  groundBounce: 0.66,
+  groundKeep: 0.82,
+  skimKeep: 0.95,
+  skimLift: 0.12,
+  settleSpeed: 45,
+  slideFriction: 0.8,      // sliding speed decays as exp(-slideFriction x seconds)
+  springBounce: 1.2,       // a jelly gives this times the fall speed back ...
+  springMin: 420,          // ... and always at least this
+  maxBounce: 1000,         // no bounce leaves faster than this
+  birdLift: 340,           // upward speed given by a bird bounce
+  stopSpeed: 25,           // horizontal speed under this for stopTime ends the flight (on the ground, or at the next touch)
   stopTime: 0.5,
+  maxFlight: 150,          // seconds: a safety stop only (tools/sim-launch.mjs --stuck: no flight reaches it)
+
+  // Three flight actions (PRD v0.3 B). A press is decided by its first gestureWindow: a swipe up or down of swipeMin CSS px
+  // opens the parachute or condenses, otherwise it boosts (held: until release; a quick tap: tapBurst seconds).
+  gestureWindow: 0.1,
+  swipeMin: 22,
+  tapBurst: 0.2,
+  boostThrust: 1000,       // units/s² along the flight while boosting (never pointing below boostFloor degrees), fading
+  boostTop: 1100,          // to nothing at this speed: fizz bends a slow arc hard and adds little to a fast one
+  boostFloor: 0,
+  boostDrain: 2.5,         // pips of fizz per second of boost
+  fuelMax: 5,              // pips in a full tank, base Fizz Tank
+  chuteFall: 80,           // the parachute caps the fall at this (units/s), reaching it at chuteGrip per second ...
+  chuteGrip: 6,
+  chuteBleed: 0.5,         // ... and bleeds this fraction of horizontal speed per second (control, not distance)
+  condenseDrop: 620,       // a condense drops at least this fast at once and falls under gravity x condenseGrav; its
+  condenseGrav: 1.4,       // touch bounces back up to condenseLift x the height it dropped from (plain ground keeps far
+  condenseLift: 0.92,      // less), a jelly x condenseJelly more: the hard landing's big bounce, never an endless pump
+  condenseJelly: 1.6,
+  condenseKeep: 0.75,      // horizontal speed kept by a condensed touch (ground or jelly): a drop every arc runs down
+  groundBoostAngle: 35,    // a boost on the ground hops at this angle
+
+  // The range finder (PRD v0.3 D): a dotted arc of the real physics with the current action, rangeLook seconds ahead.
+  rangeLook: 1.5,
+  rangeDot: 5,             // physics steps between dots
+
+  // The shop (PRD v0.3 A, D): six upgrades, three levels each, bought with sugar between flights; each bolts a part onto
+  // the machine. `upgrades` is the harness's default set.
+  upgradePrices: {
+    band: [450, 700, 1000],
+    fuel: [1650, 1950, 2250],
+    aero: [450, 750, 1050],
+    rocket: [550, 850, 1100],
+    steady: [400, 600, 900],
+    scope: [400, 650, 950],
+  },
+  upgradeMax: 3,
+  upgrades: { band: 0, fuel: 0, aero: 0, rocket: 0, steady: 0, scope: 0 },
+  bandStep: 0.12,          // Spring Coil: launchSpeedMax x (1 + 0.12 per level)
+  fuelStep: 2,             // Fizz Tank: pips per level
+  aeroStep: 0.2,           // Sugar Glaze: airDrag x (1 - 0.2 per level)
+  rocketStep: 0.25,        // Cola Rocket: boost thrust x (1 + 0.25 per level)
+  scopeStep: 0.6,          // Brass Telescope: rangeLook + 0.6 s per level
+
+  critterR: 12,
+  rampKeep: 1,             // speed kept when a ramp redirects the critter along its slope
+  birdR: 15,
+  birdSwing: 50,           // birds glide back and forth this far either side of their spot
+  birdPeriod: 3.2,         // seconds for one glide there and back
   unitsPerMetre: 10,
   coinPer10m: 1,
   chainSteps: [1, 1.5, 2, 3], // coin multiplier by consecutive springs or birds
   birdCoins: 5,
   milestones: [500, 1000, 2000, 3500, 5000], // metres
-  milestoneBonus: [25, 50, 100, 200, 400],   // one-time sugar, first time each milestone is passed (coins are sugar since v0.2)
+  milestoneBonus: [25, 50, 100, 200, 400],
 
-  // The shop (PRD section 8, v0.2 D): five upgrades, three levels each, bought with sugar between flights. The play scene flies
-  // at the saved levels; `upgrades` is the harness's default set (tools/sim-launch.mjs flies every set through the real physics).
-  upgradePrices: {         // sugar for levels 1, 2, 3 of each upgrade (PRD 50, 150, 400 for all: see the changelog)
-    band: [450, 700, 1000],   // v0.2: half as much again, so the good profile clears the shop no sooner than flight 40 (amendment 5)
-    fuel: [1650, 1950, 2250], // Fuel is the strongest buy per level: priced so it is not always the first one
-    aero: [450, 750, 1050],
-    rocket: [550, 850, 1100],
-    steady: [400, 600, 900],
-  },
-  upgradeMax: 3,
-  upgrades: { band: 0, fuel: 0, aero: 0, rocket: 0, steady: 0 },
-  bandStep: 0.12,          // launchSpeedMax x (1 + 0.12 per level)
-  fuelStep: 2,             // pulses per level
-  aeroStep: 0.2,           // airDrag x (1 - 0.2 per level)
-  rocketThrust: 330,       // hold-to-boost acceleration at Rocket 1 (units/s²)
-  rocketStep: 0.25,        // thrust x (1 + 0.25 per level above 1)
-  holdFuelRate: 1.5,       // pulses of fuel burned per second of hold: 330 / 1.5 = 220 of push per fuel, twice a tap's 110
-  holdDelay: 0.15,         // a press held this long becomes a hold (the press itself already fired a pulse)
-
-  // Flight rules the PRD states in words
-  slingH: 36,              // launch height of the critter's bottom
-  critterR: 12,
-  settleSpeed: 60,         // a ground bounce slower than this becomes a slide
-  slideFriction: 1.4,      // sliding speed decays as exp(-slideFriction x seconds)
-  groundBoostAngle: 35,    // a pulse fired on the ground hops at this angle
-  rampKeep: 1,             // speed kept when a ramp redirects the critter along its slope
-  birdR: 15,
-  birdSwing: 50,           // birds glide back and forth this far either side of their spot
-  birdPeriod: 3.2,         // seconds for one glide there and back
-  maxFlight: 150,          // seconds: a safety stop only
-
-  // New objects (PRD v0.2 F). A soda geyser (Soda Springs on) is a vent on the ground that erupts for geyserOn every
-  // geyserPeriod on the flight clock (each vent's phase is seeded at setup); touching its column while it erupts sends the
-  // critter up at geyserLift with its horizontal speed kept, once per vent per flight; the dormant vent is plain ground.
-  // A cotton-candy cloud (Gingerbread Town on) takes cloudDrag of the speed and refills cloudFuel pulses, once per cloud.
+  // A soda geyser (Soda Springs on) erupts for geyserOn every geyserPeriod on the flight clock (phase seeded at setup);
+  // its column lifts at geyserLift keeping vx, once per vent per flight. A cotton-candy cloud (Gingerbread Town on) takes
+  // cloudDrag of the speed and refills cloudFuel pips, once per cloud.
   geyserOn: 0.8,
   geyserPeriod: 2.4,
   geyserLift: 520,
-  geyserH: 200,            // the erupting column's height (units)
+  geyserH: 200,
   cloudDrag: 0.15,
   cloudFuel: 1,
-  cloudRX: 50,             // a cloud's half-width and half-height (units); the critter touches it within these plus its radius
+  cloudRX: 50,
   cloudRY: 28,
-
-  // Field
-  chunkLen: 3000,          // 300 m
-  chunkJitter: 60,         // each object's x moves up to this far (seeded); templates keep 2 x jitter clear
-  birdJitterY: 20,
-  tierFrom: [0, 1000, 2000, 3500], // metres where chunk tiers 0 to 3 start; past 2000 m more mud, fewer springs, more ramps
   lookahead: 4000,         // field generated this far ahead of the critter
 
   // Presentation
   placeBlend: 400,         // units over which the sky and hills of one place blend into the next (the ground changes at the line)
   homeAhead: 120,          // the daifuku waits this far past the Home line (units)
-  jellyCube: 34,
-  menuTitleMinH: 344,      // CSS px of safe height the menu needs to show its title above the strip, the best and three goals           // design px per jelly cube along a jelly (a long jelly is a row of cubes, never a rail)
-  wedgeR: 104,             // the needle wedge's radius from the critter's centre (design px), and its hole
-  wedgeHole: 22,
-  wedgeFade: 0.3,          // seconds the wedge fades after the launch
-  markEvery: 0.1,          // the landing marker is recomputed at most this often (seconds)
-  slingScreen: 0.2,        // slingshot at this fraction of the view width before launch
+  jellyCube: 34,           // design px per jelly cube along a jelly (a long jelly is a row of cubes, never a rail)
+  menuTitleMinH: 344,      // CSS px of safe height the menu needs to show its title above the strip, the best and three goals
+  slingScreen: 0.26,       // the machine's pivot at this fraction of the view width before launch
   followX: 0.3,            // the camera keeps the critter at this fraction of the view width
   followXMin: 0.1,         // ... or as far left as this when the arc's landing is too far ahead for zoomMin
-  zoomMin: 0.45,           // the camera zooms out to this at most (PRD amendment after layer 1)
+  zoomMin: 0.45,
   zoomLook: 1.0,           // seconds of horizontal travel kept in view ahead of the critter
-  zoomOutTime: 0.35,       // smoothing time constants (s): zooming out is quicker than zooming back in
+  zoomOutTime: 0.35,
   zoomInTime: 0.9,
-  landMargin: 30,          // design px kept between the predicted landing and the right edge
-  skyTop: 50,              // design px at the top kept clear for the HUD
-  skyFill: 0.8,            // share of the sky (ground line to skyTop) the critter climbs into before the view zooms or pans
-  spriteMin: 0.65,         // the critter and birds never draw smaller than this zoom
-  endDelay: 0.9,           // seconds from the stop to the card
-  endDelayTaught: 2.4,     // ... when the stop shows the mud call-out, so it can be read
-  cardGrace: 0.4,          // seconds the card ignores taps after it appears (the card has slid in by then)
+  landMargin: 30,
+  skyTop: 50,
+  skyFill: 0.8,
+  spriteMin: 0.65,
+  endDelay: 0.9,
+  endDelayTaught: 2.4,
+  cardGrace: 0.4,
 
-  // Art (layer 5; docs/games/launch/style.md): "flat round shapes, warm sky, soft shadows, one orange hero".
-  // The mochi is the only orange; teal is good (jellies, geyser vents, birds in pastel); dark amber is danger (caramel).
-  // Every play object has an ink outline so it reads on the light day sky, and a fill that reads on the night sky.
-  // Each place's sky by day, hills and ground are in PLACES; dusk and night (by altitude) are shared.
   palette: {
-    skyDusk: ['#f3a9b8', '#8f6fb0'],   // horizon (at the ground band), top of the view
+    skyDusk: ['#f3a9b8', '#8f6fb0'],
     skyNight: ['#4a3a78', '#1d1a3a'],
-    ink: '#2d2238',                    // outlines, ticks, text on light ground
-    critter: '#ff8a1a', critterLight: '#ffb366', eye: '#ffffff', powder: '#fff6ec', // the apricot mochi
-    teal: '#1ea896', tealLight: '#7fe0d2', tealSpent: '#8fb3ad', // good: mint jellies, geysers' vents; birds in sugared pastel
+    ink: '#2d2238',
+    critter: '#ff8a1a', critterLight: '#ffb366', eye: '#ffffff', powder: '#fff6ec',
+    teal: '#1ea896', tealLight: '#7fe0d2', tealSpent: '#8fb3ad',
     bird: '#5fcbb8', birdWing: '#a9eadf', birdRim: '#ffffff',
-    mud: '#341b08', mudDeep: '#1f0f04', mudRim: '#f6d7a4', mudBubble: '#6b3d12', mudSheen: '#9a5c16', // caramel: a sunk pit, dark amber, glossy
-    zones: ['#ffd84d', '#f59bc2', '#4a7fd4', '#584a70'], // Perfect gold, Great light rose, Good blue, Weak dark slate: never orange; a lightness ramp, so any two stay apart (CIE76 22 or more) under protan, deutan and tritan simulation
-    ramp: '#efdcb4', rampPlank: '#c9a774', // wafers
-    chop: ['#e6d2ae', '#9b2747', '#9b2747', '#f2c94c'], chopHi: ['#f6ead2', '#d65a7a', '#f2c94c', '#fff1b0'], // Steady 0 to 3: plain, lacquered, gold-tipped, gold
-    licorice: ['#d23a6e', '#a3214f', '#5e1836', '#231a24'], licoriceW: [2.5, 3.4, 4.3, 5.2], // Band 0 to 3: thicker and darker
-    glass: '#cfeaf8', soda: '#6aa8e0', cap: '#e8476a', // the Fizz Tank's bottle
-    nozzle: '#9aa0b8', cola: '#6e3626', colaRim: '#f3dcc4', fizz: '#ffffff', // the Cola Rocket; boosts fizz
-    vent: '#e6eef8', ventHole: '#3b4a6b', column: '#f2fbff', columnSpent: '#c9dad8', // soda geysers
-    cloud: '#f8bfdc', cloudBlue: '#cfe2fb', cloudUsed: '#f3dbe8', // cotton candy
-    dough: '#fff0f4', berry: '#e8476a', seed: '#ffe9a8', leaf: '#6fae5a', blush: '#f7a8bf', heart: '#ef5b8a', // the daifuku
+    mud: '#341b08', mudDeep: '#1f0f04', mudRim: '#f6d7a4', mudBubble: '#6b3d12', mudSheen: '#9a5c16',
+    zones: ['#ffd84d', '#f59bc2', '#4a7fd4', '#584a70'], // gauge zones: Perfect gold, Great rose, Good blue, Weak slate (never orange)
+    // The Mochi Maker 3000: brass and plum iron, never orange; bulbs by zone (green, amber, red; every bulb on a Perfect).
+    brass: '#c9a24a', brassLight: '#f2d98a', brassDark: '#8a6a2a', iron: '#5a4a6e', ironDark: '#3a3048', dial: '#fff8e6',
+    bulbOff: '#6e6278', bulb: ['#ffe680', '#5fd36e', '#ffcf3d', '#ff5a5a'], steam: '#ffffff', spring: '#b9c0d4',
+    ramp: '#efdcb4', rampPlank: '#c9a774',
+    glass: '#cfeaf8', soda: '#6aa8e0', cap: '#e8476a',
+    nozzle: '#9aa0b8', cola: '#6e3626', colaRim: '#f3dcc4', fizz: '#ffffff', glaze: '#f7a8c8',
+    vent: '#e6eef8', ventHole: '#3b4a6b', column: '#f2fbff', columnSpent: '#c9dad8',
+    cloud: '#f8bfdc', cloudBlue: '#cfe2fb', cloudUsed: '#f3dbe8',
+    dough: '#fff0f4', berry: '#e8476a', seed: '#ffe9a8', leaf: '#6fae5a', blush: '#f7a8bf', heart: '#ef5b8a',
     shopWall: '#fbe9d3', awning: '#f29bb5', post: '#ffffff',
-    gumdrops: ['#f7a8c8', '#aed9f0', '#c9e79f', '#f4e394'], house: ['#dcb595', '#c99c7a'], river: ['#cfa48a', '#ecd2c0'], // backdrops
-    sugar: '#fffaf0',                  // sugar cubes
-    star: '#fff6e0', coin: '#ffd84d',  // accent one: sugar text, stars, beaks
-    button: '#6b5aa6', buttonOff: '#4a3f5e', // accent two: buttons
+    gumdrops: ['#f7a8c8', '#aed9f0', '#c9e79f', '#f4e394'], house: ['#dcb595', '#c99c7a'], river: ['#cfa48a', '#ecd2c0'],
+    sugar: '#fffaf0',
+    star: '#fff6e0', coin: '#ffd84d',
+    button: '#6b5aa6', buttonOff: '#4a3f5e',
     panel: 'rgba(45,34,56,0.84)', panelSolid: '#2d2238', panelEdge: '#5a4a72',
     text: '#fff6ec', textDim: '#cbbfdc', textOff: '#8f84a3',
     shadow: 'rgba(45,34,56,0.28)', dust: '#efe2cf', white: '#ffffff', halo: '#fff6ec',
+    arc: ['#ffffff', '#bfe6ff', '#fff0d6', '#ffd2a8'], // range finder dots: plain, boosting, parachute, condensed
   },
-  duskAt: 120,             // metres of altitude at the top of the view where the sky is dusk ...
-  nightAt: 300,            // ... and night, with stars
-  hillFadeLift: 40,        // metres the sky has panned up by when the hills are gone
-  style: { line: 2, radius: 14 }, // outline width (design px at zoom 1) and panel corner radius (CSS px)
-  type: { sm: 14, md: 18, lg: 28, xl: 44 }, // one weight rule: numbers and titles '800', words '600'
+  duskAt: 120,
+  nightAt: 300,
+  hillFadeLift: 40,
+  style: { line: 2, radius: 14 },
+  type: { sm: 14, md: 18, lg: 28, xl: 44 },
 
-  // Juice (layer 3): all cosmetic, never read by the physics.
+  // Juice: all cosmetic, never read by the physics.
   juice: {
-    particleCap: 160,
-    snapTime: 0.22, kick: 3, kickTime: 0.12, dust: 10,
-    fizz: 7, fizzLife: 0.35, gaugePop: 0.25,
-    landSquash: 0.35, squashTime: 0.28,
-    springPop: 0.3, speedLines: 0.45, boingLife: 0.8,
+    particleCap: 220,
+    kick: 3, kickTime: 0.12, dust: 10,
+    fizz: 10, fizzLife: 0.45, fizzTrail: 0.75, gaugePop: 0.25,
+    landSquash: 0.35, squashTime: 0.3, bounceSquash: 0.0006, // squash per unit/s of impact
+    springPop: 0.3, speedLines: 0.45, speedLineMin: 900, boingLife: 0.8,
     feathers: 12, tumbleTime: 1.3,
     chainPop: 0.35, chainLife: 1.0, coins: [0, 3, 5, 8],
     splat: 16, mudShake: 6, mudShakeTime: 0.25,
+    bigBounce: 500,        // an impact this fast shakes the screen ...
+    bounceShake: 5, bounceShakeTime: 0.2,
     bannerTime: 1.8, countUp: 0.6, cardSlide: 0.35,
-    geyserWarn: 0.5,       // seconds before an eruption the vent bubbles hard
-    hearts: 14,            // the Home moment
-    homeTime: 2.4,
-    holdHint: 3,           // seconds "Hold to boost" shows on the first flight after buying Rocket 1
-    tapHint: 2.5,          // seconds "Tap to boost" shows from the top of a fresh save's first arc
-    pipPulse: 0.6,         // the fuel pips pulse once with it
-    zonePop: 1.1,          // seconds the zone's name shows by the launcher
-    zoneFreq: [1320, 990, 740, 330], // the launch chime's pitch per zone
-    zoneHaptic: [24, 16, 10, 6],
-    sparks: 18,            // the Perfect launch's spark ring
-    callout: 2.6,          // seconds a first-time call-out (bird, mud) shows
-    springWobble: 0.3,     // an unspent spring's idle bob, as a share of its height (3 design px: visible at arm's length)
+    geyserWarn: 0.5,
+    hearts: 14, homeTime: 2.4,
+    zonePop: 1.1,
+    zoneFreq: [1320, 990, 740, 330],
+    zoneHaptic: [30, 16, 10, 6],
+    perfectShake: 7, perfectShakeTime: 0.3,
+    slowMo: 0.2, slowMoRate: 0.3, // a Perfect launch's slow-motion beat: real seconds, and flight seconds per real second
+    sparks: 18,
+    steam: [22, 12, 7, 3], // steam puffs on fire by zone
+    pump: 0.35,            // seconds the pistons pump after a fire
+    callout: 2.6,
+    actionHint: 3.6,       // seconds the three-action hint shows from the top of the first arc
+    springWobble: 0.3,
     stars: 90,
-    haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, home: [30, 60, 30, 60, 60] },
+    whoosh: 0.16,          // seconds between whoosh puffs while boosting
+    haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, lock: 10, chute: 6, drop: 8, home: [30, 60, 30, 60, 60] },
   },
 };
 const T = TUNING;
@@ -221,276 +246,108 @@ const PLACES = [
 const placeFrom = (i) => (i ? T.milestones[i - 1] : 0) * T.unitsPerMetre; // units
 function placeIndex(x) { let i = 0; while (i + 1 < PLACES.length && x >= placeFrom(i + 1)) i++; return i; }
 
-// ---------- Field ----------
-// A chunk is 300 m of objects: { kind, x, y, w?, h? } with x from the chunk start. Ground objects (spring, mud, ramp, geyser)
-// have y 0; a spring, mud or geyser is w wide, a ramp rises h over w toward the right. A bird or a cloud is a spot in the air.
-// Fairness rules every template keeps (tools/sim-launch.mjs --check proves them over many seeds): a spring comes before
-// the first mud of a chunk, no two mud patches without a spring between, and no stretch of 150 m without a spring.
 
-// The first chunk teaches, and it is laid out for this flight's launch range (Band and Aero change it), so no purchase can
-// make the same needle stop worse (PRD v0.2 C and D; amendment 1 after the v4 release gate). It is a run of springs that
-// pays the better stop more (amendment 1 after the Build 1 review), then the first mud:
-//   spring A catches the first landing of every Good or better needle stop at every Steady level (a stop Steady lifts into
-//   Good is caught too), and of the Weak stops next to Good;
-//   a bird sits on the Perfect stop's way down after the last spring, where the critter is `birdHeight` up (its bounce
-//   carries the gold on);
-//   each spring catches the next landing, past the last spring, of the stops whose quality is within its `tier` (quality:
-//   Perfect 0, Great 1, Good 2, Weak from 2 up by a tenth of the Good half-width per 1; the tiers tighten spring by spring,
-//   so the better the stop, the longer the ride, and Weak next to Good rides a little: no cliff), never wider than `wMax`
-//   (no stop lands twice on one spring), until `until`, then for Perfect stops only until `goldUntil`;
-//   the first mud comes past `mudFrom`, where no unboosted Perfect stop touches the ground.
-// The layout is found by flying the real physics (setup only: the same levels always give the same chunk).
-// tools/sim-launch.mjs --clean proves it at every Band, Aero and Steady level, --rank ranks the zones on it.
-const FIRST_CHUNK = {
-  name: 'First flight',
-  angleStep: 0.5,          // the needle stops (degrees apart) the layout is flown for
-  tiers: [8, 4, 2],        // by spring (A first; the last repeats): the worst stop quality laid out for (2: every Good or better stop)
-  taps: [],                // boost times (seconds): every stop is also flown with each of these sets of boosts ...
-  tapExtra: 0,             // ... laid out as if this much better in quality (a boost carries a stop further)
-  padA: [30, 40],          // units of spring A before the shortest and after the longest first landing
-  pad: [30, 40],           // units of every later spring before and after the landings it catches
-  gap: 60,                 // units of plain ground between springs, at least ...
-  maxGap: 200,             // ... and at most (a longer stretch mid-run catches boosted flights short of the first place)
-  wMax: 550,               // the widest a spring after A may be (units)
-  until: 4500,             // springs are laid until one ends past this (units, scaled by the gold's throw): short of the first place ...
-  goldUntil: 4500,         // ... then Perfect-only springs until one ends past this: the gold's longer ride
-  birdHeight: 180,         // the critter's height on the way down where the bird meets it (units)
-  mudW: 120,               // the first mud patch ...
-  mudFrom: 7000,           // ... never before this (units): past where most good flights end, so it does not decide their distance
-  exitW: 60,               // small springs (units wide): every `fillEvery` from the run's end to the mud, and one just past the mud
-  fillEvery: 1200,
-  mudClear: 60,            // ... and this far from any ground touch of an unboosted Perfect stop (units)
-  tail: 250,               // units after the mud to the chunk's end (at least chunkLen in all)
-};
-
-// ---------- The needle ----------
+// ---------- The Mochi Maker 3000 (PRD v0.3 A) ----------
 // Zones by index: 0 Perfect, 1 Great, 2 Good, 3 Weak.
 const ZONES = ['Perfect!', 'Great', 'Good', 'Weak'];
+const tri = (t, period) => { const ph = (((t / period) % 1) + 1) % 1; return ph < 0.5 ? ph * 2 : 2 - ph * 2; };
+// The barrel's angle `t` seconds after the machine was ready.
+const aimAngle = (t) => T.aimMin + (T.aimMax - T.aimMin) * tri(t, T.aimPeriod);
+// A flight's gauge: its period (Steady Gauge slows it, a Perfect streak speeds it up, the seed nudges it), its seeded start
+// phase, and its zone half-widths.
+function gaugeOf(seed, streak = 0, up = T.upgrades) {
+  const rng = makeRng((seed ^ 0x5bd1e995) >>> 0), k = up.steady || 0, w = T.steadyWiden * k, s = Math.min(streak, T.streakCap);
+  const nudge = 1 + rng.range(-T.gaugeJitter, T.gaugeJitter);
+  return { period: (T.gaugePeriod * nudge) / Math.max(0.05, 1 - T.steadySlow * k) / (1 + T.streakSpeedup * s), phase: rng(), half: T.zoneHalf.map((h) => (h + w) * T.zoneScale) };
+}
+// The gauge's reading (0 to 1) `t` seconds after the barrel locked.
+const gaugeAt = (t, g) => tri(t + g.phase * g.period, g.period);
+function zoneOf(v, g) { const d = Math.abs(v - T.gaugeSweet); return d <= g.half[0] ? 0 : d <= g.half[1] ? 1 : d <= g.half[2] ? 2 : 3; }
+// Weak's power ramps from zonePower Weak at the Good edge down to weakPowerMin at the gauge's end (no cliff).
+function powerOf(v, g, streak = 0) {
+  const z = zoneOf(v, g);
+  if (z === 0) return T.zonePower[0] * (1 + T.streakPower * Math.min(streak, T.streakCap));
+  if (z < 3) return T.zonePower[z];
+  const edge = g.half[2], end = v < T.gaugeSweet ? T.gaugeSweet : 1 - T.gaugeSweet;
+  const k = clamp((Math.abs(v - T.gaugeSweet) - edge) / Math.max(1e-6, end - edge), 0, 1);
+  return T.zonePower[3] + (T.weakPowerMin - T.zonePower[3]) * k;
+}
+// The launch from the two taps: `t1` seconds from ready to the lock, `t2` from the lock to the fire; `streak` Perfect
+// launches in a row before this one.
+function launchOf(seed, t1, t2, streak = 0, up = T.upgrades) {
+  const g = gaugeOf(seed, streak, up), v = gaugeAt(t2, g), zone = zoneOf(v, g);
+  return { angle: aimAngle(t1), gauge: v, zone, power: powerOf(v, g, streak), streak, t1, t2 };
+}
+// The barrel's mouth at an angle: where the mochi sits and leaves from (world units, y the critter's bottom).
+const mouth = (deg) => [Math.cos(deg * DEG) * T.barrelLen, T.pivotH + Math.sin(deg * DEG) * T.barrelLen - T.critterR];
 
-// The needle's speed factor and zone half-widths at a Steady level.
-function needleOf(up = T.upgrades) {
-  const k = up.steady || 0, w = T.steadyWiden * k, z = T.zoneScale;
-  return { period: T.needlePeriod / Math.max(0.05, 1 - T.steadySlow * k), half: [(T.zonePerfect + w) * z, (T.zoneGreat + w) * z, (T.zoneGood + w) * z] };
-}
-// The needle's angle `t` seconds after the launcher was ready: a triangle wave, bottom at t = 0.
-function needleAngle(t, up = T.upgrades) {
-  const ph = (((t / needleOf(up).period) % 1) + 1) % 1, tri = ph < 0.5 ? ph * 2 : 2 - ph * 2;
-  return T.needleMin + (T.needleMax - T.needleMin) * tri;
-}
-function zoneAt(angle, up = T.upgrades) {
-  const d = Math.abs(angle - T.sweetAngle), h = needleOf(up).half;
-  return d <= h[0] ? 0 : d <= h[1] ? 1 : d <= h[2] ? 2 : 3;
-}
-// A stop's launch. Weak's power ramps from zonePower Weak at the Good edge down to weakPowerMin at the wedge's end, so a stop
-// just outside Good is only a little weaker (no cliff).
-function launchAt(angle, up = T.upgrades) {
-  const zone = zoneAt(angle, up);
-  if (zone < 3) return { angle, zone, power: T.zonePower[zone] };
-  const edge = needleOf(up).half[2], end = angle < T.sweetAngle ? T.sweetAngle - T.needleMin : T.needleMax - T.sweetAngle;
-  const k = clamp((Math.abs(angle - T.sweetAngle) - edge) / Math.max(1e-6, end - edge), 0, 1);
-  return { angle, zone, power: T.zonePower[3] + (T.weakPowerMin - T.zonePower[3]) * k };
-}
-// A tap `t` seconds after the launcher was ready.
-const needleLaunch = (t, up = T.upgrades) => ({ ...launchAt(needleAngle(t, up), up), t });
+// ---------- Field (PRD v0.3 C) ----------
+// One consistent field, laid out gap by gap from a seeded stream: a jelly, then plain ground to the next jelly that grows
+// gently with distance (no free early carpet, no cliff), holding at most one caramel pit, one bird or cloud, and one wafer or
+// geyser. Every gap draws the same count of numbers, so a seed always gives the same field. Kept by construction (and flown
+// by tools/sim-launch.mjs --check): a jelly before the first caramel and between any two, no stretch longer than gapMax
+// without a jelly, geysers from Soda Springs, clouds from Gingerbread Town, at most one air object per gap. Metres.
+const FIELD = {
+  first: 75,               // the first jelly starts here
+  gap: 42,                 // plain ground between jellies: gap + gapGrow x distance, +- gapJitter of it, at most gapMax
+  gapGrow: 0.011,
+  gapJitter: 0.25,
+  gapMax: 120,
+  jellyW: 11,              // a jelly's width, shrinking by jellyShrink per metre to jellyWMin
+  jellyShrink: 0.0008,
+  jellyWMin: 6,
+  mudFrom: 400,            // caramel from here, with this chance per gap rising to mudMax by mudFull
+  mudChance: 0.2,
+  mudMax: 0.55,
+  mudFull: 3500,
+  mudW: [9, 15],
+  birdChance: 0.4,         // a bird in a gap ...
+  birdY: [10, 24],         // ... this high (its centre)
+  rampFrom: 400,           // a wafer from here, with this chance per gap
+  rampChance: 0.2,
+  rampW: [20, 28], rampH: [6, 8],
+  geyserFrom: 2000,        // Soda Springs on: a ground object is a geyser this often
+  geyserShare: 0.65,
+  extraFrom: 2000,         // ... and ground objects come this often from here
+  extraChance: 0.4,
+  cloudFrom: 3500,         // Gingerbread Town on: the air object is a cloud this often
+  cloudChance: 0.45,
+  cloudY: [20, 30],
+};
 
-// Every Good or better needle stop at every Steady level, with the Band and Aero of `up` (the teaching chunk's launches).
-function goodStops(up) {
-  const out = new Map();
-  for (let k = 0; k <= T.upgradeMax; k++) {
-    const F = FIRST_CHUNK, u = { ...up, steady: k }, g = needleOf(u).half[2], h = g * (1 + Math.max(0, Math.max(...F.tiers) + F.tapExtra - 2) / 10);
-    for (let a = T.sweetAngle - h; a <= T.sweetAngle + h + 1e-9; a += F.angleStep) {
-      const ang = +clamp(a, T.needleMin, T.needleMax).toFixed(2), l = launchAt(ang, u), key = `${ang},${l.power}`;
-      const q = l.zone < 3 ? l.zone : 2 + (Math.abs(ang - T.sweetAngle) / g - 1) * 10;
-      if (!out.has(key) || out.get(key).q > q) out.set(key, { angle: ang, power: l.power, zone: l.zone, q });
+function makeField(seed) {
+  return { seed, rng: makeRng(seed), ground: [], birds: [], clouds: [], end: 0, next: FIELD.first * T.unitsPerMetre };
+}
+
+function addGap(f) {
+  const F = FIELD, U = T.unitsPerMetre, rng = f.rng, x0 = f.next, m = x0 / U, lerp = (a, k) => a[0] + (a[1] - a[0]) * k;
+  const r = Array.from({ length: 12 }, () => rng());
+  const w = Math.round(Math.max(F.jellyWMin, F.jellyW - F.jellyShrink * m) * U);
+  f.ground.push({ kind: 'spring', x0, x1: x0 + w, w, h: 0, spent: false });
+  const L = Math.round(Math.min(F.gapMax, (F.gap + F.gapGrow * m) * (1 + (r[0] * 2 - 1) * F.gapJitter)) * U), a = x0 + w, b = a + L;
+  let free = a + 3 * U; // ground objects keep 3 m from each other and from the jellies
+  const extraP = m >= F.extraFrom ? F.extraChance : m >= F.rampFrom ? F.rampChance : 0;
+  if (r[1] < extraP) {
+    const geyser = m >= F.geyserFrom && r[2] < F.geyserShare, gx = Math.round(a + L * (0.08 + 0.1 * r[3]));
+    if (geyser) { f.ground.push({ kind: 'geyser', x0: gx, x1: gx + 40, w: 40, h: 0, spent: false, phase: Math.round(r[4] * T.geyserPeriod * 100) / 100 }); free = gx + 40 + 3 * U; }
+    else {
+      const rw = Math.round(Math.min(lerp(F.rampW, r[4]) * U, L * 0.3)), rh = Math.round(lerp(F.rampH, r[4]) * U);
+      f.ground.push({ kind: 'ramp', x0: gx, x1: gx + rw, w: rw, h: rh, spent: false, a: Math.atan2(rh, rw) }); free = gx + rw + 3 * U;
     }
   }
-  return [...out.values()];
+  const mudP = m < F.mudFrom ? 0 : F.mudChance + (F.mudMax - F.mudChance) * clamp((m - F.mudFrom) / (F.mudFull - F.mudFrom), 0, 1);
+  if (r[5] < mudP) {
+    const mw = Math.round(lerp(F.mudW, r[6]) * U), c0 = Math.max(free + mw / 2, a + L * 0.4), c1 = b - 3 * U - mw / 2;
+    if (c1 >= c0) { const mx = Math.round(c0 + (c1 - c0) * r[7] - mw / 2); f.ground.push({ kind: 'mud', x0: mx, x1: mx + mw, w: mw, h: 0, spent: false }); }
+  }
+  const ax = Math.round(a + L * (0.3 + 0.4 * r[9]));
+  if (m >= F.cloudFrom && r[8] < F.cloudChance) f.clouds.push({ x: ax, y: Math.round(lerp(F.cloudY, r[10]) * U), used: false });
+  else if (r[8] < F.birdChance) f.birds.push({ x0: ax, y: Math.round(lerp(F.birdY, r[10]) * U), phase: r[11] * Math.PI * 2, hit: false });
+  f.ground.sort((p, q) => p.x0 - q.x0);
+  f.next = b; f.end = b;
 }
 
-// A probe flight of `launch` over `field` with no input, to its first contact after `after` contacts (or, with `past`, its
-// first contact beyond x = past).
-function probe(up, launch, field, after = 0, past = null) {
-  const r = newRun(0, launch, up, field);
-  for (const t of launch.taps || []) queueInput(r, t, 'pulse');
-  let n = 0, path = [];
-  while (!r.ended && r.steps < 20000) {
-    const mode = r.mode;
-    stepRun(r);
-    const hit = r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone') || (mode === 'air' && r.mode === 'ground');
-    r.ev.length = 0;
-    if (n === after && r.mode === 'air') path.push([r.x, r.y, r.vy, flightTime(r)]);
-    if (hit && (past === null ? n++ === after : r.x > past)) return { x: r.x, path, ok: true };
-  }
-  return { x: r.x, path, ok: false };
-}
-
-const TEACH = new Map(); // layouts by the numbers that change the unboosted paths (the TUNE panel can change some)
-function teachingChunk(up) {
-  const key = JSON.stringify([up.band || 0, up.aero || 0, T.sweetAngle, T.zonePerfect, T.zoneGreat, T.zoneGood, T.zoneScale, T.zonePower, T.steadyWiden, T.launchSpeedMax, T.airDrag, T.gravity, T.needleMin, T.needleMax, FIRST_CHUNK]);
-  if (TEACH.has(key)) return TEACH.get(key);
-  const F = FIRST_CHUNK, plain = goodStops(up), perfect = { angle: T.sweetAngle, power: T.zonePower[0], zone: 0 };
-  const spring = (x0, x1) => ({ kind: 'spring', x0: Math.round(x0), x1: Math.round(x1), w: Math.round(x1) - Math.round(x0), h: 0, spent: false });
-  // A spring over landings `xs` (from x = `from` when that is given), never wider than `wMax` (spring A takes every first landing).
-  const cover = (xs, from, pad, cap = F.wMax) => {
-    const x0 = from > 0 ? clamp(Math.min(...xs) - pad[0], from, from + F.maxGap - F.gap) : Math.min(...xs) - pad[0]; // no long plain stretch mid-run
-    return spring(x0, Math.min(x0 + cap, Math.max(...xs) + pad[1]));
-  };
-  const tier = (k) => F.tiers[Math.min(k, F.tiers.length - 1)] + 1e-9;
-  const stops = plain.concat(...F.taps.map((t) => plain.map((l) => ({ ...l, taps: t, q: l.q - F.tapExtra }))));
-  const ground = [];
-  let bird = null;
-  const field = () => ({ seed: 0, rng: null, ground: ground.map((g) => ({ ...g })), birds: bird ? [{ ...bird }] : [], clouds: [], end: 1e12, chunks: 1 });
-  // A: the first landings.
-  const first = stops.filter((l) => l.q <= tier(0)).map((l) => probe(up, l, field()).x);
-  ground.push(cover(first, 0, F.padA, Infinity));
-  // The run of springs.
-  // A stronger Band or Aero gets a longer run, never a shorter one: `until` scales with the Perfect stop's open-ground throw.
-  const open = () => ({ seed: 0, rng: null, ground: [], birds: [], clouds: [], end: 1e12, chunks: 1 });
-  const until = F.until * (probe(up, perfect, open()).x / probe({ band: 0, aero: 0 }, perfect, open()).x);
-  while (ground[ground.length - 1].x1 < Math.max(until, F.goldUntil)) {
-    const last = ground[ground.length - 1].x1, tk = last < until ? tier(ground.length) : 1e-9;
-    const xs = stops.filter((l) => l.q <= tk).map((l) => probe(up, l, field(), 0, last + F.gap)).filter((p) => p.ok).map((p) => p.x);
-    if (!xs.length) break;
-    ground.push(cover(xs, last + F.gap, F.pad));
-  }
-  // The bird: on the Perfect stop's way down after the last spring, so its bounce carries the gold on past the run.
-  {
-    const r = newRun(0, perfect, up, field()), end = ground[ground.length - 1].x1;
-    while (!r.ended && r.steps < 40000) {
-      stepRun(r); r.ev.length = 0;
-      if (r.x > end && r.mode === 'air' && r.vy < 0 && r.y <= F.birdHeight) { bird = { x0: Math.round(r.x - T.birdSwing * Math.sin((flightTime(r) / T.birdPeriod) * Math.PI * 2)), y: Math.round(F.birdHeight + T.critterR), phase: 0, hit: false }; break; }
-    }
-  }
-  // Small springs every `fillEvery` from the run's end up to the mud (no stretch of 150 m without a spring), and the mud past
-  // mudFrom, clear of every ground touch of the unboosted Perfect stops; filling moves the touches, so the two are settled
-  // together (filler springs added after a spring change nothing before it, so this ends).
-  let m0 = F.mudFrom;
-  for (let round = 0; round < 6; round++) {
-    for (let x = ground[ground.length - 1].x1 + F.fillEvery; x + F.exitW + F.gap < m0; x += F.fillEvery) ground.push(spring(x, x + F.exitW));
-    const touches = [];
-    for (const l of plain.filter((q) => q.zone === 0)) {
-      const r = newRun(0, l, up, field());
-      while (!r.ended && r.x < m0 + 4000 && r.steps < 40000) { stepRun(r); r.ev.length = 0; if (r.mode !== 'air' || r.y <= 1) touches.push(r.x); }
-    }
-    let next = Math.max(m0, ground[ground.length - 1].x1 + F.gap);
-    for (let moved = true; moved;) { moved = false; for (const x of touches) if (x > next - F.mudClear && x < next + F.mudW + F.mudClear) { next = Math.ceil(x + F.mudClear); moved = true; } }
-    const settled = next - ground[ground.length - 1].x1 <= F.fillEvery + F.gap;
-    m0 = next;
-    if (settled) break;
-  }
-  ground.push({ kind: 'mud', x0: m0, x1: m0 + F.mudW, w: F.mudW, h: 0, spent: false });
-  ground.push(spring(m0 + F.mudW + F.gap, m0 + F.mudW + F.gap + F.exitW)); // no stretch of 150 m without a spring
-  const out = { ground, bird, len: Math.max(T.chunkLen, Math.ceil((m0 + F.mudW + F.gap + F.exitW + F.tail) / 100) * 100) };
-  TEACH.set(key, out);
-  return out;
-}
-
-// tiers: which distance tiers (TUNING.tierFrom) may draw the template. Tier 0 is the Bakery and Candy Meadow (the teaching
-// chunk covers the Bakery), tier 1 Chocolate River, tier 2 Soda Springs (every template has a geyser), tier 3 Gingerbread
-// Town and Home (every template has a geyser and clouds). Past 2000 m: more caramel, fewer jellies (the v0.1 tier rule).
-// A geyser is w wide on the ground; a cloud is a spot in the air (y its centre). Objects keep 2 x chunkJitter clear.
-const CHUNKS = [
-  { name: 'Meadow', tiers: [0], objects: [
-    { kind: 'spring', x: 300, y: 0, w: 80 }, { kind: 'bird', x: 700, y: 140 }, { kind: 'spring', x: 1000, y: 0, w: 80 },
-    { kind: 'mud', x: 1350, y: 0, w: 120 }, { kind: 'spring', x: 1700, y: 0, w: 80 }, { kind: 'bird', x: 2100, y: 170 },
-    { kind: 'spring', x: 2450, y: 0, w: 80 },
-  ] },
-  { name: 'Hop line', tiers: [0, 1], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 70 }, { kind: 'spring', x: 1050, y: 0, w: 70 }, { kind: 'ramp', x: 1450, y: 0, w: 240, h: 65 },
-    { kind: 'spring', x: 1950, y: 0, w: 70 }, { kind: 'mud', x: 2200, y: 0, w: 110 }, { kind: 'spring', x: 2550, y: 0, w: 70 },
-  ] },
-  { name: 'Ramp run', tiers: [0, 1], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 70 }, { kind: 'spring', x: 1100, y: 0, w: 70 }, { kind: 'ramp', x: 1500, y: 0, w: 240, h: 65 },
-    { kind: 'bird', x: 2000, y: 200 }, { kind: 'spring', x: 2250, y: 0, w: 70 }, { kind: 'mud', x: 2500, y: 0, w: 140 },
-  ] },
-  { name: 'Launch pad', tiers: [1], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 70 }, { kind: 'ramp', x: 800, y: 0, w: 300, h: 80 }, { kind: 'spring', x: 1350, y: 0, w: 70 },
-    { kind: 'ramp', x: 1700, y: 0, w: 300, h: 80 }, { kind: 'bird', x: 2150, y: 180 }, { kind: 'spring', x: 2400, y: 0, w: 70 },
-    { kind: 'ramp', x: 2650, y: 0, w: 240, h: 65 },
-  ] },
-  { name: 'Flock', tiers: [1], objects: [
-    { kind: 'spring', x: 450, y: 0, w: 70 }, { kind: 'bird', x: 900, y: 110 }, { kind: 'bird', x: 1350, y: 190 },
-    { kind: 'mud', x: 1530, y: 0, w: 150 }, { kind: 'spring', x: 1850, y: 0, w: 70 }, { kind: 'bird', x: 2300, y: 150 },
-    { kind: 'spring', x: 2500, y: 0, w: 70 }, { kind: 'mud', x: 2720, y: 0, w: 120 },
-  ] },
-  // Soda Springs: a geyser where Build 1 had a ramp or a plain stretch, so the old tier's mud and jellies stand.
-  { name: 'Fizz bog', tiers: [2], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'mud', x: 650, y: 0, w: 200 }, { kind: 'ramp', x: 1000, y: 0, w: 320, h: 85 },
-    { kind: 'spring', x: 1520, y: 0, w: 60 }, { kind: 'mud', x: 1750, y: 0, w: 200 }, { kind: 'geyser', x: 2180, y: 0, w: 40 },
-    { kind: 'spring', x: 2600, y: 0, w: 60 },
-  ] },
-  { name: 'Soda jump', tiers: [2], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'mud', x: 1150, y: 0, w: 180 },
-    { kind: 'spring', x: 1500, y: 0, w: 60 }, { kind: 'geyser', x: 1860, y: 0, w: 40 }, { kind: 'bird', x: 2250, y: 160 },
-    { kind: 'spring', x: 2450, y: 0, w: 60 }, { kind: 'mud', x: 2700, y: 0, w: 160 },
-  ] },
-  { name: 'Geyser run', tiers: [2], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1115, y: 0, w: 40 },
-    { kind: 'spring', x: 1300, y: 0, w: 60 }, { kind: 'mud', x: 1530, y: 0, w: 170 }, { kind: 'ramp', x: 1850, y: 0, w: 320, h: 85 },
-    { kind: 'spring', x: 2400, y: 0, w: 60 }, { kind: 'mud', x: 2650, y: 0, w: 150 },
-  ] },
-  { name: 'Pop field', tiers: [2], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 600, y: 0, w: 320, h: 85 }, { kind: 'mud', x: 1100, y: 0, w: 200 },
-    { kind: 'spring', x: 1450, y: 0, w: 60 }, { kind: 'ramp', x: 1700, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 2300, y: 0, w: 40 },
-    { kind: 'spring', x: 2700, y: 0, w: 60 },
-  ] },
-  // Gingerbread Town and Home: the Soda Springs geysers stay, and clouds hang where arcs pass, clear of birds.
-  { name: 'Icing lane', tiers: [3], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1115, y: 0, w: 40 },
-    { kind: 'spring', x: 1300, y: 0, w: 60 }, { kind: 'mud', x: 1530, y: 0, w: 170 }, { kind: 'cloud', x: 1700, y: 260 },
-    { kind: 'ramp', x: 1850, y: 0, w: 320, h: 85 }, { kind: 'spring', x: 2400, y: 0, w: 60 }, { kind: 'cloud', x: 2550, y: 220 },
-    { kind: 'mud', x: 2650, y: 0, w: 150 },
-  ] },
-  { name: 'Cookie field', tiers: [3], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 600, y: 0, w: 320, h: 85 }, { kind: 'cloud', x: 1000, y: 250 },
-    { kind: 'mud', x: 1100, y: 0, w: 200 }, { kind: 'spring', x: 1450, y: 0, w: 60 }, { kind: 'ramp', x: 1700, y: 0, w: 320, h: 85 },
-    { kind: 'geyser', x: 2300, y: 0, w: 40 }, { kind: 'cloud', x: 2450, y: 300 }, { kind: 'spring', x: 2700, y: 0, w: 60 },
-  ] },
-  { name: 'Gumdrop slope', tiers: [3], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 580, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1180, y: 0, w: 40 },
-    { kind: 'cloud', x: 1450, y: 300 }, { kind: 'spring', x: 1530, y: 0, w: 60 }, { kind: 'mud', x: 1760, y: 0, w: 160 },
-    { kind: 'ramp', x: 2080, y: 0, w: 320, h: 85 }, { kind: 'cloud', x: 2300, y: 240 }, { kind: 'spring', x: 2550, y: 0, w: 60 },
-    { kind: 'mud', x: 2780, y: 0, w: 120 },
-  ] },
-];
-
-function tierAt(metres) { let t = 0; T.tierFrom.forEach((m, i) => { if (metres >= m) t = i; }); return t; }
-
-function makeField(seed, up = T.upgrades) {
-  const f = { seed, rng: makeRng(seed), ground: [], birds: [], clouds: [], end: 0, chunks: 0 };
-  const t = teachingChunk(up);
-  for (const g of t.ground) f.ground.push({ ...g });
-  if (t.bird) f.birds.push({ ...t.bird });
-  f.end = t.len; f.chunks = 1;
-  return f;
-}
-
-function addChunk(f, tpl, jitter) {
-  const x0 = f.end, rng = f.rng;
-  for (const o of tpl.objects) {
-    const x = x0 + o.x + (jitter ? Math.round(rng.range(-T.chunkJitter, T.chunkJitter)) : 0);
-    if (o.kind === 'bird') {
-      f.birds.push({ x0: x, y: o.y + (jitter ? Math.round(rng.range(-T.birdJitterY, T.birdJitterY)) : 0), phase: jitter ? rng.range(0, Math.PI * 2) : 0, hit: false });
-    } else if (o.kind === 'cloud') {
-      f.clouds.push({ x, y: o.y + (jitter ? Math.round(rng.range(-T.birdJitterY, T.birdJitterY)) : 0), used: false });
-    } else {
-      const g = { kind: o.kind, x0: x, x1: x + o.w, w: o.w, h: o.h || 0, spent: false };
-      if (o.kind === 'ramp') g.a = Math.atan2(o.h, o.w);
-      if (o.kind === 'geyser') g.phase = jitter ? Math.round(rng.range(0, T.geyserPeriod) * 100) / 100 : 0; // seconds into its cycle at launch
-      f.ground.push(g);
-    }
-  }
-  f.ground.sort((a, b) => a.x0 - b.x0);
-  f.clouds.sort((a, b) => a.x - b.x);
-  f.end += T.chunkLen; f.chunks++;
-}
-
-function ensureField(f, x) {
-  while (f.end < x + T.lookahead) {
-    const tier = tierAt(f.end / T.unitsPerMetre);
-    addChunk(f, f.rng.pick(CHUNKS.filter((c) => c.tiers.includes(tier))), true);
-  }
-}
+function ensureField(f, x) { while (f.end < x + T.lookahead) addGap(f); }
 
 // The ground object under x, or null for plain ground.
 function groundAt(f, x) {
@@ -503,113 +360,128 @@ function groundAt(f, x) {
   return null;
 }
 const surfaceH = (g, x) => (g && g.kind === 'ramp' ? (g.h * (x - g.x0)) / g.w : 0);
-// A geyser erupts for geyserOn of every geyserPeriod of flight time `t`, from its own phase.
 const geyserOn = (g, t) => (t + g.phase) % T.geyserPeriod < T.geyserOn;
 const inCloud = (c, x, cy) => { const dx = (c.x - x) / (T.cloudRX + T.critterR), dy = (c.y - cy) / (T.cloudRY + T.critterR); return dx * dx + dy * dy < 1; };
 const birdX = (b, t) => b.x0 + T.birdSwing * Math.sin((t / T.birdPeriod) * Math.PI * 2 + b.phase);
 
 // ---------- Flight ----------
 
-// A flight's numbers at a set of upgrade levels (the layer 4 shop's model, see TUNING.upgrades).
+// A flight's numbers at a set of upgrade levels.
 function stats(up = T.upgrades) {
-  const band = up.band || 0, fuel = up.fuel || 0, aero = up.aero || 0, rocket = up.rocket || 0;
-  const airDrag = T.airDrag * Math.max(0, 1 - T.aeroStep * aero);
+  const airDrag = T.airDrag * Math.max(0, 1 - T.aeroStep * (up.aero || 0));
   return {
-    launchSpeed: T.launchSpeedMax * (1 + T.bandStep * band),
-    fuelMax: T.fuelMax + T.fuelStep * fuel,
+    launchSpeed: T.launchSpeedMax * (1 + T.bandStep * (up.band || 0)),
+    fuelMax: T.fuelMax + T.fuelStep * (up.fuel || 0),
     airDrag,
     dragK: Math.pow(1 - airDrag, STEP),
+    chuteK: Math.exp(-T.chuteBleed * STEP),
     slideK: Math.exp(-T.slideFriction * STEP),
-    hold: rocket >= 1,
-    thrust: rocket >= 1 ? T.rocketThrust * (1 + T.rocketStep * (rocket - 1)) : 0,
+    thrust: T.boostThrust * (1 + T.rocketStep * (up.rocket || 0)),
+    look: T.rangeLook + T.scopeStep * (up.scope || 0),
   };
 }
 
-// A launch is { angle, power } and, from the needle, its `zone` (a Perfect launch carries perfectFuel extra pulses).
+// A launch is { angle, power, zone } (launchOf gives one from two tap times).
 function newRun(seed, launch, up = T.upgrades, field = null) {
-  const st = stats(up), sp = launch.power * st.launchSpeed, a = launch.angle * DEG;
-  if (!field) { field = makeField(seed, up); ensureField(field, 0); }
+  const st = stats(up), sp = launch.power * st.launchSpeed, a = launch.angle * DEG, [x, y] = mouth(launch.angle);
+  if (!field) { field = makeField(seed); ensureField(field, 0); }
   const fuel = st.fuelMax + (launch.zone === 0 ? T.perfectFuel : 0);
   return {
     seed, launch, up: { ...up }, st, field,
-    x: 0, y: T.slingH, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, u: 0,
-    fuel, fuelCap: fuel, holding: false, steps: 0, acc: 0, q: [], ev: [],
-    chain: 0, chainMax: 0, birds: 0, springs: 0, geysers: 0, clouds: 0, pulses: 0, coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: 0,
-    msIdx: 0, stars: [], slowT: 0, ended: null, boosted: false, boostSprings: 0,
+    x, y, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, u: 0,
+    fuel, fuelCap: fuel, boost: false, burstEnd: -1, chute: false, ball: false, dropTop: 0, steps: 0, acc: 0, q: [], ev: [],
+    chain: 0, chainMax: 0, birds: 0, springs: 0, geysers: 0, clouds: 0, bounces: 0, combo: 0, comboMax: 0,
+    boosts: 0, boostT: 0, chutes: 0, drops: 0, coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: x,
+    msIdx: 0, stars: [], slowT: 0, ended: null, timeout: false, boosted: false, boostSprings: 0,
   };
 }
 
 const flightTime = (r) => r.steps * STEP;
 const mult = (r) => T.chainSteps[Math.min(r.chain, T.chainSteps.length - 1)];
 
-// Queue an input at flight time `at` (seconds); it applies on the step that contains that time.
+// Queue an input at flight time `at` (seconds); it applies on the step that contains that time. Kinds: boostOn, boostOff,
+// burst (a quick tap: boost for tapBurst), chuteOn, chuteOff, condense.
 function queueInput(r, at, kind) {
-  if (kind === 'holdOff') { // a release before the hold began cancels the pending hold
-    const i = r.q.findIndex((e) => e.kind === 'holdOn' && e.at >= at);
-    if (i >= 0) { r.q.splice(i, 1); return; }
-  }
   r.q.push({ at, kind });
   r.q.sort((a, b) => a.at - b.at);
 }
 
-function boostDir(r) {
-  if (r.mode === 'air') { const s = Math.hypot(r.vx, r.vy); if (s > 1) return [r.vx / s, r.vy / s]; }
-  return [Math.cos(T.groundBoostAngle * DEG), Math.sin(T.groundBoostAngle * DEG)];
-}
-
-function push(r, dv) {
-  if (r.mode === 'ramp') { r.u += dv; return; }
-  const [ux, uy] = boostDir(r);
-  r.vx += ux * dv; r.vy += uy * dv;
-  if (r.mode === 'ground' && r.vy > 0) r.mode = 'air';
-}
-
 function applyInput(r, e) {
-  if (e.kind === 'pulse') {
-    if (r.fuel <= 0) return;
-    const k = Math.min(1, r.fuel);
-    r.fuel -= k; r.pulses++; r.boosted = true;
-    push(r, T.boostPulse * k);
-    r.ev.push({ k: 'boost' });
-  } else if (e.kind === 'holdOn') r.holding = r.st.hold;
-  else if (e.kind === 'holdOff') r.holding = false;
+  const k = e.kind;
+  if (k === 'boostOn' || k === 'burst') {
+    if (!r.boost) { r.boosts++; r.ev.push({ k: 'boost' }); }
+    r.boost = true; r.burstEnd = k === 'burst' ? e.at + T.tapBurst : -1;
+  } else if (k === 'boostOff') { r.boost = false; r.burstEnd = -1; }
+  else if (k === 'chuteOn') { if (!r.chute) { r.chutes++; r.ev.push({ k: 'chute' }); } r.chute = true; r.ball = false; }
+  else if (k === 'chuteOff') { if (r.chute) r.ev.push({ k: 'chuteOff' }); r.chute = false; }
+  else if (k === 'condense' && r.mode === 'air') {
+    r.dropTop = r.y + Math.max(0, r.vy) ** 2 / (2 * T.gravity); // the top of this arc: what the hard landing gives back
+    r.ball = true; r.chute = false; r.vy = Math.min(r.vy, -T.condenseDrop); r.drops++; r.ev.push({ k: 'drop' });
+  }
 }
 
-function end(r, why) { r.ended = why; r.vx = r.vy = 0; r.ev.push({ k: why }); }
+// One air step of `dt` for a state { x, y, vx, vy, boost, chute, ball, fuel }: thrust while boosting (along the flight, never
+// pointing below boostFloor, fading to nothing at boostTop), gravity (heavier while condensed), drag, then the parachute's bleed and capped fall. `kd` and
+// `kc` are the drag and bleed factors for `dt`. The flight and the range finder both step with this.
+function airStep(s, st, dt, kd, kc) {
+  if (s.boost && s.fuel > 0) {
+    const sp = Math.hypot(s.vx, s.vy), part = Math.min(1, s.fuel / (T.boostDrain * dt)) * Math.max(0, 1 - sp / T.boostTop), floor = Math.sin(T.boostFloor * DEG);
+    let ux = sp > 1 ? s.vx / sp : Math.cos(T.groundBoostAngle * DEG), uy = sp > 1 ? s.vy / sp : Math.sin(T.groundBoostAngle * DEG);
+    if (uy < floor) { uy = floor; ux = Math.sqrt(1 - floor * floor); }
+    s.fuel = Math.max(0, s.fuel - T.boostDrain * dt);
+    s.vx += ux * st.thrust * dt * part; s.vy += uy * st.thrust * dt * part;
+  }
+  s.vy -= T.gravity * (s.ball ? T.condenseGrav : 1) * dt;
+  s.vx *= kd; s.vy *= kd;
+  if (s.chute) { s.vx *= kc; if (s.vy < -T.chuteFall) s.vy += (-T.chuteFall - s.vy) * Math.min(1, T.chuteGrip * dt); }
+  s.x += s.vx * dt; s.y += s.vy * dt;
+}
 
-// `boosted`: a boost was fired since the last contact (a spring hit after one counts for the goals).
+function end(r, why) { r.ended = why; r.vx = r.vy = 0; r.boost = r.chute = r.ball = false; r.ev.push({ k: why }); }
+const bump = (r) => { r.chain++; r.chainMax = Math.max(r.chainMax, r.chain); r.combo++; r.comboMax = Math.max(r.comboMax, r.combo); };
+
+// A jelly: at least springMin up, or springBounce of the fall; condensed, condenseJelly x the condensed bounce (the big one).
+const dropBack = (r) => Math.sqrt(2 * T.gravity * Math.max(0, r.dropTop)) * T.condenseLift;
 function hitSpring(r, g, vyIn) {
   g.spent = true;
   if (r.boosted) r.boostSprings++;
   r.boosted = false;
-  r.vy = Math.max(T.springMin, -vyIn * T.springBounce);
-  r.y = 0; r.mode = 'air';
-  r.springs++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
-  r.ev.push({ k: 'spring', x: r.x, chain: r.chain });
+  const big = r.ball;
+  if (big) r.vx *= T.condenseKeep;
+  r.vy = Math.min(T.maxBounce, Math.max(T.springMin, big ? dropBack(r) * T.condenseJelly : -vyIn * T.springBounce));
+  r.y = 0; r.mode = 'air'; r.ball = false;
+  r.springs++; bump(r);
+  r.ev.push({ k: 'spring', x: r.x, chain: r.chain, big, v: -vyIn });
 }
 
-// A geyser's column: straight up at geyserLift (or faster if already rising faster), horizontal speed kept.
 function hitGeyser(r, g) {
-  g.spent = true; r.boosted = false;
+  g.spent = true; r.boosted = false; r.ball = false;
   r.vy = Math.max(r.vy, T.geyserLift); r.y = Math.max(r.y, 0); r.mode = 'air';
-  r.geysers++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
+  r.geysers++; bump(r);
   r.ev.push({ k: 'geyser', x: r.x, chain: r.chain });
 }
 
 function enterRamp(r, g, speed) {
-  r.boosted = false;
-  if (r.vx <= 0) { r.vx = 0; r.vy = 0; r.mode = 'ground'; r.y = 0; return; } // bumped the ramp's back
+  r.boosted = false; r.ball = false;
+  if (r.vx <= 0) { r.vx = 0; r.vy = 0; r.mode = 'ground'; r.y = 0; return; }
   r.mode = 'ramp'; r.ramp = g; r.u = speed * T.rampKeep;
   r.y = surfaceH(g, r.x); r.vx = r.u * Math.cos(g.a); r.vy = r.u * Math.sin(g.a);
   r.ev.push({ k: 'ramp' });
 }
 
+// A plain-ground touch (PRD v0.3 C): the bounce keeps groundBounce of the fall (condensed: back to condenseLift x the height
+// it dropped from), and a grazing
+// touch skims, hopping on skimLift of its horizontal speed; horizontal speed kept from skimKeep (grazing) to groundKeep
+// (straight down), condenseKeep when condensed. A flight slow for stopTime ends here.
 function plainTouch(r) {
-  r.chain = 0; r.boosted = false;
-  r.y = 0;
-  r.vx *= 1 - T.groundFriction;
-  if (-r.vy * T.groundBounce >= T.settleSpeed) { r.vy = -r.vy * T.groundBounce; r.ev.push({ k: 'bounce' }); }
-  else { r.vy = 0; r.mode = 'ground'; }
+  r.chain = 0; r.boosted = false; r.y = 0;
+  if (r.slowT >= T.stopTime) { end(r, 'stop'); return; }
+  const vin = -r.vy, sp = Math.hypot(r.vx, r.vy) || 1, steep = vin / sp, ball = r.ball;
+  r.ball = false;
+  r.vx *= ball ? T.condenseKeep : T.skimKeep + (T.groundKeep - T.skimKeep) * steep;
+  const out = Math.min(T.maxBounce, ball ? dropBack(r) : Math.max(vin * T.groundBounce, Math.abs(r.vx) * T.skimLift * (1 - steep)));
+  if (out >= T.settleSpeed) { r.vy = out; r.bounces++; r.combo++; r.comboMax = Math.max(r.comboMax, r.combo); r.ev.push({ k: 'bounce', v: vin, big: ball, skim: steep < 0.35 }); }
+  else { r.vy = 0; r.mode = 'ground'; r.combo = 0; r.ev.push({ k: 'land', v: vin }); }
 }
 
 // One fixed physics step.
@@ -617,23 +489,19 @@ function stepRun(r) {
   if (r.ended) return;
   const f = r.field, st = r.st, t1 = (r.steps + 1) * STEP;
   while (r.q.length && r.q[0].at < t1) applyInput(r, r.q.shift());
-  if (r.holding && r.fuel > 0) {
-    const k = Math.min(1, r.fuel / (T.holdFuelRate * STEP));
-    r.fuel = Math.max(0, r.fuel - T.holdFuelRate * STEP);
-    push(r, st.thrust * STEP * k); r.boosted = true;
-  }
+  if (r.burstEnd >= 0 && t1 > r.burstEnd) { r.boost = false; r.burstEnd = -1; }
+  const fueled = r.boost && r.fuel > 0;
+  if (fueled) { r.boosted = true; r.boostT += STEP; }
 
   if (r.mode === 'air') {
-    r.vy -= T.gravity * STEP;
-    r.vx *= st.dragK; r.vy *= st.dragK;
-    r.x += r.vx * STEP; r.y += r.vy * STEP;
+    airStep(r, st, STEP, st.dragK, st.chuteK);
     const t = t1, cy = r.y + T.critterR;
     for (const b of f.birds) {
       if (b.hit || Math.abs(b.x0 - r.x) > T.birdSwing + 40) continue;
       if (Math.hypot(birdX(b, t) - r.x, b.y - cy) < T.critterR + T.birdR) {
-        b.hit = true; r.boosted = false;
+        b.hit = true; r.boosted = false; r.ball = false;
         r.vy = Math.max(r.vy, T.birdLift);
-        r.birds++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
+        r.birds++; bump(r);
         r.ev.push({ k: 'bird', x: r.x, chain: r.chain });
       }
     }
@@ -654,17 +522,24 @@ function stepRun(r) {
       else plainTouch(r);
     }
   } else if (r.mode === 'ground') {
-    r.vx *= st.slideK;
-    r.x += r.vx * STEP;
-    const g = groundAt(f, r.x);
-    if (g && g.kind === 'mud') end(r, 'mud');
-    else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, 0);
-    else if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t1)) hitGeyser(r, g);
-    else if (g && g.kind === 'ramp') enterRamp(r, g, Math.abs(r.vx));
-    else r.chain = 0;
+    if (fueled) { // a boost on the ground hops
+      r.fuel = Math.max(0, r.fuel - T.boostDrain * STEP);
+      r.vx += Math.cos(T.groundBoostAngle * DEG) * st.thrust * STEP; r.vy = Math.sin(T.groundBoostAngle * DEG) * st.thrust * STEP;
+      r.mode = 'air'; r.y = 0.01;
+    } else {
+      r.vx *= st.slideK;
+      r.x += r.vx * STEP;
+      const g = groundAt(f, r.x);
+      if (g && g.kind === 'mud') end(r, 'mud');
+      else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, 0);
+      else if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t1)) hitGeyser(r, g);
+      else if (g && g.kind === 'ramp') enterRamp(r, g, Math.abs(r.vx));
+      else r.chain = 0;
+    }
   } else if (r.mode === 'ramp') {
     const g = r.ramp;
-    r.u = r.u * st.dragK - T.gravity * Math.sin(g.a) * STEP;
+    r.u = r.u * st.dragK - T.gravity * Math.sin(g.a) * STEP + (fueled ? st.thrust * STEP : 0);
+    if (fueled) r.fuel = Math.max(0, r.fuel - T.boostDrain * STEP);
     r.x += r.u * Math.cos(g.a) * STEP;
     r.vx = r.u * Math.cos(g.a); r.vy = r.u * Math.sin(g.a);
     if (r.x >= g.x1) { r.mode = 'air'; r.y = g.h; r.ramp = null; }
@@ -682,9 +557,10 @@ function stepRun(r) {
     ensureField(f, r.maxX);
   }
   if (r.ended) return;
-  if (Math.hypot(r.vx, r.vy) < T.stopSpeed) { r.slowT += STEP; if (r.slowT >= T.stopTime) end(r, 'stop'); }
+  // Slow means horizontally slow: on the ground it ends after stopTime, in the air at the next plain touch.
+  if (Math.abs(r.vx) < T.stopSpeed) { r.slowT += STEP; if (r.mode !== 'air' && r.slowT >= T.stopTime) end(r, 'stop'); }
   else r.slowT = 0;
-  if (flightTime(r) >= T.maxFlight) end(r, 'stop');
+  if (!r.ended && flightTime(r) >= T.maxFlight) { r.timeout = true; end(r, 'stop'); }
 }
 
 // Frame-rate independent advance: whole steps only, the remainder carried.
@@ -696,11 +572,36 @@ function advance(r, dt) {
 const metres = (r) => Math.floor(r.maxX / T.unitsPerMetre);
 const coinsOf = (r) => Math.floor(r.coinAcc) + r.birds * T.birdCoins;
 
+// ---------- The range finder (PRD v0.3 D) ----------
+// The flight's own air step run forward from a copy of its state with the current action kept (a held boost until the
+// fizz runs out, a tap's burst to its end, the parachute, the condensed drop), for `look` seconds or to the first contact:
+// a bird, an erupting geyser's column, or the ground (a jelly, caramel, a wafer or plain). The field is only read. Dots
+// every rangeDot steps go into `out` as x, y pairs. Returns { n: dots, hit: contact reached, x, kind } or null off the air.
+function rangeArc(r, look, out) {
+  if (r.mode !== 'air' || r.ended) return null;
+  const f = r.field, st = r.st, s = { x: r.x, y: r.y, vx: r.vx, vy: r.vy, boost: r.boost, chute: r.chute, ball: r.ball, fuel: r.fuel };
+  const R = T.critterR + T.birdR, near = f.birds.filter((b) => !b.hit && Math.abs(b.x0 - r.x) < 4000);
+  let n = 0, t = flightTime(r);
+  const steps = Math.ceil(look / STEP);
+  for (let i = 1; i <= steps; i++) {
+    t += STEP;
+    if (r.burstEnd >= 0 && t > r.burstEnd) s.boost = false;
+    airStep(s, st, STEP, st.dragK, st.chuteK);
+    if (out && i % T.rangeDot === 0) { out[2 * n] = s.x; out[2 * n + 1] = s.y; n++; }
+    const cy = s.y + T.critterR;
+    for (const b of near) if (Math.abs(b.x0 - s.x) <= T.birdSwing + 40 && Math.hypot(birdX(b, t) - s.x, b.y - cy) < R) return { n, hit: true, x: s.x, y: s.y, kind: 'bird' };
+    if (s.y > T.geyserH) continue; // high up: nothing on the ground reaches
+    const g = groundAt(f, s.x);
+    if (g && g.kind === 'geyser' && !g.spent && s.y < T.geyserH && geyserOn(g, t)) return { n, hit: true, x: s.x, y: s.y, kind: 'geyser' };
+    if (s.y <= surfaceH(g, s.x) && (s.vy <= 0 || (g && g.kind === 'ramp'))) return { n, hit: true, x: s.x, y: surfaceH(g, s.x), kind: !g ? 'ground' : g.kind === 'spring' ? (g.spent ? 'ground' : 'spring') : g.kind === 'geyser' ? 'ground' : g.kind };
+  }
+  return { n, hit: false, x: s.x, y: s.y, kind: null };
+}
+
 // ---------- Goals (PRD v0.2 B, G2) ----------
 // In order of difficulty; three are active at a time (the first three not done). A flight pays every active goal it meets,
 // on the card, and the next in the list takes its place. Each is a name in the candy kitchen's trade and a short plain
-// condition; `stat` is a number from the flight's summary (goalStats), met at `need`; `count` goals show "have/need". A goal
-// named for a skill is met by a zero-input Good or better launch on at most 20 percent of stops (tools/sim-launch.mjs --rank).
+// condition; `stat` is a number from the flight's summary (goalStats), met at `need`; `count` goals show "have/need".
 const GOALS = [
   { id: 'reach300', name: 'Warm Oven', text: 'Reach 300 m', stat: 'm', need: 300, reward: 80 },
   { id: 'great', name: 'Good Knead', text: 'Launch Great or better', stat: 'great', need: 1, reward: 80 },
@@ -736,9 +637,9 @@ function settleGoals(done, st) {
 const goalLine = (g, have) => (g.count && have !== undefined ? `${g.text}  ${Math.min(have, g.need)}/${g.need}` : g.text);
 
 // ---------- Save ----------
-// v6: { best: metres, sugar, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket, steady }, holdTaught,
-//       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight, birdTaught, mudTaught,
-//       home: the mochi has met the daifuku (the Home moment has played) }
+// v7: { best: metres, sugar, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket, steady, scope },
+//       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight (the machine's streak), birdTaught,
+//       mudTaught, home: the mochi has met the daifuku, actionsTaught: the three-action hint has shown }
 
 function finishFlight(E, r) {
   const m = metres(r), best = E.save.get('best', 0);
@@ -757,31 +658,34 @@ function finishFlight(E, r) {
   E.save.set('perfectRow', perfectRow);
   if (gs.paid.length) E.save.set('goalsDone', gs.done);
   const up = r.up;
-  E.ledger.add('flight', { m, why: r.ended, sugar: earned, bonus, goals: gs.paid.map((g) => g.id).join('/') || 'none', chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, geysers: r.geysers, clouds: r.clouds, pulses: r.pulses,
-    angle: +r.launch.angle.toFixed(1), zone: ZONES[r.launch.zone ?? 3].replace('!', ''), up: `b${up.band}f${up.fuel}a${up.aero}r${up.rocket}s${up.steady || 0}`, seed: r.seed });
+  E.ledger.add('flight', { m, why: r.ended, sugar: earned, bonus, goals: gs.paid.map((g) => g.id).join('/') || 'none', chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, geysers: r.geysers, clouds: r.clouds, bounces: r.bounces,
+    boosts: r.boosts, boostT: +r.boostT.toFixed(1), chutes: r.chutes, drops: r.drops, secs: +flightTime(r).toFixed(1),
+    angle: +r.launch.angle.toFixed(1), gauge: +r.launch.gauge.toFixed(3), zone: ZONES[r.launch.zone ?? 3].replace('!', ''), streak: r.launch.streak || 0,
+    up: `b${up.band}f${up.fuel}a${up.aero}r${up.rocket}s${up.steady || 0}t${up.scope || 0}`, seed: r.seed });
   // The card: rewards as tickets (the goals paid and the new places, largest first), then the three goals now active (a
   // counter for those this flight counted toward, "new" for the ones that just took a slot).
   const tickets = gs.paid.map((g) => ({ name: g.name, cond: g.text, sugar: g.reward })).concat(firsts.map((ms) => ({ name: PLACES[T.milestones.indexOf(ms) + 1].name, short: PLACES[T.milestones.indexOf(ms) + 1].name.split(' ')[0], cond: `New place, ${ms} m`, sugar: T.milestoneBonus[T.milestones.indexOf(ms)] })))
     .sort((a, b) => b.sugar - a.sugar);
   const active = activeGoals(gs.done).map((g) => ({ g, have: before.includes(g.id) ? st[g.stat] : undefined, isNew: !before.includes(g.id) }));
-  return { m, best: Math.max(best, m), isNew: m > best, sugar: coinsOf(r), bonus, earned, chainMax: r.chainMax, tickets, active, seed: r.seed, why: r.ended, zone: r.launch.zone ?? 3 };
+  return { m, best: Math.max(best, m), isNew: m > best, sugar: coinsOf(r), bonus, earned, chainMax: r.chainMax, comboMax: r.comboMax, tickets, active, seed: r.seed, why: r.ended, zone: r.launch.zone ?? 3, streak: perfectRow };
 }
 
 // ---------- Shop ----------
 // Save: `up` holds the bought level of each upgrade (0 to upgradeMax); sugar is spent from `sugar`.
 
-// Named in the candy kitchen's trade (PRD v0.2 E); each is drawn on the mochi or the launcher at every level, and in the shop.
-const UPGRADES = [{ id: 'band', name: 'Licorice Band' }, { id: 'fuel', name: 'Fizz Tank' }, { id: 'rocket', name: 'Cola Rocket' }, { id: 'aero', name: 'Sugar Glaze' }, { id: 'steady', name: 'Steady Chopsticks' }];
+// Named in the candy kitchen's trade; each bolts a part onto the Mochi Maker 3000 (PRD v0.3 A, D), drawn at every level on
+// the machine and in the shop (the Fizz Tank's bottle and the Cola Rocket's nozzle ride on the mochi too).
+const UPGRADES = [{ id: 'band', name: 'Spring Coil' }, { id: 'fuel', name: 'Fizz Tank' }, { id: 'rocket', name: 'Cola Rocket' }, { id: 'aero', name: 'Sugar Glaze' }, { id: 'steady', name: 'Steady Gauge' }, { id: 'scope', name: 'Brass Telescope' }];
 const levelsOf = (E) => ({ ...T.upgrades, ...E.save.get('up', {}) });
 
 // What buying level `lvl` (1 to upgradeMax) of an upgrade does, in plain words.
-function effectText(id, lvl) {
+function effectText(id) {
   if (id === 'band') return `+${Math.round(T.bandStep * 100)}% launch speed`;
-  if (id === 'fuel') return `+${T.fuelStep} fizz pulses`;
+  if (id === 'fuel') return `+${T.fuelStep} fizz pips`;
   if (id === 'aero') return `${Math.round(T.aeroStep * 100)}% less air drag`;
-  if (id === 'steady') return `Needle ${Math.round(T.steadySlow * 100)}% slower, zones +${T.steadyWiden}° a side`;
-  const k = T.rocketThrust / T.holdFuelRate / T.boostPulse;
-  return lvl === 1 ? `Hold to boost, ${+k.toFixed(1)}x push per fizz` : `+${Math.round(T.rocketStep * 100)}% hold thrust`;
+  if (id === 'steady') return `Gauge ${Math.round(T.steadySlow * 100)}% slower, zones wider`;
+  if (id === 'scope') return `Range finder +${T.scopeStep} s`;
+  return `+${Math.round(T.rocketStep * 100)}% boost thrust`;
 }
 
 // Greedy word wrap to `maxW` px at a text size and weight (system font, as E.text draws it).
@@ -805,22 +709,21 @@ function buy(E, id) {
   return true;
 }
 
-// An upgrade's picture at a level (the shop's): the gear itself, as it is drawn on the mochi or the launcher, on a light plate.
+// An upgrade's picture at a level (the shop's): the part itself, as it is drawn on the machine, on a light plate.
 function drawUpgradePic(ctx, id, lvl, cx, cy, size, time) {
   ctx.fillStyle = P.shopWall; ctx.beginPath(); ctx.arc(cx, cy, size / 2, 0, Math.PI * 2); ctx.fill();
   const k = size / 80, lw = 2 * k;
-  if (id === 'band' || id === 'steady') {
-    const base = cy + size * 0.36, top = cy - size * 0.3, fw = size * 0.2;
-    drawChopsticks(ctx, cx, base, top, fw, k * 1.6, lw, id === 'steady' ? lvl : 0, id === 'band' ? lvl : 0, time);
-    drawLicorice(ctx, [cx - fw, top], [cx, top + size * 0.12], [cx + fw, top], k * 1.6, id === 'band' ? lvl : 0);
-  } else if (id === 'fuel') drawBottle(ctx, cx, cy + size * 0.05, size * (0.36 + 0.12 * lvl), 0, 0.75, lw);
+  if (id === 'band') drawCoil(ctx, cx - size * 0.3, cy, size * 0.6, size * (0.16 + 0.05 * lvl), 4 + 2 * lvl, lw);
+  else if (id === 'steady') drawGauge(ctx, cx, cy, size * 0.36, null, T.zoneHalf.map((h) => h + T.steadyWiden * lvl), lvl, lw);
+  else if (id === 'scope') drawScope(ctx, cx - size * 0.3, cy + size * 0.1, size * (0.36 + 0.1 * lvl), -0.35, lvl, lw);
+  else if (id === 'fuel') drawBottle(ctx, cx, cy + size * 0.05, size * (0.36 + 0.12 * lvl), 0, 0.75, lw);
   else if (id === 'rocket') {
     drawNozzle(ctx, cx - size * 0.12, cy, size * (0.2 + 0.07 * lvl), 0, lvl, true, lw, time);
     for (let i = 0; i < 3; i++) { ctx.fillStyle = P.cola; ctx.strokeStyle = P.colaRim; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx + size * (0.18 + 0.08 * i), cy + Math.sin(time * 4 + i) * size * 0.06, size * (0.05 - 0.01 * i), 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-  } else drawMochi(ctx, cx, cy - size * 0.02, size * 0.27, 0, 1, 1, lw, { aero: lvl }, time);
+  } else { drawGlazeDrum(ctx, cx, cy + size * 0.1, size * (0.18 + 0.04 * lvl), lvl, lw); drawMochi(ctx, cx, cy - size * 0.2, size * 0.16, 0, 1, 1, lw * 0.7, { aero: lvl }, time); }
 }
 
-// The shop: five cards in a row, each a picture of the gear at the level Buy gives (or the top level), the name in the
+// The shop: six cards in a row, each a picture of the gear at the level Buy gives (or the top level), the name in the
 // kitchen's trade, level pips, the effect in plain words and a Buy button carrying the price (principle 11: three text items).
 const shop = {
   enter(E, p = {}) { this.from = p.from || 'menu'; this.card = p.card || null; this.cells = []; },
@@ -870,43 +773,17 @@ const shop = {
 // critter's height, the sky pans up with the critter and the band stays pinned at the bottom (a drop line and a height
 // label show how far up it is). Everything here is in design px at zoom 1; `vw` is the view width in design px.
 
-// Where the critter comes down if nothing else touches it: gravity and drag only, onto the ground or a ramp.
+// Where the critter comes down if nothing else touches it: the air step (with the action it holds now) in 4-step strides,
+// onto the ground or a ramp.
 function predictLanding(r) {
   if (r.mode !== 'air') return r.x;
-  let vx = r.vx, vy = r.vy, x = r.x, y = r.y;
-  const h = STEP * 4, k = Math.pow(1 - r.st.airDrag, h);
-  for (let i = 0; i < 6000; i++) {
-    vy -= T.gravity * h; vx *= k; vy *= k; x += vx * h; y += vy * h;
-    if (vy < 0 && y <= surfaceH(groundAt(r.field, x), x)) return x;
+  const h = STEP * 4, s = { x: r.x, y: r.y, vx: r.vx, vy: r.vy, boost: r.boost && r.burstEnd < 0, chute: r.chute, ball: r.ball, fuel: r.fuel };
+  const kd = Math.pow(1 - r.st.airDrag, h), kc = Math.exp(-T.chuteBleed * h);
+  for (let i = 0; i < 3000; i++) {
+    airStep(s, r.st, h, kd, kc);
+    if (s.vy < 0 && s.y <= surfaceH(groundAt(r.field, s.x), s.x)) return s.x;
   }
-  return x;
-}
-
-// The landing marker (PRD v0.2 C): where the critter first touches the ground or a ramp if no more boost is fired, by the
-// flight's own air step run forward on a copy of its state (the field is only read). Null when a bird comes first, or when
-// the critter is not in the air: the marker never shows beyond the first contact.
-function landingMark(r, maxT = 30) {
-  if (r.mode !== 'air' || r.ended) return null;
-  const f = r.field, st = r.st;
-  let x = r.x, y = r.y, vx = r.vx, vy = r.vy, n = r.steps;
-  const near = f.birds.filter((b) => !b.hit && b.x0 > x - T.birdSwing - 40), R = T.critterR + T.birdR;
-  const birdTop = near.reduce((m, b) => Math.max(m, b.y), -Infinity) + R;
-  // Clouds slow the arc on the way (the real physics), so the marker allows for them; a geyser's column is a contact.
-  const clouds = f.clouds.filter((c) => !c.used && c.x > x - T.cloudRX - T.critterR), seen = new Set();
-  const cloudTop = clouds.reduce((m, c) => Math.max(m, c.y), -Infinity) + T.cloudRY + T.critterR;
-  const groundTop = f.ground.reduce((m, g) => Math.max(m, g.kind === 'geyser' && !g.spent ? T.geyserH : g.h), 0);
-  for (let i = 0; i < maxT / STEP; i++) {
-    n++;
-    vy -= T.gravity * STEP; vx *= st.dragK; vy *= st.dragK; x += vx * STEP; y += vy * STEP;
-    const cy = y + T.critterR;
-    if (cy <= birdTop) for (const b of near) if (Math.abs(b.x0 - x) <= T.birdSwing + 40 && Math.hypot(birdX(b, n * STEP) - x, b.y - cy) < R) return null;
-    if (cy <= cloudTop) for (const c of clouds) if (!seen.has(c) && Math.abs(c.x - x) <= T.cloudRX + T.critterR && inCloud(c, x, cy)) { seen.add(c); vx *= 1 - T.cloudDrag; vy *= 1 - T.cloudDrag; }
-    if (y > groundTop) continue; // high up: nothing to touch yet
-    const g = groundAt(f, x);
-    if (g && g.kind === 'geyser' && !g.spent && y < T.geyserH && geyserOn(g, n * STEP)) return { x, g, lift: true };
-    if (y <= surfaceH(g, x) && (vy <= 0 || (g && g.kind === 'ramp'))) return { x, g };
-  }
-  return null;
+  return s.x;
 }
 
 const newCamera = (vw) => ({ x: -vw * T.slingScreen, y: 0, z: 1, a: T.followX });
@@ -1013,7 +890,8 @@ function drawMotif(ctx, E, motif, li, top, off, s, gy, time) {
   }
 }
 
-// `pre`: the launcher's state, { needle: angle or null, wedge: alpha, mark: landing x or null }. `up`: the gear to draw.
+// `pre`: the machine's state ({ aim: barrel angle, gauge, half, lit, glow, pump }, see drawMachine) and in flight `arc`, the
+// range finder. `up`: the gear to draw.
 function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   const s = v.s, z = c.z, lw = T.style.line * s;
   const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - (wy - c.y) * z) * s;
@@ -1078,13 +956,10 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   ctx.globalAlpha = 1;
   for (let wx = Math.ceil(c.x / (5 * u10)) * 5 * u10; wx < c.x + span + u10; wx += 5 * u10) if (wx > 0) E.text(`${wx / T.unitsPerMetre} m`, X(wx), Math.min(gy + 34 * s, E.h - E.safe.bottom - 10), { size: TY.sm, color: P.text, weight: '600' });
 
-  const fx = X(0), forkTop = gy - (T.slingH + T.critterR) * z * s, fw = 1.3 * T.critterR * s * Math.max(z, T.spriteMin); // tips either side of the mochi
-  const launcherSeen = fx > -60 * s && fx < E.w + 60 * s;
-  if (launcherSeen) { // the chopsticks are one sprite per gear and size (the gold's twinkle is drawn live)
-    const st = up.steady || 0, x0 = fx - fw - 6 * s * z, y0 = forkTop - 6 * s * z, w = 2 * fw + 12 * s * z, h = gy + 4 * s - y0;
-    cached(ctx, `chop${st}${up.band || 0}|${lw.toFixed(2)}`, x0, y0, w, h, (c) => { c.translate(-x0, -y0); drawChopsticks(c, fx, gy + 2 * s, forkTop, fw, s * z, lw, st, up.band || 0); });
-    if (st === 3) { ctx.fillStyle = P.chopHi[3]; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(E.time * 4); star4(ctx, fx + fw * 0.8, forkTop + (gy - forkTop) * 0.15, 4 * s * z); ctx.globalAlpha = 1; }
-  }
+  // The Mochi Maker 3000 at the pivot (x = 0), true size with the zoom.
+  const mk = s * z, mx = X(0), machineSeen = mx > -140 * MACHINE * mk && mx < E.w + 60 * mk;
+  const aim = r ? r.launch.angle : pre && pre.aim !== undefined ? pre.aim : T.aimMin;
+  if (machineSeen) drawMachine(ctx, E, mx, gy, mk, lw, up, aim, pre || {});
 
   if (r) {
     const f = r.field, t = flightTime(r), x0 = c.x - 400, x1 = c.x + span + 400;
@@ -1103,46 +978,96 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
     }
   }
 
-  if (pre && pre.mark !== null && pre.mark !== undefined && X(pre.mark) <= E.w - 6 * s) drawMark(ctx, X(pre.mark), gy, s, E.time);
-  const px = X(0), py = Y(T.slingH + T.critterR);
-  if (pre && pre.needle !== null && pre.wedge > 0) drawWedge(ctx, px, py, s, pre.needle, pre.wedge, up, lw);
+  if (r && pre && pre.arc) drawArc(ctx, pre.arc, X, Y, s, sprite, E.time);
 
-  // The mochi: in the chopsticks' band until the launch, then where the run has it.
-  const cx = r ? r.x : 0, cy = r ? r.y : T.slingH;
-  const rr = T.critterR * s * sprite, sx = X(cx), sy = Y(cy) - rr;
-  // Soft shadow on the band while low.
+  // The mochi: on the barrel's mouth until the launch, then where the run has it.
+  const [m0x, m0y] = mouth(aim);
+  const cx = r ? r.x : m0x, cy = r ? r.y : m0y;
+  let rr = T.critterR * s * (r ? sprite : z);
+  const sx = X(cx), sy = Y(cy) - rr;
   const hgt = cy * z * s;
-  if (lift === 0 && hgt < 160 * s) { ctx.globalAlpha = 1 - hgt / (160 * s); ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(sx, gy + 2 * s, rr * 1.1, rr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  if (lift === 0 && hgt < 160 * s && r) { ctx.globalAlpha = 1 - hgt / (160 * s); ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(sx, gy + 2 * s, rr * 1.1, rr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
   for (const e of S.fx) drawFx(ctx, E, e, X, Y, s, sprite, lw, true);
   if (lift > 0) { // panned sky: a dotted drop line from the critter to the band
     ctx.strokeStyle = sky.night > 0.5 ? P.star : P.ink; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]);
     ctx.beginPath(); ctx.moveTo(sx, sy + rr + 4); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
-  // Speed lines after a jelly or a geyser.
-  if (r && S.speedT > 0) {
-    const sp = Math.hypot(r.vx, r.vy) || 1, ux = r.vx / sp, uy = -r.vy / sp;
-    ctx.strokeStyle = P.white; ctx.lineWidth = 2 * s; ctx.globalAlpha = S.speedT / J.speedLines;
-    for (let i = -1; i <= 1; i++) {
-      const ox = -uy * i * rr * 0.7, oy = ux * i * rr * 0.7;
-      ctx.beginPath(); ctx.moveTo(sx - ux * rr * 1.4 + ox, sy - uy * rr * 1.4 + oy); ctx.lineTo(sx - ux * rr * (2.6 + (i & 1)) + ox, sy - uy * rr * (2.6 + (i & 1)) + oy); ctx.stroke();
+  const sp = r ? Math.hypot(r.vx, r.vy) : 0, dir = r && sp > 1 ? Math.atan2(-r.vy, r.vx) : 0;
+  // Speed lines: fast, or just off a jelly or a geyser.
+  const lines = r && !r.ended ? Math.max(S.speedT > 0 ? S.speedT / J.speedLines : 0, clamp((sp - J.speedLineMin) / 600, 0, 1)) : 0;
+  if (lines > 0.02) {
+    const ux = Math.cos(dir), uy = Math.sin(dir);
+    ctx.strokeStyle = P.white; ctx.lineWidth = 2 * s; ctx.globalAlpha = Math.min(1, lines); ctx.lineCap = 'round';
+    for (let i = -2; i <= 2; i++) {
+      const ox = -uy * i * rr * 0.55, oy = ux * i * rr * 0.55, l = 2.2 + ((i + 2) % 3) * 0.7 + Math.sin(E.time * 30 + i) * 0.3;
+      ctx.beginPath(); ctx.moveTo(sx - ux * rr * 1.5 + ox, sy - uy * rr * 1.5 + oy); ctx.lineTo(sx - ux * rr * (1.5 + l) + ox, sy - uy * rr * (1.5 + l) + oy); ctx.stroke();
     }
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1; ctx.lineCap = 'butt';
   }
-  // The licorice band twangs for a moment after the launch, then hangs slack between the tips.
-  const tipL = [fx - fw, forkTop], tipR = [fx + fw, forkTop];
-  if (r && launcherSeen) {
-    const snap = S.snapT > 0 ? S.snapT / J.snapTime : 0;
-    drawLicorice(ctx, tipL, [fx + Math.sin(E.time * 60) * 10 * s * snap, forkTop + (4 + 4 * (1 - snap)) * s * z], tipR, s * Math.max(z, 0.7), up.band || 0);
-  }
-  // Squash: flattened on a landing and wobbling back.
-  let sqx = 1, sqy = 1;
+  // Squash on a landing, wobbling back; stretched along the flight when fast; a ball when condensed; a sail when the
+  // parachute is open; a fizz jet while boosting.
+  let sqx = 1, sqy = 1, rot = 0;
   if (S.sq.t > 0) { const k = S.sq.t / J.squashTime, w = S.sq.amt * k * Math.cos((1 - k) * Math.PI * 1.5); sqx = 1 + w; sqy = 1 - w; }
   else if (r && r.ended === 'mud') { sqx = 1 + J.landSquash; sqy = 1 - J.landSquash; }
-  const look = r ? Math.atan2(-r.vy, r.vx) : pre && pre.needle !== null ? -pre.needle * DEG : 0; // before launch the eyes follow the needle
+  else if (r && r.mode === 'air' && !r.chute && !r.ball) { const k = clamp((sp - 350) / 1500, 0, 0.28); sqx = 1 + k; sqy = 1 - k * 0.6; rot = dir; }
+  if (r && r.ball && !r.ended) { rr *= 0.8; sqx = 0.95; sqy = 1.05; }
+  if (r && r.chute && !r.ended) { drawSail(ctx, sx, sy, rr, r.vx, E.time, lw); sqx = 0.9; sqy = 1.14; }
+  if (r && r.boost && r.fuel > 0 && !r.ended) drawJet(ctx, sx, sy, rr, dir, E.time, lw);
+  const look = r ? dir : -aim * DEG;
   const fuelK = r ? clamp(r.fuel / Math.max(1, r.fuelCap), 0, 1) : 1;
-  drawMochi(ctx, sx, sy + (1 - sqy) * rr, rr, look, sqx, sqy, lw, up, E.time, fuelK, !!(r && r.holding && r.fuel > 0));
-  if (!r) drawLicorice(ctx, tipL, [sx, sy + rr * 1.35], tipR, s * Math.max(z, 0.7), up.band || 0, true); // the pocket: a strap under its belly
-  return { sx, sy, rr, height: cy, lifted: lift > 0, night: sky.night };
+  drawMochi(ctx, sx, sy + (1 - sqy) * rr, rr, look, sqx, sqy, lw, up, E.time, fuelK, !!(r && r.boost && r.fuel > 0), rot);
+  if (r && r.ball && !r.ended) { // spin marks: a condensed ball
+    ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineCap = 'round'; const a0 = E.time * 14;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(sx, sy, rr * 1.35, a0 + i * 2.1, a0 + i * 2.1 + 0.7); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+  }
+  return { sx, sy, rr, height: cy, lifted: lift > 0, night: sky.night, mx, gy, mk: mk * MACHINE };
+}
+
+// The range finder's dotted arc (PRD v0.3 D): dots in the action's colour, fading out along the arc, ending in the landing
+// marker where it reaches a contact: teal on a jelly, a dark cross on caramel, a white chevron elsewhere.
+function drawArc(ctx, a, X, Y, s, sprite, time) {
+  const col = P.arc[a.mode], R = T.critterR;
+  ctx.lineWidth = 1.2 * s; ctx.strokeStyle = P.ink;
+  for (let i = 0; i < a.n; i++) {
+    const x = X(a.pts[2 * i]), y = Y(a.pts[2 * i + 1] + R), k = 1 - (i / Math.max(1, a.n)) * 0.6;
+    ctx.globalAlpha = k; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 2.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (!a.hit || a.kind === 'bird' || a.kind === 'geyser') return;
+  const x = X(a.x), y = Y(a.y);
+  if (a.kind === 'mud') {
+    ctx.strokeStyle = P.white; ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
+    for (const pass of [0, 1]) { if (pass) { ctx.strokeStyle = P.mud; ctx.lineWidth = 2.6 * s; } ctx.beginPath(); ctx.moveTo(x - 6 * s, y - 16 * s); ctx.lineTo(x + 6 * s, y - 4 * s); ctx.moveTo(x + 6 * s, y - 16 * s); ctx.lineTo(x - 6 * s, y - 4 * s); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+  } else drawMark(ctx, x, y, s, time, a.kind === 'spring' ? P.tealLight : P.white);
+}
+
+// The dough parachute: the mochi's own dough pulled up into a sail over him, two strands down, swaying with the drift.
+function drawSail(ctx, x, y, r, vx, time, lw) {
+  const sway = clamp(-vx / 1500, -0.3, 0.3) + Math.sin(time * 3) * 0.05, w = r * 2.6, top = y - r * 3.4, h = r * 1.5;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(sway); ctx.translate(-x, -y);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7; ctx.beginPath();
+  ctx.moveTo(x - r * 0.5, y - r * 0.6); ctx.lineTo(x - w, top + h * 0.8); ctx.moveTo(x + r * 0.5, y - r * 0.6); ctx.lineTo(x + w, top + h * 0.8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - w, top + h * 0.8);
+  ctx.bezierCurveTo(x - w, top - h * 0.6, x + w, top - h * 0.6, x + w, top + h * 0.8);
+  for (let i = 3; i >= 0; i--) ctx.quadraticCurveTo(x - w + (w / 2) * (i + 0.5), top + h * 0.45, x - w + (w / 2) * i, top + h * 0.8);
+  ctx.closePath(); ctx.lineJoin = 'round';
+  ctx.strokeStyle = P.halo; ctx.lineWidth = lw * 2.4; ctx.stroke();
+  ctx.fillStyle = P.powder; ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.stroke();
+  ctx.fillStyle = P.critterLight; ctx.beginPath(); ctx.ellipse(x, top + h * 0.05, w * 0.5, h * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// The fizz jet behind a boosting mochi: a flickering white-and-soda plume pointing back along the flight.
+function drawJet(ctx, x, y, r, dir, time, lw) {
+  const ux = -Math.cos(dir), uy = -Math.sin(dir), len = r * (2 + 0.35 * Math.sin(time * 50)), w = r * 0.55;
+  const bx = x + ux * r * 0.8, by = y + uy * r * 0.8, tx = bx + ux * len, ty = by + uy * len, nx = -uy * w, ny = ux * w;
+  ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(bx + nx, by + ny); ctx.quadraticCurveTo(tx + nx * 0.6, ty + ny * 0.6, tx, ty); ctx.quadraticCurveTo(tx - nx * 0.6, ty - ny * 0.6, bx - nx, by - ny); ctx.closePath();
+  ctx.fillStyle = P.soda; ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx + nx * 0.5, by + ny * 0.5); ctx.quadraticCurveTo(bx + ux * len * 0.6, by + uy * len * 0.6, bx + ux * len * 0.7, by + uy * len * 0.7); ctx.quadraticCurveTo(bx + ux * len * 0.3, by + uy * len * 0.3, bx - nx * 0.5, by - ny * 0.5); ctx.closePath();
+  ctx.fillStyle = P.fizz; ctx.fill();
 }
 
 // A mint jelly: a row of wobbling jelly cubes (one every jellyCube design px, so a long one reads as jelly, never a rail),
@@ -1249,31 +1174,11 @@ function drawCloud(ctx, x, y, s, used, time, lw) {
   ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x - 0.2 * rx, y - 0.45 * ry + bob, 0.14 * rx, 0, Math.PI * 2); ctx.fill();
 }
 
-// The needle wedge at the launcher: graded zones (drawn widest first), the needle over them.
-function drawWedge(ctx, px, py, s, needle, alpha, up, lw) {
-  const R = T.wedgeR * s, r0 = T.wedgeHole * s, h = needleOf(up).half, c = T.sweetAngle, lo = T.needleMin, hi = T.needleMax;
-  const sector = (rOut, rIn, a0, a1, fill, stroke) => {
-    ctx.beginPath(); ctx.arc(px, py, rOut, -a1 * DEG, -a0 * DEG); ctx.arc(px, py, rIn, -a0 * DEG, -a1 * DEG, true); ctx.closePath();
-    ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw * 0.7; ctx.stroke(); }
-  };
-  ctx.save(); ctx.globalAlpha = alpha; ctx.lineJoin = 'round';
-  sector(R + 4 * s, r0 - 3 * s, lo - 1.5, hi + 1.5, P.halo);
-  sector(R, r0, lo, hi, P.zones[3], P.ink);
-  for (let z = 2; z >= 0; z--) sector(R, r0, Math.max(lo, c - h[z]), Math.min(hi, c + h[z]), P.zones[z], P.ink);
-  const a = needle * DEG, ux = Math.cos(a), uy = -Math.sin(a);
-  ctx.lineCap = 'round';
-  // A thin needle, so the gold shows beside it.
-  for (const [w, col] of [[3.6 * s, P.halo], [1.6 * s, P.ink]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(px + ux * r0 * 0.7, py + uy * r0 * 0.7); ctx.lineTo(px + ux * (R + 8 * s), py + uy * (R + 8 * s)); ctx.stroke(); }
-  ctx.fillStyle = P.halo; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
-  ctx.lineWidth = lw * 0.7; ctx.beginPath(); ctx.arc(px + ux * (R + 8 * s), py + uy * (R + 8 * s), 3.5 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.restore();
-}
-
-// The landing marker: a small white chevron on the ground line, bobbing, with a shadow on the band.
-function drawMark(ctx, x, gy, s, time) {
+// The landing marker: a small chevron on the ground line, bobbing, with a shadow on the band.
+function drawMark(ctx, x, gy, s, time, col = P.white) {
   const b = Math.sin(time * 7) * 1.5 * s, tip = gy - 2 * s + b;
   ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(x, gy + 2 * s, 7 * s, 2 * s, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineJoin = 'round';
+  ctx.fillStyle = col; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(x, tip); ctx.lineTo(x - 6 * s, tip - 9 * s); ctx.lineTo(x + 6 * s, tip - 9 * s); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
@@ -1332,10 +1237,10 @@ function cached(ctx, key, x, y, w, h, draw) {
 // where it is going, and its gear (PRD v0.2 E): the Fizz Tank's bottle on its back (larger per level, filled to the fizz
 // left), the Cola Rocket's nozzle (larger per level), and the Sugar Glaze (a shine per level and a tighter shape). The hitbox
 // is the round critterR whatever the drawing.
-function drawMochi(ctx, x, y, r, look, sx, sy, lw, up, time, fuelK = 1, holding = false) {
+function drawMochi(ctx, x, y, r, look, sx, sy, lw, up, time, fuelK = 1, holding = false, rot = 0) {
   const aero = up.aero || 0, rx = r * (1.12 - 0.04 * aero), ry = r * (0.9 + 0.03 * aero), oy = r - ry;
   const bx = -Math.cos(look), by = -Math.sin(look); // its back, away from where it is going
-  ctx.save(); ctx.translate(x, y); ctx.scale(sx, sy);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(sx, sy); ctx.rotate(-rot); // squash or stretch along `rot`
   ctx.lineJoin = 'round';
   const side = bx < 0 ? -1 : 1; // the bottle rides on the upper back, the nozzle points out behind
   if (up.fuel) { // the bottle: a sprite per size, side and tenth of fizz left
@@ -1409,36 +1314,133 @@ function drawNozzle(ctx, x, y, len, ang, lvl, holding, lw, time) {
   ctx.restore();
 }
 
-// Steady Chopsticks: two tapered sticks planted at (fx, base) and opening to tips `fw` either side at `top`; plain, lacquered,
-// gold-tipped, then gold (Steady 0 to 3); a licorice wrap where they cross, in the Band's licorice.
-function drawChopsticks(ctx, fx, base, top, fw, s, lw, steady, band, time = null) {
-  const h = base - top, sticks = [-1, 1].map((d) => ({ bx: fx - d * 1.5 * s, tx: fx + d * fw }));
-  const quads = (k0, k1) => {
-    ctx.beginPath();
-    for (const { bx, tx } of sticks) {
-      const w0 = 3.2 * s, w1 = 1.6 * s, ax = bx + (tx - bx) * k0, ay = base - h * k0, cx = bx + (tx - bx) * k1, cy = base - h * k1, wa = w0 + (w1 - w0) * k0, wc = w0 + (w1 - w0) * k1;
-      ctx.moveTo(ax - wa, ay); ctx.lineTo(cx - wc, cy); ctx.lineTo(cx + wc, cy); ctx.lineTo(ax + wa, ay); ctx.closePath();
-    }
-  };
-  quads(0, 1); ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 1.4; ctx.stroke();
-  ctx.fillStyle = P.chop[steady]; ctx.fill();
-  if (steady === 2) { quads(0.5, 1); ctx.fillStyle = P.chop[3]; ctx.fill(); }
-  ctx.strokeStyle = P.chopHi[steady]; ctx.lineWidth = 1 * s; ctx.beginPath();
-  for (const { bx, tx } of sticks) { ctx.moveTo(bx + (tx - bx) * 0.15 - s, base - h * 0.15); ctx.lineTo(bx + (tx - bx) * 0.9 - s, base - h * 0.9); }
-  ctx.stroke();
-  ctx.fillStyle = P.licorice[band]; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7;
-  const wy = base - h * 0.22, ww = 5 * s + fw * 0.25;
-  roundRectPath(ctx, fx - ww, wy - 2.5 * s, ww * 2, 5 * s, 2 * s); ctx.fill(); ctx.stroke();
-  if (steady === 3 && time !== null) { ctx.fillStyle = P.chopHi[3]; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 4); star4(ctx, fx + fw * 0.8, top + h * 0.15, 4 * s); ctx.globalAlpha = 1; }
+// The Mochi Maker 3000 (PRD v0.3 A): a brass body on an iron plinth with a pressure gauge, a row of bulbs, a chimney and two
+// pistons, and a barrel on an iron yoke at the pivot (x = 0, pivotH up). Upgrades bolt on parts: the Spring Coil behind the
+// breech, the Fizz Tank on the left, the Cola Rocket's flared muzzle, the Sugar Glaze drum on the plinth, the Steady Gauge's
+// bezel, the Brass Telescope on the barrel. `k` is CSS px per world unit. The body is one sprite per gear and size; the
+// barrel, needle, bulbs and pistons are drawn live. `pre`: { gauge: reading or null, half: zone half-widths, lit: zone the
+// bulbs show, glow: 0 to 1, pump: 0 to 1 }.
+const MACHINE = 1.3;     // the machine is drawn in units of 1.3 world units (its pivot at 60, its barrel 34 long in them)
+const GAUGE = { x: -46, y: 30, r: 19 }; // the dial on the body (machine units from the pivot's foot)
+const BULBS = [-72, -63, -54, -45, -36];
+function drawMachine(ctx, E, mx, gy, k0, lw, up, aim, pre) {
+  const k = k0 * MACHINE, U = (u) => mx + u * k, V = (v) => gy - v * k, half = pre.half || gaugeOf(0, 0, up).half;
+  const x0 = U(-104), y0 = V(80), key = `machine|${up.fuel || 0}${up.aero || 0}${up.steady || 0}|${half.map((h) => h.toFixed(3)).join(',')}|${lw.toFixed(2)}`;
+  cached(ctx, key, x0, y0, 128 * k, 82 * k, (c) => { c.translate(-x0, -y0); machineBody(c, U, V, k, lw, up, half); });
+  const pump = pre.pump || 0, kick = pump > 0 ? Math.abs(Math.sin((1 - pump) * Math.PI * 3)) * pump : 0;
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8;
+  for (const px of [-26, -16]) { // pistons: rods shoot up as they pump
+    const top = 52 + 5 + 9 * kick;
+    ctx.fillStyle = P.spring; ctx.fillRect(U(px - 1.5), V(top), 3 * k, (top - 52) * k); ctx.strokeRect(U(px - 1.5), V(top), 3 * k, (top - 52) * k);
+    ctx.fillStyle = P.brassDark; roundRectPath(ctx, U(px - 3.5), V(top + 2), 7 * k, 3 * k, 1.5 * k); ctx.fill(); ctx.stroke();
+  }
+  // Barrel, with its parts, turned to the aim; the yoke in front of the breech.
+  ctx.save(); ctx.translate(U(0), V(T.pivotH / MACHINE)); ctx.rotate(-aim * DEG);
+  const bk = `barrel|${up.band || 0}${up.rocket || 0}${up.scope || 0}|${lw.toFixed(2)}`, bx0 = -34 * k, by0 = -16 * k;
+  cached(ctx, bk, bx0, by0, (T.barrelLen / MACHINE + 52) * k, 32 * k, (c) => { c.translate(-bx0, -by0); drawBarrel(c, k, lw, up); });
+  ctx.restore();
+  ctx.fillStyle = P.iron; ctx.beginPath(); ctx.moveTo(U(-10), V(52)); ctx.lineTo(U(-3), V(T.pivotH / MACHINE + 3)); ctx.lineTo(U(3), V(T.pivotH / MACHINE + 3)); ctx.lineTo(U(10), V(52)); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.brassLight; ctx.beginPath(); ctx.arc(U(0), V(T.pivotH / MACHINE), 3.2 * k, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // The gauge's needle.
+  const gv = pre.gauge ?? 0, th = (225 - 270 * gv) * DEG, gx = U(GAUGE.x), gyy = V(GAUGE.y), R = GAUGE.r * k * 0.86;
+  ctx.lineCap = 'round';
+  for (const [w, col] of [[3.4 * k, P.halo], [1.6 * k, P.ink]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(gx - Math.cos(th) * R * 0.2, gyy + Math.sin(th) * R * 0.2); ctx.lineTo(gx + Math.cos(th) * R, gyy - Math.sin(th) * R); ctx.stroke(); }
+  ctx.lineCap = 'butt'; ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(gx, gyy, 2.6 * k, 0, Math.PI * 2); ctx.fill();
+  // Bulbs: off, a preview of the zone under the needle, or lit by the shot (every bulb on a Perfect, chasing).
+  const lit = pre.lit ?? -1, n = lit < 0 ? 0 : [5, 4, 3, 1][lit], glow = pre.glow || 0;
+  BULBS.forEach((bx, i) => {
+    const on = i < n, col = lit === 0 ? (Math.floor(E.time * 12 + i) % 2 ? P.bulb[0] : P.bulb[1]) : P.bulb[lit] || P.bulbOff, x = U(bx), y = V(56);
+    if (on && glow > 0) { ctx.globalAlpha = 0.35 * glow; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 9 * k * (0.8 + glow * 0.4), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.fillStyle = on ? col : P.bulbOff; ctx.globalAlpha = on ? (glow > 0 ? 1 : 0.75) : 1;
+    ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7; ctx.beginPath(); ctx.arc(x, y, 3.6 * k, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
+    if (on) { ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x - 1.2 * k, y - 1.2 * k, 1 * k, 0, Math.PI * 2); ctx.fill(); }
+  });
 }
 
-// The licorice band from tip `a` through `m` to tip `b` (with `curve`, `m` is the control point of a smooth U): thicker and
-// darker per Band level.
-function drawLicorice(ctx, a, m, b, s, band, curve = false) {
+function machineBody(ctx, U, V, k, lw, up, half) {
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink;
+  const box = (x0, y0, x1, y1, r, fill) => { roundRectPath(ctx, U(x0), V(y1), (x1 - x0) * k, (y1 - y0) * k, r * k); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = lw; ctx.stroke(); };
+  box(-84, 50, -76, 74, 1.5, P.iron); box(-86, 72, -74, 76, 1.5, P.ironDark); // chimney and cap
+  box(-96, 0, 16, 8, 3, P.iron);
+  box(-90, 8, 6, 52, 8, P.brass);
+  ctx.fillStyle = P.brassDark; ctx.fillRect(U(-88), V(16), 92 * k, 4 * k); // a dark band low on the body
+  ctx.fillStyle = P.brassLight; ctx.fillRect(U(-84), V(48), 80 * k, 2 * k);  // a highlight under the top edge
+  ctx.fillStyle = P.brassDark; for (let x = -84; x <= 0; x += 10) { ctx.beginPath(); ctx.arc(U(x), V(12), 1.2 * k, 0, Math.PI * 2); ctx.arc(U(x), V(45), 1.2 * k, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = P.ironDark; for (const x of [-86, -40, 8]) { ctx.beginPath(); ctx.arc(U(x), V(4), 1.6 * k, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = P.iron; ctx.lineWidth = 3 * k; ctx.beginPath(); ctx.moveTo(U(-20), V(14)); ctx.lineTo(U(-20), V(22)); ctx.lineTo(U(-6), V(22)); ctx.lineTo(U(-6), V(40)); ctx.stroke(); // a pipe
+  ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.5; ctx.stroke();
+  for (let i = 0; i < 5; i++) { ctx.fillStyle = P.ironDark; ctx.fillRect(U(BULBS[i] - 2), V(54), 4 * k, 2.4 * k); } // bulb sockets
+  if (up.fuel) { // the Fizz Tank: a glass tank on the left, taller per level
+    const h = 18 + 7 * up.fuel; box(-102, 8, -90, 8 + h, 4, P.glass);
+    ctx.fillStyle = P.soda; ctx.fillRect(U(-100), V(8 + h * 0.75), 8 * k, (h * 0.75 - 2) * k);
+    ctx.fillStyle = P.cap; ctx.fillRect(U(-99), V(10 + h), 6 * k, 2.5 * k);
+  }
+  if (up.aero) { // the Sugar Glaze drum on the plinth, larger per level, a drip
+    const r = 5 + 1.5 * up.aero; ctx.fillStyle = P.glaze; ctx.beginPath(); ctx.arc(U(10), V(8 + r), r * k, 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = P.ink; ctx.stroke();
+    ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(U(10), V(8 + r), r * 0.4 * k, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  drawGauge(ctx, U(GAUGE.x), V(GAUGE.y), GAUGE.r * k, null, half, up.steady || 0, lw);
+}
+
+// The pressure gauge: a cream dial with a bezel (iron, then brass, light brass and gold with Steady Gauge), the zones as a
+// band from 225 degrees round to -45 (Weak slate, Good blue, Great rose, Perfect gold around gaugeSweet), and ticks.
+function drawGauge(ctx, x, y, R, v, half, steady, lw) {
+  const th = (g) => -(225 - 270 * g) * DEG;
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = [P.iron, P.brassDark, P.brass, P.coin][steady]; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
+  ctx.beginPath(); ctx.arc(x, y, R * 1.12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.dial; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = lw * 0.6; ctx.stroke();
+  const band = (g0, g1, col) => { ctx.beginPath(); ctx.arc(x, y, R * 0.92, th(clamp(g0, 0, 1)), th(clamp(g1, 0, 1))); ctx.arc(x, y, R * 0.6, th(clamp(g1, 0, 1)), th(clamp(g0, 0, 1)), true); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+  band(0, 1, P.zones[3]);
+  for (let z = 2; z >= 0; z--) band(T.gaugeSweet - half[z], T.gaugeSweet + half[z], P.zones[z]);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.5; ctx.beginPath(); ctx.arc(x, y, R * 0.92, th(0), th(1)); ctx.arc(x, y, R * 0.6, th(1), th(0), true); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); for (let i = 0; i <= 10; i++) { const a = th(i / 10); ctx.moveTo(x + Math.cos(a) * R * 0.5, y + Math.sin(a) * R * 0.5); ctx.lineTo(x + Math.cos(a) * R * 0.58, y + Math.sin(a) * R * 0.58); } ctx.stroke();
+  for (let i = 0; i < steady; i++) { ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(x - R * 0.2 + i * R * 0.2, y + R * 0.72, R * 0.06, 0, Math.PI * 2); ctx.fill(); } // damper screws
+  if (v !== null) { const a = th(v); ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * R * 0.85, y + Math.sin(a) * R * 0.85); ctx.stroke(); }
+}
+
+// The barrel in its own frame: the breech at the pivot, the tube along +x to barrelLen; the Spring Coil out of the back.
+function drawBarrel(ctx, k, lw, up) {
+  const L = T.barrelLen / MACHINE, band = up.band || 0;
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink;
+  drawCoil(ctx, -12 * k - (12 + 5 * band) * k, 0, (12 + 5 * band) * k, (5 + 1.5 * band) * k, 5 + 2 * band, lw);
+  roundRectPath(ctx, -12 * k, -9 * k, 16 * k, 18 * k, 3 * k); ctx.fillStyle = P.iron; ctx.fill(); ctx.lineWidth = lw; ctx.stroke();
+  roundRectPath(ctx, 0, -7 * k, (L - 2) * k, 14 * k, 3 * k); ctx.fillStyle = P.brass; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.brassLight; ctx.fillRect(2 * k, -5 * k, (L - 8) * k, 2.4 * k);
+  ctx.fillStyle = P.brassDark; for (const x of [10, 21]) { ctx.fillRect(x * k, -7.5 * k, 3 * k, 15 * k); ctx.strokeRect(x * k, -7.5 * k, 3 * k, 15 * k); }
+  if (up.rocket) { // the Cola Rocket: a flared muzzle, wider per level
+    const f = 2 + 1.6 * up.rocket; ctx.beginPath(); ctx.moveTo((L - 5) * k, -8 * k); ctx.lineTo((L + 1) * k, -(8 + f) * k); ctx.lineTo((L + 1) * k, (8 + f) * k); ctx.lineTo((L - 5) * k, 8 * k); ctx.closePath();
+    ctx.fillStyle = P.nozzle; ctx.fill(); ctx.stroke(); ctx.fillStyle = P.cola; ctx.fillRect((L - 2) * k, -(7 + f) * k, 2 * k, (14 + 2 * f) * k);
+  } else { roundRectPath(ctx, (L - 5) * k, -9 * k, 6 * k, 18 * k, 2 * k); ctx.fillStyle = P.brassDark; ctx.fill(); ctx.stroke(); }
+  if (up.scope) drawScope(ctx, 2 * k, -12 * k, (12 + 6 * up.scope) * k, 0, up.scope, lw);
+}
+
+// A coil spring from (x, y) `len` long along +x, `r` tall either side, `turns` loops (the Spring Coil).
+function drawCoil(ctx, x, y, len, r, turns, lw) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = P.ink; ctx.lineWidth = (P.licoriceW[band] + 1.6) * s;
-  ctx.beginPath(); ctx.moveTo(a[0], a[1]); if (curve) ctx.quadraticCurveTo(m[0], m[1], b[0], b[1]); else { ctx.lineTo(m[0], m[1]); ctx.lineTo(b[0], b[1]); } ctx.stroke();
-  ctx.strokeStyle = P.licorice[band]; ctx.lineWidth = P.licoriceW[band] * s; ctx.stroke();
+  const path = () => { ctx.beginPath(); ctx.moveTo(x, y); for (let i = 0; i <= turns * 2; i++) ctx.lineTo(x + (len * i) / (turns * 2), y + (i % 2 ? -r : r)); ctx.lineTo(x + len, y); };
+  path(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 2.2; ctx.stroke();
+  ctx.strokeStyle = P.spring; ctx.lineWidth = lw; ctx.stroke(); ctx.lineCap = 'butt';
+}
+
+// The Brass Telescope: a tube `len` long from (x, y) along `ang`, with an eyepiece and a lens; level 3 adds a band.
+function drawScope(ctx, x, y, len, ang, lvl, lw) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8;
+  const w = len * 0.2;
+  roundRectPath(ctx, 0, -w * 0.4, len * 0.3, w * 0.8, w * 0.2); ctx.fillStyle = P.brassDark; ctx.fill(); ctx.stroke();
+  roundRectPath(ctx, len * 0.25, -w / 2, len * 0.75, w, w * 0.25); ctx.fillStyle = P.brass; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.cloudBlue; ctx.beginPath(); ctx.ellipse(len, 0, w * 0.18, w * 0.42, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (lvl >= 3) { ctx.fillStyle = P.coin; ctx.fillRect(len * 0.6, -w / 2, len * 0.08, w); }
+  ctx.restore();
+}
+
+// The Sugar Glaze drum (the shop's picture): a pink drum on a stand with a white glaze face, larger per level.
+function drawGlazeDrum(ctx, x, y, r, lvl, lw) {
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8;
+  ctx.fillStyle = P.iron; ctx.fillRect(x - r * 1.1, y + r * 0.7, r * 2.2, r * 0.4); ctx.strokeRect(x - r * 1.1, y + r * 0.7, r * 2.2, r * 0.4);
+  ctx.fillStyle = P.glaze; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  for (let i = 0; i < lvl; i++) { ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x + r * (0.9 - i * 0.35), y + r * 1.25 + i * 2, r * 0.12, 0, Math.PI * 2); ctx.fill(); }
 }
 
 // A shopfront: the bakery the mochi is flung from (or, with `home`, the daifuku's cottage), `w` wide, standing on the ground.
@@ -1530,6 +1532,11 @@ function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
     E.text(e.text, x, y, { size: Math.max(TY.sm, e.size * pop), weight: '800', color: e.color });
     ctx.globalAlpha = 1; return;
   }
+  if (e.k === 'steam') { // a puff that swells and fades as it rises
+    const r = e.size * s * (1 + (1 - k) * 2.2);
+    ctx.globalAlpha = 0.85 * Math.min(1, k * 1.4); ctx.fillStyle = e.color; ctx.strokeStyle = P.ink; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha *= 0.35; ctx.stroke(); ctx.globalAlpha = 1; return;
+  }
   ctx.globalAlpha = Math.min(1, k * 1.5); ctx.fillStyle = e.color;
   const r = e.size * s * Math.max(0.5, k);
   if (e.k === 'coin') { // a sugar cube, tumbling
@@ -1546,18 +1553,33 @@ function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
 // ---------- Sounds ----------
 // Engine synth only (PRD section 12), through E.audio so the mute flag holds.
 const SFX = {
-  launch: (E) => { E.audio.beep({ freq: 300, dur: 0.1, slide: 1.5, gain: 0.15 }); E.audio.noise({ dur: 0.06, gain: 0.1 }); },
-  boost: (E) => { E.audio.noise({ dur: 0.12, gain: 0.1 }); E.audio.beep({ freq: 220, dur: 0.12, type: 'sine', slide: 2, gain: 0.06 }); },
-  spring: (E) => { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 420, dur: 0.18, type: 'sine', slide: 2.2, gain: 0.1 }); },
+  clunk: (E) => { E.audio.noise({ dur: 0.05, gain: 0.14 }); E.audio.beep({ freq: 150, dur: 0.09, slide: 0.6, gain: 0.12 }); E.audio.beep({ freq: 1100, dur: 0.02, gain: 0.05, delay: 0.03 }); },
+  // The fire, by zone: the pistons pump, steam blows, and the whistle shrieks for a Perfect (a short toot for Great, a
+  // sputter for Weak).
+  fire: (E, z) => {
+    [0, 0.07, 0.14].forEach((d, i) => E.audio.beep({ freq: 95 - i * 10, dur: 0.06, gain: 0.13, delay: d }));
+    E.audio.noise({ dur: [0.5, 0.35, 0.22, 0.12][z], gain: [0.16, 0.12, 0.09, 0.06][z], delay: 0.05 });
+    E.audio.beep({ freq: J.zoneFreq[z], dur: 0.16, type: 'triangle', slide: z === 3 ? 0.6 : 1.15, gain: 0.12 });
+    if (z === 0) { E.audio.beep({ freq: 1500, dur: 0.5, type: 'sine', slide: 1.3, gain: 0.09, delay: 0.06 }); E.audio.beep({ freq: 2240, dur: 0.45, type: 'sine', slide: 1.25, gain: 0.05, delay: 0.08 }); }
+    else if (z === 1) E.audio.beep({ freq: 1300, dur: 0.18, type: 'sine', gain: 0.07, delay: 0.06 });
+    else if (z === 3) E.audio.beep({ freq: 180, dur: 0.25, type: 'sawtooth', slide: 0.5, gain: 0.07, delay: 0.05 });
+  },
+  boost: (E) => { E.audio.noise({ dur: 0.14, gain: 0.1 }); E.audio.beep({ freq: 220, dur: 0.16, type: 'sine', slide: 2.2, gain: 0.07 }); },
+  whoosh: (E) => E.audio.noise({ dur: 0.12, gain: 0.04 }),
+  chute: (E) => { E.audio.beep({ freq: 260, dur: 0.2, type: 'sine', slide: 1.7, gain: 0.1 }); E.audio.noise({ dur: 0.08, gain: 0.05 }); },
+  drop: (E) => E.audio.beep({ freq: 760, dur: 0.16, type: 'sine', slide: 0.35, gain: 0.1 }),
+  // A ground bounce: a boing pitched and loud by the impact; a condensed one adds a deep thump.
+  bounce: (E, v, big) => {
+    const k = clamp(v / 900, 0, 1);
+    E.audio.beep({ freq: 160 + 220 * k, dur: 0.14 + 0.08 * k, type: 'sine', slide: 1.9, gain: 0.04 + 0.08 * k });
+    if (big) E.audio.beep({ freq: 70, dur: 0.22, type: 'triangle', slide: 0.6, gain: 0.16 });
+  },
+  spring: (E, big) => { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 420, dur: 0.18, type: 'sine', slide: 2.2, gain: 0.1 }); if (big) E.audio.beep({ freq: 210, dur: 0.35, type: 'sine', slide: 3, gain: 0.12, delay: 0.05 }); },
   bird: (E) => { E.audio.beep({ freq: 900, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.08 }); E.audio.beep({ freq: 1000, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.07, delay: 0.09 }); },
-  chain: (E, n) => E.audio.beep({ freq: 520 * Math.pow(1.26, n), dur: 0.14, type: 'triangle', gain: 0.12 }),
+  chain: (E, n) => E.audio.beep({ freq: 520 * Math.pow(1.26, Math.min(n, 8)), dur: 0.14, type: 'triangle', gain: 0.12 }),
   geyser: (E) => { E.audio.noise({ dur: 0.35, gain: 0.12 }); E.audio.beep({ freq: 300, dur: 0.3, type: 'sine', slide: 3, gain: 0.1 }); },
   cloud: (E) => { E.audio.beep({ freq: 660, dur: 0.12, type: 'sine', slide: 0.8, gain: 0.08 }); E.audio.beep({ freq: 990, dur: 0.1, type: 'sine', gain: 0.06, delay: 0.08 }); },
   home: (E) => { [523, 659, 784, 1047].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.22, type: 'triangle', gain: 0.12, delay: i * 0.12 })); },
-  zone: (E, z) => { // the launch chime: higher for a better zone, a falling note for Weak, a second chime for Perfect
-    E.audio.beep({ freq: J.zoneFreq[z], dur: 0.16, type: 'triangle', slide: z === 3 ? 0.7 : 1.15, gain: 0.14 });
-    if (z === 0) E.audio.beep({ freq: J.zoneFreq[0] * 1.5, dur: 0.2, type: 'triangle', gain: 0.1, delay: 0.08 });
-  },
 };
 
 // ---------- HUD ----------
@@ -1576,17 +1598,22 @@ function drawHud(E, r, fuel, fuelMax, info) {
   const sf = E.safe, right = E.w - sf.right - 12, top = sf.top + 10;
   const pop = S.distPop > 0 ? 1 + 0.3 * (S.distPop / 0.3) : 1;
   pill(E, `${r ? metres(r) : 0} m`, right, top + 20, Math.round(TY.lg * pop), 'right');
+  let y = top + 60;
   if (r && r.chain > 0) {
     const k = S.chainT > 0 ? ease.outBack(clamp(1 - (S.chainT - (J.chainLife - J.chainPop)) / J.chainPop, 0, 1)) : 1;
-    pill(E, `Chain x${mult(r)}`, right, top + 60, Math.max(TY.sm, Math.round((TY.sm + 3 * r.chain) * k)), 'right', P.tealLight);
+    pill(E, `Chain x${mult(r)}`, right, y, Math.max(TY.sm, Math.round((TY.sm + 3 * r.chain) * k)), 'right', P.tealLight);
+    y += 36;
+  }
+  if (r && r.combo >= 2) { // the bounce combo: every bounce without a slide, popping on each
+    const k = S.comboT > 0 ? 1 + 0.35 * (S.comboT / 0.25) : 1;
+    pill(E, `${r.combo} bounces`, right, y, Math.round(TY.md * k), 'right', P.coin);
   }
   const x0 = sf.left + 16, y0 = top + 32;
   E.roundRect(x0 - 8, top - 4, Math.max(64, fuelMax * 18 + 14), 54, T.style.radius, P.panel);
   E.text('Fizz', x0, top + 10, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
   for (let i = 0; i < fuelMax; i++) {
     const k = clamp(fuel - i, 0, 1), popping = S.gaugePop > 0 && i === Math.floor(fuel + 1e-6);
-    const pulse = S.pipT > 0 ? 0.35 * Math.sin(Math.PI * (1 - S.pipT / J.pipPulse)) : 0; // every pip pulses once with "Tap to boost"
-    const g = (popping ? 1 + 0.5 * (S.gaugePop / J.gaugePop) : 1) + pulse, cx = x0 + i * 18 + 7, cy = y0 + 1;
+    const g = popping ? 1 + 0.5 * (S.gaugePop / J.gaugePop) : 1, cx = x0 + i * 18 + 7, cy = y0 + 1;
     E.roundRect(cx - 7 * g, cy - 7 * g, 14 * g, 14 * g, 4, P.panelSolid, P.panelEdge);
     if (k > 0) E.roundRect(cx - 5, cy + 5 - 10 * k, 10, 10 * k, 3, P.coin);
   }
@@ -1594,11 +1621,14 @@ function drawHud(E, r, fuel, fuelMax, info) {
   if (S.banner) {
     const k = S.banner.t / J.bannerTime, inK = ease.outBack(clamp((1 - k) / 0.2, 0, 1)), a = clamp(k / 0.15, 0, 1);
     E.ctx.globalAlpha = a;
-    pill(E, S.banner.text, E.w / 2, sf.top + 56 + 40 * inK, TY.lg, 'center', S.banner.color || P.coin); // below the fuel panel's row
+    pill(E, S.banner.text, E.w / 2, sf.top + 56 + 40 * inK, TY.lg, 'center', S.banner.color || P.coin);
     E.ctx.globalAlpha = 1;
   }
-  if (S.holdT > 0) { E.ctx.globalAlpha = clamp(S.holdT / 0.3, 0, 1); pill(E, 'Hold to boost', E.w / 2, sf.top + 150, TY.md); E.ctx.globalAlpha = 1; }
-  else if (S.tapT > 0) { E.ctx.globalAlpha = clamp(S.tapT / 0.3, 0, 1); pill(E, 'Tap to boost', E.w / 2, sf.top + 150, TY.md); E.ctx.globalAlpha = 1; }
+  if (S.actT > 0) { // the three actions, once, from the top of the first arc
+    E.ctx.globalAlpha = clamp(S.actT / 0.3, 0, 1);
+    pill(E, 'Hold: boost   Swipe up: sail   Swipe down: drop', E.w / 2, E.h - sf.bottom - 30, TY.md); // low, clear of the flight
+    E.ctx.globalAlpha = 1;
+  }
 }
 
 // ---------- Scenes ----------
@@ -1698,89 +1728,115 @@ const menu = {
   onKey(k, E) { if (k === ' ' || k === 'Enter') E.setScene('play'); },
 };
 
+// The play scene. Before the launch S.phase is 'aim' (the barrel sweeps from ready) then 'gauge' (from the lock); a press
+// anywhere takes the beat. In flight a press is a gesture (PRD v0.3 B), decided in its first gestureWindow of flight time.
 const play = {
   enter(E, params = {}) {
     S.seed = params.seed ?? newSeed();
-    S.run = null; S.endT = 0; S.frameReal = performance.now(); S.readyReal = S.frameReal; S.pid = null; S.launchPid = null; S.spaceDown = false;
+    S.run = null; S.endT = 0; S.frameReal = performance.now(); S.readyReal = S.frameReal; S.lockReal = 0; S.phase = 'aim'; S.aim = T.aimMin; S.t1 = 0;
+    S.launchPid = null; S.gest = null; S.keyDown = {}; S.rate = 1;
     S.up = levelsOf(E); S.st = stats(S.up); S.cam = newCamera(view(E).vw);
-    S.hint = E.save.get('flights', 0) === 0; // a fresh save's first launch: "Tap when the needle is in the gold"
+    S.streak = E.save.get('perfectRow', 0); S.streakNow = S.streak; S.gauge = gaugeOf(S.seed, S.streak, S.up); S.gv = null; S.lit = -1;
+    S.hint = E.save.get('flights', 0) < 2; // the two beats are named on a fresh save's first two flights
     S.fx.length = 0; S.pops = new Map(); S.sq = { amt: 0, t: 0 };
-    S.snapT = 0; S.speedT = 0; S.gaugePop = 0; S.distPop = 0; S.chainT = 0; S.holdT = 0; S.homeT = 0;
-    S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime }; // every flight names its place on entry, the first as it starts
-    S.wedgeT = 0; S.zonePop = null; S.needle = T.needleMin; S.mark = null; S.markT = 0; S.callouts = []; S.endWait = T.endDelay;
-    S.teachHold = S.up.rocket >= 1 && !E.save.get('holdTaught', false);
+    for (const k of ['speedT', 'gaugePop', 'distPop', 'chainT', 'comboT', 'homeT', 'actT', 'pumpT', 'glowT', 'slowT', 'whooshT', 'streakT']) S[k] = 0;
+    S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime };
+    S.zonePop = null; S.arc = null; S.arcPts = new Float64Array(800); S.callouts = []; S.endWait = T.endDelay;
     S.teachBird = !E.save.get('birdTaught', false); S.teachMud = !E.save.get('mudTaught', false);
-    S.teachTap = E.save.get('flights', 0) === 0; S.tapT = 0; S.pipT = 0; S.prevVy = 0; S.quit = false;
+    S.teachAct = !E.save.get('actionsTaught', false); S.prevVy = 0; S.quit = false;
   },
-  stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)); },
-  // Seconds since the launcher was ready, at this moment (a tap's handler runs when the tap arrives).
-  needleT() { return Math.max(0, (performance.now() - S.readyReal) / 1000); },
-  launch(E) {
-    const l = needleLaunch(this.needleT(), S.up), v = view(E);
-    S.run = newRun(S.seed, l, S.up);
-    S.needle = l.angle; S.hint = false; S.wedgeT = T.wedgeFade;
-    SFX.launch(E); SFX.zone(E, l.zone); E.haptic(J.zoneHaptic[l.zone]); E.shake(J.kick, J.kickTime);
-    S.snapT = J.snapTime;
-    emit('dust', 0, 0, J.dust, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 90, g: -200, life: 0.5, size: 3, color: P.dust });
-    const [dx, dy] = toView(S.cam, 0, T.slingH + T.critterR + T.wedgeR + 30); // above the launcher, clear of the first arc's hints
-    S.zonePop = { z: l.zone, t: J.zonePop, x: dx * v.s, y: v.oy + dy * v.s };
-    if (l.zone === 0) { // Perfect: a gold flash and a ring of sparks
-      E.flash(P.zones[0], 0.18);
-      for (let i = 0; i < J.sparks; i++) { const t = (i / J.sparks) * Math.PI * 2; S.fx.push({ k: 'spark', x: 0, y: T.slingH + T.critterR, vx: Math.cos(t) * 150, vy: Math.sin(t) * 150, g: 0, t: 0.5, max: 0.5, size: 2.6, color: P.zones[0] }); }
+  // Flight time now: the steps run, the remainder carried, and the real time since this frame began at the current rate.
+  stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)) * S.rate; },
+  sinceReady() { return Math.max(0, (performance.now() - S.readyReal) / 1000); },
+  sinceLock() { return Math.max(0, (performance.now() - S.lockReal) / 1000); },
+  lock(E) {
+    S.t1 = this.sinceReady(); S.aim = aimAngle(S.t1); S.phase = 'gauge'; S.lockReal = performance.now();
+    SFX.clunk(E); E.haptic(J.haptic.lock); E.shake(1.5, 0.08);
+    emit('steam', -16 * MACHINE, 60 * MACHINE, 3, { angle: Math.PI / 2, spread: 1.2, speed: 40, g: 30, life: 0.6, size: 3, color: P.steam });
+  },
+  fire(E) {
+    const l = launchOf(S.seed, S.t1, this.sinceLock(), S.streak, S.up), v = view(E), z = l.zone;
+    S.run = newRun(S.seed, l, S.up); S.phase = 'flight'; S.gv = l.gauge; S.lit = z; S.glowT = J.zonePop; S.pumpT = J.pump; S.hint = false;
+    S.streakNow = z === 0 ? S.streak + 1 : 0; S.streakT = J.zonePop;
+    SFX.fire(E, z); E.haptic(J.zoneHaptic[z]); E.shake(J.kick, J.kickTime);
+    const [mx, my] = mouth(l.angle);
+    emit('steam', -80 * MACHINE, 76 * MACHINE, J.steam[z], { angle: Math.PI / 2, spread: 0.9, speed: 70 + 20 * (3 - z), g: 40, life: 1.0, size: 4, color: P.steam }); // the chimney
+    emit('steam', mx, my + T.critterR, J.steam[z], { angle: l.angle * DEG, spread: 1.4, speed: 110 + 30 * (3 - z), g: 30, life: 0.7, size: 3.5, color: P.steam }); // the muzzle
+    const [dx, dy] = toView(S.cam, -40 * MACHINE, T.pivotH + 80);
+    S.zonePop = { z, t: J.zonePop, x: dx * v.s, y: v.oy + dy * v.s };
+    if (z === 0) { // Perfect: every bulb, the whistle, a gold flash, a ring of sparks, a shake and a slow-motion beat
+      E.flash(P.zones[0], 0.18); E.shake(J.perfectShake, J.perfectShakeTime); S.slowT = J.slowMo;
+      for (let i = 0; i < J.sparks; i++) { const t = (i / J.sparks) * Math.PI * 2; S.fx.push({ k: 'spark', x: mx, y: my + T.critterR, vx: Math.cos(t) * 160, vy: Math.sin(t) * 160, g: 0, t: 0.6, max: 0.6, size: 2.8, color: P.zones[0] }); }
     }
-    if (S.teachHold) { S.holdT = J.holdHint; E.save.set('holdTaught', true); }
   },
   update(dt, E) {
     S.frameReal = performance.now();
-    const r = S.run;
-    for (const k of ['snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT', 'tapT', 'pipT', 'wedgeT', 'homeT']) if (S[k] > 0) S[k] -= dt;
+    for (const k of ['speedT', 'gaugePop', 'distPop', 'chainT', 'comboT', 'actT', 'homeT', 'pumpT', 'glowT', 'slowT', 'streakT']) if (S[k] > 0) S[k] -= dt;
+    S.rate = S.slowT > 0 ? J.slowMoRate : 1;
     if (S.sq.t > 0) S.sq.t -= dt;
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
     if (S.zonePop) { S.zonePop.t -= dt; if (S.zonePop.t <= 0) S.zonePop = null; }
     for (const c of S.callouts) c.t -= dt;
     S.callouts = S.callouts.filter((c) => c.t > 0);
-    updateFx(dt);
+    updateFx(dt * S.rate);
+    const r = S.run;
     cameraStep(S.cam, r, view(E).vw, dt);
+    if (Math.random() < dt * 1.5) emit('steam', -80 * MACHINE, 76 * MACHINE, 1, { angle: Math.PI / 2, spread: 0.5, speed: 30, g: 20, life: 1.2, size: 3, color: P.steam }); // the chimney idles
     if (!r) return;
-    if (S.spaceDown && !E.keys.has(' ')) { // key repeat is ignored: one pulse per press, a held key is the Rocket's hold
-      S.spaceDown = false;
-      if (r.st.hold && !r.ended) queueInput(r, this.stamp(r), 'holdOff');
-    }
-    advance(r, dt);
-    if (S.teachTap && r.mode === 'air' && S.prevVy > 0 && r.vy <= 0) { S.teachTap = false; S.tapT = J.tapHint; S.pipT = J.pipPulse; } // the top of the first arc
-    if (r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone')) S.teachTap = false; // only the first arc teaches
+    const g = S.gest;
+    if (g && !g.kind && !r.ended && this.stamp(r) - g.t0 >= T.gestureWindow) { g.kind = 'boost'; queueInput(r, Math.max(g.t0 + T.gestureWindow, flightTime(r)), 'boostOn'); }
+    for (const [k, off] of [[' ', 'boostOff'], ['ArrowUp', 'chuteOff']]) if (S.keyDown[k] && !E.keys.has(k)) { S.keyDown[k] = false; if (!r.ended) queueInput(r, this.stamp(r), off); }
+    advance(r, dt * S.rate);
+    if (S.teachAct && r.mode === 'air' && S.prevVy > 0 && r.vy <= 0) { S.teachAct = false; S.actT = J.actionHint; E.save.set('actionsTaught', true); } // the top of the first arc
     S.prevVy = r.vy;
-    const contact = r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone');
     for (const e of r.ev) this.onEvent(e, E);
     r.ev.length = 0;
-    S.markT -= dt;
-    if (contact || S.markT <= 0) { S.mark = landingMark(r); S.markT = T.markEvery; } // a contact ends the old prediction at once
-    if (r.holding && r.fuel > 0 && Math.random() < 0.6) emit('cola', r.x, r.y + T.critterR, 1, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.6, speed: 120, g: 0, life: J.fizzLife, size: 2.6, color: P.cola }); // the Cola Rocket's trail
+    S.arc = rangeArc(r, r.st.look, S.arcPts);
+    if (S.arc) { S.arc.pts = S.arcPts; S.arc.mode = r.boost && r.fuel > 0 ? 1 : r.chute ? 2 : r.ball ? 3 : 0; }
+    if (r.boost && r.fuel > 0 && !r.ended) { // the fizz trail and a whoosh
+      const back = Math.atan2(-r.vy, -r.vx);
+      emit('fizz', r.x, r.y + T.critterR, 2, { angle: back, spread: 0.5, speed: 140, vx: r.vx * 0.2, vy: r.vy * 0.2, g: 0, life: J.fizzTrail, size: 3.4, color: P.fizz });
+      if (Math.random() < 0.5) emit('cola', r.x, r.y + T.critterR, 1, { angle: back, spread: 0.6, speed: 120, g: 0, life: J.fizzLife, size: 2.6, color: P.soda });
+      S.whooshT -= dt; if (S.whooshT <= 0) { S.whooshT = J.whoosh; SFX.whoosh(E); }
+    }
     if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene('over', finishFlight(E, r)); }
   },
   squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
   onEvent(e, E) {
     const r = S.run, cx = r.x, cy = r.y + T.critterR;
     if (e.k === 'spring') {
-      SFX.spring(E); E.haptic(J.haptic.spring); this.squash(0.12 + r.vy / 2500); S.speedT = J.speedLines;
+      SFX.spring(E, e.big); E.haptic(J.haptic.spring); this.squash(0.14 + r.vy / 2500); S.speedT = J.speedLines;
       const g = groundAt(r.field, r.x); if (g) S.pops.set(g, { t: J.springPop });
-      word('Boing', r.x - 40, 90, TY.md, J.boingLife); // above the pad, behind the critter flying off
-      word(`↑ ${Math.round((r.vy * r.vy) / (2 * T.gravity) / T.unitsPerMetre)} m`, r.x - 40, 50, TY.sm, J.boingLife); // the height it gives
-    } else if (e.k === 'bird') {
+      if (e.big) { E.shake(J.bounceShake, J.bounceShakeTime); emit('dust', cx, 0, J.dust * 2, { angle: Math.PI / 2, spread: Math.PI, speed: 220, g: -300, life: 0.6, size: 3.5, color: P.tealLight }); }
+      word(e.big ? 'BIG BOING!' : 'Boing', r.x - 40, 90, TY.md, J.boingLife);
+      word(`↑ ${Math.round((r.vy * r.vy) / (2 * T.gravity) / T.unitsPerMetre)} m`, r.x - 40, 50, TY.sm, J.boingLife);
+      S.comboT = 0.25;
+    } else if (e.k === 'bounce') {
+      const k = clamp(e.v / 900, 0, 1);
+      SFX.bounce(E, e.v, e.big); this.squash(Math.max(0.08, e.v * J.bounceSquash)); S.comboT = 0.25;
+      emit('dust', cx, 0, Math.round(4 + J.dust * k), { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 60 + 160 * k, g: -250, life: 0.5, size: 2.6 + 2 * k, color: P.dust });
+      if (e.skim) emit('dust', cx, 0, 3, { angle: Math.PI * 0.85, spread: 0.4, speed: 120, g: -200, life: 0.4, size: 2, color: P.white });
+      if (e.big || e.v > J.bigBounce) { E.shake(J.bounceShake * (e.big ? 1 : 0.6), J.bounceShakeTime); E.haptic(J.haptic.drop); }
+      if (e.big) word('Bounce!', r.x - 30, 70, TY.md, J.boingLife);
+    } else if (e.k === 'land') { this.squash(Math.max(0.1, e.v * J.bounceSquash)); emit('dust', cx, 0, 5, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 70, g: -250, life: 0.5, size: 2.6, color: P.dust }); }
+    else if (e.k === 'bird') {
       SFX.bird(E); E.haptic(J.haptic.bird);
       emit('feather', cx, cy, J.feathers, { speed: 140, g: -120, life: 0.7, size: 2.6, color: P.tealLight });
-      let b = null, d = Infinity; // the bird just hit, for its tumble
+      let b = null, d = Infinity;
       for (const q of r.field.birds) if (q.hit && !q.tumbled && Math.abs(q.x0 - r.x) < d) { d = Math.abs(q.x0 - r.x); b = q; }
       if (b) { b.tumbled = true; S.fx.push({ k: 'tumble', x: birdX(b, flightTime(r)), y: b.y, vx: r.vx * 0.3, vy: -80, g: -500, t: J.tumbleTime, max: J.tumbleTime, rot: 0, spin: 9, size: 0 }); }
       if (S.teachBird) { S.teachBird = false; E.save.set('birdTaught', true); S.callouts.push({ text: 'Bird bounce: up and onward!', arrow: true, wx: cx, wy: cy, t: J.callout }); }
-    } else if (e.k === 'boost') {
-      SFX.boost(E); E.haptic(J.haptic.boost); S.gaugePop = J.gaugePop;
-      emit('fizz', r.x, r.y + T.critterR, J.fizz, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.7, speed: 160, g: 0, life: J.fizzLife, size: 3.4, color: P.fizz });
-    } else if (e.k === 'bounce' || e.k === 'ramp') this.squash(0.1);
+    } else if (e.k === 'boost') { // the fizz kick: a burst ring of fizz and a whoosh
+      SFX.boost(E); E.haptic(J.haptic.boost); S.gaugePop = J.gaugePop; S.whooshT = J.whoosh;
+      emit('fizz', cx, cy, J.fizz, { angle: Math.atan2(-r.vy, -r.vx), spread: 2.2, speed: 200, g: 0, life: J.fizzLife, size: 4, color: P.fizz });
+      emit('cola', cx, cy, 5, { angle: Math.atan2(-r.vy, -r.vx), spread: 1, speed: 160, g: 0, life: J.fizzLife, size: 3, color: P.soda });
+    } else if (e.k === 'chute') { SFX.chute(E); E.haptic(J.haptic.chute); emit('puff', cx, cy + 30, 6, { speed: 60, g: 0, life: 0.4, size: 3, color: P.powder }); }
+    else if (e.k === 'drop') { SFX.drop(E); E.haptic(J.haptic.drop); this.squash(0.2); emit('puff', cx, cy, 6, { angle: Math.PI / 2, spread: 1.2, speed: 120, g: 0, life: 0.35, size: 2.6, color: P.critterLight }); }
+    else if (e.k === 'ramp') this.squash(0.1);
     else if (e.k === 'mud') {
       E.audio.play('miss'); E.haptic(J.haptic.mud); E.shake(J.mudShake, J.mudShakeTime);
       emit('splat', cx, 0, J.splat, { angle: Math.PI / 2, spread: Math.PI * 0.8, speed: 150, g: -400, life: 0.6, size: 3, color: P.mud });
-      if (S.teachMud) { S.teachMud = false; E.save.set('mudTaught', true); S.endWait = T.endDelayTaught; S.callouts.push({ text: 'Stuck! Jump caramel with a boost', arrow: false, wx: cx, wy: cy + 50, t: T.endDelayTaught + 0.2 }); }
+      if (S.teachMud) { S.teachMud = false; E.save.set('mudTaught', true); S.endWait = T.endDelayTaught; S.callouts.push({ text: 'Stuck! Sail or boost over caramel', arrow: false, wx: cx, wy: cy + 50, t: T.endDelayTaught + 0.2 }); }
     } else if (e.k === 'geyser') {
       SFX.geyser(E); E.haptic(J.haptic.geyser); this.squash(0.15); S.speedT = J.speedLines;
       emit('fizz', cx, 0, 14, { angle: Math.PI / 2, spread: 0.6, speed: 260, g: -300, life: 0.7, size: 3, color: P.fizz });
@@ -1812,42 +1868,66 @@ const play = {
       emit('coin', cx, cy, J.coins[Math.min(e.chain, J.coins.length - 1)], { angle: Math.PI / 2, spread: 1.2, speed: 200, g: -500, life: 0.7, size: 3.2, color: P.coin });
     }
   },
-  // Before launch a press anywhere stops the needle and launches at once; that press never also boosts.
   onPointerDown(p, E) {
     const r = S.run;
-    if (!r) { if (this.needleT() < T.readyGrace) return; S.launchPid = p.id; this.launch(E); return; } // a double tap on Launch Again cannot launch
+    if (!r) {
+      if (S.phase === 'aim' && this.sinceReady() >= T.readyGrace) { S.launchPid = p.id; this.lock(E); }
+      else if (S.phase === 'gauge' && this.sinceLock() >= T.gaugeGrace) { S.launchPid = p.id; this.fire(E); }
+      return;
+    }
     if (r.ended || p.id === S.launchPid) return;
-    const at = this.stamp(r);
-    queueInput(r, at, 'pulse');
-    if (r.st.hold) { S.pid = p.id; queueInput(r, at + T.holdDelay, 'holdOn'); }
+    if (S.gest) this.release(S.gest, this.stamp(r), true); // a second thumb takes over
+    S.gest = { id: p.id, t0: this.stamp(r), y0: p.y, kind: null };
+  },
+  onPointerMove(p, E) {
+    const g = S.gest, r = S.run;
+    if (!g || g.id !== p.id || g.kind || !r || r.ended) return;
+    const dy = p.y - g.y0, at = this.stamp(r);
+    if (Math.abs(dy) < T.swipeMin || at - g.t0 > T.gestureWindow) return;
+    g.kind = dy < 0 ? 'chute' : 'drop';
+    queueInput(r, at, dy < 0 ? 'chuteOn' : 'condense');
   },
   onPointerUp(p, E) {
     if (p.id === S.launchPid) { S.launchPid = null; return; }
-    if (p.id !== S.pid) return;
-    S.pid = null;
-    const r = S.run;
-    if (r && !r.ended) queueInput(r, this.stamp(r), 'holdOff');
+    const g = S.gest, r = S.run;
+    if (!g || g.id !== p.id) return;
+    S.gest = null;
+    if (r && !r.ended) this.release(g, this.stamp(r), p.cancelled);
   },
-  onKey(k, E) {
-    if (k !== ' ') return;
+  // A press ends: a quick tap is a short burst; a held boost or an open parachute stops.
+  release(g, at, cancelled) {
     const r = S.run;
-    if (!r) { if (this.needleT() < T.readyGrace) return; S.spaceDown = true; this.launch(E); return; }
-    if (!r.ended && !S.spaceDown) {
-      S.spaceDown = true;
-      const at = this.stamp(r);
-      queueInput(r, at, 'pulse');
-      if (r.st.hold) queueInput(r, at + T.holdDelay, 'holdOn');
-    }
+    if (!g.kind) { if (!cancelled) queueInput(r, at, 'burst'); }
+    else if (g.kind === 'boost') queueInput(r, at, 'boostOff');
+    else if (g.kind === 'chute') queueInput(r, at, 'chuteOff');
+  },
+  onKey(k, E) { // desktop: Space takes each beat, then boosts while held; Up holds the parachute; Down condenses
+    const r = S.run;
+    if (!r) { if (k === ' ' || k === 'Enter') this.onPointerDown({ id: 'key' }, E); return; }
+    if (r.ended) return;
+    if (k === ' ' && !S.keyDown[' ']) { S.keyDown[' '] = true; queueInput(r, this.stamp(r), 'boostOn'); }
+    else if (k === 'ArrowUp' && !S.keyDown.ArrowUp) { S.keyDown.ArrowUp = true; queueInput(r, this.stamp(r), 'chuteOn'); }
+    else if (k === 'ArrowDown') queueInput(r, this.stamp(r), 'condense');
   },
   render(ctx, E) {
     const v = view(E), r = S.run, sf = E.safe, gy = v.oy + T.groundY * v.s;
-    if (!r) S.needle = needleAngle(this.needleT(), S.up);
-    const pre = { needle: S.needle, wedge: r ? clamp(S.wedgeT / T.wedgeFade, 0, 1) : 1, mark: r && S.mark ? S.mark.x : null };
+    let pre;
+    if (!r) {
+      const aim = S.phase === 'aim' ? aimAngle(this.sinceReady()) : S.aim, gv = S.phase === 'gauge' ? gaugeAt(this.sinceLock(), S.gauge) : null;
+      pre = { aim, gauge: gv ?? 0, half: S.gauge.half, lit: gv === null ? -1 : zoneOf(gv, S.gauge), glow: 0, pump: 0 };
+    } else pre = { gauge: S.gv, half: S.gauge.half, lit: S.glowT > 0 ? S.lit : -1, glow: clamp(S.glowT / J.zonePop, 0, 1), pump: clamp(S.pumpT / J.pump, 0, 1), arc: S.arc };
     const info = drawWorld(ctx, E, v, S.cam, r, pre);
     drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.fuelCap : S.st.fuelMax, r ? info : null);
-    if (!r && S.hint) { // under the wedge, pulsing, until the first launch of a fresh save
-      E.ctx.globalAlpha = 0.7 + 0.3 * Math.sin(E.time * 5);
-      pill(E, 'Tap when the needle is in the gold', info.sx + T.wedgeR * v.s * 0.6, Math.min(gy + 30 * v.s, E.h - sf.bottom - 20), TY.md, 'center', P.zones[0]);
+    const mcx = info.mx - 44 * info.mk, mtop = info.gy - 92 * info.mk;
+    if (mcx > E.safe.left + 40 && (S.streakNow > 0 || S.streakT > 0)) { // the streak counter over the machine
+      const lost = S.streakNow === 0, k = S.streakT > 0 ? 1 + 0.3 * Math.max(0, S.streakT / J.zonePop - 0.6) * 2.5 : 1;
+      E.ctx.globalAlpha = lost ? clamp(S.streakT / 0.3, 0, 1) : 1;
+      pill(E, lost ? 'Streak lost' : `Streak x${S.streakNow}`, mcx, mtop, Math.round(TY.sm * k), 'center', lost ? P.textDim : P.zones[0]);
+      E.ctx.globalAlpha = 1;
+    }
+    if (!r && S.hint) { // under the machine, pulsing, on a fresh save's first two flights
+      E.ctx.globalAlpha = 0.75 + 0.25 * Math.sin(E.time * 5);
+      pill(E, S.phase === 'aim' ? 'Tap to lock the barrel' : 'Tap when the needle is in the gold', info.mx - 20 * info.mk, Math.min(gy + 30 * v.s, E.h - sf.bottom - 20), TY.md, 'center', S.phase === 'aim' ? P.text : P.zones[0]);
       E.ctx.globalAlpha = 1;
     }
     if (S.zonePop) {
@@ -1859,21 +1939,21 @@ const play = {
     for (const c of S.callouts) {
       if (c.sx === undefined) { // pinned to the screen where it happened, so it can be read while the camera moves on
         const [dx, dy] = toView(S.cam, c.wx, c.wy);
-        c.sx = dx * v.s + 48; c.sy = clamp(v.oy + dy * v.s, sf.top + 110, gy - 30); // right of it, at its height: the critter rises out of that column and the bird drifts left as the camera follows
+        c.sx = dx * v.s + 48; c.sy = clamp(v.oy + dy * v.s, sf.top + 110, gy - 30);
       }
       const age = (c.max ??= c.t) - c.t, y = c.sy - Math.min(age, 1) * 10;
       E.ctx.globalAlpha = clamp(c.t / 0.3, 0, 1) * clamp(age / 0.15, 0, 1);
-      const b = pill(E, c.arrow ? `      ${c.text}` : c.text, c.sx, y, TY.md, c.arrow ? 'left' : 'center', P.text); // room for the arrow inside the pill
+      const b = pill(E, c.arrow ? `      ${c.text}` : c.text, c.sx, y, TY.md, c.arrow ? 'left' : 'center', P.text);
       if (c.arrow) drawUpArrow(E.ctx, b.x + 24, b.y + b.h - 5 - 2 * Math.sin(E.time * 6), 1);
       E.ctx.globalAlpha = 1;
     }
   },
-  onPause(E) { // backgrounding mid-flight ends it (PRD section 3, amendment 6 after the v4 gate): logged once as a quit; back to the menu
+  onPause(E) { // backgrounding mid-flight ends it: logged once as a quit; back to the menu
     const r = S.run;
     if (!r || S.quit) return;
     S.quit = true;
     if (!r.ended) E.ledger.add('quit', { m: metres(r), t: +flightTime(r).toFixed(1), seed: r.seed });
-    else finishFlight(E, r); // it had already stopped: keep its sugar
+    else finishFlight(E, r);
     E.setScene('menu');
   },
 };
@@ -1999,13 +2079,15 @@ function landscapeOnly(scene) {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 6,
+  saveVersion: 7,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
-  // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`,
-  // false until the first flight with Rocket 1 has shown "Hold to boost" (an older save with Rocket 1 sees it once).
+  // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`.
   // v5 (PRD v0.2 B): coins become sugar one for one; `up.steady` at 0; goals start at the top of the list with every distance
   // goal the best already meets done silently (paying nothing); `perfectRow` 0; the bird and mud call-outs not yet shown.
-  // v6 (PRD v0.2 E) adds `home`, false: an older save meets the daifuku on its next flight past 5000 m.
+  // v6 (PRD v0.2 E) adds `home`, false. v7 (PRD v0.3 F6): the machine replaces the chopsticks; owned levels are kept (Steady
+  // Chopsticks becomes Steady Gauge, the Cola Rocket's levels now strengthen the boost every flight has), `up.scope` (the
+  // Brass Telescope) 0, `actionsTaught` false so the three actions are shown once; `holdTaught` is gone; `perfectRow` is the
+  // machine's streak.
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
     if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
@@ -2017,18 +2099,25 @@ export const game = {
       data.perfectRow = 0; data.birdTaught = false; data.mudTaught = false;
     }
     if (fromVersion < 6) data.home = false;
+    if (fromVersion < 7) { data.up = { ...data.up, scope: 0 }; data.actionsTaught = false; delete data.holdTaught; }
     return data;
   },
   TUNING,
+  // The TUNE panel (PRD v0.3 G): four strengths, and two whole feels. Floaty: light gravity, a soft launch, long sails, gentle
+  // boosts, springy ground. Punchy: heavy gravity, a hard launch, short sails, hard drops and a strong boost.
   experiments: [
-    { key: 'needlePeriod', label: 'Needle period (s)', min: 0.8, max: 3, step: 0.05 },
-    { key: 'sweetAngle', label: 'Sweet angle', min: 30, max: 50, step: 0.5 },
-    { key: 'zoneScale', label: 'Zone widths (x)', min: 0.5, max: 2, step: 0.05 },
-    { key: 'launchSpeedMax', label: 'Launch speed', min: 500, max: 900, step: 10 },
+    { key: 'groundBounce', label: 'Bounce', min: 0.3, max: 0.85, step: 0.01 },
+    { key: 'chuteFall', label: 'Parachute fall speed', min: 30, max: 200, step: 5 },
+    { key: 'condenseLift', label: 'Condense bounce', min: 0.6, max: 1.4, step: 0.02 },
+    { key: 'boostThrust', label: 'Boost thrust', min: 300, max: 1500, step: 10 },
+  ],
+  presets: [
+    { label: 'Floaty', values: { gravity: 340, launchSpeedMax: 640, airDrag: 0.012, groundBounce: 0.72, skimLift: 0.14, chuteFall: 45, chuteBleed: 0.35, condenseLift: 0.9, condenseDrop: 480, boostThrust: 600 } },
+    { label: 'Punchy', values: { gravity: 580, launchSpeedMax: 940, airDrag: 0.015, groundBounce: 0.63, skimLift: 0.12, chuteFall: 130, chuteBleed: 0.7, condenseLift: 1.15, condenseDrop: 820, boostThrust: 1050 } },
   ],
   // Read by tools/sim-launch.mjs so the harness runs the real physics (S, the play scene's state, lets a browser check set up the HUD).
-  sim: { STEP, FIRST_CHUNK, teachingChunk, goodStops, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, newRun, stepRun, advance, queueInput, metres, coinsOf,
-    needleOf, needleAngle, zoneAt, launchAt, needleLaunch, ZONES, GOALS, activeGoals, goalStats, settleGoals, landingMark,
+  sim: { STEP, FIELD, makeField, ensureField, groundAt, surfaceH, birdX, stats, newRun, stepRun, advance, airStep, queueInput, metres, coinsOf, flightTime,
+    aimAngle, gaugeOf, gaugeAt, zoneOf, powerOf, launchOf, mouth, ZONES, GOALS, activeGoals, goalStats, settleGoals, rangeArc,
     UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView, PLACES, placeFrom, placeIndex, geyserOn, inCloud, palette: P },
   start: 'menu',
   scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop) },
