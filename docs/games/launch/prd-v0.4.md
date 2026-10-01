@@ -51,3 +51,19 @@ Chocolate river skipping, sugar rings, gumball cannons, bees, storm clouds, gum 
 5. Camera: on very high flights (the highest the harness can make), the ground stays on screen and the range finder's end is on the drawn ground every frame (checked in Chromium).
 6. Frame time within 10 percent of v0.3 in flight.
 7. Saves migrate; 14 px and 44 px; smoke passes.
+
+## H. Shop v2 (Build A2, right after the designer tunes Build A's feel; prices in the balance pass)
+
+Designer: "upgrades should reskin something, either the launcher or the character, or the glider or the slam ability; it could also be stuff like a sugar shield that puts you in a transparent bubble and gives you one missed slam with no penalty." Rule: every level of every upgrade visibly reskins one of four things (launcher, mochi, glider, slam), and gear lowers the skill needed, never replaces it. Seven upgrades, three levels each, one verb each:
+
+| Upgrade | Verb | Effect per level | Reskins (level 1 / 2 / 3) |
+|---|---|---|---|
+| Spring Coil | launch | more launch power | launcher: copper coil / brass double coil / gold coil with sparks on fire |
+| Steady Gauge | launch | slower gauge, wider zones | launcher: plain dial / brass dial with a glass face / gold dial that glows in the gold zone |
+| Brass Telescope | read | longer range finder | launcher: spyglass / brass telescope / observatory dome on the machine; the arc's dots turn brass then gold |
+| Fizz Tank (Cola Rocket folded in) | boost | more fizz, then stronger thrust | mochi: one bottle / twin bottles / a gold siphon; the boost trail goes cola, cherry, golden |
+| Sugar Glaze | glide | better glide ratio, later stall | glider: rice-paper sail / spun-sugar sail / stained candy-glass sail that catches the light |
+| Pounding Mallet | slam | wider jelly sweet centre (not a stronger slam) | slam: dust puff / sugar burst / a shockwave ring with sprinkles; the machine carries a wooden then lacquered then gold mallet |
+| Sugar Shield | forgive | level 1: one missed slam per flight costs nothing; level 2: also bounces off one marshmallow or freezer push; level 3: two charges | mochi: a transparent sugar bubble that pops with a crystal sound when used, re-forming on the next flight |
+
+Toasted Crust from the chat discussion is dropped in favour of the Sugar Shield (one defensive upgrade). The shop card shows the next level's look; the mochi and machine show every owned level at once. Saves migrate (Cola Rocket levels become Fizz Tank levels beyond Fizz Tank's own, capped; Sugar Glaze levels kept with the new meaning).
