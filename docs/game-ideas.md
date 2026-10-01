@@ -31,6 +31,7 @@ After those three, the process should have had its own v0.2. Then pick from the 
 | Bloons-like | P7 | Path defense, tower variety | Good | Medium | Same as above with a path | idea |
 | Bag | L3 | Spatial inventory puzzle | Good | High | Needs a host game | idea |
 | Thrower (Learn to Fly, Burrito Bison) | P1 + P8 | Launch, boost, upgrade, launch further | Excellent | Low | 1 launch, 2 boosts, distance score | idea |
+| Tiny Wings remake | P5 + P1 | Hills as speed: slam into downslopes, fly off upslopes, beat the night; hit harder for better reward when it is perfect | Excellent | Low to medium | Endless seeded hills, one dive gesture, islands as stages, a sunset timer | idea (designer, 2026-10-01; Launch v0.3 tests the slam-and-glide physics first) |
 | Fancy Pants-like | P4 | Momentum platforming | Fair | High | 6 courses, timer | idea |
 | Spore stages | P6 then P13 | Cell to creature to tribe | Fair | High | Start as Grow; stages are later games | idea |
 | Spore creator | L4 | Build a creature from parts | Good | High | Host game needed (Grow) | idea |
