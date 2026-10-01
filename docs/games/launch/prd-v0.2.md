@@ -96,3 +96,5 @@ Round 2 showed amendments 1 and 3 conflict when Perfect's lead comes from the sp
 3. **No cliff inside Weak.** Weak power ramps linearly with distance from the Good edge (from `weakPowerMin` at the wedge's ends up to `zonePower` Weak at the Good edge) so no one-degree step more than doubles the distance; Weak with a burst still reaches 500 m under 30 percent.
 4. **Upgrades never hurt:** with the layout per the player's Band and Aero, every upgrade level raises the good profile's median (amendment 6 stands).
 5. **Flight length:** expert flights under 75 s at the 90th percentile (was 60 s; longer Perfect rides are the reward, and the designer has not found flights long).
+
+6. (Clarified after Build 2's review) The 75 s rule is measured at base equipment; upgraded sets may fly longer, which is the reward. Frame time "within 10 percent" is judged on flight scenes, the idle menu and needle within 12 percent.

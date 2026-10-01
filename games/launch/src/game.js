@@ -1,4 +1,7 @@
-// Launch: a needle launch, then tap to boost, bounce off springs and birds, stop or stick in mud; a card with goals that pay.
+// Launch: an apricot mochi flung from a bakery counter toward his love, the daifuku, at 5000 m (PRD v0.2 E): a needle launch,
+// then tap to boost, bounce off jellies and birds, ride geysers and wafers, pass clouds, stop or stick in caramel; a card with
+// goals that pay. The code keeps the v0.1 names for the physics objects: a `spring` is a mint jelly, `mud` is a caramel pit,
+// a `ramp` is a wafer, coins are sugar (cubes), and the slingshot is the chopsticks with a licorice band.
 // Before launch a needle sweeps a wedge at the launcher; a tap stops it and launches at its angle, with the power of the zone
 // it stopped in (PRD v0.2 A). World units: x to the right from the slingshot fork, y is height above the ground (10 units =
 // 1 m). The critter's y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight time, and the
@@ -28,9 +31,9 @@ const TUNING = {
                            // past full power, so the launch carries the ranking (decision after Build 1 round 2)
   weakPowerMin: 0.55,      // Weak's power at the wedge's ends (it ramps up to zonePower Weak at the Good edge)
   perfectFuel: 2,          // free boost pulses for the flight after a Perfect launch (PRD 1: its payoff with boosts, amendment 1)
-  readyGrace: 0.3,
+  readyGrace: 0.3,         // seconds after the launcher is ready when taps are ignored (a double tap on Launch Again)
   goalSlots: 3,            // goals active at a time (PRD v0.2 B)
-  ticketCap: 3,            // reward tickets on the card before "+n more" (principle 11, rule 6)         // seconds after the launcher is ready when taps are ignored (a double tap on Launch Again)
+  ticketCap: 3,            // reward tickets on the card before "+n more" (principle 11, rule 6)
   steadySlow: 0.12,        // Steady: needle speed x (1 - 0.12 per level)
   steadyWiden: 1,          // ... and every zone 1 degree wider each side per level
 
@@ -85,6 +88,19 @@ const TUNING = {
   birdPeriod: 3.2,         // seconds for one glide there and back
   maxFlight: 150,          // seconds: a safety stop only
 
+  // New objects (PRD v0.2 F). A soda geyser (Soda Springs on) is a vent on the ground that erupts for geyserOn every
+  // geyserPeriod on the flight clock (each vent's phase is seeded at setup); touching its column while it erupts sends the
+  // critter up at geyserLift with its horizontal speed kept, once per vent per flight; the dormant vent is plain ground.
+  // A cotton-candy cloud (Gingerbread Town on) takes cloudDrag of the speed and refills cloudFuel pulses, once per cloud.
+  geyserOn: 0.8,
+  geyserPeriod: 2.4,
+  geyserLift: 520,
+  geyserH: 200,            // the erupting column's height (units)
+  cloudDrag: 0.15,
+  cloudFuel: 1,
+  cloudRX: 50,             // a cloud's half-width and half-height (units); the critter touches it within these plus its radius
+  cloudRY: 28,
+
   // Field
   chunkLen: 3000,          // 300 m
   chunkJitter: 60,         // each object's x moves up to this far (seeded); templates keep 2 x jitter clear
@@ -93,6 +109,10 @@ const TUNING = {
   lookahead: 4000,         // field generated this far ahead of the critter
 
   // Presentation
+  placeBlend: 400,         // units over which the sky and hills of one place blend into the next (the ground changes at the line)
+  homeAhead: 120,          // the daifuku waits this far past the Home line (units)
+  jellyCube: 34,
+  menuTitleMinH: 344,      // CSS px of safe height the menu needs to show its title above the strip, the best and three goals           // design px per jelly cube along a jelly (a long jelly is a row of cubes, never a rail)
   wedgeR: 104,             // the needle wedge's radius from the critter's centre (design px), and its hole
   wedgeHole: 22,
   wedgeFade: 0.3,          // seconds the wedge fades after the launch
@@ -113,26 +133,34 @@ const TUNING = {
   cardGrace: 0.4,          // seconds the card ignores taps after it appears (the card has slid in by then)
 
   // Art (layer 5; docs/games/launch/style.md): "flat round shapes, warm sky, soft shadows, one orange hero".
-  // The critter is the only orange; teal is good (springs, birds); dark brown with a light rim is danger (mud).
+  // The mochi is the only orange; teal is good (jellies, geyser vents, birds in pastel); dark amber is danger (caramel).
   // Every play object has an ink outline so it reads on the light day sky, and a fill that reads on the night sky.
+  // Each place's sky by day, hills and ground are in PLACES; dusk and night (by altitude) are shared.
   palette: {
-    skyDay: ['#fff1dc', '#f5c1c6'],   // horizon (at the ground band), top of the view
-    skyDusk: ['#f3a9b8', '#8f6fb0'],
+    skyDusk: ['#f3a9b8', '#8f6fb0'],   // horizon (at the ground band), top of the view
     skyNight: ['#4a3a78', '#1d1a3a'],
-    hillFar: '#ecc0c4', hillNear: '#dca5b3',
-    grass: '#7fae6a', soil: '#5f8a58',
     ink: '#2d2238',                    // outlines, ticks, text on light ground
-    critter: '#ff8a1a', critterLight: '#ffb366', eye: '#ffffff',
-    teal: '#1ea896', tealLight: '#7fe0d2', tealSpent: '#8fb3ad', coil: '#d8d2e4',
-    mud: '#3d2414', mudDeep: '#23130a', mudRim: '#f0d2ae', // a sunk pit: dark body, deeper middle, light glossy streaks
+    critter: '#ff8a1a', critterLight: '#ffb366', eye: '#ffffff', powder: '#fff6ec', // the apricot mochi
+    teal: '#1ea896', tealLight: '#7fe0d2', tealSpent: '#8fb3ad', // good: mint jellies, geysers' vents; birds in sugared pastel
+    bird: '#5fcbb8', birdWing: '#a9eadf', birdRim: '#ffffff',
+    mud: '#341b08', mudDeep: '#1f0f04', mudRim: '#f6d7a4', mudBubble: '#6b3d12', mudSheen: '#9a5c16', // caramel: a sunk pit, dark amber, glossy
     zones: ['#ffd84d', '#f59bc2', '#4a7fd4', '#584a70'], // Perfect gold, Great light rose, Good blue, Weak dark slate: never orange; a lightness ramp, so any two stay apart (CIE76 22 or more) under protan, deutan and tritan simulation
-    ramp: '#b3a7c9', rampPlank: '#8e82a8',
-    wood: '#b98b5e', rubber: '#6b3a6e', rubberTaut: '#d6336c',
-    star: '#fff6e0', coin: '#ffd84d',  // accent one: coins, stars, beaks
+    ramp: '#efdcb4', rampPlank: '#c9a774', // wafers
+    chop: ['#e6d2ae', '#9b2747', '#9b2747', '#f2c94c'], chopHi: ['#f6ead2', '#d65a7a', '#f2c94c', '#fff1b0'], // Steady 0 to 3: plain, lacquered, gold-tipped, gold
+    licorice: ['#d23a6e', '#a3214f', '#5e1836', '#231a24'], licoriceW: [2.5, 3.4, 4.3, 5.2], // Band 0 to 3: thicker and darker
+    glass: '#cfeaf8', soda: '#6aa8e0', cap: '#e8476a', // the Fizz Tank's bottle
+    nozzle: '#9aa0b8', cola: '#6e3626', colaRim: '#f3dcc4', fizz: '#ffffff', // the Cola Rocket; boosts fizz
+    vent: '#e6eef8', ventHole: '#3b4a6b', column: '#f2fbff', columnSpent: '#c9dad8', // soda geysers
+    cloud: '#f8bfdc', cloudBlue: '#cfe2fb', cloudUsed: '#f3dbe8', // cotton candy
+    dough: '#fff0f4', berry: '#e8476a', seed: '#ffe9a8', leaf: '#6fae5a', blush: '#f7a8bf', heart: '#ef5b8a', // the daifuku
+    shopWall: '#fbe9d3', awning: '#f29bb5', post: '#ffffff',
+    gumdrops: ['#f7a8c8', '#aed9f0', '#c9e79f', '#f4e394'], house: ['#dcb595', '#c99c7a'], river: ['#cfa48a', '#ecd2c0'], // backdrops
+    sugar: '#fffaf0',                  // sugar cubes
+    star: '#fff6e0', coin: '#ffd84d',  // accent one: sugar text, stars, beaks
     button: '#6b5aa6', buttonOff: '#4a3f5e', // accent two: buttons
     panel: 'rgba(45,34,56,0.84)', panelSolid: '#2d2238', panelEdge: '#5a4a72',
     text: '#fff6ec', textDim: '#cbbfdc', textOff: '#8f84a3',
-    shadow: 'rgba(45,34,56,0.28)', dust: '#efe2cf', flame: '#fff2b0', white: '#ffffff', halo: '#fff6ec',
+    shadow: 'rgba(45,34,56,0.28)', dust: '#efe2cf', white: '#ffffff', halo: '#fff6ec',
   },
   duskAt: 120,             // metres of altitude at the top of the view where the sky is dusk ...
   nightAt: 300,            // ... and night, with stars
@@ -144,13 +172,16 @@ const TUNING = {
   juice: {
     particleCap: 160,
     snapTime: 0.22, kick: 3, kickTime: 0.12, dust: 10,
-    flame: 7, flameLife: 0.35, gaugePop: 0.25,
+    fizz: 7, fizzLife: 0.35, gaugePop: 0.25,
     landSquash: 0.35, squashTime: 0.28,
     springPop: 0.3, speedLines: 0.45, boingLife: 0.8,
     feathers: 12, tumbleTime: 1.3,
     chainPop: 0.35, chainLife: 1.0, coins: [0, 3, 5, 8],
     splat: 16, mudShake: 6, mudShakeTime: 0.25,
     bannerTime: 1.8, countUp: 0.6, cardSlide: 0.35,
+    geyserWarn: 0.5,       // seconds before an eruption the vent bubbles hard
+    hearts: 14,            // the Home moment
+    homeTime: 2.4,
     holdHint: 3,           // seconds "Hold to boost" shows on the first flight after buying Rocket 1
     tapHint: 2.5,          // seconds "Tap to boost" shows from the top of a fresh save's first arc
     pipPulse: 0.6,         // the fuel pips pulse once with it
@@ -161,16 +192,38 @@ const TUNING = {
     callout: 2.6,          // seconds a first-time call-out (bird, mud) shows
     springWobble: 0.3,     // an unspent spring's idle bob, as a share of its height (3 design px: visible at arm's length)
     stars: 90,
-    haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20 },
+    haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, home: [30, 60, 30, 60, 60] },
   },
 };
 const T = TUNING;
 const STEP = T.physicsStep;
 const DEG = Math.PI / 180;
 
+// ---------- Places (PRD v0.2 E) ----------
+// The mochi flies from the bakery counter home to the daifuku; each milestone opens a place with its own sky by day, rolling
+// hills (two sines each: frequencies f, weights w, amplitude amp and base in design px, a seed), ground (top strip and soil)
+// and backdrop motif. Places start at 0 and at each TUNING.milestones distance; Home flies on the tier 3 field.
+// Style sentences: docs/games/launch/style.md.
+const PLACES = [
+  { name: 'The Bakery', sky: ['#fff1dc', '#f5c1c6'], top: '#7fae6a', soil: '#5f8a58', motif: 'bakery',
+    hills: { far: '#ecc0c4', near: '#dca5b3', f: [0.006, 0.0137], w: [0.5, 0.35], amp: [46, 34], base: [70, 40], seed: [1.3, 4.1] } },
+  { name: 'Candy Meadow', sky: ['#f6f8e4', '#eec3dd'], top: '#88c27a', soil: '#5c8f5f', motif: 'gumdrops',
+    hills: { far: '#f2c9df', near: '#cbe4b8', f: [0.011, 0.023], w: [0.55, 0.3], amp: [40, 30], base: [62, 36], seed: [0.4, 2.2] } },
+  { name: 'Chocolate River', sky: ['#fbebdc', '#e9bdb8'], top: '#c09474', soil: '#957059', motif: 'river',
+    hills: { far: '#ead0c0', near: '#dcb8a4', f: [0.0045, 0.01], w: [0.6, 0.25], amp: [52, 30], base: [74, 44], seed: [2.7, 0.9] } },
+  { name: 'Soda Springs', sky: ['#eaf6f3', '#c3c9ef'], top: '#9db3da', soil: '#6a78a8', motif: 'bubbles',
+    hills: { far: '#d3dbf3', near: '#bcc8ec', f: [0.008, 0.019], w: [0.45, 0.45], amp: [58, 36], base: [64, 40], seed: [3.3, 5.0] } },
+  { name: 'Gingerbread Town', sky: ['#fbf1d8', '#e8c3cb'], top: '#bf9a78', soil: '#937260', motif: 'houses',
+    hills: { far: '#ead3be', near: '#dcbda2', f: [0.0035, 0.008], w: [0.4, 0.3], amp: [34, 24], base: [74, 42], seed: [4.6, 1.7] } },
+  { name: 'Home', sky: ['#fff1f2', '#f4bfd3'], top: '#86b86f', soil: '#5c8a58', motif: 'strawberries',
+    hills: { far: '#f4c8d6', near: '#cfe6bf', f: [0.007, 0.016], w: [0.5, 0.35], amp: [44, 32], base: [66, 38], seed: [5.9, 3.4] } },
+];
+const placeFrom = (i) => (i ? T.milestones[i - 1] : 0) * T.unitsPerMetre; // units
+function placeIndex(x) { let i = 0; while (i + 1 < PLACES.length && x >= placeFrom(i + 1)) i++; return i; }
+
 // ---------- Field ----------
-// A chunk is 300 m of objects: { kind, x, y, w?, h? } with x from the chunk start. Ground objects (spring, mud, ramp)
-// have y 0; a spring is w wide, mud is w wide, a ramp rises h over w toward the right. A bird is a spot in the air.
+// A chunk is 300 m of objects: { kind, x, y, w?, h? } with x from the chunk start. Ground objects (spring, mud, ramp, geyser)
+// have y 0; a spring, mud or geyser is w wide, a ramp rises h over w toward the right. A bird or a cloud is a spot in the air.
 // Fairness rules every template keeps (tools/sim-launch.mjs --check proves them over many seeds): a spring comes before
 // the first mud of a chunk, no two mud patches without a spring between, and no stretch of 150 m without a spring.
 
@@ -286,13 +339,13 @@ function teachingChunk(up) {
   const stops = plain.concat(...F.taps.map((t) => plain.map((l) => ({ ...l, taps: t, q: l.q - F.tapExtra }))));
   const ground = [];
   let bird = null;
-  const field = () => ({ seed: 0, rng: null, ground: ground.map((g) => ({ ...g })), birds: bird ? [{ ...bird }] : [], end: 1e12, chunks: 1 });
+  const field = () => ({ seed: 0, rng: null, ground: ground.map((g) => ({ ...g })), birds: bird ? [{ ...bird }] : [], clouds: [], end: 1e12, chunks: 1 });
   // A: the first landings.
   const first = stops.filter((l) => l.q <= tier(0)).map((l) => probe(up, l, field()).x);
   ground.push(cover(first, 0, F.padA, Infinity));
   // The run of springs.
   // A stronger Band or Aero gets a longer run, never a shorter one: `until` scales with the Perfect stop's open-ground throw.
-  const open = () => ({ seed: 0, rng: null, ground: [], birds: [], end: 1e12, chunks: 1 });
+  const open = () => ({ seed: 0, rng: null, ground: [], birds: [], clouds: [], end: 1e12, chunks: 1 });
   const until = F.until * (probe(up, perfect, open()).x / probe({ band: 0, aero: 0 }, perfect, open()).x);
   while (ground[ground.length - 1].x1 < Math.max(until, F.goldUntil)) {
     const last = ground[ground.length - 1].x1, tk = last < until ? tier(ground.length) : 1e-9;
@@ -332,7 +385,10 @@ function teachingChunk(up) {
   return out;
 }
 
-// tiers: which distance tiers (TUNING.tierFrom) may draw the template.
+// tiers: which distance tiers (TUNING.tierFrom) may draw the template. Tier 0 is the Bakery and Candy Meadow (the teaching
+// chunk covers the Bakery), tier 1 Chocolate River, tier 2 Soda Springs (every template has a geyser), tier 3 Gingerbread
+// Town and Home (every template has a geyser and clouds). Past 2000 m: more caramel, fewer jellies (the v0.1 tier rule).
+// A geyser is w wide on the ground; a cloud is a spot in the air (y its centre). Objects keep 2 x chunkJitter clear.
 const CHUNKS = [
   { name: 'Meadow', tiers: [0], objects: [
     { kind: 'spring', x: 300, y: 0, w: 80 }, { kind: 'bird', x: 700, y: 140 }, { kind: 'spring', x: 1000, y: 0, w: 80 },
@@ -357,37 +413,51 @@ const CHUNKS = [
     { kind: 'mud', x: 1530, y: 0, w: 150 }, { kind: 'spring', x: 1850, y: 0, w: 70 }, { kind: 'bird', x: 2300, y: 150 },
     { kind: 'spring', x: 2500, y: 0, w: 70 }, { kind: 'mud', x: 2720, y: 0, w: 120 },
   ] },
-  { name: 'Bog', tiers: [2], objects: [
+  // Soda Springs: a geyser where Build 1 had a ramp or a plain stretch, so the old tier's mud and jellies stand.
+  { name: 'Fizz bog', tiers: [2], objects: [
     { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'mud', x: 650, y: 0, w: 200 }, { kind: 'ramp', x: 1000, y: 0, w: 320, h: 85 },
-    { kind: 'spring', x: 1520, y: 0, w: 60 }, { kind: 'mud', x: 1750, y: 0, w: 200 }, { kind: 'ramp', x: 2100, y: 0, w: 320, h: 85 },
+    { kind: 'spring', x: 1520, y: 0, w: 60 }, { kind: 'mud', x: 1750, y: 0, w: 200 }, { kind: 'geyser', x: 2180, y: 0, w: 40 },
     { kind: 'spring', x: 2600, y: 0, w: 60 },
   ] },
-  { name: 'Ski jump', tiers: [2], objects: [
+  { name: 'Soda jump', tiers: [2], objects: [
     { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'mud', x: 1150, y: 0, w: 180 },
-    { kind: 'spring', x: 1500, y: 0, w: 60 }, { kind: 'ramp', x: 1750, y: 0, w: 320, h: 85 }, { kind: 'bird', x: 2250, y: 160 },
+    { kind: 'spring', x: 1500, y: 0, w: 60 }, { kind: 'geyser', x: 1860, y: 0, w: 40 }, { kind: 'bird', x: 2250, y: 160 },
     { kind: 'spring', x: 2450, y: 0, w: 60 }, { kind: 'mud', x: 2700, y: 0, w: 160 },
   ] },
-  { name: 'Long jump', tiers: [2, 3], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'spring', x: 1300, y: 0, w: 60 },
-    { kind: 'mud', x: 1530, y: 0, w: 170 }, { kind: 'ramp', x: 1850, y: 0, w: 320, h: 85 }, { kind: 'spring', x: 2400, y: 0, w: 60 },
-    { kind: 'mud', x: 2650, y: 0, w: 150 },
+  { name: 'Geyser run', tiers: [2], objects: [
+    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1115, y: 0, w: 40 },
+    { kind: 'spring', x: 1300, y: 0, w: 60 }, { kind: 'mud', x: 1530, y: 0, w: 170 }, { kind: 'ramp', x: 1850, y: 0, w: 320, h: 85 },
+    { kind: 'spring', x: 2400, y: 0, w: 60 }, { kind: 'mud', x: 2650, y: 0, w: 150 },
   ] },
-  { name: 'Ramp field', tiers: [2, 3], objects: [
+  { name: 'Pop field', tiers: [2], objects: [
     { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 600, y: 0, w: 320, h: 85 }, { kind: 'mud', x: 1100, y: 0, w: 200 },
-    { kind: 'spring', x: 1450, y: 0, w: 60 }, { kind: 'ramp', x: 1700, y: 0, w: 320, h: 85 }, { kind: 'ramp', x: 2200, y: 0, w: 320, h: 85 },
+    { kind: 'spring', x: 1450, y: 0, w: 60 }, { kind: 'ramp', x: 1700, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 2300, y: 0, w: 40 },
     { kind: 'spring', x: 2700, y: 0, w: 60 },
   ] },
-  { name: 'Ski slope', tiers: [3], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 580, y: 0, w: 320, h: 85 }, { kind: 'ramp', x: 1060, y: 0, w: 320, h: 85 },
-    { kind: 'spring', x: 1530, y: 0, w: 60 }, { kind: 'mud', x: 1760, y: 0, w: 160 }, { kind: 'ramp', x: 2080, y: 0, w: 320, h: 85 },
-    { kind: 'spring', x: 2550, y: 0, w: 60 }, { kind: 'mud', x: 2780, y: 0, w: 120 },
+  // Gingerbread Town and Home: the Soda Springs geysers stay, and clouds hang where arcs pass, clear of birds.
+  { name: 'Icing lane', tiers: [3], objects: [
+    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1115, y: 0, w: 40 },
+    { kind: 'spring', x: 1300, y: 0, w: 60 }, { kind: 'mud', x: 1530, y: 0, w: 170 }, { kind: 'cloud', x: 1700, y: 260 },
+    { kind: 'ramp', x: 1850, y: 0, w: 320, h: 85 }, { kind: 'spring', x: 2400, y: 0, w: 60 }, { kind: 'cloud', x: 2550, y: 220 },
+    { kind: 'mud', x: 2650, y: 0, w: 150 },
+  ] },
+  { name: 'Cookie field', tiers: [3], objects: [
+    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 600, y: 0, w: 320, h: 85 }, { kind: 'cloud', x: 1000, y: 250 },
+    { kind: 'mud', x: 1100, y: 0, w: 200 }, { kind: 'spring', x: 1450, y: 0, w: 60 }, { kind: 'ramp', x: 1700, y: 0, w: 320, h: 85 },
+    { kind: 'geyser', x: 2300, y: 0, w: 40 }, { kind: 'cloud', x: 2450, y: 300 }, { kind: 'spring', x: 2700, y: 0, w: 60 },
+  ] },
+  { name: 'Gumdrop slope', tiers: [3], objects: [
+    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 580, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1180, y: 0, w: 40 },
+    { kind: 'cloud', x: 1450, y: 300 }, { kind: 'spring', x: 1530, y: 0, w: 60 }, { kind: 'mud', x: 1760, y: 0, w: 160 },
+    { kind: 'ramp', x: 2080, y: 0, w: 320, h: 85 }, { kind: 'cloud', x: 2300, y: 240 }, { kind: 'spring', x: 2550, y: 0, w: 60 },
+    { kind: 'mud', x: 2780, y: 0, w: 120 },
   ] },
 ];
 
 function tierAt(metres) { let t = 0; T.tierFrom.forEach((m, i) => { if (metres >= m) t = i; }); return t; }
 
 function makeField(seed, up = T.upgrades) {
-  const f = { seed, rng: makeRng(seed), ground: [], birds: [], end: 0, chunks: 0 };
+  const f = { seed, rng: makeRng(seed), ground: [], birds: [], clouds: [], end: 0, chunks: 0 };
   const t = teachingChunk(up);
   for (const g of t.ground) f.ground.push({ ...g });
   if (t.bird) f.birds.push({ ...t.bird });
@@ -401,13 +471,17 @@ function addChunk(f, tpl, jitter) {
     const x = x0 + o.x + (jitter ? Math.round(rng.range(-T.chunkJitter, T.chunkJitter)) : 0);
     if (o.kind === 'bird') {
       f.birds.push({ x0: x, y: o.y + (jitter ? Math.round(rng.range(-T.birdJitterY, T.birdJitterY)) : 0), phase: jitter ? rng.range(0, Math.PI * 2) : 0, hit: false });
+    } else if (o.kind === 'cloud') {
+      f.clouds.push({ x, y: o.y + (jitter ? Math.round(rng.range(-T.birdJitterY, T.birdJitterY)) : 0), used: false });
     } else {
       const g = { kind: o.kind, x0: x, x1: x + o.w, w: o.w, h: o.h || 0, spent: false };
       if (o.kind === 'ramp') g.a = Math.atan2(o.h, o.w);
+      if (o.kind === 'geyser') g.phase = jitter ? Math.round(rng.range(0, T.geyserPeriod) * 100) / 100 : 0; // seconds into its cycle at launch
       f.ground.push(g);
     }
   }
   f.ground.sort((a, b) => a.x0 - b.x0);
+  f.clouds.sort((a, b) => a.x - b.x);
   f.end += T.chunkLen; f.chunks++;
 }
 
@@ -429,6 +503,9 @@ function groundAt(f, x) {
   return null;
 }
 const surfaceH = (g, x) => (g && g.kind === 'ramp' ? (g.h * (x - g.x0)) / g.w : 0);
+// A geyser erupts for geyserOn of every geyserPeriod of flight time `t`, from its own phase.
+const geyserOn = (g, t) => (t + g.phase) % T.geyserPeriod < T.geyserOn;
+const inCloud = (c, x, cy) => { const dx = (c.x - x) / (T.cloudRX + T.critterR), dy = (c.y - cy) / (T.cloudRY + T.critterR); return dx * dx + dy * dy < 1; };
 const birdX = (b, t) => b.x0 + T.birdSwing * Math.sin((t / T.birdPeriod) * Math.PI * 2 + b.phase);
 
 // ---------- Flight ----------
@@ -457,7 +534,7 @@ function newRun(seed, launch, up = T.upgrades, field = null) {
     seed, launch, up: { ...up }, st, field,
     x: 0, y: T.slingH, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, u: 0,
     fuel, fuelCap: fuel, holding: false, steps: 0, acc: 0, q: [], ev: [],
-    chain: 0, chainMax: 0, birds: 0, springs: 0, pulses: 0, coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: 0,
+    chain: 0, chainMax: 0, birds: 0, springs: 0, geysers: 0, clouds: 0, pulses: 0, coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: 0,
     msIdx: 0, stars: [], slowT: 0, ended: null, boosted: false, boostSprings: 0,
   };
 }
@@ -511,6 +588,14 @@ function hitSpring(r, g, vyIn) {
   r.ev.push({ k: 'spring', x: r.x, chain: r.chain });
 }
 
+// A geyser's column: straight up at geyserLift (or faster if already rising faster), horizontal speed kept.
+function hitGeyser(r, g) {
+  g.spent = true; r.boosted = false;
+  r.vy = Math.max(r.vy, T.geyserLift); r.y = Math.max(r.y, 0); r.mode = 'air';
+  r.geysers++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
+  r.ev.push({ k: 'geyser', x: r.x, chain: r.chain });
+}
+
 function enterRamp(r, g, speed) {
   r.boosted = false;
   if (r.vx <= 0) { r.vx = 0; r.vy = 0; r.mode = 'ground'; r.y = 0; return; } // bumped the ramp's back
@@ -552,8 +637,16 @@ function stepRun(r) {
         r.ev.push({ k: 'bird', x: r.x, chain: r.chain });
       }
     }
+    for (const c of f.clouds) {
+      if (c.used || Math.abs(c.x - r.x) > T.cloudRX + T.critterR || !inCloud(c, r.x, cy)) continue;
+      c.used = true;
+      r.vx *= 1 - T.cloudDrag; r.vy *= 1 - T.cloudDrag;
+      r.fuel = Math.min(r.fuelCap, r.fuel + T.cloudFuel); r.clouds++;
+      r.ev.push({ k: 'cloud', x: c.x, y: c.y });
+    }
     const g = groundAt(f, r.x);
-    if (r.y <= surfaceH(g, r.x) && (r.vy <= 0 || (g && g.kind === 'ramp'))) {
+    if (g && g.kind === 'geyser' && !g.spent && r.y < T.geyserH && geyserOn(g, t)) hitGeyser(r, g);
+    else if (r.y <= surfaceH(g, r.x) && (r.vy <= 0 || (g && g.kind === 'ramp'))) {
       const vyIn = r.vy;
       if (g && g.kind === 'mud') { r.y = 0; end(r, 'mud'); }
       else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, vyIn);
@@ -566,6 +659,7 @@ function stepRun(r) {
     const g = groundAt(f, r.x);
     if (g && g.kind === 'mud') end(r, 'mud');
     else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, 0);
+    else if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t1)) hitGeyser(r, g);
     else if (g && g.kind === 'ramp') enterRamp(r, g, Math.abs(r.vx));
     else r.chain = 0;
   } else if (r.mode === 'ramp') {
@@ -612,10 +706,10 @@ const GOALS = [
   { id: 'great', name: 'Good Knead', text: 'Launch Great or better', stat: 'great', need: 1, reward: 80 },
   { id: 'bird', name: 'Feather Whisk', text: 'Bounce off a bird', stat: 'birds', need: 1, reward: 100 },
   { id: 'reach500', name: 'Rising Dough', text: 'Reach 500 m', stat: 'm', need: 500, reward: 120 },
-  { id: 'springs5', name: 'Jelly Hopper', text: 'Hit 5 springs in one flight', stat: 'springs', need: 5, reward: 120, count: true },
+  { id: 'springs5', name: 'Jelly Hopper', text: 'Hit 5 jellies in one flight', stat: 'springs', need: 5, reward: 120, count: true },
   { id: 'fly5', name: 'Five Batches', text: 'Fly 5 times', stat: 'flights', need: 5, reward: 100, count: true },
   { id: 'perfect', name: 'Golden Crust', text: 'Launch Perfect', stat: 'perfect', need: 1, reward: 150 },
-  { id: 'boostSpring', name: 'Fizz Drop', text: 'Boost onto a spring', stat: 'boostSprings', need: 1, reward: 150 },
+  { id: 'boostSpring', name: 'Fizz Drop', text: 'Boost onto a jelly', stat: 'boostSprings', need: 1, reward: 150 },
   { id: 'reach750', name: 'Long Taffy', text: 'Reach 750 m', stat: 'm', need: 750, reward: 200 },
   { id: 'chain5', name: 'Layer Cake', text: 'Chain 5 in a row', stat: 'chain', need: 5, reward: 180, count: true },
   { id: 'fly10', name: 'Ten Trays', text: 'Fly 10 times', stat: 'flights', need: 10, reward: 180, count: true },
@@ -624,7 +718,7 @@ const GOALS = [
   { id: 'perfect2', name: 'Twin Glaze', text: 'Two Perfect launches in a row', stat: 'perfectRow', need: 2, reward: 300, count: true },
   { id: 'chain7', name: 'Tiered Tower', text: 'Chain 7 in a row', stat: 'chain', need: 7, reward: 350, count: true },
   { id: 'reach1500', name: 'Candy Road', text: 'Reach 1500 m', stat: 'm', need: 1500, reward: 400 },
-  { id: 'springs8', name: 'Jelly Jumper', text: 'Hit 8 springs in one flight', stat: 'springs', need: 8, reward: 400, count: true },
+  { id: 'springs8', name: 'Jelly Jumper', text: 'Hit 8 jellies in one flight', stat: 'springs', need: 8, reward: 400, count: true },
   { id: 'reach2000', name: 'Sweet Horizon', text: 'Reach 2000 m', stat: 'm', need: 2000, reward: 600 },
 ];
 const activeGoals = (done) => GOALS.filter((g) => !done.includes(g.id)).slice(0, T.goalSlots);
@@ -642,8 +736,9 @@ function settleGoals(done, st) {
 const goalLine = (g, have) => (g.count && have !== undefined ? `${g.text}  ${Math.min(have, g.need)}/${g.need}` : g.text);
 
 // ---------- Save ----------
-// v5: { best: metres, sugar, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket, steady }, holdTaught,
-//       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight, birdTaught, mudTaught }
+// v6: { best: metres, sugar, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket, steady }, holdTaught,
+//       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight, birdTaught, mudTaught,
+//       home: the mochi has met the daifuku (the Home moment has played) }
 
 function finishFlight(E, r) {
   const m = metres(r), best = E.save.get('best', 0);
@@ -662,11 +757,11 @@ function finishFlight(E, r) {
   E.save.set('perfectRow', perfectRow);
   if (gs.paid.length) E.save.set('goalsDone', gs.done);
   const up = r.up;
-  E.ledger.add('flight', { m, why: r.ended, sugar: earned, bonus, goals: gs.paid.map((g) => g.id).join('/') || 'none', chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, pulses: r.pulses,
+  E.ledger.add('flight', { m, why: r.ended, sugar: earned, bonus, goals: gs.paid.map((g) => g.id).join('/') || 'none', chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, geysers: r.geysers, clouds: r.clouds, pulses: r.pulses,
     angle: +r.launch.angle.toFixed(1), zone: ZONES[r.launch.zone ?? 3].replace('!', ''), up: `b${up.band}f${up.fuel}a${up.aero}r${up.rocket}s${up.steady || 0}`, seed: r.seed });
   // The card: rewards as tickets (the goals paid and the new places, largest first), then the three goals now active (a
   // counter for those this flight counted toward, "new" for the ones that just took a slot).
-  const tickets = gs.paid.map((g) => ({ name: g.name, cond: g.text, sugar: g.reward })).concat(firsts.map((ms) => ({ name: 'New place reached', short: 'New place', cond: `Past ${ms} m`, sugar: T.milestoneBonus[T.milestones.indexOf(ms)] })))
+  const tickets = gs.paid.map((g) => ({ name: g.name, cond: g.text, sugar: g.reward })).concat(firsts.map((ms) => ({ name: PLACES[T.milestones.indexOf(ms) + 1].name, short: PLACES[T.milestones.indexOf(ms) + 1].name.split(' ')[0], cond: `New place, ${ms} m`, sugar: T.milestoneBonus[T.milestones.indexOf(ms)] })))
     .sort((a, b) => b.sugar - a.sugar);
   const active = activeGoals(gs.done).map((g) => ({ g, have: before.includes(g.id) ? st[g.stat] : undefined, isNew: !before.includes(g.id) }));
   return { m, best: Math.max(best, m), isNew: m > best, sugar: coinsOf(r), bonus, earned, chainMax: r.chainMax, tickets, active, seed: r.seed, why: r.ended, zone: r.launch.zone ?? 3 };
@@ -675,17 +770,18 @@ function finishFlight(E, r) {
 // ---------- Shop ----------
 // Save: `up` holds the bought level of each upgrade (0 to upgradeMax); sugar is spent from `sugar`.
 
-const UPGRADES = [{ id: 'band', name: 'Band' }, { id: 'fuel', name: 'Fuel' }, { id: 'rocket', name: 'Rocket' }, { id: 'aero', name: 'Aero' }, { id: 'steady', name: 'Steady' }];
+// Named in the candy kitchen's trade (PRD v0.2 E); each is drawn on the mochi or the launcher at every level, and in the shop.
+const UPGRADES = [{ id: 'band', name: 'Licorice Band' }, { id: 'fuel', name: 'Fizz Tank' }, { id: 'rocket', name: 'Cola Rocket' }, { id: 'aero', name: 'Sugar Glaze' }, { id: 'steady', name: 'Steady Chopsticks' }];
 const levelsOf = (E) => ({ ...T.upgrades, ...E.save.get('up', {}) });
 
 // What buying level `lvl` (1 to upgradeMax) of an upgrade does, in plain words.
 function effectText(id, lvl) {
   if (id === 'band') return `+${Math.round(T.bandStep * 100)}% launch speed`;
-  if (id === 'fuel') return `+${T.fuelStep} fuel pulses`;
+  if (id === 'fuel') return `+${T.fuelStep} fizz pulses`;
   if (id === 'aero') return `${Math.round(T.aeroStep * 100)}% less air drag`;
-  if (id === 'steady') return `Needle ${Math.round(T.steadySlow * 100)}% slower, zones ${T.steadyWiden}° wider each side`;
+  if (id === 'steady') return `Needle ${Math.round(T.steadySlow * 100)}% slower, zones +${T.steadyWiden}° a side`;
   const k = T.rocketThrust / T.holdFuelRate / T.boostPulse;
-  return lvl === 1 ? `Hold to boost, ${+k.toFixed(1)}x push per fuel` : `+${Math.round(T.rocketStep * 100)}% hold thrust`;
+  return lvl === 1 ? `Hold to boost, ${+k.toFixed(1)}x push per fizz` : `+${Math.round(T.rocketStep * 100)}% hold thrust`;
 }
 
 // Greedy word wrap to `maxW` px at a text size and weight (system font, as E.text draws it).
@@ -709,9 +805,25 @@ function buy(E, id) {
   return true;
 }
 
+// An upgrade's picture at a level (the shop's): the gear itself, as it is drawn on the mochi or the launcher, on a light plate.
+function drawUpgradePic(ctx, id, lvl, cx, cy, size, time) {
+  ctx.fillStyle = P.shopWall; ctx.beginPath(); ctx.arc(cx, cy, size / 2, 0, Math.PI * 2); ctx.fill();
+  const k = size / 80, lw = 2 * k;
+  if (id === 'band' || id === 'steady') {
+    const base = cy + size * 0.36, top = cy - size * 0.3, fw = size * 0.2;
+    drawChopsticks(ctx, cx, base, top, fw, k * 1.6, lw, id === 'steady' ? lvl : 0, id === 'band' ? lvl : 0, time);
+    drawLicorice(ctx, [cx - fw, top], [cx, top + size * 0.12], [cx + fw, top], k * 1.6, id === 'band' ? lvl : 0);
+  } else if (id === 'fuel') drawBottle(ctx, cx, cy + size * 0.05, size * (0.36 + 0.12 * lvl), 0, 0.75, lw);
+  else if (id === 'rocket') {
+    drawNozzle(ctx, cx - size * 0.12, cy, size * (0.2 + 0.07 * lvl), 0, lvl, true, lw, time);
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = P.cola; ctx.strokeStyle = P.colaRim; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx + size * (0.18 + 0.08 * i), cy + Math.sin(time * 4 + i) * size * 0.06, size * (0.05 - 0.01 * i), 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  } else drawMochi(ctx, cx, cy - size * 0.02, size * 0.27, 0, 1, 1, lw, { aero: lvl }, time);
+}
+
+// The shop: five cards in a row, each a picture of the gear at the level Buy gives (or the top level), the name in the
+// kitchen's trade, level pips, the effect in plain words and a Buy button carrying the price (principle 11: three text items).
 const shop = {
   enter(E, p = {}) { this.from = p.from || 'menu'; this.card = p.card || null; this.cells = []; },
-  // Each card: name and level pips, the next level's effect wrapped to the card's width, and a Buy button carrying the price.
   render(ctx, E) {
     const sf = E.safe, left = sf.left + 16, right = E.w - sf.right - 16, top = sf.top + 8;
     const grad = ctx.createLinearGradient(0, 0, 0, E.h); grad.addColorStop(0, P.skyDusk[1]); grad.addColorStop(1, P.skyNight[1]);
@@ -720,19 +832,28 @@ const shop = {
     E.text('Shop', E.w / 2, top + 22, { size: TY.lg, weight: '800', color: P.text });
     const sugar = E.save.get('sugar', 0), up = levelsOf(E);
     E.text(`${sugar} sugar`, right, top + 22, { size: TY.md, align: 'right', color: P.coin, weight: '800' });
-    const cols = 3, gy = top + 52, gap = 10, cw = (right - left - gap * (cols - 1)) / cols, ch = (E.h - sf.bottom - 10 - gy - gap) / 2, pad = 12;
+    const n = UPGRADES.length, gap = 8, gy = top + 52, cw = (right - left - gap * (n - 1)) / n, ch = E.h - sf.bottom - 10 - gy, pad = cw < 110 ? 5 : 10, tw = cw - 2 * pad;
+    const effects = UPGRADES.map((u) => (up[u.id] >= T.upgradeMax ? 'Fully upgraded' : effectText(u.id, up[u.id] + 1)));
+    const lines = Math.max(...effects.map((t) => wrap(E, t, tw, TY.sm, '600').length));
+    const pic = clamp(Math.min(tw, ch * 0.36, ch - 6 - 88 - 52 - lines * 17), 36, 108); // the picture gives way to the words
     this.cells = UPGRADES.map((u, i) => {
-      const x = left + (i % cols) * (cw + gap), y = gy + Math.floor(i / cols) * (ch + gap), lvl = up[u.id], max = lvl >= T.upgradeMax;
+      const x = left + i * (cw + gap), y = gy, lvl = up[u.id], max = lvl >= T.upgradeMax, cx = x + cw / 2;
       const price = max ? 0 : T.upgradePrices[u.id][lvl], can = !max && sugar >= price;
       E.roundRect(x, y, cw, ch, T.style.radius, P.panel, P.panelEdge);
-      E.text(u.name, x + pad, y + 20, { size: TY.md, weight: '800', align: 'left', color: P.text });
-      for (let k = 0; k < T.upgradeMax; k++) E.roundRect(x + cw - pad - (T.upgradeMax - k) * 20 + 4, y + 12, 16, 16, 4, k < lvl ? P.teal : P.panelSolid, P.panelEdge);
-      const words = wrap(E, max ? 'Fully upgraded' : `Level ${lvl + 1}: ${effectText(u.id, lvl + 1)}`, cw - 2 * pad, TY.sm, '600');
-      words.forEach((line, n) => E.text(line, x + pad, y + 44 + n * 17, { size: TY.sm, align: 'left', color: max ? P.textDim : P.text, weight: '600' }));
+      drawUpgradePic(ctx, u.id, Math.min(lvl + 1, T.upgradeMax), cx, y + 6 + pic / 2, pic, E.time);
+      const big = u.name.split(' ').every((w) => fit(E, w, tw, TY.md, '800') === w), ns = big ? TY.md : TY.sm;
+      const names = wrap(E, u.name, tw, ns, '800');
+      names.slice(0, 2).forEach((l, k) => E.text(fit(E, l, tw, ns, '800'), cx, y + pic + 22 + k * 20, { size: ns, weight: '800', color: P.text }));
+      const py = y + pic + 22 + 2 * 20;
+      for (let k = 0; k < T.upgradeMax; k++) E.roundRect(cx - 30 + k * 20 + 2, py - 7, 16, 16, 4, k < lvl ? P.teal : P.panelSolid, P.panelEdge);
+      const btnTop = y + ch - 52, ey = py + 26, room = Math.max(1, Math.floor((btnTop - ey + 6) / 17));
+      const words = wrap(E, effects[i], tw, TY.sm, '600');
+      const shown = words.length > room ? words.slice(0, room - 1).concat(fit(E, words.slice(room - 1).join(' '), tw, TY.sm, '600')) : words;
+      shown.forEach((line, k) => E.text(line, cx, ey + k * 17, { size: TY.sm, color: max ? P.textDim : P.text, weight: '600' }));
       if (max) return { u, btn: null, rect: { x, y, w: cw, h: ch } };
-      const bw = Math.min(cw - 2 * pad, 170);
-      const label = `Buy for ${price}`, size = fit(E, label, bw - 12, TY.md, '600') === label ? TY.md : TY.sm;
-      const b = btn(E, label, x + pad + bw / 2, y + ch - 28, { w: bw, h: 44, size, fill: can ? P.button : P.buttonOff, color: can ? P.text : P.textOff });
+      const bw = Math.min(tw, 170);
+      const [label, size] = [[`Buy for ${price}`, TY.md], [`Buy for ${price}`, TY.sm], [`Buy ${price}`, TY.sm]].find(([l, z]) => fit(E, l, bw - 12, z, '600') === l) || [`${price}`, TY.sm];
+      const b = btn(E, label, cx, y + ch - 28, { w: bw, h: 44, size, fill: can ? P.button : P.buttonOff, color: can ? P.text : P.textOff });
       return { u, btn: b, rect: { x, y, w: cw, h: ch } };
     });
   },
@@ -769,14 +890,20 @@ function landingMark(r, maxT = 30) {
   const f = r.field, st = r.st;
   let x = r.x, y = r.y, vx = r.vx, vy = r.vy, n = r.steps;
   const near = f.birds.filter((b) => !b.hit && b.x0 > x - T.birdSwing - 40), R = T.critterR + T.birdR;
-  const birdTop = near.reduce((m, b) => Math.max(m, b.y), -Infinity) + R, groundTop = f.ground.reduce((m, g) => Math.max(m, g.h), 0);
+  const birdTop = near.reduce((m, b) => Math.max(m, b.y), -Infinity) + R;
+  // Clouds slow the arc on the way (the real physics), so the marker allows for them; a geyser's column is a contact.
+  const clouds = f.clouds.filter((c) => !c.used && c.x > x - T.cloudRX - T.critterR), seen = new Set();
+  const cloudTop = clouds.reduce((m, c) => Math.max(m, c.y), -Infinity) + T.cloudRY + T.critterR;
+  const groundTop = f.ground.reduce((m, g) => Math.max(m, g.kind === 'geyser' && !g.spent ? T.geyserH : g.h), 0);
   for (let i = 0; i < maxT / STEP; i++) {
     n++;
     vy -= T.gravity * STEP; vx *= st.dragK; vy *= st.dragK; x += vx * STEP; y += vy * STEP;
     const cy = y + T.critterR;
     if (cy <= birdTop) for (const b of near) if (Math.abs(b.x0 - x) <= T.birdSwing + 40 && Math.hypot(birdX(b, n * STEP) - x, b.y - cy) < R) return null;
+    if (cy <= cloudTop) for (const c of clouds) if (!seen.has(c) && Math.abs(c.x - x) <= T.cloudRX + T.critterR && inCloud(c, x, cy)) { seen.add(c); vx *= 1 - T.cloudDrag; vy *= 1 - T.cloudDrag; }
     if (y > groundTop) continue; // high up: nothing to touch yet
     const g = groundAt(f, x);
+    if (g && g.kind === 'geyser' && !g.spent && y < T.geyserH && geyserOn(g, n * STEP)) return { x, g, lift: true };
     if (y <= surfaceH(g, x) && (vy <= 0 || (g && g.kind === 'ramp'))) return { x, g };
   }
   return null;
@@ -825,13 +952,23 @@ function view(E) {
 // S: the play scene's state; S.fx: cosmetic effects in world units (particles, tumbling birds, words), capped.
 const S = { run: null, cam: null, seed: 0, fx: [], sq: { amt: 0, t: 0 } };
 
-function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
-function mix(a, b, t) { const x = hexRgb(a), y = hexRgb(b); return `rgb(${Math.round(x[0] + (y[0] - x[0]) * t)},${Math.round(x[1] + (y[1] - x[1]) * t)},${Math.round(x[2] + (y[2] - x[2]) * t)})`; }
-// The sky at an altitude (metres at the top of the view): horizon and top colours, and how far into the night it is.
-function skyAt(alt) {
+const RGB = new Map();
+function hexRgb(h) { let v = RGB.get(h); if (!v) { const n = parseInt(h.slice(1), 16); v = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; RGB.set(h, v); } return v; }
+const lerpRgb = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const css = (c) => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`;
+const mix = (a, b, t) => (t <= 0 ? a : t >= 1 ? b : css(lerpRgb(hexRgb(a), hexRgb(b), t)));
+// The sky at an altitude (metres at the top of the view) over a place's day sky: horizon and top colours, how far into night.
+function skyAt(alt, day) {
   const d = clamp((alt - 30) / (T.duskAt - 30), 0, 1), n = clamp((alt - T.duskAt) / (T.nightAt - T.duskAt), 0, 1);
-  if (n > 0) return { h: mix(P.skyDusk[0], P.skyNight[0], n), t: mix(P.skyDusk[1], P.skyNight[1], n), night: n };
-  return { h: mix(P.skyDay[0], P.skyDusk[0], d), t: mix(P.skyDay[1], P.skyDusk[1], d), night: 0 };
+  const dk = P.skyDusk.map(hexRgb), nt = P.skyNight.map(hexRgb);
+  if (n > 0) return { h: css(lerpRgb(dk[0], nt[0], n)), t: css(lerpRgb(dk[1], nt[1], n)), night: n };
+  return { h: css(lerpRgb(day[0], dk[0], d)), t: css(lerpRgb(day[1], dk[1], d)), night: 0 };
+}
+// The place a view centred at world x shows: place a, blending into b by k over placeBlend before b's line.
+function placeView(x) {
+  const i = placeIndex(x);
+  if (i + 1 < PLACES.length) { const k = clamp(1 - (placeFrom(i + 1) - x) / T.placeBlend, 0, 1); if (k > 0) return { a: i, b: i + 1, k }; }
+  return { a: i, b: i, k: 0 };
 }
 
 let STARS = null; // cosmetic star field, made once
@@ -840,16 +977,51 @@ function stars() {
   return STARS;
 }
 
-// Rolling hills: a sum of two sines, scrolled at `par` of the camera; heights in design px.
-function hillY(x, seed) { return Math.sin(x * 0.006 + seed) * 0.5 + Math.sin(x * 0.0137 + seed * 2.1) * 0.35 + 0.5; }
+// Rolling hills: a sum of two sines per layer (0 far, 1 near), scrolled at a share of the camera; heights in design px.
+const hillY = (u, h, li) => Math.sin(u * h.f[0] + h.seed[li]) * h.w[0] + Math.sin(u * h.f[1] + h.seed[li] * 2.1) * h.w[1] + 0.5;
 
-// `pre`: the launcher's state, { needle: angle or null, wedge: alpha, mark: landing x or null }.
-function drawWorld(ctx, E, v, c, r, pre = null) {
+// A place's backdrop motif on one hill layer: pale, low and sparse, never busier than the play objects. `top(u)` is the hill
+// line's screen y at layer coordinate u; `off` is the layer's scroll (design px).
+function drawMotif(ctx, E, motif, li, top, off, s, gy, time) {
+  const each = (step, f) => { for (let u = Math.ceil(off / step) * step; (u - off) * s < E.w + step * s; u += step) f((u - off) * s, top(u), u); };
+  if (motif === 'gumdrops' && li === 1) P.gumdrops.forEach((col, c) => {
+    ctx.fillStyle = col; ctx.beginPath();
+    each(70, (x, y, u) => { if (((Math.round(u / 70) % 4) + 4) % 4 === c) { ctx.moveTo(x + 6 * s, y + 2 * s); ctx.arc(x, y + 2 * s, 6 * s, 0, Math.PI, true); } });
+    ctx.fill();
+  });
+  else if (motif === 'strawberries' && li === 1) {
+    ctx.fillStyle = P.berry; ctx.beginPath(); each(56, (x, y) => { ctx.moveTo(x + 3.2 * s, y + 4 * s); ctx.arc(x, y + 4 * s, 3.2 * s, 0, Math.PI * 2); }); ctx.fill();
+    ctx.fillStyle = P.leaf; ctx.beginPath(); each(56, (x, y) => ctx.rect(x - 2.5 * s, y, 5 * s, 1.6 * s)); ctx.fill();
+  } else if (motif === 'houses' && li === 0) {
+    const w = 22 * s, h = 15 * s;
+    ctx.fillStyle = P.house[0]; ctx.beginPath(); each(180, (x, y) => ctx.rect(x - w / 2, y - h + 4 * s, w, h)); ctx.fill();
+    ctx.fillStyle = P.house[1]; ctx.beginPath(); each(180, (x, y) => { ctx.moveTo(x - w / 2 - 3 * s, y - h + 5 * s); ctx.lineTo(x, y - h - 8 * s); ctx.lineTo(x + w / 2 + 3 * s, y - h + 5 * s); ctx.closePath(); }); ctx.fill();
+    ctx.strokeStyle = P.white; ctx.lineWidth = 1.2 * s; ctx.beginPath(); // icing on the eaves
+    each(180, (x, y) => { for (let i = 0; i <= 6; i++) ctx[i ? 'lineTo' : 'moveTo'](x - w / 2 + (w * i) / 6, y - h + 5 * s + (i % 2) * 2 * s); });
+    ctx.stroke();
+  } else if (motif === 'bubbles' && li === 0) {
+    ctx.strokeStyle = P.white; ctx.lineWidth = 1.2 * s; ctx.beginPath();
+    each(150, (x, y, u) => { const k = ((time * 0.25 + u * 0.013) % 1 + 1) % 1, bx = x + Math.sin(time + u) * 3 * s, by = y - k * 70 * s, br = (2 + 3 * k) * s; ctx.moveTo(bx + br, by); ctx.arc(bx, by, br, 0, Math.PI * 2); });
+    ctx.stroke();
+  } else if (motif === 'river' && li === 1) { // a milk-chocolate river flowing in front of the near hills
+    ctx.fillStyle = P.river[0]; ctx.beginPath(); ctx.moveTo(0, gy - 14 * s);
+    for (let x = 0; x <= E.w + 24 * s; x += 24 * s) ctx.lineTo(x, gy - (14 + 2 * Math.sin((x / s + off) * 0.02 + time)) * s);
+    ctx.lineTo(E.w, gy); ctx.lineTo(0, gy); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = P.river[1]; ctx.lineWidth = 1.4 * s; ctx.beginPath();
+    each(60, (x) => { const k = ((time * 0.4 + x * 0.01) % 1) * 20 * s; ctx.moveTo(x - k, gy - 7 * s); ctx.lineTo(x - k + 14 * s, gy - 7 * s); });
+    ctx.stroke();
+  }
+}
+
+// `pre`: the launcher's state, { needle: angle or null, wedge: alpha, mark: landing x or null }. `up`: the gear to draw.
+function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   const s = v.s, z = c.z, lw = T.style.line * s;
   const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - (wy - c.y) * z) * s;
   const gy = v.oy + T.groundY * s, lift = c.y * z * s, liftM = c.y / T.unitsPerMetre;
-  const sprite = Math.max(z, T.spriteMin);
-  const alt = (c.y + T.groundY / z) / T.unitsPerMetre, sky = skyAt(alt);
+  const sprite = Math.max(z, T.spriteMin), span = v.vw / z;
+  const pv = placeView(c.x + span / 2), A = PLACES[pv.a], B = PLACES[pv.b];
+  const day = [lerpRgb(hexRgb(A.sky[0]), hexRgb(B.sky[0]), pv.k), lerpRgb(hexRgb(A.sky[1]), hexRgb(B.sky[1]), pv.k)];
+  const alt = (c.y + T.groundY / z) / T.unitsPerMetre, sky = skyAt(alt, day);
 
   // Sky, stars, hills.
   const grad = ctx.createLinearGradient(0, 0, 0, gy);
@@ -866,20 +1038,37 @@ function drawWorld(ctx, E, v, c, r, pre = null) {
   }
   const hillA = (1 - clamp(liftM / T.hillFadeLift, 0, 1)) * (1 - sky.night);
   if (hillA > 0.01) {
-    for (const [par, amp, base, col, seed] of [[0.15, 46, 70, P.hillFar, 1.3], [0.35, 34, 40, P.hillNear, 4.1]]) {
-      ctx.globalAlpha = hillA; ctx.fillStyle = col;
+    for (const [li, par, key] of [[0, 0.15, 'far'], [1, 0.35, 'near']]) {
+      const off = c.x * z * par, drop = lift * 0.6, ha = A.hills, hb = B.hills, k = pv.k;
+      const hy = (u) => { const a = ha.base[li] + ha.amp[li] * hillY(u, ha, li); return k > 0 ? a + (hb.base[li] + hb.amp[li] * hillY(u, hb, li) - a) * k : a; };
+      const top = (u) => gy + drop - hy(u) * s;
+      ctx.globalAlpha = hillA; ctx.fillStyle = mix(ha[key], hb[key], k);
       ctx.beginPath(); ctx.moveTo(0, gy);
-      const off = c.x * z * par, drop = lift * 0.6;
-      for (let px = 0; px <= E.w + 24 * s; px += 24 * s) ctx.lineTo(px, gy + drop - (base + amp * hillY((px / s + off), seed)) * s);
+      for (let px = 0; px <= E.w + 24 * s; px += 24 * s) ctx.lineTo(px, top(px / s + off));
       ctx.lineTo(E.w, gy); ctx.closePath(); ctx.fill();
+      for (const [pl, wgt] of pv.a === pv.b ? [[A, 1]] : [[A, 1 - k], [B, k]]) if (wgt > 0.01) { ctx.globalAlpha = hillA * wgt; drawMotif(ctx, E, pl.motif, li, top, off, s, gy + drop, E.time); }
     }
     ctx.globalAlpha = 1;
   }
+  // The bakery the mochi is flung from, behind the launcher.
+  if (X(-200) < E.w && X(-60) > 0) shopfront(ctx, X(-190), gy, 110 * z * s, s * z, lw, false);
+  // Home: a cottage and the daifuku waiting at the roadside.
+  const hx = placeFrom(PLACES.length - 1) + T.homeAhead;
+  if (X(hx + 200) > 0 && X(hx - 200) < E.w) {
+    shopfront(ctx, X(hx + 60), gy, 90 * z * s, s * z, lw, true);
+    const hop = S.homeT > 0 ? Math.abs(Math.sin((J.homeTime - S.homeT) * 9)) * 10 * s * sprite : 0;
+    drawDaifuku(ctx, X(hx), gy - T.critterR * s * sprite - hop, T.critterR * s * sprite, E.time, lw);
+  }
 
-  // The ground band: grass edge, soil, distance ticks every 10 m and labels every 50 m.
-  ctx.fillStyle = P.soil; ctx.fillRect(0, gy, E.w, E.h - gy);
-  ctx.fillStyle = P.grass; ctx.fillRect(0, gy, E.w, 12 * s);
-  const u10 = 10 * T.unitsPerMetre, span = v.vw / z;
+  // The ground band, each place in its own colours from its line: a top strip, soil, distance ticks and labels.
+  for (let i = placeIndex(Math.max(0, c.x)); i < PLACES.length && placeFrom(i) < c.x + span; i++) {
+    const a = i === 0 ? 0 : Math.max(0, X(placeFrom(i))), b = i + 1 < PLACES.length ? Math.min(E.w, X(placeFrom(i + 1))) : E.w;
+    if (b <= a) continue;
+    ctx.fillStyle = PLACES[i].soil; ctx.fillRect(a, gy, b - a, E.h - gy);
+    ctx.fillStyle = PLACES[i].top; ctx.fillRect(a, gy, b - a, 12 * s);
+    if (i > 0) drawPost(ctx, X(placeFrom(i)), gy, s * sprite, PLACES[i].top, lw);
+  }
+  const u10 = 10 * T.unitsPerMetre;
   ctx.fillStyle = P.ink; ctx.globalAlpha = 0.45;
   for (let wx = Math.floor(c.x / u10) * u10; wx < c.x + span + u10; wx += u10) {
     if (wx < 0) continue;
@@ -889,22 +1078,24 @@ function drawWorld(ctx, E, v, c, r, pre = null) {
   ctx.globalAlpha = 1;
   for (let wx = Math.ceil(c.x / (5 * u10)) * 5 * u10; wx < c.x + span + u10; wx += 5 * u10) if (wx > 0) E.text(`${wx / T.unitsPerMetre} m`, X(wx), Math.min(gy + 34 * s, E.h - E.safe.bottom - 10), { size: TY.sm, color: P.text, weight: '600' });
 
-  // The slingshot: a wooden fork with a rubber band (drawn behind the critter, band in front).
-  const fx = X(0), fy = (h) => gy - h * z * s, forkTop = fy(T.slingH + 14), forkMid = fy(T.slingH - 6), fw = 9 * s * z;
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  for (const [w, col] of [[7 * s * z + 2 * lw, P.ink], [7 * s * z, P.wood]]) {
-    ctx.strokeStyle = col; ctx.lineWidth = w;
-    ctx.beginPath(); ctx.moveTo(fx, gy + 2 * s); ctx.lineTo(fx, forkMid); ctx.lineTo(fx - fw, forkTop); ctx.moveTo(fx, forkMid); ctx.lineTo(fx + fw, forkTop); ctx.stroke();
+  const fx = X(0), forkTop = gy - (T.slingH + T.critterR) * z * s, fw = 1.3 * T.critterR * s * Math.max(z, T.spriteMin); // tips either side of the mochi
+  const launcherSeen = fx > -60 * s && fx < E.w + 60 * s;
+  if (launcherSeen) { // the chopsticks are one sprite per gear and size (the gold's twinkle is drawn live)
+    const st = up.steady || 0, x0 = fx - fw - 6 * s * z, y0 = forkTop - 6 * s * z, w = 2 * fw + 12 * s * z, h = gy + 4 * s - y0;
+    cached(ctx, `chop${st}${up.band || 0}|${lw.toFixed(2)}`, x0, y0, w, h, (c) => { c.translate(-x0, -y0); drawChopsticks(c, fx, gy + 2 * s, forkTop, fw, s * z, lw, st, up.band || 0); });
+    if (st === 3) { ctx.fillStyle = P.chopHi[3]; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(E.time * 4); star4(ctx, fx + fw * 0.8, forkTop + (gy - forkTop) * 0.15, 4 * s * z); ctx.globalAlpha = 1; }
   }
 
   if (r) {
     const f = r.field, t = flightTime(r), x0 = c.x - 400, x1 = c.x + span + 400;
     for (const g of f.ground) {
       if (g.x1 < x0 || g.x0 > x1) continue;
-      if (g.kind === 'spring') drawSpring(ctx, X(g.x0), gy, g.w * z * s, s, g.spent, S.pops.get(g), E.time + g.x0 * 0.01);
+      if (g.kind === 'spring') drawJelly(ctx, X(g.x0), gy, g.w * z * s, s, g.spent, S.pops.get(g), E.time + g.x0 * 0.01, lw);
       else if (g.kind === 'mud') drawMud(ctx, X(g.x0), gy, g.w * z * s, s, E.time + g.x0 * 0.013);
       else if (g.kind === 'ramp') drawRamp(ctx, X(g.x0), gy, g.w * z * s, g.h * z * s, s, lw);
+      else if (g.kind === 'geyser') drawGeyser(ctx, X(g.x0), gy, g.w * z * s, T.geyserH * z * s, s, g, t, E.time, lw);
     }
+    for (const cl of f.clouds) if (cl.x > x0 && cl.x < x1) drawCloud(ctx, X(cl.x), Y(cl.y), s * z, cl.used, E.time + cl.x * 0.01, lw);
     for (const b of f.birds) {
       if (b.hit || b.x0 < x0 || b.x0 > x1) continue;
       const by = Y(b.y);
@@ -914,9 +1105,9 @@ function drawWorld(ctx, E, v, c, r, pre = null) {
 
   if (pre && pre.mark !== null && pre.mark !== undefined && X(pre.mark) <= E.w - 6 * s) drawMark(ctx, X(pre.mark), gy, s, E.time);
   const px = X(0), py = Y(T.slingH + T.critterR);
-  if (pre && pre.needle !== null && pre.wedge > 0) drawWedge(ctx, px, py, s, pre.needle, pre.wedge, S.up || T.upgrades, lw);
+  if (pre && pre.needle !== null && pre.wedge > 0) drawWedge(ctx, px, py, s, pre.needle, pre.wedge, up, lw);
 
-  // The critter: in the pocket until the launch, then where the run has it.
+  // The mochi: in the chopsticks' band until the launch, then where the run has it.
   const cx = r ? r.x : 0, cy = r ? r.y : T.slingH;
   const rr = T.critterR * s * sprite, sx = X(cx), sy = Y(cy) - rr;
   // Soft shadow on the band while low.
@@ -927,7 +1118,7 @@ function drawWorld(ctx, E, v, c, r, pre = null) {
     ctx.strokeStyle = sky.night > 0.5 ? P.star : P.ink; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]);
     ctx.beginPath(); ctx.moveTo(sx, sy + rr + 4); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
-  // Speed lines after a spring.
+  // Speed lines after a jelly or a geyser.
   if (r && S.speedT > 0) {
     const sp = Math.hypot(r.vx, r.vy) || 1, ux = r.vx / sp, uy = -r.vy / sp;
     ctx.strokeStyle = P.white; ctx.lineWidth = 2 * s; ctx.globalAlpha = S.speedT / J.speedLines;
@@ -937,45 +1128,50 @@ function drawWorld(ctx, E, v, c, r, pre = null) {
     }
     ctx.globalAlpha = 1;
   }
-  // The band: plum rubber holding the critter in the pocket; it twangs for a moment after the launch.
-  if (!r || S.snapT > 0) {
-    const snap = r ? S.snapT / J.snapTime : 0;
-    const bx = !r ? sx : fx + Math.sin(E.time * 60) * 10 * s * snap, by = !r ? sy + rr * 0.4 : forkTop + 4 * s;
-    ctx.strokeStyle = P.rubber; ctx.lineWidth = 2.5 * s * Math.max(z, 0.7);
-    ctx.beginPath(); ctx.moveTo(fx - fw, forkTop); ctx.lineTo(bx, by); ctx.lineTo(fx + fw, forkTop); ctx.stroke();
+  // The licorice band twangs for a moment after the launch, then hangs slack between the tips.
+  const tipL = [fx - fw, forkTop], tipR = [fx + fw, forkTop];
+  if (r && launcherSeen) {
+    const snap = S.snapT > 0 ? S.snapT / J.snapTime : 0;
+    drawLicorice(ctx, tipL, [fx + Math.sin(E.time * 60) * 10 * s * snap, forkTop + (4 + 4 * (1 - snap)) * s * z], tipR, s * Math.max(z, 0.7), up.band || 0);
   }
   // Squash: flattened on a landing and wobbling back.
   let sqx = 1, sqy = 1;
   if (S.sq.t > 0) { const k = S.sq.t / J.squashTime, w = S.sq.amt * k * Math.cos((1 - k) * Math.PI * 1.5); sqx = 1 + w; sqy = 1 - w; }
   else if (r && r.ended === 'mud') { sqx = 1 + J.landSquash; sqy = 1 - J.landSquash; }
   const look = r ? Math.atan2(-r.vy, r.vx) : pre && pre.needle !== null ? -pre.needle * DEG : 0; // before launch the eyes follow the needle
-  drawCritter(ctx, sx, sy + (1 - sqy) * rr, rr, look, 0, sqx, sqy, lw);
+  const fuelK = r ? clamp(r.fuel / Math.max(1, r.fuelCap), 0, 1) : 1;
+  drawMochi(ctx, sx, sy + (1 - sqy) * rr, rr, look, sqx, sqy, lw, up, E.time, fuelK, !!(r && r.holding && r.fuel > 0));
+  if (!r) drawLicorice(ctx, tipL, [sx, sy + rr * 1.35], tipR, s * Math.max(z, 0.7), up.band || 0, true); // the pocket: a strap under its belly
   return { sx, sy, rr, height: cy, lifted: lift > 0, night: sky.night };
 }
 
-// An unspent spring bobs on its coil at rest (it looks bouncy before it is ever touched).
-function drawSpring(ctx, x, gy, w, s, spent, pop, time) {
-  const k = pop ? pop.t / J.springPop : 0; // 1 at the hit: compressed, then pops past rest
-  const rest = (spent ? 4 : 10 * (1 + J.springWobble * Math.sin(time * 6))) * s, hgt = pop ? rest * (k > 0.6 ? 0.35 : 1 + 0.5 * Math.sin((1 - k / 0.6) * Math.PI)) : rest;
-  ctx.strokeStyle = P.coil; ctx.lineWidth = 2.2 * s; ctx.lineJoin = 'round';
-  const n = Math.max(1, Math.round(w / (40 * s))), cw = Math.min(w * 0.4, 16 * s); // a coil every 40 px along a wide spring
-  ctx.beginPath();
-  for (let c = 0; c < n; c++) {
-    const cx = x + (w * (c + 0.5)) / n - cw / 2;
-    for (let i = 0; i <= 5; i++) { const yy = gy - (hgt * i) / 5, xx = cx + (i % 2 ? cw : 0); if (i) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy); }
+// A mint jelly: a row of wobbling jelly cubes (one every jellyCube design px, so a long one reads as jelly, never a rail),
+// teal with a light halo, an ink outline and a shine; unspent cubes bob at rest, each a little out of step. Each cube is a
+// cached sprite per height (a long jelly is many cubes, and an image is far cheaper than its outline on a slow phone).
+function drawJelly(ctx, x, gy, w, s, spent, pop, time, lw) {
+  const k = pop ? pop.t / J.springPop : 0; // 1 at the hit: squashed, then pops past rest
+  const n = Math.max(1, Math.round(w / (T.jellyCube * s))), cw = w / n, pad = lw * 1.2;
+  for (let i = 0; i < n; i++) {
+    const rest = spent ? 6 : 12 * (1 + J.springWobble * Math.sin(time * 6 + i * 0.9));
+    const h = Math.round((pop ? rest * (k > 0.6 ? 0.4 : 1 + 0.5 * Math.sin((1 - k / 0.6) * Math.PI)) : rest) * 2) / 2 * s; // half design px steps
+    cached(ctx, `jelly${spent}|${h.toFixed(1)}|${lw.toFixed(2)}`, x + i * cw - pad, gy - h - pad, cw + 2 * pad, h + 2 * pad, (c) => jellyCube(c, pad, pad, cw, h, s, lw, spent));
   }
-  ctx.stroke();
-  const ph = 5 * s;
-  roundRectPath(ctx, x, gy - hgt - ph, w, ph, ph / 2);
-  ctx.strokeStyle = P.halo; ctx.lineWidth = T.style.line * s * 2.4; ctx.stroke(); // the light halo keeps 3:1 on the dusk sky
+}
+function jellyCube(ctx, x, y, cw, h, s, lw, spent) {
+  const gap = Math.min(2.5 * s, cw * 0.18), x0 = x + gap / 2, ww = cw - gap, gy = y + h, rad = Math.min(ww * 0.4, h * 0.6, 7 * s);
+  ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x0, gy - h + rad); ctx.quadraticCurveTo(x0, gy - h, x0 + rad, gy - h);
+  ctx.lineTo(x0 + ww - rad, gy - h); ctx.quadraticCurveTo(x0 + ww, gy - h, x0 + ww, gy - h + rad); ctx.lineTo(x0 + ww, gy); ctx.closePath();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = P.halo; ctx.lineWidth = lw * 2.2; ctx.stroke(); // the light halo keeps 3:1 on the dusk sky
   ctx.fillStyle = spent ? P.tealSpent : P.teal; ctx.fill();
-  ctx.strokeStyle = P.ink; ctx.lineWidth = T.style.line * s * 0.8; ctx.stroke();
-  if (!spent) { ctx.fillStyle = P.tealLight; ctx.fillRect(x + ph, gy - hgt - ph + 1.2 * s, Math.max(0, w - 2 * ph), 1.4 * s); }
+  ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.stroke();
+  if (spent) return;
+  ctx.fillStyle = P.tealLight; ctx.fillRect(x0 + ww * 0.2, gy - h + 2.4 * s, ww * 0.35, 1.8 * s); ctx.fillRect(x0 + ww * 0.2, gy - h + 5.4 * s, 1.8 * s, 1.8 * s);
 }
 
-// Mud: a sticky pit sunk into the grass, never a pad (PRD v0.2 C): a dark glossy body with a slowly rippling top and a
-// deeper middle, short light sheen streaks, slow bubbles that swell and pop, and goo strands hanging from both rims.
-// It reads as a dark hole in the bright grass band (5.6:1), with nothing raised above the ground line.
+// Caramel: a sticky pit sunk into the ground, never a pad (PRD v0.2 C, E): a dark amber glossy body with a slowly rippling top
+// and a deeper middle, short light gloss streaks, slow bubbles that swell and pop, and caramel strands from both rims.
+// It reads as a dark hole in every place's ground band (tools/sim-launch.mjs --contrast), with nothing raised above it.
 function drawMud(ctx, x, gy, w, s, time) {
   const d = 15 * s, top = (u) => gy + (1.2 + 0.8 * Math.sin(time * 1.3 + u * 9)) * s;
   ctx.beginPath(); ctx.moveTo(x, gy);
@@ -984,22 +1180,73 @@ function drawMud(ctx, x, gy, w, s, time) {
   ctx.lineTo(x + 6 * s, gy + d); ctx.quadraticCurveTo(x, gy + d, x, gy + d - 5 * s); ctx.closePath();
   ctx.fillStyle = P.mud; ctx.fill();
   ctx.fillStyle = P.mudDeep; ctx.beginPath(); ctx.ellipse(x + w / 2, gy + d * 0.62, w * 0.4, d * 0.26, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = P.mudRim; ctx.lineCap = 'round'; ctx.lineWidth = 1.4 * s; ctx.globalAlpha = 0.55; // glossy streaks, short
+  ctx.strokeStyle = P.mudSheen; ctx.lineWidth = 1.6 * s; ctx.beginPath(); // an amber sheen just under the surface
+  for (let i = 1; i <= 7; i++) ctx.lineTo(x + (w * i) / 8, top(i / 8) + 3.2 * s);
+  ctx.stroke();
+  ctx.strokeStyle = P.mudRim; ctx.lineCap = 'round'; ctx.lineWidth = 1.4 * s; ctx.globalAlpha = 0.7; // glossy streaks, short
   for (const u of [0.22, 0.64]) { ctx.beginPath(); ctx.moveTo(x + w * u, gy + 4 * s); ctx.lineTo(x + w * u + Math.min(10 * s, w * 0.1), gy + 3.4 * s); ctx.stroke(); }
   ctx.globalAlpha = 1;
   for (let i = 0; i < 3; i++) { // bubbles rise, swell and pop on a slow cycle
     const ph = (time * 0.45 + i * 0.37) % 1, bx = x + w * (0.2 + 0.3 * i);
-    if (ph < 0.85) { const k = ph / 0.85, br = (0.8 + 2 * k) * s; ctx.fillStyle = '#5a3620'; ctx.strokeStyle = P.mudRim; ctx.lineWidth = 0.9 * s; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(bx, gy + (11 - 7 * k) * s, br, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    if (ph < 0.85) { const k = ph / 0.85, br = (0.8 + 2 * k) * s; ctx.fillStyle = P.mudBubble; ctx.strokeStyle = P.mudRim; ctx.lineWidth = 0.9 * s; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(bx, gy + (11 - 7 * k) * s, br, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
     else { ctx.strokeStyle = P.mudRim; ctx.lineWidth = 0.9 * s; ctx.globalAlpha = 1 - (ph - 0.85) / 0.15; ctx.beginPath(); ctx.arc(bx, gy + 3.5 * s, (3 + 20 * (ph - 0.85)) * s, Math.PI, 0); ctx.stroke(); }
     ctx.globalAlpha = 1;
   }
-  ctx.strokeStyle = P.mud; ctx.lineWidth = 1.6 * s; // strands stretched from the grass at both rims down into the goo
+  ctx.strokeStyle = P.mud; ctx.lineWidth = 1.6 * s; // strands stretched from the ground at both rims down into the caramel
   for (const [ex, dir] of [[x, 1], [x + w, -1]]) for (const [dx, dy] of [[5, 9], [10, 6]]) {
     const sag = Math.sin(time * 1.1 + dx) * 0.8 * s;
     ctx.beginPath(); ctx.moveTo(ex - dir * 1.5 * s, gy); ctx.quadraticCurveTo(ex + dir * dx * 0.3 * s, gy + (dy + 2) * s + sag, ex + dir * dx * s, gy + 2 * s); ctx.stroke();
     ctx.fillStyle = P.mud; ctx.beginPath(); ctx.arc(ex + dir * dx * 0.35 * s, gy + (dy * 0.75 + 1) * s + sag, 1.4 * s, 0, Math.PI * 2); ctx.fill();
   }
   ctx.lineCap = 'butt';
+}
+
+// A soda geyser: a low vent on the ground line with a teal rim (a good object) and a dark mouth. Before an eruption the vent
+// bubbles hard and shakes; while it erupts (exactly its physics window) a fizzing white column stands `colH` tall. A vent
+// spent this flight goes grey and stays quiet, as a spent jelly does.
+function drawGeyser(ctx, x, gy, w, colH, s, g, t, time, lw) {
+  const ph = (t + g.phase) % T.geyserPeriod, on = !g.spent && ph < T.geyserOn, warn = !g.spent && !on && ph > T.geyserPeriod - J.geyserWarn;
+  const shake = warn ? Math.sin(time * 60) * 1.2 * s : 0, cx = x + w / 2 + shake, vw = Math.max(w, 16 * s), vh = 7 * s, p = lw * 1.2;
+  if (on) {
+    const cw = vw * 0.7, top = gy - colH * Math.min(1, ph / 0.08), ch = gy - vh - top + cw / 2; // the column shoots up in its first 0.08 s
+    cached(ctx, `column|${lw.toFixed(2)}`, cx - cw / 2 - p, top - cw / 2 - p, cw + 2 * p, ch + 2 * p, (c) => {
+      c.beginPath(); c.moveTo(p, ch + p); c.lineTo(p, cw / 2 + p); c.arc(cw / 2 + p, cw / 2 + p, cw / 2, Math.PI, 0); c.lineTo(cw + p, ch + p); c.closePath();
+      c.lineJoin = 'round'; c.strokeStyle = P.halo; c.lineWidth = lw * 2.2; c.stroke();
+      c.fillStyle = P.column; c.fill(); c.strokeStyle = P.ink; c.lineWidth = lw * 0.8; c.stroke();
+    });
+    ctx.fillStyle = P.tealLight; ctx.beginPath(); // bubbles racing up the column
+    for (let i = 0; i < 6; i++) { const q = (time * 2.2 + i / 6) % 1, bx = cx + Math.sin(i * 2.3 + time * 5) * cw * 0.25, by = gy - vh - q * (gy - vh - top), br = (1.5 + (i % 3)) * s; ctx.moveTo(bx + br, by); ctx.arc(bx, by, br, 0, Math.PI * 2); }
+    ctx.fill();
+  }
+  cached(ctx, `vent${g.spent}|${lw.toFixed(2)}`, cx - vw / 2 - 4 * s - p, gy - vh - p, vw + 8 * s + 2 * p, vh + 2 * p, (c) => {
+    const m = vw / 2 + 4 * s + p, y0 = vh + p;
+    c.beginPath(); c.moveTo(m - vw / 2 - 4 * s, y0); c.quadraticCurveTo(m - vw / 2, y0 - vh, m - vw * 0.3, y0 - vh);
+    c.lineTo(m + vw * 0.3, y0 - vh); c.quadraticCurveTo(m + vw / 2, y0 - vh, m + vw / 2 + 4 * s, y0); c.closePath();
+    c.lineJoin = 'round'; c.strokeStyle = P.halo; c.lineWidth = lw * 2.2; c.stroke();
+    c.fillStyle = g.spent ? P.columnSpent : P.vent; c.fill(); c.strokeStyle = P.ink; c.lineWidth = lw * 0.8; c.stroke();
+    c.fillStyle = g.spent ? P.tealSpent : P.teal; c.fillRect(m - vw * 0.42, y0 - vh * 0.55, vw * 0.84, 2.2 * s);
+    c.fillStyle = P.ventHole; c.beginPath(); c.ellipse(m, y0 - vh, vw * 0.22, 2.2 * s, 0, 0, Math.PI * 2); c.fill();
+  });
+  if (!on && !g.spent) { // fizz at the mouth: a bubble now and then, a boil just before it blows
+    const n = warn ? 4 : 1;
+    ctx.fillStyle = P.column; ctx.strokeStyle = P.ink; ctx.lineWidth = 0.8 * s; ctx.beginPath();
+    for (let i = 0; i < n; i++) { const q = (time * (warn ? 3 : 0.8) + i / n) % 1, bx = cx + (i - n / 2) * 3 * s, by = gy - vh - q * (warn ? 14 : 8) * s, br = (1.4 + q * 1.4) * s; ctx.moveTo(bx + br, by); ctx.arc(bx, by, br, 0, Math.PI * 2); }
+    ctx.fill(); ctx.stroke();
+  }
+}
+
+// A cotton-candy cloud: pink puffs with a blue blush, an ink outline and a light halo; a used one fades to a pale wisp.
+// Drawn at its true size (`s` includes the zoom), since its outline is its reach.
+const PUFFS = [[-0.55, 0.15, 0.5], [0, -0.25, 0.62], [0.52, 0.1, 0.52], [-0.18, 0.32, 0.46], [0.24, 0.34, 0.46]];
+function drawCloud(ctx, x, y, s, used, time, lw) {
+  const rx = T.cloudRX * s, ry = T.cloudRY * s, bob = Math.sin(time * 1.5) * 1.5 * s;
+  const path = (grow) => { ctx.beginPath(); for (const [ox, oy, rr] of PUFFS) { const r = rr * rx + grow; ctx.moveTo(x + ox * rx + r, y + oy * ry * 1.4 + bob); ctx.arc(x + ox * rx, y + oy * ry * 1.4 + bob, r, 0, Math.PI * 2); } };
+  if (used) { ctx.globalAlpha = 0.55; path(0); ctx.fillStyle = P.cloudUsed; ctx.fill(); ctx.globalAlpha = 1; return; } // a pale wisp, no outline
+  path(lw * 1.6); ctx.fillStyle = P.halo; ctx.fill();
+  path(lw * 0.6); ctx.fillStyle = P.ink; ctx.fill();
+  path(0); ctx.fillStyle = P.cloud; ctx.fill();
+  ctx.fillStyle = P.cloudBlue; ctx.beginPath(); ctx.arc(x + 0.3 * rx, y + 0.2 * ry + bob, 0.28 * rx, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x - 0.2 * rx, y - 0.45 * ry + bob, 0.14 * rx, 0, Math.PI * 2); ctx.fill();
 }
 
 // The needle wedge at the launcher: graded zones (drawn widest first), the needle over them.
@@ -1022,7 +1269,7 @@ function drawWedge(ctx, px, py, s, needle, alpha, up, lw) {
   ctx.restore();
 }
 
-// The landing marker: a small white chevron on the grass line, bobbing, with a shadow on the band.
+// The landing marker: a small white chevron on the ground line, bobbing, with a shadow on the band.
 function drawMark(ctx, x, gy, s, time) {
   const b = Math.sin(time * 7) * 1.5 * s, tip = gy - 2 * s + b;
   ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(x, gy + 2 * s, 7 * s, 2 * s, 0, 0, Math.PI * 2); ctx.fill();
@@ -1030,42 +1277,218 @@ function drawMark(ctx, x, gy, s, time) {
   ctx.beginPath(); ctx.moveTo(x, tip); ctx.lineTo(x - 6 * s, tip - 9 * s); ctx.lineTo(x + 6 * s, tip - 9 * s); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
+// A wafer ramp: a cream wedge with a crosshatch of baked lines and an ink outline (a sprite per size).
 function drawRamp(ctx, x, gy, w, h, s, lw) {
-  ctx.fillStyle = P.ramp; ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.lineJoin = 'round';
-  ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy - h); ctx.lineTo(x + w, gy); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle = P.rampPlank; ctx.lineWidth = 1.5 * s;
-  for (let i = 1; i < 4; i++) { const px = x + (w * i) / 4; ctx.beginPath(); ctx.moveTo(px, gy - 2 * s); ctx.lineTo(px, gy - (h * i) / 4 + 3 * s); ctx.stroke(); }
+  const p = lw * 2;
+  cached(ctx, `wafer|${(w / h).toFixed(2)}|${lw.toFixed(2)}`, x - p, gy - h - p, w + 2 * p, h + 2 * p, (c) => wafer(c, p, h + p, w, h, s, lw));
+}
+function wafer(ctx, x, gy, w, h, s, lw) {
+  const tri = () => { ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy - h); ctx.lineTo(x + w, gy); ctx.closePath(); };
+  ctx.save(); tri(); ctx.fillStyle = P.ramp; ctx.fill(); ctx.clip();
+  ctx.strokeStyle = P.rampPlank; ctx.lineWidth = 1.2 * s; ctx.beginPath();
+  const step = 9 * s;
+  for (let d = -h; d < w + h; d += step) { ctx.moveTo(x + d, gy); ctx.lineTo(x + d + h, gy - h); ctx.moveTo(x + d, gy - h); ctx.lineTo(x + d + h, gy); }
+  ctx.stroke(); ctx.restore();
+  tri(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke();
 }
 
-// A bird: a round teal body with an ink outline, a flapping wing, a yellow beak toward `dir` (-1 left, 1 right).
+// A bird in sugared pastel: a round mint body with a white rim and an ink outline, a flapping wing, sugar glints, a yellow
+// beak toward `dir` (-1 left, 1 right).
 function drawBird(ctx, x, y, s, time, dir, rot) {
   const r = T.birdR * s * 0.75, flap = Math.sin(time * 14) * 0.9;
   ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(dir, 1);
   ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = T.style.line * s * 0.8;
   ctx.fillStyle = P.coin; ctx.beginPath(); ctx.moveTo(r * 0.8, -r * 0.2); ctx.lineTo(r * 1.6, 0); ctx.lineTo(r * 0.8, r * 0.25); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.strokeStyle = P.halo; ctx.lineWidth = T.style.line * s * 2.4; ctx.stroke();
-  ctx.fillStyle = P.teal; ctx.strokeStyle = P.ink; ctx.lineWidth = T.style.line * s * 0.8; ctx.fill(); ctx.stroke();
-  ctx.fillStyle = P.tealLight; ctx.beginPath(); ctx.moveTo(-r * 0.5, -r * 0.1); ctx.lineTo(r * 0.3, -r * 0.1); ctx.lineTo(-r * 0.3, -r * 0.1 - r * 1.3 * flap); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = P.birdRim; ctx.lineWidth = T.style.line * s * 2.6; ctx.stroke();
+  ctx.fillStyle = P.bird; ctx.strokeStyle = P.ink; ctx.lineWidth = T.style.line * s * 0.8; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.birdWing; ctx.beginPath(); ctx.moveTo(-r * 0.5, -r * 0.1); ctx.lineTo(r * 0.3, -r * 0.1); ctx.lineTo(-r * 0.3, -r * 0.1 - r * 1.3 * flap); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.white; ctx.fillRect(-r * 0.55, r * 0.35, r * 0.16, r * 0.16); ctx.fillRect(-r * 0.15, r * 0.55, r * 0.14, r * 0.14);
   ctx.fillStyle = P.eye; ctx.beginPath(); ctx.arc(r * 0.4, -r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.3, r * 0.14, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
-// The hero: a round orange critter with an ink outline, a light cheek, and eyes that look where it is going.
-function drawCritter(ctx, x, y, r, look, ang, sx, sy, lw) {
-  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(sx, sy); ctx.rotate(-ang);
-  // A light halo outside the ink outline keeps the edge readable where the dusk sky is neither light nor dark.
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.strokeStyle = P.halo; ctx.lineWidth = (3 * lw) / Math.max(sx, sy); ctx.stroke();
-  ctx.fillStyle = P.critter; ctx.strokeStyle = P.ink; ctx.lineWidth = lw / Math.max(sx, sy); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = P.critterLight; ctx.beginPath(); ctx.arc(-r * 0.35, -r * 0.4, r * 0.28, 0, Math.PI * 2); ctx.fill();
-  const ex = Math.cos(look) * r * 0.3, ey = Math.sin(look) * r * 0.3;
-  for (const ox of [-0.05, 0.42]) {
-    ctx.fillStyle = P.eye; ctx.beginPath(); ctx.arc(ox * r + ex * 0.4, -r * 0.12 + ey * 0.4, r * 0.24, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(ox * r + ex * 0.7, -r * 0.12 + ey * 0.7, r * 0.12, 0, Math.PI * 2); ctx.fill();
+// Sprites: a shape that does not change frame to frame is drawn once into an OffscreenCanvas and reused (every draw call
+// costs on a slow phone; one image is one call). Its pixel width and height are each the next step up a ladder of 1.2x
+// steps, so the same sprite serves while the camera zooms and is drawn at most a step smaller than it was made. Without
+// OffscreenCanvas it is drawn live.
+const SPRITES = new Map();
+function cached(ctx, key, x, y, w, h, draw) {
+  const t = ctx.getTransform ? ctx.getTransform() : null, dpr = t ? Math.hypot(t.a, t.b) : 1;
+  if (typeof OffscreenCanvas === 'undefined' || !(dpr > 0) || !(w > 0) || !(h > 0)) { ctx.save(); ctx.translate(x, y); draw(ctx); ctx.restore(); return; }
+  const sw = Math.ceil(Math.log(w * dpr) / Math.log(1.2)), sh = Math.ceil(Math.log(h * dpr) / Math.log(1.2)), k = `${key}|${sw}|${sh}`;
+  let cv = SPRITES.get(k);
+  if (!cv) {
+    if (SPRITES.size > 400) SPRITES.clear();
+    const W = Math.pow(1.2, sw), H = Math.pow(1.2, sh);
+    cv = new OffscreenCanvas(Math.max(1, Math.ceil(W)), Math.max(1, Math.ceil(H)));
+    const c = cv.getContext('2d'); c.scale(W / w, H / h); draw(c); SPRITES.set(k, cv);
   }
+  ctx.drawImage(cv, x, y, w, h);
+}
+
+// The hero: an apricot mochi, a soft round blob with an ink outline and a light halo, a powder dusting, blush, eyes that look
+// where it is going, and its gear (PRD v0.2 E): the Fizz Tank's bottle on its back (larger per level, filled to the fizz
+// left), the Cola Rocket's nozzle (larger per level), and the Sugar Glaze (a shine per level and a tighter shape). The hitbox
+// is the round critterR whatever the drawing.
+function drawMochi(ctx, x, y, r, look, sx, sy, lw, up, time, fuelK = 1, holding = false) {
+  const aero = up.aero || 0, rx = r * (1.12 - 0.04 * aero), ry = r * (0.9 + 0.03 * aero), oy = r - ry;
+  const bx = -Math.cos(look), by = -Math.sin(look); // its back, away from where it is going
+  ctx.save(); ctx.translate(x, y); ctx.scale(sx, sy);
+  ctx.lineJoin = 'round';
+  const side = bx < 0 ? -1 : 1; // the bottle rides on the upper back, the nozzle points out behind
+  if (up.fuel) { // the bottle: a sprite per size, side and tenth of fizz left
+    const h = r * (0.8 + 0.25 * up.fuel), f = Math.round(fuelK * 10) / 10, m = h * 0.9;
+    cached(ctx, `bottle${side}${f}|${lw.toFixed(2)}`, side * (rx + h * 0.05) - m, oy - ry * 0.55 - m, 2 * m, 2 * m, (c) => drawBottle(c, m, m, h, side * 0.5, f, lw));
+  }
+  if (up.rocket) { // the nozzle: a sprite per size and level, turned to point behind
+    const len = r * (0.5 + 0.2 * up.rocket), m = len * 1.6;
+    ctx.save(); ctx.translate(bx * rx * 0.8, oy + by * ry * 0.8); ctx.rotate(Math.atan2(by, bx));
+    cached(ctx, `nozzle${up.rocket}|${lw.toFixed(2)}`, -m, -m, 2 * m, 2 * m, (c) => drawNozzle(c, m, m, len, 0, up.rocket, false, lw, 0));
+    if (holding) { ctx.fillStyle = P.fizz; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(len * (1.25 + 0.15 * Math.sin(time * 40)), 0, len * 0.32, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.restore();
+  }
+  const m = r + 3 * lw; // the body, powder, glaze and blush are one sprite per size and glaze
+  cached(ctx, `mochi${aero}|${lw.toFixed(2)}`, -m, oy - m, 2 * m, 2 * m, (c) => { c.translate(m, m); mochiBody(c, rx, ry, r, lw, aero); });
+  if (aero >= 3) { const k = 0.6 + 0.4 * Math.sin(time * 5); ctx.fillStyle = P.white; ctx.globalAlpha = 0.9; star4(ctx, rx * 0.55, oy - ry * 0.75, r * 0.32 * k); ctx.globalAlpha = 1; }
+  const ex = Math.cos(look) * r * 0.3, ey = Math.sin(look) * r * 0.3;
+  for (const [col, k, rr] of [[P.eye, 0.4, 0.24], [P.ink, 0.7, 0.12]]) {
+    ctx.fillStyle = col; ctx.beginPath();
+    for (const ox of [-0.05, 0.42]) { ctx.moveTo(ox * r + ex * k + r * rr, oy - r * 0.12 + ey * k); ctx.arc(ox * r + ex * k, oy - r * 0.12 + ey * k, r * rr, 0, Math.PI * 2); }
+    ctx.fill();
+  }
+  ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1, lw * 0.6); ctx.beginPath(); ctx.arc(r * 0.18 + ex * 0.3, oy + r * 0.22 + ey * 0.2, r * 0.12, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
   ctx.restore();
+}
+
+// The mochi's body at the origin (its centre): halo, apricot fill, ink outline, powder, the glaze's shines, blush.
+function mochiBody(ctx, rx, ry, r, lw, aero) {
+  const oy = 0;
+  ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.ellipse(0, oy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = P.halo; ctx.lineWidth = 3 * lw; ctx.stroke(); // the halo keeps the edge on the dusk sky
+  ctx.fillStyle = P.critter; ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.powder; ctx.beginPath(); for (const [px, py] of [[-0.4, -0.7], [0.1, -0.82], [0.5, -0.6]]) ctx.rect(px * rx, oy + py * ry, r * 0.09, r * 0.09); ctx.fill();
+  if (aero) { // the glaze: one shine, two, then a twinkle
+    ctx.strokeStyle = P.white; ctx.lineCap = 'round'; ctx.globalAlpha = 0.9;
+    ctx.lineWidth = r * (0.1 + 0.03 * aero); ctx.beginPath(); ctx.ellipse(0, oy, rx * 0.72, ry * 0.68, 0, Math.PI * 1.08, Math.PI * (1.25 + 0.1 * aero));
+    if (aero >= 2) { ctx.moveTo(rx * 0.72 * Math.cos(Math.PI * 1.55), oy + ry * 0.68 * Math.sin(Math.PI * 1.55)); ctx.ellipse(0, oy, rx * 0.72, ry * 0.68, 0, Math.PI * 1.55, Math.PI * 1.68); }
+    ctx.stroke();
+    ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+  }
+  ctx.fillStyle = P.critterLight; ctx.beginPath(); ctx.ellipse(-rx * 0.45, oy + ry * 0.25, r * 0.2, r * 0.13, 0, 0, Math.PI * 2);
+  ctx.moveTo(rx * 0.62 + r * 0.17, oy + ry * 0.25); ctx.ellipse(rx * 0.62, oy + ry * 0.25, r * 0.17, r * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// A four-point sparkle.
+function star4(ctx, x, y, r) {
+  ctx.beginPath(); ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.quadraticCurveTo(x, y, x, y + r); ctx.quadraticCurveTo(x, y, x - r, y); ctx.quadraticCurveTo(x, y, x, y - r); ctx.fill();
+}
+
+// The Fizz Tank: a glass soda bottle `h` tall, tilted by `rot`, filled to `fill` with soda, a pink cap.
+function drawBottle(ctx, x, y, h, rot, fill, lw) {
+  const w = h * 0.5, bh = h * 0.68, nh = h * 0.2;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  roundRectPath(ctx, -w / 2, -bh / 2, w, bh, w * 0.35); ctx.moveTo(-w * 0.2, -bh / 2); ctx.rect(-w * 0.2, -bh / 2 - nh, w * 0.4, nh + 2);
+  ctx.fillStyle = P.glass; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.stroke(); ctx.fill();
+  const lh = (bh - 3) * fill; ctx.fillStyle = P.soda; ctx.fillRect(-w / 2 + 2, bh / 2 - 1.5 - lh, w - 4, lh);
+  ctx.fillStyle = P.cap; ctx.beginPath(); ctx.rect(-w * 0.28, -bh / 2 - nh - h * 0.1, w * 0.56, h * 0.12); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+// The Cola Rocket: a nozzle `len` long pointing along `ang` (its back); level 3 adds a pink band. While held it glows with fizz.
+function drawNozzle(ctx, x, y, len, ang, lvl, holding, lw, time) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  const w0 = len * 0.42, w1 = len * 0.7;
+  ctx.beginPath(); ctx.moveTo(-len * 0.2, -w0 / 2); ctx.lineTo(len, -w1 / 2); ctx.lineTo(len, w1 / 2); ctx.lineTo(-len * 0.2, w0 / 2); ctx.closePath();
+  ctx.fillStyle = P.nozzle; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.fill(); ctx.stroke();
+  if (lvl >= 2) { ctx.fillStyle = P.cola; ctx.fillRect(len * 0.75, -w1 / 2, len * 0.25, w1); ctx.strokeRect(len * 0.75, -w1 / 2, len * 0.25, w1); }
+  if (lvl >= 3) { ctx.fillStyle = P.cap; ctx.fillRect(len * 0.3, -w1 * 0.4, len * 0.15, w1 * 0.8); }
+  if (holding) { ctx.fillStyle = P.fizz; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(len * (1.25 + 0.15 * Math.sin(time * 40)), 0, w1 * 0.45, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  ctx.restore();
+}
+
+// Steady Chopsticks: two tapered sticks planted at (fx, base) and opening to tips `fw` either side at `top`; plain, lacquered,
+// gold-tipped, then gold (Steady 0 to 3); a licorice wrap where they cross, in the Band's licorice.
+function drawChopsticks(ctx, fx, base, top, fw, s, lw, steady, band, time = null) {
+  const h = base - top, sticks = [-1, 1].map((d) => ({ bx: fx - d * 1.5 * s, tx: fx + d * fw }));
+  const quads = (k0, k1) => {
+    ctx.beginPath();
+    for (const { bx, tx } of sticks) {
+      const w0 = 3.2 * s, w1 = 1.6 * s, ax = bx + (tx - bx) * k0, ay = base - h * k0, cx = bx + (tx - bx) * k1, cy = base - h * k1, wa = w0 + (w1 - w0) * k0, wc = w0 + (w1 - w0) * k1;
+      ctx.moveTo(ax - wa, ay); ctx.lineTo(cx - wc, cy); ctx.lineTo(cx + wc, cy); ctx.lineTo(ax + wa, ay); ctx.closePath();
+    }
+  };
+  quads(0, 1); ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 1.4; ctx.stroke();
+  ctx.fillStyle = P.chop[steady]; ctx.fill();
+  if (steady === 2) { quads(0.5, 1); ctx.fillStyle = P.chop[3]; ctx.fill(); }
+  ctx.strokeStyle = P.chopHi[steady]; ctx.lineWidth = 1 * s; ctx.beginPath();
+  for (const { bx, tx } of sticks) { ctx.moveTo(bx + (tx - bx) * 0.15 - s, base - h * 0.15); ctx.lineTo(bx + (tx - bx) * 0.9 - s, base - h * 0.9); }
+  ctx.stroke();
+  ctx.fillStyle = P.licorice[band]; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7;
+  const wy = base - h * 0.22, ww = 5 * s + fw * 0.25;
+  roundRectPath(ctx, fx - ww, wy - 2.5 * s, ww * 2, 5 * s, 2 * s); ctx.fill(); ctx.stroke();
+  if (steady === 3 && time !== null) { ctx.fillStyle = P.chopHi[3]; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 4); star4(ctx, fx + fw * 0.8, top + h * 0.15, 4 * s); ctx.globalAlpha = 1; }
+}
+
+// The licorice band from tip `a` through `m` to tip `b` (with `curve`, `m` is the control point of a smooth U): thicker and
+// darker per Band level.
+function drawLicorice(ctx, a, m, b, s, band, curve = false) {
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = P.ink; ctx.lineWidth = (P.licoriceW[band] + 1.6) * s;
+  ctx.beginPath(); ctx.moveTo(a[0], a[1]); if (curve) ctx.quadraticCurveTo(m[0], m[1], b[0], b[1]); else { ctx.lineTo(m[0], m[1]); ctx.lineTo(b[0], b[1]); } ctx.stroke();
+  ctx.strokeStyle = P.licorice[band]; ctx.lineWidth = P.licoriceW[band] * s; ctx.stroke();
+}
+
+// A shopfront: the bakery the mochi is flung from (or, with `home`, the daifuku's cottage), `w` wide, standing on the ground.
+function drawBakery(ctx, x, gy, w, s, lw, home = false) {
+  const h = w * 0.75, aw = h * 0.2;
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.globalAlpha = 0.9;
+  ctx.fillStyle = P.shopWall; ctx.fillRect(x, gy - h, w, h); ctx.strokeRect(x, gy - h, w, h);
+  if (home) { ctx.fillStyle = P.berry; ctx.beginPath(); ctx.moveTo(x - 6 * s, gy - h); ctx.lineTo(x + w / 2, gy - h - w * 0.4); ctx.lineTo(x + w + 6 * s, gy - h); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  else for (let i = 0; i < 6; i++) { ctx.fillStyle = i % 2 ? P.white : P.awning; ctx.beginPath(); ctx.moveTo(x - 4 * s + (i * (w + 8 * s)) / 6, gy - h); ctx.lineTo(x - 4 * s + ((i + 1) * (w + 8 * s)) / 6, gy - h); ctx.lineTo(x - 4 * s + ((i + 1) * (w + 8 * s)) / 6, gy - h + aw); ctx.arc(x - 4 * s + ((i + 0.5) * (w + 8 * s)) / 6, gy - h + aw, (w + 8 * s) / 12, 0, Math.PI); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle = P.cloudBlue; ctx.fillRect(x + w * 0.12, gy - h * 0.55, w * 0.42, h * 0.3); ctx.strokeRect(x + w * 0.12, gy - h * 0.55, w * 0.42, h * 0.3);
+  ctx.fillStyle = home ? P.heart : P.awning; ctx.fillRect(x + w * 0.66, gy - h * 0.5, w * 0.22, h * 0.5); ctx.strokeRect(x + w * 0.66, gy - h * 0.5, w * 0.22, h * 0.5);
+  ctx.globalAlpha = 1;
+}
+
+// The shopfront as a sprite (it is the same every frame).
+function shopfront(ctx, x, gy, w, s, lw, home) {
+  const x0 = x - 8 * s, y0 = gy - w * 1.2, sw = w + 16 * s, sh = w * 1.2 + 2;
+  cached(ctx, `shop${home}|${lw.toFixed(2)}`, x0, y0, sw, sh, (c) => { c.translate(-x0, -y0); drawBakery(c, x, gy, w, s, lw, home); });
+}
+
+// A place's line: a candy-cane post with a round sign in the new place's ground colour.
+function drawPost(ctx, x, gy, s, col, lw) {
+  const h = 34 * s;
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 4.5 * s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x, gy - h); ctx.stroke();
+  ctx.strokeStyle = P.post; ctx.lineWidth = 2.8 * s; ctx.stroke();
+  ctx.strokeStyle = P.berry; ctx.setLineDash([3 * s, 3 * s]); ctx.stroke(); ctx.setLineDash([]); ctx.lineCap = 'butt';
+  ctx.fillStyle = col; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.beginPath(); ctx.arc(x, gy - h - 6 * s, 7 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
+
+// The daifuku: a round white-pink dumpling with a strawberry on top, blush and a small smile; her heart beats over her.
+function drawDaifuku(ctx, x, y, r, time, lw, heart = true) {
+  ctx.save(); ctx.translate(x, y); ctx.lineJoin = 'round';
+  ctx.fillStyle = P.berry; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8;
+  ctx.beginPath(); ctx.moveTo(-r * 0.45, -r * 0.7); ctx.quadraticCurveTo(0, -r * 1.6, r * 0.45, -r * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.leaf; ctx.beginPath(); ctx.ellipse(0, -r * 1.35, r * 0.25, r * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = P.seed; ctx.fillRect(-r * 0.15, -r * 1.0, r * 0.08, r * 0.08); ctx.fillRect(r * 0.12, -r * 0.9, r * 0.08, r * 0.08);
+  ctx.beginPath(); ctx.ellipse(0, r * 0.08, r * 1.08, r * 0.92, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = P.halo; ctx.lineWidth = lw * 3; ctx.stroke();
+  ctx.fillStyle = P.dough; ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.blush; ctx.beginPath(); ctx.ellipse(-r * 0.5, r * 0.3, r * 0.2, r * 0.13, 0, 0, Math.PI * 2); ctx.ellipse(r * 0.5, r * 0.3, r * 0.2, r * 0.13, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = P.ink; for (const ox of [-0.28, 0.28]) { ctx.beginPath(); ctx.arc(ox * r, 0, r * 0.11, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1, lw * 0.6); ctx.beginPath(); ctx.arc(0, r * 0.2, r * 0.13, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  if (heart) { const k = 1 + 0.15 * Math.sin(time * 6); ctx.fillStyle = P.heart; heartPath(ctx, 0, -r * 2.1, r * 0.45 * k); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.6; ctx.stroke(); }
+  ctx.restore();
+}
+
+function heartPath(ctx, x, y, r) {
+  ctx.beginPath(); ctx.moveTo(x, y + r * 0.9);
+  ctx.bezierCurveTo(x - r * 1.4, y - r * 0.1, x - r * 0.6, y - r * 1.2, x, y - r * 0.4);
+  ctx.bezierCurveTo(x + r * 0.6, y - r * 1.2, x + r * 1.4, y - r * 0.1, x, y + r * 0.9); ctx.closePath();
 }
 
 function roundRectPath(ctx, x, y, w, h, rad) {
@@ -1074,7 +1497,8 @@ function roundRectPath(ctx, x, y, w, h, rad) {
 }
 
 // ---------- Effects ----------
-// World-space and cosmetic only: particles (dust, flame, feathers, splat, coins), a tumbling bird, a floating word.
+// World-space and cosmetic only: particles (dust, fizz, cola, feathers, splat, sugar cubes, cloud puffs, hearts), a tumbling
+// bird, a floating word.
 
 function emit(kind, x, y, n, o) {
   for (let i = 0; i < n; i++) {
@@ -1108,8 +1532,14 @@ function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
   }
   ctx.globalAlpha = Math.min(1, k * 1.5); ctx.fillStyle = e.color;
   const r = e.size * s * Math.max(0.5, k);
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  if (e.k === 'coin') { ctx.strokeStyle = P.ink; ctx.lineWidth = 1.2; ctx.stroke(); }
+  if (e.k === 'coin') { // a sugar cube, tumbling
+    ctx.save(); ctx.translate(x, y); ctx.rotate(e.t * 8); ctx.fillStyle = P.sugar; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.2;
+    ctx.fillRect(-r, -r, 2 * r, 2 * r); ctx.strokeRect(-r, -r, 2 * r, 2 * r); ctx.restore();
+  } else if (e.k === 'heart') { heartPath(ctx, x, y, r); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.stroke(); }
+  else {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    if (e.k === 'fizz' || e.k === 'cola' || e.k === 'puff') { ctx.strokeStyle = e.k === 'cola' ? P.colaRim : P.ink; ctx.lineWidth = 0.8; ctx.stroke(); }
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -1121,6 +1551,9 @@ const SFX = {
   spring: (E) => { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 420, dur: 0.18, type: 'sine', slide: 2.2, gain: 0.1 }); },
   bird: (E) => { E.audio.beep({ freq: 900, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.08 }); E.audio.beep({ freq: 1000, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.07, delay: 0.09 }); },
   chain: (E, n) => E.audio.beep({ freq: 520 * Math.pow(1.26, n), dur: 0.14, type: 'triangle', gain: 0.12 }),
+  geyser: (E) => { E.audio.noise({ dur: 0.35, gain: 0.12 }); E.audio.beep({ freq: 300, dur: 0.3, type: 'sine', slide: 3, gain: 0.1 }); },
+  cloud: (E) => { E.audio.beep({ freq: 660, dur: 0.12, type: 'sine', slide: 0.8, gain: 0.08 }); E.audio.beep({ freq: 990, dur: 0.1, type: 'sine', gain: 0.06, delay: 0.08 }); },
+  home: (E) => { [523, 659, 784, 1047].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.22, type: 'triangle', gain: 0.12, delay: i * 0.12 })); },
   zone: (E, z) => { // the launch chime: higher for a better zone, a falling note for Weak, a second chime for Perfect
     E.audio.beep({ freq: J.zoneFreq[z], dur: 0.16, type: 'triangle', slide: z === 3 ? 0.7 : 1.15, gain: 0.14 });
     if (z === 0) E.audio.beep({ freq: J.zoneFreq[0] * 1.5, dur: 0.2, type: 'triangle', gain: 0.1, delay: 0.08 });
@@ -1149,7 +1582,7 @@ function drawHud(E, r, fuel, fuelMax, info) {
   }
   const x0 = sf.left + 16, y0 = top + 32;
   E.roundRect(x0 - 8, top - 4, Math.max(64, fuelMax * 18 + 14), 54, T.style.radius, P.panel);
-  E.text('Fuel', x0, top + 10, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
+  E.text('Fizz', x0, top + 10, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
   for (let i = 0; i < fuelMax; i++) {
     const k = clamp(fuel - i, 0, 1), popping = S.gaugePop > 0 && i === Math.floor(fuel + 1e-6);
     const pulse = S.pipT > 0 ? 0.35 * Math.sin(Math.PI * (1 - S.pipT / J.pipPulse)) : 0; // every pip pulses once with "Tap to boost"
@@ -1161,7 +1594,7 @@ function drawHud(E, r, fuel, fuelMax, info) {
   if (S.banner) {
     const k = S.banner.t / J.bannerTime, inK = ease.outBack(clamp((1 - k) / 0.2, 0, 1)), a = clamp(k / 0.15, 0, 1);
     E.ctx.globalAlpha = a;
-    pill(E, `★ ${S.banner.text}`, E.w / 2, sf.top + 56 + 40 * inK, TY.lg, 'center', P.coin); // below the fuel panel's row
+    pill(E, S.banner.text, E.w / 2, sf.top + 56 + 40 * inK, TY.lg, 'center', S.banner.color || P.coin); // below the fuel panel's row
     E.ctx.globalAlpha = 1;
   }
   if (S.holdT > 0) { E.ctx.globalAlpha = clamp(S.holdT / 0.3, 0, 1); pill(E, 'Hold to boost', E.w / 2, sf.top + 150, TY.md); E.ctx.globalAlpha = 1; }
@@ -1173,16 +1606,73 @@ function drawHud(E, r, fuel, fuelMax, info) {
 const newSeed = () => (Math.random() * 2 ** 32) >>> 0; // the seed is setup; the flight itself never draws randomness
 const btn = (E, label, cx, cy, o = {}) => E.button(label, cx, cy, { fill: P.button, color: P.text, ...o });
 
-// The menu (principle 11): the title, one headline number (the best distance), the three active goals under it, then Play,
-// Shop and Sound.
+// The journey strip (PRD v0.2 E): the bakery at the left, the five places as a road in their own ground colours with a small
+// picture each, the daifuku and a heart at the right; places reached are bright, the rest ghosted (state drawn, not
+// written); the best distance is a small mochi on the road, and once Home is reached the two sit together. No text.
+// The strip only changes with its width, the best, Home and the gear, so it is drawn once into a sprite and reused (the menu
+// redraws every frame, and a few dozen small shapes a frame cost more than one image on a slow phone).
+let JOURNEY = null;
+function journeyStrip(E, x0, x1, y, best, home, up) {
+  const h = 46, w = x1 - x0, key = JSON.stringify([w, best, home, up, E.dpr]);
+  if (typeof OffscreenCanvas === 'undefined') { drawJourney(E.ctx, x0, x1, y, best, home, up); return; }
+  if (!JOURNEY || JOURNEY.key !== key) {
+    const cv = new OffscreenCanvas(Math.ceil(w * E.dpr), Math.ceil((h + 4) * E.dpr)), c = cv.getContext('2d');
+    c.scale(E.dpr, E.dpr); c.translate(-x0, -(y - h / 2 - 2));
+    drawJourney(c, x0, x1, y, best, home, up);
+    JOURNEY = { key, cv };
+  }
+  E.ctx.drawImage(JOURNEY.cv, x0, y - h / 2 - 2, w, h + 4);
+}
+function drawJourney(ctx, x0, x1, y, best, home, up) {
+  const lw = 2, h = 46, n = PLACES.length - 1, time = 0;
+  roundRectPath(ctx, x0, y - h / 2, x1 - x0, h, T.style.radius); ctx.fillStyle = P.panel; ctx.fill();
+  const rx0 = x0 + 46, rx1 = x1 - 46, seg = (rx1 - rx0) / n, ry = y + 12;
+  const posOf = (m) => { let i = 0; while (i < n - 1 && m >= T.milestones[i]) i++; const a = i ? T.milestones[i - 1] : 0; return rx0 + seg * (i + clamp((m - a) / (T.milestones[i] - a), 0, 1)); };
+  ctx.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const reached = best >= (i ? T.milestones[i - 1] : 0), a = rx0 + seg * i, b = a + seg;
+    ctx.globalAlpha = reached ? 1 : 0.35;
+    ctx.strokeStyle = P.ink; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(a + 3, ry); ctx.lineTo(b - 3, ry); ctx.stroke();
+    ctx.strokeStyle = PLACES[i].top; ctx.lineWidth = 6; ctx.stroke();
+    drawPlaceIcon(ctx, i, a + seg / 2, y - 7, 9, lw);
+  }
+  ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+  drawBakery(ctx, x0 + 10, ry + 4, 26, 0.3, 1.4);
+  const dx = x1 - 22, r = 9;
+  if (home) { // together at the end of the road, a heart over them
+    drawDaifuku(ctx, dx + 6, ry - r + 2, r, time, 1.6, false);
+    drawMochi(ctx, dx - 14, ry - r + 2, r, 0, 1, 1, 1.6, up, time);
+    ctx.fillStyle = P.heart; heartPath(ctx, dx - 4, y - 14, 6); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.stroke();
+  } else {
+    ctx.globalAlpha = 0.6; drawDaifuku(ctx, dx, ry - r + 2, r, time, 1.6, false); ctx.globalAlpha = 1;
+    ctx.fillStyle = P.heart; heartPath(ctx, dx, y - 14, 5); ctx.fill();
+    drawMochi(ctx, Math.min(posOf(best), rx1), ry - r - 1, r, 0, 1, 1, 1.6, up, time);
+  }
+}
+
+// A place's small picture: a cupcake, a gumdrop, a chocolate drop, soda bubbles, a gingerbread house.
+function drawPlaceIcon(ctx, i, x, y, r, lw) {
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7;
+  const shape = (fill, path) => { ctx.fillStyle = fill; ctx.beginPath(); path(); ctx.fill(); ctx.stroke(); };
+  if (i === 0) { shape(P.shopWall, () => { ctx.moveTo(x - r * 0.7, y); ctx.lineTo(x + r * 0.7, y); ctx.lineTo(x + r * 0.5, y + r); ctx.lineTo(x - r * 0.5, y + r); ctx.closePath(); }); shape(P.awning, () => ctx.arc(x, y, r * 0.8, Math.PI, 0)); }
+  else if (i === 1) shape(P.gumdrops[0], () => { ctx.moveTo(x - r, y + r * 0.8); ctx.quadraticCurveTo(x - r, y - r, x, y - r); ctx.quadraticCurveTo(x + r, y - r, x + r, y + r * 0.8); ctx.closePath(); });
+  else if (i === 2) shape(P.river[0], () => { ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x + r, y + r * 0.2, x, y + r * 0.9); ctx.quadraticCurveTo(x - r, y + r * 0.2, x, y - r); });
+  else if (i === 3) { shape(P.cloudBlue, () => ctx.arc(x - r * 0.3, y + r * 0.3, r * 0.6, 0, Math.PI * 2)); shape(P.cloudBlue, () => ctx.arc(x + r * 0.45, y - r * 0.35, r * 0.42, 0, Math.PI * 2)); }
+  else { shape(P.house[0], () => ctx.rect(x - r * 0.7, y - r * 0.1, r * 1.4, r)); shape(P.house[1], () => { ctx.moveTo(x - r, y); ctx.lineTo(x, y - r); ctx.lineTo(x + r, y); ctx.closePath(); }); }
+}
+
+// The menu (principle 11): the journey strip along the top, the title, one headline number (the best distance), the three
+// active goals under it, then Play, Shop and Sound.
 const menu = {
   render(ctx, E) {
-    const v = view(E), sf = E.safe;
-    drawWorld(ctx, E, v, newCamera(v.vw), null, null);
-    const cy = sf.top + Math.max(40, E.h * 0.12);
-    E.text('LAUNCH', E.w / 2, cy, { size: TY.xl, weight: '800', color: P.ink });
-    E.titleArea = { x: E.w / 2 - 110, y: cy - 30, w: 220, h: 60 }; // release: five taps on the title show TUNE
-    pill(E, `Best ${E.save.get('best', 0)} m`, E.w / 2, cy + 42, TY.md);
+    const v = view(E), sf = E.safe, up = levelsOf(E), best = E.save.get('best', 0);
+    drawWorld(ctx, E, v, newCamera(v.vw), null, null, up);
+    journeyStrip(E, sf.left + 92, E.w - sf.right - 84, sf.top + 29, best, E.save.get('home', false), up); // clear of EXPORT and TUNE
+    const titled = E.h - sf.top - sf.bottom >= T.menuTitleMinH; // on a short screen the strip is the title
+    const cy = titled ? sf.top + 52 + Math.max(32, E.h * 0.12 - 14) : sf.top + 34;
+    if (titled) E.text('LAUNCH', E.w / 2, cy, { size: TY.xl, weight: '800', color: P.ink });
+    E.titleArea = titled ? { x: E.w / 2 - 110, y: cy - 30, w: 220, h: 60 } : { x: sf.left + 92, y: sf.top + 6, w: E.w - sf.left - sf.right - 176, h: 46 }; // release: five taps here show TUNE
+    pill(E, `Best ${best} m`, E.w / 2, cy + 42, TY.md);
     const goals = activeGoals(E.save.get('goalsDone', [])), have = { flights: E.save.get('flights', 0), perfectRow: E.save.get('perfectRow', 0) };
     const gw = Math.min(E.w - sf.left - sf.right - 40, 420);
     let gy = cy + 66;
@@ -1215,7 +1705,8 @@ const play = {
     S.up = levelsOf(E); S.st = stats(S.up); S.cam = newCamera(view(E).vw);
     S.hint = E.save.get('flights', 0) === 0; // a fresh save's first launch: "Tap when the needle is in the gold"
     S.fx.length = 0; S.pops = new Map(); S.sq = { amt: 0, t: 0 };
-    S.snapT = 0; S.speedT = 0; S.gaugePop = 0; S.distPop = 0; S.chainT = 0; S.banner = null; S.holdT = 0;
+    S.snapT = 0; S.speedT = 0; S.gaugePop = 0; S.distPop = 0; S.chainT = 0; S.holdT = 0; S.homeT = 0;
+    S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime }; // every flight names its place on entry, the first as it starts
     S.wedgeT = 0; S.zonePop = null; S.needle = T.needleMin; S.mark = null; S.markT = 0; S.callouts = []; S.endWait = T.endDelay;
     S.teachHold = S.up.rocket >= 1 && !E.save.get('holdTaught', false);
     S.teachBird = !E.save.get('birdTaught', false); S.teachMud = !E.save.get('mudTaught', false);
@@ -1242,7 +1733,7 @@ const play = {
   update(dt, E) {
     S.frameReal = performance.now();
     const r = S.run;
-    for (const k of ['snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT', 'tapT', 'pipT', 'wedgeT']) if (S[k] > 0) S[k] -= dt;
+    for (const k of ['snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT', 'tapT', 'pipT', 'wedgeT', 'homeT']) if (S[k] > 0) S[k] -= dt;
     if (S.sq.t > 0) S.sq.t -= dt;
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
     if (S.zonePop) { S.zonePop.t -= dt; if (S.zonePop.t <= 0) S.zonePop = null; }
@@ -1264,7 +1755,7 @@ const play = {
     r.ev.length = 0;
     S.markT -= dt;
     if (contact || S.markT <= 0) { S.mark = landingMark(r); S.markT = T.markEvery; } // a contact ends the old prediction at once
-    if (r.holding && Math.random() < 0.5) emit('flame', r.x, r.y + T.critterR, 1, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.6, speed: 120, g: 0, life: J.flameLife, size: 3, color: P.flame });
+    if (r.holding && r.fuel > 0 && Math.random() < 0.6) emit('cola', r.x, r.y + T.critterR, 1, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.6, speed: 120, g: 0, life: J.fizzLife, size: 2.6, color: P.cola }); // the Cola Rocket's trail
     if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene('over', finishFlight(E, r)); }
   },
   squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
@@ -1284,19 +1775,38 @@ const play = {
       if (S.teachBird) { S.teachBird = false; E.save.set('birdTaught', true); S.callouts.push({ text: 'Bird bounce: up and onward!', arrow: true, wx: cx, wy: cy, t: J.callout }); }
     } else if (e.k === 'boost') {
       SFX.boost(E); E.haptic(J.haptic.boost); S.gaugePop = J.gaugePop;
-      emit('flame', r.x, r.y + T.critterR, J.flame, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.7, speed: 160, g: 0, life: J.flameLife, size: 3.4, color: P.flame });
+      emit('fizz', r.x, r.y + T.critterR, J.fizz, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.7, speed: 160, g: 0, life: J.fizzLife, size: 3.4, color: P.fizz });
     } else if (e.k === 'bounce' || e.k === 'ramp') this.squash(0.1);
     else if (e.k === 'mud') {
       E.audio.play('miss'); E.haptic(J.haptic.mud); E.shake(J.mudShake, J.mudShakeTime);
       emit('splat', cx, 0, J.splat, { angle: Math.PI / 2, spread: Math.PI * 0.8, speed: 150, g: -400, life: 0.6, size: 3, color: P.mud });
-      if (S.teachMud) { S.teachMud = false; E.save.set('mudTaught', true); S.endWait = T.endDelayTaught; S.callouts.push({ text: 'Stuck! Jump mud with a boost', arrow: false, wx: cx, wy: cy + 50, t: T.endDelayTaught + 0.2 }); }
+      if (S.teachMud) { S.teachMud = false; E.save.set('mudTaught', true); S.endWait = T.endDelayTaught; S.callouts.push({ text: 'Stuck! Jump caramel with a boost', arrow: false, wx: cx, wy: cy + 50, t: T.endDelayTaught + 0.2 }); }
+    } else if (e.k === 'geyser') {
+      SFX.geyser(E); E.haptic(J.haptic.geyser); this.squash(0.15); S.speedT = J.speedLines;
+      emit('fizz', cx, 0, 14, { angle: Math.PI / 2, spread: 0.6, speed: 260, g: -300, life: 0.7, size: 3, color: P.fizz });
+      word('Fizz!', r.x - 40, 90, TY.md, J.boingLife);
+      word(`↑ ${Math.round((r.vy * r.vy) / (2 * T.gravity) / T.unitsPerMetre)} m`, r.x - 40, 50, TY.sm, J.boingLife);
+    } else if (e.k === 'cloud') {
+      SFX.cloud(E); E.haptic(J.haptic.cloud); S.gaugePop = J.gaugePop;
+      emit('puff', e.x, e.y, 12, { speed: 90, g: 0, life: 0.6, size: 4, color: P.cloud });
+      word('+1 fizz', e.x, e.y + T.cloudRY + 30, TY.sm, J.boingLife);
     } else if (e.k === 'milestone') {
-      E.audio.play('win'); E.haptic(J.haptic.milestone); S.banner = { text: `${e.m} m!`, t: J.bannerTime }; S.distPop = 0.3;
+      const i = T.milestones.indexOf(e.m) + 1, home = i === PLACES.length - 1;
+      E.audio.play('win'); E.haptic(J.haptic.milestone); S.distPop = 0.3;
+      S.banner = { text: `★ ${PLACES[i].name}`, t: J.bannerTime };
+      if (home && !E.save.get('home', false)) { // the Home moment: once, the first flight past 5000 m
+        E.save.set('home', true); E.ledger.add('home', { flights: E.save.get('flights', 0) + 1, seed: r.seed });
+        S.homeT = J.homeTime; SFX.home(E); E.haptic(J.haptic.home);
+        S.banner = { text: '♥ Home! (keep going)', t: J.homeTime, color: P.text };
+        const hx = placeFrom(i) + T.homeAhead;
+        emit('heart', hx, 2.6 * T.critterR, J.hearts, { angle: Math.PI / 2, spread: 1.6, speed: 160, g: -60, life: 1.6, size: 4, color: P.heart });
+        emit('heart', r.x, r.y + T.critterR, J.hearts / 2, { angle: Math.PI / 2, spread: 2, speed: 120, g: -60, life: 1.4, size: 3.5, color: P.heart });
+      }
     } else if (e.k === 'stop') {
       this.squash(0.18);
       if (!r.stars.length) E.audio.play('lose', 0.3);
     }
-    if ((e.k === 'spring' || e.k === 'bird') && e.chain >= 1) {
+    if ((e.k === 'spring' || e.k === 'bird' || e.k === 'geyser') && e.chain >= 1) {
       S.chainT = J.chainLife;
       if (e.chain >= 2) SFX.chain(E, e.chain);
       emit('coin', cx, cy, J.coins[Math.min(e.chain, J.coins.length - 1)], { angle: Math.PI / 2, spread: 1.2, speed: 200, g: -500, life: 0.7, size: 3.2, color: P.coin });
@@ -1396,7 +1906,7 @@ const over = {
     const py = Math.max(sf.top + 4, sf.top + (ah - ph) / 2 + (1 - this.k) * (E.h - sf.top)); // the slide's overshoot never passes the top
     E.roundRect(px, py, pw, ph, 18, P.panelSolid, P.panelEdge);
     const lw = Math.round(pw * 0.38), cx = px + lw / 2, count = clamp((E.time - this.t0 - J.cardSlide) / J.countUp, 0, 1);
-    E.text(p.why === 'mud' ? 'Stuck in mud' : 'Flight over', cx, py + 26, { size: TY.sm, color: P.textDim, weight: '600' });
+    E.text(p.why === 'mud' ? 'Stuck in caramel' : 'Flight over', cx, py + 26, { size: TY.sm, color: P.textDim, weight: '600' });
     E.text(`${p.m} m`, cx, py + 68, { size: TY.xl, weight: '800', color: P.text });
     E.text(p.isNew ? 'New best!' : `Best ${p.best} m`, cx, py + 108, { size: TY.md, color: p.isNew ? P.tealLight : P.textDim, weight: '600' });
     E.text(`+${Math.round(p.earned * count)} sugar`, cx, py + 138, { size: TY.md, color: P.coin, weight: '800' });
@@ -1489,12 +1999,13 @@ function landscapeOnly(scene) {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 5,
+  saveVersion: 6,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
   // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`,
   // false until the first flight with Rocket 1 has shown "Hold to boost" (an older save with Rocket 1 sees it once).
   // v5 (PRD v0.2 B): coins become sugar one for one; `up.steady` at 0; goals start at the top of the list with every distance
   // goal the best already meets done silently (paying nothing); `perfectRow` 0; the bird and mud call-outs not yet shown.
+  // v6 (PRD v0.2 E) adds `home`, false: an older save meets the daifuku on its next flight past 5000 m.
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
     if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
@@ -1505,6 +2016,7 @@ export const game = {
       data.goalsDone = GOALS.filter((g) => g.stat === 'm' && (data.best || 0) >= g.need).map((g) => g.id);
       data.perfectRow = 0; data.birdTaught = false; data.mudTaught = false;
     }
+    if (fromVersion < 6) data.home = false;
     return data;
   },
   TUNING,
@@ -1517,7 +2029,7 @@ export const game = {
   // Read by tools/sim-launch.mjs so the harness runs the real physics (S, the play scene's state, lets a browser check set up the HUD).
   sim: { STEP, FIRST_CHUNK, teachingChunk, goodStops, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, newRun, stepRun, advance, queueInput, metres, coinsOf,
     needleOf, needleAngle, zoneAt, launchAt, needleLaunch, ZONES, GOALS, activeGoals, goalStats, settleGoals, landingMark,
-    UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView },
+    UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView, PLACES, placeFrom, placeIndex, geyserOn, inCloud, palette: P },
   start: 'menu',
   scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop) },
 };

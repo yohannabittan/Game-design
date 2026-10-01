@@ -24,8 +24,14 @@
 //                                                     from each; every upgrade must be some profile's best next buy somewhere
 //   node tools/sim-launch.mjs --pacing [--flights 300] the good and careless profiles from a fresh save with goals, buying the cheapest
 //                                                     next level: flights to each purchase, and the share of sugar from goals
-//   node tools/sim-launch.mjs --fps [--seeds 20]       needle tap times and boosts replayed at 30, 60, 120 fps and jittery frames
-//   node tools/sim-launch.mjs --check [--seeds 500]    field fairness: a spring before every mud, none further apart than 150 m
+//   node tools/sim-launch.mjs --fps [--seeds 20] [--up ...] [--objects]
+//                                                     needle tap times, boosts and holds replayed at 30, 60, 120 fps and jittery
+//                                                     frames; the same geyser and cloud events in the same order (--objects: fail
+//                                                     unless the flights meet both)
+//   node tools/sim-launch.mjs --check [--seeds 500]    field fairness: a spring before every mud, none further apart than 150 m;
+//                                                     geysers from Soda Springs and clouds from Gingerbread Town, three templates
+//                                                     each per place; the geyser and cloud rules flown through the real step
+//   node tools/sim-launch.mjs --contrast               hero, jellies, caramel, birds, geysers, clouds against every place's colours
 //   node tools/sim-launch.mjs --fly ANGLE [--seed N] [--pulses T1,T2,...] [--up ...]   one needle stop with its event log
 //   node tools/sim-launch.mjs --why SEED [--up ...]    the expert's best flight on one seed, contact by contact
 //
@@ -72,8 +78,9 @@ function fly(seed, launch, up, ctl = null, maxSteps = Math.round(T.maxFlight / S
 }
 
 // Where the critter next comes down if it gets these inputs (times in flight seconds from now): pulses, and a hold of the
-// Rocket from `hold[0]` to `hold[1]`. Flies with gravity and drag only (birds are ignored) until it meets the ground or a ramp.
-// Returns { x, g } with g the ground object there (null: plain ground).
+// Rocket from `hold[0]` to `hold[1]`. Flies with gravity and drag only (birds and clouds are ignored) until it meets the ground,
+// a ramp, or a geyser's column while it erupts (on the flight clock). Returns { x, g, lift } with g the ground object there
+// (null: plain ground) and lift true for an erupting geyser.
 function predict(r, pulses = [], hold = null) {
   let vx = r.vx, vy = r.vy, x = r.x, y = r.y, fuel = r.fuel, t = 0, pi = 0;
   const h = STEP * 2, k = Math.pow(1 - r.st.airDrag, h);
@@ -88,11 +95,12 @@ function predict(r, pulses = [], hold = null) {
     }
     vy -= T.gravity * h; vx *= k; vy *= k; x += vx * h; y += vy * h; t += h;
     const g = sim.groundAt(r.field, x), sh = g && g.kind === 'ramp' ? (g.h * (x - g.x0)) / g.w : 0;
+    if (g && g.kind === 'geyser' && !g.spent && y < T.geyserH && sim.geyserOn(g, r.steps * STEP + t)) return { x, g, lift: true, fuelLeft: fuel };
     if (y <= sh && (vy < 0 || (g && g.kind === 'ramp'))) return { x, g, fuelLeft: fuel };
   }
   return { x, g: null, fuelLeft: fuel };
 }
-const landKind = (g) => (!g ? 'ground' : g.kind === 'spring' ? (g.spent ? 'ground' : 'spring') : g.kind);
+const landKind = (g, lift) => (!g ? 'ground' : g.kind === 'spring' ? (g.spent ? 'ground' : 'spring') : g.kind === 'geyser' ? (lift ? 'geyser' : 'ground') : g.kind);
 
 // The expert. The launch is searched: any needle stop in the Perfect or Great zone (the expert profile hits those every time). Every arc, at the first step it is rising, the bot plans that arc:
 // it tries firing nothing, or 1 to 3 pulses (with the Rocket: a press held for a while) starting at one of five points of the
@@ -104,7 +112,7 @@ function expertCtl(plan) {
   let arcPlanned = false, queued = [], lastLook = -1, holdEnd = -1;
   return (r) => {
     const t = r.steps * STEP;
-    for (const e of r.ev) if (e.k === 'spring' || e.k === 'bird' || e.k === 'bounce' || e.k === 'ramp') arcPlanned = false;
+    for (const e of r.ev) if (e.k === 'spring' || e.k === 'bird' || e.k === 'bounce' || e.k === 'ramp' || e.k === 'geyser') arcPlanned = false;
     r.ev.length = 0;
     if (holdEnd >= 0 && t >= holdEnd) { sim.queueInput(r, t, 'holdOff'); holdEnd = -1; }
     if (r.mode !== 'air') { arcPlanned = false; }
@@ -123,9 +131,9 @@ function expertCtl(plan) {
       }
       let best = null, bestScore = -Infinity, base = null;
       for (const c of cands) {
-        const out = predict(r, c.p, c.hold), kind = landKind(out.g);
+        const out = predict(r, c.p, c.hold), kind = landKind(out.g, out.lift);
         if (!c.cost) base = kind;
-        const score = (kind === 'spring' ? 10 : kind === 'ramp' ? 8 : kind === 'mud' ? -10 : 0) - c.cost - (c.p[0] || 0) * 0.01;
+        const score = (kind === 'spring' ? 10 : kind === 'geyser' ? 9 : kind === 'ramp' ? 8 : kind === 'mud' ? -10 : 0) - c.cost - (c.p[0] || 0) * 0.01;
         if (score > bestScore) { bestScore = score; best = c; }
       }
       if (bestScore < 5 && base !== 'mud' && r.fuel > plan.keep) { // nothing to aim at: spend some for distance now
@@ -139,10 +147,10 @@ function expertCtl(plan) {
     if (r.fuel < 1 || t - lastLook < 0.05 || r.q.length || holdEnd >= 0) return;
     lastLook = t;
     if (r.mode === 'air' && r.vy < 0) {
-      const now = landKind(predict(r).g);
-      if (now === 'spring' || now === 'ramp') return;
-      const k2 = landKind(predict(r, [0]).g);
-      if (k2 === 'spring' || k2 === 'ramp' || (now === 'mud' && k2 !== 'mud')) sim.queueInput(r, t, 'pulse');
+      const p0 = predict(r), now = landKind(p0.g, p0.lift);
+      if (now === 'spring' || now === 'ramp' || now === 'geyser') return;
+      const p1 = predict(r, [0]), k2 = landKind(p1.g, p1.lift);
+      if (k2 === 'spring' || k2 === 'ramp' || k2 === 'geyser' || (now === 'mud' && k2 !== 'mud')) sim.queueInput(r, t, 'pulse');
     } else if (r.mode === 'ground') {
       for (let x = r.x; x < r.x + Math.max(0, r.vx) * 0.6; x += 10) {
         const g = sim.groundAt(r.field, x), k = landKind(g);
@@ -355,6 +363,40 @@ if (flag('--fly')) {
   console.log(`needle stop ${angle} deg (${zoneName(l.zone)}, power ${l.power}), seed ${seed}, upgrades ${upText(up)}: ${sim.metres(r)} m (${r.ended}) in ${(r.steps * STEP).toFixed(1)} s; springs ${r.springs}, birds ${r.birds}, best chain ${r.chainMax}, sugar ${sim.coinsOf(r)}`);
 }
 
+if (flag('--contrast')) {
+  ran = true;
+  // PRD v0.2 E and F, design principle 7: the hero, jellies, caramel, birds, geysers and clouds stay at least 3:1 against every
+  // place's backdrop: its day sky (horizon and top), the shared dusk and night skies, its two hill colours and its ground top
+  // (the soil too for caramel, which is sunk into the band). An object's edge is its best layer against that colour (its fill,
+  // its ink outline or its light halo, each drawn all round it); caramel has no outline, so its body alone must hold 3:1.
+  const P = sim.palette, lum = (h) => { const n = parseInt(h.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const OBJ = [
+    { name: 'hero', layers: [P.critter, P.ink, P.halo], on: ['sky', 'hills', 'top'] },
+    { name: 'jellies', layers: [P.teal, P.ink, P.halo], on: ['sky', 'hills', 'top'] },
+    { name: 'caramel', layers: [P.mud], on: ['top', 'soil'] },
+    { name: 'birds', layers: [P.bird, P.ink, P.birdRim], on: ['sky', 'hills'] },
+    { name: 'geysers', layers: [P.column, P.ink, P.halo], on: ['sky', 'hills', 'top'] },
+    { name: 'clouds', layers: [P.cloud, P.ink, P.halo], on: ['sky', 'hills'] },
+  ];
+  console.log(`| place | ${OBJ.map((o) => `${o.name} edge (fill)`).join(' | ')} |`);
+  console.log(`| --- | ${OBJ.map(() => '---').join(' | ')} |`);
+  let worst = Infinity;
+  for (const pl of sim.PLACES) {
+    const bg = { sky: [...pl.sky, ...P.skyDusk, ...P.skyNight], hills: [pl.hills.far, pl.hills.near], top: [pl.top], soil: [pl.soil] };
+    const cells = OBJ.map((o) => {
+      const cols = o.on.flatMap((k) => bg[k]), edge = Math.min(...cols.map((c) => Math.max(...o.layers.map((l) => cr(l, c))))), fill = Math.min(...cols.map((c) => cr(o.layers[0], c)));
+      worst = Math.min(worst, edge);
+      return `${edge.toFixed(1)} (${fill.toFixed(1)})`;
+    });
+    console.log(`| ${pl.name} | ${cells.join(' | ')} |`);
+  }
+  const lab = Math.min(...sim.PLACES.map((pl) => cr(P.text, pl.soil)));
+  console.log(`ground labels (light text on each place's soil): at least ${lab.toFixed(1)}:1`);
+  console.log(`${worst >= 3 ? 'ok  ' : 'FAIL'} every object's edge is at least 3:1 against every place's sky, hills and ground (lowest ${worst.toFixed(2)})`);
+  if (worst < 3) failed = true;
+}
+
 if (flag('--why')) {
   ran = true;
   const up = parseUp(value('--up')), seed = Number(value('--why')), b = expertBest(seed, up);
@@ -374,7 +416,7 @@ if (flag('--sweet')) {
   // For information, each whole candidate is also flown on the seeded fields with its own teaching chunk (the good profile's
   // burst and the expert's in-flight planning): those means move with how the candidate's layout meets the seeded chunks
   // (the expert's best angle moved between 40 and 44 as the layout was tuned), so they do not pick the angle.
-  const none = parseUp(''), open = () => ({ seed: 0, rng: null, ground: [], birds: [], end: 1e12, chunks: 1 });
+  const none = parseUp(''), open = () => ({ seed: 0, rng: null, ground: [], birds: [], clouds: [], end: 1e12, chunks: 1 });
   const range = (a) => { const r = sim.newRun(0, { angle: a, power: T.zonePower[0], zone: 0 }, none, open()); while (!r.ended && !r.ev.some((e) => e.k === 'bounce') && r.mode === 'air' && r.steps < 20000) sim.stepRun(r); return r.x / U; };
   let best = null;
   for (let a = 30; a <= 50.0001; a += 0.1) { const x = range(+a.toFixed(1)); if (!best || x > best.x + 1e-9) best = { a: +a.toFixed(1), x }; }
@@ -585,11 +627,13 @@ if (flag('--upgrades')) {
   for (let i = 0; i < KEYS.length; i++) for (let j = i + 1; j < KEYS.length; j++) sets.push(parseUp(`${KEYS[i]}=1,${KEYS[j]}=1`));
   const best = {};
   console.log(`expert bot over ${seeds.length} seeds: distance percentiles and seeds reaching each milestone`);
-  console.log(`| upgrades | levels | p10 | median | p90 | max | ${T.milestones.map((m) => `${m} m`).join(' | ')} |`);
-  console.log(`| --- | --- | --- | --- | --- | --- | ${T.milestones.map(() => '---').join(' | ')} |`);
+  console.log(`| upgrades | levels | p10 | median | p90 | max | flight s p90 | ${T.milestones.map((m) => `${m} m`).join(' | ')} |`);
+  console.log(`| --- | --- | --- | --- | --- | --- | --- | ${T.milestones.map(() => '---').join(' | ')} |`);
+  let longest = 0;
   for (const up of sets) {
-    const ms = (await parallel('expert', seeds, up)).map((x) => x.m), lv = Object.values(up).reduce((a, b) => a + b, 0);
-    console.log(`| ${upText(up)} | ${lv} | ${pct(ms, 0.1)} | ${pct(ms, 0.5)} | ${pct(ms, 0.9)} | ${Math.max(...ms)} | ${T.milestones.map((m) => ms.filter((x) => x >= m).length).join(' | ')} |`);
+    const res = await parallel('expert', seeds, up), ms = res.map((x) => x.m), lv = Object.values(up).reduce((a, b) => a + b, 0), secs = pct(res.map((x) => x.secs), 0.9);
+    longest = Math.max(longest, secs);
+    console.log(`| ${upText(up)} | ${lv} | ${pct(ms, 0.1)} | ${pct(ms, 0.5)} | ${pct(ms, 0.9)} | ${Math.max(...ms)} | ${secs} | ${T.milestones.map((m) => ms.filter((x) => x >= m).length).join(' | ')} |`);
     for (const m of T.milestones) { const n = ms.filter((x) => x >= m).length; if (!best[m] || n > best[m].n) best[m] = { n, up }; }
   }
   // Reachable: the bot reaches it on at least a quarter of the seeds with some set of at most two levels.
@@ -599,6 +643,7 @@ if (flag('--upgrades')) {
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${m} m: best ${upText(b.up)}, ${b.n} of ${seeds.length} seeds (reachable means at least ${need})`);
     if (!ok) failed = true;
   }
+  console.log(`the longest expert p90 flight over these sets: ${longest} s (information; the rule is the base set, --expert)`);
 }
 
 if (flag('--buys')) {
@@ -715,18 +760,21 @@ if (flag('--camera')) {
 
 if (flag('--fps')) {
   ran = true;
-  // The expert's needle stop becomes a tap time on the needle's second up-stroke; the tap and the expert's own pulse times are
-  // replayed through frames at several rates: before the launch the needle is drawn once a frame, and a tap that arrives
+  // The expert's needle stop becomes a tap time on the needle's second up-stroke; the tap and the expert's own inputs (pulses,
+  // and with the Rocket holds and releases, each queued when the expert decided it, as a press arrives) are replayed through
+  // frames at several rates: before the launch the needle is drawn once a frame, and a tap that arrives
   // during a frame launches at the needle's angle at the tap's own time (as the play scene samples it at the event), then the
   // flight advances in whole physics steps with the pulses stamped in flight time. The angle a frame-sampled needle would
   // have given is shown too (what the stamp avoids).
-  const seeds = seedList(nSeeds(20)), none = parseUp(''), n = sim.needleOf(none);
+  const seeds = seedList(nSeeds(20)), up = parseUp(value('--up')), n = sim.needleOf(up), seen = { geyser: 0, cloud: 0 };
   let bad = 0, worstFrame = 0;
   for (const s of seeds) {
-    const b = expertBest(s, none), times = [];
+    const b = expertBest(s, up), times = [];
     const tap = n.period + ((b.angle - T.needleMin) / (T.needleMax - T.needleMin)) * (n.period / 2);
-    const rec = sim.newRun(s, sim.needleLaunch(tap, none), none), ctl = expertCtl(b.plan);
-    while (!rec.ended) { const k = rec.q.length; ctl(rec); for (const e of rec.q.slice(k)) if (e.kind === 'pulse') times.push(e.at); sim.stepRun(rec); }
+    const rec = sim.newRun(s, sim.needleLaunch(tap, up), up), ctl = expertCtl(b.plan);
+    const evRec = [];
+    while (!rec.ended) { for (const e of rec.ev) evRec.push(e.k); const k = rec.q.length; ctl(rec); for (const e of rec.q.slice(k)) times.push({ ...e, qt: rec.steps * STEP }); sim.stepRun(rec); }
+    for (const e of rec.ev) evRec.push(e.k);
     const jit = makeRng(s);
     const modes = [['30', () => 1 / 30], ['60', () => 1 / 60], ['120', () => 1 / 120], ['jitter', () => 1 / 144 + jit() * (1 / 20 - 1 / 144)]];
     const out = modes.map(([name, dt]) => {
@@ -735,24 +783,28 @@ if (flag('--fps')) {
         const d = Math.min(dt(), 1 / 20);
         if (!r) {
           if (tap < clock + d) { // the tap arrives during this frame
-            r = sim.newRun(s, sim.needleLaunch(tap, none), none); frameAngle = sim.needleAngle(clock, none);
+            r = sim.newRun(s, sim.needleLaunch(tap, up), up); frameAngle = sim.needleAngle(clock, up);
             fc = 0; const rest = clock + d - tap;
-            while (i < times.length && times[i] < fc + rest) sim.queueInput(r, times[i++], 'pulse');
+            while (i < times.length && times[i].qt < fc + rest) { sim.queueInput(r, times[i].at, times[i].kind); i++; }
             sim.advance(r, rest); fc += rest;
           }
         } else {
-          while (i < times.length && times[i] < fc + d) sim.queueInput(r, times[i++], 'pulse');
+          while (i < times.length && times[i].qt < fc + d) { sim.queueInput(r, times[i].at, times[i].kind); i++; }
           sim.advance(r, d); fc += d;
         }
         clock += d; frames++;
       }
-      return { name, m: sim.metres(r), x: r.maxX, steps: r.steps, angle: r.launch.angle, frameAngle };
+      return { name, m: sim.metres(r), x: r.maxX, steps: r.steps, angle: r.launch.angle, frameAngle, ev: r.ev.map((e) => e.k).join() };
     });
-    const same = out.every((o) => o.x === out[0].x && o.steps === out[0].steps && o.angle === out[0].angle) && out[0].m === sim.metres(rec);
+    const same = out.every((o) => o.x === out[0].x && o.steps === out[0].steps && o.angle === out[0].angle && o.ev === evRec.join()) && out[0].m === sim.metres(rec);
+    const ng = evRec.filter((k) => k === 'geyser').length, nc = evRec.filter((k) => k === 'cloud').length;
+    seen.geyser += ng; seen.cloud += nc;
     if (!same) bad++;
     worstFrame = Math.max(worstFrame, ...out.map((o) => Math.abs(o.frameAngle - o.angle)));
-    console.log(`seed ${s}: tap at ${tap.toFixed(4)} s, needle ${out[0].angle.toFixed(2)} deg (${zoneName(rec.launch.zone)}), ${times.length} pulses; ${out.map((o) => `${o.name} fps ${o.m} m (${o.steps} steps)`).join(', ')}${same ? '' : '  DIFFERENT'}`);
+    console.log(`seed ${s}: tap at ${tap.toFixed(4)} s, needle ${out[0].angle.toFixed(2)} deg (${zoneName(rec.launch.zone)}), ${times.filter((e) => e.kind === 'pulse').length} pulses${times.some((e) => e.kind === 'holdOn') ? ` and ${times.filter((e) => e.kind === 'holdOn').length} holds` : ''}, ${ng} geysers, ${nc} clouds; ${out.map((o) => `${o.name} fps ${o.m} m (${o.steps} steps)`).join(', ')}${same ? '' : '  DIFFERENT'}`);
   }
+  console.log(`geyser lifts ${seen.geyser}, cloud passes ${seen.cloud} over these flights (the same events in the same order at every rate)`);
+  if (flag('--objects') && (!seen.geyser || !seen.cloud)) fail('--objects: no geyser or no cloud met; fly with more upgrades');
   console.log(`a needle sampled at the frame instead of the tap would have been off by up to ${worstFrame.toFixed(1)} deg`);
   if (bad) fail(`${bad} seeds give different flights at different frame rates`);
   else console.log(`ok   identical needle angle, distance (to the unit) and step count at 30, 60, 120 fps and jittery frames on all ${seeds.length} seeds`);
@@ -779,8 +831,45 @@ if (flag('--check')) {
   if (worstGap > 150 * U) fail('a stretch longer than 150 m has no spring');
   if (mudNoSpring) fail('two mud patches with no spring between');
   if (overlaps) fail('ground objects overlap');
+
+  // PRD v0.2 F: geysers from Soda Springs (tier 2, 2000 m) on, clouds from Gingerbread Town (tier 3, 3500 m) on, each with at
+  // least three templates per place that use it; nothing else changed in tiers 0 and 1. In the seeded fields: no geyser before
+  // 2000 m, no cloud before 3500 m, and every cloud clear of every bird's glide.
+  const uses = (c, k) => c.objects.some((o) => o.kind === k);
+  const per = (tier, k) => sim.CHUNKS.filter((c) => c.tiers.includes(tier) && uses(c, k)).length;
+  const counts = [0, 1, 2, 3].map((t) => ({ t, all: sim.CHUNKS.filter((c) => c.tiers.includes(t)).length, geyser: per(t, 'geyser'), cloud: per(t, 'cloud') }));
+  console.log(`templates per tier (all / with geysers / with clouds): ${counts.map((c) => `tier ${c.t} ${c.all}/${c.geyser}/${c.cloud}`).join(', ')}; places by tier: Bakery and Candy Meadow 0, Chocolate River 1, Soda Springs 2, Gingerbread Town and Home 3`);
+  if (counts[0].geyser + counts[1].geyser + counts[0].cloud + counts[1].cloud + counts[2].cloud) fail('a new object in a place before its own');
+  if (counts[2].geyser < 3 || counts[3].geyser < 3 || counts[3].cloud < 3) fail('a place has fewer than three templates using its new objects');
+  let early = 0, nearBird = 0, geysers = 0, clouds = 0;
+  for (let sd = 1; sd <= seeds; sd++) {
+    const f = sim.makeField(sd); sim.ensureField(f, toM * U);
+    for (const g of f.ground) if (g.kind === 'geyser') { geysers++; if (g.x0 < T.tierFrom[2] * U) early++; }
+    for (const c of f.clouds) { clouds++; if (c.x < T.tierFrom[3] * U) early++; for (const b of f.birds) if (Math.abs(b.x0 - c.x) < T.birdSwing + T.cloudRX + T.birdR + T.critterR && Math.abs(b.y - c.y) < T.cloudRY + T.birdR + 2 * T.critterR) nearBird++; }
+  }
+  console.log(`seeded fields: ${geysers} geysers, ${clouds} clouds; before their place ${early}; clouds within a bird's glide ${nearBird}`);
+  if (early) fail('a geyser or cloud before its place');
+  if (nearBird) fail('a cloud in a bird\'s glide');
+
+  // The new objects' rules, flown through the real step: a geyser lifts at geyserLift keeping vx only while it erupts on the
+  // flight clock, once; a dormant vent is plain ground; a cloud takes cloudDrag of the speed and refills cloudFuel, once.
+  const none = parseUp(''), vent = (phase) => ({ seed: 0, rng: null, ground: [{ kind: 'geyser', x0: 1000, x1: 1040, w: 40, h: 0, spent: false, phase }], birds: [], clouds: [], end: 1e12, chunks: 1 });
+  const drop = (field, t0) => { const r = sim.newRun(0, { angle: 0, power: 0, zone: 3 }, none, field); Object.assign(r, { x: 1020, y: 40, vx: 60, vy: -300, steps: Math.round(t0 / STEP) }); const vx0 = r.vx; while (!r.ended && !r.ev.some((e) => e.k !== 'boost')) sim.stepRun(r); return { k: r.ev[0].k, vy: r.vy, keep: r.vx / vx0, r }; };
+  const on = drop(vent(0), 0.1), off = drop(vent(0), 1.5), phased = drop(vent(1.0), 1.5);
+  const again = (() => { const r = on.r; r.ev.length = 0; Object.assign(r, { x: 1020, y: 40, vx: 60, vy: -300, mode: 'air', steps: Math.round((T.geyserPeriod + 0.1) / STEP) }); while (!r.ended && !r.ev.length) sim.stepRun(r); return r.ev[0] ? r.ev[0].k : r.ended; })();
+  const cl = { seed: 0, rng: null, ground: [], birds: [], clouds: [{ x: 1000, y: 300, used: false }], end: 1e12, chunks: 1 };
+  const rc = sim.newRun(0, { angle: 0, power: 0, zone: 3 }, none, cl); Object.assign(rc, { x: 900, y: 300 - T.critterR, vx: 400, vy: 0, fuel: 2 });
+  let sp0 = 0, sp1 = 0;
+  while (!rc.ev.some((e) => e.k === 'cloud')) { sp0 = Math.hypot(rc.vx * rc.st.dragK, (rc.vy - T.gravity * STEP) * rc.st.dragK); sim.stepRun(rc); }
+  sp1 = Math.hypot(rc.vx, rc.vy); const fuelAfter = rc.fuel;
+  rc.ev.length = 0; Object.assign(rc, { x: 900, y: 300 - T.critterR, vx: 400, vy: 0 }); for (let i = 0; i < 60; i++) sim.stepRun(rc);
+  const twice = rc.ev.some((e) => e.k === 'cloud');
+  console.log(`geyser: erupting ${on.k} (vy ${on.vy.toFixed(0)}, vx kept x${on.keep.toFixed(3)}), dormant ${off.k}, its own phase (on at 1.5 s) ${phased.k}, the same vent erupting again ${again}`);
+  console.log(`cloud: speed x${(sp1 / sp0).toFixed(3)} (1 - cloudDrag ${1 - T.cloudDrag}), fuel 2 to ${fuelAfter}, a second pass ${twice ? 'counted again' : 'ignored'}`);
+  if (on.k !== 'geyser' || Math.abs(on.vy - T.geyserLift) > 1e-6 || on.keep < 0.99 || off.k === 'geyser' || phased.k !== 'geyser' || again === 'geyser') fail('the geyser rule');
+  if (Math.abs(sp1 / sp0 - (1 - T.cloudDrag)) > 0.01 || fuelAfter !== 2 + T.cloudFuel || twice) fail('the cloud rule');
 }
 
-if (!ran) die('nothing to do: give --targets, --sweet, --clean, --expert, --upgrades, --buys, --pacing, --camera, --fps, --check, --fly or --why');
+if (!ran) die('nothing to do: give --targets, --sweet, --rank, --ladder, --mark, --clean, --expert, --upgrades, --buys, --pacing, --camera, --fps, --check, --contrast, --fly or --why');
 console.log(failed ? 'RESULT: FAIL' : 'RESULT: PASS');
 process.exit(failed ? 1 : 0);
