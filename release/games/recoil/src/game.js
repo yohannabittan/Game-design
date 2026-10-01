@@ -1,8 +1,8 @@
-// Recoil, v0.5: the mechanic plus six guns (pistol, carbine, shotgun, rifle, SMG, revolver), barrel sway, moving targets, skeet with decoys, two bosses, zombies,
-// and progression (guns opened by badges, twenty-three badges, skins, a gauntlet). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
+// Recoil, v0.6 (Backlot 88): the mechanic plus six guns as movie props (Buddy-Cop 9mm, Pulse Rifle, Spin-Lever Shotgun, Assassin's Scope, One-Man Army SMG, Make-My-Day .44), barrel sway, moving targets, skeet with decoys, two bosses, zombies,
+// and progression (guns bought in the Prop Room with box office, the .44 by a badge, twenty-three badges, skins, a montage). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
 // Instant shot lines scored by zone, a combo multiplier, five ladders (Accuracy and Speed have five rungs, Skeet three, Boss two, Zombies three) and an endless zombie mode,
-// stars per gun from noisy-bot bars, points, a menu that is a range, and a card. Procedural art (gun silhouettes, paper targets, zombies, a range backdrop) from one palette
-// in TUNING.art; no image assets. Landscape, two thumbs (ADR-0013).
+// stars per gun from noisy-bot bars, points, a menu that is a prop rack, and a wrap card. Procedural art (movie-prop guns, cut-outs, saucers, monsters, zombie extras, one soundstage set per mode)
+// from one palette in TUNING.art; no image assets. Landscape, two thumbs (ADR-0013).
 
 import { makeRng, ease, clamp } from './engine.js';
 
@@ -105,18 +105,24 @@ const TUNING = {
   // Guns (v0.2 section A): data, so a later layer adds more. kickPerShot and kickRecovery are per gun now.
   // v0.5 M: magSize rounds fire before a reload of reloadSeconds (the shotgun loads shell by shell, reloadSeconds / magSize each, and a fire tap interrupts it). Accuracy keeps its own round count on top.
   guns: {
-    pistol: { id: 'pistol', job: 'The all-rounder: clean bullseyes and long combos.', name: 'Service pistol', short: 'Pistol', damage: 1, fireRate: 9, accuracy: 1.0, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, auto: false },
-    carbine: { id: 'carbine', job: 'Hold to fire: fast targets, hordes and clays.', name: 'Carbine', short: 'Carbine', damage: 1, fireRate: 8, accuracy: 0.55, kickPerShot: 5, kickRecovery: 24, magSize: 30, reloadSeconds: 1.6, auto: true },
+    pistol: { id: 'pistol', job: 'The all-rounder: clean bullseyes and long combos.', name: 'Buddy-Cop 9mm', short: 'Buddy-Cop', damage: 1, fireRate: 9, accuracy: 1.0, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, auto: false },
+    carbine: { id: 'carbine', job: 'Hold to fire: fast targets, hordes and clays.', name: 'Pulse Rifle', short: 'Pulse Rifle', damage: 1, fireRate: 8, accuracy: 0.55, kickPerShot: 5, kickRecovery: 24, magSize: 30, reloadSeconds: 1.6, auto: true },
     // v0.3. `pellets` lines leave the barrel in a fixed fan of shotSpread degrees; each pellet deals `damage` on its own. Only the centre
     // pellet scores zone points on ring targets; on hordes every member any pellet hits scores.
-    shotgun: { id: 'shotgun', job: 'Five pellets: boss plates and hordes; hopeless at far bullseyes.', name: 'Shotgun', short: 'Shotgun', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.2, shell: true, auto: false },
-    rifle: { id: 'rifle', job: 'One-shots plates; long waits and sway matter most.', name: 'Marksman rifle', short: 'Rifle', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 1.8, auto: false },
+    shotgun: { id: 'shotgun', job: 'Five pellets: boss plates and hordes; hopeless at far bullseyes.', name: 'Spin-Lever Shotgun', short: 'Spin-Lever', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.2, shell: true, auto: false },
+    rifle: { id: 'rifle', job: 'One-shots plates; long waits and sway matter most.', name: "Assassin's Scope", short: 'Scope', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 1.8, auto: false },
     // v0.5 section H. Both fire faster than the barrel settles, so a held SMG and a quick revolver climb off the target: the interval is under the recovery time on both.
-    smg: { id: 'smg', job: 'Hold to spray: the fastest fire, and the hardest climb to hold.', name: 'SMG', short: 'SMG', damage: 1, fireRate: 14, accuracy: 0.5, kickPerShot: 6, kickRecovery: 40, magSize: 24, reloadSeconds: 1.4, auto: true },
-    revolver: { id: 'revolver', job: 'Six heavy shots: one-shots plates and brains, then waits for the barrel.', name: 'Revolver', short: 'Revolver', damage: 3, fireRate: 1.2, accuracy: 1.0, kickPerShot: 20, kickRecovery: 18, magSize: 6, reloadSeconds: 2.4, auto: false },
+    smg: { id: 'smg', job: 'Hold to spray: the fastest fire, and the hardest climb to hold.', name: 'One-Man Army SMG', short: 'One-Man Army', damage: 1, fireRate: 14, accuracy: 0.5, kickPerShot: 6, kickRecovery: 40, magSize: 24, reloadSeconds: 1.4, auto: true },
+    revolver: { id: 'revolver', job: 'Six heavy shots: one-shots plates and brains, then waits for the barrel.', name: 'Make-My-Day .44', short: 'Make-My-Day', damage: 3, fireRate: 1.2, accuracy: 1.0, kickPerShot: 20, kickRecovery: 18, magSize: 6, reloadSeconds: 2.4, auto: false },
   },
   shotSpread: 10,        // v0.3: total fan angle of the shotgun's five pellets, degrees
-  unlockBadges: { carbine: 'marksman1', shotgun: 'quickdraw1', rifle: 'clay1', smg: 'quickdraw2', revolver: 'marksman2' }, // v0.5 K: the badge that unlocks each gun (the pistol is always open)
+  unlockBadges: { revolver: 'gauntlet' }, // v0.6 B: the guns a badge opens (the .44 by the Blockbuster badge a good player earns first); the pistol is free and the rest are bought (gunPrices)
+  // v0.6 B, the Prop Room: box office is dollars. A run pays boxPerPoint per point it scored and boxPerStar per star it earned; a new save starts with boxStart, and a save from before
+  // v0.6 is credited boxPerStar for every star it already had. Prices rise in the order the PRD lists the guns.
+  boxPerPoint: 0.02,
+  boxPerStar: 40,
+  boxStart: 100,
+  gunPrices: { carbine: 250, shotgun: 600, rifle: 1000, smg: 1500 },
 
   // Additions, not in the PRDs.
   swayWindow: 0.05,      // Seconds over which the gun's speed is measured for sway
@@ -147,14 +153,11 @@ const TUNING = {
   // World art is in design units; HUD and menus in screen px.
   art: {
     palette: {
-      letterbox: '#0f1115',  // Outside the field (the engine reads TUNING.bg, set from this)
+      letterbox: '#0c0a10',  // Outside the field (the engine reads TUNING.bg, set from this)
       ink: '#1a1512',        // Outlines and dark details
       inkSoft: 'rgba(26,21,18,0.55)', // Thin printed lines on cards
       shadow: 'rgba(10,6,4,0.42)',
       highlight: 'rgba(255,246,232,0.36)', // The one soft highlight
-      // Range backdrop
-      sky: '#2a2622', skyLow: '#342e29', wall: '#463f37', wallTop: '#645a50', wallSeam: '#382f29',
-      ground: '#1b1715', groundLine: '#8f8170', tape: '#74675a', backstop: '#2b2521', backstopEdge: '#63584d',
       // Gunmetal, warm
       steel: '#8d877e', steelDark: '#57524b', steelLight: '#b4ada1',
       // Accents
@@ -169,9 +172,23 @@ const TUNING = {
       panel: '#1f1b18', panelHi: '#2e2823', panelEdge: '#453d35',
       tier: { Bronze: '#d08a4a', Silver: '#cbd5e1', Trick: '#c4a6ff', Gold: '#fbbf24' },
       zone: ['#ffffff', '#22d3ee', '#c4b89f'], // Score pop colour by zone: bullseye, inner, outer
-      // Zombies: a sickly skin, a torn shirt and trousers, a wound, the brain (its bullseye ring is the goal's cyan), and the fence's weathered wood
-      zSkin: '#8fae87', zSkinDark: '#5f7d5a', zShirt: '#5d6b86', zPants: '#4a4139', zWound: '#8f2f2f', zBrain: '#e59ab0',
-      zSkinR: '#a9bd8a', zShirtR: '#93503c', zSkinC: '#7d9a78', zShirtC: '#6d5f45', zSkinB: '#6f8f6a', zShirtB: '#4c3b3d', zPantsB: '#39322c', zSkinH: '#9db08d', zShirtH: '#5b6068', // the types: a lean pale Runner, a dirty Crawler, a dark Brute, a grey Hunched hood wood: '#7d6547', woodDark: '#4e3f2c',
+      // Zombies (v0.6: extras in make-up): the make-up skin, the costume shirt and trousers (lighter than v0.5's, so every part measures at least 3:1 against the dark sets), a wound, the brain
+      // (its bullseye ring is the goal's cyan), the squib's stage blood, and the fence's wood
+      zSkin: '#8fae87', zSkinDark: '#5f7d5a', zShirt: '#6f7fa0', zPants: '#7a7390', zWound: '#8f2f2f', zBrain: '#e59ab0', zBlood: '#b3364f',
+      zSkinR: '#a9bd8a', zShirtR: '#b0674c', zSkinC: '#7d9a78', zShirtC: '#8f7d5a', zSkinB: '#6f8f6a', zShirtB: '#85707a', zPantsB: '#7e7896', zSkinH: '#9db08d', zShirtH: '#7c818b', // the types: a lean pale Runner, a dirty Crawler, a dark Brute, a grey Hunched
+      wood: '#7d6547', woodDark: '#4e3f2c', picket: '#b9b0a0', picketDark: '#7f786c',
+      // v0.6 D, the studio: stage blacks, set paint, the prop wood and the two neon lights. Neon pink and teal light the sets only, never a target; no set paint uses a target's
+      // colours (the goal's cyan, the paper and the cut-outs' kraft, the player's orange, the danger red), and the band behind the targets stays near black.
+      stage: '#120f18', stageHi: '#1c1826', stageLow: '#0b0a0f', floor: '#19151f', floorLine: '#3b3447', truss: '#2b2634', lamp: '#4d4659',
+      neonPink: '#ff4fa3', neonTeal: '#27b3a1', pinkGlow: 'rgba(255,79,163,0.18)', tealGlow: 'rgba(39,179,161,0.16)',
+      kraft: '#cfae7c', kraftDark: '#9d7f54', villain: '#3a3446', villainBand: '#7a728c', cowboy: '#7b5236', cowboyBand: '#c9a15e', bandana: '#4f6fb0',
+      city: '#1d1a2b', cityHi: '#26223a', cityWin: '#353047', cityLit: '#5a5070', moon: '#262236',
+      facade: '#2a1d1b', facadeHi: '#3a2924', facadeWin: '#110c10', boardwalk: '#221815', mesa: '#1d1522', duskHi: '#1f1426',
+      space: '#0c0b16', starDot: '#6a6488', planet: '#2d2140', planetHi: '#3b2b55', planetRing: '#4a3868', wire: '#9b95ad',
+      kaiju: '#16211c', kaijuHi: '#1f2e27', zipper: '#56685e', robot: '#1b1c26', robotHi: '#272836', eyeDim: '#5a2a46',
+      grave: '#221f2b', graveHi: '#2e2a39', tree: '#17141d', fog: 'rgba(150,144,172,0.05)', flood: 'rgba(214,226,236,0.045)',
+      pegboard: '#2a221c', pegHole: '#15110e', counter: '#5a4632', counterTop: '#7a6147', register: '#15171c', brassText: '#f0c860',
+      terrazzo: '#c98a9c', vhs: 'rgba(0,0,0,0.22)', vhsBand: 'rgba(255,255,255,0.025)',
     },
     type: { small: 14, mid: 18, big: 30, normal: '600', strong: '800' }, // Three sizes, one weight rule: strong for numbers and headings
     line: 2.5, gunLine: 2.6, radius: 10, shadowX: 2, shadowY: 3,
@@ -185,6 +202,7 @@ const TUNING = {
         ['rr', 'steelDark', -21, -14, 6, 5, 1.5], ['rr', 'steelDark', 32, -14, 6, 5, 1.5],
         ['rr', 'steel', -22, -10, 62, 15, 3.5],
         ['rr', 'orange', 34, -10, 6, 15, 2],
+        ['rr', 'ink', 12, -9, 17, 3, 1], ['rr', 'steelDark', -16, 29, 7, 5, 2], // the open-top slide and a lanyard ring
         ['rr', 'ink', -6, -8, 11, 3.5, 1], ['rr', 'ink', -18, -6, 1.6, 8, 0.8], ['rr', 'ink', -14.5, -6, 1.6, 8, 0.8], ['rr', 'ink', -11, -6, 1.6, 8, 0.8],
         ['rr', 'highlight', -6, -8, 38, 2.6, 1.3],
       ] },
@@ -197,11 +215,14 @@ const TUNING = {
         ['rr', 'steelDark', 22, -9, 22, 15, 3.5],
         ['rr', 'steel', 43, -4, 9, 8, 2],
         ['rr', 'steel', -18, -12, 42, 18, 3.5],
+        ['rr', 'steelDark', 20, -14, 26, 5, 2], ['rr', 'steelDark', 40, 6, 12, 7, 2.5], // the shroud's top and the pump launcher under the barrel
         ['rr', 'orange', 47, -5, 5, 10, 2],
-        ['rr', 'ink', -2, -8, 10, 3.5, 1],
+        ['rr', 'ink', 4, -6, 13, 8, 1.5], ['rr', 'highlight', 6, -4.5, 3.6, 5, 0.6], ['rr', 'highlight', 11, -4.5, 3.6, 5, 0.6], // the round counter
+        ['rr', 'ink', -2, -8, 5, 2, 0.8],
         ['rr', 'highlight', -14, -10, 34, 2.6, 1.3],
       ] },
       shotgun: { muzzle: 62, port: [-8, -10], shell: [8, 3.6], parts: [
+        ['rr', 'steelDark', -12, 4, 24, 26, 11], ['rr', 'ink', -8, 9, 16, 16, 7], // the spin lever's big loop
         ['poly', 'steelDark', [-18, -10, -60, -6, -67, 18, -42, 20, -18, 8]],
         ['poly', 'steelDark', [-14, 6, -2, 6, -5, 26, -18, 25]],
         ['rr', 'steelDark', -2, 3, 52, 9, 4],
@@ -233,6 +254,7 @@ const TUNING = {
         ['rr', 'steel', 17, -9, 41, 9, 3],
         ['rr', 'steelDark', 20, 0, 32, 5, 2],
         ['rr', 'steelDark', 50, -13, 4, 5, 1.5],
+        ['rr', 'ink', 25, -7.5, 1.4, 3.5, 0.6], ['rr', 'ink', 31, -7.5, 1.4, 3.5, 0.6], ['rr', 'ink', 37, -7.5, 1.4, 3.5, 0.6], ['rr', 'ink', 43, -7.5, 1.4, 3.5, 0.6], // the vented rib
         ['rr', 'orange', 53, -9, 5, 9, 2],
         ['rr', 'ink', -9, 6, 12, 3, 1],
         ['rr', 'highlight', -10, -8, 46, 2.6, 1.3],
@@ -247,7 +269,7 @@ const TUNING = {
         ['rr', 'steel', -22, -10, 36, 16, 3.5],
         ['rr', 'steelDark', -7, -15, 4, 7, 1.5], ['rr', 'steelDark', 13, -15, 4, 7, 1.5],
         ['rr', 'steelDark', -14, -22, 44, 8, 4],
-        ['rr', 'steel', -19, -25, 7, 13, 3], ['rr', 'steel', 24, -26, 10, 15, 3],
+        ['rr', 'steel', -19, -25, 7, 13, 3], ['rr', 'steel', 24, -26, 10, 15, 3], ['rr', 'steelDark', 33, -25, 9, 13, 2], ['rr', 'highlight', 39.5, -23, 1.6, 9, 0.8], // the sunshade and a lens glint
         ['rr', 'ink', 32.5, -22, 1.6, 7, 0.8],
         ['rr', 'orange', 61, -6, 5, 10, 2],
         ['rr', 'highlight', -17, -8, 28, 2.6, 1.3], ['rr', 'highlight', -10, -20.5, 32, 2.2, 1.1],
@@ -301,7 +323,6 @@ const TUNING = {
     dodge: { ghostLife: 0.25, ghostAlpha: 0.5, slide: 0.1, ringGap: 5, ringWidth: 2.5, dash: [7, 5], coolAlpha: 0.75, beep: 520, calloutDx: 84 }, // v0.5 B: a dodge leaves a fading ghost card and slides the target over `slide`, and the call-out sits to its left; the armed ring
     ring: { life: 0.3, r0: 8, r1: 30, width: 3 }, // Hit ring that opens at the target as the score pop rises (inside the pop's own life)
     popLine: 5,            // Outline width of the score pop
-    backdrop: { skyLowY: 120, wallTop: 208, coping: 7, seam: 64, marker: 128, markerW: 14, markerH: 22, tape: [10, 8], tick: 5 },
     card: { pad: 3, radius: 0.6, ringLine: 1, timerK: 1.17, timerGap: 4, timerWidth: 3, post: 4, foot: 13, warn: 1, warnFlip: 0.3, pulse: 8 }, // Paper target: pad beyond the outer ring (an Accuracy card scores out to it), corner as a fraction of the half size; the timer ring goes orange and pulses in the last `warn` seconds (the last `warnFlip` of a flip window)
     trolley: { w: 0.8, h: 4, wheel: 2.6, tie: 24, tieLen: 2.5, tieW: 5, rail: 2, railAlpha: 0.55 },
     clay: { disc: 0.74, rimLine: 1.2, cross: 0.5 }, // cross: the decoy's mark, as a fraction of its radius
@@ -312,8 +333,32 @@ const TUNING = {
     mult: { size: 24, swell: 0.5, pulse: 0.25, x: 128, dy: 50, flip: 170 }, // The multiplier beside the lane: size in design units, swell on a step, seconds it swells, where it sits, and the gun height below which it goes under the line
     first: { text: 'Left thumb drags the gun. Right thumb fires.', hold: 3, fade: 0.5 }, // v0.5 P: the first-run controls line, in seconds
     intro: { y: 66, hold: 5, fade: 1.5 }, // The one-line intro (Boss 2's "Every plate scores", Accuracy 4 and 5's dodge line): design-space height, seconds shown, seconds to fade
-    menu: { ext: 18, rackH: 58, gap: 4, tileMin: 46, tileMax: 66, selMin: 178, selMax: 236, laneGap: 2, label: 74, btnH: 44, edge: 4 }, // The menu (v0.5 N): the rung art's half size, the gun rack's height and gap, its small and selected tiles' widths, the space between lanes, the lane label's width, the corner buttons' height, the margin to the screen edge
-    missions: { th: 104, gap: 8, rail: 44, lock: 16, lockGap: 10 }, // Missions tile height, gap, scroll rail width, the Gauntlet padlock's size and its gap to the label
+    menu: { ext: 18, rackH: 66, gap: 4, tileMin: 46, tileMax: 66, selMin: 200, selMax: 236, selFrac: 0.46, laneGap: 2, label: 104, labelMax: 140, propsTag: 150, btnH: 44, edge: 4, dotR: 5, playMin: 120, playMax: 210, missionsW: 80, soundW: 48, endlessW: 112, playPad: 20 }, // The menu (v0.5 N, Q): the rung art's half size, the gun rack's height (the headline, name, bar and tier stack in the selected tile) and gap, its small and selected tiles' widths, the space between lanes, the lane label's least and most width (it fits the longest set name), the width under which the Prop Room button drops its tag, the corner buttons' height and widths, the margin to the screen edge, the radius of the Missions dot, the Play button's least and most width and the room round its label
+    pop: { sec: 0.5, delay: 0.25, amp: 0.2 }, // v0.5 Q: a rung whose stars rose swells once on return to the menu: seconds, seconds of delay, the extra size at the peak (never under full size, so its text stays 14 px)
+    missions: { cardH: 56, gap: 6, headH: 34, medalR: 17, pad: 12, lineH: 18, gunW: 52, gunH: 24, newR: 5, rail: 44, lock: 16, lockGap: 10 }, // v0.5 Q, the list: a card's height (a wrapped line adds lineH), the gap between cards, a tier heading's height, the medal's radius, the card padding, the silhouette of the gun a badge opens, the radius of the new-badge dot, the scroll rail's width, the Gauntlet padlock's size and its gap to the label
+    tickets: { max: 3, y: 237, noteY: 207, h: 34, gap: 6, pad: 8, icon: 26, medal: 22, iconGap: 4, edge: 8, more: 26, delay: 0.5, stagger: 0.12, pop: 0.3, swell: 0.12, rank: { Bronze: 1, Silver: 2, Trick: 3, Gold: 4, gun: 5, skin: 0.5, tier: [0, 2, 3, 4] } }, // v0.5 Q: tickets on the result card, at most `max`, in a row centred `y` below the card's top with `noteY` the note line above them; their height, gap, padding, icon width (a medal's is `medal`), the gap after it, the least margin to the card's edge when the card widens, the room a "+n" takes, the delay and stagger of their pops, the swell; rank: highest first (a badge by tier, a badge that opens a gun, a skin, a mastery tier by number)
+    // v0.6 A: the sets, one per mode, in design units. Each is painted once per screen scale into an offscreen image (the static flats) and drawn with one blit a frame; the fog is
+    // the one moving piece. `band` is the part of the field the targets use, kept near black; the contrast table in the changelog measures every target against it.
+    sets: {
+      band: [110, 56, 632, 290], // x0, y0, x1, y1
+      truss: { y: 14, h: 7, lamps: 96, lampW: 16, lampH: 12, beam: 0.07 }, // the lighting truss across the top: height, lamp spacing and size, the beams' alpha
+      screen: { skyline: [[0, 150, 70], [60, 120, 54], [104, 168, 48], [150, 104, 60], [206, 140, 44], [248, 92, 58], [300, 132, 50], [346, 112, 64], [404, 150, 46], [444, 98, 56], [494, 128, 52], [540, 84, 60], [594, 136, 50]], win: [7, 9, 13, 16], moon: [470, 70, 26], track: 6, tie: 18, camera: [566, 214] },
+      western: { fronts: [[0, 96, 150], [150, 120, 118], [268, 84, 140], [408, 110, 112], [520, 90, 120]], win: [26, 30], door: [34, 58], walk: 16, mesa: [[0, 140], [90, 118], [170, 132], [260, 104], [330, 126], [420, 112], [520, 136], [640, 120]], tower: [96, 60] },
+      scifi: { stars: 90, planet: [430, 128, 70], ring: [1.7, 0.32], moon: [180, 76, 16], spires: [[150, 44, 120], [230, 30, 80], [520, 38, 100], [600, 28, 70]], grate: 12 },
+      monster: { x: 505, top: 26, w: 190, eye: [-50, 18, 7], spines: 6, zip: 12 }, // the kaiju: its middle, the top of its head, its width, the eye (offset from the middle, size), spines, zipper teeth
+      robot: { x: 470, top: 30, w: 250, head: -80, visor: [60, 12], rivet: 26 }, // the robot: its middle, the head's top and its offset left of the middle, the torso's width, the visor, rivet spacing
+      horror: { stones: [[170, 262, 22, 34], [236, 250, 18, 44], [318, 266, 26, 28], [402, 254, 20, 40], [486, 262, 24, 32], [566, 248, 18, 46]], tree: [600, 290], moon: [210, 58, 18], fence: [130, 236, 640], fog: [[120, 300, 180, 16, 9], [330, 312, 220, 18, -7], [520, 296, 160, 14, 6]], machine: [604, 282] },
+      flood: { rigs: [[40, 0], [600, 0]], cone: 170 }, // the night shoot's floodlight rigs (top corners) and how far their cones spread at the floor
+      wireAlpha: 0.4,
+    },
+    set: { accuracy: 'screen', speed: 'western', skeet: 'scifi', zombie: 'horror' }, // the set of each ladder (Boss 1 is the monster, Boss 2 the robot, Endless the night shoot)
+    setName: { accuracy: 'Screen Test', speed: 'Western Street', skeet: 'Sci-Fi Stage', boss: 'Monster Stage', zombie: 'Horror Set' },
+    clap: { life: 0.55, snap: 0.12, fade: 0.15, w: 150, h: 74, stick: 18, y: 0.45 }, // v0.6 A: the clapperboard, in screen px: seconds shown (under 0.6), the snap, the fade, its size, the striped stick, and its height as a share of the field
+    saucer: { lights: 6, lightR: 0.13, band: 0.2, fall: 520, sparks: 7, sparkLen: 9, life: 0.7 }, // a saucer's rim lights and band (fractions of its radius), and its drop when hit: gravity, sparks, seconds
+    squib: { drops: 9, speed: [60, 150], life: 0.5, r: [1.6, 3.2] }, // the make-up squib a headshot pops: droplets of stage blood
+    props: { side: 132, master: 1.45, masterX: 150, gap: 8, cardMin: 140, cardMax: 190, headH: 52, art: 34, artTall: 56, artMin: 22, line: 16, row: 11, bar: 5, stamp: 0.9 }, // v0.6 B, the Prop Room: the prop master's column, his scale and (portrait) his x, the gap between cards, a card's least and most height, the header, the gun art's most height (landscape, portrait) and least height, the name's line pitch, a stat row's pitch and bar height, the seconds a SOLD stamp shows
+    logo: { title: 28, beam: 0.16 }, // the studio logo on the menu: the title size, and the searchlights' alpha
+    vhs: { pitch: 3, bandH: 14, bandSpeed: 22 }, // menu scan lines every `pitch` px; a faint tracking band `bandH` tall rolls down at `bandSpeed` px a second
   },
 };
 const T = TUNING;
@@ -1275,17 +1320,31 @@ function isUnlocked(E, ch, gun) {
 }
 // Points are every gun's stars on every rung, summed.
 function pointsTotal(E) { return CHALLENGES.reduce((n, ch) => n + GUN_IDS.reduce((m, g) => m + T.starPoints[starsOf(E, ch, g)], 0), 0); }
-// Play on the menu: this gun's first unlocked rung with no stars yet, else the first rung.
-function firstPlayable(E, gun) { return CHALLENGES.find((ch) => isUnlocked(E, ch, gun) && starsOf(E, ch, gun) === 0) || CHALLENGES[0]; }
+// The gun's stars over every rung, and the most there are (the menu's one headline).
+function starTotal(E, gun) { return CHALLENGES.reduce((n, ch) => n + starsOf(E, ch, gun), 0); }
+// Where Play goes (v0.5 Q): this gun's frontier, the first open rung it has not passed (passing is the unlock rule's two stars), so it is the rung the hint line is waiting on;
+// with every open rung passed, the first short of three stars; with all three-starred, the first rung.
+function frontier(E, gun) {
+  const open = CHALLENGES.filter((ch) => isUnlocked(E, ch, gun));
+  return open.find((ch) => starsOf(E, ch, gun) < T.unlockStars) || open.find((ch) => starsOf(E, ch, gun) < 3) || CHALLENGES[0];
+}
 // Rungs where a gun has two stars or better.
 function rungsDone(E, gun) { return CHALLENGES.filter((ch) => starsOf(E, ch, gun) >= 2).length; }
-// ---------- Guns: unlocked by badges ----------
+// ---------- Guns: bought in the Prop Room (v0.6 B), the .44 by a badge ----------
 
 function hadMap(E) { const m = E.save.get('gunsHad', {}); return m && typeof m === 'object' ? m : {}; }
-// A gun is open when its badge is earned, or (a save from before v7) it was open under the old points table: a badge or a gun is never taken away.
-function gunUnlocked(E, id) { return id === 'pistol' || !!badgeMap(E)[T.unlockBadges[id]] || !!hadMap(E)[id]; }
+function ownedMap(E) { const m = E.save.get('owned', {}); return m && typeof m === 'object' ? m : {}; }
+// A gun is open when it is the free pistol, was bought (or owned before v0.6, which the migration put in `owned`), or its badge is earned; a save from before v7 also keeps what the old
+// points table opened (gunsHad). A gun is never taken away.
+function gunUnlocked(E, id) { return id === 'pistol' || !!ownedMap(E)[id] || !!hadMap(E)[id] || (!!T.unlockBadges[id] && !!badgeMap(E)[T.unlockBadges[id]]); }
+// Box office, in dollars: what a run pays (its score and its stars), the save's balance, and how it is written ("$1,240").
+function boxFor(score, stars) { return Math.round(T.boxPerPoint * Math.max(0, score) + T.boxPerStar * stars); }
+function boxOf(E) { const b = E.save.get('box', T.boxStart); return Number.isFinite(b) ? b : T.boxStart; }
+const money = (n) => `$${String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+// v0.5 K's unlock badges: before v0.6 a gun opened with its badge, so a save with the badge had the gun (the migration keeps it owned).
+const OLD_UNLOCK_BADGES = { carbine: 'marksman1', shotgun: 'quickdraw1', rifle: 'clay1', smg: 'quickdraw2', revolver: 'marksman2' };
 function gunId(E) { const id = E.save.get('gun', 'pistol'); return T.guns[id] && gunUnlocked(E, id) ? id : 'pistol'; }
-function unlockBadge(id) { return BADGES.find((b) => b.id === T.unlockBadges[id]); }
+function unlockBadge(id) { return T.unlockBadges[id] ? BADGES.find((b) => b.id === T.unlockBadges[id]) : null; }
 
 // ---------- Badges (v0.3 section B): skill acts, tiered ----------
 
@@ -1296,30 +1355,41 @@ const three = (o) => o.stars === 3;
 const BADGES = [
   { id: 'marksman1', tier: 'Bronze', name: 'Marksman I', cond: 'Three stars on Accuracy 1', met: (o) => at(o, 'a1') && three(o) },
   { id: 'quickdraw1', tier: 'Bronze', name: 'Quick Draw I', cond: 'Three stars on Speed 1', met: (o) => at(o, 's1') && three(o) },
-  { id: 'clay1', tier: 'Bronze', name: 'Clay I', cond: 'Three stars on Skeet 1', met: (o) => at(o, 'k1') && three(o) },
-  { id: 'steady', tier: 'Silver', name: 'Steady', cond: 'Accuracy 4, three stars, carbine', met: (o) => at(o, 'a4') && three(o) && o.gun === 'carbine' },
+  { id: 'clay1', tier: 'Bronze', name: 'Saucer Shooter I', cond: 'Three stars on Skeet 1', met: (o) => at(o, 'k1') && three(o) },
+  { id: 'steady', tier: 'Silver', name: 'Steady', cond: `Accuracy 4, three stars, ${T.guns.carbine.short}`, met: (o) => at(o, 'a4') && three(o) && o.gun === 'carbine' },
   { id: 'storm', tier: 'Silver', name: 'Storm', cond: 'Three stars on Speed 4', met: (o) => at(o, 's4') && three(o) },
-  { id: 'double', tier: 'Silver', name: 'Double', cond: 'Hit both clays of a Skeet 2 pair', met: (o) => at(o, 'k2') && !!o.double },
+  { id: 'double', tier: 'Silver', name: 'Double Feature', cond: 'Hit both saucers of a Skeet 2 pair', short: 'Both saucers of a Skeet pair', met: (o) => at(o, 'k2') && !!o.double },
   { id: 'marksman2', tier: 'Silver', name: 'Marksman II', cond: 'Three stars on Accuracy 5', met: (o) => at(o, 'a5') && three(o) },
   { id: 'quickdraw2', tier: 'Silver', name: 'Quick Draw II', cond: 'Three stars on Speed 5', met: (o) => at(o, 's5') && three(o) },
-  { id: 'clay2', tier: 'Silver', name: 'Clay II', cond: 'Skeet 3, no decoy hit, three stars', met: (o) => at(o, 'k3') && three(o) && !o.decoyHits },
+  { id: 'clay2', tier: 'Silver', name: 'Saucer Shooter II', cond: 'Skeet 3, no decoy hit, three stars', short: 'Skeet 3: no decoy, three stars', met: (o) => at(o, 'k3') && three(o) && !o.decoyHits },
   // Wrong Tool: the gun a challenge was not made for; each unlocks only its badge
-  { id: 'sprint', tier: 'Silver', name: "Marksman's Sprint", cond: 'Rifle on Speed 3, two stars', met: (o) => at(o, 's3') && o.gun === 'rifle' && o.stars >= 2 },
-  { id: 'scatter', tier: 'Silver', name: 'Scatter Precision', cond: 'Shotgun on Accuracy 2, two stars', met: (o) => at(o, 'a2') && o.gun === 'shotgun' && o.stars >= 2 },
-  { id: 'sidearm', tier: 'Silver', name: 'Sidearm Only', cond: 'Pistol on Boss 2, two stars', met: (o) => at(o, 'b2') && o.gun === 'pistol' && o.stars >= 2 },
-  { id: 'claycarbine', tier: 'Silver', name: 'Clay Carbine', cond: 'Carbine on Skeet 2, three stars', met: (o) => at(o, 'k2') && o.gun === 'carbine' && three(o) },
+  { id: 'sprint', tier: 'Silver', name: "Marksman's Sprint", cond: `${T.guns.rifle.short} on Speed 3, two stars`, met: (o) => at(o, 's3') && o.gun === 'rifle' && o.stars >= 2 },
+  { id: 'scatter', tier: 'Silver', name: 'Scatter Precision', cond: `${T.guns.shotgun.short} on Accuracy 2, two stars`, met: (o) => at(o, 'a2') && o.gun === 'shotgun' && o.stars >= 2 },
+  { id: 'sidearm', tier: 'Silver', name: 'Sidearm Only', cond: `${T.guns.pistol.short} on Boss 2, two stars`, met: (o) => at(o, 'b2') && o.gun === 'pistol' && o.stars >= 2 },
+  { id: 'claycarbine', tier: 'Silver', name: 'Pulse Saucers', cond: `${T.guns.carbine.short} on Skeet 2, three stars`, met: (o) => at(o, 'k2') && o.gun === 'carbine' && three(o) },
   // Delighters (PRD v0.5 J): one act, never grind; each pops a ticket on the card
-  { id: 'kickback', tier: 'Trick', name: 'Kickback', cond: `${T.kickCount} hits in a row in ${T.kickWindow} s, on ${T.kickTargets}+ targets`, met: (o) => o.run.kickback },
-  { id: 'lastround', tier: 'Trick', name: 'Last Round', cond: 'Accuracy, three stars, the last bullet the last hit', met: (o) => o.ch.ladder === 'accuracy' && three(o) && o.run.ammo === 0 && o.run.lastShotHit },
-  { id: 'coldbarrel', tier: 'Trick', name: 'Cold Barrel', cond: 'A bullseye on the first shot, five runs in a row', met: (o) => o.cold >= T.coldRuns },
-  { id: 'claysweep', tier: 'Trick', name: 'Clay Sweep', cond: 'Skeet, every goal clay hit before it peaks', met: (o) => o.ch.ladder === 'skeet' && o.run.misses === 0 && !o.run.lateClay && !o.run.decoyHits && o.run.hits >= o.run.list.filter((e) => !e.decoy).length },
-  { id: 'walkline', tier: 'Trick', name: 'Walk the Line', cond: 'A horde cleared left to right, no miss', met: (o) => o.run.walked },
-  { id: 'bosskiller', tier: 'Gold', name: 'Boss Killer', cond: 'Boss 1 three stars, every gun', met: (o) => at(o, 'b1') && three(o) && GUN_IDS.every((g) => o.bests.b1[g].stars === 3) },
-  { id: 'gauntlet', tier: 'Gold', name: 'Gauntlet', cond: 'A2, S2, K2, B1 in a row, two stars each', met: (o) => !!o.gauntletDone },
-  { id: 'legend', tier: 'Gold', name: 'Legend', cond: 'Every challenge at three stars', met: (o) => CHALLENGES.every((c) => GUN_IDS.some((g) => o.bests[c.id][g].stars === 3)) },
-  { id: 'arsenal', tier: 'Gold', name: 'Arsenal', cond: 'Three stars on every challenge, every gun', met: (o) => CHALLENGES.every((c) => GUN_IDS.every((g) => o.bests[c.id][g].stars === 3)) },
-  { id: 'sniper', tier: 'Gold', name: 'Sniper', cond: 'Boss 2, three stars, rifle', met: (o) => at(o, 'b2') && three(o) && o.gun === 'rifle' },
+  { id: 'kickback', tier: 'Trick', name: 'Kickback', cond: `${T.kickCount} hits in a row in ${T.kickWindow} s, on ${T.kickTargets}+ targets`, short: `${T.kickCount} hits in ${T.kickWindow} s, ${T.kickTargets}+ targets`, met: (o) => o.run.kickback },
+  { id: 'lastround', tier: 'Trick', name: 'Last Round', cond: 'Accuracy, three stars, the last bullet the last hit', short: 'Accuracy: last bullet hits, three stars', met: (o) => o.ch.ladder === 'accuracy' && three(o) && o.run.ammo === 0 && o.run.lastShotHit },
+  { id: 'coldbarrel', tier: 'Trick', name: 'One Take', cond: 'A bullseye on the first shot, five runs in a row', short: 'First-shot bullseye, five runs running', met: (o) => o.cold >= T.coldRuns, count: (E) => ({ have: Math.min(E.save.get('cold', 0), T.coldRuns), need: T.coldRuns }) },
+  { id: 'claysweep', tier: 'Trick', name: 'Saucer Sweep', cond: 'Skeet, every goal saucer hit before it peaks', short: 'Skeet: every saucer before it peaks', met: (o) => o.ch.ladder === 'skeet' && o.run.misses === 0 && !o.run.lateClay && !o.run.decoyHits && o.run.hits >= o.run.list.filter((e) => !e.decoy).length },
+  { id: 'walkline', tier: 'Trick', name: 'Walk the Line', cond: 'A horde cleared left to right, no miss', short: 'Horde left to right, no miss', met: (o) => o.run.walked },
+  { id: 'bosskiller', tier: 'Gold', name: 'Monster Slayer', cond: 'Boss 1 three stars, every gun', met: (o) => at(o, 'b1') && three(o) && GUN_IDS.every((g) => o.bests.b1[g].stars === 3), count: (E) => ({ have: GUN_IDS.filter((g) => starsOf(E, chById('b1'), g) === 3).length, need: GUN_IDS.length }) },
+  { id: 'gauntlet', tier: 'Gold', name: 'Training Montage', cond: 'A2, S2, K2, B1 in a row, two stars each', short: 'Four rungs in a row, two stars each', met: (o) => !!o.gauntletDone },
+  { id: 'legend', tier: 'Gold', name: 'Legend', cond: 'Every challenge at three stars', met: (o) => CHALLENGES.every((c) => GUN_IDS.some((g) => o.bests[c.id][g].stars === 3)), count: (E) => ({ have: CHALLENGES.filter((c) => GUN_IDS.some((g) => starsOf(E, c, g) === 3)).length, need: CHALLENGES.length }) },
+  { id: 'arsenal', tier: 'Gold', name: 'Arsenal', cond: 'Three stars on every challenge, every gun', short: 'Every challenge, three stars, every gun', met: (o) => CHALLENGES.every((c) => GUN_IDS.every((g) => o.bests[c.id][g].stars === 3)), count: (E) => ({ have: CHALLENGES.reduce((n, c) => n + GUN_IDS.filter((g) => starsOf(E, c, g) === 3).length, 0), need: CHALLENGES.length * GUN_IDS.length }) },
+  { id: 'sniper', tier: 'Gold', name: 'Sniper', cond: `Boss 2, three stars, ${T.guns.rifle.short}`, met: (o) => at(o, 'b2') && three(o) && o.gun === 'rifle' },
 ];
+
+// The four tiers on the missions screen, in the studio's trade (v0.6 C): the data's tier key and the name it goes by, lowest first.
+const BADGE_TIERS = [{ key: 'Bronze', name: 'B-Movie' }, { key: 'Silver', name: 'Box Office' }, { key: 'Trick', name: 'Cult Classic' }, { key: 'Gold', name: 'Blockbuster' }];
+// A badge's card line: the short form if it has one. A counter { have, need } only where an unearned badge counts something, else null.
+const badgeLine = (b) => b.short || b.cond;
+const badgeCount = (E, b) => (b.count ? b.count(E) : null);
+// What a badge opens, in words: a gun, or a skin. Null when it opens nothing but itself.
+function badgeOpens(b) {
+  const gun = GUN_IDS.find((g) => T.unlockBadges[g] === b.id), skin = skinOfBadge(b.id);
+  return gun ? `the ${T.guns[gun].name}` : skin ? `the ${T.guns[skin.gun].short} ${skin.skin.name} skin` : null;
+}
 
 // Badges a finished run earns that are not already `have`.
 function newBadges(o) { return BADGES.filter((b) => b.met(o) && !o.have[b.id]).map((b) => b.id); }
@@ -1330,12 +1400,15 @@ function gauntletStep(i, stars) {
   return { i, ok, done, next: ok && !done ? GAUNTLET[i + 1] : null };
 }
 function badgeMap(E) { const b = E.save.get('badges', {}); return b && typeof b === 'object' ? b : {}; }
+// The badges already shown on the missions screen (v12): the dot on the menu's Missions button marks an earned badge that is not in it.
+function seenMap(E) { const b = E.save.get('seen', {}); return b && typeof b === 'object' ? b : {}; }
+function unseenBadges(E) { const have = badgeMap(E), seen = seenMap(E); return BADGES.filter((b) => have[b.id] && !seen[b.id]).map((b) => b.id); }
 
 // ---------- Gun mastery (v0.5 N) ----------
 // Per gun, lifetime counters in the save: shots, hits, bulls (Accuracy and Skeet bullseyes and boss-core bullseyes), heads (zombie brain hits) and plates (boss plates destroyed).
 // Mastery is bulls plus heads; the tier and the bar come from it. The counters are the sums of the runs' own numbers, which the ledger's `result` lines carry.
 const MASTERY_KEYS = ['shots', 'hits', 'bulls', 'heads', 'plates'];
-const TIER_NAMES = ['Recruit', 'Marksman', 'Expert', 'Master'];
+const TIER_NAMES = ['Extra', 'Stunt Double', 'Leading Role', 'Walk of Fame']; // v0.6 C: Marksman, Expert and Master in the studio's trade; the numbers behind them are unchanged
 function masteryMap(E) { const m = E.save.get('mastery', {}); return m && typeof m === 'object' ? m : {}; }
 function masteryOf(E, gun) {
   const e = masteryMap(E)[gun] || {}, o = {};
@@ -1354,7 +1427,7 @@ const tierOf = (E, gun) => masteryInfo(masteryOf(E, gun)).tier;
 // The first text drawn at each weight and size makes the browser find and shape the font, which costs milliseconds in the first frame; draw it once, off screen, at start.
 function warmText(ctx) {
   ctx.save(); ctx.textBaseline = 'middle';
-  for (const w of [TY.normal, TY.strong]) for (const z of [TY.small, TY.mid, TY.mid + 2, TY.big]) { ctx.font = `${w} ${z}px system-ui, sans-serif`; ctx.fillText('AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz 0123456789 %/:.,·', -4000, -4000); }
+  for (const w of [TY.normal, TY.strong]) for (const z of [TY.small, TY.mid, TY.mid + 2, TY.big, A.logo.title]) { ctx.font = `${w} ${z}px system-ui, sans-serif`; ctx.fillText('AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz 0123456789 %/:.,·', -4000, -4000); }
   ctx.restore();
 }
 
@@ -1452,7 +1525,7 @@ function drawSprite(ctx, key, ext, paint, x, y, a, b) {
 }
 const SKIN_SLOTS = 4; // most skins one gun has (the pistol's default, two badge skins and Gold), so every sprite key is unique
 const K_ICON = 9e6; // menu sprites: a rung's target
-const K_CARD = 1e6, K_FLAT = 2e6, K_CLAY = 3e6, K_PLATE = 4e6, K_CORE = 5e6, K_GUN = 6e6, K_DECOY = 7e6, K_FRAME = 8e6;
+const K_CARD = 1e6, K_FLAT = 2e6, K_CLAY = 3e6, K_PLATE = 4e6, K_CORE = 5e6, K_GUN = 6e6, K_DECOY = 7e6, K_FRAME = 8e6, K_EXTRA = 1.5e6;
 
 // One gun in one skin: parts (the gun's own, then the skin's decoration) coloured through the skin's palette override, and its bounds.
 const NO_LINE = new Set(['ink', 'highlight', 'accent']); // fills that get no outline
@@ -1508,6 +1581,12 @@ function drawLock(ctx, cx, cy, col) {
   ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, cy - 3, 5, Math.PI, 0); ctx.stroke();
   ctx.fillStyle = col; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; rrect(ctx, cx - 8, cy - 3, 16, 12, 2.5); ctx.fill(); ctx.stroke();
   disc(ctx, cx, cy + 3, 1.8, P.ink);
+}
+// A badge medal: a disc in its tier's colour with a star, or a dull disc with a padlock while it is unearned.
+function drawMedal(ctx, cx, cy, r, tier, earned) {
+  ctx.lineWidth = 2; ctx.strokeStyle = earned ? P.ink : P.panelEdge;
+  disc(ctx, cx, cy, r, earned ? P.tier[tier] : P.panel); ctx.stroke();
+  if (earned) drawStar(ctx, cx, cy + 0.5, r * 0.62, P.ink); else drawLock(ctx, cx, cy, P.textDim);
 }
 
 // ---- Guns ----
@@ -1571,28 +1650,47 @@ function drawCasing(ctx, f) {
 
 // ---- Targets ----
 
-// A paper range target: a card with three printed rings, cyan and white for the goal (a horde card prints two and no bullseye). Returns the card's half size.
-function drawCard(ctx, x, y, sc, bullMul, flat) {
-  const R = T.zoneR, C = A.card, r2 = R[2] * sc, half = r2 + C.pad * sc, lw = Math.max(1.5, A.line * Math.min(1, sc + 0.25));
+// A cut-out (v0.6 A): a round kraft board exactly the size of what scores (the hit radius is the rings plus the card pad), the three printed rings on it (cyan and white for the
+// goal, unchanged from v0.5), and a costume painted over its top and bottom, clipped to the board: a villain's fedora and moustache (look 0, Accuracy), an extra's cowboy hat
+// and bandana (look 1, Speed). The hat covers only the outer ring's top, which scores as outer; the inner ring and the bullseye are never covered. A horde member is small:
+// the board, two rings and a hat, no shadow. Returns nothing; the board's radius is (zoneR[2] + card.pad) * sc.
+function drawCard(ctx, x, y, sc, bullMul, flat, look) {
+  const R = T.zoneR, C = A.card, r2 = R[2] * sc, half = r2 + C.pad * sc, lw = Math.max(1.5, A.line * Math.min(1, sc + 0.25)), cow = flat || look === 1;
   ctx.lineJoin = 'round';
-  if (!flat) { ctx.fillStyle = P.shadow; rrect(ctx, x - half + A.shadowX, y - half + A.shadowY, half * 2, half * 2, half * C.radius); ctx.fill(); }
-  ctx.fillStyle = P.paper; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
-  rrect(ctx, x - half, y - half, half * 2, half * 2, half * C.radius); ctx.fill(); ctx.stroke();
-  if (flat) { disc(ctx, x, y, r2, P.slate); disc(ctx, x, y, R[1] * sc, P.cyan); return; } // a horde member is small: no printed edges, no shadow
+  if (!flat) disc(ctx, x + A.shadowX, y + A.shadowY, half, P.shadow);
+  disc(ctx, x, y, half, P.kraft);
   ctx.lineWidth = C.ringLine; ctx.strokeStyle = P.inkSoft;
-  ringDisc(ctx, x, y, r2, P.slate); ringDisc(ctx, x, y, R[1] * sc, P.cyan);
-  ringDisc(ctx, x, y, R[0] * sc * bullMul, P.white);
+  if (flat) { disc(ctx, x, y, r2, P.slate); disc(ctx, x, y, R[1] * sc, P.cyan); }
+  else { ringDisc(ctx, x, y, r2, P.slate); ringDisc(ctx, x, y, R[1] * sc, P.cyan); ringDisc(ctx, x, y, R[0] * sc * bullMul, P.white); }
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, half, 0, PI2); ctx.clip();
+  const h = half, top = y - h, brim = y - h * 0.62, low = y + R[1] * sc; // the brim's top edge sits above the inner ring's top (0.52 of the board)
+  ctx.fillStyle = cow ? P.cowboy : P.villain;
+  ctx.beginPath(); ctx.moveTo(x - h * 0.56, brim); ctx.lineTo(x - h * 0.5, top); ctx.lineTo(x + h * 0.5, top); ctx.lineTo(x + h * 0.56, brim); ctx.closePath(); ctx.fill(); // the crown
+  if (cow) { ctx.fillStyle = P.kraftDark; ctx.beginPath(); ctx.moveTo(x - h * 0.14, top); ctx.lineTo(x, top + h * 0.14); ctx.lineTo(x + h * 0.14, top); ctx.closePath(); ctx.fill(); } // the crease
+  ctx.fillStyle = cow ? P.cowboyBand : P.villainBand; ctx.fillRect(x - h * 0.55, brim - h * 0.12, h * 1.1, h * 0.08); // the band
+  ctx.fillStyle = cow ? P.cowboy : P.villain; ctx.fillRect(x - h, brim, h * 2, h * 0.08); // the brim, across the board
+  if (!flat) {
+    if (cow) { ctx.fillStyle = P.bandana; ctx.beginPath(); ctx.moveTo(x - h, low + h * 0.2); ctx.lineTo(x + h, low + h * 0.2); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fill(); } // the bandana
+    else { // the moustache, under the inner ring
+      ctx.fillStyle = P.ink; const my = low + h * 0.14;
+      ctx.beginPath(); ctx.ellipse(x - h * 0.17, my, h * 0.2, h * 0.07, 0.25, 0, PI2); ctx.ellipse(x + h * 0.17, my, h * 0.2, h * 0.07, -0.25, 0, PI2); ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(x, y, half, 0, PI2); ctx.stroke();
 }
 
-function paintCard(g, sc, flat) { drawCard(g, 0, 0, sc, 1, flat); }
+function paintCard(g, sc, flat) { drawCard(g, 0, 0, sc, 1, flat, 0); }
+function paintExtra(g, sc) { drawCard(g, 0, 0, sc, 1, false, 1); }
 
-// The stand of a still card: a thin post to the ground line with a foot. Drawn before the card, which hides its top.
+// The stand of a still cut-out: a wooden post down to a small dolly on the Screen Test's track. Drawn before the board, which hides its top.
 function drawPost(ctx, x, top) {
   const C = A.card, base = HORIZON;
   if (base - top < 6) return;
-  ctx.fillStyle = P.steelDark; ctx.strokeStyle = P.ink; ctx.lineWidth = A.line * 0.8;
-  ctx.fillRect(x - C.post / 2, top - 2, C.post, base - top + 2); ctx.strokeRect(x - C.post / 2, top - 2, C.post, base - top + 2);
-  rrect(ctx, x - C.foot / 2, base - 4, C.foot, 6, 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.woodDark; ctx.strokeStyle = P.ink; ctx.lineWidth = A.line * 0.8;
+  ctx.fillRect(x - C.post / 2, top - 2, C.post, base - top - 4); ctx.strokeRect(x - C.post / 2, top - 2, C.post, base - top - 4);
+  ctx.fillStyle = P.steelDark; rrect(ctx, x - C.foot / 2 - 3, base - 8, C.foot + 6, 5, 2); ctx.fill(); ctx.stroke();
+  disc(ctx, x - C.foot / 2, base - 1, 2.6, P.steel); ctx.stroke(); disc(ctx, x + C.foot / 2, base - 1, 2.6, P.steel); ctx.stroke();
 }
 
 // The trolley under an approaching card: a bracket, a flat base and two wheels; approach cards also ride a rail with ties fixed in the world.
@@ -1611,18 +1709,22 @@ function drawTrolley(ctx, x, y, half, sc, rail) {
   disc(ctx, x - w * 0.55, wy, wr, P.steel); ctx.stroke(); disc(ctx, x + w * 0.55, wy, wr, P.steel); ctx.stroke();
 }
 
-// A clay pigeon in the goal colour: a cyan rim round a neutral paper disc, a highlight and the white bullseye. Its radius is exactly the hit radius.
-// A decoy (Skeet 3) is the same clay in the player's orange with a dark cross where the bullseye would be: shape as well as colour tells it from a goal clay.
+// A flying saucer on a wire (v0.6 A), in the goal colour: a cyan hull exactly the hit radius, a ring of rim lights, the paper dome and the white bullseye at its centre (the
+// clay's zones of v0.5, unchanged). A decoy (Skeet 3) is the same saucer in the player's orange with a dark cross where the bullseye would be: shape as well as colour tells it apart.
 function paintClay(g, sc) { drawClay(g, 0, 0, sc, false); }
 function paintDecoy(g, sc) { drawClay(g, 0, 0, sc, true); }
 function drawClay(ctx, x, y, sc, decoy) {
-  const C = A.clay, r = T.zoneR[1] * sc;
+  const C = A.clay, S2 = A.saucer, r = T.zoneR[1] * sc;
   ctx.lineJoin = 'round';
   disc(ctx, x + A.shadowX, y + A.shadowY, r, P.shadow);
   ctx.fillStyle = decoy ? P.orange : P.cyan; ctx.strokeStyle = P.ink; ctx.lineWidth = A.line * Math.min(1, sc + 0.3);
   ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle = P.inkSoft; ctx.lineWidth = C.rimLine; ringDisc(ctx, x, y, r * C.disc, decoy ? P.orangeLight : P.paper);
-  ctx.strokeStyle = P.highlight; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 0.6, Math.PI * 1.05, Math.PI * 1.45); ctx.stroke();
+  ctx.strokeStyle = P.inkSoft; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r * (1 - S2.band), 0, PI2); ctx.stroke();
+  ctx.fillStyle = decoy ? P.orangeLight : P.white; ctx.beginPath();
+  for (let i = 0; i < S2.lights; i++) { const a = (i * PI2) / S2.lights + Math.PI / S2.lights, lx = x + Math.cos(a) * r * (1 - S2.band / 2), ly = y + Math.sin(a) * r * (1 - S2.band / 2); ctx.moveTo(lx + r * S2.lightR, ly); ctx.arc(lx, ly, r * S2.lightR, 0, PI2); }
+  ctx.fill();
+  ctx.strokeStyle = P.inkSoft; ctx.lineWidth = C.rimLine; ringDisc(ctx, x, y, r * C.disc * (1 - S2.band), decoy ? P.orangeLight : P.paper);
+  ctx.strokeStyle = P.highlight; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 0.45, Math.PI * 1.05, Math.PI * 1.45); ctx.stroke();
   if (decoy) {
     const k = r * C.cross; ctx.strokeStyle = P.ink; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x - k, y - k); ctx.lineTo(x + k, y + k); ctx.moveTo(x + k, y - k); ctx.lineTo(x - k, y + k); ctx.stroke(); ctx.lineCap = 'butt';
@@ -1720,7 +1822,7 @@ function drawTargetFull(ctx, E, tg, run, ch, alpha) {
     case 'horde':
       drawSprite(ctx, K_FLAT + Math.round(sc * 100), half + 6, paintCard, tg.x, tg.y, sc, true); break;
     case 'approach': case 'weave':
-      drawTrolley(ctx, tg.x, tg.y, half, sc, tg.kind === 'approach'); drawSprite(ctx, K_CARD + Math.round(sc * 100), half + 6, paintCard, tg.x, tg.y, sc, false); break;
+      drawTrolley(ctx, tg.x, tg.y, half, sc, tg.kind === 'approach'); drawSprite(ctx, K_EXTRA + Math.round(sc * 100), half + 6, paintExtra, tg.x, tg.y, sc, 0); break;
     default: // still and dodge cards on a post
       drawPost(ctx, tg.x, tg.y + half); drawSprite(ctx, K_CARD + Math.round(sc * 100), half + 6, paintCard, tg.x, tg.y, sc, false);
   }
@@ -1830,19 +1932,17 @@ function drawCorpse(ctx, f) {
   paintZombie(ctx, z, 0, 0, 0, 0);
   ctx.restore(); ctx.globalAlpha = 1;
 }
-// The fence: a palisade at the near edge of the field, red when a zombie is close. The sim ends the run when one touches it; this is only its look.
+// The fence (v0.6: the horror set's picket fence) at the near edge of the field, red when a zombie is close. The sim ends the run when one touches it; this is only its look.
 function drawFence(ctx, run) {
-  const Z = T.zombie, fx = Z.fenceX, top = 190, bot = HORIZON + 4;
+  const Z = T.zombie, fx = Z.fenceX, top = 196, bot = HORIZON + 4;
   let near = 1e9; for (const z of run.zs) near = Math.min(near, z.x - zReach(z) - fx);
-  ctx.lineJoin = 'round'; ctx.lineWidth = 2;
-  for (let i = 0; i < 3; i++) { // three planks side by side with pointed tops
-    const x = fx - 8 + i * 6, h = i === 1 ? 0 : 5;
-    ctx.fillStyle = i === 1 ? P.woodDark : P.wood; ctx.strokeStyle = P.ink;
-    ctx.beginPath(); ctx.moveTo(x, bot); ctx.lineTo(x, top + h + 6); ctx.lineTo(x + 3, top + h); ctx.lineTo(x + 6, top + h + 6); ctx.lineTo(x + 6, bot); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.lineJoin = 'round'; ctx.lineWidth = 1.8; ctx.strokeStyle = P.ink;
+  ctx.fillStyle = P.picketDark; for (const y of [top + 22, top + 64]) { ctx.fillRect(fx - 13, y, 26, 5); ctx.strokeRect(fx - 13, y, 26, 5); } // two rails
+  for (let i = 0; i < 3; i++) { // three pickets with pointed tops
+    const x = fx - 11 + i * 8, h = i === 1 ? 0 : 6;
+    ctx.fillStyle = P.picket; ctx.beginPath(); ctx.moveTo(x, bot); ctx.lineTo(x, top + h + 6); ctx.lineTo(x + 3, top + h); ctx.lineTo(x + 6, top + h + 6); ctx.lineTo(x + 6, bot); ctx.closePath(); ctx.fill(); ctx.stroke();
   }
-  ctx.fillStyle = P.steelDark; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6;
-  for (const y of [top + 26, top + 62]) { ctx.fillRect(fx - 12, y, 24, 5); ctx.strokeRect(fx - 12, y, 24, 5); } // two crossbars
-  if (near < 140) { ctx.globalAlpha = 0.5 * (1 - Math.max(0, near) / 140); ctx.fillStyle = P.red; ctx.fillRect(fx - 12, top, 24, bot - top); ctx.globalAlpha = 1; } // danger
+  if (near < 140) { ctx.globalAlpha = 0.5 * (1 - Math.max(0, near) / 140); ctx.fillStyle = P.red; ctx.fillRect(fx - 13, top, 26, bot - top); ctx.globalAlpha = 1; } // danger
 }
 
 // ---- Reload (v0.5 M): the button, the ring on the gun, the text cue ----
@@ -1929,6 +2029,46 @@ function drawTracer(ctx, f) {
   ctx.globalAlpha = 1;
 }
 
+// A hit saucer (v0.6 A) drops off its wire, turning, and fades; the sparks and a headshot's make-up squib are short bursts of dots under gravity (cosmetic: Math.random).
+function drawDrop(ctx, f) {
+  const u = f.max - f.t, x = f.x + f.vx * u, y = f.y + f.vy * u + 0.5 * A.saucer.fall * u * u, r = T.zoneR[1] * f.sc;
+  ctx.save(); ctx.globalAlpha = clamp(f.t / f.max * 1.6, 0, 1); ctx.translate(x, y); ctx.rotate(f.spin * u);
+  drawSprite(ctx, (f.decoy ? K_DECOY : K_CLAY) + Math.round(f.sc * 100), r + 6, f.decoy ? paintDecoy : paintClay, 0, 0, f.sc, 0);
+  ctx.restore();
+}
+function drawBurst(ctx, f) {
+  const u = f.max - f.t, a = clamp(f.t / f.max, 0, 1);
+  ctx.globalAlpha = a;
+  for (const d of f.dots) { ctx.fillStyle = d.c; ctx.beginPath(); ctx.arc(f.x + d.vx * u, f.y + d.vy * u + 0.5 * f.g * u * u, d.r, 0, PI2); ctx.fill(); }
+  ctx.globalAlpha = 1;
+}
+function burst(x, y, n, speed, rads, cols, life, g) {
+  const dots = [];
+  for (let i = 0; i < n; i++) { const a = Math.random() * PI2, v = rnd(speed); dots.push({ vx: Math.cos(a) * v, vy: Math.sin(a) * v - speed[0] * 0.5, r: rnd(rads), c: cols[i % cols.length] }); }
+  return { x, y, dots, g, t: life, max: life };
+}
+// The clapperboard (v0.6 A): "Action!" as a run starts and "Cut!" as it ends, in screen px over the middle of the field. The stick snaps shut in the first moment and the board
+// fades at the end; it is a picture only, so input runs under it and the timers never wait for it.
+function drawClapper(E, v, clap) {
+  const K = A.clap, age = E.time - clap.t0;
+  if (age < 0 || age >= K.life) return;
+  const ctx = E.ctx, a = age > K.life - K.fade ? (K.life - age) / K.fade : 1, cx = v.ox + v.w / 2, cy = v.oy + v.h * K.y, x = cx - K.w / 2, y = cy - K.h / 2 + K.stick / 2;
+  const shut = clamp(age / K.snap, 0, 1), ang = -0.5 * (1 - ease.outQuad(shut));
+  ctx.save(); ctx.globalAlpha = a; ctx.lineJoin = 'round';
+  ctx.fillStyle = P.shadow; rrect(ctx, x + A.shadowX, y + A.shadowY, K.w, K.h - K.stick, 6); ctx.fill();
+  ctx.fillStyle = P.stageLow; ctx.strokeStyle = P.text; ctx.lineWidth = 2; rrect(ctx, x, y, K.w, K.h - K.stick, 6); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = P.textFaint; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 8, y + K.h - K.stick - 12); ctx.lineTo(x + K.w - 8, y + K.h - K.stick - 12); ctx.stroke();
+  const stripes = (sy) => { // the black and white bars of a clapper stick, clipped to it
+    ctx.fillStyle = P.stageLow; rrect(ctx, x, sy, K.w, K.stick, 3); ctx.fill(); ctx.save(); rrect(ctx, x, sy, K.w, K.stick, 3); ctx.clip();
+    ctx.fillStyle = P.text; for (let k = -1; k < 8; k++) { const bx = x + k * 22; ctx.beginPath(); ctx.moveTo(bx, sy + K.stick); ctx.lineTo(bx + 11, sy); ctx.lineTo(bx + 22, sy); ctx.lineTo(bx + 11, sy + K.stick); ctx.closePath(); ctx.fill(); }
+    ctx.restore(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; rrect(ctx, x, sy, K.w, K.stick, 3); ctx.stroke();
+  };
+  stripes(y - K.stick);
+  ctx.save(); ctx.translate(x, y - K.stick); ctx.rotate(ang); ctx.translate(-x, -(y - K.stick)); stripes(y - 2 * K.stick - 1); ctx.restore();
+  ctx.restore();
+  E.text(clap.text, cx, y + (K.h - K.stick) / 2 - 3, { size: TY.mid + 2, weight: TY.strong, color: P.text, alpha: a });
+}
+
 // The ring that opens at a hit in the zone's colour, over the first part of the pop's life.
 function drawHitRing(ctx, f) {
   const K = A.ring, k = (1 - f.t / f.max) * (f.max / K.life);
@@ -1945,41 +2085,186 @@ function popText(E, str, x, y, color, alpha, size) {
   ctx.fillStyle = color; ctx.fillText(str, x, y); ctx.globalAlpha = 1;
 }
 
-// ---- The range: horizon, distant wall with lane markers, ground band. The static shapes are prebuilt Path2Ds (built once), drawn in a
-// handful of fills; solid fills are the cheapest thing a canvas does, so this beats blitting a full-screen image every frame. ----
+// ---- The sets (v0.6 A): each mode is a soundstage on the Backlot 88 lot. A set is painted once per screen scale into an offscreen image and drawn with one blit a frame (only the
+// fog and the saucers' wires move). Everything here is set dressing: nothing on a set is a target or uses a target's colour, and the band the targets use stays near black. ----
 
-const BGP = { built: false, seams: null, boards: null, chevrons: null, plaques: null, ticks: null };
-function buildBackdrop() {
-  const W = T.designW, hz = HORIZON, b = A.backdrop, base = b.wallTop + b.coping;
-  BGP.seams = new Path2D(); BGP.boards = new Path2D(); BGP.chevrons = new Path2D(); BGP.plaques = new Path2D(); BGP.ticks = new Path2D();
-  for (let x = b.seam; x < W; x += b.seam) BGP.seams.rect(x - 1, base + 2, 2, hz - base - 2);
-  for (let x = b.marker; x < W - 20; x += b.marker) { // a grey lane board with a darker chevron (neutral: nothing on the wall is a target)
-    rrPath(BGP.boards, x - b.markerW / 2, base + 10, b.markerW, b.markerH, 2);
-    BGP.chevrons.moveTo(x - 5, base + 15); BGP.chevrons.lineTo(x + 5, base + 15); BGP.chevrons.lineTo(x, base + 23); BGP.chevrons.closePath();
-    BGP.plaques.rect(x - 5, base + 27, 10, 3);
-    BGP.ticks.rect(x - 1, hz + 3, 2, b.tick);
+// Which set a run plays on: the ladder's, Boss 1's monster, Boss 2's robot, and the night shoot for Endless.
+function setOf(ch) { return ch.endless ? 'night' : ch.ladder === 'boss' ? (ch.wall ? 'robot' : 'monster') : A.set[ch.ladder]; }
+const SET_IMG = { key: null, k: 0, cv: null };
+// A soft glow: a radial gradient disc (only ever painted into a cached set image).
+function glow(g, x, y, r, col) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+// A rim light: the path stroked in a neon colour at part strength.
+function rim(g, col, a, w) { g.save(); g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = w; g.stroke(); g.restore(); }
+// The stage: black walls, the lighting truss with its lamps and faint beams (strongest above the target band), and the floor.
+function paintStage(g, floorCol) {
+  const W = T.designW, H = T.designH, hz = HORIZON, K = A.sets.truss;
+  g.fillStyle = P.stage; g.fillRect(0, 0, W, hz);
+  for (let x = K.lamps / 2, i = 0; x < W; x += K.lamps, i++) { // beams first, so the truss sits over their tops
+    const gr = g.createLinearGradient(0, K.y + K.h, 0, 150); gr.addColorStop(0, i % 2 ? P.tealGlow : P.pinkGlow); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.beginPath(); g.moveTo(x - K.lampW / 2, K.y + K.h + K.lampH); g.lineTo(x + K.lampW / 2, K.y + K.h + K.lampH); g.lineTo(x + 46, 150); g.lineTo(x - 46, 150); g.closePath(); g.fill();
   }
-  BGP.built = true;
+  g.fillStyle = P.truss; g.fillRect(0, K.y, W, K.h);
+  g.strokeStyle = P.stageHi; g.lineWidth = 1.5; g.beginPath();
+  for (let x = 0; x < W; x += 14) { g.moveTo(x, K.y); g.lineTo(x + 7, K.y + K.h); g.lineTo(x + 14, K.y); }
+  g.stroke();
+  for (let x = K.lamps / 2; x < W; x += K.lamps) { g.fillStyle = P.lamp; rrect(g, x - K.lampW / 2, K.y + K.h, K.lampW, K.lampH, 3); g.fill(); g.fillStyle = P.stageLow; g.fillRect(x - K.lampW / 2 + 3, K.y + K.h + K.lampH - 3, K.lampW - 6, 3); }
+  g.fillStyle = floorCol || P.floor; g.fillRect(0, hz, W, H - hz);
+  g.fillStyle = P.floorLine; g.fillRect(0, hz - 1, W, 2);
+  g.fillStyle = P.shadow; g.fillRect(0, hz + 1, W, 5);
 }
-function drawBackdrop(ctx) {
-  if (!BGP.built) buildBackdrop();
-  const W = T.designW, H = T.designH, hz = HORIZON, b = A.backdrop, top = b.wallTop, base = top + b.coping;
-  ctx.fillStyle = P.sky; ctx.fillRect(0, 0, W, b.skyLowY);
-  ctx.fillStyle = P.skyLow; ctx.fillRect(0, b.skyLowY, W, top - b.skyLowY);
-  ctx.fillStyle = P.wall; ctx.fillRect(0, top, W, hz - top);
-  ctx.fillStyle = P.wallTop; ctx.fillRect(0, top, W, b.coping);
-  ctx.fillStyle = P.highlight; ctx.fillRect(0, top, W, 2);
-  ctx.fillStyle = P.ink; ctx.fillRect(0, base, W, 2);
-  ctx.fillStyle = P.wallSeam; ctx.fill(BGP.seams);
-  ctx.fillStyle = P.steel; ctx.strokeStyle = P.ink; ctx.lineJoin = 'round'; ctx.lineWidth = 1.6; ctx.fill(BGP.boards); ctx.stroke(BGP.boards);
-  ctx.fillStyle = P.steelDark; ctx.fill(BGP.chevrons);
-  ctx.fillStyle = P.slate; ctx.fill(BGP.plaques);
-  ctx.fillStyle = P.shadow; ctx.fillRect(0, hz - 6, W, 6);
-  ctx.fillStyle = P.ground; ctx.fillRect(0, hz, W, H - hz);
-  ctx.fillStyle = P.groundLine; ctx.fillRect(0, hz - 1, W, 3);
-  ctx.fillStyle = P.tape; ctx.fill(BGP.ticks); ctx.fillRect(0, hz + 8, W - 8, 2); ctx.fillRect(0, H - 10, W - 8, 2);
-  ctx.fillStyle = P.backstop; ctx.fillRect(W - 6, 0, 6, H);
-  ctx.fillStyle = P.backstopEdge; ctx.fillRect(W - 6, 0, 2, H);
+function paintScreen(g) { // Screen test: a painted city on a flat, a camera on a dolly, a dolly track on the floor
+  const S2 = A.sets.screen, hz = HORIZON, top = 44, base = hz - 22;
+  paintStage(g);
+  g.fillStyle = P.city; g.fillRect(8, top, T.designW - 16, base - top); // the flat, its painted night sky
+  disc(g, S2.moon[0], S2.moon[1], S2.moon[2], P.moon);
+  S2.skyline.forEach(([x, y, w], i) => {
+    g.fillStyle = i % 2 ? P.cityHi : P.stageHi; g.fillRect(x, y, w, base - y);
+    const [wx, wy, gx, gy] = S2.win;
+    for (let yy = y + 8; yy < base - 10; yy += gy) for (let xx = x + 6; xx < x + w - wx; xx += gx) { g.fillStyle = (xx * 7 + yy * 3) % 11 === 0 ? P.cityLit : P.cityWin; g.fillRect(xx, yy, wx, wy * 0.6); }
+  });
+  g.fillStyle = P.stageLow; g.fillRect(8, base - 6, T.designW - 16, 6);
+  g.strokeStyle = P.floorLine; g.lineWidth = 2; g.strokeRect(8, top, T.designW - 16, base - top); // the flat's frame
+  g.beginPath(); g.moveTo(8, top); g.lineTo(T.designW - 8, top); rim(g, P.neonPink, 0.55, 2);
+  g.fillStyle = P.floorLine; for (let x = 168; x < T.designW - 20; x += 160) g.fillRect(x, top, 1.5, base - top); // seams between the flats
+  // the camera on its dolly, facing the targets' side
+  const [cx, cy] = S2.camera;
+  g.fillStyle = P.stageHi; g.strokeStyle = P.floorLine; g.lineWidth = 1.5;
+  rrect(g, cx - 4, cy - 30, 40, 26, 4); g.fill(); g.stroke();
+  disc(g, cx + 4, cy - 40, 11, P.stageHi); g.stroke(); disc(g, cx + 26, cy - 40, 11, P.stageHi); g.stroke(); // the film reels
+  rrect(g, cx - 18, cy - 24, 16, 14, 3); g.fill(); g.stroke(); // the lens hood
+  g.beginPath(); g.moveTo(cx + 16, cy - 4); g.lineTo(cx + 8, hz - 10); g.moveTo(cx + 16, cy - 4); g.lineTo(cx + 26, hz - 10); g.lineWidth = 3; g.stroke();
+  rrect(g, cx - 6, hz - 12, 46, 6, 2); g.fill(); disc(g, cx, hz - 4, 4, P.lamp); disc(g, cx + 34, hz - 4, 4, P.lamp);
+  g.beginPath(); g.moveTo(cx + 36, cy - 30); g.lineTo(cx + 36, cy - 4); rim(g, P.neonTeal, 0.6, 2);
+  // the dolly track the cut-outs stand on
+  g.fillStyle = P.truss; for (let x = 4; x < T.designW; x += S2.tie) g.fillRect(x, hz + 1, 8, S2.track + 2);
+  g.fillStyle = P.lamp; g.fillRect(0, hz, T.designW, 2); g.fillRect(0, hz + S2.track, T.designW, 2);
+}
+function paintWestern(g) { // Western street: a painted dusk, a mesa, a water tower, false-front buildings, a boardwalk
+  const S2 = A.sets.western, hz = HORIZON, walkTop = hz - S2.walk;
+  paintStage(g, P.boardwalk);
+  g.fillStyle = P.duskHi; g.fillRect(8, 60, T.designW - 16, walkTop - 60);
+  g.fillStyle = P.mesa; g.beginPath(); g.moveTo(8, walkTop); S2.mesa.forEach(([x, y]) => g.lineTo(clamp(x, 8, T.designW - 8), y)); g.lineTo(T.designW - 8, walkTop); g.closePath(); g.fill();
+  const [tx, ty] = S2.tower; // the water tower behind the street
+  g.fillStyle = P.stageHi; g.fillRect(tx - 18, ty + 34, 3, 60); g.fillRect(tx + 15, ty + 34, 3, 60); rrect(g, tx - 24, ty, 48, 36, 6); g.fill();
+  S2.fronts.forEach(([x, y, w], i) => {
+    const sign = y - 22;
+    g.fillStyle = i % 2 ? P.facadeHi : P.facade; g.fillRect(x, y, w, walkTop - y); rrect(g, x + w * 0.18, sign, w * 0.64, 24, 3); g.fill();
+    g.fillStyle = P.stageLow; for (let yy = y + 6; yy < walkTop; yy += 9) g.fillRect(x, yy, w, 1); // the clapboards
+    g.beginPath(); rrPath(g, x + w * 0.18, sign, w * 0.64, 24, 3); rim(g, i % 2 ? P.neonTeal : P.neonPink, 0.55, 1.8);
+    const [ww, wh] = S2.win, [dw, dh] = S2.door;
+    g.fillStyle = P.facadeWin; g.fillRect(x + w * 0.22 - ww / 2, y + 22, ww, wh); g.fillRect(x + w * 0.78 - ww / 2, y + 22, ww, wh);
+    g.fillRect(x + w / 2 - dw / 2, walkTop - dh, dw, dh);
+    g.fillStyle = P.facadeHi; g.fillRect(x + w / 2 - dw / 2 + 3, walkTop - dh + 16, dw / 2 - 4, 22); g.fillRect(x + w / 2 + 1, walkTop - dh + 16, dw / 2 - 4, 22); // the swing doors
+  });
+  g.fillStyle = P.facadeHi; g.fillRect(0, walkTop, T.designW, 3);
+  g.fillStyle = P.stageLow; for (let x = 0; x < T.designW; x += 22) g.fillRect(x, walkTop + 3, 1.5, S2.walk - 3);
+}
+function paintScifi(g) { // B-movie sci-fi: a starfield flat, a painted ringed planet and a moon, rocket-spire flats, a grated floor
+  const S2 = A.sets.scifi, hz = HORIZON, rng = makeRng(88);
+  paintStage(g);
+  g.fillStyle = P.space; g.fillRect(8, 40, T.designW - 16, hz - 40);
+  g.fillStyle = P.starDot; for (let i = 0; i < S2.stars; i++) { const r = rng() < 0.2 ? 1.3 : 0.8; g.fillRect(rng.range(10, T.designW - 10), rng.range(42, hz - 8), r, r); }
+  const [px, py, pr] = S2.planet, [rk, rh] = S2.ring;
+  g.strokeStyle = P.planetRing; g.lineWidth = 5; g.beginPath(); g.ellipse(px, py, pr * rk, pr * rh, -0.25, Math.PI, PI2); g.stroke(); // the ring's far half
+  disc(g, px, py, pr, P.planet);
+  g.save(); g.beginPath(); g.arc(px, py, pr, 0, PI2); g.clip(); disc(g, px - pr * 0.35, py - pr * 0.3, pr * 0.8, P.planetHi); disc(g, px - pr * 0.1, py - pr * 0.05, pr * 0.72, P.planet); g.restore();
+  g.beginPath(); g.arc(px, py, pr, -0.4, 1.3); rim(g, P.neonTeal, 0.5, 2);
+  g.strokeStyle = P.planetRing; g.lineWidth = 5; g.beginPath(); g.ellipse(px, py, pr * rk, pr * rh, -0.25, 0, Math.PI); g.stroke(); // the near half
+  const [mx, my, mr] = S2.moon; disc(g, mx, my, mr, P.planetHi); disc(g, mx - 4, my - 3, 3, P.planet); disc(g, mx + 5, my + 4, 2.4, P.planet);
+  S2.spires.forEach(([x, w, h]) => { // rocket-shaped flats on the floor line
+    g.fillStyle = P.stageHi; g.beginPath(); g.moveTo(x - w / 2, hz); g.lineTo(x - w / 4, hz - h * 0.8); g.lineTo(x, hz - h); g.lineTo(x + w / 4, hz - h * 0.8); g.lineTo(x + w / 2, hz); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(x, hz - h); g.lineTo(x + w / 4, hz - h * 0.8); g.lineTo(x + w / 2, hz); rim(g, P.neonPink, 0.45, 1.6);
+  });
+  g.fillStyle = P.stageHi; for (let x = 0; x < T.designW; x += S2.grate) g.fillRect(x, hz + 2, 1.5, T.designH - hz);
+}
+function paintMonster(g) { // the monster stage: a rubber-suit kaiju (zipper up its back) over a model city; its plates and core are its exposed machinery
+  const M = A.sets.monster, hz = HORIZON, x = M.x, w = M.w, t = M.top;
+  paintStage(g);
+  const body = new Path2D(); // the head leans toward the gun, the tail curls to the right
+  body.moveTo(x - w * 0.3, hz); body.lineTo(x - w * 0.42, t + 150); body.quadraticCurveTo(x - w * 0.5, t + 70, x - w * 0.32, t + 42); body.lineTo(x - w * 0.46, t + 30); body.quadraticCurveTo(x - w * 0.5, t + 6, x - w * 0.24, t);
+  body.quadraticCurveTo(x - w * 0.02, t - 4, x + w * 0.06, t + 30); body.quadraticCurveTo(x + w * 0.44, t + 60, x + w * 0.46, t + 170); body.quadraticCurveTo(x + w * 0.62, hz - 20, x + w * 0.7, hz - 6); body.lineTo(x + w * 0.4, hz); body.closePath();
+  g.fillStyle = P.kaiju; g.fill(body);
+  for (let i = 0; i < M.spines; i++) { const k = i / (M.spines - 1), sx = x + w * (0.04 + 0.4 * k), sy = t + 26 + 120 * k * k; g.fillStyle = P.kaijuHi; g.beginPath(); g.moveTo(sx - 9, sy + 6); g.lineTo(sx + 12, sy - 14); g.lineTo(sx + 8, sy + 12); g.closePath(); g.fill(); }
+  g.fillStyle = P.kaijuHi; rrect(g, x - w * 0.3, t + 120, w * 0.4, hz - t - 130, 30); g.fill(); // the belly
+  g.strokeStyle = P.kaiju; g.lineWidth = 2; for (let y = t + 136; y < hz - 20; y += 16) { g.beginPath(); g.moveTo(x - w * 0.28, y); g.lineTo(x + w * 0.08, y); g.stroke(); }
+  g.strokeStyle = P.zipper; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x + w * 0.2, t + 50); g.quadraticCurveTo(x + w * 0.38, t + 110, x + w * 0.4, hz - 30); g.stroke(); // the zipper
+  for (let i = 0; i < M.zip; i++) { const k = i / (M.zip - 1), zx = x + w * (0.2 + 0.2 * Math.sqrt(k)), zy = t + 50 + (hz - 80 - t) * k; g.fillStyle = P.zipper; g.fillRect(zx - 3, zy, 6, 1.6); }
+  const [ex, ey, er] = M.eye; disc(g, x + ex, t + ey, er, P.eyeDim); disc(g, x + ex, t + ey, er * 0.45, P.neonPink); // one eye, lit pink
+  g.beginPath(); g.moveTo(x - w * 0.46, t + 36); g.lineTo(x - w * 0.3, t + 40); g.strokeStyle = P.stageLow; g.lineWidth = 2; g.stroke(); // the jaw line
+  g.save(); g.beginPath(); g.rect(0, 0, x - w * 0.1, hz); g.clip(); g.lineWidth = 3; g.strokeStyle = P.neonPink; g.globalAlpha = 0.5; g.stroke(body); g.restore(); // pink from the left
+  g.save(); g.beginPath(); g.rect(x + w * 0.1, 0, T.designW, hz); g.clip(); g.lineWidth = 3; g.strokeStyle = P.neonTeal; g.globalAlpha = 0.45; g.stroke(body); g.restore(); // teal from the right
+  [[x - w * 0.62, 22, 40], [x - w * 0.48, 16, 26], [x + w * 0.5, 20, 34], [x + w * 0.62, 14, 22], [x - w * 0.78, 18, 30]].forEach(([bx, bw, bh]) => { // the model city at its feet
+    g.fillStyle = P.cityHi; g.fillRect(bx - bw / 2, hz - bh, bw, bh); g.fillStyle = P.cityWin; for (let yy = hz - bh + 4; yy < hz - 4; yy += 7) g.fillRect(bx - bw / 2 + 3, yy, bw - 6, 2);
+  });
+}
+function paintRobot(g) { // the animatronic robot of Boss 2: the Bunker's plates sit in its chest and the core is its heart; cables hang from the truss
+  const R2 = A.sets.robot, hz = HORIZON, x = R2.x, w = R2.w, t = R2.top, l = x - w / 2, r = x + w / 2;
+  paintStage(g);
+  g.strokeStyle = P.stageHi; g.lineWidth = 2.5; g.beginPath(); for (const cx of [l + 30, x + R2.head, r - 30]) { g.moveTo(cx, A.sets.truss.y + A.sets.truss.h); g.quadraticCurveTo(cx + 12, t + 10, cx, t + 36); } g.stroke();
+  const hx = x + R2.head; // the head sits left of the middle, clear of the HUD's corner
+  g.fillStyle = P.robot; rrect(g, hx - 40, t, 80, 44, 10); g.fill();
+  const [vw, vh] = R2.visor; g.fillStyle = P.robotHi; rrect(g, hx - vw / 2, t + 14, vw, vh, 5); g.fill(); g.beginPath(); rrPath(g, hx - vw / 2, t + 14, vw, vh, 5); rim(g, P.neonTeal, 0.7, 1.6);
+  g.fillStyle = P.stageHi; g.fillRect(hx + 22, t - 16, 3, 16); disc(g, hx + 23.5, t - 17, 4, P.eyeDim); // the antenna
+  g.fillStyle = P.robot; g.fillRect(hx - 14, t + 44, 28, 12); // the neck
+  disc(g, hx - 13, t + 20, 3, P.neonTeal); disc(g, hx + 13, t + 20, 3, P.neonTeal); // its eyes behind the visor
+  const torso = new Path2D(); // broad shoulders, a waist, a hip plate
+  torso.moveTo(l + 10, t + 54); torso.lineTo(r - 10, t + 54); torso.quadraticCurveTo(r, t + 54, r, t + 70); torso.lineTo(r - 18, hz - 60); torso.lineTo(r - 4, hz - 40); torso.lineTo(r - 4, hz); torso.lineTo(l + 4, hz); torso.lineTo(l + 4, hz - 40); torso.lineTo(l + 18, hz - 60); torso.lineTo(l, t + 70); torso.quadraticCurveTo(l, t + 54, l + 10, t + 54); torso.closePath();
+  g.fillStyle = P.robot; g.fill(torso);
+  g.fillStyle = P.robotHi; rrect(g, l - 26, t + 58, 34, 92, 12); g.fill(); rrect(g, r - 8, t + 58, 34, 92, 12); g.fill(); // the shoulders and arms
+  g.fillStyle = P.robot; rrect(g, l - 20, t + 150, 22, hz - t - 170, 8); g.fill(); rrect(g, r - 2, t + 150, 22, hz - t - 170, 8); g.fill();
+  g.fillStyle = P.robotHi; g.fillRect(l + 18, hz - 58, w - 36, 3); g.fillRect(l + 6, hz - 40, w - 12, 3); // the waist seams
+  for (let yy = t + 70; yy < hz - 70; yy += R2.rivet) { disc(g, l + 10, yy, 2.2, P.robotHi); disc(g, r - 10, yy, 2.2, P.robotHi); }
+  g.save(); g.beginPath(); g.rect(0, 0, l + 30, hz); g.clip(); g.lineWidth = 2.5; g.strokeStyle = P.neonPink; g.globalAlpha = 0.5; g.stroke(torso); g.restore(); // pink on its left side
+  g.save(); g.beginPath(); g.rect(r - 30, 0, T.designW, hz); g.clip(); g.lineWidth = 2.5; g.strokeStyle = P.neonTeal; g.globalAlpha = 0.45; g.stroke(torso); g.restore(); // teal on its right
+}
+function paintHorror(g) { // the horror set: a painted moon, a dead tree, tombstones, a far iron fence, a low fog and the fog machine
+  const S2 = A.sets.horror, hz = HORIZON;
+  paintStage(g);
+  const [mx, my, mr] = S2.moon; disc(g, mx, my, mr, P.moon);
+  const [fx0, fy, fx1] = S2.fence; g.fillStyle = P.graveHi; g.fillRect(fx0, fy, fx1 - fx0, 2); g.fillRect(fx0, fy + 16, fx1 - fx0, 2); for (let x = fx0; x < fx1; x += 12) g.fillRect(x, fy - 6, 1.6, hz - fy + 6);
+  const [tx, ty] = S2.tree; g.strokeStyle = P.tree; g.lineCap = 'round';
+  g.lineWidth = 12; g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx - 8, ty - 150); g.stroke();
+  g.lineWidth = 5; g.beginPath(); g.moveTo(tx - 6, ty - 110); g.lineTo(tx - 50, ty - 170); g.moveTo(tx - 8, ty - 140); g.lineTo(tx + 20, ty - 200); g.moveTo(tx - 30, ty - 140); g.lineTo(tx - 44, ty - 196); g.stroke(); g.lineCap = 'butt';
+  S2.stones.forEach(([x, y, w, h]) => { g.fillStyle = P.grave; g.beginPath(); g.moveTo(x - w / 2, hz); g.lineTo(x - w / 2, y - h + w / 2); g.arc(x, y - h + w / 2, w / 2, Math.PI, 0); g.lineTo(x + w / 2, hz); g.closePath(); g.fill(); g.fillStyle = P.graveHi; g.fillRect(x - w / 2, y - h + w / 2, 2, hz - y + h - w / 2); g.fillRect(x - w * 0.25, y - h + w * 0.7, w * 0.5, 2); });
+  const [qx, qy] = S2.machine; g.fillStyle = P.stageHi; rrect(g, qx - 16, qy - 20, 32, 22, 4); g.fill(); g.fillRect(qx - 22, qy - 14, 8, 6); // the fog machine, nozzle toward the field
+  g.beginPath(); rrPath(g, qx - 16, qy - 20, 32, 22, 4); rim(g, P.lamp, 0.8, 1.4); // a plain grey edge: nothing near the goal's cyan on this set
+  const gr = g.createLinearGradient(0, hz - 20, 0, T.designH); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.35, P.fog); gr.addColorStop(1, P.fog); g.fillStyle = gr; g.fillRect(0, hz - 20, T.designW, T.designH - hz + 20);
+}
+function paintNight(g) { // the night shoot: the horror set darker, under two floodlight rigs whose cones fade before the targets' band
+  paintHorror(g);
+  g.fillStyle = 'rgba(5,4,8,0.4)'; g.fillRect(0, 0, T.designW, HORIZON);
+  const F = A.sets.flood;
+  F.rigs.forEach(([x, y]) => {
+    const dir = x < T.designW / 2 ? 1 : -1, gr = g.createLinearGradient(x, y + 30, x + dir * 60, 200);
+    gr.addColorStop(0, P.flood); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.beginPath(); g.moveTo(x, y + 30); g.lineTo(x + dir * (F.cone + 40), HORIZON); g.lineTo(x + dir * 20, HORIZON); g.closePath(); g.fill();
+    g.fillStyle = P.lamp; g.fillRect(x - 2, y, 4, 34); rrect(g, x - 14, y + 26, 28, 14, 3); g.fill(); g.fillStyle = P.flood; g.fillRect(x - 12, y + 36, 24, 3);
+  });
+}
+const SET_PAINT = { screen: paintScreen, western: paintWestern, scifi: paintScifi, monster: paintMonster, robot: paintRobot, horror: paintHorror, night: paintNight };
+// Builds the set's image at this device scale (at play start, so the first frame does not pay for it): an opaque canvas exactly the field's size in device pixels.
+function setScale(k) { return Math.round(k * 1000) / 1000; }
+function prepSet(key, k) {
+  if (SET_IMG.key === key && SET_IMG.k === k) return;
+  SET_IMG.key = key; SET_IMG.k = k; SET_IMG.cv = null;
+  if (typeof OffscreenCanvas === 'undefined') return;
+  const cv = new OffscreenCanvas(Math.round(T.designW * k), Math.round(T.designH * k)), g = cv.getContext('2d', { alpha: false });
+  if (!g) return;
+  g.scale(cv.width / T.designW, cv.height / T.designH); SET_PAINT[key](g);
+  SET_IMG.cv = cv;
+}
+// The set, drawn in device pixels at a whole-pixel offset and no scale, so the raster copies it rather than filtering and blending every pixel (a full-field blit through the
+// field's fractional scale cost two to three times v0.5's whole frame under software raster). Without offscreen canvases, only the stage's flat base is drawn.
+function drawSet(ctx, key) {
+  const m = ctx.getTransform(), k = setScale(m.a);
+  prepSet(key, k);
+  if (!SET_IMG.cv) { ctx.fillStyle = P.stage; ctx.fillRect(0, 0, T.designW, HORIZON); ctx.fillStyle = P.floor; ctx.fillRect(0, HORIZON, T.designW, T.designH - HORIZON); return; }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(SET_IMG.cv, Math.round(m.e), Math.round(m.f)); ctx.restore();
+}
+// The fog machine's fog: three slow wisps along the floor, below the zombies' feet (the one moving part of a set).
+function drawFog(ctx, now) {
+  ctx.fillStyle = P.fog;
+  for (const [x, y, w, h, v] of A.sets.horror.fog) { const xx = ((x + v * now) % (T.designW + w)) - w / 2; ctx.beginPath(); ctx.ellipse(xx, y, w / 2, h / 2, 0, 0, PI2); ctx.fill(); ctx.beginPath(); ctx.ellipse(xx + w * 0.3, y + 4, w / 3, h / 2.5, 0, 0, PI2); ctx.fill(); }
 }
 
 // ---- Interface pieces (screen px) ----
@@ -1994,7 +2279,7 @@ function plate(E, x, y, w, h, fill, edge, r) {
 function btn(E, label, cx, cy, o) {
   const x = cx - o.w / 2, y = cy - o.h / 2;
   plate(E, x, y, o.w, o.h, o.fill, P.ink);
-  E.text(label, cx, cy, { size: o.size, color: o.color || P.text, weight: TY.strong });
+  if (label) E.text(label, cx, cy, { size: o.size, color: o.color || P.text, weight: TY.strong });
   return { x, y, w: o.w, h: o.h };
 }
 // The combo pips as casings, two paths for the whole row: `lit` brass ones with a primer, and the spent, empty ones.
@@ -2054,10 +2339,10 @@ function prepMenu(dpr, ctx) {
 function paintRung(g, ch) {
   g.lineJoin = 'round';
   const R = T.zoneR, base = ch.ladder === 'boss' ? 0.5 : 0.5 * clamp(ch.scale || 1, 0.7, 1.2);
-  if (ch.ladder === 'accuracy') drawCard(g, 0, 0, base, 1, false);
+  if (ch.ladder === 'accuracy') drawCard(g, 0, 0, base, 1, false, 0);
   else if (ch.ladder === 'speed') {
     if (ch.waves || ch.behaviour === 'horde') for (let k = -1; k <= 1; k++) drawCard(g, 0, k * 10, 0.3, 1, true);
-    else { drawCard(g, 0, -2, base * 0.85, 1, false); g.fillStyle = P.steelDark; g.fillRect(-9, 11, 18, 3); disc(g, -5, 15, 2.2, P.steel); disc(g, 5, 15, 2.2, P.steel); if (ch.behaviour === 'weave') { g.strokeStyle = P.cyan; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-14, 4); g.bezierCurveTo(-8, -12, -2, 14, 4, -2); g.stroke(); } }
+    else { drawCard(g, 0, -2, base * 0.85, 1, false, 1); g.fillStyle = P.steelDark; g.fillRect(-9, 11, 18, 3); disc(g, -5, 15, 2.2, P.steel); disc(g, 5, 15, 2.2, P.steel); if (ch.behaviour === 'weave') { g.strokeStyle = P.cyan; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-14, 4); g.bezierCurveTo(-8, -12, -2, 14, 4, -2); g.stroke(); } }
   } else if (ch.ladder === 'skeet') {
     if (ch.volley) { drawClay(g, -4, 2, 0.8, false); drawClay(g, 9, -6, 0.5, true); } else drawClay(g, 0, 0, 0.9, false);
   } else if (ch.ladder === 'zombie') { // one, two or three zombies for the rung's wave count; the endless mode shows the crowd
@@ -2073,6 +2358,14 @@ function drawTicket(ctx, x, y, w, h, col) {
   ctx.fillStyle = P.panelHi; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.setLineDash(SEL_DASH); ctx.stroke(); ctx.setLineDash(NO_DASH);
 }
 
+// A call sheet (v0.6 C, the reward tickets of v0.5 Q restyled): a paper sheet with a strip in the reward's colour down its left edge and two punched holes, text in ink.
+function drawCallSheet(ctx, x, y, w, h, col) {
+  const l = x - w / 2, t = y - h / 2;
+  ctx.fillStyle = P.shadow; rrect(ctx, l + A.shadowX, t + A.shadowY, w, h, 4); ctx.fill();
+  ctx.fillStyle = P.paper; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6; rrect(ctx, l, t, w, h, 4); ctx.fill();
+  ctx.fillStyle = col; ctx.fillRect(l + 1, t + 1, 5, h - 2);
+  ctx.stroke(); disc(ctx, l + 3.5, t + h * 0.28, 1.6, P.ink); disc(ctx, l + 3.5, t + h * 0.72, 1.6, P.ink);
+}
 // A menu swatch on a plate, hit rect r; the worn one is ringed in orange, a locked one carries a padlock.
 function drawChip(ctx, E, r, skin, on, open) {
   const C = A.chip, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
@@ -2083,10 +2376,12 @@ function drawChip(ctx, E, r, skin, on, open) {
 // ---------- Play state ----------
 
 const S = {};
+let popRung = null; // set when a run raised a rung's stars (and which gun), read once by the menu
 
 function newRun(ch, id, gauntlet, skin) {
   S.ch = ch; S.gunId = id; S.skin = skin || 'std'; S.run = makeRun(ch, id); S.gauntlet = gauntlet === undefined ? null : gauntlet;
   S.fx = []; S.nope = -9; S.endT = 0; S.drag = null; S.right = new Set(); S.breachAt = -1; S.multAt = -9; S.killAt = -9; S.slow = 0; S.slowed = false; S.swept = false;
+  S.set = setOf(ch); S.clap = null; S.cut = false;
   S.run.frameReal = performance.now();
 }
 
@@ -2115,6 +2410,12 @@ function cosmetics(E, ev) {
       S.fx.push({ k: 'pop', x: ev.tx, y: ev.ty, text: `\u2212${-ev.pts}`, color: P.text, t: T.popLife, max: T.popLife });
       E.audio.play('miss', 0.6); E.haptic(20);
     }
+    const SA = A.saucer, sk = S.ch.ladder === 'skeet', sc0 = S.ch.scale || 1;
+    if (sk && ((ev.hit && ev.killed) || ev.decoy)) { // a hit saucer sparks and drops off its wire
+      S.fx.push({ k: 'saucer', x: ev.tx, y: ev.ty, sc: sc0, decoy: !!ev.decoy, vx: rnd([-40, 40]), vy: -60, spin: rnd([-5, 5]), t: SA.life, max: SA.life });
+      S.fx.push({ k: 'spark', ...burst(ev.tx, ev.ty, SA.sparks, [90, 200], [1, 1.8], [P.flashCore, P.white], 0.3, 200) });
+    }
+    if (ev.tag === 'Brain shot') { const Q = A.squib; S.fx.push({ k: 'squib', ...burst(ev.tx, ev.ty, Q.drops, Q.speed, Q.r, [P.zBlood, P.zBrain, P.zWound], Q.life, 380) }); } // a headshot pops a make-up squib
     if (ev.hit) {
       S.multAt = S.run.steps * STEP; if (ev.killed) S.killAt = S.multAt;
       const word = ev.tag || (ev.streak === 2 ? 'Double' : ev.streak === 3 ? 'Triple' : ev.streak >= 5 && ev.streak % 5 === 0 ? `${ev.streak} in a row` : null); // streak call-outs, in the goal colour (a zombie's part or brain shot names itself)
@@ -2178,6 +2479,8 @@ function endRun(E) {
   } else if (isNew || bestStars !== prevStars) {
     E.save.update('best', (b) => { const all = b && typeof b === 'object' ? b : {}; return { ...all, [ch.id]: { ...(all[ch.id] || {}), [gid]: { score: bestScore, stars: bestStars, accuracy: isNew ? acc : prev.accuracy || 0 } } }; }, {});
   }
+  const pay = boxFor(r.score, stars), box = boxOf(E) + pay; // v0.6 B: every run pays box office from its score and its stars
+  E.save.set('box', box);
   const cold = r.firstZone === 0 ? E.save.get('cold', 0) + 1 : 0; // runs in a row that opened on a bullseye, kept across runs
   E.save.set('cold', cold);
   // Gun mastery (v0.5 N): the run's counters join the gun's lifetime ones; a tier reached opens that tier's skin.
@@ -2189,19 +2492,29 @@ function endRun(E) {
   }
   const gaunt = S.gauntlet === null ? null : gauntletStep(S.gauntlet, stars);
   const fresh = newBadges({ ch, gun: r.gun.id, stars, double: r.double, decoyHits: r.decoyHits, run: r, cold, gauntletDone: !!(gaunt && gaunt.done), bests: Object.fromEntries(CHALLENGES.map((c) => [c.id, Object.fromEntries(GUN_IDS.map((g) => [g, { stars: starsOf(E, c, g) }]))])), have: badgeMap(E) });
-  E.ledger.add('result', { id: ch.id, gun: gid, score: r.score, accuracy: acc, stars, best: bestStars, time: r.steps * STEP, hits: r.hits, hitShots: r.hitShots, shots: r.shots, bulls: r.cBull, heads: r.cHead, plates: r.cPlate, ...(r.ammo === Infinity ? {} : { ammo: r.ammo }), reloads: r.reloads, ...(ch.ladder === 'zombie' ? { wave: r.wave, down: r.zdown, fence: !!r.breach } : {}), ...(S.gauntlet === null ? {} : { gauntlet: S.gauntlet }) });
+  E.ledger.add('result', { id: ch.id, gun: gid, score: r.score, accuracy: acc, stars, best: bestStars, time: r.steps * STEP, hits: r.hits, hitShots: r.hitShots, shots: r.shots, bulls: r.cBull, heads: r.cHead, plates: r.cPlate, ...(r.ammo === Infinity ? {} : { ammo: r.ammo }), reloads: r.reloads, box: pay, ...(ch.ladder === 'zombie' ? { wave: r.wave, down: r.zdown, fence: !!r.breach } : {}), ...(S.gauntlet === null ? {} : { gauntlet: S.gauntlet }) });
   for (const id of fresh) E.ledger.add('badge', { id, gun: gid, on: ch.id });
   for (let t = t0 + 1; t <= t1; t++) E.ledger.add('mastery', { gun: gid, tier: TIER_NAMES[t], score: m1.bulls + m1.heads }); // after the result that earned it
+  const newGuns = GUN_IDS.filter((g) => fresh.includes(T.unlockBadges[g]) && !gunUnlocked(E, g)); // guns these badges open, before the badges are saved
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
   const badgeSkins = fresh.map(skinOfBadge).filter(Boolean);
-  const unlocked = badgeSkins.map((k) => `${T.guns[k.gun].short} ${k.skin.name}`).concat(tierSkins.map((k) => `${T.guns[gid].short} ${k.name}`)); // shown on the card's skin line
+  // Everything earned on the run becomes a ticket on its card (v0.5 Q), highest first. A badge that opens a gun is one ticket ("Quick Draw I: Shotgun", the gun's icon) and ranks above
+  // everything, so a gun opening is never pushed behind "+n"; a mastery tier and a skin name only themselves, and their icon shows the gun.
+  const K = A.tickets, tickets = fresh.map((id) => {
+    const b = BADGES.find((k) => k.id === id), gun = newGuns.find((g) => T.unlockBadges[g] === id);
+    return gun ? { kind: 'badge', tier: b.tier, gun, name: `${b.name}: ${T.guns[gun].short}`, rank: K.rank.gun } : { kind: 'badge', tier: b.tier, name: b.name, rank: K.rank[b.tier] };
+  });
+  for (let t = t0 + 1; t <= t1; t++) tickets.push({ kind: 'tier', gun: gid, tier: t, name: TIER_NAMES[t], rank: K.rank.tier[t] });
+  for (const [g, sk] of badgeSkins.map((k) => [k.gun, k.skin]).concat(tierSkins.map((k) => [gid, k]))) tickets.push({ kind: 'skin', gun: g, skin: sk, name: sk.name, rank: K.rank.skin });
+  tickets.sort((a, b) => b.rank - a.rank);
+  if (!ch.endless && bestStars > prevStars) popRung = { id: ch.id, gun: gid }; // the menu swells that rung once on return
   const news = tierSkins.map((k) => [gid, k.id]).concat(badgeSkins.map((k) => [k.gun, k.skin.id]));
   if (news.length) E.save.update('skinsNew', (m) => { const o = { ...(m && typeof m === 'object' ? m : {}) }; for (const [g, id] of news) o[g] = [...new Set([...(o[g] || []), id])]; return o; }, {}); // the rack marks a gun with a skin not yet looked at
   // A Bunker cleared early leaves plates standing; say what they were worth (a full combo, the shots the gun needs per plate).
   const left = ch.wall && r.cleared ? r.targets.filter((t) => t.kind === 'part').length : 0;
   const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
   const zom = ch.ladder === 'zombie' ? { zdown: r.zdown, ztotal: ch.endless ? 0 : r.list.reduce((n, w) => n + w.length, 0), zwave: r.wave, zwaves: ch.endless ? 0 : r.list.length, breach: r.breach, day, bestWave } : {};
-  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, badges: fresh, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), skins: unlocked, tierUp: t1 > t0 ? { gun: T.guns[gid].short, name: TIER_NAMES[t1] } : null, ...zom });
+  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, pay, box, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, tickets, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), ...zom });
 }
 
 function meterText(r, ch) {
@@ -2216,31 +2529,42 @@ function meterText(r, ch) {
 // ---- The menu (v0.5 N): the gun is the context ----
 // Landscape: the gun rack across the top (EXPORT and TUNE keep their corners), the selected gun's five lanes under it, and one row of corner buttons and the hint line at the bottom. Portrait
 // (the fallback) stacks the selected gun's panel, the rack's row, the lanes, the hint and the buttons. Every tile and button is 44 px or more.
-function menuLayout(E) {
+function menuLayout(E, playLabel) {
   const M = A.menu, land = E.w >= E.h * 1.2, sl = E.safe.left, sr = E.safe.right, st = E.safe.top, sb = E.safe.bottom, sel = gunId(E), L = { land, rows: [], rack: [] };
   const nl = LADDERS.length, count = (ladder) => CHALLENGES.filter((c) => c.ladder === ladder).length;
   if (land) {
     const x0 = sl + 90, x1 = E.w - sr - 84, rackW = x1 - x0, y = st + 4; // the engine's EXPORT tab ends 82 px in from the left, its TUNE tab starts 74 px in from the right
-    const selW = clamp(rackW * 0.4, M.selMin, M.selMax), uw = clamp((rackW - selW - 5 * M.gap) / 5, M.tileMin, M.tileMax);
+    const selW = clamp(rackW * M.selFrac, M.selMin, M.selMax), uw = clamp((rackW - selW - 5 * M.gap) / 5, M.tileMin, M.tileMax);
     let x = x0;
     for (const id of GUN_IDS) { const w = id === sel ? selW : uw; L.rack.push({ id, x, y, w, h: M.rackH, sel: id === sel }); x += w + M.gap; }
     const lx = sl + 10, lw = E.w - sl - sr - 20, laneTop = y + M.rackH + 6, btnY = E.h - sb - M.edge - M.btnH, pitch = Math.max(M.btnH + M.laneGap, (btnY - 6 - laneTop) / nl), gap = 6;
-    LADDERS.forEach(([ladder, label], i) => L.rows.push({ ladder, label, x: lx, y: laneTop + i * pitch, h: pitch - M.laneGap, labelW: M.label, tw: (lw - M.label - 4 * gap) / 5, gap, n: count(ladder) }));
-    const mw = 104, sw = 92, ew = 136;
-    L.missions = { x: lx, y: btnY, w: mw, h: M.btnH }; L.mute = { x: lx + lw - sw, y: btnY, w: sw, h: M.btnH }; L.endless = { x: L.mute.x - 8 - ew, y: btnY, w: ew, h: M.btnH };
-    L.hint = { x: lx + mw + 12, y: btnY, w: L.endless.x - 12 - (lx + mw + 12), h: M.btnH };
-    L.word = { x: sl + 46, y: st + 57 }; L.titleArea = { x: sl + 6, y: st + 48, w: 84, h: 44 };
+    const E1 = E.ctx; E1.font = `${TY.normal} ${TY.small}px system-ui, sans-serif`; // the label column is as wide as the longest set name (v0.6 C), at least `label`
+    const labW = clamp(Math.max(...LADDERS.map(([l]) => E1.measureText(A.setName[l]).width + 10)), M.label, M.labelMax);
+    LADDERS.forEach(([ladder, label], i) => L.rows.push({ ladder, label, x: lx, y: laneTop + i * pitch, h: pitch - M.laneGap, labelW: labW, tw: (lw - labW - 4 * gap) / 5, gap, n: count(ladder) }));
+    // The bottom row: Missions and Sound, the hint line, then Endless and Play at the right thumb's end (Play is as wide as its label).
+    const E2 = E.ctx; E2.font = `${TY.strong} ${TY.mid}px system-ui, sans-serif`;
+    const pw = clamp(E2.measureText(playLabel).width + M.playPad, M.playMin, M.playMax);
+    L.missions = { x: lx, y: btnY, w: M.missionsW, h: M.btnH }; L.mute = { x: lx + M.missionsW + 8, y: btnY, w: M.soundW, h: M.btnH };
+    L.play = { x: lx + lw - pw, y: btnY, w: pw, h: M.btnH }; L.endless = { x: L.play.x - 8 - M.endlessW, y: btnY, w: M.endlessW, h: M.btnH };
+    const hx = L.mute.x + M.soundW + 10;
+    L.hint = { x: hx, y: btnY, w: L.endless.x - 10 - hx, h: M.btnH };
   } else {
     const side = 16 + Math.max(sl, sr), W = Math.min(E.w - 2 * side, 560), x0 = (E.w - W) / 2, y = st + 56, gap = 4, uw = (W - 5 * gap) / 6;
-    L.word = { x: E.w / 2, y: st + 26 }; L.titleArea = { x: E.w / 2 - 50, y: st, w: 100, h: 52 };
     L.panel = { id: sel, x: x0, y, w: W, h: M.rackH, sel: true };
     GUN_IDS.forEach((id, i) => L.rack.push({ id, x: x0 + i * (uw + gap), y: y + M.rackH + 4, w: uw, h: M.btnH, sel: id === sel, small: true }));
-    const laneTop = y + M.rackH + 4 + M.btnH + 8, pitch = M.btnH + 6, labelW = 78, lg = 4;
+    const E1 = E.ctx; E1.font = `${TY.normal} ${TY.small}px system-ui, sans-serif`; // the label column fits the longest set name while every tile keeps 44 px
+    const laneTop = y + M.rackH + 4 + M.btnH + 8, pitch = M.btnH + 6, lg = 4, labelW = clamp(Math.max(...LADDERS.map(([l]) => E1.measureText(A.setName[l]).width + 8)), 78, W - 4 * lg - 5 * M.btnH);
     LADDERS.forEach(([ladder, label], i) => L.rows.push({ ladder, label, x: x0, y: laneTop + i * pitch, h: pitch - M.laneGap, labelW, tw: (W - labelW - 4 * lg) / 5, gap: lg, n: count(ladder) }));
-    const hy = laneTop + nl * pitch + 4, by = hy + 40, bw = (W - 16) / 3;
-    L.hint = { x: x0, y: hy, w: W, h: 36 };
+    const hy = laneTop + nl * pitch + 4, by = hy + 40 + 52 + 8, bw = (W - 16) / 3;
+    L.hint = { x: x0, y: hy, w: W, h: 36 }; L.play = { x: x0, y: hy + 40, w: W, h: 52 };
     L.missions = { x: x0, y: by, w: bw, h: 48 }; L.endless = { x: x0 + bw + 8, y: by, w: bw, h: 48 }; L.mute = { x: x0 + 2 * (bw + 8), y: by, w: bw, h: 48 };
   }
+  // v0.6: the lanes' empty slots on the right (the fourth and fifth of Skeet, Boss and Zombies) hold the studio logo and, on the Zombies row, the Prop Room button. Portrait has no
+  // room for the logo there, so it heads the screen.
+  const rs = L.rows[2], rz = L.rows[4], sx = (row, i) => row.x + row.labelW + i * (row.tw + row.gap);
+  L.props = { x: sx(rz, 3), y: rz.y, w: 2 * rz.tw + rz.gap, h: rz.h };
+  L.logo = land ? { x: L.props.x, y: rs.y, w: L.props.w, h: rz.y - rs.y - M.laneGap } : { x: E.w / 2 - 110, y: st + 2, w: 220, h: 50 };
+  L.titleArea = L.logo; // release: five taps on the logo show TUNE
   return L;
 }
 
@@ -2268,37 +2592,47 @@ function wrapText(ctx, str, maxW, size) {
 // ---------- Scenes ----------
 
 // One rung: the target, the level, that gun's stars (a padlock if the rung is closed); ringed when it is the rung to play next. Narrow tiles (portrait) stack the art over the stars.
-function drawRungTile(ctx, E, x, y, w, h, ch, locked, st, ring) {
-  const narrow = w < 84, k = narrow ? 0.8 : 1, ext = A.menu.ext, ax = narrow ? x + w / 2 + 5 : x + 36, ay = narrow ? y + 19 : y + h / 2;
+function drawRungTile(ctx, E, x, y, w, h, ch, locked, st, ring, k0) {
+  ctx.save(); if (k0 !== 1) { ctx.translate(x + w / 2, y + h / 2); ctx.scale(k0, k0); ctx.translate(-x - w / 2, -y - h / 2); }
+  const narrow = w < 84, ext = A.menu.ext, k = narrow ? 0.8 : clamp((w - 30) / 74, 0.7, 1), ax = narrow ? x + w / 2 + 5 : x + 12 + ext * k, ay = narrow ? y + 19 : y + h / 2;
   plate(E, x, y, w, h, locked ? P.panel : P.panelHi, ring ? P.orange : P.panelEdge, 8);
   ctx.globalAlpha = locked ? 0.3 : 1; menuSprite(ctx, K_ICON + CHALLENGES.indexOf(ch), ext, paintRung, ax, ay, ch, 0, k); ctx.globalAlpha = 1;
   E.text(`${ch.level}`, x + 9, y + 11, { size: TY.small, weight: TY.strong, color: locked ? P.textDim : P.text });
-  const sx = narrow ? x + w / 2 : x + 56 + (w - 62) / 2, sy = narrow ? y + h - 10 : y + h / 2, r = narrow ? 4.4 : 5.4, dx = narrow ? 12 : 16;
+  const r = narrow ? 4.4 : 5.4, dx = narrow ? 12 : 16, sx = narrow ? x + w / 2 : x + w - 6 - dx - r, sy = narrow ? y + h - 10 : y + h / 2;
   if (locked) { ctx.save(); ctx.translate(sx, sy); ctx.scale(narrow ? 0.6 : 0.8, narrow ? 0.6 : 0.8); drawLock(ctx, 0, 0, P.textDim); ctx.restore(); }
   else for (let i = 0; i < 3; i++) drawStar(ctx, sx + (i - 1) * dx, sy, r, i < st ? P.brass : null, i < st ? null : P.panelEdge);
+  ctx.restore();
+}
+// The Walk of Fame's star (v0.6 C): a pink terrazzo square with a star set in it, gold once the gun has reached the top tier, an outline before.
+function drawFameStar(ctx, cx, cy, gold) {
+  ctx.fillStyle = P.terrazzo; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6; rrect(ctx, cx - 11, cy - 11, 22, 22, 3); ctx.fill(); ctx.stroke();
+  drawStar(ctx, cx, cy + 0.5, 8, gold ? P.brass : null, gold ? null : P.ink);
 }
 // The mastery bar and the tier: a track with a cyan fill toward the next tier (brass once Master).
 function drawMasteryBar(E, x, y, w, info) {
   E.roundRect(x, y, w, 6, 3, P.panelEdge);
   E.roundRect(x, y, Math.max(6, w * info.frac), 6, 3, info.tier === 3 ? P.brass : P.cyan);
 }
-// The selected gun on the rack: the gun larger, its name, the mastery bar and tier, and the skin it wears (a star and "New skin" while one is waiting).
+// The selected gun on the rack: the gun larger, the headline (its stars over the most there are), its name, the mastery bar and tier; a star waits in the corner while a skin
+// has not been looked at (the skins are on the stats card).
 function drawRackSelected(ctx, E, b, id) {
   const g = T.guns[id], info = masteryInfo(masteryOf(E, id)), worn = skinById(id, skinId(E, id)), fresh = ((E.save.get('skinsNew', {}) || {})[id] || []).length > 0, tx = b.x + 90, tw = b.w - 90 - 8;
   plate(E, b.x, b.y, b.w, b.h, P.panelHi, P.orange);
   drawGunTile(ctx, id, b.x + 46, b.y + b.h / 2, 78, 42, worn.id);
-  E.text(g.short, tx, b.y + 11, { size: TY.small, weight: TY.strong, align: 'left', color: P.text });
-  drawMasteryBar(E, tx, b.y + 22, tw, info);
-  E.text(TIER_NAMES[info.tier], tx, b.y + 37, { size: TY.small, weight: TY.strong, align: 'left', color: info.tier ? P.cyan : P.textDim });
-  E.text(fresh ? 'New skin!' : worn.name, tx, b.y + 51, { size: TY.small, align: 'left', color: fresh ? P.cyan : P.textDim });
+  drawStar(ctx, tx + 8, b.y + 13, 8, P.brass);
+  E.text(`${starTotal(E, id)} / ${CHALLENGES.length * 3}`, tx + 22, b.y + 13, { size: TY.mid, weight: TY.strong, align: 'left', color: P.text });
+  E.text(g.short, tx, b.y + 32, { size: TY.small, weight: TY.strong, align: 'left', color: P.textDim });
+  drawMasteryBar(E, tx, b.y + 43, tw, info);
+  E.text(TIER_NAMES[info.tier], tx, b.y + 56, { size: TY.small, weight: TY.strong, align: 'left', color: info.tier ? P.cyan : P.textDim });
   if (fresh) drawStar(ctx, b.x + b.w - 12, b.y + 12, 7, P.cyan);
 }
-// A gun on the rack that is not selected: the silhouette, and three pips for its tier; a locked one shows a padlock and the star of the badge that opens it.
+// A gun on the rack that is not selected: the silhouette, and three pips for its tier; one not owned shows a padlock and, beside it, a price tag (bought in the Prop Room) or the
+// star of the badge that opens it.
 function drawRackSmall(ctx, E, b, open) {
   const cx = b.x + b.w / 2, worn = open ? skinId(E, b.id) : 'std', tier = open ? tierOf(E, b.id) : 0, bd = unlockBadge(b.id);
   plate(E, b.x, b.y, b.w, b.h, P.panel, P.panelEdge);
   ctx.globalAlpha = open ? 1 : 0.25; drawGunTile(ctx, b.id, cx, b.y + b.h / 2 - (b.small ? 0 : 5), b.w - 10, b.small ? b.h - 14 : b.h - 26, worn); ctx.globalAlpha = 1;
-  if (!open) { drawLock(ctx, cx - 9, b.y + b.h / 2 - 2, P.text); drawStar(ctx, cx + 9, b.y + b.h / 2 + 3, 6, P.tier[bd.tier]); return; }
+  if (!open) { drawLock(ctx, cx - 9, b.y + b.h / 2 - 2, P.text); if (bd) drawStar(ctx, cx + 9, b.y + b.h / 2 + 3, 6, P.tier[bd.tier]); else drawTag(ctx, cx + 10, b.y + b.h / 2 + 3); return; }
   if (!b.small) for (let i = 0; i < 3; i++) disc(ctx, cx + (i - 1) * 9, b.y + b.h - 8, 2.6, i < tier ? P.cyan : P.panelEdge);
 }
 // The one hint line: the next thing this gun opens and how, else the next mastery tier.
@@ -2306,17 +2640,80 @@ function menuHint(E, gid) {
   const locked = CHALLENGES.find((c) => !isUnlocked(E, c, gid));
   if (locked) return `${locked.name}: two stars on ${CHALLENGES.find((p) => p.ladder === locked.ladder && p.level === locked.level - 1).name}`;
   const info = masteryInfo(masteryOf(E, gid));
-  if (info.accShort) return `Master needs ${Math.round(T.mastery.accuracy * 100)}% accuracy (now ${Math.round(info.acc * 100)}%)`;
-  if (info.next !== null) return `${TIER_NAMES[info.tier + 1]}: ${info.next} bullseyes and headshots (${info.score} so far)`;
-  return `Every rung is open and ${T.guns[gid].short} is Master`;
+  if (info.accShort) return `${TIER_NAMES[3]} needs ${Math.round(T.mastery.accuracy * 100)}% accuracy (now ${Math.round(info.acc * 100)}%)`;
+  if (info.next !== null) return `${TIER_NAMES[info.tier + 1]}: ${info.score}/${info.next} bullseyes+headshots`;
+  return `Every rung open, ${T.guns[gid].short} on the ${TIER_NAMES[3]}`;
+}
+// The sound toggle: a speaker on a slate plate, waves when on and a cross when off (drawn, not written).
+function soundButton(ctx, E, r, muted) {
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  plate(E, r.x, r.y, r.w, r.h, P.slate, P.ink);
+  ctx.fillStyle = ctx.strokeStyle = P.text; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - 11, cy - 5); ctx.lineTo(cx - 5, cy - 5); ctx.lineTo(cx + 2, cy - 11); ctx.lineTo(cx + 2, cy + 11); ctx.lineTo(cx - 5, cy + 5); ctx.lineTo(cx - 11, cy + 5); ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  if (muted) { ctx.moveTo(cx + 7, cy - 6); ctx.lineTo(cx + 16, cy + 6); ctx.moveTo(cx + 16, cy - 6); ctx.lineTo(cx + 7, cy + 6); } else { ctx.arc(cx + 2, cy, 8, -0.9, 0.9); ctx.moveTo(cx + 2 + 14 * Math.cos(-0.9), cy + 14 * Math.sin(-0.9)); ctx.arc(cx + 2, cy, 14, -0.9, 0.9); }
+  ctx.stroke(); ctx.lineCap = 'butt';
+  return { x: r.x, y: r.y, w: r.w, h: r.h };
+}
+// A price tag (drawn, not written): a brass tag with a hole and a string, the Prop Room's mark.
+function drawTag(ctx, cx, cy) {
+  ctx.lineJoin = 'round'; ctx.fillStyle = P.brass; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(cx - 9, cy - 6); ctx.lineTo(cx + 5, cy - 6); ctx.lineTo(cx + 10, cy); ctx.lineTo(cx + 5, cy + 6); ctx.lineTo(cx - 9, cy + 6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  disc(ctx, cx + 4, cy, 1.8, P.ink);
+}
+// The menu's own patterns (v0.6 C): VHS scan lines and the pegboard behind the prop rack, built once per pixel ratio as small tiles and filled in one call each.
+const MPAT = { dpr: 0, scan: null, peg: null };
+function menuPatterns(ctx, dpr) {
+  if (MPAT.dpr === dpr) return MPAT;
+  MPAT.dpr = dpr; MPAT.scan = MPAT.peg = null;
+  try {
+    const V = A.vhs, sc = new OffscreenCanvas(1, Math.round(V.pitch * dpr)), g = sc.getContext('2d');
+    g.fillStyle = P.vhs; g.fillRect(0, 0, 1, Math.max(1, Math.round(dpr)));
+    const pc = new OffscreenCanvas(Math.round(12 * dpr), Math.round(12 * dpr)), h = pc.getContext('2d');
+    h.fillStyle = P.pegboard; h.fillRect(0, 0, pc.width, pc.height); h.fillStyle = P.pegHole; h.beginPath(); h.arc(6 * dpr, 6 * dpr, 1.7 * dpr, 0, PI2); h.fill();
+    const m = new DOMMatrix().scale(1 / dpr);
+    MPAT.scan = ctx.createPattern(sc, 'repeat'); MPAT.scan.setTransform(m);
+    MPAT.peg = ctx.createPattern(pc, 'repeat'); MPAT.peg.setTransform(m);
+  } catch (e) { MPAT.scan = MPAT.peg = null; }
+  return MPAT;
+}
+function drawVHS(ctx, E) {
+  const M = menuPatterns(ctx, E.dpr), V = A.vhs, by = ((E.time * V.bandSpeed) % (E.h + 2 * V.bandH)) - V.bandH;
+  if (M.scan) { ctx.fillStyle = M.scan; ctx.fillRect(0, 0, E.w, E.h); }
+  ctx.fillStyle = P.vhsBand; ctx.fillRect(0, by, E.w, V.bandH); // the tracking band rolling down
+}
+function drawPegboard(ctx, x, y, w, h) {
+  const M = MPAT;
+  ctx.fillStyle = M.peg || P.pegboard; rrect(ctx, x, y, w, h, 8); ctx.fill();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.stroke();
+}
+// The studio logo (v0.6 A): "RECOIL" over "a Backlot 88 production", two searchlights crossing behind it and a row of stars, like the card before a picture.
+function drawLogo(ctx, E, r, land) {
+  const cx = r.x + r.w / 2, K = A.logo, big = land ? K.title : TY.mid + 2, ty = land ? r.y + r.h * 0.42 : r.y + 16, sy = land ? r.y + r.h * 0.42 + big * 0.62 + 6 : r.y + 38;
+  if (land) {
+    ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip(); ctx.globalAlpha = K.beam;
+    ctx.fillStyle = P.neonTeal; ctx.beginPath(); ctx.moveTo(cx - r.w * 0.3, r.y + r.h); ctx.lineTo(cx + r.w * 0.05, r.y - 4); ctx.lineTo(cx + r.w * 0.25, r.y - 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = P.neonPink; ctx.beginPath(); ctx.moveTo(cx + r.w * 0.3, r.y + r.h); ctx.lineTo(cx - r.w * 0.05, r.y - 4); ctx.lineTo(cx - r.w * 0.25, r.y - 4); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    for (let i = -2; i <= 2; i++) drawStar(ctx, cx + i * 16, ty - big * 0.62 - 8, i ? 4 : 5.5, P.brass);
+  }
+  ctx.font = `${TY.strong} ${big}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.lineWidth = 5; ctx.strokeStyle = P.ink; ctx.strokeText('RECOIL', cx, ty);
+  E.text('RECOIL', cx, ty, { size: big, weight: TY.strong, color: P.brassText });
+  E.text('a Backlot 88 production', cx, sy, { size: TY.small, color: P.textDim });
 }
 const menu = {
-  enter() { this.tiles = []; this.guns = []; this.btnEndless = null; this.btnMute = null; this.btnMissions = null; },
+  enter(E) {
+    this.tiles = []; this.guns = []; this.btnEndless = null; this.btnMute = null; this.btnMissions = null; this.btnPlay = null; this.btnProps = null; this.play = null; this.dot = false;
+    this.pop = popRung && popRung.gun === gunId(E) ? { id: popRung.id, t0: E.time } : null; popRung = null; // a rung whose stars rose swells once
+  },
   render(ctx, E) {
-    const L = menuLayout(E), gid = gunId(E), play = firstPlayable(E, gid), earned = BADGES.filter((b) => badgeMap(E)[b.id]).length;
+    const gid = gunId(E), play = frontier(E, gid), L = menuLayout(E, `Play ${play.name}`);
     prepMenu(E.dpr, ctx);
-    E.titleArea = L.titleArea; // release: five taps on the small wordmark show TUNE
-    E.text('RECOIL', L.word.x, L.word.y, { size: TY.small, weight: TY.strong, color: P.textDim });
+    drawVHS(ctx, E); // the scan lines: the menu's background only, under everything
+    E.titleArea = L.titleArea; // release: five taps on the logo show TUNE
+    drawLogo(ctx, E, L.logo, L.land);
+    if (L.land) drawPegboard(ctx, L.rack[0].x - 5, L.rack[0].y - 3, L.rack[L.rack.length - 1].x + L.rack[L.rack.length - 1].w - L.rack[0].x + 10, A.menu.rackH + 7); // the prop rack
     this.guns = [];
     if (L.panel) { drawRackSelected(ctx, E, L.panel, gid); this.guns.push(L.panel); }
     for (const b of L.rack) {
@@ -2325,29 +2722,42 @@ const menu = {
       else if (b.sel) drawRackSelected(ctx, E, b, b.id); else drawRackSmall(ctx, E, b, open);
       this.guns.push(b);
     }
-    this.tiles = [];
+    this.tiles = []; this.play = play;
+    const pu = this.pop ? clamp((E.time - this.pop.t0 - A.pop.delay) / A.pop.sec, 0, 1) : 0, popK = 1 + A.pop.amp * Math.sin(Math.PI * pu); // the swelling rung is drawn last, over its neighbours
+    let popped = null;
     for (const row of L.rows) {
-      E.text(row.label, row.x, row.y + row.h / 2, { size: TY.small, align: 'left', color: P.textDim });
+      E.text(row.label, row.x, row.y + row.h / 2 - 9, { size: TY.small, weight: TY.strong, align: 'left', color: P.text }); // the mode, and under it its set (v0.6 C)
+      E.text(fitText(ctx, A.setName[row.ladder], row.labelW - 6, TY.small, TY.normal), row.x, row.y + row.h / 2 + 9, { size: TY.small, align: 'left', color: P.textDim });
       CHALLENGES.filter((c) => c.ladder === row.ladder).forEach((ch, i) => {
-        const x = row.x + row.labelW + i * (row.tw + row.gap), locked = !isUnlocked(E, ch, gid);
-        drawRungTile(ctx, E, x, row.y, row.tw, row.h, ch, locked, starsOf(E, ch, gid), ch === play && !locked);
-        this.tiles.push({ x, y: row.y, w: row.tw, h: row.h, ch, locked });
+        const x = row.x + row.labelW + i * (row.tw + row.gap), locked = !isUnlocked(E, ch, gid), t = { x, y: row.y, w: row.tw, h: row.h, ch, locked };
+        this.tiles.push(t);
+        if (this.pop && ch.id === this.pop.id && pu > 0 && pu < 1) popped = t; else drawRungTile(ctx, E, x, row.y, row.tw, row.h, ch, locked, starsOf(E, ch, gid), ch === play && !locked, 1);
       });
     }
+    if (popped) drawRungTile(ctx, E, popped.x, popped.y, popped.w, popped.h, popped.ch, popped.locked, starsOf(E, popped.ch, gid), popped.ch === play && !popped.locked, popK);
     const h = L.hint, lines = wrapText(ctx, menuHint(E, gid), h.w, TY.small).slice(0, 2);
     lines.forEach((ln, i) => E.text(ln, h.x + h.w / 2, h.y + h.h / 2 + (i - (lines.length - 1) / 2) * 18, { size: TY.small, color: P.textDim }));
-    const two = (r, a, b2, fill, edge) => { plate(E, r.x, r.y, r.w, r.h, fill, edge); E.text(a, r.x + r.w / 2, r.y + r.h / 2 - 8, { size: TY.small, weight: TY.strong }); E.text(b2, r.x + r.w / 2, r.y + r.h / 2 + 9, { size: TY.small, color: P.textDim }); return r; };
+    const two = (r, a, b2, fill, edge) => { plate(E, r.x, r.y, r.w, r.h, fill, edge); E.text(a, r.x + r.w / 2, r.y + r.h / 2 - (b2 ? 8 : 0), { size: TY.small, weight: TY.strong }); if (b2) E.text(fitText(E.ctx, b2, r.w - 12, TY.small, TY.normal), r.x + r.w / 2, r.y + r.h / 2 + 9, { size: TY.small, color: P.textDim }); return r; }; // the second line only when there is something to say
     const zz = E.save.get('zend', null), d = zz && typeof zz === 'object' ? zz : {}, today = d.day === (E.dailySeed ? E.dailySeed() : 0) && d.today ? d.today.score : 0;
-    this.btnMissions = two(L.missions, 'Missions', `${earned}/${BADGES.length}`, P.panelHi, P.ink);
-    this.btnEndless = two(L.endless, 'Endless', today ? `Today ${today}` : 'New today', P.panelHi, P.cyan);
-    this.btnMute = btn(E, E.audio.muted ? 'Sound: off' : 'Sound: on', L.mute.x + L.mute.w / 2, L.mute.y + L.mute.h / 2, { w: L.mute.w, h: L.mute.h, fill: P.slate, size: TY.small });
+    this.btnMissions = btn(E, 'Missions', L.missions.x + L.missions.w / 2, L.missions.y + L.missions.h / 2, { w: L.missions.w, h: L.missions.h, fill: P.panelHi, size: TY.small });
+    this.dot = unseenBadges(E).length > 0; // an earned badge not yet seen on the missions screen
+    if (this.dot) { ctx.lineWidth = 2; ctx.strokeStyle = P.ink; disc(ctx, L.missions.x + L.missions.w - 6, L.missions.y + 6, A.menu.dotR, P.orange); ctx.stroke(); }
+    this.btnEndless = two(L.endless, 'Endless', today ? `Today ${today < 10000 ? today : `${Math.round(today / 1000)}k`}` : '', P.panelHi, P.cyan);
+    this.btnMute = soundButton(ctx, E, L.mute, E.audio.muted);
+    this.btnPlay = btn(E, `Play ${play.name}`, L.play.x + L.play.w / 2, L.play.y + L.play.h / 2, { w: L.play.w, h: L.play.h, fill: P.orange, color: P.ink, size: TY.mid });
+    const pr = L.props; plate(E, pr.x, pr.y, pr.w, pr.h, P.counter, P.ink); ctx.fillStyle = P.counterTop; rrect(ctx, pr.x + 2, pr.y + 2, pr.w - 4, 6, 3); ctx.fill(); // the Prop Room: a counter-top button
+    const tagged = pr.w >= A.menu.propsTag; if (tagged) drawTag(ctx, pr.x + 22, pr.y + pr.h / 2); // the tag only where the label leaves room for it
+    E.text('Prop Room', pr.x + pr.w / 2 + (tagged ? 10 : 0), pr.y + pr.h / 2 + 1, { size: TY.small, weight: TY.strong, color: P.text });
+    this.btnProps = pr;
   },
   onTap(p, E) {
+    if (E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play', { id: this.play.id }); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
     if (E.hit(this.btnEndless, p)) { E.audio.play('tap'); E.setScene('play', { id: ENDLESS.id }); return; }
+    if (E.hit(this.btnProps, p)) { E.audio.play('tap'); E.setScene('props'); return; }
     for (const b of this.guns) if (E.hit(b, p)) {
-      if (!gunUnlocked(E, b.id)) { E.audio.play('tap', 0.3); const bd = unlockBadge(b.id); E.toast(`The ${T.guns[b.id].short} opens with the ${bd.name} badge (${bd.cond})`); }
+      if (!gunUnlocked(E, b.id)) { E.audio.play('tap'); E.setScene('props'); } // a gun not owned: the Prop Room, where it is bought or says what opens it
       else { E.audio.play('tap'); if (gunId(E) === b.id) E.setScene('gun', { id: b.id }); else pickGun(E, b.id); } // the selected gun's tile is the stats card's button
       return;
     }
@@ -2366,10 +2776,25 @@ function gauntletReason(E) {
   return `Locked: two stars with the ${T.guns[gun].short} on ${need.join(', ')} first`;
 }
 
-// Missions: the badge tiers, in a list that scrolls by drag (or the 44 px rail on its right) when it does not fit. Earned badges are lit; the rest show what
-// earns them and the skin each unlocks. The gauntlet starts here.
+// Missions (v0.5 Q, the Ink standard): the badges in four named tiers, each headed "earned / total", in one column that scrolls by drag (or the 44 px rail on its right). A card is a
+// medal, the name and a condition of about six words; an unearned badge that counts something carries its counter, and one that opens a gun shows the gun. Earned cards are bright
+// and bordered, unearned ones shaded; a badge earned since the last visit carries a dot. A tap on an unearned card says, in one line, what earns it and what it opens. The gauntlet starts here.
 const missions = {
-  enter() { this.back = null; this.btnGauntlet = null; this.reason = ''; this.scroll = 0; this.drag = null; this.v = null; this.rail = null; },
+  enter(E) {
+    this.back = null; this.btnGauntlet = null; this.reason = ''; this.scroll = 0; this.drag = null; this.v = null; this.rail = null; this.cards = [];
+    const fresh = unseenBadges(E); this.fresh = new Set(fresh); this.focus = fresh.length > 0; // the dot on the menu clears: these are seen now
+    if (fresh.length) E.save.update('seen', (m) => ({ ...(m && typeof m === 'object' ? m : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
+  },
+  // The list laid out top to bottom: a heading per tier, then its cards (a long condition wraps and the card grows). Offsets are from the top of the list.
+  rows(ctx, textW) {
+    const M = A.missions, out = []; let y = 0;
+    for (const tier of BADGE_TIERS) {
+      const list = BADGES.filter((b) => b.tier === tier.key);
+      out.push({ tier, list, y, h: M.headH }); y += M.headH;
+      for (const b of list) { const lines = wrapText(ctx, badgeLine(b), textW, TY.small), h = M.cardH + (lines.length - 1) * M.lineH; out.push({ b, lines, y, h, gun: GUN_IDS.find((g) => T.unlockBadges[g] === b.id) }); y += h + M.gap; }
+    }
+    return { out, h: y - M.gap };
+  },
   render(ctx, E) {
     const have = badgeMap(E), land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), M = A.missions, top = E.safe.top;
     const W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, earned = BADGES.filter((b) => have[b.id]).length;
@@ -2380,39 +2805,47 @@ const missions = {
     if (!land) E.text(`Points ${pointsTotal(E)}`, E.w / 2, top + 66, { size: TY.small, weight: TY.strong, color: P.cyan });
     // The Gauntlet button: a padlock and its label placed by measure when locked, so they never touch.
     const gw = land ? 120 : 110, gx = x0 + W - gw / 2, gy = top + 30;
-    this.btnGauntlet = btn(E, open ? 'Gauntlet' : '', gx, gy, { w: gw, h: 44, size: TY.small, fill: open ? P.orange : P.panelHi, color: P.ink });
+    this.btnGauntlet = btn(E, open ? 'Montage' : '', gx, gy, { w: gw, h: 44, size: TY.small, fill: open ? P.orange : P.panelHi, color: P.ink }); // v0.6: the gauntlet is the training montage
     if (!open) {
       ctx.font = `${TY.strong} ${TY.small}px system-ui, sans-serif`;
-      const tw = ctx.measureText('Gauntlet').width, all = M.lock + M.lockGap + tw, x = gx - all / 2;
+      const tw = ctx.measureText('Montage').width, all = M.lock + M.lockGap + tw, x = gx - all / 2;
       drawLock(ctx, x + M.lock / 2, gy, P.textDim);
-      E.text('Gauntlet', x + M.lock + M.lockGap + tw / 2, gy, { size: TY.small, weight: TY.strong, color: P.textDim });
+      E.text('Montage', x + M.lock + M.lockGap + tw / 2, gy, { size: TY.small, weight: TY.strong, color: P.textDim });
     }
     let listTop = top + (land ? 62 : 80);
     if (!open && !land) { // portrait has the room to say why, under the header; landscape says it on tap
       wrapText(ctx, this.reason, W, TY.small).forEach((ln, k) => E.text(ln, E.w / 2, listTop - 6 + k * 18, { size: TY.small, color: P.textDim })); listTop += 40;
     }
-    const listBottom = E.h - E.safe.bottom - 8, viewH = listBottom - listTop, cols = land ? 3 : 1, rows = Math.ceil(BADGES.length / cols);
-    const contentH = rows * (M.th + M.gap) - M.gap, max = Math.max(0, contentH - viewH), listW = max > 0 ? W - M.rail - 8 : W;
+    const listBottom = E.h - E.safe.bottom - 8, viewH = listBottom - listTop, listW = W - M.rail - 8; // the rail always has its room: the list is longer than any screen
+    const textW = listW - M.pad * 2 - 2 * M.medalR - M.pad - M.gunW - M.pad, R = this.rows(ctx, textW), max = Math.max(0, R.h - viewH);
+    if (this.focus) { this.focus = false; const f = R.out.find((r) => r.b && this.fresh.has(r.b.id)), h = f && R.out.find((r) => r.tier && r.tier.key === f.b.tier); if (h) this.scroll = h.y; } // open on the tier of the first badge that is new
     this.scroll = clamp(this.scroll, 0, max);
-    const tw = (listW - (cols - 1) * M.gap) / cols;
-    this.v = { x0, W, listTop, listBottom, viewH, max, listW, contentH };
+    this.v = { x0, W, listTop, listBottom, viewH, max, listW, contentH: R.h };
+    this.cards = [];
     ctx.save(); ctx.beginPath(); ctx.rect(x0 - 8, listTop, W + 16, viewH); ctx.clip();
-    BADGES.forEach((b, i) => {
-      const x = x0 + (i % cols) * (tw + M.gap), y = listTop + Math.floor(i / cols) * (M.th + M.gap) - this.scroll;
-      if (y + M.th < listTop || y > listBottom) return;
-      const on = !!have[b.id], col = P.tier[b.tier];
-      plate(E, x, y, tw, M.th, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
-      E.text(b.tier.toUpperCase(), x + 12, y + 14, { size: TY.small, align: 'left', color: on ? col : P.textDim });
-      ctx.font = `${TY.strong} ${TY.mid}px system-ui, sans-serif`;
-      const ns = clamp(Math.floor(TY.mid * (tw - 24) / ctx.measureText(b.name).width), TY.small, TY.mid); // a long name shrinks, never under the small size
-      E.text(fitText(ctx, b.name, tw - 24, ns, TY.strong), x + 12, y + 34, { size: ns, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
-      if (on) drawStar(ctx, x + tw - 24, y + 14, 9, col); // on the tier row, clear of the name below
-      wrapText(ctx, b.cond, tw - 24, TY.small).forEach((ln, k) => E.text(ln, x + 12, y + 56 + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
-    });
+    for (const r of R.out) {
+      const y = listTop + r.y - this.scroll;
+      if (y + r.h < listTop || y > listBottom) continue;
+      if (r.tier) { // "Plinker  2 / 4": the tier's medal colour and how many of its badges are earned
+        const col = P.tier[r.tier.key], n = r.list.filter((b) => have[b.id]).length;
+        disc(ctx, x0 + M.pad, y + r.h / 2, 6, col);
+        E.text(`${r.tier.name}  ${n} / ${r.list.length}`, x0 + M.pad + 14, y + r.h / 2, { size: TY.mid, weight: TY.strong, align: 'left', color: col });
+        continue;
+      }
+      const b = r.b, on = !!have[b.id], col = P.tier[b.tier], cnt = on ? null : badgeCount(E, b), cy = y + r.h / 2, tx = x0 + M.pad + 2 * M.medalR + M.pad, right = x0 + listW - M.pad;
+      plate(E, x0, y, listW, r.h, on ? P.panelHi : P.panel, on ? col : P.panelEdge, 12);
+      drawMedal(ctx, x0 + M.pad + M.medalR, cy, M.medalR, b.tier, on);
+      E.text(fitText(ctx, b.name, textW, TY.mid, TY.strong), tx, y + M.cardH * 0.34, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
+      r.lines.forEach((ln, k) => E.text(ln, tx, y + M.cardH * 0.71 + k * M.lineH, { size: TY.small, align: 'left', color: P.textDim }));
+      if (r.gun) { ctx.globalAlpha = on ? 1 : 0.45; drawGunTile(ctx, r.gun, right - M.gunW / 2, cy, M.gunW, M.gunH, 'std'); ctx.globalAlpha = 1; } // the gun this badge opens
+      else if (cnt) E.text(`${cnt.have}/${cnt.need}`, right, cy, { size: TY.small, weight: TY.strong, align: 'right', color: P.textDim });
+      if (on && this.fresh.has(b.id)) { ctx.lineWidth = 2; ctx.strokeStyle = P.ink; disc(ctx, x0 + listW - M.pad + 2, y + M.pad - 2, M.newR, P.orange); ctx.stroke(); } // new since the last visit
+      this.cards.push({ x: x0, y, w: listW, h: r.h, id: b.id, b });
+    }
     ctx.restore();
     this.rail = null;
     if (max > 0) { // the scroll affordance: a 44 px rail with chevrons, a track and a thumb; drag it or tap the chevrons
-      const rx = x0 + W - M.rail, cx = rx + M.rail / 2, tt = listTop + M.rail, tb = listBottom - M.rail, th = Math.max(M.rail, (tb - tt) * viewH / contentH), ty = tt + (tb - tt - th) * (this.scroll / max);
+      const rx = x0 + W - M.rail, cx = rx + M.rail / 2, tt = listTop + M.rail, tb = listBottom - M.rail, th = Math.max(M.rail, (tb - tt) * viewH / R.h), ty = tt + (tb - tt - th) * (this.scroll / max);
       this.rail = { x: rx, y: listTop, w: M.rail, h: viewH, tt, tb, th };
       plate(E, rx, listTop, M.rail, viewH, P.panel, P.panelEdge, 10);
       ctx.fillStyle = this.scroll > 0 ? P.text : P.textDim; ctx.beginPath(); ctx.moveTo(cx - 8, listTop + 27); ctx.lineTo(cx + 8, listTop + 27); ctx.lineTo(cx, listTop + 15); ctx.closePath(); ctx.fill();
@@ -2440,7 +2873,9 @@ const missions = {
       return;
     }
     const r = this.rail; // a chevron pages the list
-    if (r && E.hit(r, p)) { if (p.y < r.tt) this.scroll = clamp(this.scroll - this.v.viewH * 0.75, 0, this.v.max); else if (p.y > r.tb) this.scroll = clamp(this.scroll + this.v.viewH * 0.75, 0, this.v.max); }
+    if (r && E.hit(r, p)) { if (p.y < r.tt) this.scroll = clamp(this.scroll - this.v.viewH * 0.75, 0, this.v.max); else if (p.y > r.tb) this.scroll = clamp(this.scroll + this.v.viewH * 0.75, 0, this.v.max); return; }
+    const v = this.v, c = v && p.y >= v.listTop && p.y <= v.listBottom && this.cards.find((c) => E.hit(c, p));
+    if (c && !badgeMap(E)[c.id]) { const o = badgeOpens(c.b); E.audio.play('tap', 0.3); E.toast(`${c.b.name}: ${c.b.cond}${o ? `. Opens ${o}` : ''}`); } // a tap on an unearned card: what earns it, and what it opens
   },
 };
 
@@ -2457,7 +2892,7 @@ const STAT_ROWS = [
 ];
 const gunCard = {
   enter(E, params) {
-    this.id = (params && params.id) || 'pistol'; this.chips = []; this.back = null; this.use = null;
+    this.id = (params && params.id) || 'pistol'; this.from = (params && params.from) || 'menu'; this.chips = []; this.back = null; this.use = null;
     const m = E.save.get('skinsNew', {});
     if (m && m[this.id]) E.save.update('skinsNew', (o) => { const c = { ...o }; delete c[this.id]; return c; }, {}); // looking at the card is looking at the new skin
   },
@@ -2468,7 +2903,7 @@ const gunCard = {
     E.text(g.name, E.w / 2, top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     this.use = null;
     if (open && gunId(E) !== id) this.use = btn(E, 'Use', x0 + W - 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.orange, color: P.ink });
-    else if (!open) this.use = btn(E, 'Locked', x0 + W - 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.panelHi, color: P.textDim });
+    else if (!open) this.use = btn(E, bd ? 'Locked' : 'Buy', x0 + W - 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.panelHi, color: bd ? P.textDim : P.text }); // a bought gun's card leads to the Prop Room
     const lw = land ? 236 : W, y0 = top + 62, ph = land ? 76 : 92;
     plate(E, x0, y0, lw, ph, P.panel, P.panelEdge, 12);
     ctx.globalAlpha = open ? 1 : 0.3; drawGunTile(ctx, id, x0 + lw / 2, y0 + ph / 2, lw - 32, ph - 22, worn); ctx.globalAlpha = 1;
@@ -2477,17 +2912,18 @@ const gunCard = {
     const lines = wrapText(ctx, g.job, lw - 8, TY.small);
     lines.forEach((ln, k) => E.text(ln, x0 + 4, y + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
     y += lines.length * 18;
-    if (!open) { E.text(`Opens with the ${bd.name} badge`, x0 + 4, y, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange }); y += 18; }
+    if (!open) wrapText(ctx, bd ? `Opens with the ${bd.name} badge` : `In the Prop Room for ${money(T.gunPrices[id])}`, lw - 8, TY.small).forEach((ln) => { E.text(ln, x0 + 4, y, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange }); y += 18; }); // wrapped inside the left column, clear of the stat rows
     // mastery: the tier, the bar toward the next, the lifetime counters
     y += 12;
-    E.text(TIER_NAMES[info.tier], x0 + 4, y, { size: TY.mid, weight: TY.strong, align: 'left', color: info.tier === 3 ? P.brass : info.tier ? P.cyan : P.textDim });
+    drawFameStar(ctx, x0 + 14, y, info.tier === 3); // the Walk of Fame: a gold star on the pavement once the gun is there
+    E.text(TIER_NAMES[info.tier], x0 + 32, y, { size: TY.mid, weight: TY.strong, align: 'left', color: info.tier === 3 ? P.brass : info.tier ? P.cyan : P.textDim });
     E.text(info.next === null ? `${info.score}` : `${info.score} / ${info.next}`, x0 + lw - 4, y, { size: TY.small, weight: TY.strong, align: 'right', color: P.text });
     drawMasteryBar(E, x0 + 4, y + 14, lw - 8, info);
     y += 34;
     const pct = Math.round(info.acc * 100);
     [`Shots ${m.shots}   Hits ${m.hits}`, `Accuracy ${pct}%   Plates ${m.plates}`, `Bullseyes ${m.bulls}   Headshots ${m.heads}`].forEach((ln, k) => E.text(ln, x0 + 4, y + k * 18, { size: TY.small, align: 'left', color: P.text }));
     y += 3 * 18;
-    if (info.accShort) { E.text(`Master needs ${Math.round(T.mastery.accuracy * 100)}% accuracy`, x0 + 4, y, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange }); y += 18; }
+    if (info.accShort) { E.text(`${TIER_NAMES[3]} needs ${Math.round(T.mastery.accuracy * 100)}% accuracy`, x0 + 4, y, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange }); y += 18; }
     // the numbers as bars, against the six-gun maximum
     const bx = land ? x0 + lw + 20 : x0, bw = land ? W - lw - 20 : W, by = land ? y0 : y + 12, rowH = land ? 22 : 26;
     STAT_ROWS.forEach(([label, val, txt], i) => {
@@ -2510,14 +2946,113 @@ const gunCard = {
   },
   onTap(p, E) {
     const id = this.id, g = T.guns[id];
-    if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
-    if (this.use && E.hit(this.use, p)) { if (gunUnlocked(E, id) && gunId(E) !== id) { pickGun(E, id); E.audio.play('tap'); } else E.audio.play('tap', 0.3); return; }
+    if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene(this.from); return; }
+    if (this.use && E.hit(this.use, p)) { if (gunUnlocked(E, id) && gunId(E) !== id) { pickGun(E, id); E.audio.play('tap'); } else if (!gunUnlocked(E, id) && !unlockBadge(id)) { E.audio.play('tap'); E.setScene('props'); } else E.audio.play('tap', 0.3); return; }
     for (const c of this.chips) if (E.hit(c, p)) {
-      if (!gunUnlocked(E, id)) { E.audio.play('tap', 0.3); E.toast(`The ${g.short} opens with the ${unlockBadge(id).name} badge`); }
+      if (!gunUnlocked(E, id)) { E.audio.play('tap', 0.3); const bd = unlockBadge(id); E.toast(bd ? `The ${g.short} opens with the ${bd.name} badge` : `The ${g.short} is in the Prop Room for ${money(T.gunPrices[id])}`); }
       else if (skinOpen(E, id, c.skin)) { wearSkin(E, id, c.skin); E.audio.play('tap'); }
       else { E.audio.play('tap', 0.3); E.toast(`${c.skin.name}: ${skinNeed(id, c.skin)}`); }
       return;
     }
+  },
+};
+
+// The Prop Room (v0.6 B): the prop master behind the counter, the box office on the register, and the six guns on a pegboard. A card is the gun, its movie name, four stats as bars
+// (damage, fire rate, range, kick, each marked by a small drawn icon; the stats card has them all with their labels, one tap on the card) and one button: "Buy $400" (orange when
+// the box office covers it), "Use", "In hand", or, for the .44, the mission that opens it. Buying spends the box office, owns the gun for good and puts it in hand.
+const PROP_STATS = [(g) => g.damage * (g.pellets || 1), (g) => g.fireRate, (g) => g.accuracy, (g) => g.kickPerShot];
+function statIcon(ctx, i, x, y) { // bullet, double chevron, range line with a cap, up arrow
+  ctx.fillStyle = ctx.strokeStyle = P.textDim; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath();
+  if (i === 0) { rrPath(ctx, x - 4, y - 2.5, 6, 5, 1.2); ctx.moveTo(x + 2, y - 2.5); ctx.arc(x + 2, y, 2.5, -Math.PI / 2, Math.PI / 2); ctx.fill(); }
+  else if (i === 1) { ctx.moveTo(x - 5, y - 3.5); ctx.lineTo(x - 2, y); ctx.lineTo(x - 5, y + 3.5); ctx.moveTo(x, y - 3.5); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 3.5); ctx.stroke(); }
+  else if (i === 2) { ctx.moveTo(x - 5, y); ctx.lineTo(x + 3, y); ctx.moveTo(x + 4.5, y - 3.5); ctx.lineTo(x + 4.5, y + 3.5); ctx.stroke(); }
+  else { ctx.moveTo(x, y + 4); ctx.lineTo(x, y - 3.5); ctx.moveTo(x - 3.5, y); ctx.lineTo(x, y - 4); ctx.lineTo(x + 3.5, y); ctx.stroke(); }
+  ctx.lineCap = 'butt';
+}
+// The prop master: a flat cap, glasses, a moustache and an apron, behind the counter (drawn, in screen px, centred on cx with the counter's top at y).
+function drawPropMaster(ctx, cx, y, k) {
+  ctx.save(); ctx.translate(cx, y); ctx.scale(k, k); ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = 2;
+  ctx.fillStyle = P.steelDark; rrect(ctx, -34, -46, 68, 50, 16); ctx.fill(); ctx.stroke(); // shoulders
+  ctx.fillStyle = P.slate; rrect(ctx, -18, -40, 36, 44, 6); ctx.fill(); ctx.stroke(); // the apron
+  ctx.fillStyle = P.kraft; ctx.beginPath(); ctx.arc(0, -66, 20, 0, PI2); ctx.fill(); ctx.stroke(); // the head
+  ctx.fillStyle = P.cowboy; ctx.beginPath(); ctx.ellipse(2, -82, 22, 9, -0.08, Math.PI, PI2); ctx.fill(); ctx.stroke(); ctx.fillRect(-4, -85, 30, 5); // the flat cap and its peak
+  ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(-8, -66, 5, 0, PI2); ctx.moveTo(13, -66); ctx.arc(8, -66, 5, 0, PI2); ctx.moveTo(-3, -66); ctx.lineTo(3, -66); ctx.stroke(); // glasses
+  ctx.fillStyle = P.ink; ctx.beginPath(); ctx.ellipse(-5, -56, 7, 2.6, 0.2, 0, PI2); ctx.ellipse(5, -56, 7, 2.6, -0.2, 0, PI2); ctx.fill(); // the moustache
+  ctx.restore();
+}
+function propsLayout(E) {
+  const K = A.props, land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, 840), x0 = (E.w - W) / 2, top = E.safe.top, bottom = E.h - E.safe.bottom - 8;
+  const L = { land, x0, W, back: { x: x0, y: top + 8, w: 84, h: 44 }, cards: [] };
+  let bx, by, bw, bh, cols;
+  if (land) { L.shop = { x: x0, y: top + K.headH + 4, w: K.side, h: bottom - top - K.headH - 4 }; bx = x0 + K.side + K.gap; by = L.shop.y; bw = W - K.side - K.gap; bh = L.shop.h; cols = 3; }
+  else { L.shop = { x: x0, y: top + K.headH + 4, w: W, h: 116 }; bx = x0; by = L.shop.y + L.shop.h + K.gap; bw = W; bh = bottom - by; cols = 2; }
+  const rows = Math.ceil(GUN_IDS.length / cols), cw = (bw - (cols - 1) * K.gap) / cols, ch = clamp((bh - (rows - 1) * K.gap) / rows, K.cardMin, K.cardMax);
+  L.board = { x: bx - 4, y: by - 4, w: bw + 8, h: rows * ch + (rows - 1) * K.gap + 8 };
+  GUN_IDS.forEach((id, i) => L.cards.push({ id, x: bx + (i % cols) * (cw + K.gap), y: by + Math.floor(i / cols) * (ch + K.gap), w: cw, h: ch }));
+  return L;
+}
+const props = {
+  enter() { this.L = null; this.sold = null; },
+  render(ctx, E) {
+    const K = A.props, L = this.L = propsLayout(E), box = boxOf(E), sel = gunId(E), sh = L.shop;
+    btn(E, 'Back', L.back.x + 42, L.back.y + 22, { w: 84, h: 44, size: TY.small, fill: P.slate });
+    E.text('Prop Room', E.w / 2, L.back.y + 22, { size: TY.mid + 2, weight: TY.strong, color: P.text });
+    // the counter, the prop master behind it and the register with the box office
+    const ct = L.land ? sh.y + sh.h - 88 : sh.y + sh.h - 40, rx = L.land ? sh.x + 8 : sh.x + sh.w - 150, rw = L.land ? sh.w - 16 : 142, ry = L.land ? ct + 18 : sh.y + 12;
+    drawPropMaster(ctx, L.land ? sh.x + sh.w / 2 : sh.x + K.masterX, ct, L.land ? K.master : 0.9); // portrait: right of the Back button
+    plate(E, sh.x, ct, sh.w, sh.y + sh.h - ct, P.counter, P.ink, 8); ctx.fillStyle = P.counterTop; rrect(ctx, sh.x + 2, ct + 2, sh.w - 4, 7, 3); ctx.fill();
+    plate(E, rx, ry, rw, 58, P.register, P.brass, 8);
+    E.text('Box office', rx + rw / 2, ry + 15, { size: TY.small, color: P.textDim });
+    E.text(money(box), rx + rw / 2, ry + 39, { size: TY.mid + 2, weight: TY.strong, color: P.brassText });
+    // the pegboard and the guns on it
+    drawPegboard(ctx, L.board.x, L.board.y, L.board.w, L.board.h);
+    this.btns = [];
+    for (const c of L.cards) {
+      const g = T.guns[c.id], own = gunUnlocked(E, c.id), price = T.gunPrices[c.id], bd = unlockBadge(c.id), can = !own && price !== undefined && box >= price;
+      plate(E, c.x, c.y, c.w, c.h, own ? P.panelHi : P.panel, c.id === sel ? P.orange : P.panelEdge, 10);
+      disc(ctx, c.x + 12, c.y + 8, 3, P.steel); disc(ctx, c.x + c.w - 12, c.y + 8, 3, P.steel); // the pegs it hangs from
+      const lines = wrapText(ctx, g.name, c.w - 16, TY.small).slice(0, 2), bot = c.y + c.h - 48, art = clamp(bot - c.y - 8 - lines.length * K.line - 2 * K.row - 16, K.artMin, L.land ? K.art : K.artTall); // the art gives way to a two-line name
+      drawGunTile(ctx, c.id, c.x + c.w / 2, c.y + 6 + art / 2, c.w - 28, art, own ? skinId(E, c.id) : 'std');
+      const sy = bot - 6 - 1.5 * K.row, ny = sy - 6 - K.row / 2 - (lines.length - 0.5) * K.line, half = (c.w - 24) / 2; // two rows of two bars just above the button, the name above them
+      lines.forEach((ln, k) => E.text(ln, c.x + c.w / 2, ny + k * K.line, { size: TY.small, weight: TY.strong, color: P.text }));
+      PROP_STATS.forEach((f, i) => {
+        const bx2 = c.x + 10 + (i % 2) * (half + 4), by2 = sy + Math.floor(i / 2) * K.row, max = Math.max(...GUN_IDS.map((k) => f(T.guns[k]))), tw = half - 14;
+        statIcon(ctx, i, bx2 + 5, by2); E.roundRect(bx2 + 12, by2 - K.bar / 2, tw, K.bar, K.bar / 2, P.panelEdge); E.roundRect(bx2 + 12, by2 - K.bar / 2, Math.max(K.bar, tw * f(g) / max), K.bar, K.bar / 2, P.cyan);
+      });
+      const b = { x: c.x + 6, y: bot, w: c.w - 12, h: 44, id: c.id };
+      if (own) { const inHand = c.id === sel; plate(E, b.x, b.y, b.w, b.h, inHand ? P.panel : P.slate, inHand ? P.orange : P.ink); E.text(inHand ? 'In hand' : 'Use', b.x + b.w / 2, b.y + b.h / 2, { size: TY.small, weight: TY.strong, color: inHand ? P.textDim : P.text }); }
+      else if (bd) { // the mission that opens it, on two lines if it needs them
+        plate(E, b.x, b.y, b.w, b.h, P.panel, P.panelEdge); drawMedal(ctx, b.x + 18, b.y + b.h / 2, 11, bd.tier, false);
+        const ml = wrapText(ctx, bd.name, b.w - 42, TY.small).slice(0, 2); ml.forEach((ln, k) => E.text(ln, b.x + 34, b.y + b.h / 2 + (k - (ml.length - 1) / 2) * 16, { size: TY.small, weight: TY.strong, align: 'left', color: P.textDim }));
+      }
+      else { plate(E, b.x, b.y, b.w, b.h, can ? P.orange : P.panel, can ? P.ink : P.panelEdge); E.text(`Buy ${money(price)}`, b.x + b.w / 2, b.y + b.h / 2, { size: TY.small, weight: TY.strong, color: can ? P.ink : P.textDim }); }
+      this.btns.push(b);
+      if (this.sold && this.sold.id === c.id && E.time - this.sold.t0 < K.stamp) { // the SOLD stamp, slapped on at an angle
+        const a = 1 - (E.time - this.sold.t0) / K.stamp, k = 1 + 0.4 * Math.max(0, 1 - (E.time - this.sold.t0) * 8);
+        ctx.save(); ctx.globalAlpha = Math.min(1, a * 2); ctx.translate(c.x + c.w / 2, c.y + 6 + art / 2); ctx.rotate(-0.2); ctx.scale(k, k);
+        ctx.strokeStyle = P.brassText; ctx.lineWidth = 3; rrect(ctx, -40, -16, 80, 32, 6); ctx.stroke(); ctx.restore();
+        ctx.save(); ctx.translate(c.x + c.w / 2, c.y + 6 + art / 2); ctx.rotate(-0.2); ctx.scale(k, k); E.text('SOLD', 0, 0, { size: TY.mid + 2, weight: TY.strong, color: P.brassText, alpha: Math.min(1, a * 2) }); ctx.restore();
+      }
+    }
+  },
+  onTap(p, E) {
+    const L = this.L;
+    if (!L) return;
+    if (E.hit(L.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    const b = this.btns.find((q) => E.hit(q, p));
+    if (b) {
+      const id = b.id, g = T.guns[id], price = T.gunPrices[id], bd = unlockBadge(id), box = boxOf(E);
+      if (gunUnlocked(E, id)) { if (gunId(E) !== id) pickGun(E, id); E.audio.play('tap'); }
+      else if (bd) { E.audio.play('tap', 0.3); E.toast(`The ${g.short} opens with the ${bd.name} badge (${bd.cond})`); }
+      else if (box >= price) { // bought: the box office is spent, the gun is owned for good and in hand
+        E.save.set('box', box - price); E.save.update('owned', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [id]: 1 }), {});
+        E.ledger.add('buy', { gun: id, price, box: box - price }); pickGun(E, id);
+        E.audio.play('coin'); E.haptic(24); this.sold = { id, t0: E.time };
+      } else { E.audio.play('tap', 0.3); E.toast(`${money(price - box)} more box office buys the ${g.name}`); }
+      return;
+    }
+    const c = L.cards.find((q) => E.hit(q, p));
+    if (c) { E.audio.play('tap'); E.setScene('gun', { id: c.id, from: 'props' }); } // the card itself: its full stats
   },
 };
 
@@ -2526,6 +3061,8 @@ const play = {
     const ch = (params && chById(params.id)) || CHALLENGES[0];
     newRun(ch.endless ? { ...ch, seed: E.dailySeed() } : ch, gunId(E), params && params.gauntlet, skinId(E, gunId(E))); // the endless mode plays the day's seed
     this.menuBtn = null; this.reloadBtn = null; S.restarted = false;
+    prepSet(S.set, setScale(view(E).s * E.dpr)); // the set's image, before the first frame
+    S.clap = { t0: E.time, text: 'Action!' }; E.audio.beep({ freq: 1400, dur: 0.03, type: 'square', gain: 0.05 });
     S.first = !E.save.get('controlsSeen', false); if (S.first) E.save.set('controlsSeen', true); // the controls line: the first play of a fresh save, once
   },
 
@@ -2543,6 +3080,7 @@ const play = {
     for (const ev of r.events) cosmetics(E, ev);
     r.events.length = 0;
     if (r.done) {
+      if (!S.cut) { S.cut = true; S.clap = { t0: E.time, text: 'Cut!' }; E.audio.beep({ freq: 1400, dur: 0.03, type: 'square', gain: 0.05 }); } // the clapper's "Cut!" (the card still comes after endDelay)
       const l = S.ch.ladder;
       if (!S.slowed && (l === 'speed' || l === 'skeet' || (l === 'zombie' && r.cleared)) && r.steps * STEP - S.killAt < 0.1) { S.slowed = true; S.slow = T.slowLife; }
       if (!S.swept && r.misses === 0 && r.hits >= 3 && !r.breach) { S.swept = true; S.fx.push({ k: 'callout', x: T.designW / 2, y: 130, text: 'Clean sweep', t: T.calloutLife * 1.4, max: T.calloutLife * 1.4, big: true }); }
@@ -2554,9 +3092,10 @@ const play = {
     const v = view(E), r = S.run, ch = S.ch, now = r.steps * STEP;
     ctx.save();
     ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
-    ctx.beginPath(); ctx.rect(0, 0, T.designW, T.designH); ctx.clip();
     sprScale(v.s * E.dpr);
-    drawBackdrop(ctx);
+    drawSet(ctx, S.set); // before the clip: the set's image covers the field exactly, and an unclipped copy is the raster's cheapest draw
+    ctx.beginPath(); ctx.rect(0, 0, T.designW, T.designH); ctx.clip();
+    if (S.set === 'horror' || S.set === 'night') drawFog(ctx, E.time);
     if (ch.ladder === 'speed') { // the breach line
       ctx.strokeStyle = P.red; ctx.globalAlpha = 0.35; ctx.lineWidth = 2; ctx.setLineDash(BREACH_DASH);
       ctx.beginPath(); ctx.moveTo(T.gunLineX, 0); ctx.lineTo(T.gunLineX, HORIZON); ctx.stroke();
@@ -2574,6 +3113,12 @@ const play = {
       const half = (T.zoneR[2] + A.card.pad) * f.sc;
       ctx.globalAlpha = A.dodge.ghostAlpha * (f.t / f.max); drawSprite(ctx, K_CARD + Math.round(f.sc * 100), half + 6, paintCard, f.x, f.y, f.sc, false); ctx.globalAlpha = 1;
     }
+    if (ch.ladder === 'skeet' && r.targets.length) { // the saucers' wires, faint, from the top edge
+      ctx.globalAlpha = A.sets.wireAlpha; ctx.strokeStyle = P.wire; ctx.lineWidth = 1; ctx.beginPath();
+      for (const tg of r.targets) { ctx.moveTo(tg.x, 0); ctx.lineTo(tg.x, tg.y - T.zoneR[1] * tg.sc); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    for (const f of S.fx) if (f.k === 'saucer') drawDrop(ctx, f);
     for (const tg of r.targets) {
       if (tg.kind === 'zpart') continue; // a zombie is drawn whole, above
       let alpha = 1, at = tg;
@@ -2595,6 +3140,7 @@ const play = {
     drawMult(ctx, r);
     for (const f of S.fx) if (f.k === 'flash') drawFlash(ctx, r, f);
     for (const f of S.fx) if (f.k === 'casing') drawCasing(ctx, f);
+    for (const f of S.fx) if (f.k === 'spark' || f.k === 'squib') drawBurst(ctx, f);
     ctx.restore();
 
     if (!ch.wall) for (const tg of r.targets) if (tg.kind === 'part') { // the Bunker's plates come in a random order, so they carry no numbers
@@ -2622,6 +3168,7 @@ const play = {
     }
     this.hud(E, v, r, ch);
     this.reloadUI(E, v, r, now);
+    if (S.clap) drawClapper(E, v, S.clap);
     if (E.h > E.w) { // portrait: playable, but say what it wants, in the letterbox below the field
       const below = v.oy + v.h + 58 + 34 <= E.h - E.safe.bottom;
       const by = (below ? v.oy + v.h + 58 : E.h - E.safe.bottom - 38) + 17;
@@ -2695,9 +3242,17 @@ const play = {
   onPause() { newRun(S.ch, S.gunId, S.gauntlet === null ? undefined : S.gauntlet, S.skin); S.restarted = true; S.first = false; }, // closing the app mid-challenge restarts it, and the toast says so on return
 };
 
+// v0.6 C: the critics. One line of review under the stars, from a small pool per star count (cosmetic: Math.random picks). The papers are made up.
+const REVIEWS = [
+  ["'Straight to video.' — Tinseltown Weekly", "'We walked out.' — Popcorn Quarterly", "'Recast the lead.' — The Daily Reel"],
+  ["'Wooden.' — Tinseltown Weekly", "'Needs another take.' — Backlot Gazette", "'Shaky, but it moves.' — Popcorn Quarterly"],
+  ["'A crowd-pleaser.' — Backlot Gazette", "'Solid work.' — The Daily Reel", "'Star in the making.' — Tinseltown Weekly"],
+  ["'Explosive!' — The Daily Reel", "'A knockout.' — Popcorn Quarterly", "'Two thumbs, way up.' — Backlot Gazette"],
+];
 const over = {
   enter(E, params) {
     this.p = params; this.ch = chById(params.id); this.t0 = E.time; this.tick = -1;
+    const pool = REVIEWS[clamp(params.stars, 0, 3)]; this.review = this.ch.endless ? null : pool[Math.floor(Math.random() * pool.length)];
     const g = params.gaunt;
     if (g) { this.next = g.next ? CHALLENGES.find((c) => c.id === g.next) : null; this.canNext = !!this.next; }
     else {
@@ -2710,78 +3265,93 @@ const over = {
     const a = E.time - this.t0 - 0.15;
     if (a >= 0 && a < T.tickerLife && Math.floor(a / 0.07) !== this.tick) { this.tick = Math.floor(a / 0.07); E.audio.beep({ freq: 300 + 500 * (a / T.tickerLife), dur: 0.03, type: 'triangle', gain: 0.05 }); }
   },
+  // "That's a wrap!": the rung and gun, the score counting up, the critic stars and a review, the run's numbers, the best, the bars, one note line, then a row of the box office
+  // the run paid (a ticket stub) and the call sheets for what it earned, and the buttons.
   render(ctx, E) {
     const p = this.p, ch = this.ch, cx = E.w / 2, g = p.gaunt;
     const H = 310, y0 = Math.max(E.safe.top + 8, E.safe.top + (E.h - E.safe.top - E.safe.bottom - H) / 2);
-    const pw = Math.min(E.w - 16, 500);
+    const tm = this.ticketMetrics(ctx, E), pw = Math.min(E.w - 16, Math.max(500, tm.total + 2 * A.tickets.edge)); // the card widens for the row
     plate(E, cx - pw / 2, y0 - 18, pw, H + 30, P.panel, P.panelEdge, 16);
-    E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Gauntlet ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 10, { size: TY.small, color: P.textDim });
-    const age0 = E.time - this.t0, shown = Math.round(p.score * ease.outQuad(clamp((age0 - 0.15) / T.tickerLife, 0, 1))); // the score counts up
-    E.text(`${shown}`, cx, y0 + 46, { size: TY.big + 16, weight: TY.strong, color: P.text });
+    E.text("That's a wrap!", cx, y0 + 2, { size: TY.mid, weight: TY.strong, color: P.brassText });
+    E.text(`${ch.name}  ·  ${p.gun}${g ? `  ·  Montage ${g.i + 1}/${GAUNTLET.length}` : ''}`, cx, y0 + 22, { size: TY.small, color: P.textDim });
+    const age = E.time - this.t0, shown = Math.round(p.score * ease.outQuad(clamp((age - 0.15) / T.tickerLife, 0, 1))); // the score counts up
+    E.text(`${shown}`, cx, y0 + 56, { size: TY.big + 12, weight: TY.strong, color: P.text });
     if (p.gunId) { // the gun as it was worn, on the left of the score
       const tx = cx - pw / 2 + 14 + 42, ws = skinById(p.gunId, p.skin);
-      drawGunTile(ctx, p.gunId, tx, y0 + 48, 84, 34, p.skin);
-      if (ws.id !== 'std') E.text(ws.name, tx, y0 + 74, { size: TY.small, color: P.textDim });
+      drawGunTile(ctx, p.gunId, tx, y0 + 56, 84, 34, p.skin);
+      if (ws.id !== 'std') E.text(ws.name, tx, y0 + 82, { size: TY.small, color: P.textDim });
     }
-    const age = E.time - this.t0;
-    for (let i = 0; i < 3 && !ch.endless; i++) {
-      const sx = cx + (i - 1) * 60, sy = y0 + 94;
-      if (i < p.stars) {
-        const k = ease.outBack(clamp((age - i * 0.2) / 0.3, 0, 1));
-        if (k > 0) drawStar(ctx, sx, sy, 22 * k, P.brass);
-      } else drawStar(ctx, sx, sy, 22, null, P.panelEdge);
+    if (!ch.endless) { // the critics' stars and one line of review
+      for (let i = 0; i < 3; i++) {
+        const sx = cx + (i - 1) * 54, sy = y0 + 100;
+        if (i < p.stars) { const k = ease.outBack(clamp((age - i * 0.2) / 0.3, 0, 1)); if (k > 0) drawStar(ctx, sx, sy, 20 * k, P.brass); }
+        else drawStar(ctx, sx, sy, 20, null, P.panelEdge);
+      }
+      E.text(this.review, cx, y0 + 128, { size: TY.small, weight: `italic ${TY.normal}`, color: P.text, alpha: clamp((age - 0.6) / 0.3, 0, 1) });
     }
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
-    if (ch.ladder === 'zombie') E.text(ch.endless ? `Wave ${p.zwave}   Down ${p.zdown}   Brain shots ${p.heads}` : `Down ${p.zdown} of ${p.ztotal}   Brain shots ${p.heads}`, cx, y0 + (ch.endless ? 104 : 134), { size: TY.mid, weight: ch.endless ? TY.strong : TY.normal, color: P.text });
-    else E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 134, { size: TY.mid, color: P.text });
+    if (ch.ladder === 'zombie') E.text(ch.endless ? `Wave ${p.zwave}   Down ${p.zdown}   Brain shots ${p.heads}` : `Down ${p.zdown} of ${p.ztotal}   Brain shots ${p.heads}`, cx, y0 + (ch.endless ? 104 : 150), { size: TY.mid, weight: ch.endless ? TY.strong : TY.normal, color: P.text });
+    else E.text(`Hits ${p.hits}${of}   Bullseyes ${p.bulls}`, cx, y0 + 150, { size: TY.mid, color: P.text });
     if (ch.endless) {
       E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  wave ${p.bestWave}`, cx, y0 + 140, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
       E.text(`Today ${p.day.best}${p.day.isNew ? ' (new)' : ''}  ·  the same waves all day`, cx, y0 + 164, { size: TY.small, color: P.textDim });
     } else {
-      E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 156, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
-      E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}  ·  ${p.preset}`, cx, y0 + 178, { size: TY.small, color: P.textDim });
+      E.text(`${p.isNew ? 'New best' : 'Best'} ${p.best}  ·  ${p.bestStars} ${p.bestStars === 1 ? 'star' : 'stars'} saved`, cx, y0 + 170, { size: TY.mid, weight: p.isNew ? TY.strong : TY.normal, color: p.isNew ? P.orange : P.textDim });
+      E.text(`Stars at ${p.thr.one} / ${p.thr.two} / ${p.thr.three}  ·  ${p.preset}`, cx, y0 + 189, { size: TY.small, color: P.textDim });
     }
-    // Optional lines stack under the thresholds (a cursor, not fixed rows): the Bunker's plates, the badge, its skin, a gauntlet note. The buttons start at y0 + 256;
-    // with all four the last line ends at y0 + 247.
-    let yy = y0 + 178;
-    if (ch.wall) {
-      yy += 20;
-      E.text(p.platesLeft ? `${p.platesLeft} plates left, worth up to ${p.platesValue} more` : 'Every plate scores', cx, yy, { size: TY.small, color: p.platesLeft ? P.cyan : P.textDim });
-    }
-    if (ch.ladder === 'zombie') { // which one reached the fence, and how far the waves got
-      yy += 20;
+    // One note line (the Bunker's plates, the zombie that reached the fence, a montage result), then the row: the box office stub and the call sheets (v0.5 Q's tickets, restyled).
+    const K = A.tickets, ny = y0 + K.noteY;
+    if (ch.wall) E.text(p.platesLeft ? `${p.platesLeft} plates left, worth up to ${p.platesValue} more` : 'Every plate scores', cx, ny, { size: TY.small, color: p.platesLeft ? P.cyan : P.textDim });
+    else if (ch.ladder === 'zombie') { // which one reached the fence, and how far the waves got
       const b = p.breach;
-      E.text(b ? `A ${ZTYPES[b.cls].name.toLowerCase()}${b.legs && !ZTYPES[b.cls].ground ? ' on its hands' : ''} reached the fence: zombie ${b.n} of wave ${b.wave}${p.zwaves ? ' of ' + p.zwaves : ''}` : 'The fence held', cx, yy, { size: TY.small, weight: TY.strong, color: b ? P.red : P.cyan });
-    }
-    if (p.badges.length) { // a badge pop: the line pops in by transform, from popFrom of its size (never under the small text size), fading up
-      yy += 22;
-      const t = clamp((age - 0.5) / 0.35, 0, 1), k = ease.outBack(t), names = p.badges.map((id) => BADGES.find((b) => b.id === id).name).join(', ');
-      const col = P.tier[BADGES.find((b) => b.id === p.badges[0]).tier], from = TY.small / TY.mid, sc = from + (1 - from) * k, msg = `Badge earned: ${names}`;
-      if (t > 0) {
-        ctx.save(); ctx.translate(cx + 12, yy); ctx.scale(sc, sc);
-        ctx.font = `${TY.strong} ${TY.mid}px system-ui, sans-serif`; // the engine's text font, set here to measure the line the ticket goes behind
-        const mw = ctx.measureText(msg).width;
-        ctx.globalAlpha = t;
-        if (p.badges.some((id) => BADGES.find((b) => b.id === id).tier === 'Trick')) drawTicket(ctx, 0, 0, mw + 68, 28, col); // a delighter pops a ticket behind its line
-        E.text(msg, 0, 0, { size: TY.mid, weight: TY.strong, color: col, alpha: t }); ctx.globalAlpha = t;
-        drawStar(ctx, -mw / 2 - 16, 0, 11, col);
-        ctx.restore();
-      }
-    } else if (g && !g.ok) E.text('Gauntlet over: two stars needed', cx, yy += 22, { size: TY.mid, color: P.red });
-    else if (g && g.done) E.text('Gauntlet complete', cx, yy += 22, { size: TY.mid, color: P.cyan });
-    else if (g) E.text('Gauntlet stage passed', cx, yy += 22, { size: TY.mid, color: P.cyan });
-    if (p.tierUp || (p.skins && p.skins.length)) { // mastery (v0.5 N): a tier reached, and the skin it opens
-      yy += 22;
-      const a = clamp((age - 0.7) / 0.35, 0, 1), sk = p.skins && p.skins.length ? `${p.skins.join(', ')} unlocked` : '';
-      E.text(p.tierUp ? `${p.tierUp.gun} is now ${p.tierUp.name}${sk ? ': ' + sk : ''}` : `Skin unlocked: ${p.skins.join(', ')}`, cx, yy, { size: TY.small, weight: TY.strong, color: P.cyan, alpha: a });
-    }
+      E.text(b ? `A ${ZTYPES[b.cls].name.toLowerCase()}${b.legs && !ZTYPES[b.cls].ground ? ' on its hands' : ''} reached the fence: zombie ${b.n} of wave ${b.wave}${p.zwaves ? ' of ' + p.zwaves : ''}` : 'The fence held', cx, ny, { size: TY.small, weight: TY.strong, color: b ? P.red : P.cyan });
+    } else if (g) E.text(!g.ok ? 'Montage over: two stars needed' : g.done ? 'Montage complete' : 'Montage scene passed', cx, ny, { size: TY.small, weight: TY.strong, color: g.ok ? P.cyan : P.red });
+    this.drawTickets(ctx, E, cx, y0 + K.y, age, tm);
     const btns = [['Again', P.orange, P.ink, 'again']];
     if (this.canNext) btns.push(['Next', P.cyan, P.ink, 'next']);
     btns.push(['Menu', P.slate, P.text, 'menu']);
-    const bw = Math.min(140, (E.w - 32 - 16) / 3), by = y0 + 282;
+    const bw = Math.min(140, (E.w - 32 - 16) / 3), by = y0 + 290;
     this.btns = btns.map(([label, fill, color, act], i) => {
       const x = cx + (i - (btns.length - 1) / 2) * (bw + 12);
       return { act, ...btn(E, label, x, by, { w: bw, h: 52, fill, color, size: TY.mid }) };
+    });
+  },
+  // The row: the box office stub first (always), then the call sheets (up to `max`, fewer if the widest card the screen allows cannot hold their names whole: the rest count in
+  // "+n", so no name is ever cut): each sheet's icon width and padding, its text width (the last also holds "+n") and the row's width.
+  ticketMetrics(ctx, E) {
+    const K = A.tickets, all = this.p.tickets, room = E.w - 16 - 2 * K.edge;
+    ctx.font = `${TY.strong} ${TY.small}px system-ui, sans-serif`;
+    const boxText = `Box office +${money(this.p.pay || 0)}`, boxW = ctx.measureText(boxText).width + 2 * K.pad + 10;
+    let m;
+    for (let n = Math.min(K.max, all.length); n >= 0; n--) {
+      const list = all.slice(0, n), more = all.length - n, ic = list.map((t) => (t.kind === 'badge' && !t.gun ? K.medal : K.icon)), ch = ic.map((w) => K.pad * 2 + w + K.iconGap);
+      const tw = list.map((t, i) => ctx.measureText(t.name).width + (more && i === n - 1 ? K.more : 0));
+      m = { list, more, ic, ch, tw, boxText, boxW, total: boxW + (n ? tw.reduce((sum, w, i) => sum + w + ch[i], 0) + n * K.gap : 0) };
+      if (m.total <= room || n <= 1) break;
+    }
+    return m;
+  },
+  drawTickets(ctx, E, cx, cy, age, tm) {
+    const K = A.tickets, { list, more, ic, ch, tw, total, boxText, boxW } = tm;
+    let x = cx - total / 2;
+    const a0 = clamp((age - K.delay) / K.pop, 0, 1);
+    if (a0 > 0) { // the box office the run paid: a movie ticket stub
+      const mx = x + boxW / 2; ctx.save(); ctx.globalAlpha = a0; drawTicket(ctx, mx, cy, boxW, K.h, P.brass); ctx.restore();
+      E.text(boxText, mx, cy, { size: TY.small, weight: TY.strong, color: P.brassText, alpha: a0 });
+    }
+    x += boxW + K.gap;
+    list.forEach((t, i) => {
+      const w = tw[i] + ch[i], a = clamp((age - K.delay - (i + 1) * K.stagger) / K.pop, 0, 1);
+      if (a <= 0) { x += w + K.gap; return; }
+      const mx = x + w / 2, col = t.kind === 'badge' ? P.tier[t.tier] : t.kind === 'tier' ? P.cyan : P.orange, ix = x + K.pad + ic[i] / 2, last = more && i === list.length - 1;
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(mx, cy); const sw = 1 + K.swell * Math.sin(Math.PI * a); ctx.scale(sw, sw); ctx.translate(-mx, -cy);
+      drawCallSheet(ctx, mx, cy, w, K.h, col);
+      if (t.kind === 'badge' && !t.gun) drawMedal(ctx, ix, cy, ic[i] / 2, t.tier, true);
+      else drawGunTile(ctx, t.gun, ix, cy, ic[i], K.h * 0.55, t.kind === 'skin' ? t.skin.id : 'std'); // a gun opened, or the gun a tier or a skin belongs to (a skin shown worn)
+      E.text(t.name, x + K.pad + ic[i] + K.iconGap, cy, { size: TY.small, weight: TY.strong, align: 'left', color: P.ink, alpha: a });
+      if (last) E.text(`+${more}`, x + w - K.pad, cy, { size: TY.small, weight: TY.strong, align: 'right', color: P.steelDark, alpha: a });
+      ctx.restore();
+      x += w + K.gap;
     });
   },
   onTap(p, E) {
@@ -2908,10 +3478,11 @@ function migrateGuns(data) {
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 11,
+  saveVersion: 13,
   // Save shape: best { challengeId: { gunId: { score, stars, accuracy } } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, gunsHad { gunId: 1 } (guns a save from
   // before v7 already had), cold (Cold Barrel's runs in a row), zend (the endless mode's bests), mastery { gunId: { shots, hits, bulls, heads, plates } } and skinsHad { gunId: { skinId: 1 } } and skinsNew { gunId: [skinId] } (v10), starPreset (the star-bar preset's name), __tune, __muted.
-  // controlsSeen (v11: the first-run controls line has been shown).
+  // controlsSeen (v11: the first-run controls line has been shown), seen { badgeId: 1 } (v12: the badges already shown on the missions screen; the dot on the menu's Missions button marks an earned one that is not in it).
+  // v13 (PRD v0.6 B): box (box office in dollars) and owned { gunId: 1 } (the guns bought in the Prop Room; the migration puts every gun a save already had here, so none is taken away).
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
   // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default); v6 adds the star-bar preset's name. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
@@ -2934,6 +3505,19 @@ export const game = {
       data.skinsHad = had;
     }
     if (fromVersion < 11) data.controlsSeen = true; // v11: a save that already exists has played; only a fresh one sees the controls line
+    if (fromVersion < 12) data.seen = Object.fromEntries(Object.keys(data.badges).map((id) => [id, 1])); // v12: every badge the save had is marked seen, so the dot waits for the next one
+    else if (!data.seen || typeof data.seen !== 'object') data.seen = {};
+    if (fromVersion < 13) { // v13: every gun the save had stays owned (its v0.5 badge, or the old points table's gunsHad), and box office opens at boxStart plus boxPerStar for every star
+      // already earned (a best's saved stars, or what its score earns against the bars now if that is more, as the menu counts them), so a veteran can shop at once
+      const owned = data.owned && typeof data.owned === 'object' ? data.owned : {}, had = data.gunsHad && typeof data.gunsHad === 'object' ? data.gunsHad : {};
+      for (const [g, b] of Object.entries(OLD_UNLOCK_BADGES)) if (data.badges[b] || had[g]) owned[g] = 1;
+      data.owned = owned;
+      let stars = 0;
+      for (const [cid, per] of Object.entries(data.best || {})) { const ch = CHALLENGES.find((c) => c.id === cid); if (ch && per && typeof per === 'object') for (const [g, e] of Object.entries(per)) if (T.guns[g] && e && typeof e === 'object') stars += Math.max(e.stars || 0, starsFor(ch, e.score || 0, g)); }
+      data.box = T.boxStart + T.boxPerStar * stars;
+    }
+    if (!data.owned || typeof data.owned !== 'object') data.owned = {};
+    if (typeof data.box !== 'number' || !Number.isFinite(data.box)) data.box = T.boxStart;
     if (data.mastery !== undefined && (typeof data.mastery !== 'object' || data.mastery === null)) delete data.mastery;
     delete data.bossGuns;
     if (data.__tune && typeof data.__tune === 'object') data.__tune = Object.fromEntries(Object.entries(data.__tune).filter(([k]) => TUNE_KEYS.has(k)));
@@ -2941,11 +3525,11 @@ export const game = {
   },
   TUNING,
   init(E) {
-    buildArt(); prepMenu(E.dpr, E.ctx); warmText(E.ctx);
+    buildArt(); prepMenu(E.dpr, E.ctx); menuPatterns(E.ctx, E.dpr); warmText(E.ctx);
     if (!E.save.get('mastery', null)) E.save.set('mastery', deriveMastery(E)); // a save from before v10: the counters the ledger still has, else zero
   }, // the art and the menu's sprites are built before the first frame
   experiments: EXPERIMENTS,
   presets: PRESETS,
   start: 'menu',
-  scenes: { menu, play, over, missions, tune, gun: gunCard },
+  scenes: { menu, play, over, missions, tune, gun: gunCard, props },
 };

@@ -1,8 +1,9 @@
-// Launch, layer 1: the mechanic in grey box.
-// Pull the slingshot from anywhere, release, tap to boost, bounce off springs and birds, stop or stick in mud; a card.
-// World units: x to the right from the slingshot fork, y is height above the ground (10 units = 1 m). The critter's
-// y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight time, so the same seed,
-// launch and input times give the same flight at any frame rate (ADR-0008). tools/sim-launch.mjs drives game.sim.
+// Launch: a needle launch, then tap to boost, bounce off springs and birds, stop or stick in mud; a card with goals that pay.
+// Before launch a needle sweeps a wedge at the launcher; a tap stops it and launches at its angle, with the power of the zone
+// it stopped in (PRD v0.2 A). World units: x to the right from the slingshot fork, y is height above the ground (10 units =
+// 1 m). The critter's y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight time, and the
+// needle's angle is a function of the time since the launcher was ready, so the same seed, tap time and boost times give the
+// same flight at any frame rate (ADR-0008). tools/sim-launch.mjs drives game.sim.
 
 import { makeRng, clamp, ease } from './engine.js';
 
@@ -13,10 +14,28 @@ const TUNING = {
   groundY: 300,            // design y of the ground line
   physicsStep: 1 / 120,
 
+  // The needle launch (PRD v0.2 A): a triangle wave from needleMin up to needleMax and back in needlePeriod, starting at
+  // the bottom. Zones are graded around sweetAngle; each zone launches at its share of launchSpeedMax (Band applied).
+  needleMin: 10,           // degrees
+  needleMax: 80,
+  needlePeriod: 1.6,       // seconds for one sweep up and back, base Steady
+  sweetAngle: 38,          // the gold, set on the real field (tools/sim-launch.mjs --rank): the ranking and the first-timer targets hold here
+  zonePerfect: 3,          // degrees either side of sweetAngle
+  zoneGreat: 8,
+  zoneGood: 15,
+  zoneScale: 1,            // every zone's width x this (the TUNE panel's one zone slider)
+  zonePower: [1.2, 1.05, 0.8, 0.8], // Perfect, Great, Good, Weak at the Good edge (x launchSpeedMax, Band applied): above 1 launches
+                           // past full power, so the launch carries the ranking (decision after Build 1 round 2)
+  weakPowerMin: 0.55,      // Weak's power at the wedge's ends (it ramps up to zonePower Weak at the Good edge)
+  perfectFuel: 2,          // free boost pulses for the flight after a Perfect launch (PRD 1: its payoff with boosts, amendment 1)
+  readyGrace: 0.3,
+  goalSlots: 3,            // goals active at a time (PRD v0.2 B)
+  ticketCap: 3,            // reward tickets on the card before "+n more" (principle 11, rule 6)         // seconds after the launcher is ready when taps are ignored (a double tap on Launch Again)
+  steadySlow: 0.12,        // Steady: needle speed x (1 - 0.12 per level)
+  steadyWiden: 1,          // ... and every zone 1 degree wider each side per level
+
   // PRD section 16
-  pullMax: 140,            // drag distance (screen px) for full pull
-  dragDead: 14,            // shorter drags cancel
-  launchSpeedMax: 700,     // launch speed at full pull, base Band (units/s)
+  launchSpeedMax: 700,     // launch speed of a Perfect launch, base Band (units/s)
   gravity: 520,            // units/s²
   airDrag: 0.025,          // fraction of speed lost per second in air, base Aero (PRD 0.035: see the changelog)
   groundFriction: 0.35,    // fraction of horizontal speed lost per ground touch
@@ -33,18 +52,19 @@ const TUNING = {
   chainSteps: [1, 1.5, 2, 3], // coin multiplier by consecutive springs or birds
   birdCoins: 5,
   milestones: [500, 1000, 2000, 3500, 5000], // metres
-  milestoneBonus: [25, 50, 100, 200, 400],   // one-time coins, first time each milestone is passed
+  milestoneBonus: [25, 50, 100, 200, 400],   // one-time sugar, first time each milestone is passed (coins are sugar since v0.2)
 
-  // The shop (PRD section 8): four upgrades, three levels each, bought with coins between flights. The play scene flies at
-  // the saved levels; `upgrades` is the harness's default set (tools/sim-launch.mjs flies every set through the real physics).
-  upgradePrices: {         // coins for levels 1, 2, 3 of each upgrade (PRD 50, 150, 400 for all: see the changelog)
-    band: [300, 450, 650],
-    fuel: [1100, 1300, 1500], // Fuel is the strongest buy per level: priced so it is not always the first one
-    aero: [300, 500, 700],
-    rocket: [380, 550, 750],
+  // The shop (PRD section 8, v0.2 D): five upgrades, three levels each, bought with sugar between flights. The play scene flies
+  // at the saved levels; `upgrades` is the harness's default set (tools/sim-launch.mjs flies every set through the real physics).
+  upgradePrices: {         // sugar for levels 1, 2, 3 of each upgrade (PRD 50, 150, 400 for all: see the changelog)
+    band: [450, 700, 1000],   // v0.2: half as much again, so the good profile clears the shop no sooner than flight 40 (amendment 5)
+    fuel: [1650, 1950, 2250], // Fuel is the strongest buy per level: priced so it is not always the first one
+    aero: [450, 750, 1050],
+    rocket: [550, 850, 1100],
+    steady: [400, 600, 900],
   },
   upgradeMax: 3,
-  upgrades: { band: 0, fuel: 0, aero: 0, rocket: 0 },
+  upgrades: { band: 0, fuel: 0, aero: 0, rocket: 0, steady: 0 },
   bandStep: 0.12,          // launchSpeedMax x (1 + 0.12 per level)
   fuelStep: 2,             // pulses per level
   aeroStep: 0.2,           // airDrag x (1 - 0.2 per level)
@@ -55,8 +75,6 @@ const TUNING = {
 
   // Flight rules the PRD states in words
   slingH: 36,              // launch height of the critter's bottom
-  launchAngleMin: 5,       // degrees
-  launchAngleMax: 80,
   critterR: 12,
   settleSpeed: 60,         // a ground bounce slower than this becomes a slide
   slideFriction: 1.4,      // sliding speed decays as exp(-slideFriction x seconds)
@@ -75,8 +93,10 @@ const TUNING = {
   lookahead: 4000,         // field generated this far ahead of the critter
 
   // Presentation
-  previewTime: 0.6,        // seconds of flight in the dotted arc
-  pullVisual: 40,          // how far the critter moves back in the pocket at full pull (units)
+  wedgeR: 104,             // the needle wedge's radius from the critter's centre (design px), and its hole
+  wedgeHole: 22,
+  wedgeFade: 0.3,          // seconds the wedge fades after the launch
+  markEvery: 0.1,          // the landing marker is recomputed at most this often (seconds)
   slingScreen: 0.2,        // slingshot at this fraction of the view width before launch
   followX: 0.3,            // the camera keeps the critter at this fraction of the view width
   followXMin: 0.1,         // ... or as far left as this when the arc's landing is too far ahead for zoomMin
@@ -89,8 +109,8 @@ const TUNING = {
   skyFill: 0.8,            // share of the sky (ground line to skyTop) the critter climbs into before the view zooms or pans
   spriteMin: 0.65,         // the critter and birds never draw smaller than this zoom
   endDelay: 0.9,           // seconds from the stop to the card
+  endDelayTaught: 2.4,     // ... when the stop shows the mud call-out, so it can be read
   cardGrace: 0.4,          // seconds the card ignores taps after it appears (the card has slid in by then)
-  nudgeLife: 1.2,          // seconds "Pull further" stays after a too-short drag
 
   // Art (layer 5; docs/games/launch/style.md): "flat round shapes, warm sky, soft shadows, one orange hero".
   // The critter is the only orange; teal is good (springs, birds); dark brown with a light rim is danger (mud).
@@ -104,7 +124,8 @@ const TUNING = {
     ink: '#2d2238',                    // outlines, ticks, text on light ground
     critter: '#ff8a1a', critterLight: '#ffb366', eye: '#ffffff',
     teal: '#1ea896', tealLight: '#7fe0d2', tealSpent: '#8fb3ad', coil: '#d8d2e4',
-    mud: '#3d2414', mudRim: '#f0d2ae',
+    mud: '#3d2414', mudDeep: '#23130a', mudRim: '#f0d2ae', // a sunk pit: dark body, deeper middle, light glossy streaks
+    zones: ['#ffd84d', '#f59bc2', '#4a7fd4', '#584a70'], // Perfect gold, Great light rose, Good blue, Weak dark slate: never orange; a lightness ramp, so any two stay apart (CIE76 22 or more) under protan, deutan and tritan simulation
     ramp: '#b3a7c9', rampPlank: '#8e82a8',
     wood: '#b98b5e', rubber: '#6b3a6e', rubberTaut: '#d6336c',
     star: '#fff6e0', coin: '#ffd84d',  // accent one: coins, stars, beaks
@@ -122,8 +143,6 @@ const TUNING = {
   // Juice (layer 3): all cosmetic, never read by the physics.
   juice: {
     particleCap: 160,
-    pullSquash: 0.22,      // critter stretch along the pull at full power
-    creakStep: 0.1,        // power change between creak ticks while pulling
     snapTime: 0.22, kick: 3, kickTime: 0.12, dust: 10,
     flame: 7, flameLife: 0.35, gaugePop: 0.25,
     landSquash: 0.35, squashTime: 0.28,
@@ -135,7 +154,12 @@ const TUNING = {
     holdHint: 3,           // seconds "Hold to boost" shows on the first flight after buying Rocket 1
     tapHint: 2.5,          // seconds "Tap to boost" shows from the top of a fresh save's first arc
     pipPulse: 0.6,         // the fuel pips pulse once with it
-    ghostPull: 0.95,       // the ghost thumb's stroke, as a power (at least 0.9: PRD amendment 2 after the v4 gate)
+    zonePop: 1.1,          // seconds the zone's name shows by the launcher
+    zoneFreq: [1320, 990, 740, 330], // the launch chime's pitch per zone
+    zoneHaptic: [24, 16, 10, 6],
+    sparks: 18,            // the Perfect launch's spark ring
+    callout: 2.6,          // seconds a first-time call-out (bird, mud) shows
+    springWobble: 0.3,     // an unspent spring's idle bob, as a share of its height (3 design px: visible at arm's length)
     stars: 90,
     haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20 },
   },
@@ -150,64 +174,160 @@ const DEG = Math.PI / 180;
 // Fairness rules every template keeps (tools/sim-launch.mjs --check proves them over many seeds): a spring comes before
 // the first mud of a chunk, no two mud patches without a spring between, and no stretch of 150 m without a spring.
 
-// The first chunk teaches, and it is laid out for this flight's full-pull range (Band and Aero change it), so no purchase
-// can make a habitual full pull worse (PRD amendment 1 after the v4 release gate). From a clean pull at `angle`:
-//   spring A catches the first landing of every power in `powers` (a careless short pull too);
-//   a bird sits on the full pull's way down from A, where the critter is `birdHeight` up; its bounce lands on spring C;
-//   the middle spring M catches the second landing of every power in `powers` that misses the bird;
-//   the first mud comes after C, with C before it.
+// The first chunk teaches, and it is laid out for this flight's launch range (Band and Aero change it), so no purchase can
+// make the same needle stop worse (PRD v0.2 C and D; amendment 1 after the v4 release gate). It is a run of springs that
+// pays the better stop more (amendment 1 after the Build 1 review), then the first mud:
+//   spring A catches the first landing of every Good or better needle stop at every Steady level (a stop Steady lifts into
+//   Good is caught too), and of the Weak stops next to Good;
+//   a bird sits on the Perfect stop's way down after the last spring, where the critter is `birdHeight` up (its bounce
+//   carries the gold on);
+//   each spring catches the next landing, past the last spring, of the stops whose quality is within its `tier` (quality:
+//   Perfect 0, Great 1, Good 2, Weak from 2 up by a tenth of the Good half-width per 1; the tiers tighten spring by spring,
+//   so the better the stop, the longer the ride, and Weak next to Good rides a little: no cliff), never wider than `wMax`
+//   (no stop lands twice on one spring), until `until`, then for Perfect stops only until `goldUntil`;
+//   the first mud comes past `mudFrom`, where no unboosted Perfect stop touches the ground.
 // The layout is found by flying the real physics (setup only: the same levels always give the same chunk).
+// tools/sim-launch.mjs --clean proves it at every Band, Aero and Steady level, --rank ranks the zones on it.
 const FIRST_CHUNK = {
   name: 'First flight',
-  angle: 40, powers: [0.6, 1], powerStep: 0.02, // from a short pull to a full one
-  padA: [30, 40],          // units of spring A before the weakest and after the strongest first landing
+  angleStep: 0.5,          // the needle stops (degrees apart) the layout is flown for
+  tiers: [8, 4, 2],        // by spring (A first; the last repeats): the worst stop quality laid out for (2: every Good or better stop)
+  taps: [],                // boost times (seconds): every stop is also flown with each of these sets of boosts ...
+  tapExtra: 0,             // ... laid out as if this much better in quality (a boost carries a stop further)
+  padA: [30, 40],          // units of spring A before the shortest and after the longest first landing
+  pad: [30, 40],           // units of every later spring before and after the landings it catches
+  gap: 60,                 // units of plain ground between springs, at least ...
+  maxGap: 200,             // ... and at most (a longer stretch mid-run catches boosted flights short of the first place)
+  wMax: 550,               // the widest a spring after A may be (units)
+  until: 4500,             // springs are laid until one ends past this (units, scaled by the gold's throw): short of the first place ...
+  goldUntil: 4500,         // ... then Perfect-only springs until one ends past this: the gold's longer ride
   birdHeight: 180,         // the critter's height on the way down where the bird meets it (units)
-  padM: [30, 60],          // units of spring M before and after the second landings it catches
-  halfC: 90,               // half the width of spring C around the bird bounce's landing
-  gapM: 60,                // units kept between A and M, and between M and C
-  mudGap: 70, mudW: 120,   // the first mud patch, after C
+  mudW: 120,               // the first mud patch ...
+  mudFrom: 7000,           // ... never before this (units): past where most good flights end, so it does not decide their distance
+  exitW: 60,               // small springs (units wide): every `fillEvery` from the run's end to the mud, and one just past the mud
+  fillEvery: 1200,
+  mudClear: 60,            // ... and this far from any ground touch of an unboosted Perfect stop (units)
   tail: 250,               // units after the mud to the chunk's end (at least chunkLen in all)
 };
 
-// A probe flight at `power` over `field` with no input, to its first contact after `after` contacts.
-function probe(up, power, field, after = 0) {
-  const r = newRun(0, { angle: FIRST_CHUNK.angle, power }, up, field);
+// ---------- The needle ----------
+// Zones by index: 0 Perfect, 1 Great, 2 Good, 3 Weak.
+const ZONES = ['Perfect!', 'Great', 'Good', 'Weak'];
+
+// The needle's speed factor and zone half-widths at a Steady level.
+function needleOf(up = T.upgrades) {
+  const k = up.steady || 0, w = T.steadyWiden * k, z = T.zoneScale;
+  return { period: T.needlePeriod / Math.max(0.05, 1 - T.steadySlow * k), half: [(T.zonePerfect + w) * z, (T.zoneGreat + w) * z, (T.zoneGood + w) * z] };
+}
+// The needle's angle `t` seconds after the launcher was ready: a triangle wave, bottom at t = 0.
+function needleAngle(t, up = T.upgrades) {
+  const ph = (((t / needleOf(up).period) % 1) + 1) % 1, tri = ph < 0.5 ? ph * 2 : 2 - ph * 2;
+  return T.needleMin + (T.needleMax - T.needleMin) * tri;
+}
+function zoneAt(angle, up = T.upgrades) {
+  const d = Math.abs(angle - T.sweetAngle), h = needleOf(up).half;
+  return d <= h[0] ? 0 : d <= h[1] ? 1 : d <= h[2] ? 2 : 3;
+}
+// A stop's launch. Weak's power ramps from zonePower Weak at the Good edge down to weakPowerMin at the wedge's end, so a stop
+// just outside Good is only a little weaker (no cliff).
+function launchAt(angle, up = T.upgrades) {
+  const zone = zoneAt(angle, up);
+  if (zone < 3) return { angle, zone, power: T.zonePower[zone] };
+  const edge = needleOf(up).half[2], end = angle < T.sweetAngle ? T.sweetAngle - T.needleMin : T.needleMax - T.sweetAngle;
+  const k = clamp((Math.abs(angle - T.sweetAngle) - edge) / Math.max(1e-6, end - edge), 0, 1);
+  return { angle, zone, power: T.zonePower[3] + (T.weakPowerMin - T.zonePower[3]) * k };
+}
+// A tap `t` seconds after the launcher was ready.
+const needleLaunch = (t, up = T.upgrades) => ({ ...launchAt(needleAngle(t, up), up), t });
+
+// Every Good or better needle stop at every Steady level, with the Band and Aero of `up` (the teaching chunk's launches).
+function goodStops(up) {
+  const out = new Map();
+  for (let k = 0; k <= T.upgradeMax; k++) {
+    const F = FIRST_CHUNK, u = { ...up, steady: k }, g = needleOf(u).half[2], h = g * (1 + Math.max(0, Math.max(...F.tiers) + F.tapExtra - 2) / 10);
+    for (let a = T.sweetAngle - h; a <= T.sweetAngle + h + 1e-9; a += F.angleStep) {
+      const ang = +clamp(a, T.needleMin, T.needleMax).toFixed(2), l = launchAt(ang, u), key = `${ang},${l.power}`;
+      const q = l.zone < 3 ? l.zone : 2 + (Math.abs(ang - T.sweetAngle) / g - 1) * 10;
+      if (!out.has(key) || out.get(key).q > q) out.set(key, { angle: ang, power: l.power, zone: l.zone, q });
+    }
+  }
+  return [...out.values()];
+}
+
+// A probe flight of `launch` over `field` with no input, to its first contact after `after` contacts (or, with `past`, its
+// first contact beyond x = past).
+function probe(up, launch, field, after = 0, past = null) {
+  const r = newRun(0, launch, up, field);
+  for (const t of launch.taps || []) queueInput(r, t, 'pulse');
   let n = 0, path = [];
   while (!r.ended && r.steps < 20000) {
     const mode = r.mode;
     stepRun(r);
-    const hit = r.ev.some((e) => e.k !== 'boost') || (mode === 'air' && r.mode === 'ground');
+    const hit = r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone') || (mode === 'air' && r.mode === 'ground');
     r.ev.length = 0;
     if (n === after && r.mode === 'air') path.push([r.x, r.y, r.vy, flightTime(r)]);
-    if (hit && n++ === after) return { x: r.x, path };
+    if (hit && (past === null ? n++ === after : r.x > past)) return { x: r.x, path, ok: true };
   }
-  return { x: r.x, path };
+  return { x: r.x, path, ok: false };
 }
 
-const TEACH = new Map(); // layouts by upgrade levels that change the unboosted path
+const TEACH = new Map(); // layouts by the numbers that change the unboosted paths (the TUNE panel can change some)
 function teachingChunk(up) {
-  const key = `${up.band || 0},${up.aero || 0}`;
+  const key = JSON.stringify([up.band || 0, up.aero || 0, T.sweetAngle, T.zonePerfect, T.zoneGreat, T.zoneGood, T.zoneScale, T.zonePower, T.steadyWiden, T.launchSpeedMax, T.airDrag, T.gravity, T.needleMin, T.needleMax, FIRST_CHUNK]);
   if (TEACH.has(key)) return TEACH.get(key);
-  const F = FIRST_CHUNK, open = () => ({ seed: 0, rng: null, ground: [], birds: [], end: 1e12, chunks: 1 });
-  const spring = (x0, x1) => ({ kind: 'spring', x0, x1, w: x1 - x0, h: 0, spent: false });
-  const powers = []; for (let p = F.powers[0]; p <= F.powers[1] + 1e-9; p += F.powerStep) powers.push(+p.toFixed(3));
+  const F = FIRST_CHUNK, plain = goodStops(up), perfect = { angle: T.sweetAngle, power: T.zonePower[0], zone: 0 };
+  const spring = (x0, x1) => ({ kind: 'spring', x0: Math.round(x0), x1: Math.round(x1), w: Math.round(x1) - Math.round(x0), h: 0, spent: false });
+  // A spring over landings `xs` (from x = `from` when that is given), never wider than `wMax` (spring A takes every first landing).
+  const cover = (xs, from, pad, cap = F.wMax) => {
+    const x0 = from > 0 ? clamp(Math.min(...xs) - pad[0], from, from + F.maxGap - F.gap) : Math.min(...xs) - pad[0]; // no long plain stretch mid-run
+    return spring(x0, Math.min(x0 + cap, Math.max(...xs) + pad[1]));
+  };
+  const tier = (k) => F.tiers[Math.min(k, F.tiers.length - 1)] + 1e-9;
+  const stops = plain.concat(...F.taps.map((t) => plain.map((l) => ({ ...l, taps: t, q: l.q - F.tapExtra }))));
+  const ground = [];
+  let bird = null;
+  const field = () => ({ seed: 0, rng: null, ground: ground.map((g) => ({ ...g })), birds: bird ? [{ ...bird }] : [], end: 1e12, chunks: 1 });
   // A: the first landings.
-  const first = powers.map((p) => probe(up, p, open()).x);
-  const A = spring(Math.round(Math.min(...first) - F.padA[0]), Math.round(Math.max(...first) + F.padA[1]));
-  const withA = () => { const f = open(); f.ground.push({ ...A }); return f; };
-  // The bird: on the full pull's way down from A.
-  const down = probe(up, F.powers[1], withA(), 1).path.find(([, y, vy]) => vy < 0 && y <= F.birdHeight);
-  const bird = { x0: Math.round(down[0] - T.birdSwing * Math.sin((down[3] / T.birdPeriod) * Math.PI * 2)), y: Math.round(F.birdHeight + T.critterR), phase: 0, hit: false };
-  // C: where the bird's bounce comes down.
-  const fb = withA(); fb.birds.push({ ...bird });
-  const x3 = probe(up, F.powers[1], fb, 2).x;
-  const C = spring(Math.round(x3 - F.halfC), Math.round(x3 + F.halfC));
-  // M: the second landings of the pulls that miss the bird.
-  // (a weak pull's second landing on A itself, now spent, is plain ground: it had its spring)
-  const second = powers.map((p) => probe(up, p, withA(), 1).x).filter((x) => x > A.x1 && x < C.x0);
-  const M = spring(Math.round(Math.max(A.x1 + F.gapM, Math.min(...second) - F.padM[0])), Math.round(Math.min(C.x0 - F.gapM, Math.max(...second) + F.padM[1])));
-  const mud = { kind: 'mud', x0: C.x1 + F.mudGap, x1: C.x1 + F.mudGap + F.mudW, w: F.mudW, h: 0, spent: false };
-  const out = { ground: [A, M, C, mud], bird, len: Math.max(T.chunkLen, Math.ceil((mud.x1 + F.tail) / 100) * 100) };
+  const first = stops.filter((l) => l.q <= tier(0)).map((l) => probe(up, l, field()).x);
+  ground.push(cover(first, 0, F.padA, Infinity));
+  // The run of springs.
+  // A stronger Band or Aero gets a longer run, never a shorter one: `until` scales with the Perfect stop's open-ground throw.
+  const open = () => ({ seed: 0, rng: null, ground: [], birds: [], end: 1e12, chunks: 1 });
+  const until = F.until * (probe(up, perfect, open()).x / probe({ band: 0, aero: 0 }, perfect, open()).x);
+  while (ground[ground.length - 1].x1 < Math.max(until, F.goldUntil)) {
+    const last = ground[ground.length - 1].x1, tk = last < until ? tier(ground.length) : 1e-9;
+    const xs = stops.filter((l) => l.q <= tk).map((l) => probe(up, l, field(), 0, last + F.gap)).filter((p) => p.ok).map((p) => p.x);
+    if (!xs.length) break;
+    ground.push(cover(xs, last + F.gap, F.pad));
+  }
+  // The bird: on the Perfect stop's way down after the last spring, so its bounce carries the gold on past the run.
+  {
+    const r = newRun(0, perfect, up, field()), end = ground[ground.length - 1].x1;
+    while (!r.ended && r.steps < 40000) {
+      stepRun(r); r.ev.length = 0;
+      if (r.x > end && r.mode === 'air' && r.vy < 0 && r.y <= F.birdHeight) { bird = { x0: Math.round(r.x - T.birdSwing * Math.sin((flightTime(r) / T.birdPeriod) * Math.PI * 2)), y: Math.round(F.birdHeight + T.critterR), phase: 0, hit: false }; break; }
+    }
+  }
+  // Small springs every `fillEvery` from the run's end up to the mud (no stretch of 150 m without a spring), and the mud past
+  // mudFrom, clear of every ground touch of the unboosted Perfect stops; filling moves the touches, so the two are settled
+  // together (filler springs added after a spring change nothing before it, so this ends).
+  let m0 = F.mudFrom;
+  for (let round = 0; round < 6; round++) {
+    for (let x = ground[ground.length - 1].x1 + F.fillEvery; x + F.exitW + F.gap < m0; x += F.fillEvery) ground.push(spring(x, x + F.exitW));
+    const touches = [];
+    for (const l of plain.filter((q) => q.zone === 0)) {
+      const r = newRun(0, l, up, field());
+      while (!r.ended && r.x < m0 + 4000 && r.steps < 40000) { stepRun(r); r.ev.length = 0; if (r.mode !== 'air' || r.y <= 1) touches.push(r.x); }
+    }
+    let next = Math.max(m0, ground[ground.length - 1].x1 + F.gap);
+    for (let moved = true; moved;) { moved = false; for (const x of touches) if (x > next - F.mudClear && x < next + F.mudW + F.mudClear) { next = Math.ceil(x + F.mudClear); moved = true; } }
+    const settled = next - ground[ground.length - 1].x1 <= F.fillEvery + F.gap;
+    m0 = next;
+    if (settled) break;
+  }
+  ground.push({ kind: 'mud', x0: m0, x1: m0 + F.mudW, w: F.mudW, h: 0, spent: false });
+  ground.push(spring(m0 + F.mudW + F.gap, m0 + F.mudW + F.gap + F.exitW)); // no stretch of 150 m without a spring
+  const out = { ground, bird, len: Math.max(T.chunkLen, Math.ceil((m0 + F.mudW + F.gap + F.exitW + F.tail) / 100) * 100) };
   TEACH.set(key, out);
   return out;
 }
@@ -270,7 +390,7 @@ function makeField(seed, up = T.upgrades) {
   const f = { seed, rng: makeRng(seed), ground: [], birds: [], end: 0, chunks: 0 };
   const t = teachingChunk(up);
   for (const g of t.ground) f.ground.push({ ...g });
-  f.birds.push({ ...t.bird });
+  if (t.bird) f.birds.push({ ...t.bird });
   f.end = t.len; f.chunks = 1;
   return f;
 }
@@ -328,23 +448,17 @@ function stats(up = T.upgrades) {
   };
 }
 
-// Drag in screen px (finger movement: dx right, dy down) to a launch; null inside the dead zone.
-function launchFromDrag(dx, dy) {
-  const L = Math.hypot(dx, dy);
-  if (L < T.dragDead) return null;
-  const ang = clamp(Math.atan2(dy, -dx) / DEG, T.launchAngleMin, T.launchAngleMax);
-  return { angle: ang, power: Math.min(1, L / T.pullMax) };
-}
-
+// A launch is { angle, power } and, from the needle, its `zone` (a Perfect launch carries perfectFuel extra pulses).
 function newRun(seed, launch, up = T.upgrades, field = null) {
   const st = stats(up), sp = launch.power * st.launchSpeed, a = launch.angle * DEG;
   if (!field) { field = makeField(seed, up); ensureField(field, 0); }
+  const fuel = st.fuelMax + (launch.zone === 0 ? T.perfectFuel : 0);
   return {
     seed, launch, up: { ...up }, st, field,
     x: 0, y: T.slingH, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, u: 0,
-    fuel: st.fuelMax, holding: false, steps: 0, acc: 0, q: [], ev: [],
+    fuel, fuelCap: fuel, holding: false, steps: 0, acc: 0, q: [], ev: [],
     chain: 0, chainMax: 0, birds: 0, springs: 0, pulses: 0, coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: 0,
-    msIdx: 0, stars: [], slowT: 0, ended: null,
+    msIdx: 0, stars: [], slowT: 0, ended: null, boosted: false, boostSprings: 0,
   };
 }
 
@@ -377,7 +491,7 @@ function applyInput(r, e) {
   if (e.kind === 'pulse') {
     if (r.fuel <= 0) return;
     const k = Math.min(1, r.fuel);
-    r.fuel -= k; r.pulses++;
+    r.fuel -= k; r.pulses++; r.boosted = true;
     push(r, T.boostPulse * k);
     r.ev.push({ k: 'boost' });
   } else if (e.kind === 'holdOn') r.holding = r.st.hold;
@@ -386,8 +500,11 @@ function applyInput(r, e) {
 
 function end(r, why) { r.ended = why; r.vx = r.vy = 0; r.ev.push({ k: why }); }
 
+// `boosted`: a boost was fired since the last contact (a spring hit after one counts for the goals).
 function hitSpring(r, g, vyIn) {
   g.spent = true;
+  if (r.boosted) r.boostSprings++;
+  r.boosted = false;
   r.vy = Math.max(T.springMin, -vyIn * T.springBounce);
   r.y = 0; r.mode = 'air';
   r.springs++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
@@ -395,6 +512,7 @@ function hitSpring(r, g, vyIn) {
 }
 
 function enterRamp(r, g, speed) {
+  r.boosted = false;
   if (r.vx <= 0) { r.vx = 0; r.vy = 0; r.mode = 'ground'; r.y = 0; return; } // bumped the ramp's back
   r.mode = 'ramp'; r.ramp = g; r.u = speed * T.rampKeep;
   r.y = surfaceH(g, r.x); r.vx = r.u * Math.cos(g.a); r.vy = r.u * Math.sin(g.a);
@@ -402,7 +520,7 @@ function enterRamp(r, g, speed) {
 }
 
 function plainTouch(r) {
-  r.chain = 0;
+  r.chain = 0; r.boosted = false;
   r.y = 0;
   r.vx *= 1 - T.groundFriction;
   if (-r.vy * T.groundBounce >= T.settleSpeed) { r.vy = -r.vy * T.groundBounce; r.ev.push({ k: 'bounce' }); }
@@ -417,7 +535,7 @@ function stepRun(r) {
   if (r.holding && r.fuel > 0) {
     const k = Math.min(1, r.fuel / (T.holdFuelRate * STEP));
     r.fuel = Math.max(0, r.fuel - T.holdFuelRate * STEP);
-    push(r, st.thrust * STEP * k);
+    push(r, st.thrust * STEP * k); r.boosted = true;
   }
 
   if (r.mode === 'air') {
@@ -428,7 +546,7 @@ function stepRun(r) {
     for (const b of f.birds) {
       if (b.hit || Math.abs(b.x0 - r.x) > T.birdSwing + 40) continue;
       if (Math.hypot(birdX(b, t) - r.x, b.y - cy) < T.critterR + T.birdR) {
-        b.hit = true;
+        b.hit = true; r.boosted = false;
         r.vy = Math.max(r.vy, T.birdLift);
         r.birds++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
         r.ev.push({ k: 'bird', x: r.x, chain: r.chain });
@@ -484,20 +602,48 @@ function advance(r, dt) {
 const metres = (r) => Math.floor(r.maxX / T.unitsPerMetre);
 const coinsOf = (r) => Math.floor(r.coinAcc) + r.birds * T.birdCoins;
 
-// The first previewTime seconds of flight, ignoring the field (the dotted arc).
-function previewArc(launch, st) {
-  const sp = launch.power * st.launchSpeed, a = launch.angle * DEG, pts = [];
-  let x = 0, y = T.slingH, vx = sp * Math.cos(a), vy = sp * Math.sin(a);
-  const n = Math.round(T.previewTime / STEP);
-  for (let i = 1; i <= n; i++) {
-    vy -= T.gravity * STEP; vx *= st.dragK; vy *= st.dragK; x += vx * STEP; y += vy * STEP;
-    if (i % 6 === 0) pts.push([x, Math.max(0, y)]);
-  }
-  return pts;
+// ---------- Goals (PRD v0.2 B, G2) ----------
+// In order of difficulty; three are active at a time (the first three not done). A flight pays every active goal it meets,
+// on the card, and the next in the list takes its place. Each is a name in the candy kitchen's trade and a short plain
+// condition; `stat` is a number from the flight's summary (goalStats), met at `need`; `count` goals show "have/need". A goal
+// named for a skill is met by a zero-input Good or better launch on at most 20 percent of stops (tools/sim-launch.mjs --rank).
+const GOALS = [
+  { id: 'reach300', name: 'Warm Oven', text: 'Reach 300 m', stat: 'm', need: 300, reward: 80 },
+  { id: 'great', name: 'Good Knead', text: 'Launch Great or better', stat: 'great', need: 1, reward: 80 },
+  { id: 'bird', name: 'Feather Whisk', text: 'Bounce off a bird', stat: 'birds', need: 1, reward: 100 },
+  { id: 'reach500', name: 'Rising Dough', text: 'Reach 500 m', stat: 'm', need: 500, reward: 120 },
+  { id: 'springs5', name: 'Jelly Hopper', text: 'Hit 5 springs in one flight', stat: 'springs', need: 5, reward: 120, count: true },
+  { id: 'fly5', name: 'Five Batches', text: 'Fly 5 times', stat: 'flights', need: 5, reward: 100, count: true },
+  { id: 'perfect', name: 'Golden Crust', text: 'Launch Perfect', stat: 'perfect', need: 1, reward: 150 },
+  { id: 'boostSpring', name: 'Fizz Drop', text: 'Boost onto a spring', stat: 'boostSprings', need: 1, reward: 150 },
+  { id: 'reach750', name: 'Long Taffy', text: 'Reach 750 m', stat: 'm', need: 750, reward: 200 },
+  { id: 'chain5', name: 'Layer Cake', text: 'Chain 5 in a row', stat: 'chain', need: 5, reward: 180, count: true },
+  { id: 'fly10', name: 'Ten Trays', text: 'Fly 10 times', stat: 'flights', need: 10, reward: 180, count: true },
+  { id: 'birds3', name: 'Meringue Flock', text: 'Hit 3 birds in one flight', stat: 'birds', need: 3, reward: 250, count: true },
+  { id: 'reach1000', name: 'Sugar Rush', text: 'Reach 1000 m', stat: 'm', need: 1000, reward: 300 },
+  { id: 'perfect2', name: 'Twin Glaze', text: 'Two Perfect launches in a row', stat: 'perfectRow', need: 2, reward: 300, count: true },
+  { id: 'chain7', name: 'Tiered Tower', text: 'Chain 7 in a row', stat: 'chain', need: 7, reward: 350, count: true },
+  { id: 'reach1500', name: 'Candy Road', text: 'Reach 1500 m', stat: 'm', need: 1500, reward: 400 },
+  { id: 'springs8', name: 'Jelly Jumper', text: 'Hit 8 springs in one flight', stat: 'springs', need: 8, reward: 400, count: true },
+  { id: 'reach2000', name: 'Sweet Horizon', text: 'Reach 2000 m', stat: 'm', need: 2000, reward: 600 },
+];
+const activeGoals = (done) => GOALS.filter((g) => !done.includes(g.id)).slice(0, T.goalSlots);
+// A flight's numbers for the goals; `flights` and `perfectRow` count this flight in.
+function goalStats(r, flights, perfectRow) {
+  const z = r.launch.zone ?? 3;
+  return { m: metres(r), great: z <= 1 ? 1 : 0, perfect: z === 0 ? 1 : 0, birds: r.birds, springs: r.springs, chain: r.chainMax, boostSprings: r.boostSprings, flights, perfectRow };
 }
+// Pays the active goals the flight meets. Returns the goals paid, their sugar, and the new done list.
+function settleGoals(done, st) {
+  const paid = activeGoals(done).filter((g) => st[g.stat] >= g.need);
+  return { paid, sugar: paid.reduce((a, g) => a + g.reward, 0), done: done.concat(paid.map((g) => g.id)) };
+}
+// A goal's condition, with its counter when it counts something and a count is known.
+const goalLine = (g, have) => (g.count && have !== undefined ? `${g.text}  ${Math.min(have, g.need)}/${g.need}` : g.text);
 
 // ---------- Save ----------
-// v4: { best: metres, coins, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket }, holdTaught }
+// v5: { best: metres, sugar, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket, steady }, holdTaught,
+//       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight, birdTaught, mudTaught }
 
 function finishFlight(E, r) {
   const m = metres(r), best = E.save.get('best', 0);
@@ -505,21 +651,31 @@ function finishFlight(E, r) {
   let bonus = 0;
   const firsts = [];
   T.milestones.forEach((ms, i) => { if (m >= ms && !reached.includes(ms)) { bonus += T.milestoneBonus[i]; firsts.push(ms); } });
-  const earned = coinsOf(r) + bonus;
-  E.save.set('coins', E.save.get('coins', 0) + earned);
+  const flights = E.save.get('flights', 0) + 1, perfectRow = r.launch.zone === 0 ? E.save.get('perfectRow', 0) + 1 : 0;
+  const st = goalStats(r, flights, perfectRow), before = activeGoals(E.save.get('goalsDone', [])).map((g) => g.id);
+  const gs = settleGoals(E.save.get('goalsDone', []), st);
+  const earned = coinsOf(r) + bonus + gs.sugar;
+  E.save.set('sugar', E.save.get('sugar', 0) + earned);
   if (firsts.length) E.save.set('ms', reached.concat(firsts));
   if (m > best) E.save.set('best', m);
-  E.save.update('flights', (n) => n + 1, 0);
+  E.save.set('flights', flights);
+  E.save.set('perfectRow', perfectRow);
+  if (gs.paid.length) E.save.set('goalsDone', gs.done);
   const up = r.up;
-  E.ledger.add('flight', { m, why: r.ended, coins: earned, bonus, chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, pulses: r.pulses,
-    angle: +r.launch.angle.toFixed(1), power: +r.launch.power.toFixed(2), up: `b${up.band}f${up.fuel}a${up.aero}r${up.rocket}`, seed: r.seed });
-  return { m, best: Math.max(best, m), isNew: m > best, coins: earned, bonus, chainMax: r.chainMax, stars: r.stars.slice(), firsts, seed: r.seed, why: r.ended };
+  E.ledger.add('flight', { m, why: r.ended, sugar: earned, bonus, goals: gs.paid.map((g) => g.id).join('/') || 'none', chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, pulses: r.pulses,
+    angle: +r.launch.angle.toFixed(1), zone: ZONES[r.launch.zone ?? 3].replace('!', ''), up: `b${up.band}f${up.fuel}a${up.aero}r${up.rocket}s${up.steady || 0}`, seed: r.seed });
+  // The card: rewards as tickets (the goals paid and the new places, largest first), then the three goals now active (a
+  // counter for those this flight counted toward, "new" for the ones that just took a slot).
+  const tickets = gs.paid.map((g) => ({ name: g.name, cond: g.text, sugar: g.reward })).concat(firsts.map((ms) => ({ name: 'New place reached', short: 'New place', cond: `Past ${ms} m`, sugar: T.milestoneBonus[T.milestones.indexOf(ms)] })))
+    .sort((a, b) => b.sugar - a.sugar);
+  const active = activeGoals(gs.done).map((g) => ({ g, have: before.includes(g.id) ? st[g.stat] : undefined, isNew: !before.includes(g.id) }));
+  return { m, best: Math.max(best, m), isNew: m > best, sugar: coinsOf(r), bonus, earned, chainMax: r.chainMax, tickets, active, seed: r.seed, why: r.ended, zone: r.launch.zone ?? 3 };
 }
 
 // ---------- Shop ----------
-// Save: `up` holds the bought level of each upgrade (0 to upgradeMax); coins are spent from `coins`.
+// Save: `up` holds the bought level of each upgrade (0 to upgradeMax); sugar is spent from `sugar`.
 
-const UPGRADES = [{ id: 'band', name: 'Band' }, { id: 'fuel', name: 'Fuel' }, { id: 'rocket', name: 'Rocket' }, { id: 'aero', name: 'Aero' }];
+const UPGRADES = [{ id: 'band', name: 'Band' }, { id: 'fuel', name: 'Fuel' }, { id: 'rocket', name: 'Rocket' }, { id: 'aero', name: 'Aero' }, { id: 'steady', name: 'Steady' }];
 const levelsOf = (E) => ({ ...T.upgrades, ...E.save.get('up', {}) });
 
 // What buying level `lvl` (1 to upgradeMax) of an upgrade does, in plain words.
@@ -527,6 +683,7 @@ function effectText(id, lvl) {
   if (id === 'band') return `+${Math.round(T.bandStep * 100)}% launch speed`;
   if (id === 'fuel') return `+${T.fuelStep} fuel pulses`;
   if (id === 'aero') return `${Math.round(T.aeroStep * 100)}% less air drag`;
+  if (id === 'steady') return `Needle ${Math.round(T.steadySlow * 100)}% slower, zones ${T.steadyWiden}° wider each side`;
   const k = T.rocketThrust / T.holdFuelRate / T.boostPulse;
   return lvl === 1 ? `Hold to boost, ${+k.toFixed(1)}x push per fuel` : `+${Math.round(T.rocketStep * 100)}% hold thrust`;
 }
@@ -544,11 +701,11 @@ function wrap(E, text, maxW, size, weight) {
 }
 
 function buy(E, id) {
-  const up = levelsOf(E), lvl = up[id], price = T.upgradePrices[id][lvl], coins = E.save.get('coins', 0);
-  if (lvl >= T.upgradeMax || coins < price) return false;
-  E.save.set('coins', coins - price);
+  const up = levelsOf(E), lvl = up[id], price = T.upgradePrices[id][lvl], sugar = E.save.get('sugar', 0);
+  if (lvl >= T.upgradeMax || sugar < price) return false;
+  E.save.set('sugar', sugar - price);
   E.save.set('up', { ...up, [id]: lvl + 1 });
-  E.ledger.add('buy', { up: id, level: lvl + 1, price, coins: coins - price });
+  E.ledger.add('buy', { up: id, level: lvl + 1, price, sugar: sugar - price });
   return true;
 }
 
@@ -559,14 +716,14 @@ const shop = {
     const sf = E.safe, left = sf.left + 16, right = E.w - sf.right - 16, top = sf.top + 8;
     const grad = ctx.createLinearGradient(0, 0, 0, E.h); grad.addColorStop(0, P.skyDusk[1]); grad.addColorStop(1, P.skyNight[1]);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, E.w, E.h);
-    this.btnBack = btn(E, 'Back', left + 40, top + 22, { w: 80, h: 44, size: 15, fill: P.buttonOff });
+    this.btnBack = btn(E, 'Back', left + 40, top + 22, { w: 80, h: 44, size: TY.md, fill: P.buttonOff });
     E.text('Shop', E.w / 2, top + 22, { size: TY.lg, weight: '800', color: P.text });
-    const coins = E.save.get('coins', 0), up = levelsOf(E);
-    E.text(`${coins} coins`, right, top + 22, { size: TY.md, align: 'right', color: P.coin, weight: '800' });
-    const gy = top + 52, gap = 10, cw = (right - left - gap) / 2, ch = (E.h - sf.bottom - 10 - gy - gap) / 2, pad = 14;
+    const sugar = E.save.get('sugar', 0), up = levelsOf(E);
+    E.text(`${sugar} sugar`, right, top + 22, { size: TY.md, align: 'right', color: P.coin, weight: '800' });
+    const cols = 3, gy = top + 52, gap = 10, cw = (right - left - gap * (cols - 1)) / cols, ch = (E.h - sf.bottom - 10 - gy - gap) / 2, pad = 12;
     this.cells = UPGRADES.map((u, i) => {
-      const x = left + (i % 2) * (cw + gap), y = gy + Math.floor(i / 2) * (ch + gap), lvl = up[u.id], max = lvl >= T.upgradeMax;
-      const price = max ? 0 : T.upgradePrices[u.id][lvl], can = !max && coins >= price;
+      const x = left + (i % cols) * (cw + gap), y = gy + Math.floor(i / cols) * (ch + gap), lvl = up[u.id], max = lvl >= T.upgradeMax;
+      const price = max ? 0 : T.upgradePrices[u.id][lvl], can = !max && sugar >= price;
       E.roundRect(x, y, cw, ch, T.style.radius, P.panel, P.panelEdge);
       E.text(u.name, x + pad, y + 20, { size: TY.md, weight: '800', align: 'left', color: P.text });
       for (let k = 0; k < T.upgradeMax; k++) E.roundRect(x + cw - pad - (T.upgradeMax - k) * 20 + 4, y + 12, 16, 16, 4, k < lvl ? P.teal : P.panelSolid, P.panelEdge);
@@ -574,7 +731,8 @@ const shop = {
       words.forEach((line, n) => E.text(line, x + pad, y + 44 + n * 17, { size: TY.sm, align: 'left', color: max ? P.textDim : P.text, weight: '600' }));
       if (max) return { u, btn: null, rect: { x, y, w: cw, h: ch } };
       const bw = Math.min(cw - 2 * pad, 170);
-      const b = btn(E, `Buy for ${price}`, x + pad + bw / 2, y + ch - 30, { w: bw, h: 44, size: 16, fill: can ? P.button : P.buttonOff, color: can ? P.text : P.textOff });
+      const label = `Buy for ${price}`, size = fit(E, label, bw - 12, TY.md, '600') === label ? TY.md : TY.sm;
+      const b = btn(E, label, x + pad + bw / 2, y + ch - 28, { w: bw, h: 44, size, fill: can ? P.button : P.buttonOff, color: can ? P.text : P.textOff });
       return { u, btn: b, rect: { x, y, w: cw, h: ch } };
     });
   },
@@ -601,6 +759,27 @@ function predictLanding(r) {
     if (vy < 0 && y <= surfaceH(groundAt(r.field, x), x)) return x;
   }
   return x;
+}
+
+// The landing marker (PRD v0.2 C): where the critter first touches the ground or a ramp if no more boost is fired, by the
+// flight's own air step run forward on a copy of its state (the field is only read). Null when a bird comes first, or when
+// the critter is not in the air: the marker never shows beyond the first contact.
+function landingMark(r, maxT = 30) {
+  if (r.mode !== 'air' || r.ended) return null;
+  const f = r.field, st = r.st;
+  let x = r.x, y = r.y, vx = r.vx, vy = r.vy, n = r.steps;
+  const near = f.birds.filter((b) => !b.hit && b.x0 > x - T.birdSwing - 40), R = T.critterR + T.birdR;
+  const birdTop = near.reduce((m, b) => Math.max(m, b.y), -Infinity) + R, groundTop = f.ground.reduce((m, g) => Math.max(m, g.h), 0);
+  for (let i = 0; i < maxT / STEP; i++) {
+    n++;
+    vy -= T.gravity * STEP; vx *= st.dragK; vy *= st.dragK; x += vx * STEP; y += vy * STEP;
+    const cy = y + T.critterR;
+    if (cy <= birdTop) for (const b of near) if (Math.abs(b.x0 - x) <= T.birdSwing + 40 && Math.hypot(birdX(b, n * STEP) - x, b.y - cy) < R) return null;
+    if (y > groundTop) continue; // high up: nothing to touch yet
+    const g = groundAt(f, x);
+    if (y <= surfaceH(g, x) && (vy <= 0 || (g && g.kind === 'ramp'))) return { x, g };
+  }
+  return null;
 }
 
 const newCamera = (vw) => ({ x: -vw * T.slingScreen, y: 0, z: 1, a: T.followX });
@@ -664,7 +843,8 @@ function stars() {
 // Rolling hills: a sum of two sines, scrolled at `par` of the camera; heights in design px.
 function hillY(x, seed) { return Math.sin(x * 0.006 + seed) * 0.5 + Math.sin(x * 0.0137 + seed * 2.1) * 0.35 + 0.5; }
 
-function drawWorld(ctx, E, v, c, r, pull, hint) {
+// `pre`: the launcher's state, { needle: angle or null, wedge: alpha, mark: landing x or null }.
+function drawWorld(ctx, E, v, c, r, pre = null) {
   const s = v.s, z = c.z, lw = T.style.line * s;
   const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - (wy - c.y) * z) * s;
   const gy = v.oy + T.groundY * s, lift = c.y * z * s, liftM = c.y / T.unitsPerMetre;
@@ -721,8 +901,8 @@ function drawWorld(ctx, E, v, c, r, pull, hint) {
     const f = r.field, t = flightTime(r), x0 = c.x - 400, x1 = c.x + span + 400;
     for (const g of f.ground) {
       if (g.x1 < x0 || g.x0 > x1) continue;
-      if (g.kind === 'spring') drawSpring(ctx, X(g.x0), gy, g.w * z * s, s, g.spent, S.pops.get(g));
-      else if (g.kind === 'mud') drawMud(ctx, X(g.x0), gy, g.w * z * s, s, E.time);
+      if (g.kind === 'spring') drawSpring(ctx, X(g.x0), gy, g.w * z * s, s, g.spent, S.pops.get(g), E.time + g.x0 * 0.01);
+      else if (g.kind === 'mud') drawMud(ctx, X(g.x0), gy, g.w * z * s, s, E.time + g.x0 * 0.013);
       else if (g.kind === 'ramp') drawRamp(ctx, X(g.x0), gy, g.w * z * s, g.h * z * s, s, lw);
     }
     for (const b of f.birds) {
@@ -732,31 +912,17 @@ function drawWorld(ctx, E, v, c, r, pull, hint) {
     }
   }
 
-  if (hint) { // a fresh save's first launch: a ghost thumb pulling back and down along a clean pull, behind the critter
-    const k = (E.time % 1.6) / 1.2, L = J.ghostPull * T.pullMax, a = FIRST_CHUNK.angle * DEG; // the stroke is a pull of ghostPull power
-    if (k <= 1) {
-      const x0 = X(0) + 40 + Math.cos(a) * L * 0.5, y0 = gy - (T.slingH + 40) * s - Math.sin(a) * L;
-      const hx = x0 - Math.cos(a) * L * k, hy = y0 + Math.sin(a) * L * k;
-      ctx.globalAlpha = 0.55 * Math.sin(Math.PI * k);
-      ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
-      ctx.beginPath(); ctx.arc(hx, hy, 16 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
-    }
-  }
+  if (pre && pre.mark !== null && pre.mark !== undefined && X(pre.mark) <= E.w - 6 * s) drawMark(ctx, X(pre.mark), gy, s, E.time);
+  const px = X(0), py = Y(T.slingH + T.critterR);
+  if (pre && pre.needle !== null && pre.wedge > 0) drawWedge(ctx, px, py, s, pre.needle, pre.wedge, S.up || T.upgrades, lw);
 
-  // The critter: in the pocket while pulling, else where the run has it.
-  let cx, cy;
-  if (pull) { cx = pull.px; cy = T.slingH + pull.py; }
-  else if (r) { cx = r.x; cy = r.y; }
-  else { cx = 0; cy = T.slingH; }
+  // The critter: in the pocket until the launch, then where the run has it.
+  const cx = r ? r.x : 0, cy = r ? r.y : T.slingH;
   const rr = T.critterR * s * sprite, sx = X(cx), sy = Y(cy) - rr;
   // Soft shadow on the band while low.
   const hgt = cy * z * s;
   if (lift === 0 && hgt < 160 * s) { ctx.globalAlpha = 1 - hgt / (160 * s); ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(sx, gy + 2 * s, rr * 1.1, rr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
   for (const e of S.fx) drawFx(ctx, E, e, X, Y, s, sprite, lw, true);
-  if (pull && pull.arc) {
-    ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5;
-    for (const [px, py] of pull.arc) { ctx.beginPath(); ctx.arc(X(px), Y(py + T.critterR), 2.6 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-  }
   if (lift > 0) { // panned sky: a dotted drop line from the critter to the band
     ctx.strokeStyle = sky.night > 0.5 ? P.star : P.ink; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]);
     ctx.beginPath(); ctx.moveTo(sx, sy + rr + 4); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
@@ -771,29 +937,33 @@ function drawWorld(ctx, E, v, c, r, pull, hint) {
     }
     ctx.globalAlpha = 1;
   }
-  // The band: plum rubber, red-pink and thicker when taut at full power; it twangs for a moment after the launch.
-  if (pull || !r || S.snapT > 0) {
-    const taut = pull && pull.full, snap = !pull && r ? S.snapT / J.snapTime : 0;
-    const bx = pull || !r ? sx : fx + Math.sin(E.time * 60) * 10 * s * snap, by = pull || !r ? sy : forkTop + 4 * s;
-    ctx.strokeStyle = taut ? P.rubberTaut : P.rubber; ctx.lineWidth = (taut ? 4 : 2.5) * s * Math.max(z, 0.7);
+  // The band: plum rubber holding the critter in the pocket; it twangs for a moment after the launch.
+  if (!r || S.snapT > 0) {
+    const snap = r ? S.snapT / J.snapTime : 0;
+    const bx = !r ? sx : fx + Math.sin(E.time * 60) * 10 * s * snap, by = !r ? sy + rr * 0.4 : forkTop + 4 * s;
+    ctx.strokeStyle = P.rubber; ctx.lineWidth = 2.5 * s * Math.max(z, 0.7);
     ctx.beginPath(); ctx.moveTo(fx - fw, forkTop); ctx.lineTo(bx, by); ctx.lineTo(fx + fw, forkTop); ctx.stroke();
   }
-  // Squash: stretched along the pull while aiming, flattened on a landing and wobbling back.
-  let ang = 0, sqx = 1, sqy = 1;
-  if (pull) { const p = pull.power || 0; ang = Math.atan2(-pull.py, -pull.px) || 0; sqx = 1 + J.pullSquash * p; sqy = 1 - J.pullSquash * 0.6 * p; }
-  else if (S.sq.t > 0) { const k = S.sq.t / J.squashTime, w = S.sq.amt * k * Math.cos((1 - k) * Math.PI * 1.5); sqx = 1 + w; sqy = 1 - w; }
+  // Squash: flattened on a landing and wobbling back.
+  let sqx = 1, sqy = 1;
+  if (S.sq.t > 0) { const k = S.sq.t / J.squashTime, w = S.sq.amt * k * Math.cos((1 - k) * Math.PI * 1.5); sqx = 1 + w; sqy = 1 - w; }
   else if (r && r.ended === 'mud') { sqx = 1 + J.landSquash; sqy = 1 - J.landSquash; }
-  const look = r && !pull ? Math.atan2(-r.vy, r.vx) : pull ? Math.atan2(pull.py, -pull.px) * -1 : 0;
-  drawCritter(ctx, sx, sy + (1 - sqy) * rr, rr, look, ang, sqx, sqy, lw);
+  const look = r ? Math.atan2(-r.vy, r.vx) : pre && pre.needle !== null ? -pre.needle * DEG : 0; // before launch the eyes follow the needle
+  drawCritter(ctx, sx, sy + (1 - sqy) * rr, rr, look, 0, sqx, sqy, lw);
   return { sx, sy, rr, height: cy, lifted: lift > 0, night: sky.night };
 }
 
-function drawSpring(ctx, x, gy, w, s, spent, pop) {
+// An unspent spring bobs on its coil at rest (it looks bouncy before it is ever touched).
+function drawSpring(ctx, x, gy, w, s, spent, pop, time) {
   const k = pop ? pop.t / J.springPop : 0; // 1 at the hit: compressed, then pops past rest
-  const rest = (spent ? 4 : 10) * s, hgt = pop ? rest * (k > 0.6 ? 0.35 : 1 + 0.5 * Math.sin((1 - k / 0.6) * Math.PI)) : rest;
+  const rest = (spent ? 4 : 10 * (1 + J.springWobble * Math.sin(time * 6))) * s, hgt = pop ? rest * (k > 0.6 ? 0.35 : 1 + 0.5 * Math.sin((1 - k / 0.6) * Math.PI)) : rest;
   ctx.strokeStyle = P.coil; ctx.lineWidth = 2.2 * s; ctx.lineJoin = 'round';
+  const n = Math.max(1, Math.round(w / (40 * s))), cw = Math.min(w * 0.4, 16 * s); // a coil every 40 px along a wide spring
   ctx.beginPath();
-  for (let i = 0; i <= 5; i++) { const yy = gy - (hgt * i) / 5, xx = x + w * 0.3 + (i % 2 ? w * 0.4 : 0); if (i) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy); }
+  for (let c = 0; c < n; c++) {
+    const cx = x + (w * (c + 0.5)) / n - cw / 2;
+    for (let i = 0; i <= 5; i++) { const yy = gy - (hgt * i) / 5, xx = cx + (i % 2 ? cw : 0); if (i) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy); }
+  }
   ctx.stroke();
   const ph = 5 * s;
   roundRectPath(ctx, x, gy - hgt - ph, w, ph, ph / 2);
@@ -803,13 +973,61 @@ function drawSpring(ctx, x, gy, w, s, spent, pop) {
   if (!spent) { ctx.fillStyle = P.tealLight; ctx.fillRect(x + ph, gy - hgt - ph + 1.2 * s, Math.max(0, w - 2 * ph), 1.4 * s); }
 }
 
-// Mud: a dark puddle (it reads on the light skies) with a light glossy rim (it reads on the night sky and on the grass).
+// Mud: a sticky pit sunk into the grass, never a pad (PRD v0.2 C): a dark glossy body with a slowly rippling top and a
+// deeper middle, short light sheen streaks, slow bubbles that swell and pop, and goo strands hanging from both rims.
+// It reads as a dark hole in the bright grass band (5.6:1), with nothing raised above the ground line.
 function drawMud(ctx, x, gy, w, s, time) {
-  roundRectPath(ctx, x, gy - 5 * s, w, 13 * s, 6 * s);
+  const d = 15 * s, top = (u) => gy + (1.2 + 0.8 * Math.sin(time * 1.3 + u * 9)) * s;
+  ctx.beginPath(); ctx.moveTo(x, gy);
+  for (let i = 1; i <= 8; i++) ctx.lineTo(x + (w * i) / 8, top(i / 8));
+  ctx.lineTo(x + w, gy + d - 5 * s); ctx.quadraticCurveTo(x + w, gy + d, x + w - 6 * s, gy + d);
+  ctx.lineTo(x + 6 * s, gy + d); ctx.quadraticCurveTo(x, gy + d, x, gy + d - 5 * s); ctx.closePath();
   ctx.fillStyle = P.mud; ctx.fill();
-  ctx.strokeStyle = P.mudRim; ctx.lineWidth = 2.4 * s; ctx.beginPath(); ctx.moveTo(x + 5 * s, gy - 4.5 * s); ctx.lineTo(x + w - 5 * s, gy - 4.5 * s); ctx.stroke();
-  ctx.fillStyle = P.mudRim;
-  for (let i = 0; i < 2; i++) { const bx = x + w * (0.3 + 0.4 * i), br = (1.5 + Math.sin(time * 2 + i * 2) * 0.6) * s; ctx.beginPath(); ctx.arc(bx, gy + 2 * s, br, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = P.mudDeep; ctx.beginPath(); ctx.ellipse(x + w / 2, gy + d * 0.62, w * 0.4, d * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = P.mudRim; ctx.lineCap = 'round'; ctx.lineWidth = 1.4 * s; ctx.globalAlpha = 0.55; // glossy streaks, short
+  for (const u of [0.22, 0.64]) { ctx.beginPath(); ctx.moveTo(x + w * u, gy + 4 * s); ctx.lineTo(x + w * u + Math.min(10 * s, w * 0.1), gy + 3.4 * s); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < 3; i++) { // bubbles rise, swell and pop on a slow cycle
+    const ph = (time * 0.45 + i * 0.37) % 1, bx = x + w * (0.2 + 0.3 * i);
+    if (ph < 0.85) { const k = ph / 0.85, br = (0.8 + 2 * k) * s; ctx.fillStyle = '#5a3620'; ctx.strokeStyle = P.mudRim; ctx.lineWidth = 0.9 * s; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(bx, gy + (11 - 7 * k) * s, br, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    else { ctx.strokeStyle = P.mudRim; ctx.lineWidth = 0.9 * s; ctx.globalAlpha = 1 - (ph - 0.85) / 0.15; ctx.beginPath(); ctx.arc(bx, gy + 3.5 * s, (3 + 20 * (ph - 0.85)) * s, Math.PI, 0); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  ctx.strokeStyle = P.mud; ctx.lineWidth = 1.6 * s; // strands stretched from the grass at both rims down into the goo
+  for (const [ex, dir] of [[x, 1], [x + w, -1]]) for (const [dx, dy] of [[5, 9], [10, 6]]) {
+    const sag = Math.sin(time * 1.1 + dx) * 0.8 * s;
+    ctx.beginPath(); ctx.moveTo(ex - dir * 1.5 * s, gy); ctx.quadraticCurveTo(ex + dir * dx * 0.3 * s, gy + (dy + 2) * s + sag, ex + dir * dx * s, gy + 2 * s); ctx.stroke();
+    ctx.fillStyle = P.mud; ctx.beginPath(); ctx.arc(ex + dir * dx * 0.35 * s, gy + (dy * 0.75 + 1) * s + sag, 1.4 * s, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.lineCap = 'butt';
+}
+
+// The needle wedge at the launcher: graded zones (drawn widest first), the needle over them.
+function drawWedge(ctx, px, py, s, needle, alpha, up, lw) {
+  const R = T.wedgeR * s, r0 = T.wedgeHole * s, h = needleOf(up).half, c = T.sweetAngle, lo = T.needleMin, hi = T.needleMax;
+  const sector = (rOut, rIn, a0, a1, fill, stroke) => {
+    ctx.beginPath(); ctx.arc(px, py, rOut, -a1 * DEG, -a0 * DEG); ctx.arc(px, py, rIn, -a0 * DEG, -a1 * DEG, true); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw * 0.7; ctx.stroke(); }
+  };
+  ctx.save(); ctx.globalAlpha = alpha; ctx.lineJoin = 'round';
+  sector(R + 4 * s, r0 - 3 * s, lo - 1.5, hi + 1.5, P.halo);
+  sector(R, r0, lo, hi, P.zones[3], P.ink);
+  for (let z = 2; z >= 0; z--) sector(R, r0, Math.max(lo, c - h[z]), Math.min(hi, c + h[z]), P.zones[z], P.ink);
+  const a = needle * DEG, ux = Math.cos(a), uy = -Math.sin(a);
+  ctx.lineCap = 'round';
+  // A thin needle, so the gold shows beside it.
+  for (const [w, col] of [[3.6 * s, P.halo], [1.6 * s, P.ink]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(px + ux * r0 * 0.7, py + uy * r0 * 0.7); ctx.lineTo(px + ux * (R + 8 * s), py + uy * (R + 8 * s)); ctx.stroke(); }
+  ctx.fillStyle = P.halo; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
+  ctx.lineWidth = lw * 0.7; ctx.beginPath(); ctx.arc(px + ux * (R + 8 * s), py + uy * (R + 8 * s), 3.5 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+// The landing marker: a small white chevron on the grass line, bobbing, with a shadow on the band.
+function drawMark(ctx, x, gy, s, time) {
+  const b = Math.sin(time * 7) * 1.5 * s, tip = gy - 2 * s + b;
+  ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(x, gy + 2 * s, 7 * s, 2 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x, tip); ctx.lineTo(x - 6 * s, tip - 9 * s); ctx.lineTo(x + 6 * s, tip - 9 * s); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
 function drawRamp(ctx, x, gy, w, h, s, lw) {
@@ -898,12 +1116,15 @@ function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
 // ---------- Sounds ----------
 // Engine synth only (PRD section 12), through E.audio so the mute flag holds.
 const SFX = {
-  creak: (E, p) => E.audio.beep({ freq: 160 + 260 * p, dur: 0.05, type: 'triangle', gain: 0.05 }),
   launch: (E) => { E.audio.beep({ freq: 300, dur: 0.1, slide: 1.5, gain: 0.15 }); E.audio.noise({ dur: 0.06, gain: 0.1 }); },
   boost: (E) => { E.audio.noise({ dur: 0.12, gain: 0.1 }); E.audio.beep({ freq: 220, dur: 0.12, type: 'sine', slide: 2, gain: 0.06 }); },
   spring: (E) => { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 420, dur: 0.18, type: 'sine', slide: 2.2, gain: 0.1 }); },
   bird: (E) => { E.audio.beep({ freq: 900, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.08 }); E.audio.beep({ freq: 1000, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.07, delay: 0.09 }); },
   chain: (E, n) => E.audio.beep({ freq: 520 * Math.pow(1.26, n), dur: 0.14, type: 'triangle', gain: 0.12 }),
+  zone: (E, z) => { // the launch chime: higher for a better zone, a falling note for Weak, a second chime for Perfect
+    E.audio.beep({ freq: J.zoneFreq[z], dur: 0.16, type: 'triangle', slide: z === 3 ? 0.7 : 1.15, gain: 0.14 });
+    if (z === 0) E.audio.beep({ freq: J.zoneFreq[0] * 1.5, dur: 0.2, type: 'triangle', gain: 0.1, delay: 0.08 });
+  },
 };
 
 // ---------- HUD ----------
@@ -952,17 +1173,32 @@ function drawHud(E, r, fuel, fuelMax, info) {
 const newSeed = () => (Math.random() * 2 ** 32) >>> 0; // the seed is setup; the flight itself never draws randomness
 const btn = (E, label, cx, cy, o = {}) => E.button(label, cx, cy, { fill: P.button, color: P.text, ...o });
 
+// The menu (principle 11): the title, one headline number (the best distance), the three active goals under it, then Play,
+// Shop and Sound.
 const menu = {
   render(ctx, E) {
-    const v = view(E);
-    drawWorld(ctx, E, v, newCamera(v.vw), null, null, false);
-    const cy = E.h * 0.26;
+    const v = view(E), sf = E.safe;
+    drawWorld(ctx, E, v, newCamera(v.vw), null, null);
+    const cy = sf.top + Math.max(40, E.h * 0.12);
     E.text('LAUNCH', E.w / 2, cy, { size: TY.xl, weight: '800', color: P.ink });
     E.titleArea = { x: E.w / 2 - 110, y: cy - 30, w: 220, h: 60 }; // release: five taps on the title show TUNE
-    pill(E, `Best ${E.save.get('best', 0)} m    Coins ${E.save.get('coins', 0)}`, E.w / 2, cy + 44, TY.sm);
-    this.btnPlay = btn(E, 'Play', E.w / 2, E.h * 0.58, { w: 220, h: 56 });
-    this.btnShop = btn(E, 'Shop', E.w / 2 - 58, E.h * 0.58 + 64, { fill: P.panelSolid, w: 104, h: 44, size: 16 });
-    this.btnMute = btn(E, E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2 + 58, E.h * 0.58 + 64, { fill: P.panelSolid, w: 104, h: 44, size: 15 });
+    pill(E, `Best ${E.save.get('best', 0)} m`, E.w / 2, cy + 42, TY.md);
+    const goals = activeGoals(E.save.get('goalsDone', [])), have = { flights: E.save.get('flights', 0), perfectRow: E.save.get('perfectRow', 0) };
+    const gw = Math.min(E.w - sf.left - sf.right - 40, 420);
+    let gy = cy + 66;
+    for (const g of goals) gy += goalRow(E, E.w / 2 - gw / 2, gy, gw, g, goalLine(g, have[g.stat]), false) + 6;
+    const bottom = E.h - sf.bottom - 8;
+    if (gy + 8 + 56 + 8 + 44 <= bottom) { // Play above Shop and Sound
+      const py = Math.min(gy + 8 + 28, bottom - 44 - 8 - 28);
+      this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 220, h: 56, size: TY.md });
+      this.btnShop = btn(E, 'Shop', E.w / 2 - 58, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
+      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 58, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.sm });
+    } else { // short screens: one row
+      const py = Math.min(gy + 8 + 28, bottom - 28);
+      this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 180, h: 56, size: TY.md });
+      this.btnShop = btn(E, 'Shop', E.w / 2 - 90 - 12 - 50, py, { fill: P.panelSolid, w: 100, h: 48, size: TY.md });
+      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 90 + 12 + 50, py, { fill: P.panelSolid, w: 100, h: 48, size: TY.sm });
+    }
   },
   onTap(p, E) {
     if (this.btnPlay && E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play'); }
@@ -975,29 +1211,43 @@ const menu = {
 const play = {
   enter(E, params = {}) {
     S.seed = params.seed ?? newSeed();
-    S.run = null; S.pull = null; S.key = null; S.endT = 0; S.frameReal = performance.now(); S.pid = null; S.spaceDown = false;
-    S.up = levelsOf(E); S.st = stats(S.up); S.cam = newCamera(view(E).vw); S.nudge = 0;
-    S.hint = E.save.get('flights', 0) === 0 && !S.pulled; // a fresh save's first launch, until the first pull begins
-    S.fx.length = 0; S.pops = new Map(); S.sq = { amt: 0, t: 0 }; S.creak = 0;
+    S.run = null; S.endT = 0; S.frameReal = performance.now(); S.readyReal = S.frameReal; S.pid = null; S.launchPid = null; S.spaceDown = false;
+    S.up = levelsOf(E); S.st = stats(S.up); S.cam = newCamera(view(E).vw);
+    S.hint = E.save.get('flights', 0) === 0; // a fresh save's first launch: "Tap when the needle is in the gold"
+    S.fx.length = 0; S.pops = new Map(); S.sq = { amt: 0, t: 0 };
     S.snapT = 0; S.speedT = 0; S.gaugePop = 0; S.distPop = 0; S.chainT = 0; S.banner = null; S.holdT = 0;
+    S.wedgeT = 0; S.zonePop = null; S.needle = T.needleMin; S.mark = null; S.markT = 0; S.callouts = []; S.endWait = T.endDelay;
     S.teachHold = S.up.rocket >= 1 && !E.save.get('holdTaught', false);
+    S.teachBird = !E.save.get('birdTaught', false); S.teachMud = !E.save.get('mudTaught', false);
     S.teachTap = E.save.get('flights', 0) === 0; S.tapT = 0; S.pipT = 0; S.prevVy = 0; S.quit = false;
   },
   stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)); },
-  launch(E, l) {
+  // Seconds since the launcher was ready, at this moment (a tap's handler runs when the tap arrives).
+  needleT() { return Math.max(0, (performance.now() - S.readyReal) / 1000); },
+  launch(E) {
+    const l = needleLaunch(this.needleT(), S.up), v = view(E);
     S.run = newRun(S.seed, l, S.up);
-    S.pull = null; S.key = null;
-    SFX.launch(E); E.haptic(J.haptic.launch); E.shake(J.kick, J.kickTime);
+    S.needle = l.angle; S.hint = false; S.wedgeT = T.wedgeFade;
+    SFX.launch(E); SFX.zone(E, l.zone); E.haptic(J.zoneHaptic[l.zone]); E.shake(J.kick, J.kickTime);
     S.snapT = J.snapTime;
     emit('dust', 0, 0, J.dust, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 90, g: -200, life: 0.5, size: 3, color: P.dust });
+    const [dx, dy] = toView(S.cam, 0, T.slingH + T.critterR + T.wedgeR + 30); // above the launcher, clear of the first arc's hints
+    S.zonePop = { z: l.zone, t: J.zonePop, x: dx * v.s, y: v.oy + dy * v.s };
+    if (l.zone === 0) { // Perfect: a gold flash and a ring of sparks
+      E.flash(P.zones[0], 0.18);
+      for (let i = 0; i < J.sparks; i++) { const t = (i / J.sparks) * Math.PI * 2; S.fx.push({ k: 'spark', x: 0, y: T.slingH + T.critterR, vx: Math.cos(t) * 150, vy: Math.sin(t) * 150, g: 0, t: 0.5, max: 0.5, size: 2.6, color: P.zones[0] }); }
+    }
     if (S.teachHold) { S.holdT = J.holdHint; E.save.set('holdTaught', true); }
   },
   update(dt, E) {
     S.frameReal = performance.now();
     const r = S.run;
-    for (const k of ['nudge', 'snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT', 'tapT', 'pipT']) if (S[k] > 0) S[k] -= dt;
+    for (const k of ['snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT', 'tapT', 'pipT', 'wedgeT']) if (S[k] > 0) S[k] -= dt;
     if (S.sq.t > 0) S.sq.t -= dt;
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
+    if (S.zonePop) { S.zonePop.t -= dt; if (S.zonePop.t <= 0) S.zonePop = null; }
+    for (const c of S.callouts) c.t -= dt;
+    S.callouts = S.callouts.filter((c) => c.t > 0);
     updateFx(dt);
     cameraStep(S.cam, r, view(E).vw, dt);
     if (!r) return;
@@ -1009,10 +1259,13 @@ const play = {
     if (S.teachTap && r.mode === 'air' && S.prevVy > 0 && r.vy <= 0) { S.teachTap = false; S.tapT = J.tapHint; S.pipT = J.pipPulse; } // the top of the first arc
     if (r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone')) S.teachTap = false; // only the first arc teaches
     S.prevVy = r.vy;
+    const contact = r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone');
     for (const e of r.ev) this.onEvent(e, E);
     r.ev.length = 0;
+    S.markT -= dt;
+    if (contact || S.markT <= 0) { S.mark = landingMark(r); S.markT = T.markEvery; } // a contact ends the old prediction at once
     if (r.holding && Math.random() < 0.5) emit('flame', r.x, r.y + T.critterR, 1, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.6, speed: 120, g: 0, life: J.flameLife, size: 3, color: P.flame });
-    if (r.ended) { S.endT += dt; if (S.endT >= T.endDelay) E.setScene('over', finishFlight(E, r)); }
+    if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene('over', finishFlight(E, r)); }
   },
   squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
   onEvent(e, E) {
@@ -1020,13 +1273,15 @@ const play = {
     if (e.k === 'spring') {
       SFX.spring(E); E.haptic(J.haptic.spring); this.squash(0.12 + r.vy / 2500); S.speedT = J.speedLines;
       const g = groundAt(r.field, r.x); if (g) S.pops.set(g, { t: J.springPop });
-      word('Boing', r.x - 40, 70, TY.md, J.boingLife); // above the pad, behind the critter flying off
+      word('Boing', r.x - 40, 90, TY.md, J.boingLife); // above the pad, behind the critter flying off
+      word(`↑ ${Math.round((r.vy * r.vy) / (2 * T.gravity) / T.unitsPerMetre)} m`, r.x - 40, 50, TY.sm, J.boingLife); // the height it gives
     } else if (e.k === 'bird') {
       SFX.bird(E); E.haptic(J.haptic.bird);
       emit('feather', cx, cy, J.feathers, { speed: 140, g: -120, life: 0.7, size: 2.6, color: P.tealLight });
       let b = null, d = Infinity; // the bird just hit, for its tumble
       for (const q of r.field.birds) if (q.hit && !q.tumbled && Math.abs(q.x0 - r.x) < d) { d = Math.abs(q.x0 - r.x); b = q; }
       if (b) { b.tumbled = true; S.fx.push({ k: 'tumble', x: birdX(b, flightTime(r)), y: b.y, vx: r.vx * 0.3, vy: -80, g: -500, t: J.tumbleTime, max: J.tumbleTime, rot: 0, spin: 9, size: 0 }); }
+      if (S.teachBird) { S.teachBird = false; E.save.set('birdTaught', true); S.callouts.push({ text: 'Bird bounce: up and onward!', arrow: true, wx: cx, wy: cy, t: J.callout }); }
     } else if (e.k === 'boost') {
       SFX.boost(E); E.haptic(J.haptic.boost); S.gaugePop = J.gaugePop;
       emit('flame', r.x, r.y + T.critterR, J.flame, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.7, speed: 160, g: 0, life: J.flameLife, size: 3.4, color: P.flame });
@@ -1034,6 +1289,7 @@ const play = {
     else if (e.k === 'mud') {
       E.audio.play('miss'); E.haptic(J.haptic.mud); E.shake(J.mudShake, J.mudShakeTime);
       emit('splat', cx, 0, J.splat, { angle: Math.PI / 2, spread: Math.PI * 0.8, speed: 150, g: -400, life: 0.6, size: 3, color: P.mud });
+      if (S.teachMud) { S.teachMud = false; E.save.set('mudTaught', true); S.endWait = T.endDelayTaught; S.callouts.push({ text: 'Stuck! Jump mud with a boost', arrow: false, wx: cx, wy: cy + 50, t: T.endDelayTaught + 0.2 }); }
     } else if (e.k === 'milestone') {
       E.audio.play('win'); E.haptic(J.haptic.milestone); S.banner = { text: `${e.m} m!`, t: J.bannerTime }; S.distPop = 0.3;
     } else if (e.k === 'stop') {
@@ -1046,45 +1302,27 @@ const play = {
       emit('coin', cx, cy, J.coins[Math.min(e.chain, J.coins.length - 1)], { angle: Math.PI / 2, spread: 1.2, speed: 200, g: -500, life: 0.7, size: 3.2, color: P.coin });
     }
   },
+  // Before launch a press anywhere stops the needle and launches at once; that press never also boosts.
   onPointerDown(p, E) {
     const r = S.run;
-    if (!r) { if (S.pid === null) { S.pid = p.id; S.pull = { sx: p.x, sy: p.y, dx: 0, dy: 0 }; S.hint = false; S.pulled = true; S.creak = 0; } return; }
-    if (r.ended) return;
+    if (!r) { if (this.needleT() < T.readyGrace) return; S.launchPid = p.id; this.launch(E); return; } // a double tap on Launch Again cannot launch
+    if (r.ended || p.id === S.launchPid) return;
     const at = this.stamp(r);
     queueInput(r, at, 'pulse');
     if (r.st.hold) { S.pid = p.id; queueInput(r, at + T.holdDelay, 'holdOn'); }
   },
-  onPointerMove(p, E) {
-    if (S.run || !S.pull || p.id !== S.pid) return;
-    S.pull.dx = p.x - S.pull.sx; S.pull.dy = p.y - S.pull.sy;
-    const raw = Math.hypot(S.pull.dx, S.pull.dy), pw = Math.min(1, raw / T.pullMax);
-    if (raw >= T.dragDead) S.nudge = 0; // "Pull further" clears the moment a valid pull starts
-    if (Math.abs(pw - S.creak) >= J.creakStep) { S.creak = pw; SFX.creak(E, pw); } // the band creaks as it stretches
-  },
   onPointerUp(p, E) {
+    if (p.id === S.launchPid) { S.launchPid = null; return; }
     if (p.id !== S.pid) return;
     S.pid = null;
     const r = S.run;
-    if (r) { if (!r.ended) queueInput(r, this.stamp(r), 'holdOff'); return; }
-    const pull = S.pull; S.pull = null;
-    if (!pull || p.cancelled) return;
-    const l = launchFromDrag(p.x - pull.sx, p.y - pull.sy);
-    if (l) this.launch(E, l);
-    else S.nudge = T.nudgeLife;
+    if (r && !r.ended) queueInput(r, this.stamp(r), 'holdOff');
   },
   onKey(k, E) {
+    if (k !== ' ') return;
     const r = S.run;
-    if (!r) {
-      S.key = S.key || { angle: 40, power: 1 };
-      S.hint = false;
-      if (k === 'ArrowUp') S.key.angle = Math.min(T.launchAngleMax, S.key.angle + 1);
-      else if (k === 'ArrowDown') S.key.angle = Math.max(T.launchAngleMin, S.key.angle - 1);
-      else if (k === 'ArrowRight') S.key.power = Math.min(1, +(S.key.power + 0.05).toFixed(2));
-      else if (k === 'ArrowLeft') S.key.power = Math.max(0.2, +(S.key.power - 0.05).toFixed(2));
-      else if (k === ' ') { S.spaceDown = true; this.launch(E, S.key); }
-      return;
-    }
-    if (k === ' ' && !r.ended && !S.spaceDown) {
+    if (!r) { if (this.needleT() < T.readyGrace) return; S.spaceDown = true; this.launch(E); return; }
+    if (!r.ended && !S.spaceDown) {
       S.spaceDown = true;
       const at = this.stamp(r);
       queueInput(r, at, 'pulse');
@@ -1092,29 +1330,57 @@ const play = {
     }
   },
   render(ctx, E) {
-    const v = view(E), r = S.run;
-    let pull = null, short = false;
-    const l = S.pull ? launchFromDrag(S.pull.dx, S.pull.dy) : S.key;
-    if (!r && (S.pull || S.key)) {
-      const raw = S.pull ? Math.hypot(S.pull.dx, S.pull.dy) : S.key.power * T.pullMax;
-      const L = Math.min(raw, T.pullMax) / T.pullMax, a = l ? l.angle * DEG : 0;
-      short = !!S.pull && raw < T.dragDead;
-      pull = { px: -Math.cos(a) * L * T.pullVisual, py: Math.max(4 - T.slingH, -Math.sin(a) * L * T.pullVisual), arc: l ? previewArc(l, S.st) : null, full: raw >= T.pullMax, power: l ? L : 0 };
+    const v = view(E), r = S.run, sf = E.safe, gy = v.oy + T.groundY * v.s;
+    if (!r) S.needle = needleAngle(this.needleT(), S.up);
+    const pre = { needle: S.needle, wedge: r ? clamp(S.wedgeT / T.wedgeFade, 0, 1) : 1, mark: r && S.mark ? S.mark.x : null };
+    const info = drawWorld(ctx, E, v, S.cam, r, pre);
+    drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.fuelCap : S.st.fuelMax, r ? info : null);
+    if (!r && S.hint) { // under the wedge, pulsing, until the first launch of a fresh save
+      E.ctx.globalAlpha = 0.7 + 0.3 * Math.sin(E.time * 5);
+      pill(E, 'Tap when the needle is in the gold', info.sx + T.wedgeR * v.s * 0.6, Math.min(gy + 30 * v.s, E.h - sf.bottom - 20), TY.md, 'center', P.zones[0]);
+      E.ctx.globalAlpha = 1;
     }
-    const info = drawWorld(ctx, E, v, S.cam, r, pull, S.hint && !r && !S.pull);
-    drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.st.fuelMax : S.st.fuelMax, r ? info : null);
-    if (!r && (short || S.nudge > 0)) { E.ctx.globalAlpha = short ? 1 : clamp(S.nudge / 0.3, 0, 1); pill(E, 'Pull further', info.sx, info.sy - 40, TY.md); E.ctx.globalAlpha = 1; }
+    if (S.zonePop) {
+      const z = S.zonePop, k = 1 - z.t / J.zonePop, pop = k < 0.2 ? ease.outBack(k / 0.2) : 1;
+      E.ctx.globalAlpha = clamp(z.t / 0.25, 0, 1);
+      pill(E, ZONES[z.z], z.x, z.y - 16 * k, Math.max(TY.sm, Math.round(TY.lg * pop)), 'center', zoneText(z.z));
+      E.ctx.globalAlpha = 1;
+    }
+    for (const c of S.callouts) {
+      if (c.sx === undefined) { // pinned to the screen where it happened, so it can be read while the camera moves on
+        const [dx, dy] = toView(S.cam, c.wx, c.wy);
+        c.sx = dx * v.s + 48; c.sy = clamp(v.oy + dy * v.s, sf.top + 110, gy - 30); // right of it, at its height: the critter rises out of that column and the bird drifts left as the camera follows
+      }
+      const age = (c.max ??= c.t) - c.t, y = c.sy - Math.min(age, 1) * 10;
+      E.ctx.globalAlpha = clamp(c.t / 0.3, 0, 1) * clamp(age / 0.15, 0, 1);
+      const b = pill(E, c.arrow ? `      ${c.text}` : c.text, c.sx, y, TY.md, c.arrow ? 'left' : 'center', P.text); // room for the arrow inside the pill
+      if (c.arrow) drawUpArrow(E.ctx, b.x + 24, b.y + b.h - 5 - 2 * Math.sin(E.time * 6), 1);
+      E.ctx.globalAlpha = 1;
+    }
   },
   onPause(E) { // backgrounding mid-flight ends it (PRD section 3, amendment 6 after the v4 gate): logged once as a quit; back to the menu
     const r = S.run;
     if (!r || S.quit) return;
     S.quit = true;
     if (!r.ended) E.ledger.add('quit', { m: metres(r), t: +flightTime(r).toFixed(1), seed: r.seed });
-    else finishFlight(E, r); // it had already stopped: keep its coins
+    else finishFlight(E, r); // it had already stopped: keep its sugar
     E.setScene('menu');
   },
 };
 
+// A zone's colour for text on an ink panel (Weak's slate is too dark there).
+const zoneText = (z) => (z === 3 ? P.textDim : P.zones[z]);
+
+// An up arrow (the bird call-out's): white with an ink outline, its tip at y - 22 s.
+function drawUpArrow(ctx, x, y, s) {
+  ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y - 22 * s); ctx.lineTo(x + 11 * s, y - 10 * s); ctx.lineTo(x + 4 * s, y - 10 * s); ctx.lineTo(x + 4 * s, y);
+  ctx.lineTo(x - 4 * s, y); ctx.lineTo(x - 4 * s, y - 10 * s); ctx.lineTo(x - 11 * s, y - 10 * s); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+// The card (principle 11): the flight on the left (distance, best, sugar earned, the launch), on the right the rewards as
+// tickets (at most three, largest first, then "+n") and the three active goals as rows of name and condition. Text sizes
+// 14, 18 and 44 only.
 const over = {
   enter(E, p) {
     this.p = p; this.k = p.again ? 1 : 0; this.t0 = p.again ? -Infinity : E.time;
@@ -1123,29 +1389,52 @@ const over = {
   ready(E) { return this.k >= 1 && E.time - this.t0 >= T.cardGrace; }, // boost taps still landing must not dismiss the card
   render(ctx, E) {
     const v = view(E), p = this.p, sf = E.safe;
-    if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null, false);
+    if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null);
     ctx.fillStyle = P.shadow; ctx.fillRect(0, 0, E.w, E.h);
     const aw = E.w - sf.left - sf.right, ah = E.h - sf.top - sf.bottom;
-    const pw = Math.min(440, aw - 32), ph = Math.min(310, ah - 24), px = sf.left + (aw - pw) / 2;
+    const pw = Math.min(700, aw - 32), ph = Math.min(334, ah - 24), px = sf.left + (aw - pw) / 2;
     const py = Math.max(sf.top + 4, sf.top + (ah - ph) / 2 + (1 - this.k) * (E.h - sf.top)); // the slide's overshoot never passes the top
     E.roundRect(px, py, pw, ph, 18, P.panelSolid, P.panelEdge);
-    const cx = px + pw / 2, count = clamp((E.time - this.t0 - J.cardSlide) / J.countUp, 0, 1);
-    E.text(p.why === 'mud' ? 'Stuck in mud' : 'Flight over', cx, py + 30, { size: TY.sm + 2, color: P.textDim, weight: '600' });
-    E.text(`${p.m} m`, cx, py + 70, { size: TY.xl, weight: '800', color: P.text });
-    E.text(p.isNew ? 'New best!' : `Best ${p.best} m`, cx, py + 108, { size: TY.sm + 2, color: p.isNew ? P.tealLight : P.textDim, weight: '600' });
-    E.text(`+${Math.round(p.coins * count)} coins${p.chainMax ? `   best chain x${T.chainSteps[Math.min(p.chainMax, T.chainSteps.length - 1)]}` : ''}`, cx, py + 136, { size: TY.md, color: P.coin, weight: '800' });
-    const n = T.milestones.length, gap = Math.min(76, (pw - 40) / n);
-    T.milestones.forEach((ms, i) => {
-      const x = cx + (i - (n - 1) / 2) * gap, got = p.stars.includes(ms);
-      E.text(got ? '★' : '☆', x, py + 170, { size: 20, color: got ? P.coin : P.textOff });
-      E.text(ms >= 1000 ? `${ms / 1000}k` : `${ms}`, x, py + 192, { size: TY.sm, color: got ? P.text : P.textOff, weight: '600' });
-    });
-    E.text(`Seed ${p.seed}`, px + pw - 14, py + 20, { size: TY.sm, align: 'right', color: P.textOff, weight: '600' });
+    const lw = Math.round(pw * 0.38), cx = px + lw / 2, count = clamp((E.time - this.t0 - J.cardSlide) / J.countUp, 0, 1);
+    E.text(p.why === 'mud' ? 'Stuck in mud' : 'Flight over', cx, py + 26, { size: TY.sm, color: P.textDim, weight: '600' });
+    E.text(`${p.m} m`, cx, py + 68, { size: TY.xl, weight: '800', color: P.text });
+    E.text(p.isNew ? 'New best!' : `Best ${p.best} m`, cx, py + 108, { size: TY.md, color: p.isNew ? P.tealLight : P.textDim, weight: '600' });
+    E.text(`+${Math.round(p.earned * count)} sugar`, cx, py + 138, { size: TY.md, color: P.coin, weight: '800' });
+    const zc = zoneText(p.zone);
+    E.text(`${ZONES[p.zone].replace('!', '')} launch${p.chainMax ? `, chain x${T.chainSteps[Math.min(p.chainMax, T.chainSteps.length - 1)]}` : ''}`, cx, py + 166, { size: TY.sm, color: zc, weight: '600' });
+    E.text(`Seed ${p.seed}`, cx, py + ph - 84, { size: TY.sm, color: P.textOff, weight: '600' });
+    // Tickets.
+    const rx = px + lw, rw = pw - lw - 16;
+    ctx.fillStyle = P.panelEdge; ctx.fillRect(rx - 4, py + 16, 1.5, ph - 92);
+    let gy = py + 14;
+    if (p.tickets.length) {
+      const cap = T.ticketCap, shown = p.tickets.length > cap ? p.tickets.slice(0, cap - 1) : p.tickets, more = p.tickets.length - shown.length;
+      const n = shown.length + (more ? 1 : 0), tw = (rw - 12 - (n - 1) * 8) / n;
+      shown.forEach((tk, i) => {
+        const x = rx + 12 + i * (tw + 8);
+        E.roundRect(x, gy, tw, 86, 12, P.panel, P.coin); // name, condition (two lines at most), reward
+        E.text(fit(E, fit(E, tk.name, tw - 12, TY.sm, '800') === tk.name ? tk.name : tk.short || tk.name, tw - 12, TY.sm, '800'), x + tw / 2, gy + 16, { size: TY.sm, color: P.text, weight: '800' });
+        const cl = wrap(E, tk.cond, tw - 12, TY.sm, '600');
+        cl.slice(0, 2).forEach((l, n) => E.text(n === 1 && cl.length > 2 ? fit(E, `${l} ${cl.slice(2).join(' ')}`, tw - 12, TY.sm, '600') : l, x + tw / 2, gy + 35 + n * 17 + (cl.length === 1 ? 8 : 0), { size: TY.sm, color: P.textDim, weight: '600' }));
+        E.text(`+${tk.sugar} sugar`, x + tw / 2, gy + 72, { size: TY.sm, color: P.coin, weight: '800' });
+      });
+      if (more) {
+        const x = rx + 12 + shown.length * (tw + 8), rest = p.tickets.slice(shown.length).reduce((a, t) => a + t.sugar, 0);
+        E.roundRect(x, gy, tw, 86, 12, P.panel, P.coin);
+        E.text(`+${more} more`, x + tw / 2, gy + 34, { size: TY.sm, color: P.text, weight: '800' });
+        E.text(`+${rest} sugar`, x + tw / 2, gy + 54, { size: TY.sm, color: P.coin, weight: '800' });
+      }
+      gy += 96;
+    }
+    // Goals.
+    E.text(p.active.length ? 'Goals' : 'Every goal done!', rx + 12, gy + 4, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
+    gy += 16;
+    for (const a of p.active) gy += goalRow(E, rx + 12, gy, rw - 12, a.g, goalLine(a.g, a.have), a.isNew) + 6;
     if (!this.ready(E)) { this.btnMenu = this.btnAgain = this.btnShop = null; return; }
-    this.btnMenu = btn(E, 'Menu', px + 14 + 40, py + 26, { w: 80, h: 44, size: 15, fill: P.buttonOff });
-    const bw = Math.min(230, pw - 150);
-    this.btnAgain = btn(E, 'Launch Again', px + 20 + bw / 2, py + ph - 42, { w: bw, h: 56 });
-    this.btnShop = btn(E, 'Shop', px + pw - 20 - 55, py + ph - 42, { w: 110, h: 56, size: 16, fill: P.buttonOff });
+    const by = py + ph - 38, bw = Math.min(230, pw - 240);
+    this.btnMenu = btn(E, 'Menu', px + 16 + 42, by, { w: 84, h: 52, size: TY.md, fill: P.buttonOff });
+    this.btnAgain = btn(E, 'Launch Again', px + pw / 2 + 2, by, { w: bw, h: 52, size: TY.md });
+    this.btnShop = btn(E, 'Shop', px + pw - 16 - 50, by, { w: 100, h: 52, size: TY.md, fill: P.buttonOff });
   },
   onTap(p, E) {
     if (!this.ready(E)) return;
@@ -1155,6 +1444,29 @@ const over = {
   },
   onKey(k, E) { if ((k === ' ' || k === 'Enter') && this.ready(E)) { E.ledger.add('retry', { m: this.p.m, seed: this.p.seed }); E.setScene('play'); } },
 };
+
+// Shortens a string with an ellipsis until it fits `maxW` px.
+function fit(E, text, maxW, size, weight) {
+  const ctx = E.ctx; ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text; while (t.length > 1 && ctx.measureText(`${t}…`).width > maxW) t = t.slice(0, -1);
+  return `${t}…`;
+}
+
+// A goal as a row card: an empty box, its name, its condition (beside the name when both fit, else under it), and a "NEW"
+// tag on one that just took a slot. Returns its height.
+function goalRow(E, x, y, w, g, cond, isNew) {
+  const ctx = E.ctx, tagW = isNew ? 44 : 0;
+  ctx.font = `800 ${TY.sm}px system-ui, sans-serif`; const nw = ctx.measureText(g.name).width;
+  ctx.font = `600 ${TY.sm}px system-ui, sans-serif`; const cw = ctx.measureText(cond).width;
+  const one = 38 + nw + 12 + cw + tagW <= w, h = one ? 34 : 52;
+  E.roundRect(x, y, w, h, 10, P.panel);
+  E.roundRect(x + 10, y + h / 2 - 8, 16, 16, 4, P.panelSolid, P.textDim);
+  E.text(g.name, x + 36, one ? y + h / 2 : y + 16, { size: TY.sm, align: 'left', color: P.text, weight: '800' });
+  E.text(one ? cond : fit(E, cond, w - 44 - tagW, TY.sm, '600'), one ? x + 36 + nw + 12 : x + 36, one ? y + h / 2 : y + 36, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
+  if (isNew) E.text('NEW', x + w - 10, y + (one ? h / 2 : 16), { size: TY.sm, align: 'right', color: P.tealLight, weight: '800' });
+  return h;
+}
 
 // ---------- Portrait ----------
 // Launch is landscape (ADR-0013). While the phone is held upright the game pauses under a dimmed prompt and takes no input.
@@ -1177,25 +1489,35 @@ function landscapeOnly(scene) {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 4,
+  saveVersion: 5,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
   // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`,
   // false until the first flight with Rocket 1 has shown "Hold to boost" (an older save with Rocket 1 sees it once).
+  // v5 (PRD v0.2 B): coins become sugar one for one; `up.steady` at 0; goals start at the top of the list with every distance
+  // goal the best already meets done silently (paying nothing); `perfectRow` 0; the bird and mud call-outs not yet shown.
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
     if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
     if (fromVersion < 4) data.holdTaught = false;
+    if (fromVersion < 5) {
+      data.sugar = data.coins || 0; delete data.coins;
+      data.up = { ...data.up, steady: 0 };
+      data.goalsDone = GOALS.filter((g) => g.stat === 'm' && (data.best || 0) >= g.need).map((g) => g.id);
+      data.perfectRow = 0; data.birdTaught = false; data.mudTaught = false;
+    }
     return data;
   },
   TUNING,
   experiments: [
+    { key: 'needlePeriod', label: 'Needle period (s)', min: 0.8, max: 3, step: 0.05 },
+    { key: 'sweetAngle', label: 'Sweet angle', min: 30, max: 50, step: 0.5 },
+    { key: 'zoneScale', label: 'Zone widths (x)', min: 0.5, max: 2, step: 0.05 },
     { key: 'launchSpeedMax', label: 'Launch speed', min: 500, max: 900, step: 10 },
-    { key: 'springBounce', label: 'Spring bounce', min: 1, max: 1.6, step: 0.05 },
-    { key: 'boostPulse', label: 'Boost pulse', min: 60, max: 180, step: 5 },
-    { key: 'airDrag', label: 'Air drag', min: 0, max: 0.1, step: 0.005 },
   ],
   // Read by tools/sim-launch.mjs so the harness runs the real physics (S, the play scene's state, lets a browser check set up the HUD).
-  sim: { STEP, FIRST_CHUNK, teachingChunk, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, launchFromDrag, newRun, stepRun, advance, queueInput, metres, coinsOf, previewArc, UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView },
+  sim: { STEP, FIRST_CHUNK, teachingChunk, goodStops, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, newRun, stepRun, advance, queueInput, metres, coinsOf,
+    needleOf, needleAngle, zoneAt, launchAt, needleLaunch, ZONES, GOALS, activeGoals, goalStats, settleGoals, landingMark,
+    UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView },
   start: 'menu',
   scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop) },
 };

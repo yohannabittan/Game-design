@@ -556,6 +556,76 @@ const LEVELS = [
     ball: { x: 40, y: 610 }, hole: { x: 80, y: 100 },
     walls: [{ x: 30, y: 250, w: 242, h: 22 }, { x: 250, y: 120, w: 22, h: 130 }, { x: 245, y: 390, w: 115, h: 22 }], planets: [{ x: 130, y: 450, r: 36, mass: 0.8 }], suns: [], blackholes: [{ x: 28, y: 215 }], movers: [{ type: "moon", parent: 0, orbitR: 74, period: 3.2, r: 13, mass: 0.45, phase: 0 }, { type: "comet", a: { x: 200, y: -20 }, b: { x: 200, y: 110 }, period: 1.2, r: 18 }],
   },
+  {
+    // Tests timing a shot past the moon: a wall row shuts every line to the cup, so the first shot has to go up through its gap and land on the upper-left planet, and the moon (r 16, mass 0.5, 4 s cycle) crosses that lane, spoiling the shot on 56 percent of the release clocks. three: drag (-49, 121) released at clock 2.3 (lands at (47.5, 248.4); works for release clocks about 1.6 to 3.0 of the 4 s cycle), then (-94, -105) at any clock: 10.25 degrees of aim and 120.9 px to full power (neighbours at least 10.1 degrees and 28.8 px); noisy human 100 percent on the last shot, 72.5 percent on the whole route. two (3 strokes): (-49, 121) at 2.3, a nudge (-20, 0) along the planet, then (-94, -105). Sweep at clocks 0 and 2.3: 0 straight sinks; at 2.3 an expert one-stroke full-power bank near (-57, 139) sinks over 2 degrees. --two-shot prints a NOTE with 0 fully untimed routes: the only other 2-stroke routes start with a first shot that lands on the wall top and needs 1 or 2 of 8 release clocks, so they are timed too. The gap's left edge is at 160 (146 let a 2-degree full-power drag from the floor corner sink untimed).
+    // v0.5 D (hole 16, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Moonrise", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 41, y: 600}, hole: {x: 233, y: 129},
+    walls: [{x: 0, y: 310, w: 160, h: 22}, {x: 236, y: 310, w: 124, h: 22}], planets: [{x: 205, y: 460, r: 35, mass: 1}, {x: 76, y: 211, r: 38, mass: 0.9}, {x: 305, y: 554, r: 26, mass: 0}], suns: [], blackholes: [], movers: [{type: "moon", parent: 0, orbitR: 76, period: 4, r: 16, mass: 0.5, phase: 2.356194490192345}],
+  },
+  {
+    // Tests threading the calm lane between two black holes' influence rings, with a planet as the staging post: the wall under the right black hole stops the straight line at the cup, so land on the planet, then fly the diagonal between the rings. three: drag (45, 33) rests on the planet's top at (118.6, 463.8) (any soft tap at the planet lands on it), then (-52, 130) passes the two horizons at 104.8 and 127.2 and sinks with 0 bounces: 17.45 degrees of aim and 121 px to full power (neighbours at least 17.1 degrees and 28.4 px); about 6 degrees to the left or 11 to the right of it is out of the lane, and 16 to the left or 20 to the right is swallowed. Noisy human 100 percent on the last shot, 98.5 percent on the whole route. The obvious straight shot at the cup, (28, 117), hits the wall and rests at (156.5, 503), not swallowed. Sweep: 0 straight sinks, 0 one-shot sinks of any kind. two (3 strokes): (45, 33), a nudge (20, 0), then (-52, 130).
+    // v0.5 D (hole 17, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Twin Wells", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 320, y: 600}, hole: {x: 200, y: 100},
+    walls: [{x: 200, y: 450, w: 160, h: 22}], planets: [{x: 110, y: 510, r: 38, mass: 1}, {x: 90, y: 170, r: 30, mass: 0.7}], suns: [], blackholes: [{x: 45, y: 300, reach: 90}, {x: 315, y: 390, reach: 90}], movers: [],
+  },
+  {
+    // Tests skimming a heavy sun's reach without touching it: the sun (mass 1.6, r 24, reach 75) bends a fast ball that passes within about 55 of its surface, a pass closer than about 9 touches it (+1) and one farther than about 62 is not bent at all. three: drag (27, 35) lands on the big planet's top at (142.6, 432.0), then (-113, 65) skims the sun at 54.6 from the surface, loops round its right side and sinks with 0 bounces: 9.2 degrees of aim and 114.9 px to full power (neighbours at least 9.1 degrees and 34.5 px); it sinks from any rest on the planet between 236 and 304 degrees. Noisy human 100 percent on the last shot, 94.5 percent on the whole route. Soft tee misses touching the sun: 3.6 percent, twice 0.0. Sweep: 0 straight sinks; an expert one-stroke full-power skim (-6.5, 150) sinks over 2.5 degrees. two (3 strokes): (27, 35), a nudge (0, -20), then (-113, 65).
+    // v0.5 D (hole 18, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Perihelion", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 40, y: 590}, hole: {x: 220, y: 153},
+    walls: [], planets: [{x: 132, y: 486, r: 46, mass: 1}, {x: 87, y: 161, r: 32, mass: 0.9}, {x: 300, y: 470, r: 30, mass: 0}], suns: [{x: 165, y: 327, r: 24, mass: 1.6, reach: 75}], blackholes: [], movers: [],
+  },
+  {
+    // Tests timing two movers at once: the wall row shuts every line to the cup, a sliding door (2.4 s) closes its gap, and two comets (r 18) cross the lane, one under the row every 1.2 s and one above it every 2.4 s, so only a short stretch of the cycle has door open and both comets clear. three: drag (-23, 11) rolls onto the big planet's left side at (206.0, 491.1), then (23, 128) released at clock 1.15 (works for release clocks 0.90 to 1.40 of the 2.4 s cycle, 0.5 s; the door or a comet stops it otherwise): 12.1 degrees of aim and 112.5 px to full power (neighbours at least 11.75 degrees and 37.0 px); noisy human 100 percent on the last shot and on the whole route. Sweep at clocks 0 and 1.15: 0 straight sinks. two (3 strokes): (-23, 11), a nudge (-15, 0) along the planet, then (23, 128) at 1.15. --two-shot prints a NOTE with 0 fully untimed routes: the only 2-stroke alternatives start with a first shot that lands on the wall top and needs about one of eight release clocks, so they are timed too. Two comets and a door, not three comets.
+    // v0.5 D (hole 19, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Crossfire", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 40, y: 590}, hole: {x: 195, y: 115},
+    walls: [{x: 0, y: 300, w: 150, h: 22}, {x: 237, y: 300, w: 123, h: 22}], planets: [{x: 255, y: 490, r: 40, mass: 1}, {x: 78, y: 123, r: 30, mass: 0.7}, {x: 52, y: 509, r: 30, mass: 0}], suns: [], blackholes: [], movers: [{type: "slide", w: 123, h: 22, a: {x: 132, y: 300}, b: {x: 9, y: 300}, period: 2.4}, {type: "comet", a: {x: 380, y: 391}, b: {x: -20, y: 391}, period: 1.2, r: 18}, {type: "comet", a: {x: -20, y: 210}, b: {x: 380, y: 210}, period: 2.4, r: 18}],
+  },
+  {
+    // Tests everything so far (boss, sector 4): the moon, a chute, the whale planet, the black hole and the sun in one three-shot route, each shot using a different body. three: (87, 39) at clock 3 runs low under the ceiling, swings under the small planet and up its left side onto its top at (87.0, 513.1) while the moon is clear (release clocks 1.9 to 4.4 of the 4.5 s moon cycle, 47 of 72 tried; too early and the moon catches the ball and it rides); (8, 110) at clock 1 goes straight up the chute and the whale planet (mass 1.2) curls it onto its top at (223.5, 239.7) (clocks 0 to 2.6 and 3.6 up; otherwise the moon is over the launch point; softer falls back, harder is swallowed); (99, 77) at any clock hooks wide left of the cup and the black hole bends it in: 17.25 degrees and 36.6 px to full power (neighbours at least 7.65 degrees and 29.0 px). Aimed straight at the cup it is swallowed, and a flat hook touches the sun, which guards the outside of the bend. The chute only admits a near-vertical launch from the small planet's top and the low ceiling keeps fast tee shots off the planet's upper side, so no tee shot reaches the whale planet: --two-shot finds no untimed two-shot route. Sweep at clocks 0, 1 and 3: 0 straight sinks, 0 one-shot sinks. Noisy human: last shot 95.5 percent, whole route 67.5 percent. The tee cannot reach the sun (soft tee misses touching it: 0). two: (87, 39) at clock 1 rides the moon, (20, 0) at clock 1.5 hops onto the small planet's top, then (8, 110) at clock 1 and (99, 77).
+    // v0.5 D (hole 20, content shard on Opus, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Leviathan", boss: true, stars: {three: 3, two: 4},
+    ball: {x: 310, y: 610}, hole: {x: 123, y: 74},
+    walls: [{x: 0, y: 400, w: 65, h: 22}, {x: 115, y: 400, w: 93, h: 22}, {x: 43, y: 338, w: 22, h: 62}, {x: 115, y: 338, w: 22, h: 62}, {x: 186, y: 422, w: 22, h: 133}, {x: 186, y: 555, w: 174, h: 22}], planets: [{x: 90, y: 550, r: 28, mass: 1}, {x: 200, y: 278, r: 36, mass: 1.2}], suns: [{x: 60, y: 230, r: 18}], blackholes: [{x: 184, y: 125}], movers: [{type: "moon", parent: 0, orbitR: 58, period: 4.5, r: 10, mass: 0.25, phase: 0}],
+  },
+  {
+    // Tests chaining two sun whips: a soft first shot lands on the planet, then one shot passes between the binary pair and each sun bends it toward the cup. v0.5 heavy suns: suns 0.8 and 0.9 against a planet of 0.5 (hole-21-light.json kept suns 0.56 and 0.67 against a planet of 1.0). three: drag (27, 24) rests on the planet's upper right at (152.9, 473.6), then (-53, 97), passing the suns at 34.9 and 29.0 from their surfaces; sinks over 8.65 degrees of aim and 94 to 133 px (neighbours at least 8.35 degrees and 38 px); noisy human 94.5 percent on the last shot, 81 percent on the whole route. two: (27, 24), (0, 20), (-53, 97). Sweep: 0 straight sinks; a shelf wall under the tee lane closes the one-shot double whip (1 sink of 20160). Soft tee misses touching a sun: 0.0 and 0.1 percent, never twice. At suns 1.2 and 1.2 the best second shot has 7.3 degrees and 16 px (under the rule). Reworked after the sequence review so both suns outweigh the planet (designer's rule, PRD v0.5 B); heavier pairs (1.0 to 1.3) found no clean window.
+    // v0.5 D (hole 21, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Daybreak", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 300, y: 600}, hole: {x: 265, y: 259},
+    walls: [{x: 215, y: 470, w: 145, h: 22}, {x: 200, y: 170, w: 160, h: 22}], planets: [{x: 110, y: 450, r: 40, mass: 0.5}], suns: [{x: 169, y: 313, r: 20, reach: 46, mass: 0.8}, {x: 251, y: 381, r: 21, reach: 56, mass: 0.9}], blackholes: [], movers: [],
+  },
+  {
+    // Tests reading a crossing pattern and picking a release clock: three comets on different paths and periods (2.8, 1.4 and 1.8 s) cross the lane from the planet to the cup, so wait for the gap. three: (-40, 0) rests on the planet's west side at (236.0, 540.0), then (9, 130) released at clock 2.85 (sinks for clocks 2.40 to 3.30 of the 2.8 s comet cycle, 21 of 69 tried; the comets knock it back otherwise); sinks over 11.05 degrees of aim and 119.3 to 146.3 px at that clock (neighbours at least 10.95 degrees and 26 px); noisy human 99 percent on the last shot, 87.5 percent on the whole route. two: (-40, 0), (0, 20), (9, 130) at clock 2.85. Sweep at clocks 0, 1.0 and 2.85: 0 straight sinks. Two walls close the diagonal lanes from the tee; the --two-shot NOTE (untimed routes) is only narrow 4 degree full-power finds from the planet's right side. --two-shot NOTE: narrow untimed two-stroke finds near full power (about 4 degrees) also make three; kept as expert finds, as on hole 9.
+    // v0.5 D (hole 22, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Leonids", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 50, y: 540}, hole: {x: 295, y: 200},
+    walls: [{x: 0, y: 290, w: 235, h: 22}, {x: 30, y: 360, w: 185, h: 22}], planets: [{x: 285, y: 540, r: 40, mass: 1}], suns: [], blackholes: [], movers: [{type: "comet", a: {x: 163, y: 464}, b: {x: 304, y: 375}, period: 2.8, r: 15}, {type: "comet", a: {x: 374, y: 405}, b: {x: 185, y: 434}, period: 1.4, r: 15}, {type: "comet", a: {x: 193, y: 189}, b: {x: 375, y: 337}, period: 1.8, r: 16}],
+  },
+  {
+    // Tests a slingshot that uses the moon's pull past two black-hole rings: the moon's planet and its moon bend a long shot up the left lane while the two black holes frame the field and swallow a loose shot. three: (-35, 0) rests on the first planet's top left at (179.3, 522.3), then (32, 128) released at clock 1.85 (sinks for clocks 1.55 to 2.35 of the 3.6 s moon cycle, 17 of 73 tried), passing the moon's planet at 24.1 and the moon at 55.9, black hole 0 at 84.8 from its horizon (inside its fade ring) and black hole 1 at 157.9 (outside it); sinks over 7.3 degrees of aim and 121.9 to 144.9 px (neighbours at least 7.25 degrees and 22.5 px); noisy human 89.5 percent on the last shot, 87.5 percent on the whole route (a miss is swallowed 4.5 percent of the time). two: (-35, 0), (0, 20), (32, 128) at clock 1.85. Sweep at clocks 0, 0.9 and 1.85: 0 straight sinks. Straight shots at the cup: (-57, 82) and (-45, 65) rest, (-68, 99) bounces off the moon and is swallowed. The --two-shot NOTE (untimed routes) is only near-full-power finds (141 to 147 px) from the planet's right side, which sink on 6 to 8 of 8 clocks over 6 to 10 degrees; they stay as expert finds because the lesson here is the pull, not the clock. --two-shot NOTE: near-full-power (141 to 147 px) untimed two-stroke shots from the planet's right side also make three; kept as expert finds.
+    // v0.5 D (hole 23, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Dark Twins", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 60, y: 560}, hole: {x: 294, y: 221},
+    walls: [], planets: [{x: 200, y: 560, r: 34, mass: 1}, {x: 204, y: 321, r: 34, mass: 0.37}], suns: [], blackholes: [{x: 40, y: 390, reach: 70}, {x: 345, y: 420, reach: 85}], movers: [{type: "moon", parent: 1, orbitR: 70, period: 3.6, r: 14, mass: 0.5, phase: 0.78}],
+  },
+  {
+    // Tests everything, the pre-final (not a boss): a rotating bar guards the lane to the first planet, then one shot threads a heavy sun whip past a second planet and its moon into the cup. v0.5 heavy sun: sun 1.2 against planets of 0.5 and 0.39 (hole-24-light.json kept sun 0.7 against a planet of 1.0). three: (-40, 0) released at clock 2.1 passes the bar and rests on the first planet's top right at (247.4, 484.3) (the bar lets it through for release clocks 1.8 to 2.95 of its 2.62 s half-turn cycle, 55 of 105 tried), then (33, 118) at clock 1.6; sinks over 11.25 degrees of aim and 109.5 to 140.5 px (neighbours at least 11.2 degrees and 30 px); noisy human 99.5 percent on the last shot and on the whole route. two: (-40, 0) at 2.1, (0, 20), (33, 118) at 1.6. Sweep at clocks 0, 1.0 and 2.1: 0 straight sinks (a wall under the sun's left side closes the tee-side lens; at most 15 one-shot sinks of 20160, none wider than 1 degree). Soft tee misses touching the sun: 0.1 percent. Weak spot: the timing is mild and the --two-shot NOTE stays (untimed routes from the planet's top, reached by soft taps that skirt the bar). Reworked after the sequence review: the sun (1.2) now outweighs both planets. --two-shot NOTE: 10 to 14 degree untimed routes from the planet's top also make three; kept.
+    // v0.5 D (hole 24, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Zenith", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 40, y: 520}, hole: {x: 145, y: 242},
+    walls: [{x: 0, y: 430, w: 135, h: 22}], planets: [{x: 220, y: 520, r: 36, mass: 0.5}, {x: 265, y: 324, r: 30, mass: 0.39}], suns: [{x: 142, y: 338, r: 22, reach: 63, mass: 1.2}], blackholes: [], movers: [{type: "moon", parent: 1, orbitR: 64, period: 3.4, r: 12, mass: 0.44, phase: 1.88}, {type: "bar", x: 110, y: 523, len: 75, phase: 1.9}],
+  },
+  {
+    // Tests everything (sector 5 finale): time a comet, land twice, then the binary whip. The twin suns are heavy and wide (mass 1.2, reach 40): heavier than every planet here, lighter than the black hole (1.4). three: (0, 150) runs up the sealed right channel, over the roof, and lands on the top-left planet at (97.7, 110.0) at any release clock; (9.5, -135.7) released at clock 0.9 drops down the left side under the comet lane onto the lower planet at (111.1, 406.1) (finishes on 16 of 24 clocks of the 1.2 s comet cycle: 0.70 to 0.20 through the wrap, and 0.35; otherwise the comet knocks it away); then (-56.1, 126.1) at any clock is the binary whip: it threads the pair inside both coronas (24.1 and 23.7 from the surfaces), curves right, kisses the right wall and drops into the cup: 9.25 degrees and 19.0 px (131 px to full power), neighbours at least 8.35 degrees and 18.0 px. The black hole (reach 60) sits under the pair: a shot from the lower planet that runs under the suns, e.g. (-118, -21), is swallowed. The moon circles a slate bumper below the pair. The stub under the roof's left end shuts the lane from the top planet into the cup. Noisy human: last shot 81.5 percent, whole route 48.5 percent. Soft tee misses touch neither sun (the tee is sealed in the channel). Sweep at clocks 0 and 0.9: 0 straight sinks. two: (0, 150), (9.5, -135.7) at 0.9, (-18, 18) resettles at (108.7, 403.1), (-56.1, 126.1).
+    // v0.5 D (hole 25, content shard on Opus, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Twin Dawn", boss: true, stars: {three: 3, two: 4},
+    ball: {x: 341, y: 605}, hole: {x: 270, y: 230},
+    walls: [{x: 300, y: 150, w: 22, h: 490}, {x: 150, y: 150, w: 150, h: 22}, {x: 150, y: 172, w: 22, h: 90}], planets: [{x: 84, y: 425, r: 24, mass: 0.6}, {x: 60, y: 100, r: 30, mass: 1}, {x: 140, y: 550, r: 26, mass: 0}], suns: [{x: 177, y: 374, r: 22, mass: 1.2, reach: 40}, {x: 236, y: 310, r: 22, mass: 1.2, reach: 40}], blackholes: [{x: 260, y: 470, reach: 60}], movers: [{type: "comet", a: {x: -20, y: 250}, b: {x: 110, y: 250}, period: 1.2, r: 12}, {type: "moon", parent: 2, orbitR: 56, period: 4.8, r: 10, mass: 0.25, phase: 0}],
+  },
 ];
 // Clamps a hole to the size and mass limits and fills the optional fields; also applied by tools/sim-golf.mjs to a shard's JSON.
 function prepareLevel(lv) {
@@ -897,10 +967,16 @@ function coverView(E) {
 function starsFor(strokes, st) { return strokes <= st.three ? 3 : strokes <= st.two ? 2 : 1; }
 function shots(n) { return `${n} ${n === 1 ? 'shot' : 'shots'}`; }
 
+// The next hole opens once any hole is cleared, so a ladder that grows never locks a cleared player out (PRD v0.5 D2).
+function openHole(best, unlocked) {
+  const cleared = Object.keys(best || {}).map(Number).filter((i) => i >= 0);
+  return clamp(Math.max(unlocked || 0, cleared.length ? Math.max(...cleared) + 1 : 0), 0, LEVELS.length - 1);
+}
+
 function progress(E) {
   const best = E.save.get('best', {}), won = E.save.get('stars', {});
   const stars = LEVELS.map((lv, i) => won[i] || 0);
-  return { best, stars, total: stars.reduce((a, b) => a + b, 0), unlocked: clamp(E.save.get('unlocked', 0), 0, LEVELS.length - 1), badges: E.save.get('badges', {}), prog: E.save.get('prog', {}) };
+  return { best, stars, total: stars.reduce((a, b) => a + b, 0), unlocked: openHole(best, E.save.get('unlocked', 0)), badges: E.save.get('badges', {}), prog: E.save.get('prog', {}) };
 }
 
 // ---------- Art (layer 5) ----------
@@ -2539,12 +2615,13 @@ const V01_PAR = [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 6,
+  saveVersion: 7,
   // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map;
   // v3 adds `unlocked`, rebuilt from the holes already cleared; v4 stores stars per hole, because v0.2 judges stars
   // by per-hole thresholds on re-authored holes: stars won under v0.1 pars are kept as they were; v5 adds badges and the skin choice;
   // v6 adds `prog`, the record behind the missions tiles' progress (landings, fewest sun touches, best run, last run), empty until played,
-  // and `hintSeen`, set once the first-run hint has shown.
+  // and `hintSeen`, set once the first-run hint has shown; v7 is the 25-hole ladder: `unlocked` is raised to the highest cleared
+  // hole plus one and the run records (`runBest`, `lastRun`) are dropped, as a run over 15 holes does not compare with one over 25.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (data.unlocked === undefined) {
@@ -2564,6 +2641,10 @@ export const game = {
       data.skin = { ...data.skin };
     }
     if (fromVersion < 6) { data.prog = { ...data.prog }; data.hintSeen = true; } // a save that already exists has played: only a fresh one sees the hint
+    if (fromVersion < 7) {
+      data.unlocked = openHole(data.best, data.unlocked);
+      if (data.prog) { delete data.prog.runBest; delete data.prog.lastRun; }
+    }
     return data;
   },
   TUNING,
