@@ -87,3 +87,33 @@ The level select and the badges screen are read between plays, in a second. Ink 
 8. **Named in the game's own trade.** Tiers and badges speak the game's world (the tattoo trade in Ink: Apprentice, Artist, Master; Steady Hand, Full Sleeve). The fun is in the name; the condition stays plain.
 
 Test: count the text items on the select screen and on one badge card, and time a first-timer finding "what do I do next" and "what did I just earn". Under two seconds each.
+
+## 12. Fair is not fun: feel first, balance second
+
+Learned on Launch (three rounds that passed every number and were still not fun). A harness proves a game fair; only a hand proves it fun. A new mechanic ships first as a feel build for the dev channel with big TUNE knobs and two or three named presets, the designer tunes it on the phone, and only then does a balance pass lock the numbers and re-prove the targets. A feel build is gated by a short must-hold list (determinism, nothing stuck, a first-timer can progress, frame time, saves), not by balance targets.
+
+Test: before any balance work, can the designer say which preset felt best and why?
+
+## 13. Every input trades, none only costs
+
+An action that only loses (a parachute that bleeds speed, a drop that taxes it) is a brake, and players learn to never use it; the one action that adds becomes the answer to everything. Every verb converts one resource into another: height into distance, speed into safety, risk into reward, attention on one thing into blindness to another. Hit harder for a better reward when it is perfect: precision pays disproportionately, a miss costs, and the best players live on that edge.
+
+Test: for each verb, name what it gives and what it spends. If one verb only spends, redesign it; if one verb only gives, it will dominate.
+
+## 14. What you see is what the physics does
+
+Every ring, arc, glow, marker, shadow and camera move is drawn from the real numbers, never decorated past them. Learned twice: the Gravity Golf sun's rays overstated its pull, and Launch's camera panned the sky while the ground band stayed pinned, so the range finder ran below the drawn ground. A prediction aid (an arc, a landing mark) ends exactly where the physics ends, every frame.
+
+Test: the reviewer checks one aid against the physics per frame on the most extreme case the harness can make.
+
+## 15. Content must be met; hazards come in readable twins
+
+A mechanic placed beyond where a typical player gets is invisible (Launch's geysers sat at 2000 m while flights ended near 850 m). The harness reports where the good and careless profiles end and which mechanics they meet; every place or level introduces its mechanic before that point. Every helpful mechanism gets a harmful twin with a distinct look, each punishing one lazy habit, on a severity ladder: tax, brake, deflect, stop. Only the last rung ends a run, and it is always telegraphed (the range finder marks it, a cue precedes it).
+
+Test: list each mechanic with the share of typical sessions that meet it; anything under half needs moving or cutting.
+
+## 16. Every purchase shows, every action sounds
+
+Every upgrade level visibly reskins something the player watches (the launcher, the character, the glider, the slam, the gun, the ball); a purchase you cannot see does not feel bought. Every action has a sound, a visual and a motion; a cue that matters has both a sound and a visual, so it works with the sound off.
+
+Test: play muted, then with sound and eyes half closed; every tap should feel like something, and every owned upgrade should be nameable from the screen alone.

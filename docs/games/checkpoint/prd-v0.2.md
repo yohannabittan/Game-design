@@ -61,3 +61,12 @@ At most four sliders on screen: belt speed, traveller pace, scan time, occlusion
 ## I. Out of scope
 
 New modes, a daily seed, upgrades or a shop, generated images, music, re-tuning shifts 2 to 10 beyond what the new layout needs to stay clearable.
+
+## J. Amendment after the v0.2 playtest (2026-10-02): the detector decides whom to check
+
+Designer: "fun but a bit too much; not everyone has metal, and the ones that do give an audio cue as they walk through, like in real life, so I know to check them."
+
+1. **Only metal sets off the arch.** A traveller carrying no metal (on the body) walks through clean: a soft green light, no body scan shown, nothing to check. A traveller carrying metal (a buckle, keys, a watch, a gun, a knife) sets off the arch: a two-tone beep and the arch light flashes amber (the visual twin of the sound, so it works muted, principle 16), and only then the body scan shows for `scanShow`.
+2. **Share:** about a third of travellers beep on day 1 (`beepShare`, rising by day); most beepers carry only harmless metal, so a beep means "look", not "guilty". Non-metal contraband on the body (a ceramic blade, a liquid) does not beep and is out of scope for this version: body contraband is always metal.
+3. **Queued fixes from the v0.2 quick review:** a breached day never counts as a best and never shows "New best" (bests only on a cleared day, also fixing v0.1's logic); the SWAT bonus is capped so it never exceeds about a third of a good day's score; a missed body critical ends the day when the traveller leaves the arch area, not the lane (seconds sooner); the lighter's silhouette is made unmistakable at phone size (flint wheel and hood clearly drawn, not a small bottle); the RUSH HOUR banner never covers the belt's top band.
+4. **Must-holds:** section H, plus: no body scan is ever shown for a traveller who did not beep, and every beep has both the sound and the arch light.
