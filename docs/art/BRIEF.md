@@ -42,6 +42,23 @@ Plus `title-backlot88.png`: the studio-logo title card "RECOIL, a Backlot 88 pro
 
 Anchor: `docs/games/ink/style.md`. Context: `docs/games/ink/prd-v0.6.md` line on the title. `title-ink.png`: the word INK as an ornate tattoo-script logo (blackletter meets calligraphy, flourishes, a banner or swallow or rose allowed), transparent, about 1024 x 512, plus a half-size copy.
 
+### Pack 3: Checkpoint X-ray items (added 2026-10-03)
+
+Anchor: `docs/games/checkpoint/style.md` (anchor v0.2, the material-coloured scanner look; the designer decided the belt items become images with generous rectangle hitboxes, because the skill is recognition, not precise tapping). These are an exception to "never for things you play with": the game hit-tests a rectangle around each image, and the wiring build handles fairness.
+
+- One item per image, top-down, centred, filling about 80 percent of a square canvas, **transparent background**; 1024 x 1024 generation, saved down to **256 x 256** (the game draws them at about 40 to 90 px).
+- Each must read as its object at a glance at 64 px in X-ray colours: test by shrinking it in the contact sheet. The silhouette tell matters most: a gun's grip, trigger guard and barrel; a blade's point; a lighter's hood and flint wheel; scissors' two finger rings.
+- **Two options each** at medium quality (about 56 items, about US$7), on contact sheets of 14 to 16 items each, labelled by file name, each option also shown at 64 px.
+- Files `item-<name>.png` with the names below (spaces become hyphens).
+
+Belt contraband (15): knife, scissors, gun, lighter, large liquid, batteries, fireworks, taser, hammer, box cutter, explosives, brass knuckles, toy gun, snow globe, multi-tool.
+
+Belt harmless (31): shirt, shoes, phone, laptop, headphones, book, toothbrush, charger, small liquid, sunglasses, hairdryer, pen, umbrella, camera, wallet, keys, toy, water bottle, belt, snacks, perfume, fork, knitting needles, power bank, tablet, banana, stapler, cable, usb stick, mug, tape measure.
+
+Body scan only (10, drawn on the scanned silhouette, same look, 128 x 128 is enough): hair clip, glasses, earrings, wristwatch, ring, underwire, belt buckle, zipper, coins, knee brace. (Body contraband reuses the belt images: gun, knife, taser, brass knuckles, lighter; the blade in a boot reuses box cutter.)
+
+Ledger and process as above; keep within the remaining budget. Final picks go to `docs/art/final/checkpoint/`.
+
 ## Process
 
 1. Generate **three options** per asset at medium quality (cheap), into `docs/art/candidates/<slug>/` (not under `games/`).

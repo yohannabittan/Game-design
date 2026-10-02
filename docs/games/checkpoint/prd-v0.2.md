@@ -70,3 +70,12 @@ Designer: "fun but a bit too much; not everyone has metal, and the ones that do 
 2. **Share:** about a third of travellers beep on day 1 (`beepShare`, rising by day); most beepers carry only harmless metal, so a beep means "look", not "guilty". Non-metal contraband on the body (a ceramic blade, a liquid) does not beep and is out of scope for this version: body contraband is always metal.
 3. **Queued fixes from the v0.2 quick review:** a breached day never counts as a best and never shows "New best" (bests only on a cleared day, also fixing v0.1's logic); the SWAT bonus is capped so it never exceeds about a third of a good day's score; a missed body critical ends the day when the traveller leaves the arch area, not the lane (seconds sooner); the lighter's silhouette is made unmistakable at phone size (flint wheel and hood clearly drawn, not a small bottle); the RUSH HOUR banner never covers the belt's top band.
 4. **Must-holds:** section H, plus: no body scan is ever shown for a traveller who did not beep, and every beep has both the sound and the arch light.
+
+## K. Generated item images with rectangle hitboxes (2026-10-03; build after the art pack lands)
+
+Designer: "the skill is not in hitting a hit box perfectly, so we can use an image and estimate a rectangle hitbox." Source images: `docs/art/final/checkpoint/` (BRIEF.md Pack 3).
+
+1. Belt and body-scan items draw from the generated images, composited so overlaps still darken (multiply) and dense parts still hide what is under them; the procedural shapes stay as the fallback while loading or if an image fails.
+2. **Hitbox:** each item's hit area is its image's opaque bounding rectangle, rotated with the item, plus `hitMargin`; where rectangles overlap, contraband still wins (v0.1 rule). No correct tap may ever resolve to the wrong item.
+3. **Fairness:** each contraband image declares a tell box (the part that identifies it), in image coordinates in data; the packer keeps every contraband tell box at least 85 percent clear of other items' dense pixels, and the harness checks it from the images' alpha and colour, as it does now from polygons.
+4. Assets under 1.5 MB in total (an atlas is fine), cached in `sw.js`; text and targets unchanged; the must-holds of H stand.
