@@ -68,6 +68,7 @@ Every game must be fully playable with the phone in airplane mode, from a home-s
 - Sessions are 30 seconds to 5 minutes. Closing the app mid-run is never punished; a run can be resumed or is cheap to restart.
 - Nothing requires a network, an account, or a clock.
 - Save happens automatically. There is no save button.
+- Shops are chosen by play style, not by an optimal order (designer, 2026-10-02): no harness checks that each item is "someone's best next buy". Two cheap checks stay: no purchase ever makes the player worse at anything it touches, and every level of every item makes a difference the player can notice.
 
 ## 10. Pacing beats
 

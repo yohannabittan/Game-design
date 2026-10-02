@@ -56,3 +56,7 @@ The Golden Gun and Ray Gun, the spin-lever flourish reload, new genre sets as ne
 - Text counts per principle 11 on the menu, the Prop Room and the card, in the changelog.
 - First menu frame under 40 ms at 4x CPU throttle; play frame time not worse than v22 by more than 10 percent with the sets drawn.
 - `npm run smoke` passes; no console errors in a run of every mode.
+
+## G. Shop checks (designer, 2026-10-02)
+
+The "every bought gun is some player's best next buy" target in B is retired: guns are chosen by play style. Kept: buying is never needed for any star, and the pacing targets for the first purchase.

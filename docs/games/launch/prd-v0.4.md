@@ -80,3 +80,7 @@ Source: `playtests/2026-10-02-v12.md`. Feel-first rules stand; section G's must-
 6. **More birds, at different heights:** more birds per gap, spread across low, middle and high bands (some within reach of a glide, some only of a launch or a jelly bounce), so chaining birds is a real line.
 7. **Drafts reach higher:** thermal and freezer columns rise much higher (to about the height of a good lob, or to the top of the drawn sky), so gliding over them is not the answer; the column is drawn to its real height (principle 14).
 8. **Must-holds added:** the combo cannot chain forever (the speed cap and single-use jellies hold; birds are once each); the speedometer reads the real speed; no flight in the harness ever ends with negative forward speed after a contact.
+
+## J. Shop checks (designer, 2026-10-02)
+
+The best-next-buy rule (v0.1 amendments, v0.2 D) is retired: players choose upgrades by play style. The harness keeps only the cheap ladder checks: no level of any upgrade lowers the good profile's distance, and every level makes a noticeable difference. Section H and the balance pass use these, not `--buys`.
