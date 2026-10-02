@@ -59,6 +59,45 @@ Body scan only (10, drawn on the scanned silhouette, same look, 128 x 128 is eno
 
 Ledger and process as above; keep within the remaining budget. Final picks go to `docs/art/final/checkpoint/`.
 
+### Pack 4: home-screen icons, all five games (added 2026-10-03)
+
+One app icon per game, each from its own game's anchor: `icon-<slug>.png` for gravity-golf, ink, recoil, launch and checkpoint, into `docs/art/final/<slug>/`. **Opaque, square, 1024 x 1024**, no transparency (iOS fills transparency with black), no text, one bold central subject that reads at 60 px, nothing important within 10 percent of the edge (iOS rounds the corners). Subjects: Gravity Golf a glowing golf ball curving round a small planet; Ink a tattoo machine with a drop of ink; Recoil the Buddy-Cop pistol in its Backlot 88 neon (use the picked gun as reference); Launch the orange mochi mid-flight with a little fizz trail; Checkpoint a bag in X-ray colours with a red scan line. Two options each; show them on one sheet at 1024 and at 60 px.
+
+### Pack 5: Launch characters and machine (added 2026-10-03)
+
+Anchor: `docs/games/launch/style.md`. Context: `docs/games/launch/prd-v0.2.md` section E (the story) and `prd-v0.3.md` section A (the Mochi Maker 3000). Transparent backgrounds, into `docs/art/final/launch/`:
+
+| File | Subject | Size |
+| --- | --- | --- |
+| `mochi-happy.png`, `mochi-determined.png`, `mochi-dizzy.png`, `mochi-love.png` | Mochi, the round apricot-orange mochi hero, small face, four expressions (cheerful; determined, ready to launch; dizzy after a crash, little stars; heart eyes) | 512 x 512 |
+| `daifuku.png`, `daifuku-wave.png` | Daifuku, his love: a soft pink strawberry daifuku with a little strawberry peeking from the top, sweet face, waiting and waving | 512 x 512 |
+| `mochi-maker.png` | The Mochi Maker 3000: a steampunk brass machine with pistons, a chimney, five bulbs, a pressure gauge and a barrel, cheerful, side view | 1024 x 768 |
+
+Keep the same character across every Mochi image (shape, colour, face): generate one first, then use it as the reference image for the rest. Two options each.
+
+### Pack 6: Gravity Golf title and badge medals (added 2026-10-03)
+
+Anchor: `docs/games/gravity-golf/style.md`. Transparent backgrounds, into `docs/art/final/gravity-golf/`:
+
+- `title-gravity-golf.png` (about 1024 x 400): the words GRAVITY GOLF as a space-themed logo (a golf ball as one O, an orbit ring through the letters). The anchor says no text: for this one asset, text is the subject; keep everything else per the anchor.
+- 11 badge medals, `medal-<id>.png`, 256 x 256, round, a symbol for the badge in the middle and the rim coloured by tier (0 meteorite rock grey #a8a29e, 1 moon silver-blue #c9d6ea, 2 planet purple #a855f7, 3 star gold #fde047), no text:
+
+| id | Name | Tier | Symbol idea |
+| --- | --- | --- | --- |
+| first-orbit | First Orbit | 0 | a ball tracing one orbit round a planet |
+| banker | Banker | 0 | a ball banking off a wall |
+| slingshot | Slingshot | 1 | a ball whipping round a planet |
+| touchdown | Touchdown | 1 | a ball landing on a planet's top |
+| untouched | Untouched | 1 | a sun with a ball passing clear |
+| binary-star | Binary Star | 2 | two suns side by side |
+| clockwork | Clockwork | 2 | a moon on its orbit like a clock hand |
+| never-landed | Never Landed | 2 | a ball in flight above a row of planets |
+| eclipse | Eclipse | 3 | a moon crossing a sun |
+| perfect-run | Perfect Run | 3 | three stars over a cup flag |
+| under-par | Under Par | 3 | a cup flag with a downward arrow |
+
+Medals in one style and frame (generate one, use it as the reference for the rest). Two options each.
+
 ## Process
 
 1. Generate **three options** per asset at medium quality (cheap), into `docs/art/candidates/<slug>/` (not under `games/`).
