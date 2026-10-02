@@ -67,3 +67,16 @@ Designer: "upgrades should reskin something, either the launcher or the characte
 | Sugar Shield | forgive | level 1: one missed slam per flight costs nothing; level 2: also bounces off one marshmallow or freezer push; level 3: two charges | mochi: a transparent sugar bubble that pops with a crystal sound when used, re-forming on the next flight |
 
 Toasted Crust from the chat discussion is dropped in favour of the Sugar Shield (one defensive upgrade). The shop card shows the next level's look; the mochi and machine show every owned level at once. Saves migrate (Cola Rocket levels become Fizz Tank levels beyond Fizz Tank's own, capped; Sugar Glaze levels kept with the new meaning).
+
+## I. Build A1, from the Build A playtest (2026-10-02; build before H)
+
+Source: `playtests/2026-10-02-v12.md`. Feel-first rules stand; section G's must-holds stay the gate, plus I8.
+
+1. **The mochi is the glider.** No separate sail: on a glide the mochi's own dough stretches out flat and wide (a flattened, wing-like mochi with a little face), springing back round on release. Same glide physics.
+2. **Geysers erupt longer:** `geyserOn` up from 0.8 to about 1.6 s of the cycle, and the column taller, so a geyser is something to aim for, not a lottery.
+3. **Combo boost:** consecutive jellies or birds without touching plain ground (any mix) build a combo (x2, x3, x4 ...); each step pays a visible kick of forward speed and refills fizz (`comboKick`, `comboFizz`, rising per step, capped), with the counter on screen and a rising pitch. Touching plain ground, caramel or marshmallow ends it.
+4. **Speedometer:** a gauge on the HUD (a steampunk dial matching the Mochi Maker, needle and number in km/h-like units), readable at a glance, inside the safe area, never covering the mochi or the arc.
+5. **Never the wrong way:** no contact (an uphill crash, a cliff, a hill face) may leave the mochi moving backwards; a crash keeps at least a small forward speed. If the mochi is ever moving backwards, boost pushes forward (toward increasing distance), not along the backward flight.
+6. **More birds, at different heights:** more birds per gap, spread across low, middle and high bands (some within reach of a glide, some only of a launch or a jelly bounce), so chaining birds is a real line.
+7. **Drafts reach higher:** thermal and freezer columns rise much higher (to about the height of a good lob, or to the top of the drawn sky), so gliding over them is not the answer; the column is drawn to its real height (principle 14).
+8. **Must-holds added:** the combo cannot chain forever (the speed cap and single-use jellies hold; birds are once each); the speedometer reads the real speed; no flight in the harness ever ends with negative forward speed after a contact.
