@@ -24,6 +24,7 @@ One sentence per object, each read after the anchor above.
 - **Freezer vent:** a low icy pale-blue grate with slate slots under a tall, translucent pale-blue column where white snowflakes and slate chevrons drift down, ink outline and a light halo on the grate.
 - **Candy-cane hill:** one smooth round bump striped berry-red and white on the diagonal with a plum ink outline and a light halo, its uphill (left) face in soft shade so the face that crashes reads darker than the face that launches.
 - **Marshmallow pad:** a row of fat, soft white pillows with round ends, a lilac shade along their bottoms and a few sugar specks, ink outline and a light halo, never teal so it never reads as a jelly.
+- **Dough glider (v0.4 A1):** the mochi himself stretched flat into a wide apricot wing with its tips drawn out and lifted, the same plum outline, light halo and powder, a few lighter ribs where the dough pulls, and his little face unchanged in the middle, springing back round on release; no separate sail.
 
 ## Palette (TUNING.palette in games/launch/src/game.js)
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // sim-launch: fly Launch's real physics (games/launch/src/game.js, via game.sim) headlessly.
 //
-// v0.4 Build A is a feel build (PRD v0.4, feel first as v0.3): this harness proves section G's must-holds. v0.2's rank,
-// pacing, ladder and buy checks stay retired until the balance pass.
+// v0.4 Build A is a feel build (PRD v0.4, feel first as v0.3): this harness proves section G's must-holds, and Build A1's I8
+// (the combo cannot chain forever, the speedometer reads the real speed, no flight moves backwards after a contact). v0.2's
+// rank, pacing, ladder and buy checks stay retired until the balance pass.
 //
 // The launch has two beats (PRD v0.3 A): a tap `t1` seconds after the machine is ready locks the barrel at aimAngle(t1); a tap
 // `t2` seconds after the lock fires with the zone the gauge (seeded per flight) reads. In flight there are three actions
@@ -26,7 +27,16 @@
 //                                                     table; then where the good player's flights end and what they meet
 //   node tools/sim-launch.mjs --check [--seeds 500]     field fairness: a jelly before every caramel, none further apart than
 //                                                     150 m; thermals and freezers by 300 m, hills and marshmallow from 500 m
-//                                                     and by 800 m, geysers and clouds in their places, clear of birds
+//                                                     and by 800 m, geysers and clouds in their places, clear of birds; birds in
+//                                                     all three height bands (I6), drafts as tall as a good lob (I7), a geyser
+//                                                     that erupts geyserOn seconds (I2)
+//   node tools/sim-launch.mjs --crash [--seeds 60]      I8: crashes staged on every hill's uphill face and on wafers (plain
+//                                                     touch, slam and glide, many speeds): vx never below zero, at least
+//                                                     crashKeep after an uphill contact; a boost while moving backwards pushes
+//                                                     forward
+//   node tools/sim-launch.mjs --combo                   I8: the longest combo, the kick never past maxSpeed, the speedometer's
+//                                                     reading against the distance the step really moved (runs with --must's
+//                                                     flights; alone it flies the good and careless profiles)
 //   node tools/sim-launch.mjs --contrast                every object against every place
 //   node tools/sim-launch.mjs --highest [--seeds 100]   G5's input: the seed, taps and inputs of the highest flight flown
 //   node tools/sim-launch.mjs --fly ANGLE [--gauge V] [--seed N] [--profile good|noslam|hold|careless|none] [--inputs]
@@ -183,10 +193,34 @@ const stubborn = {
   slamBoost: () => { let pv = 0; return (r) => { if (r.mode === 'air' && pv > 0 && r.vy <= 0) { const t = sim.flightTime(r); sim.queueInput(r, t, 'condense'); sim.queueInput(r, t, 'boostOn'); } pv = r.vy; }; },
 };
 
+// I8's audit of every real flight (not the planner's copies): backward motion, combo kicks past the cap, the speedometer's
+// reading against the ground the step really covered.
+const AUDIT = { flights: 0, steps: 0, backSteps: 0, backAfterContact: 0, backFlights: 0, comboMax: 0, kicks: 0, kickBad: 0, speedChecked: 0, speedBad: 0, speedWorst: 0, fastest: 0 };
+function auditStep(r, st, px, py, pm) {
+  AUDIT.steps++;
+  if (r.vx < 0) { AUDIT.backSteps++; if (st.touched) AUDIT.backAfterContact++; st.back = true; }
+  for (const e of r.ev) {
+    if (CONTACT.has(e.k)) st.touched = true;
+    if (e.k === 'combo') { AUDIT.kicks++; if (Math.hypot(r.vx, r.vy) > Math.max(T.maxSpeed, Math.hypot(r.vx - e.kick, r.vy)) + 1e-6) AUDIT.kickBad++; }
+  }
+  if (!r.ended && !r.ev.length && r.mode === pm && (pm === 'air' || pm === 'ground')) {
+    const moved = (Math.hypot(r.x - px, r.y - py) / STEP) * T.speedo.kmh, shown = sim.speedOf(r), err = Math.abs(moved - shown);
+    AUDIT.speedChecked++; AUDIT.speedWorst = Math.max(AUDIT.speedWorst, err);
+    if (err > 0.5 + 0.01 * shown) AUDIT.speedBad++;
+  }
+}
 function fly(seed, launch, ctl = null, up = BASE, log = null) {
-  const r = sim.newRun(seed, launch, up);
+  const r = sim.newRun(seed, launch, up), st = { touched: false, back: false };
   const max = Math.round(T.maxFlight / STEP) + 10;
-  while (!r.ended && r.steps < max) { if (ctl) ctl(r, log); r.ev.length = 0; sim.stepRun(r); }
+  while (!r.ended && r.steps < max) {
+    if (ctl) ctl(r, log);
+    r.ev.length = 0;
+    const px = r.x, py = r.y, pm = r.mode;
+    sim.stepRun(r);
+    auditStep(r, st, px, py, pm);
+  }
+  AUDIT.flights++; if (st.back) AUDIT.backFlights++;
+  AUDIT.comboMax = Math.max(AUDIT.comboMax, r.chainMax); AUDIT.fastest = Math.max(AUDIT.fastest, Math.sqrt(r.topSq));
   return r;
 }
 const goodFlight = (seed, band, up = BASE, log = null, policy = 'slam') => { const rng = makeRng(seed * 7727 + 3); return fly(seed, goodLaunch(seed, band, rng, up), planner(policy, rng), up, log); };
@@ -238,13 +272,13 @@ function checkCareless(n) {
 function checkStuck(n) {
   let total = 0, timeouts = 0, endless = 0, longest = 0, top = 0, chain = 0, high = 0;
   const why = { stop: 0, mud: 0 };
-  const go = (r) => { total++; if (r.timeout) timeouts++; if (!r.ended) endless++; else why[r.ended] = (why[r.ended] || 0) + 1; longest = Math.max(longest, sim.flightTime(r)); top = Math.max(top, r.topSpeed || 0); chain = Math.max(chain, r.chainMax); high = Math.max(high, r.topY); };
+  const go = (r, who = '') => { total++; if (r.timeout) { timeouts++; if (flag('--verbose')) console.log(`timeout: ${who} ${sim.metres(r)} m, chain ${r.chainMax}, kicks ${r.kicks}`); } if (!r.ended) endless++; else why[r.ended] = (why[r.ended] || 0) + 1; longest = Math.max(longest, sim.flightTime(r)); top = Math.max(top, r.topSpeed || 0); chain = Math.max(chain, r.chainMax); high = Math.max(high, r.topY); };
   for (const s of seedList(n)) {
-    go(carelessFlight(s)); go(goodFlight(s, ANY));
+    go(carelessFlight(s), `careless ${s}`); go(goodFlight(s, ANY), `good ${s}`);
     const rng = makeRng(s * 31 + 5);
-    for (const k of Object.keys(stubborn)) { const l = sim.launchOf(s, t1For(rng.range(T.aimMin, T.aimMax)), t2For(T.gaugeSweet, sim.gaugeOf(s, 0, BASE)), 0, BASE); go(fly(s, l, stubborn[k]())); }
+    for (const k of Object.keys(stubborn)) { const l = sim.launchOf(s, t1For(rng.range(T.aimMin, T.aimMax)), t2For(T.gaugeSweet, sim.gaugeOf(s, 0, BASE)), 0, BASE); go(fly(s, l, stubborn[k]()), `${k} ${s}`); }
   }
-  result('G3', `every flight ends by stop speed or caramel before maxFlight ${T.maxFlight} s; the slam never leaves faster than maxSpeed ${T.maxSpeed} (${total} flights: careless, good, glide held, boost held, a slam every arc, a slam with boost every arc, nothing)`, `${why.stop} stop, ${why.mud} caramel, ${timeouts} at maxFlight, ${endless} unended; longest ${longest.toFixed(1)} s; fastest slam ${Math.round(top)}; longest chain ${chain}; highest ${(high / U).toFixed(0)} m`, timeouts === 0 && endless === 0 && top <= T.maxSpeed + 1e-6);
+  result('G3', `every flight ends by stop speed or caramel before maxFlight ${T.maxFlight} s; the slam never leaves faster than maxSpeed ${T.maxSpeed} (${total} flights: careless, good, glide held, boost held, a slam every arc, a slam with boost every arc, nothing)`, `${why.stop} stop, ${why.mud} caramel, ${timeouts} at maxFlight, ${endless} unended; longest ${longest.toFixed(1)} s; fastest slam ${Math.round(top)}; longest combo ${chain}; highest ${(high / U).toFixed(0)} m`, timeouts === 0 && endless === 0 && top <= T.maxSpeed + 1e-6);
 }
 
 // G4: the same seeds, launches and reactions under three policies: glide-and-slam, hold boost from the launch, and the
@@ -303,6 +337,70 @@ function checkField(n) {
   result('field', 'a jelly before every caramel, at most 150 m between jellies, no overlaps, every seed has a thermal and a freezer by 300 m and a hill and marshmallow by 800 m (none before 500), geysers and clouds in their places, clouds clear of birds', `gap ${(worstGap / U).toFixed(0)} m, ${mudNoSpring} caramel without a jelly, ${overlaps} overlaps, ${early} early, ${nearBird} near birds; latest first thermal ${first.thermal?.toFixed(0)} m, freezer ${first.freezer?.toFixed(0)} m, hill ${first.hill?.toFixed(0)} m, marshmallow ${first.marsh?.toFixed(0)} m`, ok);
 }
 
+// I2, I6, I7: birds in all three height bands and about the amount the PRD asks, the drafts as tall as a good lob, and a geyser
+// that erupts geyserOn seconds of its cycle (counted off the real eruption test), its column geyserH tall.
+function checkNew(n) {
+  const toM = 3000, bands = T.birds.bands, cnt = bands.map(() => 0), noBand = [];
+  let gaps = 0, birds = 0, perGap = [], seedsAll = 0;
+  for (let s = 1; s <= n; s++) {
+    const f = sim.makeField(s); sim.ensureField(f, toM * U);
+    const b = f.birds.filter((o) => o.x0 < toM * U), g = f.ground.filter((o) => o.kind === 'spring' && o.x0 < toM * U).length;
+    gaps += g; birds += b.length; for (const o of b) cnt[o.band]++;
+    const early = new Set(f.birds.filter((o) => o.x0 < 1000 * U).map((o) => o.band));
+    if (early.size === bands.length) seedsAll++; else noBand.push(s);
+    for (const o of b) if (o.y < bands[o.band].y[0] * U - 1 || o.y > bands[o.band].y[1] * U + 1) perGap.push(o);
+  }
+  const share = cnt.map((c) => Math.round((100 * c) / birds));
+  // a good lob: a Great launch at 45 degrees, its apex above the ground (the barrel's mouth included)
+  const l = sim.launchOf(1, 0, 0, 0, BASE), v = T.zonePower[1] * T.launchSpeedMax * Math.sin(45 * Math.PI / 180), lob = (sim.mouth(45)[1] + (v * v) / (2 * T.gravity)) / U;
+  // the eruption: how long of one cycle a vent erupts, found by testing the real condition every 10 ms
+  let on = 0; const g0 = { phase: 0.37 }; for (let t = 0; t < T.geyserPeriod; t += 0.01) if (sim.geyserOn(g0, t)) on += 0.01;
+  const ok = !perGap.length && seedsAll === n && cnt.every((c) => c > 0) && T.ventH / U >= lob && Math.abs(on - T.geyserOn) < 0.02 && T.geyserOn >= 1.5 && T.geyserH > 250;
+  result('I2 I6 I7', `birds in low, middle and high bands (every seed has all three by 1000 m), drafts at least as tall as a good lob, a geyser erupting at least 1.5 s of its cycle`, `${(birds / gaps).toFixed(2)} birds a gap (bands ${share.join(' / ')} %, ${seedsAll} of ${n} seeds with all three by 1000 m, ${perGap.length} out of band); drafts ${(T.ventH / U).toFixed(0)} m against a Great 45 degree lob of ${lob.toFixed(0)} m; geyser ${on.toFixed(2)} s of ${T.geyserPeriod} s, column ${(T.geyserH / U).toFixed(0)} m`, ok);
+}
+
+// I8: crashes staged where the physics is hardest. Every hill's uphill face and every wafer in the first 8000 m, met by a plain
+// touch, a slam and a glide at many speeds: the mochi's horizontal speed never goes below zero, and after a contact on an
+// uphill face it is at least crashKeep. And a boost while moving backwards pushes forward (PRD v0.4 I5).
+function checkCrash(n) {
+  const rng = makeRng(777), up = BASE;
+  let cases = 0, contacts = 0, bad = 0, low = 0, worst = Infinity;
+  for (let seed = 1; seed <= n; seed++) {
+    const f = sim.makeField(seed); sim.ensureField(f, 8000 * U);
+    const targets = f.ground.filter((g) => (g.kind === 'hill' || g.kind === 'ramp') && g.x0 < 8000 * U).slice(0, 5);
+    for (const g of targets) for (const mode of ['plain', 'slam', 'glide']) for (let k = 0; k < 3; k++) {
+      for (const o of f.ground) o.spent = false; for (const b of f.birds) b.hit = false; for (const c of f.clouds) c.used = false;
+      const r = sim.newRun(seed, { angle: 45, power: 1, zone: 2 }, up, f), face = g.kind === 'hill' ? rng.range(0.05, 0.45) : rng.range(0.02, 0.9);
+      r.x = g.x0 + g.w * face - rng.range(0, 120); r.maxX = r.x; r.vx = rng.range(0, 700); r.vy = -rng.range(150, 900);
+      r.y = sim.surfaceH(g, r.x) + rng.range(40, 260); r.mode = 'air';
+      if (mode === 'slam') sim.condense(r); else if (mode === 'glide') sim.queueInput(r, 0, 'chuteOn');
+      cases++;
+      let first = null, steps = 0;
+      while (!r.ended && steps < 1500 && (first === null || steps - first < 600)) {
+        r.ev.length = 0; sim.stepRun(r); steps++;
+        if (r.vx < 0) { bad++; worst = Math.min(worst, r.vx); }
+        if (first === null && r.ev.some((e) => CONTACT.has(e.k) && e.k !== 'stop')) {
+          first = steps; contacts++;
+          const on = sim.groundAt(f, r.x);
+          if (on && sim.slopeAt(on, r.x) > 0 && r.vx < T.crashKeep - 1e-6 && !r.ended) low++;
+        }
+      }
+    }
+  }
+  // boost while moving backwards (forced state): the push is forward
+  const b = sim.newRun(1, { angle: 45, power: 1, zone: 2 }, up); b.x = 5000; b.maxX = 5000; b.y = 400; b.vx = -300; b.vy = 60; b.boost = true; b.fuel = b.fuelCap = 5;
+  const vx0 = b.vx; for (let i = 0; i < 12; i++) { b.ev.length = 0; sim.stepRun(b); }
+  const pushed = b.vx > vx0 + 20;
+  result('I5 I8', `no contact leaves the mochi moving backwards: crashes staged on every hill's uphill face and wafer (${n} seeds, plain touch, slam and glide), vx never below zero and at least crashKeep ${T.crashKeep} after an uphill contact; a boost while moving backwards pushes forward`, `${cases} crashes, ${contacts} contacts, ${bad} steps with vx below zero${bad ? ` (worst ${worst.toFixed(0)})` : ''}, ${low} uphill contacts under crashKeep; boost from vx ${vx0} gave ${b.vx.toFixed(0)} after 0.1 s`, bad === 0 && low === 0 && contacts > 0 && pushed);
+}
+
+// I8 over the real flights flown so far (the careless and good profiles and the stubborn ones): the longest combo, the kick
+// never past maxSpeed, no flight moving backwards, the speedometer against the distance really covered.
+function checkAudit() {
+  const A = AUDIT;
+  result('I8', `the combo cannot chain forever (every flight ends, kicks fade to the cap ${T.maxSpeed}, jellies and birds once each); the speedometer reads the real speed (against the distance each step really covered); no flight has negative forward speed`, `${A.flights} flights audited: longest combo x${A.comboMax}, ${A.kicks} kicks, ${A.kickBad} past the cap, fastest ${Math.round(A.fastest)}; speed checked on ${A.speedChecked} steps, ${A.speedBad} off, worst ${A.speedWorst.toFixed(3)} km/h; ${A.backSteps} steps with vx below zero (${A.backAfterContact} after a contact) in ${A.backFlights} flights`, A.flights > 0 && A.kickBad === 0 && A.speedBad === 0 && A.backSteps === 0 && A.kicks > 0);
+}
+
 function feel(n) {
   console.log('| profile | median m | p10 | p90 | 500 m | median s | bounces | jellies | glides | slams | boost s |');
   console.log('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
@@ -345,7 +443,10 @@ if (flag('--must') || flag('--fps')) { ran = true; checkFps(flag('--fps') ? nSee
 if (flag('--must') || flag('--careless')) { ran = true; checkCareless(flag('--careless') ? nSeeds(400) : 400); }
 if (flag('--must') || flag('--stuck')) { ran = true; checkStuck(flag('--stuck') ? nSeeds(100) : 100); }
 if (flag('--must') || flag('--steer')) { ran = true; where(checkSteer(flag('--steer') ? nSeeds(100) : 100)); }
-if (flag('--must') || flag('--check')) { ran = true; checkField(flag('--check') ? nSeeds(500) : 500); }
+if (flag('--must') || flag('--check')) { ran = true; checkField(flag('--check') ? nSeeds(500) : 500); checkNew(flag('--check') ? nSeeds(500) : 200); }
+if (flag('--must') || flag('--crash')) { ran = true; checkCrash(flag('--crash') ? nSeeds(60) : 60); }
+if (flag('--combo')) { ran = true; if (!AUDIT.flights) { for (const s of seedList(nSeeds(100))) { carelessFlight(s); goodFlight(s, ANY); } } }
+if (flag('--must') || flag('--combo')) checkAudit();
 if (flag('--feel')) { ran = true; feel(nSeeds(100)); }
 if (flag('--highest')) { ran = true; highest(nSeeds(100)); }
 
@@ -391,7 +492,7 @@ if (flag('--contrast')) {
   result('contrast', 'every object\'s edge at least 3:1 against every place', `lowest ${worst.toFixed(2)}`, worst >= 3);
 }
 
-if (!ran) die('nothing to do: give --must, --fps, --careless, --stuck, --skim, --check, --contrast, --feel or --fly');
+if (!ran) die('nothing to do: give --must, --fps, --careless, --stuck, --steer, --check, --crash, --combo, --contrast, --feel or --fly');
 if (rows.length) {
   console.log('| F | must-hold | result | |');
   console.log('| --- | --- | --- | --- |');
