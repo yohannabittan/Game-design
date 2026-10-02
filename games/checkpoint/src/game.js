@@ -2,7 +2,9 @@
 //
 // Coordinates: play is laid out in design units, 360 wide, scaled to the screen by layout(). The belt takes the left 60 percent; each bag
 // shares a colour tag with a traveller who queues at the top of the lane, stands in the scanner arch while the body scan shows, walks down
-// and waits at the bottom for the bag. Randomness only builds the shift (genShiftSteps, seeded); every tap resolves the same way (ADR-0008).
+// and waits at the bottom for the bag. Only a traveller carrying metal sets off the arch (a two-tone beep and an amber flash of the arch light)
+// and only then does the body scan show; everyone else walks through on a soft green light (PRD v0.2 J). Randomness only builds the shift
+// (genShiftSteps, seeded); every tap resolves the same way (ADR-0008).
 // The shift clock runs in fixed steps (TUNING.simStep): the belt, the walkers, the rush lever, the SWAT slow-motion and the false-alarm lock
 // all live on that clock, so the same seed and tap times give the same shift at any frame rate.
 
@@ -27,14 +29,19 @@ const TUNING = {
   tierBase: [0, 100, 200, 400],           // catch points before the early factor, streak and lever
   missStrikes: [0, 1, 2, 99],             // a missed critical item ends the shift at once
   cleanBase: 20,                          // a clean bag left alone
-  cleanTraveller: 10,                     // a clean traveller left alone
+  cleanTraveller: 10,                     // a beeper with only harmless metal, left alone (a traveller who did not beep pays nothing)
   earlyMax: 3, earlyMin: 0.5,             // a bag catch: x3 entering at the top, x0.5 at the bottom; a body catch: x3 during the scan, x0.5 leaving
   streakSteps: [4, 8, 12, 16],            // x2 to x5 (bags and travellers both count)
   falseLock: 0.6,                         // the time penalty of a false alarm: taps are ignored this long while the traveller grumbles
-  swat: { bonus: 1200, slow: 0.25, slowT: 1.3, len: 3.4, drop: 0.35, tackle: 0.6, drag: 2.5, zoom: 1.4 },   // bonus x early factor; the belt and lane at `slow` for slowT s
+  swat: { bonus: 800, capShare: 0.33, min: 300, slow: 0.25, slowT: 1.3, len: 3.4, drop: 0.35, tackle: 0.6, drag: 2.5, zoom: 1.4 },   // bonus x early factor, the day's SWAT bonuses together capped at capShare of goodDay (a call always pays at least min); the belt and lane at `slow` for slowT s
+  goodDay: [25500, 20500, 16500, 24500, 21000, 21000, 37000, 37000, 29000, 37500],   // a good day's score per day: the fast reader at normal speed, mean of 12 seeds (tools/sim-checkpoint.mjs prints it against the live value); the day's SWAT bonuses together are capped at capShare of it
 
   // PRD v0.2 E and G: the rush lever and the TUNE knobs. Every shift is clearable and three-starrable with the lever up.
-  scanShow: 1.4,                          // s the body scan shows, never shortened by the lever
+  scanShow: 1.4,                          // s the body scan shows (only for a traveller who beeped), never shortened by the lever
+  // PRD v0.2 J: the detector decides whom to check. Only a traveller carrying metal beeps; most beepers carry harmless metal.
+  beepShare: [0.33, 0.35, 0.38, 0.4, 0.42, 0.45, 0.47, 0.5, 0.52, 0.55],   // share of a day's travellers who set off the arch (exact count per day, the cast included)
+  beepCast: { grandma: true, businessman: true, tourist: true },           // recurring characters who always carry harmless metal; Vic beeps only when his contraband is on his body
+  beep: { hz: 6, fade: 0.35 },                                              // arch light: amber flashes per second while the scan shows; fade of either light after the traveller steps out
   rushSpeed: 1.6,                         // belt and lane speed with the lever down ...
   rushMult: 1.5,                          // ... and the score multiplier on everything earned meanwhile
   tune: { belt: 1, pace: 1, occlusion: 0.6 },   // belt speed and traveller pace multipliers; occlusion 0 = v0.1 spacing, 1 = heaviest packing
@@ -52,7 +59,7 @@ const TUNING = {
   //   9    near-full clutter                                                    one pass per bag, one glance per scan
   //   10   rush hour again: everything at once                                  all of the above
   brief: [
-    'Tap contraband. A missed gun ends the day.', 'Leave clean bags and clean people alone.', 'Dense things hide what is under them.', 'Look-alikes are harmless. Read the shape.',
+    'Beep means look. A missed gun ends the day.', 'Green light: leave them be. Clean bags too.', 'Dense things hide what is under them.', 'Look-alikes are harmless. Read the shape.',
     'Bags arrive in bursts.', 'All bag shapes. Catch early for points.', 'Watch under the arms.', 'Explosives on the belt now.', 'Read each bag in one pass.', 'Everything at once.',
   ],
   ranks: [[1, 'Rookie'], [4, 'Officer'], [7, 'Lead officer'], [10, 'Senior officer']],   // first day of each rank
@@ -67,9 +74,9 @@ const TUNING = {
   confusableShare: [0, 0, 0, 0.25, 0.45, 0.2, 0.3, 0.5, 0.15, 0.4],
   newContraband: [['knife', 'scissors', 'gun'], ['hammer', 'lighter'], ['large liquid', 'batteries'], ['fireworks', 'toy gun'], ['taser', 'snow globe'], ['box cutter', 'brass knuckles'], ['multi-tool'], ['explosives'], [], []],
   newBody: [['leg knife'], ['pocket lighter'], [], ['boot blade'], ['belt taser'], ['knuckles'], ['arm gun'], [], [], []],
-  bodyShare: [0, 0.1, 0.12, 0.15, 0.15, 0.18, 0.18, 0.2, 0.2, 0.22],   // share of ordinary travellers carrying body contraband
+  bodyShare: [0, 0.25, 0.25, 0.28, 0.28, 0.3, 0.3, 0.3, 0.3, 0.3],     // share of ordinary beepers carrying body contraband (the rest carry harmless metal)
   bodyGunShare: 0.25,                                                   // of those, how many carry the gun once it is in the pool
-  bodyNormal: [[1, 2], [1, 2], [1, 3], [1, 3], [2, 3], [2, 3], [2, 3], [2, 3], [2, 4], [2, 4]],   // normal body items per traveller
+  bodyNormal: [[1, 2], [1, 2], [1, 3], [1, 3], [2, 3], [2, 3], [2, 3], [2, 3], [2, 4], [2, 4]],   // normal body items per beeper (the first is always metal)
   opener: { shift: 1, contraband: ['scissors'], harmless: ['shirt', 'phone', 'headphones'] },
   // Recurring characters (PRD v0.2 F). Behaviour is flavour, never the tell; only the scans are. Days each one appears:
   cast: { grandma: [1, 3, 5, 7, 9, 10], businessman: [1, 2, 4, 6, 8, 10], tourist: [2, 4, 5, 7, 9], smuggler: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
@@ -107,7 +114,7 @@ const TUNING = {
   hoodH: 34,                              // px of scanner hood over the belt
   lane: { queueY: 64, boothTop: 76, boothH: 250, boothX: 224, boothW: 128, centre: 288, queueStep: 30, spots: [236, 266, 296], spotLift: 14, figW: 24, figH: 56 },
   lever: { x: 310, w: 46, h: 124, lift: 14 },
-  travel: { walk: 120, release: 0.25, firstAt: 1.2, scanFade: 0.35, leave: 0.8 },   // walk units/s; a traveller starts walking when their bag is `release` out of the hood, and never before firstAt s
+  travel: { walk: 120, release: 0.25, firstAt: 1.2, scanFade: 0.35, leave: 0.8, passK: 1.6, archExit: 24 },   // walk units/s; a traveller starts walking when their bag is `release` out of the hood, and never before firstAt s; one who did not beep strides through the arch at passK x; a missed body critical ends the day archExit units past the arch
 
   simStep: 1 / 120,
 
@@ -119,7 +126,7 @@ const TUNING = {
     text: '#dbe7ff', dim: '#7f95b8', star: '#ffd11a', ink: '#15171c', paper: '#efe9dc', paperDim: '#5d564a', pill: 'rgba(7,15,36,0.86)',
     panel: '#12274d', panelOff: '#0a1226', panelOffEdge: '#1a2540', textOff: '#4a5d80',
     rushOff: '#b0701f', button: '#1d4ed8', buttonQuiet: '#334155', buttonMute: '#1f2937', badge: '#0f1c38', badgeHot: '#3a2a08', strikeOn: '#3a0c12',
-    lever: '#ff8a1f', leverOff: '#24324f', swatRed: '#ff2840', swatBlue: '#2f6bff', officer: '#151a24', vest: '#2b3446',
+    lever: '#ff8a1f', leverOff: '#24324f', lampOff: '#1b2b4a', lampAmber: '#ffb020', lampGreen: '#3fcf8a', swatRed: '#ff2840', swatBlue: '#2f6bff', officer: '#151a24', vest: '#2b3446',
     tags: ['#b45cff', '#19c3d6', '#ff6fb5', '#ff9a3c', '#5b7cff', '#f2f2f2'],
   },
   // X-ray materials (PRD v0.2 D): orange organic, green plastic, blue metal, black dense. Fills multiply, so overlaps darken.
@@ -161,7 +168,7 @@ const TUNING = {
     bagFlash: 0.4, screenFlash: 0.08, flashLife: 0.5, fxLife: 0.9, ghostLife: 1.2, cueLift: 14, banner: 1.4, press: 0.96,
     stampFrom: 2.6, stampT: 0.32, endDelay: 1.7, breachDelay: 2.2, bagStamp: 0.25, grumble: 1.3,
     cardButtons: 0.7, cardStars: 0.25, cardCount: 0.8,
-    haptic: { catch: 10, falseAlarm: [25, 45, 25], miss: 80, clear: 20, swat: [40, 30, 90], breach: [120, 60, 120, 60, 200] },
+    haptic: { catch: 10, beep: 15, falseAlarm: [25, 45, 25], miss: 80, clear: 20, swat: [40, 30, 90], breach: [120, 60, 120, 60, 200] },
     hum: { every: 0.2, base: 58, step: 8, maxStreak: 20, gain: 0.05, rush: 1.7, lever: 1.45, leverGain: 1.6 },
     tones: {
       pass: [{ freq: 784, dur: 0.1, type: 'sine', gain: 0.06 }, { freq: 1047, dur: 0.16, type: 'sine', gain: 0.06, delay: 0.08 }],
@@ -169,7 +176,7 @@ const TUNING = {
       miss: { freq: 330, dur: 0.32, type: 'sawtooth', slide: 0.85, gain: 0.16 },
       step: { freq: 520, dur: 0.14, type: 'triangle', gain: 0.1, up: 1.19 },
       rush: { freq: 1400, dur: 0.2, type: 'sine', gain: 0.06, slide: 1.3 },
-      scan: { freq: 1760, dur: 0.05, type: 'sine', gain: 0.035 },
+      beep: [{ freq: 1046, dur: 0.14, type: 'square', gain: 0.07 }, { freq: 784, dur: 0.2, type: 'square', gain: 0.07, delay: 0.16 }],   // falling two-tone: the metal detector
       lever: { freq: 240, dur: 0.18, type: 'square', gain: 0.07, slide: 1.8 },
       leverOff: { freq: 300, dur: 0.16, type: 'square', gain: 0.06, slide: 0.55 },
       siren: { lo: 640, hi: 920, n: 6, every: 0.24, dur: 0.22, type: 'square', gain: 0.07 },
@@ -191,6 +198,7 @@ const arc = (cx, cy, r, a0, a1, n = 10) => Array.from({ length: n + 1 }, (_, i) 
 const band = (cx, cy, r, w, a0, a1, n = 10) => [...arc(cx, cy, r, a0, a1, n), ...arc(cx, cy, r - w, a1, a0, n)];
 const ring = (cx, cy, r, w) => band(cx, cy, r, w, 0, 359.9, 14);
 const rrect = (x, y, w, h, r) => [...arc(x + w - r, y + r, r, -90, 0, 3), ...arc(x + w - r, y + h - r, r, 0, 90, 3), ...arc(x + r, y + h - r, r, 90, 180, 3), ...arc(x + r, y + r, r, 180, 270, 3)];
+const gear = (cx, cy, ro, ri, n) => Array.from({ length: n * 2 }, (_, i) => { const a = (i / (n * 2)) * Math.PI * 2, r = i % 2 ? ri : ro; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; });
 const crimp = (x0, x1, y, dy, n) => Array.from({ length: n + 1 }, (_, i) => [x0 + ((x1 - x0) * i) / n, y + (i % 2 ? dy : 0)]);
 
 // ---------- the item table (PRD v0.1 9, v0.2 D) ----------
@@ -203,7 +211,8 @@ const ITEM_DATA = [
   { name: 'knife', tier: 2, parts: [[O, rrect(-38, -6, 26, 12, 4)], [M, rect(-13, -11, 5, 22)], [M, [[-8, -8], [20, -8], [40, 4], [-8, 4]]]], tell: [2, 1], lines: [[D, [-32, 0, -31, 0]], [D, [-20, 0, -19, 0]]] },
   { name: 'scissors', tier: 1, parts: [[PL, ring(-30, -12, 10, 4)], [PL, ring(-30, 12, 10, 4)], [M, taper(-22, -7, 40, 13, 8, 2)], [M, taper(-22, 7, 40, -13, 8, 2)], [D, ell(0, 0, 3.5, 3.5, 8)]], tell: [2, 3, 4] },
   { name: 'gun', tier: 3, parts: [[D, rect(-34, -16, 64, 13)], [M, rect(30, -14, 6, 9)], [D, rect(-30, -3, 40, 7)], [D, [[-30, -3], [-12, -3], [-6, 26], [-24, 26]]], [M, band(2, 4, 9, 3, 0, 180)], [M, rect(0, 3, 3, 8)]], tell: [0, 1, 4] },
-  { name: 'lighter', tier: 1, parts: [[PL, rrect(-10, -6, 20, 36, 4)], [M, rect(-10, -18, 20, 12)], [M, ell(-3, -23, 6.5, 6.5, 12)], [M, rect(4, -24, 7, 6)]], tell: [1, 2], lines: [[PL, [0, -4, 0, 26]], [M, [-6, -14, -6, -10]], [M, [0, -14, 0, -10]], [M, [6, -14, 6, -10]]] },
+  // the lighter: a body with its fuel showing, a metal shield-shaped hood with its jet, and a big toothed flint wheel standing proud on top (a cog on a stick, never a bottle)
+  { name: 'lighter', tier: 1, parts: [[PL, rrect(-13, -2, 26, 38, 5)], [O, rect(-10, 17, 20, 15)], [M, [[-13, -2], [13, -2], [13, -14], [8, -19], [-13, -19]]], [M, gear(6, -26, 12.5, 10.5, 14)], [M, rect(-11, -33, 5, 15)], [D, ell(6, -26, 3, 3, 8)]], tell: [2, 3], lines: [[M, [-7, -15, -7, -8]], [M, [-1, -15, -1, -8]]] },
   { name: 'large liquid', tier: 1, parts: [[O, rect(-20, -16, 40, 50)], [O, [[-20, -16], [-8, -24], [8, -24], [20, -16]]], [O, rect(-7, -32, 14, 8)], [PL, rect(-9, -40, 18, 8)]], tell: [0, 1, 2], lines: [[O, [-20, -4, 20, -4]]] },
   { name: 'batteries', tier: 1, parts: [[M, rect(-24, -16, 14, 40)], [D, rect(-20, -20, 6, 4)], [M, rect(-7, -22, 14, 40)], [D, rect(-3, -26, 6, 4)], [M, rect(10, -16, 14, 40)], [D, rect(14, -20, 6, 4)]], tell: [0, 2, 4] },
   { name: 'fireworks', tier: 2, parts: [[O, rect(-8, -24, 16, 36)], [O, [[-8, -24], [0, -40], [8, -24]]], [PL, [[-8, 4], [-15, 15], [-8, 12]]], [PL, [[8, 4], [15, 15], [8, 12]]], [O, rect(-1.5, 12, 3, 30)]], tell: [0, 1], lines: [[O, [-8, -10, 8, -10]], [O, [-8, 0, 8, 0]]] },
@@ -276,7 +285,7 @@ const BODY_DATA = [
   { name: 'boot blade', label: 'blade in the boot', item: 'knife', tier: 2, slot: 'boot', pos: [-14, 90], rot: -8, parts: [[M, [[-2, -14], [3, -14], [3, 6], [-2, 10]]], [D, rect(-3, 6, 6, 6)]] },
   { name: 'belt taser', label: 'taser on the belt', item: 'taser', tier: 2, slot: 'hip', pos: [21, -2], parts: [[PL, rect(-6, -9, 12, 18)], [D, rect(-4, -6, 8, 8)], [M, rect(-4, 9, 2, 5)], [M, rect(2, 9, 2, 5)]] },
   { name: 'knuckles', label: 'brass knuckles', item: 'brass knuckles', tier: 2, slot: 'hand', pos: [31, -117], parts: [[M, ring(-4.5, -3, 3, 1.4)], [M, ring(0, -3, 3, 1.4)], [M, ring(4.5, -3, 3, 1.4)], [M, rrect(-7, 0, 14, 4, 2)]] },
-  { name: 'pocket lighter', label: 'lighter in a pocket', item: 'lighter', tier: 1, slot: 'pocketL', pos: [-13, 24], parts: [[PL, rrect(-3.5, -4, 7, 14, 1.5)], [M, rect(-3.5, -8, 7, 4)], [M, ell(-1, -10, 2.5, 2.5, 8)]] },
+  { name: 'pocket lighter', label: 'lighter in a pocket', item: 'lighter', tier: 1, slot: 'pocketL', pos: [-13, 24], parts: [[PL, rrect(-3.5, -3, 7, 13, 1.5)], [M, rect(-3.5, -7, 7, 4)], [M, gear(2, -9.5, 4.2, 3.4, 9)], [M, rect(-3.5, -12, 2, 6)]] },
 ];
 
 // ---------- geometry ----------
@@ -357,7 +366,7 @@ const ITEMS = ITEM_DATA.map((d) => {
 });
 const BY_NAME = Object.fromEntries(ITEMS.map((i) => [i.name, i]));
 const HARMLESS = ITEMS.filter((i) => !i.contraband);
-const BODY = BODY_DATA.map((d) => ({ tier: 0, rot: 0, label: d.name, ...d, parts: d.parts.map(([m, poly]) => [m, scalePts(poly, T.bodyScale)]), contraband: (d.tier || 0) > 0 }));
+const BODY = BODY_DATA.map((d) => ({ tier: 0, rot: 0, label: d.name, ...d, parts: d.parts.map(([m, poly]) => [m, scalePts(poly, T.bodyScale)]), contraband: (d.tier || 0) > 0, metal: d.parts.some(([m]) => m === M) }));
 const BODY_BY_NAME = Object.fromEntries(BODY.map((b) => [b.name, b]));
 const BODY_NORMAL = BODY.filter((b) => !b.contraband);
 
@@ -521,27 +530,34 @@ function castOf(rng, shift, kinds) {
   }
   return out;
 }
-// The travellers: one per bag, with body items in their slots. Setup only, from its own seeded stream so bags never change with them.
+// The travellers: one per bag. Only a traveller carrying metal beeps and has body items to show (PRD v0.2 J); the rest have none. Setup only,
+// from its own seeded stream so bags never change with them.
 function makeTravellers(seed, shift, cast, n) {
-  const rng = makeRng((seed ^ 0x2545f491) >>> 0), P = T.people, out = [], pool = bodyPool(shift).map((b) => BODY_BY_NAME[b]);
+  const rng = makeRng((seed ^ 0x2545f491) >>> 0), P = T.people, out = [], pool = bodyPool(shift).map((b) => BODY_BY_NAME[b]), smug = T.smuggler[shift - 1];
+  // Who beeps: the cast by their rule, then ordinary travellers by an exact count, so a day's share is what the table says.
+  const beepers = new Set();
+  for (let i = 0; i < n; i++) if (cast[i] && (T.beepCast[cast[i]] || (cast[i] === 'smuggler' && smug.body))) beepers.add(i);
+  const ordinary = rng.shuffle(Array.from({ length: n }, (_, i) => i).filter((i) => !cast[i]));
+  for (const i of ordinary.slice(0, clamp(Math.round(T.beepShare[shift - 1] * n) - beepers.size, 0, ordinary.length))) beepers.add(i);
   for (let i = 0; i < n; i++) {
     const who = cast[i] || null, ch = who ? T.characters[who] : null;
     const look = ch ? { ...ch } : { coat: rng.pick(P.coat), skin: rng.pick(P.skin), hair: rng.pick(P.hair), sweat: rng.chance(P.flavour), glance: rng.chance(P.flavour), shades: rng.chance(P.flavour) };
-    let contra = [];
-    if (who === 'smuggler') contra = (T.smuggler[shift - 1].body || []).map((b) => BODY_BY_NAME[b]);
-    else if (!who && pool.length && rng.chance(T.bodyShare[shift - 1])) {
-      const gun = pool.find((b) => b.tier === 3), rest = pool.filter((b) => b.tier < 3);
-      contra = [gun && (!rest.length || rng.chance(T.bodyGunShare)) ? gun : rng.pick(rest)];
+    let contra = [], normal = [];
+    if (beepers.has(i)) {
+      if (who === 'smuggler') contra = (smug.body || []).map((b) => BODY_BY_NAME[b]);
+      else if (!who && pool.length && rng.chance(T.bodyShare[shift - 1])) {
+        const gun = pool.find((b) => b.tier === 3), rest = pool.filter((b) => b.tier < 3);
+        contra = [gun && (!rest.length || rng.chance(T.bodyGunShare)) ? gun : rng.pick(rest)];
+      }
+      const [lo, hi] = T.bodyNormal[shift - 1], slots = new Set(contra.map((b) => b.slot));
+      if (who === 'grandma') normal = ['hair clip', 'glasses', 'earrings', 'knee brace'].map((b) => BODY_BY_NAME[b]);
+      else if (who === 'businessman') normal = ['wristwatch', 'belt buckle', 'keys', 'phone'].map((b) => BODY_BY_NAME[b]);
+      else if (who === 'tourist') normal = ['coins', 'wristwatch', 'zipper'].map((b) => BODY_BY_NAME[b]);
+      else { const first = rng.pick(BODY_NORMAL.filter((b) => b.metal)); normal = [first, ...rng.shuffle(BODY_NORMAL.filter((b) => b !== first))]; }   // the first is metal: that is what set off the arch
+      normal = normal.filter((b) => { if (slots.has(b.slot)) return false; slots.add(b.slot); return true; }).slice(0, who ? 4 : rng.int(lo, hi));
     }
-    const [lo, hi] = T.bodyNormal[shift - 1], slots = new Set(contra.map((b) => b.slot));
-    let normal = [];
-    if (who === 'grandma') normal = ['hair clip', 'glasses', 'earrings', 'knee brace'].map((b) => BODY_BY_NAME[b]);
-    else if (who === 'businessman') normal = ['wristwatch', 'belt buckle', 'keys', 'phone'].map((b) => BODY_BY_NAME[b]);
-    else if (who === 'tourist') normal = ['coins', 'wristwatch', 'zipper'].map((b) => BODY_BY_NAME[b]);
-    else normal = rng.shuffle(BODY_NORMAL.slice()).slice(0, rng.int(lo, hi) + 2);
-    normal = normal.filter((b) => { if (slots.has(b.slot) || (b.slot === 'pocketR' && slots.has('pocketR'))) return false; slots.add(b.slot); return true; }).slice(0, who ? 4 : rng.int(lo, hi));
     const body = [...normal, ...contra].map((def) => ({ def, name: def.name, tier: def.tier, contraband: def.contraband, x: def.pos[0], y: def.pos[1], parts: def.parts.map(([, poly]) => poly.map(xform(def.pos[0], def.pos[1], def.rot))), state: 0 }));
-    out.push({ idx: i, who, look, tag: T.palette.tags[i % T.palette.tags.length], body });
+    out.push({ idx: i, who, look, tag: T.palette.tags[i % T.palette.tags.length], body, beeps: body.some((b) => b.def.metal) });
   }
   return out;
 }
@@ -679,7 +695,7 @@ function startShift(E, shift, seed) {
     ended: null, endT: 0, finished: false, H: L.H, exitY: L.B, fx: [], ghosts: [], ripples: [], stamp: null, flashT: 0, flashColor: '', log: [],
     bannerT: 0, humT: 0, scorePop: 0, badgePop: 0, lastMult: 1, streakMax: 0, frames: 0, timed: 0, slow: 0, missNames: [], faNames: [],
     lever: false, leverT: 0, leverAnim: 0, leverTime: 0, lockUntil: 0, slowT: 0, swats: [], swatCount: 0, bodyCatches: 0, bodyMisses: 0, breach: null, alarmT: 0, sirenT: 0, sirenN: 0,
-    arch: null, vicCaught: false, travellers: [],
+    arch: null, lamp: null, beeps: 0, swatPaid: 0, vicCaught: false, travellers: [],
     bags: g.bags.map((b, i) => ({
       ...b, idx: i, y0: first - offsets[i], y: 0,
       pending: b.items.filter((it) => it.contraband).length, touched: false, missed: false, resolved: false, settled: false, gone: false,
@@ -689,7 +705,7 @@ function startShift(E, shift, seed) {
   for (const b of S.bags) b.y = b.y0;
   S.travellers = g.travellers.map((t, i) => ({
     ...t, bag: S.bags[i], state: 'queue', x: LA.centre + LA.queueStep * 3, y: L.queueY, t: 0, scanT0: -1, fadeT: 0, spot: -1, stopped: false, touched: false,
-    resolved: false, pending: t.body.filter((b) => b.contraband).length, grumbleT: 0, fa: null, alpha: 0, swat: null, scanned: false, spr: null,
+    resolved: false, pending: t.body.filter((b) => b.contraband).length, grumbleT: 0, fa: null, alpha: 0, swat: null, scanned: false, archDone: false, spr: null,
   }));
   for (const tr of S.travellers) tr.bag.tr = tr;
 }
@@ -722,9 +738,10 @@ function endShift(E, result, item) {
   const rec = readShifts(E)[S.shift] || { best: 0, stars: 0 };
   const unlocked = clear ? E.save.set('unlocked', Math.max(readUnlocked(E), clampUnlocked(S.shift + 1))) : readUnlocked(E);
   const career = E.save.update('career', (c) => { const x = cleanCareer(c); x.swats += S.swatCount; x.vic += S.vicCaught ? 1 : 0; x.breaches += result === 'breach' ? 1 : 0; return x; }, {});
-  S.result = { shift: S.shift, seed: S.seed, unlocked, result, score: S.score, strikes: Math.min(S.strikes, T.strikesMax), stars, best: Math.max(rec.best, S.score), isNew: S.score > rec.best, catches: S.catches, falseAlarms: S.falseAlarms, misses: S.misses, time: S.time, swats: S.swatCount, vic: S.vicCaught, breachItem: item || '', rank: rankOf(S.shift), career };
-  E.save.update('shifts', (all) => ({ ...cleanShifts(all), [S.shift]: { best: S.result.best, stars: Math.max(rec.stars, stars) } }), {});
-  if (E.ledger) E.ledger.add('shift', { shift: S.shift, seed: S.seed, result, score: S.score, strikes: S.strikes, missed: S.misses, falseAlarms: S.falseAlarms, stars, catches: S.catches, passes: S.passes, bags: S.bags.filter((b) => b.resolved).length, time: +S.time.toFixed(1), streakMax: S.streakMax, swats: S.swatCount, bodyCatches: S.bodyCatches, bodyMisses: S.bodyMisses, lever: +(S.leverTime / Math.max(1e-9, S.time)).toFixed(3), breach: item || '', slow: +(S.slow / Math.max(1, S.timed)).toFixed(3), dpr: +(E.dpr || 1).toFixed(2), missedItems: S.missNames.join(','), falseItems: S.faNames.join(','), occlusion: T.tune.occlusion, beltK: T.tune.belt, pace: T.tune.pace, scanShow: T.scanShow });
+  const best = clear ? Math.max(rec.best, S.score) : rec.best;   // a best counts only on a cleared day
+  S.result = { shift: S.shift, seed: S.seed, unlocked, result, score: S.score, strikes: Math.min(S.strikes, T.strikesMax), stars, best, isNew: clear && S.score > rec.best, catches: S.catches, falseAlarms: S.falseAlarms, misses: S.misses, time: S.time, swats: S.swatCount, vic: S.vicCaught, breachItem: item || '', rank: rankOf(S.shift), career };
+  E.save.update('shifts', (all) => ({ ...cleanShifts(all), [S.shift]: { best, stars: Math.max(rec.stars, stars) } }), {});
+  if (E.ledger) E.ledger.add('shift', { shift: S.shift, seed: S.seed, result, score: S.score, strikes: S.strikes, missed: S.misses, falseAlarms: S.falseAlarms, stars, catches: S.catches, passes: S.passes, bags: S.bags.filter((b) => b.resolved).length, time: +S.time.toFixed(1), streakMax: S.streakMax, swats: S.swatCount, beeps: S.beeps, bodyCatches: S.bodyCatches, bodyMisses: S.bodyMisses, lever: +(S.leverTime / Math.max(1e-9, S.time)).toFixed(3), breach: item || '', slow: +(S.slow / Math.max(1, S.timed)).toFixed(3), dpr: +(E.dpr || 1).toFixed(2), missedItems: S.missNames.join(','), falseItems: S.faNames.join(','), occlusion: T.tune.occlusion, beltK: T.tune.belt, pace: T.tune.pace, scanShow: T.scanShow });
   S.log.push({ t: S.time, e: result });
   S.stamp = { text: clear ? 'CLEARED' : result === 'breach' ? 'BREACH' : 'SHIFT OVER', color: clear ? P.clean : P.catch, t: 0 };
   prepare(S.shift, S.seed);
@@ -749,18 +766,19 @@ function bagDone(E, b, ok) { b.resolved = true; if (ok) correct(E); resolved(E);
 // SWAT: officers drop on the traveller, the belt and lane slow to a crawl for a beat, sirens, a big bonus (larger the earlier the catch).
 function callSwat(E, tr, early) {
   if (!tr || tr.swat) return;
-  const pts = Math.round(T.swat.bonus * early * scoreMult());
-  S.score += pts; S.swatCount++;
+  const raw = Math.round(T.swat.bonus * early * scoreMult()), pts = Math.min(raw, Math.max(swatBudget() - S.swatPaid, T.swat.min));
+  S.score += pts; S.swatPaid += pts; S.swatCount++;
   const L = layout(E);
-  tr.swat = { t: 0, x: tr.x, y: tr.state === 'scan' ? L.boothTop + LA.boothH * 0.62 : tr.y, pts, line: rngLine(tr.idx) };
+  tr.swat = { t: 0, x: tr.x, y: tr.state === 'scan' && tr.beeps ? L.boothTop + LA.boothH * 0.62 : tr.y, pts, line: rngLine(tr.idx) };
   S.swats.push(tr);
   S.slowT = T.swat.slowT; S.sirenT = 0; S.sirenN = J.tones.siren.n;
-  if (S.arch === tr) S.arch = null;
+  if (S.arch === tr) { S.arch = null; if (S.lamp) S.lamp.off = 0; }
   E.shake(...J.shake.swat); E.haptic(J.haptic.swat); E.audio.play('boom');
   S.bannerT = J.banner; S.banner = { text: 'SWAT', color: P.swatRed };
   addFx(`SWAT +${pts}`, tr.x, tr.y - 70, P.catch, true);
   S.log.push({ t: S.time, e: 'swat', who: tr.idx, pts });
 }
+const swatBudget = () => Math.round(T.swat.capShare * T.goodDay[S.shift - 1]);   // all of a day's SWAT bonuses together
 const rngLine = (i) => ['Freeze!', 'Hands up!', 'Down! Now!'][i % 3];
 function catchItem(E, b, it) {
   const L = layout(E), f = clamp((b.y + it.y) / S.exitY, 0, 1), early = T.earlyMax + (T.earlyMin - T.earlyMax) * f;
@@ -843,6 +861,31 @@ function bodyEarly(tr) {
   return T.earlyMax + (T.earlyMin - T.earlyMax) * k;
 }
 const walkOutTime = (tr) => Math.max(0.1, tr.walkLen / T.travel.walk);
+// A missed body critical ends the day as the traveller leaves the arch area, not the lane; lesser items are judged when they leave the lane.
+function archExit(E, tr) {
+  tr.archDone = true;
+  const crit = tr.stopped || tr.swat ? null : tr.body.find((b) => b.contraband && b.state === 0 && b.tier >= 3);
+  if (!crit) return false;
+  crit.state = 3; tr.pending--; S.bodyMisses++;
+  missCost(E, crit.tier, crit.def.label, { body: crit, tr, t: 0, label: `Missed: ${crit.def.label}`, item: crit.def.item || crit.name });
+  return true;
+}
+// The arch: a traveller with metal sets off a two-tone beep and flashes the light amber; anyone else gets a soft green light.
+function archIn(E, tr) {
+  S.lamp = { kind: tr.beeps ? 'beep' : 'clear', t: 0, off: -1 };
+  if (!tr.beeps) return;
+  for (const t of J.tones.beep) tone(E, t);
+  E.haptic(J.haptic.beep); S.beeps++;
+}
+function archOut(L, tr, shown) {
+  const TV = T.travel;
+  tr.state = 'walkOut'; tr.t = 0; S.arch = null; if (S.lamp) S.lamp.off = 0;
+  tr.fadeT = shown ? TV.scanFade : 0;
+  const taken = new Set(S.travellers.filter((o) => o !== tr && (o.state === 'walkOut' || o.state === 'wait') && !o.swat).map((o) => o.spot));
+  tr.spot = [0, 1, 2].find((k) => !taken.has(k)) ?? tr.idx % 3;
+  tr.x = LA.centre; tr.y = L.boothBot; tr.fromX = tr.x; tr.fromY = tr.y;
+  tr.walkLen = Math.hypot(LA.spots[tr.spot] - tr.x, L.spotY - tr.y);
+}
 function leaveLane(E, tr) {
   tr.state = 'leave'; tr.t = 0; tr.resolved = true;
   if (tr.stopped || tr.swat) { resolved(E); return; }
@@ -854,7 +897,7 @@ function leaveLane(E, tr) {
     if (!S.ended) resolved(E);
     return;
   }
-  if (!tr.touched) {
+  if (!tr.touched && tr.beeps) {
     const pts = Math.round(T.cleanTraveller * scoreMult());
     S.score += pts; S.passes++;
     S.log.push({ t: S.time, e: 'passT', pts });
@@ -879,25 +922,20 @@ function laneStep(E, L, dt, walk) {
       }
       case 'walkIn': {
         const tx = LA.centre, ty = L.boothTop + 20, d = Math.hypot(tx - tr.x, ty - tr.y), st = walk * dt;
-        if (d <= st) { tr.x = tx; tr.y = ty; tr.state = 'scan'; tr.t = 0; tr.scanT0 = S.time; tr.scanned = true; tone(E, J.tones.scan); }
+        if (d <= st) { tr.x = tx; tr.y = ty; tr.state = 'scan'; tr.t = 0; tr.scanT0 = S.time; tr.scanned = true; archIn(E, tr); }
         else { tr.x += ((tx - tr.x) / d) * st; tr.y += ((ty - tr.y) / d) * st; }
         break;
       }
       case 'scan':
         tr.t += dt;   // the scan time is not scaled by the lever or the slow-motion: every body item shows at least scanShow
-        if (tr.t >= T.scanShow) {
-          tr.shownFor = tr.t;
-          tr.state = 'walkOut'; tr.t = 0; S.arch = null; tr.fadeT = TV.scanFade;
-          const taken = new Set(S.travellers.filter((o) => o !== tr && (o.state === 'walkOut' || o.state === 'wait') && !o.swat).map((o) => o.spot));
-          tr.spot = [0, 1, 2].find((k) => !taken.has(k)) ?? tr.idx % 3;
-          tr.x = LA.centre; tr.y = L.boothBot; tr.fromX = tr.x; tr.fromY = tr.y;
-          tr.walkLen = Math.hypot(LA.spots[tr.spot] - tr.x, L.spotY - tr.y);
-        }
+        if (tr.beeps) { if (tr.t >= T.scanShow) { tr.shownFor = tr.t; archOut(L, tr, true); } }
+        else { const st = walk * TV.passK * dt; if (L.boothBot - tr.y <= st) archOut(L, tr, false); else tr.y += st; }
         break;
       case 'walkOut': {
         tr.t += dt * (walk / TV.walk);
         const tx = LA.spots[tr.spot], ty = L.spotY - (taken2(tr) ? 18 : 0), d = Math.hypot(tx - tr.x, ty - tr.y), st = walk * dt;
         if (d <= st) { tr.x = tx; tr.y = ty; tr.state = 'wait'; tr.t = 0; } else { tr.x += ((tx - tr.x) / d) * st; tr.y += ((ty - tr.y) / d) * st; }
+        if (!tr.archDone && tr.y >= L.boothBot + TV.archExit && archExit(E, tr)) return;
         break;
       }
       case 'wait':
@@ -969,7 +1007,7 @@ function tapBelt(E, px, py) {
   else if (!flagged && h) falseAlarm(E, h[0], h[1]);
 }
 function tapLane(E, px, py) {
-  const L = layout(E), sc = L.scan, cur = S.travellers.find((t) => scanOn(t) && !t.swat);
+  const L = layout(E), sc = L.scan, cur = S.travellers.find((t) => scanOn(t) && t.beeps && !t.swat);
   if (cur && px >= sc.x && px <= sc.x + sc.w && py >= sc.y && py <= sc.y + sc.h) {
     if (cur.stopped || cur.touched) return;
     const lx = (px - sc.cx) / sc.k, ly = (py - sc.cy) / sc.k, m = T.bodyHit / sc.k;
@@ -986,7 +1024,7 @@ function tapLane(E, px, py) {
   const fw = LA.figW / 2 + T.figureHit, fh = LA.figH + T.figureHit;
   let best = null, bd = Infinity;
   for (const tr of S.travellers) {
-    if (!tr.scanned || tr.swat || tr.stopped || tr.touched || tr.state === 'leave' || tr.state === 'gone' || tr.state === 'scan') continue;
+    if (!tr.scanned || tr.swat || tr.stopped || tr.touched || tr.state === 'leave' || tr.state === 'gone' || (tr.state === 'scan' && tr.beeps)) continue;
     if (Math.abs(px - tr.x) > fw || py > tr.y + T.figureHit || py < tr.y - fh) continue;
     const d = Math.hypot(px - tr.x, py - (tr.y - LA.figH / 2));
     if (d < bd) { bd = d; best = tr; }
@@ -1061,7 +1099,7 @@ function ensureSprites(E, L) {
     if (b.y < -T.sprite.ahead * 4 - b.h * 2) break;
     if (!bagSpriteOk(E, L, b)) { if (n-- <= 0) return; makeBagSprite(E, L, b, T.sprite.items); return; }
   }
-  for (const tr of S.travellers) if ((tr.state === 'walkIn' || tr.state === 'queue') && tr === S.travellers.find((t) => t.state === 'queue' || t.state === 'walkIn') && !scanSpriteOk(E, L, tr)) { if (n-- <= 0) return; makeScanSprite(E, L, tr); }
+  for (const tr of S.travellers) if (tr.beeps && (tr.state === 'walkIn' || tr.state === 'queue') && tr === S.travellers.find((t) => t.state === 'queue' || t.state === 'walkIn') && !scanSpriteOk(E, L, tr)) { if (n-- <= 0) return; makeScanSprite(E, L, tr); }
 }
 
 function drawBelt(ctx, E, L) {
@@ -1129,6 +1167,20 @@ function drawLaneBase(ctx, E, L) {
   ctx.fillStyle = P.boothHi; ctx.fillRect(bx - 4, by - 16, bw + 8, 2); ctx.fillRect(bx - 4, by - 14, 2, bh + 14); ctx.fillRect(bx + bw + 2, by - 14, 2, bh + 14);
   ctx.fillStyle = alpha(P.boothHi, 0.12); ctx.fillRect(bx - 10, by + bh, bw + 20, 6);
 }
+// The arch light on the top beam: amber flashes with the beep (and frames the scan), a soft green says nothing to check. Both fade after the traveller steps out.
+function drawLamp(ctx, L) {
+  const bx = LA.boothX, bw = LA.boothW, by = L.boothTop, lp = S.lamp, sc = L.scan;
+  ctx.fillStyle = P.lampOff; ctx.fillRect(bx + 6, by - 13, bw - 12, 9);
+  if (!lp) return;
+  const fade = lp.off < 0 ? 1 : Math.max(0, 1 - lp.off / T.beep.fade), beep = lp.kind === 'beep', k = fade * (beep ? (Math.floor(lp.t * T.beep.hz) % 2 === 0 ? 1 : 0.3) : 0.75);
+  if (k <= 0) return;
+  ctx.fillStyle = beep ? P.lampAmber : P.lampGreen;
+  ctx.globalAlpha = k; ctx.fillRect(bx + 6, by - 13, bw - 12, 9);
+  ctx.globalAlpha = k * 0.22; ctx.fillRect(bx - 8, by - 28, bw + 16, 38);
+  ctx.globalAlpha = k * (beep ? 0.55 : 0.3); ctx.fillRect(bx - 4, by - 14, 8, LA.boothH + 14); ctx.fillRect(bx + bw - 4, by - 14, 8, LA.boothH + 14);
+  if (beep) { ctx.globalAlpha = k; ctx.fillRect(sc.x - 3, sc.y - 3, sc.w + 6, 3); ctx.fillRect(sc.x - 3, sc.y + sc.h, sc.w + 6, 3); ctx.fillRect(sc.x - 3, sc.y, 3, sc.h); ctx.fillRect(sc.x + sc.w, sc.y, 3, sc.h); }
+  ctx.globalAlpha = 1;
+}
 // The body scan: the screen, the hands-up silhouette, then the body items where they are worn, all in the X-ray palette.
 let silPath = null;
 function paintScan(c, tr, w, h, cx, cy, k) {
@@ -1157,10 +1209,12 @@ function makeScanSprite(E, L, tr) {
   c.scale(k, k); paintScan(c, tr, sc.w, sc.h, sc.cx - sc.x, sc.cy - sc.y, sc.k);
   tr.spr = { cv: freeze(cv), k };
 }
+// The body scan shows only for a traveller who beeped (PRD v0.2 J1): its opacity is 0 for everyone else.
+const scanAlpha = (tr) => (!tr.beeps ? 0 : tr.state === 'scan' && !tr.swat ? Math.min(1, tr.t / 0.12) : tr.fadeT > 0 ? tr.fadeT / T.travel.scanFade : 0);
 function drawScan(ctx, E, L) {
   const sc = L.scan;
   for (const tr of S.travellers) {
-    const on = tr.state === 'scan' && !tr.swat, a = on ? Math.min(1, tr.t / 0.12) : tr.fadeT > 0 ? tr.fadeT / T.travel.scanFade : 0;
+    const on = tr.state === 'scan' && !tr.swat, a = scanAlpha(tr);
     if (a <= 0) continue;
     ctx.globalAlpha = a;
     if (!scanSpriteOk(E, L, tr)) makeScanSprite(E, L, tr);
@@ -1210,10 +1264,10 @@ function personSprite(E, L, tr) {
   return tr.fig;
 }
 function drawTravellers(ctx, E, L) {
-  const list = S.travellers.filter((t) => t.state !== 'gone' && t.state !== 'scan' && (t.state !== 'queue' || t.x < T.designW + 12)).sort((a, b) => a.y - b.y);
+  const list = S.travellers.filter((t) => t.state !== 'gone' && (t.state !== 'scan' || !t.beeps) && (t.state !== 'queue' || t.x < T.designW + 12)).sort((a, b) => a.y - b.y);
   for (const tr of list) {
     if (tr.swat) continue;
-    const walking = tr.state === 'walkIn' || tr.state === 'walkOut' || tr.state === 'leave' || (tr.state === 'queue' && Math.abs(tr.x - (LA.centre)) > 1);
+    const walking = tr.state === 'walkIn' || tr.state === 'walkOut' || tr.state === 'leave' || tr.state === 'scan' || (tr.state === 'queue' && Math.abs(tr.x - (LA.centre)) > 1);
     const a = tr.state === 'leave' ? 1 - clamp(tr.t / T.travel.leave, 0, 1) : 1;
     if (a <= 0) continue;
     ctx.globalAlpha = a;
@@ -1302,9 +1356,9 @@ function drawHood(E, L) {
     }
     ctx.drawImage(hoodTex.cv, x, L.hud, w, h + 8);
   } else { ctx.save(); ctx.translate(0, L.hud); paintHood(ctx, x, w, h); ctx.restore(); }
-  if (S.rush) txt(E, 'RUSH', x + w - 14, (L.hud + L.top) / 2 - 2, TY.small, P.organic, { align: 'right', alpha: 0.6 + 0.4 * Math.sin(E.time * 6) });
+  if (S.rush && !(S.bannerT > 0)) txt(E, 'RUSH', x + w - 14, (L.hud + L.top) / 2 - 2, TY.small, P.organic, { align: 'right', alpha: 0.6 + 0.4 * Math.sin(E.time * 6) });
   const who = S.travellers.find((t) => t.state === 'scan' && t.who);
-  if (who) txt(E, T.characters[who.who].name, L.ox + (LA.boothX + LA.boothW / 2) * L.s, (L.boothTop - 9) * L.s, TY.small, P.text);
+  if (who) txt(E, T.characters[who.who].name, L.ox + (LA.boothX + LA.boothW / 2) * L.s, (L.boothBot + 14) * L.s, TY.small, P.text);
 }
 
 function drawHud(E, L) {
@@ -1349,6 +1403,8 @@ function pill(E, text, x, y, size, color, a) {
   txt(E, text, x, y, size, color, { alpha: a });
 }
 
+// Banners (RUSH HOUR, SWAT) sit in the hood strip above the belt, so they never cover the belt's top band where bags come in; the pill is size + 12 tall.
+const bannerSpot = (L) => ({ x: L.ox + (T.beltW * L.s) / 2, y: (L.hud + L.top) / 2, size: TY.medium });
 const prune = (list, life) => { for (let i = list.length - 1; i >= 0; i--) if (list[i].t >= life) list.splice(i, 1); };
 
 const play = {
@@ -1370,6 +1426,7 @@ const play = {
     prune(S.ripples, J.ripple);
     if (S.flashT > 0) S.flashT -= dt;
     if (S.bannerT > 0) S.bannerT -= dt;
+    if (S.lamp) { S.lamp.t += dt; if (S.lamp.off >= 0) S.lamp.off += dt; }
     if (S.stamp) S.stamp.t += dt;
     S.leverAnim += ((S.lever ? 1 : 0) - S.leverAnim) * Math.min(1, dt * 14);
     for (const b of S.bags) {
@@ -1419,6 +1476,7 @@ const play = {
     drawBelt(ctx, E, L);
     for (const b of S.bags) if (!b.gone && b.y < L.H && b.y + b.h >= 0 && !(b.trayT >= J.tray + J.bagStamp)) drawBag(ctx, E, L, b);
     drawLaneBase(ctx, E, L);
+    drawLamp(ctx, L);
     drawScan(ctx, E, L);
     drawTravellers(ctx, E, L);
     drawSwat(ctx, E, L);
@@ -1448,12 +1506,7 @@ const play = {
       pill(E, f.text, 0, 0, f.big ? TY.large : TY.medium, f.color, 1 - k * k);
       ctx.restore();
     }
-    if (S.bannerT > 0 && S.banner) {
-      const k = S.bannerT / J.banner, sc = 1 + 0.25 * Math.max(0, k - 0.7) / 0.3;
-      ctx.save(); ctx.translate(E.w / 2, L.top + 44); ctx.scale(sc, sc);
-      pill(E, S.banner.text, 0, 0, TY.large, S.banner.color, Math.min(1, k * 3));
-      ctx.restore();
-    }
+    if (S.bannerT > 0 && S.banner) { const b = bannerSpot(L); pill(E, S.banner.text, b.x, b.y, b.size, S.banner.color, Math.min(1, (S.bannerT / J.banner) * 3)); }
     drawHud(E, L);
     if (S.ended === 'breach') { const on = Math.floor(S.endT * 5) % 2 === 0; ctx.fillStyle = alpha(P.swatRed, on ? 0.32 : 0.12); ctx.fillRect(0, 0, E.w, E.h); }
     drawStamp(E);
@@ -1627,7 +1680,7 @@ const over = {
     txt(E, String(shown), px + pw - 14, sy, TY.large, P.ink, { align: 'right', font: SERIF, weight: '800' });
     ctx.restore();
     const iy = py + ph + 24;
-    txt(E, r.isNew && r.score > 0 ? 'New best' : `Best ${r.best}`, cx, iy, TY.medium, P.organic);
+    txt(E, r.isNew ? 'New best' : r.best ? `Best ${r.best}` : 'No best yet', cx, iy, TY.medium, P.organic);
     txt(E, `Missed ${r.misses}, false alarms ${r.falseAlarms}`, cx, iy + 28, TY.small, r.strikes ? P.text : P.dim);
     txt(E, T.starRule, cx, iy + 50, TY.small, P.dim);
     const next = r.result === 'clear' && r.shift < T.beltSpeed.length, grow = clamp((k - J.cardButtons) / 0.3, 0, 1);
@@ -1655,15 +1708,20 @@ const over = {
 export const game = {
   slug: 'checkpoint',
   title: 'Checkpoint',
-  saveVersion: 3,
+  saveVersion: 4,
   // v1 kept `unlocked` beside the per-shift records; v2 derives it from them (the highest shift with stars, plus one) and clamps it.
   // v3 adds the career record (SWAT calls, Vic caught, breaches); stars, best scores and unlocked days are kept as they are.
+  // v4: a best counts only on a cleared day, so a day never cleared (no stars) loses the best a breach or three strikes once saved. The shape is unchanged.
   migrate(data, fromVersion) {
     if (fromVersion < 2) {
       const cleared = Object.entries(cleanShifts(data.shifts)).filter(([, r]) => r.stars > 0).map(([n]) => Number(n));
       data.unlocked = clampUnlocked(Math.max(0, ...cleared) + 1);
     }
     if (fromVersion < 3) data.career = cleanCareer(data.career);
+    if (fromVersion < 4 && data.shifts) {
+      data.shifts = cleanShifts(data.shifts);
+      for (const r of Object.values(data.shifts)) if (!r.stars) r.best = 0;
+    }
     return data;
   },
   TUNING,
@@ -1681,7 +1739,7 @@ export const game = {
   scenes: { menu, brief, play, over },
   // Read by tools/sim-checkpoint.mjs so the harness runs the real generation, tap resolution and scoring.
   sim: {
-    ITEMS, BODY, SILHOUETTE, genShift, genShiftSteps, prepare, pump, readShifts, cleanShifts, cleanCareer, visibility, outlineVisibility, tellVisibility, layout, clampUnlocked, headline, packRule,
+    ITEMS, BODY, SILHOUETTE, scanAlpha, bannerSpot, swatBudget, genShift, genShiftSteps, prepare, pump, readShifts, cleanShifts, cleanCareer, visibility, outlineVisibility, tellVisibility, layout, clampUnlocked, headline, packRule,
     overlapPairs(bag) {
       const out = [];
       for (let i = 0; i < bag.items.length; i++) for (let j = i + 1; j < bag.items.length; j++) {
@@ -1706,8 +1764,8 @@ export const game = {
       const L = layout(E), sc = L.scan, out = [];
       for (const tr of S.travellers) {
         if (tr.state === 'gone' || tr.state === 'queue') continue;
-        const o = { idx: tr.idx, state: tr.state, scanT: tr.state === 'scan' ? tr.t : -1, pending: tr.pending, stopped: tr.stopped, touched: tr.touched, swat: !!tr.swat, who: tr.who, x: L.ox + tr.x * L.s, y: (tr.y - LA.figH / 2) * L.s };
-        if (tr.state === 'scan') o.items = tr.body.map((b) => ({ name: b.name, contraband: b.contraband, tier: b.tier, x: L.ox + (sc.cx + b.x * sc.k) * L.s, y: (sc.cy + b.y * sc.k) * L.s }));
+        const o = { idx: tr.idx, state: tr.state, beeps: tr.beeps, scanT: tr.state === 'scan' ? tr.t : -1, pending: tr.pending, stopped: tr.stopped, touched: tr.touched, swat: !!tr.swat, who: tr.who, x: L.ox + tr.x * L.s, y: (tr.y - LA.figH / 2) * L.s };
+        if (tr.state === 'scan' && tr.beeps) o.items = tr.body.map((b) => ({ name: b.name, contraband: b.contraband, tier: b.tier, x: L.ox + (sc.cx + b.x * sc.k) * L.s, y: (sc.cy + b.y * sc.k) * L.s }));
         out.push(o);
       }
       return out;
