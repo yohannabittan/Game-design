@@ -17,7 +17,7 @@ Status: locked 2026-10-03. The designer said "we're soon going to need more hole
 | 29 | Comets and a black hole | two comets, a black hole |
 | 30 | **Boss**: tests the sector | a moon, a sun, a black hole, and at least one comet or slide; the route uses at least three different bodies |
 
-- **Badge-friendly by design, never by requirement.** Hole 26 should have a balance point where Lagrange Point can be earned, and hole 28 should allow Great Attractor. These are finds: no three-star route may earn a new v0.7 badge. Check this with the v0.7 badge code.
+- **Badge-friendly by design, never by requirement.** Hole 26 should have a balance point where Lagrange Point can be earned, and hole 28 should allow Great Attractor. These are finds: no three-star route may earn a new v0.7 badge, except Dark Matter. Per v0.7 C it is a common secret on any zero-touch route bent by two bodies; hole 28's route earns it, which is accepted. Check this with the v0.7 badge code.
 
 ## B. Rules (every hole, from v0.3 B, v0.4 C and v0.5)
 
