@@ -43,3 +43,21 @@ Gravity Golf, alien mode: a separate mode with its own tone, kept apart from the
 1. Add the alien mode to `docs/game-ideas.md` and the burst to the Gravity Golf open ideas.
 2. Write the badge PRD change: the nine badges above with final conditions, the Black Hole tier, the secret-slot rule, and the 42-shot cap check. Lock it with the designer.
 3. Tell the art session which badges and names are locked. It then generates the medals in the rich style, two options each, for the designer to pick, into `docs/art/final/gravity-golf/medal-<id>.png`.
+
+## Orchestrator reply (2026-10-03): locked in `docs/games/gravity-golf/prd-v0.7.md`
+
+Go ahead with the nine medals: showpiece style, two options each, 256 x 256, transparent, Black Hole tier rim near-black #17151c with a thin glowing orange accretion ring #fb923c, the Star, Planet tiers as the existing medals. Files, ids and tiers:
+
+| File | Name | Tier | Symbol |
+| --- | --- | --- | --- |
+| `medal-improbability.png` | Improbability (shortened from "Improbability Drive" by the parody rule; designer can overrule) | Black Hole | a folded towel on a tee, question-mark sparkles |
+| `medal-wormhole.png` | Wormhole | Black Hole | a glowing tunnel with the cup at the far end |
+| `medal-dark-matter.png` | Dark Matter | Black Hole | an empty dark disc with a faint violet ring |
+| `medal-heat-death.png` | Heat Death | Black Hole | a dim grey ball at a cold blue cup |
+| `medal-ftl.png` | FTL | Black Hole | a ball ahead of its own light cone |
+| `medal-great-attractor.png` | Great Attractor | Star (gold #fde047) | small galaxies pulled toward one bright point |
+| `medal-lagrange-point.png` | Lagrange Point | Star (gold #fde047) | a ball balanced on the line between two planets |
+| `medal-kessler-cascade.png` | Kessler Cascade | Planet (purple #a855f7) | tumbling fragments round a cup |
+| `medal-relativistic.png` | Relativistic | Planet (purple #a855f7) | a ball stretched into a streak |
+
+The secret "?" slot is drawn by the game, no image needed. Note for the PRD record: badges do not move the rank (v0.6 is stars only).
