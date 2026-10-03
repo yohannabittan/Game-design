@@ -51,6 +51,7 @@ Consolidated 2026-10-03 from the sessions that made Packs 1 to 8 for five games:
 - Ledger: one row per generated image (kept, discarded, superseded, or derived at no cost) with path and full prompt, written by a script from the generation log so none is forgotten. Fix statuses by hand afterwards.
 - After a pick: move to `docs/art/final/<slug>/` under the brief's file name, delete every unpicked candidate, mark the rows, push.
 - A handoff note separates decided from proposed, lists the files, says what wiring must handle, and ends with one line for the designer to paste.
+- Replacing a file in `docs/art/final/` changes nothing in the game: wiring converted copies into `games/<slug>/assets/` (for Recoil, trimmed WebP plus tip numbers in `GUN_PIC`). Every replacement needs a re-wire note. Frost was replaced and still showed the old pistol until the designer noticed.
 
 ## Cost (ledger estimates)
 - Medium: about $0.058 per 1024x1024 image and $0.08 per 1536x1024 or 1024x1536, so a pair is $0.12 to $0.17. High is about $0.18 for a square.
