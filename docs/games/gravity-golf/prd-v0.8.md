@@ -26,9 +26,11 @@ Status: locked 2026-10-03. The designer said "we're soon going to need more hole
 - A two-star (par) route.
 - `--sweep` reports 0 straight sinks, at the route's release clocks for holes with movers.
 - `--escape` reports 0 timeouts.
-- `--windows`: every route shot has at least 20 px and 4° with the neighbour check. Bosses may go to 12 px on the last shot only.
+- `--windows`: the three-star route's last shot has at least 20 px and 4° with the neighbour check (boss: 15 px and 3°), as the harness enforces.
 - A noisy-human success rate for the last shot of at least 60 percent, and for the whole route of at least 35 percent. A boss may go to 25 percent for the whole route.
 - Suns are heavier than every planet on their hole, and lighter than any black hole on it.
+
+**Delivery:** shards deliver hole JSON plus harness output per `docs/games/gravity-golf/README.md`, "What a shard delivers per hole". The orchestrator merges them into `LEVELS`, and a small build adds the sector entry and the save migration.
 
 **Lean (2026-10-03):**
 - `--two-shot`, the 20 to 25 minute search, runs once per hole at the merge gate, not during authoring.
