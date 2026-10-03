@@ -98,6 +98,31 @@ Anchor: `docs/games/gravity-golf/style.md`. Transparent backgrounds, into `docs/
 
 Medals in one style and frame (generate one, use it as the reference for the rest). Two options each.
 
+### Pack 7: Recoil gun skins (added 2026-10-03)
+
+Anchor: `docs/games/recoil/style.md`, the play-object look (no showpiece sentence). The designer wants the gun in play, and every skin, to be the picture. So each skin is the **same gun as its picked standard picture, repainted**: same pose, outline, proportions and size, facing right, transparent background, about 512 px wide. Use the standard picture in `docs/art/final/recoil/gun-<gun>.png` as the reference image for every skin of that gun, so the silhouette matches exactly. The game recoils and rotates the picture, so nothing may stick out past the standard outline.
+
+Files are `gun-<gun>-<skin>.png` into `docs/art/final/recoil/`. Two options each, on one contact sheet. The hex values are the game's own palette for that skin (steel / dark steel / accent):
+
+| Gun file | Skin | Look | Colours |
+| --- | --- | --- | --- |
+| gun-buddy-cop | nickel | polished nickel with an engraved brass plate on the grip | #cfd4da / #8a929c / #d6a23a |
+| gun-buddy-cop | blackout | matte black-grey, a black band across the slide | #7d828a / #5a5651 / #15120f |
+| gun-buddy-cop | gold | gold-plated, two bright pale-gold stripes | #e3b53d / #a8781c / #fff1b8 |
+| gun-pulse-rifle | desert | sand tan, tape wrapped round the forend | #c2a374 / #7d6641 / #ecdcae |
+| gun-pulse-rifle | arctic | white-grey, one steel-blue stripe along the body | #e2e8f0 / #94a3b8 / #4a6fa5 |
+| gun-spin-lever | walnut | walnut wood stock and forend, an engraved gold plate | wood #7a4a2a / accent #d6a23a |
+| gun-spin-lever | tactical | olive drab, a dark stripe on the barrel and a dark pump band | #8c9668 / #59603f / #1f2416 |
+| gun-assassins-scope | carbon | dark grey with carbon-fibre weave lines on the receiver | #858c93 / #565c63 / #1a1d22 |
+| gun-assassins-scope | bronze | warm bronze, an engraved plate on the receiver | #b8834a / #7a542c / #e8c48a |
+| gun-assassins-scope | ghost | pale ghost-white, a soft lavender engraved plate on the stock | #eceef2 / #aeb7c4 / #b9a6e6 |
+| gun-one-man-army | brass | brass finish, two bright lines on the receiver | #d9b25a / #8a5d16 / #fff1b8 |
+| gun-one-man-army | hazard | cream with black warning bars | #e7e0cf / #6b6458 / #1a1512 |
+| gun-make-my-day | ivory | steel with an ivory grip and cylinder, a gold band | #c9cdd3 / ivory #e6dcc4 / #c08a2c |
+| gun-make-my-day | frost | pale icy steel, a blue rib along the barrel | #dbe7f7 / #8ea6c8 / #3f6396 |
+
+That is 14 skins and 28 generations, about US$3 to 4 at medium. The skins must read apart from each other and from the standard gun at 64 px; show each option at 64 px on the sheet too. When the designer picks, the finals go in `docs/art/final/recoil/`, and the orchestrator wires them, together with using the picture for the gun in play.
+
 ## Process
 
 1. Generate **three options** per asset at medium quality (cheap), into `docs/art/candidates/<slug>/` (not under `games/`).
