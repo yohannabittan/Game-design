@@ -210,6 +210,7 @@ const TUNING = {
         { field: '#0c1630', nebula: ['#0f7490', '#2f5d9e', '#1e3a8a'], streak: '#dbeafe' },
         { field: '#090e22', nebula: ['#1e2a5a', '#233a6b'], whale: '#04060f', whaleRim: '#94a3b8' },
         { field: '#0b0d24', nebula: ['#7a3560', '#5a3a7a'], suns: ['#f59e0b', '#e0527a'] },
+        { field: '#120c22', nebula: ['#7a3560', '#5a3a7a', '#6b2f4f'], core: '#f2b94b' },
       ],
       // Three meanings: green is the goal, purple is gravity, orange is danger and full power.
       green: '#22c55e', greenLight: '#bbf7d0', ink: '#04110a', // ink is the text on green
@@ -261,6 +262,7 @@ const TUNING = {
       { name: 'Meteor shower', stars: 1, warmChance: 0.15, nebulae: [1, 1], nebAlpha: [0.16, 0.24], nebR: [50, 80], meteors: true },
       { name: 'Deep space', stars: 0.7, warmChance: 0.05, nebulae: [0, 1], nebAlpha: [0.12, 0.18], nebR: [60, 100], whale: true },
       { name: 'Binary sunrise', stars: 0.8, warmChance: 0.4, nebulae: [1, 2], nebAlpha: [0.12, 0.2], nebR: [60, 100], sunrise: true },
+      { name: 'Galactic Core', stars: 1.6, warmChance: 0.45, nebulae: [1, 2], nebAlpha: [0.1, 0.16], nebR: [60, 100], core: true },
     ],
     meteors: {
       period: 6,           // Seconds between showers
@@ -290,6 +292,7 @@ const TUNING = {
       ],
       alpha: 0.1,
     },
+    core: { x: 0.5, dy: 50, r: 330, alpha: 0.1 }, // The galaxy's core: one wide golden glow rising from below the bottom edge (sector 6)
     planet: {
       lowMass: 0.75,       // Below this: plain with a few craters
       ringMass: 1.2,       // Above this: ring system (bands in between)
@@ -684,6 +687,41 @@ const LEVELS = [
     name: "Twin Dawn", boss: true, stars: {three: 3, two: 4},
     ball: {x: 341, y: 605}, hole: {x: 270, y: 230},
     walls: [{x: 300, y: 150, w: 22, h: 490}, {x: 150, y: 150, w: 150, h: 22}, {x: 150, y: 172, w: 22, h: 90}], planets: [{x: 84, y: 425, r: 24, mass: 0.6}, {x: 60, y: 100, r: 30, mass: 1}, {x: 140, y: 550, r: 26, mass: 0}], suns: [{x: 177, y: 374, r: 22, mass: 1.2, reach: 40}, {x: 236, y: 310, r: 22, mass: 1.2, reach: 40}], blackholes: [{x: 260, y: 470, reach: 60}], movers: [{type: "comet", a: {x: -20, y: 250}, b: {x: 110, y: 250}, period: 1.2, r: 12}, {type: "moon", parent: 2, orbitR: 56, period: 4.8, r: 10, mass: 0.25, phase: 0}],
+  },
+  {
+    // Tests the balance between two pulls (sector 6 opener): two planets of similar pull (mass 1.0 and 0.9, 236 apart) cancel along the line between them, so a ball flies calm up the gap and bends only toward the nearer one. three: drag (-19, 149), full power, one shot, 0 bounces: runs up the gap (planet 0 passed at 110 from its surface, planet 1 at 55) and planet 1 swings it into the cup; sinks over 13.55 degrees of aim (-3.35 / +10.2) and 118.5 px to full power (neighbours at least 7.7 degrees and 29.7 px); noisy human 100 percent. Sweep: 0 straight sinks; the widest any-bounce cluster (13.5 degrees at 150 px) is the same lane, so it stays. Escape: 0 timeouts. two (2 strokes): (-30, 60) rests on planet 1's upper left at (263.5, 357.9), then (-5, 120). Badge find, not the route (PRD v0.7 C Lagrange Point): a soft pull straight down, drag (-1, 29) (28 to 30 px all work), floats up and settles at (182.7, 381.7) with 0 bounces, 83 from both surfaces; the pulls there are 309 and 305, each over 4 times the 64 rest threshold, 180 degrees apart, net under 64. The three route sinks and only planet 1 bends it over 10 degrees (planet 0: 8.8), so it earns no Dark Matter, Great Attractor, Lagrange Point or speed badge (top speed 820).
+    // v0.8 A (hole 26, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot at merge, noisy human).
+    name: "Fulcrum", boss: false, stars: {three: 1, two: 2},
+    ball: {x: 183, y: 590}, hole: {x: 270, y: 170},
+    walls: [], planets: [{x: 62, y: 380, r: 36, mass: 1}, {x: 298, y: 380, r: 32, mass: 0.9}], suns: [], blackholes: [], movers: [],
+  },
+  {
+    // Tests timing a shot through the moon's lane (sector 6): the tee sits on the first planet's top, the stub wall shuts the lane left of the sun, so the one shot goes up between the heavy sun (mass 1.2, reach 60, heavier than every planet and the moon) and the moon planet, where the moon (r 13, mass 0.5, 3.3 s cycle) sweeps across the lane; the sun whips what gets past into the cup behind it. three: drag (-18, 121) released at clock 2.9, one shot, 0 bounces, passing the sun at 16.4 from its surface and the moon at 124. It sinks for release clocks 2.03 to 3.3 and 0 to 0.45 of the 3.3 s cycle (71 of 132 tried, 54 percent, one run of 1.75 s round the wrap); at the other clocks the moon touches the ball (30 percent of clocks) or pulls it off (15 percent), and sinking clocks keep at least 39 from the moon. Sinks over 10.65 degrees of aim (-2.4 / +8.25) and 115.8 to 146.3 px (neighbours at least 10.55 degrees and 28.5 px); noisy human 83.5 percent. Sweep at clocks 0 and 2.9: 0 straight sinks (at 1.2 the route fails, the moon is in the lane; 0 straight sinks there too). Escape: 0 timeouts. two (2 strokes): a nudge (0, 15) rests at (137.5, 500.7), then (-18, 121) at 2.9. Without the stub a left-lane family opens (about 8 degrees, sinking on 50 to 80 percent of clocks), so it stays. Note: at clock 1.2 a narrow 4 degree near-full-power lane around drag (14.5, 144.3) sinks on about 1 clock in 8 (expert find). The three route earns no new v0.7 badge (no Dark Matter: the sun is the only body bending it over 10 degrees; top speed 669).
+    // v0.8 A (hole 27, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot at merge, noisy human).
+    name: "Penumbra", boss: false, stars: {three: 1, two: 2},
+    ball: {x: 136, y: 497}, hole: {x: 125, y: 225},
+    walls: [{x: 0, y: 285, w: 95, h: 22}], planets: [{x: 120, y: 540, r: 34, mass: 0.6}, {x: 221, y: 422, r: 30, mass: 0.45}], suns: [{x: 125, y: 330, r: 22, mass: 1.2, reach: 60}], blackholes: [], movers: [{type: "moon", parent: 1, orbitR: 69, period: 3.3, r: 13, mass: 0.5, phase: 0.33}],
+  },
+  {
+    // Tests three bodies bending one shot (sector 6): the lane up the middle is pulled by the left planet, the upper right planet and, more lightly, the lower right one. three: drag (-18, 118), one shot, passing planet 0 at 41.1, planet 1 at 101.1 and planet 2 at 124.1 from the surface; sinks with 0 bounces over 8.05 degrees of aim (-3.30 / +4.75) and 92.4 to 148.4 px of drag (neighbours at least 7.5 degrees and 55 px). Its pulls turn it -17.0, 19.9 and 5.9 degrees, so the third body stays under bendTurn and the route does not earn Great Attractor (it does bend two bodies without a touch, so it is a Dark Matter route). Great Attractor find: ease off the power, drag (-16, 94), turns -32.5, 72.6 and 15.9 degrees, 5.9 degrees and 56.5 px of window. Noisy human 97.5 percent on the last shot (97 percent on the two route). Sweep at clock 0: 0 straight sinks; the widest any-bounce cluster (14 degrees at 115 px) is this same lane. two (2 strokes): (21, 46) lands on the left planet at (123.9, 388.3), then (-34, 110) sinks over 10.15 degrees and 48.5 px. Planet 1 and 2's east surface points sit under the border (blocked in --escape, information).
+    // v0.8 A (hole 28, content shard on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot at merge, noisy human).
+    name: "Triad", boss: false, stars: {three: 1, two: 2},
+    ball: {x: 137, y: 540}, hole: {x: 189, y: 180},
+    walls: [], planets: [{x: 74, y: 399, r: 42, mass: 0.65}, {x: 312, y: 226, r: 35, mass: 1}, {x: 305, y: 534, r: 41, mass: 0.82}], suns: [], blackholes: [], movers: [],
+  },
+  {
+    // Tests reading two slow comets with a black hole behind them: the planet is the staging post, the black hole swallows any soft or wide shot from it, and the comets knock a ball that leaves at the wrong moment into the black hole or away. three: (65, 0) lands on the planet's top at (238.0, 439.0) (any drag from (60, 0) to (70, 2) rests within 6 px of it), then (86, 96) released at clock 1.75 (sinks for release clocks 1.46 to 2.04 of the 2.4 s comet cycle; otherwise a comet or the black hole takes it). It passes the planet at 13.3 and the black hole at 59.7 from the horizon; sinks over 6.55 degrees of aim (-2.30 / +4.25) and 113.9 to 149.4 px (neighbours at least 6.30 degrees and 33 px). Two walls close the untimed routes: a floor under the first comet (x 0 to 125, y 328 to 341) shuts the left strip and the lower left off from the cup lane, so every way up to the cup crosses both comets through the door at x 125 and over, and a fin hanging from the top at x 150 to 172 stops the black hole's right-hand slingshot from entering the cup's side. --two-shot finds no fully untimed route (it was 61 on the open field, from rests on the left edge and the right strip); the only untimed second shots left start from two rests that a first shot reaches on 1 of 8 clocks. Straight at the cup: from the tee (74, 130) rests at (196.5, 487.2); from the planet's top (51, 87), (64, 109) and (76, 130) at clock 1.75 are swallowed. Sweep at clocks 0, 1.0 and 1.75: 0 straight sinks, 0 any-bounce one-shot sinks of 20160. two (3 strokes): (65, 0), a hop (0, 15) that re-times the clock, then (86, 96) at 1.75.
+    // v0.8 A (hole 29, content shard on Sonnet, fix round on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot at merge, noisy human).
+    name: "Drift Gate", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 331, y: 608}, hole: {x: 106, y: 213},
+    walls: [{x: 150, y: 0, w: 22, h: 256}, {x: 0, y: 328, w: 125, h: 13}], planets: [{x: 238, y: 481, r: 33, mass: 0.87}], suns: [], blackholes: [{x: 224, y: 296, reach: 115}], movers: [{type: "comet", a: {x: 141, y: 294}, b: {x: -27, y: 256}, period: 2.4, r: 16}, {type: "comet", a: {x: 117, y: 380}, b: {x: 271, y: 377}, period: 2.4, r: 18}],
+  },
+  {
+    // Tests the sector (boss, sector 6): a comet gate, a chute landing, a timed door and the core's pull. Nudge left past the comet onto the low planet, shoot up the chute onto the high planet, then wait for the door in the fin and fire through it; the high planet and the black hole bend it into the cup. three: (39, -22.5) at clock 0.3 crosses the comet lane and lands on the low planet at (82.4, 525.8) (the comet spoils clocks of about 0.75 to 1.1 of its 1.5 s cycle); (-2.7, 78) at any clock rises through the chute and lands under the high planet at (111.1, 323.0); (-87, 38) at clock 1.6 goes through the door gap: it sinks for releases from about 0.9 to 2.45 s of the door's 4 s cycle (40 percent), 19.60 degrees and 29.5 px at 1.6 (84.9 to 114.4 px), neighbours at least 19.05 degrees and 26.5 px. The fin (x 212) runs from y 100 to the floor, close enough to the black hole that nothing passes between, so the cup's pocket opens only through the door gap (y 280 to 340); the door overlaps the fin by 30 when shut and is open under half its cycle at any height, so every shot into the pocket is timed. The pocket floor is raised to y 370 so no ball rests in it. Sun 1.2 (heavier than both planets at 0.5, lighter than the black hole at 1.4) guards the right of the cup; the moon circles a slate bumper top left on the door's 4 s period and only guards overhit shots. No v0.7 badge on the route. Noisy human: last shot 96.0 percent, whole route 29.5 percent. Sweep at clocks 0, 0.3 and 1.6: 0 straight sinks, 0 any-bounce aces. two: (39, -22.5) at 0.3, (-2.7, 78), (0, -20), (-87, 38) at 1.6. Known find: the full-power tee shot (122.7, 32.9) still loops onto the high planet at most clocks, but every second shot from there is timed by the door (a timed two-stroke expert find). Two-shot: 217 tee-reachable rests, 0 with an untimed second shot.
+    // v0.8 A (hole 30, content shard on Opus, retry round on Opus, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot at merge, noisy human).
+    name: "Sagittarius", boss: true, stars: {three: 3, two: 4},
+    ball: {x: 205, y: 480}, hole: {x: 269, y: 273},
+    walls: [{x: 0, y: 420, w: 30, h: 22}, {x: 110, y: 420, w: 250, h: 22}, {x: 212, y: 100, w: 14, h: 180}, {x: 212, y: 340, w: 14, h: 80}, {x: 226, y: 370, w: 134, h: 50}], planets: [{x: 90, y: 560, r: 26, mass: 0.5}, {x: 110, y: 288, r: 26, mass: 0.5}, {x: 90, y: 110, r: 24, mass: 0}], suns: [{x: 320, y: 340, r: 22, mass: 1.2, reach: 30}], blackholes: [{x: 265, y: 199}], movers: [{type: "comet", a: {x: 150, y: 660}, b: {x: 150, y: 470}, period: 1.5, r: 10}, {type: "moon", parent: 2, orbitR: 52, period: 4, r: 10, mass: 0.3, phase: 0}, {type: "slide", w: 14, h: 100, a: {x: 212, y: 250}, b: {x: 212, y: 340}, period: 4}],
   },
 ];
 // Clamps a hole to the size and mass limits and fills the optional fields; also applied by tools/sim-golf.mjs to a shard's JSON.
@@ -1546,13 +1584,14 @@ function buildSky(ctx, key, sector) {
       g: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.45, rgba(c, 0.45), 1, rgba(c, 0)]),
     };
   });
-  const s = { key, sec, pal, layers, flare, neb, streaks: null, shower: -1, streakG: null, whale: null, suns: null };
+  const s = { key, sec, pal, layers, flare, neb, streaks: null, shower: -1, streakG: null, whale: null, suns: null, core: null };
   if (sec.meteors) {
     s.streaks = Array.from({ length: A.meteors.count }, () => ({ x: 0, y: 0, c: 0, s: 0, len: 0 }));
     s.streakG = linear(ctx, 0, 0, 1, 0, [0, rgba(pal.streak, 0), 1, rgba(pal.streak, 1)]);
   }
   if (sec.whale) s.whale = whalePath();
   if (sec.sunrise) s.suns = pal.suns.map((c) => radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.35, rgba(c, 0.5), 1, rgba(c, 0)]));
+  if (sec.core) s.core = radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(pal.core, 1), 0.3, rgba(pal.core, 0.45), 1, rgba(pal.core, 0)]);
   SKY.set(key, s);
   return s;
 }
@@ -1593,6 +1632,13 @@ function drawWhale(ctx, s, t) {
   ctx.restore();
 }
 
+function drawCore(ctx, s) {
+  const C = A.core;
+  ctx.globalAlpha = C.alpha;
+  ctx.save(); ctx.translate(T.designW * C.x, T.designH + C.dy); ctx.scale(C.r, C.r);
+  ctx.fillStyle = s.core; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill(); ctx.restore();
+}
+
 function drawSunrise(ctx, s) {
   const R = A.sunrise;
   ctx.globalAlpha = R.alpha;
@@ -1611,6 +1657,7 @@ function drawField(ctx, key, sector, ox, oy, t) {
   ctx.fillStyle = s.pal.field;
   ctx.fillRect(0, 0, T.designW, T.designH);
   if (s.suns) drawSunrise(ctx, s);
+  if (s.core) drawCore(ctx, s);
   for (let i = 0; i < s.neb.length; i++) {
     const n = s.neb[i];
     ctx.save(); ctx.translate(n.x, n.y); ctx.scale(n.r, n.r);
@@ -3080,7 +3127,7 @@ const V01_PAR = [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 8,
+  saveVersion: 9,
   // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map;
   // v3 adds `unlocked`, rebuilt from the holes already cleared; v4 stores stars per hole, because v0.2 judges stars
   // by per-hole thresholds on re-authored holes: stars won under v0.1 pars are kept as they were; v5 adds badges and the skin choice;
@@ -3088,7 +3135,8 @@ export const game = {
   // and `hintSeen`, set once the first-run hint has shown; v7 is the 25-hole ladder: `unlocked` is raised to the highest cleared
   // hole plus one and the run records (`runBest`, `lastRun`) are dropped, as a run over 15 holes does not compare with one over 25;
   // v8 adds `rankSeen`, the highest rank whose card has been shown (the rank itself is computed from the stars, never stored): a save
-  // with stars gets one below its current rank, so a veteran sees one card on the menu, and a save still on Asteroid gets 1 (no card).
+  // with stars gets one below its current rank, so a veteran sees one card on the menu, and a save still on Asteroid gets 1 (no card);
+  // v9 is the 30-hole ladder (sector 6): the same `unlocked` and run-record clean-up as v7, so a veteran lands on the first new hole.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (data.unlocked === undefined) {
@@ -3108,7 +3156,7 @@ export const game = {
       data.skin = { ...data.skin };
     }
     if (fromVersion < 6) { data.prog = { ...data.prog }; data.hintSeen = true; } // a save that already exists has played: only a fresh one sees the hint
-    if (fromVersion < 7) {
+    if (fromVersion < 9) { // v7 and v9 both added holes: open the next one and drop run records measured on fewer (a v7 or v8 save runs this too)
       data.unlocked = openHole(data.best, data.unlocked);
       if (data.prog) { delete data.prog.runBest; delete data.prog.lastRun; }
     }
