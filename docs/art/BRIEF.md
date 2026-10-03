@@ -140,7 +140,7 @@ Generate the resting pose first, then use it as the reference image for the seco
 
 ## Handoffs from the orchestrator (2026-10-03)
 
-The orchestrator now sends tasks straight to the art session through a Claude Routine bound to that session ("Orchestrator → art session handoff"). Each firing pulls the branch and names the pack or note to do. The art session cannot message back, so it replies with a pushed `docs/art/HANDOFF-<topic>.md`, which the orchestrator reads when it pulls. The designer still picks every option in the art chat.
+The designer pastes the orchestrator's one-line task into the art chat. (A Routine bound to the art chat was tried and does not reach it: each firing starts a new empty session.) The art session replies with a pushed `docs/art/HANDOFF-<topic>.md`, which the orchestrator reads when it pulls.
 
 ## Process
 
