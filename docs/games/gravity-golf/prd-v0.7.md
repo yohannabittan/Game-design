@@ -30,9 +30,11 @@ Revised by the designer on 2026-10-03, after the first draft.
 | Kessler Cascade [kessler-cascade] | On one hole, touch every wall, including the four field edges, at least once, then still hole out. The strokes can be spread over the hole. Only impacts over `bounceEventSpeed` count. | Planet | no | tumbling fragments round a cup |
 | Lagrange Point [lagrange-point] | The ball comes to rest in open space, touching nothing, exactly between two gravity bodies. Each body pulls on it with at least `lagrangePull` (4 times the open-field rest threshold, `restPull()`), the two pulls point at least 150° apart, and the net pull is under the rest threshold, so they cancel. It is earned the moment the ball settles there, sinking or not. | Star | no | a ball balanced on the line between two planets |
 | Relativistic [relativistic] | Reach `relSpeed` on any shot. The harness sets it so a good player reaches it on at least three holes, above the full-power launch speed of 820. | Planet | no | a ball stretched into a streak |
-| FTL [ftl] | Reach the speed cap, `speedMax` (1,400), the game's light speed. Only a slingshot chain gets there. | Black Hole | no | a ball ahead of its own light cone |
+| FTL [ftl] | Reach `ftlSpeed`, the fastest any shot in the game goes with a fair window (set by the harness; amended 2026-10-03, see below). | Black Hole | no | a ball ahead of its own light cone |
 
 **Name.** "Improbability Drive" stays, by the designer's call. A short name is not protected by copyright, and the medal art is our own.
+
+**Amendment after the build (2026-10-03).** FTL was "reach the speed cap, 1,400". The build found that no gravity route goes above about 939, and the cap is reached only by a comet pinning the ball on hole 19, with a 0.05° window. So FTL became the game's top fair speed: the highest speed any hole reaches with at least a 1° aim window, kept at least 50 above Relativistic. The Heat Death slow sink was a pinpoint at 45 (0.25°, 1 px), so `heatSpeed` was raised to the lowest speed with a fair window, at most 40 percent of `sinkSpeed`.
 
 **Notes on the revisions.**
 - Dark Matter drops from Black Hole to Planet tier. Some designed routes already sink with zero bounces after two planets bend the ball (hole 4's double pass, for one), so many players will find it. It stays secret, so finding it is still a surprise. If the designer wants it rarer, the step up is three bodies.
