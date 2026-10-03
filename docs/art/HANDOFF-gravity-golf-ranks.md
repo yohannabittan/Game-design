@@ -12,7 +12,7 @@ The rank is separate: a ladder of space objects and events the player climbs by 
 
 asteroid, moon, planet, giant planet, brown dwarf, red dwarf, yellow star, blue star, red giant, blue giant, white dwarf, supernova, nebula, neutron star, quasar, black hole.
 
-Sixteen steps are drawn; the PRD can use fewer. Names are the designer's; "yellow star" is the plain star, "red giant" is the giant star.
+Sixteen steps are drawn and picked (final, 2026-10-03); the PRD can use fewer. Names are the designer's; "yellow star" is the plain star, "red giant" is the giant star.
 
 ## Style sentence to add to `docs/games/gravity-golf/style.md` (designer decision, 2026-10-03)
 
@@ -24,7 +24,7 @@ Every rank prompt is the anchor, then this sentence, then a long per-step subjec
 
 ## Art
 
-- Files: `docs/art/final/gravity-golf/rank-NN-<name>.png`, transparent PNG, 512 x 512, numbered in ladder order. They land there once the designer picks from the candidates (two options each are generated); until then they are not final.
+- Files: `docs/art/final/gravity-golf/rank-NN-<name>.png`, transparent PNG, 512 x 512, numbered in ladder order. All sixteen are final: rank-01-asteroid, rank-02-moon, rank-03-planet, rank-04-giant-planet, rank-05-brown-dwarf, rank-06-red-dwarf, rank-07-yellow-star, rank-08-blue-star, rank-09-red-giant, rank-10-blue-giant, rank-11-white-dwarf, rank-12-supernova, rank-13-nebula, rank-14-neutron-star, rank-15-quasar, rank-16-black-hole.
 - Images are for looking at: a rank-up card, the stats card, the menu. Nothing moving or hit-tested.
 - The per-game `assets/` folder stays under 1.5 MB (ADR-0015). Sixteen ranks at 512 px are about 2 MB at the candidate size, so the wiring layer should bring them to 256 px or WebP. The medals are 256 px already.
 - Every kept asset goes in `sw.js`'s cache list; bump `CACHE_VERSION`.
