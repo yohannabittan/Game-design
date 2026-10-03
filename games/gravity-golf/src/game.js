@@ -1,5 +1,5 @@
-// Gravity Golf v0.5: planets, suns (with mass), rotating bars, orbiting moons, comets and black holes on the v0.1 mechanic, juice, scenes, the
-// space look, missions and skins, a full-run counter and the playtest ledger.
+// Gravity Golf v0.6: planets, suns (with mass), rotating bars, orbiting moons, comets and black holes on the v0.1 mechanic, juice, scenes, the
+// space look, missions and skins, a full-run counter, the playtest ledger, and a rank ladder from Asteroid to Black Hole driven by stars.
 // Slingshot aim, fixed-step ball physics, strokes against per-hole star thresholds, the hole card, hole select.
 
 import { makeRng, hashString, ease, clamp, lerp, dist } from './engine.js';
@@ -367,10 +367,10 @@ const TUNING = {
       flagH: 26, flagW: 13, flagRate: 3.2, flagWave: 1.4,
     },
     tile: { number: 14, icon: 37, iconR: 10, sunR: 7, stars: 10, starR: 5.5, bhReach: 1.45 }, // Offsets from the tile top (stars from the bottom), design px; bhReach: a badge black hole's ring in icon radii
-    menu: { titleGap: 26, tabBottom: 42, starsGap: 40, gridGap: 34, missionsW: 150, rowGap: 12 }, // Title sits titleGap below the engine's TUNE tab (safe top + 42)
-    missions: { top: 64, headH: 32, rowH: 58, rowGap: 6, medalR: 15, bottom: 156, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17, toastBand: 96 }, // rowH for a one-line condition; each extra line adds lineH. Back sits above toastBand: the engine's toast (24 px up, two lines) takes taps while it shows
+    menu: { titleGap: 26, tabBottom: 42, missionsW: 150, rowGap: 12 }, // Title sits titleGap below the engine's TUNE tab (safe top + 42)
+    missions: { top: 64, headH: 32, rowH: 58, rowGap: 6, medalR: 20, bottom: 156, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17, toastBand: 96 }, // rowH for a one-line condition; each extra line adds lineH. Back sits above toastBand: the engine's toast (24 px up, two lines) takes taps while it shows
     swatch: { size: 46, gap: 10, perRow: 6, headH: 26, rowGap: 10, ring: 3, ballR: 13 }, // The Skins block on the missions screen (swatches at least 44 px)
-    ticket: { w: 320, h: 50, r: 14, medalR: 12 }, // The badge ticket that pops over the top edge of the hole card
+    ticket: { w: 320, h: 50, r: 14, medalR: 18 }, // The badge ticket that pops over the top edge of the hole card
     // Skins (PRD v0.3 C2): data entries, each earned by one badge. A ball skin sets the body gradient (light, mid, edge, or
     // `stops` for chrome), the seam (`seamKind`: 'seam', 'corona' or 'crescent'), the rim and the shadow tint; anything left
     // out is the default ball. A trail skin sets the trail colour everywhere (only the default trail turns gravity purple near a
@@ -405,6 +405,45 @@ const TUNING = {
         { id: 'under-par', name: 'Green', badge: 'under-par', col: '#22c55e' },
       ],
     },
+  },
+
+  // Ranks (PRD v0.6). Stars drive the rank and nothing else: rank n needs (n - 1) times starsPerRank stars, so the ladder never
+  // changes when holes are added. The rank is computed from the saved stars and never stored (only `rankSeen` is). Sizes are screen px
+  // unless stated, times are seconds. `ranks` is the ladder in order: the name, the emblem file in assets/ (without extension) and the
+  // emblem's own colour, used for the card's border, glow ring and sparks.
+  rank: {
+    starsPerRank: 10,
+    menu: { emblem: 72, cardH: 88, margin: 16, pad: 12, nameY: 26, lineY: 56, barY: 70, barH: 6, chevron: 6, nameMin: 24, lineMin: 14, titleW: 220, titleAspect: 366 / 1024, titleGap: 12, gridGap: 22 }, // The headline card under the title; nameY, lineY, barY are from the card's top
+    ladder: { emblem: 44, rowH: 56, rowGap: 6, pad: 10, dividerH: 30, headGap: 6, lineGap: 4, tail: 6, silRes: 128, silhouette: '#1e293b', lockedMedal: 0.35 }, // Rows on the missions screen; silRes is the silhouette canvas size
+    card: {
+      w: 300, h: 280, top: 28, emblem: 150, oldScale: 0.7, dim: 0.82,
+      delay: 0.2,          // After the hole's end card shows its buttons
+      menuDelay: 0.5,      // After the menu opens, for a veteran's one card
+      total: 1.8, fadeIn: 0.2, fadeOut: 0.22,
+      swapAt: 0.3, swapTime: 0.4, glowR: 0.95, glowAlpha: 0.55,
+      ringAt: 0.4, ringTime: 0.6, ringFrom: 0.9, ringTo: 2, ringW: 6, // In emblem half-widths
+      sparks: 26, sparkSpeed: 260, sparkLife: 0.7, sparkSize: 3.4, sparkWhite: 0.55, // The second burst is the colour mixed this far to white
+      titleY: 214, lineY: 246, textAt: 0.5, textIn: 0.2, haptic: 30,
+      chime: [{ f: 523.25, d: 0.14 }, { f: 659.25, d: 0.14 }, { f: 783.99, d: 0.4 }], chimeAt: 0.3, chimeGap: 0.12, chimeGain: 0.18,
+    },
+    ranks: [
+      { name: 'Asteroid', file: 'rank-01-asteroid', col: '#c9b99a' },
+      { name: 'Moon', file: 'rank-02-moon', col: '#bcd4f5' },
+      { name: 'Planet', file: 'rank-03-planet', col: '#4fa3d9' },
+      { name: 'Giant Planet', file: 'rank-04-giant-planet', col: '#f0a050' },
+      { name: 'Brown Dwarf', file: 'rank-05-brown-dwarf', col: '#c0654a' },
+      { name: 'Red Dwarf', file: 'rank-06-red-dwarf', col: '#f0452a' },
+      { name: 'Yellow Star', file: 'rank-07-yellow-star', col: '#fbbf24' },
+      { name: 'Blue Star', file: 'rank-08-blue-star', col: '#5cc8f5' },
+      { name: 'Red Giant', file: 'rank-09-red-giant', col: '#e0452a' },
+      { name: 'Blue Giant', file: 'rank-10-blue-giant', col: '#4aa8f5' },
+      { name: 'White Dwarf', file: 'rank-11-white-dwarf', col: '#b8d8f5' },
+      { name: 'Supernova', file: 'rank-12-supernova', col: '#f59e3b' },
+      { name: 'Nebula', file: 'rank-13-nebula', col: '#c084fc' },
+      { name: 'Neutron Star', file: 'rank-14-neutron-star', col: '#38bdf8' },
+      { name: 'Quasar', file: 'rank-15-quasar', col: '#e879f9' },
+      { name: 'Black Hole', file: 'rank-16-black-hole', col: '#f08a24' },
+    ],
   },
 };
 const T = TUNING;
@@ -1076,12 +1115,13 @@ const WARM = Array.from({ length: 17 }, (_, i) => mixHex(P.white, P.amber, i / 1
 const tx = (size, color, align, weight) => ({ size, color, align, weight });
 const TX = {
   big: tx(TY.lg, P.text, 'center', TY.heavy), bossBig: tx(TY.lg, P.bossAccent, 'center', TY.heavy),
-  goal: tx(TY.md, P.green, 'center'), dim: tx(TY.md, P.textDim, 'center'), sm: tx(TY.sm, P.textDim, 'center'),
+  dim: tx(TY.md, P.textDim, 'center'), sm: tx(TY.sm, P.textDim, 'center'),
   bossMd: tx(TY.md, P.bossAccent, 'center'), smLight: tx(TY.sm, P.text, 'center'),
   tileNum: tx(TY.md, P.text, 'center'), tileNumOff: tx(TY.md, P.textOff, 'center'),
   label: tx(TY.sm, P.textDim, 'left'), labelC: tx(TY.sm, P.textDim, 'center'), labelBoss: tx(TY.sm, P.bossAccent, 'center'), labelR: tx(TY.sm, P.textDim, 'right'),
   valueL: tx(TY.md, P.text, 'left'), valueC: tx(TY.md, P.text, 'center'), valueGoalR: tx(TY.md, P.green, 'right'),
   goalL: tx(TY.sm, P.green, 'left'), btnL: tx(TY.sm, P.text, 'left'), btnOffL: tx(TY.sm, P.textOff, 'left'), runClean: tx(TY.sm, P.green, 'left'), progL: tx(TY.sm, P.amber, 'left'),
+  goalMdL: tx(TY.md, P.green, 'left'), amberR: tx(TY.sm, P.amber, 'right'), cardTitle: tx(TY.md, P.text, 'center', TY.heavy),
   tier: P.tiers.map((c) => tx(TY.sm, c, 'left')), bigL: tx(TY.lg, P.text, 'left', TY.heavy), labelL: tx(TY.sm, P.text, 'left'), dimL: tx(TY.sm, P.textDim, 'left'), offL: tx(TY.md, P.textOff, 'left'),
 };
 // Button styles (engine buttons take these), and their outline colour.
@@ -1097,6 +1137,149 @@ function pill(E, label, cx, cy, o) {
   const r = E.button(label, cx, cy, o);
   E.roundRect(r.x, r.y, r.w, r.h, A.line.button, null, o.edge);
   return r;
+}
+
+// ---------- Ranks (PRD v0.6): the ladder, its images, and the rank-up card ----------
+// Ranks are numbered 1 (Asteroid) to 16 (Black Hole). The rank is a function of the stars and is never stored.
+const RT = T.rank, RANKS = RT.ranks;
+const rankNeed = (rank) => (rank - 1) * RT.starsPerRank;
+const rankFor = (stars) => Math.min(Math.floor(stars / RT.starsPerRank) + 1, RANKS.length);
+const starTotal = (stars) => Object.values(stars || {}).reduce((a, b) => a + b, 0);
+const starsMax = () => LEVELS.length * 3;
+const starWord = (n) => `${n} ${n === 1 ? 'star' : 'stars'}`;
+const firstFar = () => RANKS.findIndex((r, i) => rankNeed(i + 1) > starsMax()); // first rank today's holes cannot reach (index, or -1)
+
+// Where the player stands: rank, next rank (0 at the top), stars to it, the bar fill, the stars still missing on holes already
+// played (so the ladder can say a rank is reachable by going back), and whether today's holes cannot reach the next rank at all.
+const RI = { rank: 1, next: 2, need: 0, frac: 0, left: 0, far: false };
+function rankInfo(p) {
+  const rank = rankFor(p.total), next = rank < RANKS.length ? rank + 1 : 0;
+  RI.rank = rank; RI.next = next;
+  RI.need = next ? rankNeed(next) - p.total : 0;
+  RI.frac = next ? (p.total - rankNeed(rank)) / RT.starsPerRank : 1;
+  RI.far = next > 0 && rankNeed(next) > starsMax();
+  RI.left = 0;
+  for (const s of p.stars) if (s > 0) RI.left += 3 - s;
+  return RI;
+}
+// The largest size up to `size` (not below `min`) at which `text` fits `width`, measured once per text and width.
+const FIT = new Map();
+function fitSize(ctx, text, weight, size, min, width) {
+  const key = `${weight}:${size}:${width}:${text}`;
+  let s = FIT.get(key);
+  if (s === undefined) {
+    ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+    const mw = ctx.measureText(text).width;
+    s = mw <= width ? size : Math.max(min, Math.floor((size * width) / mw));
+    FIT.set(key, s);
+  }
+  return s;
+}
+const menuLine = (i) => (!i.next ? 'Top rank' : i.far ? 'More holes coming' : `${starWord(i.need)} to ${RANKS[i.next - 1].name}`);
+function ladderLine(i) {
+  if (!i.next) return 'Top rank';
+  const base = `${starWord(i.need)} to ${RANKS[i.next - 1].name}`;
+  return !i.far && i.left >= i.need ? `${base}: ${i.left} left on holes you've played` : base; // a far rank sits under the ladder's 'more holes coming' line
+}
+
+// Images (ADR-0015): looking at, never in play. Each is drawn once it has decoded; until then, or if it fails, the shapes draw.
+const ART = { title: null, ranks: [], medals: new Map() };
+function loadImage(file) {
+  const o = { img: new Image(), ok: false, sil: null };
+  o.img.src = `assets/${file}.webp`;
+  (o.img.decode ? o.img.decode() : Promise.reject()).then(() => { o.ok = true; }, () => { o.ok = o.img.complete && o.img.naturalWidth > 0; });
+  return o;
+}
+function loadArt() {
+  ART.title = loadImage('title-gravity-golf');
+  ART.ranks = RANKS.map((r) => loadImage(r.file));
+  for (const b of BADGES) ART.medals.set(b.id, loadImage(`medal-${b.id}`));
+}
+// A rank's silhouette for the ladder: the emblem's own shape in one dark colour, built once. Null without OffscreenCanvas (the disc is drawn live).
+function silhouette(o) {
+  if (!o.sil && typeof OffscreenCanvas !== 'undefined') {
+    const n = RT.ladder.silRes, c = new OffscreenCanvas(n, n), g = c.getContext('2d');
+    g.drawImage(o.img, 0, 0, n, n);
+    g.globalCompositeOperation = 'source-in'; g.fillStyle = RT.ladder.silhouette; g.fillRect(0, 0, n, n);
+    o.sil = c;
+  }
+  return o.sil || null;
+}
+// Before the first frame: the gradients, the menu's sky and tile icons and the three text fonts, so the first menu frame only draws.
+function warmUp(ctx) {
+  G = buildGradients(ctx);
+  buildSky(ctx, 'menu', 0);
+  for (const lv of LEVELS) drawBadge(ctx, lv, -200, -200, 0); // the menu's tile icons, drawn off screen once so their looks are built
+  for (const f of [`${TY.heavy} ${TY.lg}`, `600 ${TY.md}`, `600 ${TY.sm}`]) { ctx.font = `${f}px system-ui, sans-serif`; ctx.measureText('Aa'); }
+}
+// An emblem of `size` centred at (cx, cy). The shape fallback is a disc in the rank's colour (a dark one for a silhouette).
+function drawEmblem(ctx, rank, cx, cy, size, dark) {
+  const o = ART.ranks[rank - 1], r = size / 2;
+  const im = o && o.ok ? (dark ? silhouette(o) : o.img) : null;
+  if (im) { ctx.drawImage(im, cx - r, cy - r, size, size); return; }
+  ctx.fillStyle = dark ? RT.ladder.silhouette : RANKS[rank - 1].col;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.8, 0, PI2); ctx.fill();
+}
+
+// The rank-up card: an overlay on the hole's end card (or on the menu, for a veteran's one card). Tap skips it.
+const RK = { on: false, t: 0, from: 1, to: 1, burst: false, skipped: false, line: '' };
+function rankUpStart(E, from, to, where) {
+  const C = RT.card, p = progress(E);
+  RK.on = true; RK.t = 0; RK.from = from; RK.to = to; RK.burst = false; RK.skipped = false; RK.line = menuLine(rankInfo(p));
+  E.save.set('rankSeen', Math.max(E.save.get('rankSeen', 1), to));
+  E.ledger.add('rank', { rank: to, name: RANKS[to - 1].name, stars: p.total, at: where });
+  for (let i = 0; i < C.chime.length; i++) E.audio.beep({ freq: C.chime[i].f, dur: C.chime[i].d, type: 'triangle', gain: C.chimeGain, delay: C.chimeAt + i * C.chimeGap });
+  E.haptic(C.haptic);
+}
+const RKG = { px: 0, py: 0, pw: 0, cx: 0, ey: 0 };
+function rankUpGeom(E) {
+  const C = RT.card;
+  RKG.pw = Math.min(E.w - 40, C.w); RKG.px = (E.w - RKG.pw) / 2; RKG.py = (E.h - C.h) / 2; RKG.cx = E.w / 2; RKG.ey = RKG.py + C.top + C.emblem / 2;
+  return RKG;
+}
+function rankUpUpdate(dt, E) {
+  if (!RK.on) return;
+  const C = RT.card, col = RANKS[RK.to - 1].col;
+  RK.t += dt;
+  if (!RK.burst && RK.t >= C.burstAt) {
+    RK.burst = true;
+    const g = rankUpGeom(E), room = T.particleCap - E.particles.list.length;
+    if (room > 0) {
+      E.particles.emit({ x: g.cx, y: g.ey, count: Math.min(C.sparks, room), color: col, speed: C.sparkSpeed, life: C.sparkLife, size: C.sparkSize, drag: J.particleDrag });
+      E.particles.emit({ x: g.cx, y: g.ey, count: Math.min(C.sparks >> 1, Math.max(0, room - C.sparks)), color: mixHex(col, P.white, C.sparkWhite), speed: C.sparkSpeed * 0.6, life: C.sparkLife, size: C.sparkSize * 0.7, drag: J.particleDrag });
+    }
+  }
+  if (RK.t >= C.total) RK.on = false;
+}
+// The first tap while the card shows is spent on the card and jumps it to its fade; taps during the fade fall through to the scene. Returns true when it took the tap.
+function rankUpTap() {
+  const end = RT.card.total - RT.card.fadeOut;
+  if (!RK.on || RK.skipped || RK.t >= end) return false;
+  RK.skipped = true; RK.burst = true; RK.t = end;
+  return true;
+}
+function drawRankUp(ctx, E) {
+  const C = RT.card, t = RK.t, g = rankUpGeom(E), r = RANKS[RK.to - 1], S = C.emblem;
+  const a = Math.min(clamp(t / C.fadeIn, 0, 1), clamp((C.total - t) / C.fadeOut, 0, 1));
+  ctx.globalAlpha = a * C.dim; ctx.fillStyle = P.space; ctx.fillRect(0, 0, E.w, E.h);
+  const k = lerp(0.9, 1, ease.outBack(clamp(t / C.fadeIn, 0, 1))), mid = g.py + C.h / 2;
+  ctx.save(); ctx.translate(g.cx, mid); ctx.scale(k, k); ctx.translate(-g.cx, -mid);
+  ctx.globalAlpha = a; E.roundRect(g.px, g.py, g.pw, C.h, A.line.card, P.card, r.col);
+  const sw = clamp((t - C.swapAt) / C.swapTime, 0, 1), eo = ease.outBack(sw);
+  if (sw > 0) { // the glow behind the new emblem
+    const gr = ctx.createRadialGradient(g.cx, g.ey, 0, g.cx, g.ey, S * C.glowR);
+    gr.addColorStop(0, rgba(r.col, C.glowAlpha)); gr.addColorStop(1, rgba(r.col, 0));
+    ctx.globalAlpha = a * Math.min(1, eo); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.cx, g.ey, S * C.glowR, 0, PI2); ctx.fill();
+  }
+  ctx.globalAlpha = a * (1 - sw); drawEmblem(ctx, RK.from, g.cx, g.ey, S * C.oldScale);
+  if (sw > 0) { ctx.globalAlpha = a * clamp(sw * 3, 0, 1); drawEmblem(ctx, RK.to, g.cx, g.ey, S * lerp(C.oldScale, 1, eo)); }
+  ctx.globalAlpha = 1;
+  const rk = clamp((t - C.ringAt) / C.ringTime, 0, 1);
+  if (rk > 0 && rk < 1) drawRing(ctx, g.cx, g.ey, (S / 2) * lerp(C.ringFrom, C.ringTo, ease.outCubic(rk)), lerp(C.ringW, 1.5, rk), r.col, a * (1 - rk));
+  const ta = a * clamp((t - C.textAt) / C.textIn, 0, 1);
+  E.text(`Rank up: ${r.name}`, g.cx, g.py + C.titleY, { ...TX.cardTitle, alpha: ta });
+  E.text(RK.line, g.cx, g.py + C.lineY, { ...TX.sm, alpha: ta });
+  ctx.restore();
 }
 
 function radial(ctx, x0, y0, r0, x1, y1, r1, stops) {
@@ -1810,7 +1993,7 @@ function returnToLastRest() {
 
 function finishHole(E) {
   const strokes = S.strokes, lv = S.lv, id = String(S.idx), stars = starsFor(strokes, lv.stars);
-  const prev = E.save.get('best', {})[id];
+  const prev = E.save.get('best', {})[id], rankBefore = rankFor(starTotal(E.save.get('stars', {})));
   const best = prev === undefined ? strokes : Math.min(prev, strokes);
   E.save.update('best', (b) => ({ ...b, [id]: best }), {});
   E.save.update('stars', (s) => ({ ...s, [id]: Math.max(s[id] || 0, stars) }), {});
@@ -1832,7 +2015,8 @@ function finishHole(E) {
   const fresh = BADGES.filter((b) => !had[b.id] && (savedBadge(b, won, bests) || eventBadge(b, ev))).map((b) => b.id);
   if (fresh.length) E.save.update('badges', (h) => { const o = { ...h }; for (const k of fresh) o[k] = 1; return o; }, {});
   for (const id of fresh) E.ledger.add('badge', { id, hole: S.idx + 1 });
-  E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh });
+  const rankAfter = rankFor(starTotal(E.save.get('stars', {})));
+  E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh, rankUp: rankAfter > rankBefore ? { from: rankBefore, to: rankAfter } : null });
 }
 
 // A full run ends: finished (done) or left (a hole played out of order, Menu or Retry from the card, or hole 1 again).
@@ -2144,8 +2328,11 @@ function drawBanner(ctx, E) {
 
 // ---------- Badges and skins on screen ----------
 
-// A badge medal: a dark disc ringed in its tier colour with the tier's icon (rock, crescent, ringed planet, star); dim when not earned.
-function drawMedal(ctx, x, y, r, tier, got) {
+// A badge medal: its generated image (locked ones at 35 percent), or while that loads or if it fails, a dark disc ringed in its tier
+// colour with the tier's icon (rock, crescent, ringed planet, star); dim when not earned. `id` is the badge; the tier headings pass none.
+function drawMedal(ctx, x, y, r, tier, got, id) {
+  const m = id && ART.medals.get(id);
+  if (m && m.ok) { ctx.globalAlpha = got ? 1 : RT.ladder.lockedMedal; ctx.drawImage(m.img, x - r, y - r, 2 * r, 2 * r); ctx.globalAlpha = 1; return; }
   const col = got ? P.tiers[tier] : P.starOff;
   ctx.fillStyle = got ? P.card : P.tileLocked; ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill();
   ctx.strokeStyle = col; ctx.lineWidth = A.line.edge; ctx.stroke();
@@ -2168,7 +2355,7 @@ function drawTicket(ctx, E, b, k, y, more) {
   const TK = A.ticket, w = Math.min(TK.w, E.w - 40), x = (E.w - w) / 2, cx = E.w / 2, skins = skinsOf(b.id);
   ctx.save(); ctx.translate(cx, y); ctx.scale(k, k); ctx.translate(-cx, -y);
   E.roundRect(x, y - TK.h / 2, w, TK.h, TK.r, P.bannerBg, P.tiers[b.tier]);
-  drawMedal(ctx, x + 12 + TK.medalR, y, TK.medalR, b.tier, true);
+  drawMedal(ctx, x + 12 + TK.medalR, y, TK.medalR, b.tier, true, b.id);
   const tx0 = x + 24 + 2 * TK.medalR;
   E.text(more > 0 ? `${TIER_LABEL[b.tier]}  +${more} more` : TIER_LABEL[b.tier], tx0, y - 11, TX.tier[b.tier]);
   E.text(b.name, tx0, y + 10, TX.valueL);
@@ -2182,20 +2369,34 @@ const TIER_LABEL = BADGE_TIERS.map((n) => `${n.toUpperCase()} BADGE`);
 
 const menu = {
   titleBox: { x: 0, y: 0, w: 0, h: 0 },
-  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.tiles = []; this.pop = CHANGED; CHANGED = null; this.t = 0; applySkins(E); },
-  update(dt) { if (this.pop) this.t += dt; },
+  enter(E) {
+    this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnRank = null; this.tiles = []; this.pop = CHANGED; CHANGED = null; this.t = 0; applySkins(E);
+    RK.on = false;
+    this.vet = rankFor(progress(E).total) > E.save.get('rankSeen', 1); // a rank whose card has not shown yet (a veteran's first boot): one card, never a cascade
+  },
+  update(dt, E) {
+    if (this.pop) this.t += dt;
+    this.clock = (this.clock || 0) + dt;
+    if (this.vet && this.clock >= RT.card.menuDelay) {
+      this.vet = false;
+      const to = rankFor(progress(E).total);
+      rankUpStart(E, Math.max(E.save.get('rankSeen', 1), to - 1), to, 'menu');
+    }
+    rankUpUpdate(dt, E);
+  },
   render(ctx, E) {
     const v = coverView(E), p = progress(E), cx = E.w / 2, tl = A.tile, M = A.menu;
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0, 0, E.time); ctx.restore();
     const ty = Math.max(E.h * 0.09, E.safe.top + M.tabBottom + M.titleGap); // below the engine's TUNE tab on a notched phone
-    E.text('GRAVITY GOLF', cx, ty, TX.big);
-    const tw0 = ctx.measureText('GRAVITY GOLF').width + 16, TA = this.titleBox; // release: five taps on the title open TUNE (ADR-0016)
-    TA.x = cx - tw0 / 2; TA.y = ty - TY.lg / 2; TA.w = tw0; TA.h = TY.lg + 4; E.titleArea = TA; // starts below the EXPORT tab's 48 px corner
-    E.text(`Stars ${p.total} / ${LEVELS.length * 3}`, cx, ty + M.starsGap, TX.goal);
-    drawSkinSample(ctx, cx - 108, ty + M.starsGap, 8, SK.ball, SK.trail, E.time * 1.5);
+    const MR = RT.menu, titleW = Math.min(MR.titleW, E.w - 2 * MR.margin), titleH = titleW * MR.titleAspect;
+    if (ART.title.ok) ctx.drawImage(ART.title.img, cx - titleW / 2, ty - titleH / 2, titleW, titleH);
+    else E.text('GRAVITY GOLF', cx, ty, TX.big);
+    const TA = this.titleBox; // release: five taps on the title open TUNE (ADR-0016)
+    TA.x = cx - titleW / 2; TA.y = ty - titleH / 2; TA.w = titleW; TA.h = titleH; E.titleArea = TA; // clear of the EXPORT tab's corner
+    this.drawRank(ctx, E, p, ty + titleH / 2 + MR.titleGap);
 
     const m = 16, gap = T.tileGap, cols = T.gridCols;
-    const tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = T.tileH, top = Math.max(E.h * 0.2, ty + M.starsGap + M.gridGap);
+    const tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = T.tileH, top = ty + titleH / 2 + MR.titleGap + MR.cardH + MR.gridGap;
     this.tiles = [];
     LEVELS.forEach((lv, i) => {
       const x = m + (i % cols) * (tw + gap), y = top + Math.floor(i / cols) * (th + gap), tcx = x + tw / 2;
@@ -2227,8 +2428,27 @@ const menu = {
     const hx = (M.missionsW + M.rowGap) / 2;
     this.btnMissions = pill(E, 'Missions', cx - hx, py + 84, BTN.half);
     this.btnMute = pill(E, E.audio.muted ? 'Sound: off' : 'Sound: on', cx + hx, py + 84, BTN.half);
+    if (RK.on) drawRankUp(ctx, E);
+  },
+  // The menu's one headline (principle 11): the rank's emblem and name, one progress line and a thin bar. Tapping it opens the ladder.
+  drawRank(ctx, E, p, y) {
+    const MR = RT.menu, info = rankInfo(p), r = RANKS[info.rank - 1], x = MR.margin, w = E.w - 2 * x, tx0 = x + MR.pad + MR.emblem + MR.pad;
+    E.roundRect(x, y, w, MR.cardH, A.line.radius, P.tile, r.col);
+    drawEmblem(ctx, info.rank, x + MR.pad + MR.emblem / 2, y + MR.cardH / 2, MR.emblem);
+    const bw = x + w - MR.pad - MR.chevron * 3 - tx0, line = menuLine(info); // the text and the bar stop short of the chevron; a long name or line steps down in size to fit
+    E.text(r.name, tx0, y + MR.nameY, { ...TX.bigL, size: fitSize(ctx, r.name, TY.heavy, TY.lg, MR.nameMin, bw) });
+    E.text(line, tx0, y + MR.lineY, { ...TX.goalMdL, size: fitSize(ctx, line, 600, TY.md, MR.lineMin, bw) });
+    E.roundRect(tx0, y + MR.barY, bw, MR.barH, MR.barH / 2, P.slateDeep);
+    if (info.frac > 0) E.roundRect(tx0, y + MR.barY, Math.max(MR.barH, bw * clamp(info.frac, 0, 1)), MR.barH, MR.barH / 2, P.green);
+    const cx = x + w - MR.pad - MR.chevron, cy = y + MR.cardH / 2; // a chevron: this opens something
+    ctx.strokeStyle = P.textDim; ctx.lineWidth = A.line.edge; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(cx - MR.chevron / 2, cy - MR.chevron); ctx.lineTo(cx + MR.chevron / 2, cy); ctx.lineTo(cx - MR.chevron / 2, cy + MR.chevron); ctx.stroke();
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+    this.btnRank = { x, y, w, h: MR.cardH };
   },
   onTap(p, E) {
+    if (rankUpTap()) return;
+    if (this.btnRank && E.hit(this.btnRank, p)) { E.audio.play('tap'); E.setScene('missions', { ladder: true }); return; }
     if (E.hit(this.btnPlay, p)) { E.setScene('play', { hole: progress(E).unlocked }); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); return; }
@@ -2258,24 +2478,36 @@ function wrapText(ctx, key, text, width) {
 }
 
 const missions = {
-  enter(E) { this.scroll = 0; this.drag = null; this.btnBack = null; this.swatches = []; this.listH = BADGES.length * (A.missions.rowH + A.missions.rowGap); applySkins(E); },
+  enter(E, params) {
+    this.drag = null; this.btnBack = null; this.swatches = []; this.listH = BADGES.length * (A.missions.rowH + A.missions.rowGap); applySkins(E);
+    const L = RT.ladder; this.ladderH = A.missions.headH + 2 * A.missions.lineH + L.headGap + RANKS.length * (L.rowH + L.rowGap) + L.dividerH + L.tail; // measured by the render
+    this.scroll = 0; this.focus = params && params.ladder ? 'ladder' : 'badges'; // from the menu's rank card the ladder shows at your rank; from Missions it opens on the skins and badges, the ladder above
+  },
   skinsH() {
     const M = A.missions, W = A.swatch, rows = (n) => Math.ceil(n / W.perRow) * (W.size + W.rowGap);
     return M.headH + 2 * W.headH + rows(SKINS.balls.length) + rows(SKINS.trails.length) + 6;
   },
   area(E) {
     const M = A.missions, top = E.safe.top + M.top, bot = E.h - E.safe.bottom - M.bottom;
-    const content = this.skinsH() + BADGE_TIERS.length * M.headH + this.listH; // listH is measured by the last render
+    const content = this.ladderH + this.skinsH() + BADGE_TIERS.length * M.headH + this.listH; // ladderH and listH are measured by the last render
     return { top, bot, max: Math.max(0, content - (bot - top)) };
   },
   render(ctx, E) {
-    const M = A.missions, V = this.area(E), p = progress(E), m = M.margin, w = E.w - 2 * m, v = coverView(E);
+    const M = A.missions, p = progress(E), m = M.margin, w = E.w - 2 * m, v = coverView(E), info = rankInfo(p), L = RT.ladder;
+    const lines = info.next ? wrapText(ctx, `rank:${w}:${ladderLine(info)}`, ladderLine(info), w - 2 * L.pad - L.emblem - L.pad) : [], ex = lines.length ? lines.length * M.lineH + L.lineGap : 0; // the next rank's row carries the progress line
+    const step = L.rowH + L.rowGap, far = firstFar(), head = M.headH + L.headGap;
+    this.ladderH = head + RANKS.length * step + ex + (far >= 0 ? L.dividerH : 0) + L.tail;
+    const V = this.area(E), rowTop = (i) => head + i * step + (info.next && i >= info.next ? ex : 0) + (far >= 0 && i >= far ? L.dividerH : 0);
+    if (this.focus) { // once, on the first frame: the ladder with your rank in view, or past it to the skins
+      this.scroll = this.focus === 'ladder' ? (info.rank > 2 ? rowTop(info.rank - 2) - 4 : 0) : this.ladderH;
+      this.focus = null;
+    }
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0, 0, E.time); ctx.restore();
     E.text('Missions', m, E.safe.top + 32, TX.bigL);
     E.text(`${BADGES.filter((b) => p.badges[b.id]).length} / ${BADGES.length}`, E.w - m, E.safe.top + 32, TX.valueGoalR);
     this.scroll = clamp(this.scroll, 0, V.max);
     ctx.save(); ctx.beginPath(); ctx.rect(0, V.top, E.w, V.bot - V.top); ctx.clip();
-    let y = this.drawSkins(ctx, E, p, V.top - this.scroll, V, m), listH = 0;
+    let y = this.drawSkins(ctx, E, p, this.drawLadder(ctx, E, p, info, lines, ex, rowTop, V.top - this.scroll, V, m), V, m), listH = 0;
     BADGE_TIERS.forEach((name, tier) => {
       const inTier = BADGES.filter((b) => b.tier === tier);
       drawMedal(ctx, m + 8, y + M.headH / 2, 8, tier, true);
@@ -2288,7 +2520,7 @@ const missions = {
         if (y + h > V.top && y < V.bot) {
           const got = !!p.badges[b.id];
           E.roundRect(m, y, w, h, A.line.radius, got ? P.tile : P.tileLocked, got ? P.tiers[tier] : P.tileLockedEdge);
-          drawMedal(ctx, m + 12 + M.medalR, y + h / 2, M.medalR, tier, got);
+          drawMedal(ctx, m + 12 + M.medalR, y + h / 2, M.medalR, tier, got, b.id);
           E.text(b.name, tx0, y + 19, got ? TX.valueL : TX.offL);
           for (let i = 0; i < lines.length; i++) E.text(lines[i], tx0, y + 39 + i * M.lineH, got ? TX.labelL : TX.dimL);
           for (let i = 0; i < plines.length; i++) E.text(plines[i], tx0, y + 39 + (lines.length + i) * M.lineH, got ? TX.goalL : TX.progL);
@@ -2303,6 +2535,32 @@ const missions = {
       E.roundRect(E.w - 6, V.top + (tr - bh) * (this.scroll / V.max), M.scrollBar, bh, 1.5, P.slate);
     }
     this.btnBack = pill(E, 'Back', E.w / 2, E.h - E.safe.bottom - M.toastBand - M.backH / 2, BTN.back);
+  },
+  // The rank ladder (PRD v0.6 B): a heading with the star total and the progress line, then a row per rank. Ranks reached show in full colour
+  // with their name and star count (your own ringed in its colour), the next is tagged, the ones after are dark silhouettes with only their
+  // star count, and one small line marks where today's holes run out.
+  drawLadder(ctx, E, p, info, lines, ex, rowTop, y, V, m) {
+    const M = A.missions, L = RT.ladder, w = E.w - 2 * m, far = firstFar(), y0 = y;
+    E.text('RANKS', m, y + M.headH / 2, TX.labelL);
+    E.text(starWord(p.total), E.w - m, y + M.headH / 2, TX.valueGoalR);
+    RANKS.forEach((r, i) => {
+      const rank = i + 1, ry = y0 + rowTop(i), cy = ry + L.rowH / 2;
+      if (far === i) E.text('more holes coming', E.w / 2, ry - L.dividerH / 2 - L.rowGap / 2 + 2, TX.sm);
+      if (ry + (rank === info.next ? L.rowH + ex : L.rowH) < V.top || ry > V.bot) return;
+      const reached = rank <= info.rank, next = rank === info.next, tx0 = m + L.pad + L.emblem + L.pad, rh = next ? L.rowH + ex : L.rowH;
+      E.roundRect(m, ry, w, rh, A.line.radius, reached ? P.tile : P.tileLocked, rank === info.rank ? r.col : reached ? P.slate : next ? P.amber : P.tileLockedEdge);
+      drawEmblem(ctx, rank, m + L.pad + L.emblem / 2, cy, L.emblem, !reached && !next);
+      const count = starWord(rankNeed(rank));
+      if (!reached && !next) E.text(count, tx0, cy, TX.offL);
+      else {
+        E.text(r.name, tx0, cy, TX.valueL);
+        if (next) {
+          E.text('NEXT', E.w - m - L.pad, cy, TX.amberR);
+          for (let j = 0; j < lines.length; j++) E.text(lines[j], tx0, ry + L.rowH - L.lineGap + M.lineH / 2 + j * M.lineH, TX.progL);
+        } else E.text(count, E.w - m - L.pad, cy, TX.labelR);
+      }
+    });
+    return y0 + this.ladderH;
   },
   // Ball swatches then trail swatches. An owned swatch picks it (ringed when chosen); a locked one shows a lock and toasts its badge.
   drawSkins(ctx, E, p, y, V, m) {
@@ -2540,6 +2798,8 @@ const over = {
     this.badges = (p.badges || []).map((id) => BADGES.find((b) => b.id === id));
     this.badgeT = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop + J.badgeDelay; // the first badge pops after the stars
     this.badgeOn = -1;
+    RK.on = false; this.rkAt = this.beat + RT.card.delay; // the rank-up card, if this hole crossed a rank, follows the usual card
+    this.rkDone = !(p.rankUp && p.rankUp.to > E.save.get('rankSeen', 1));
     applySkins(E);
     E.tween(J.cardSlide, (k) => { this.slide = k; }, ease.outBack);
   },
@@ -2554,6 +2814,8 @@ const over = {
     const bi = Math.min(this.badges.length - 1, Math.floor((this.t - this.badgeT) / J.badgeHold));
     if (this.t >= this.badgeT && bi > this.badgeOn) { this.badgeOn = bi; E.audio.play('win', 0.5); E.haptic(J.sinkHaptic); }
     this.ready = this.t >= this.beat;
+    if (!this.rkDone && this.t >= this.rkAt) { this.rkDone = true; rankUpStart(E, this.p.rankUp.from, this.p.rankUp.to, 'card'); }
+    rankUpUpdate(dt, E);
   },
   render(ctx, E) {
     const p = this.p, cx = E.w / 2, t = this.t, v = coverView(E);
@@ -2595,8 +2857,10 @@ const over = {
       drawTicket(ctx, E, this.badges[this.badgeOn], k, tky, this.badges.length - 1 - this.badgeOn);
     }
     ctx.restore();
+    if (RK.on) drawRankUp(ctx, E);
   },
   onTap(p, E) {
+    if (rankUpTap()) return;
     if (!this.ready || !this.btnNext || p.startT < this.t0 + this.beat) return;
     if (E.hit(this.btnNext, p)) { if (!this.p.hasNext) endRun(E, false); E.setScene(this.p.hasNext ? 'play' : 'menu', { hole: this.p.hole + 1, run: true }); }
     else if (this.btnMenu && E.hit(this.btnMenu, p)) { endRun(E, false); E.setScene('menu'); }
@@ -2615,13 +2879,15 @@ const V01_PAR = [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 7,
+  saveVersion: 8,
   // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map;
   // v3 adds `unlocked`, rebuilt from the holes already cleared; v4 stores stars per hole, because v0.2 judges stars
   // by per-hole thresholds on re-authored holes: stars won under v0.1 pars are kept as they were; v5 adds badges and the skin choice;
   // v6 adds `prog`, the record behind the missions tiles' progress (landings, fewest sun touches, best run, last run), empty until played,
   // and `hintSeen`, set once the first-run hint has shown; v7 is the 25-hole ladder: `unlocked` is raised to the highest cleared
-  // hole plus one and the run records (`runBest`, `lastRun`) are dropped, as a run over 15 holes does not compare with one over 25.
+  // hole plus one and the run records (`runBest`, `lastRun`) are dropped, as a run over 15 holes does not compare with one over 25;
+  // v8 adds `rankSeen`, the highest rank whose card has been shown (the rank itself is computed from the stars, never stored): a save
+  // with stars gets one below its current rank, so a veteran sees one card on the menu, and a save still on Asteroid gets 1 (no card).
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (data.unlocked === undefined) {
@@ -2645,9 +2911,11 @@ export const game = {
       data.unlocked = openHole(data.best, data.unlocked);
       if (data.prog) { delete data.prog.runBest; delete data.prog.lastRun; }
     }
+    if (fromVersion < 8) data.rankSeen = Math.max(1, rankFor(starTotal(data.stars)) - 1);
     return data;
   },
   TUNING,
+  init(E) { loadArt(); warmUp(E.ctx); },
   // Playtest ranges for the engine's tune panel; physics reads them every step, so a change applies from the next shot.
   // PRD v0.3 D: gravity presets. The routes are proven at Heavy (the defaults) only.
   presets: [
