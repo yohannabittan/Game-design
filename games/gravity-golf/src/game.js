@@ -1,5 +1,5 @@
-// Gravity Golf v0.6: planets, suns (with mass), rotating bars, orbiting moons, comets and black holes on the v0.1 mechanic, juice, scenes, the
-// space look, missions and skins, a full-run counter, the playtest ledger, and a rank ladder from Asteroid to Black Hole driven by stars.
+// Gravity Golf v0.7: planets, suns (with mass), rotating bars, orbiting moons, comets and black holes on the v0.1 mechanic, juice, scenes, the
+// space look, missions and skins, a full-run counter, the playtest ledger, a rank ladder from Asteroid to Black Hole driven by stars, and nine exotic badges with secret slots and a Black Hole tier.
 // Slingshot aim, fixed-step ball physics, strokes against per-hole star thresholds, the hole card, hole select.
 
 import { makeRng, hashString, ease, clamp, lerp, dist } from './engine.js';
@@ -237,7 +237,8 @@ const TUNING = {
       text: '#f1f5f9', textDim: '#a3aec2', textOff: '#64748b',
       card: '#0c1330', tile: '#16203d', tileLocked: '#0a1024', tileLockedEdge: '#1b2440', retryOff: '#141c33', starOff: '#475569',
       puff: '#cbd5e1', spark: '#94a3b8', sparkBig: '#cbd5e1', restPulse: '#94a3b8',
-      tiers: ['#a8a29e', '#c9d6ea', '#a855f7', '#fde047'], // Badge medals: Meteorite rock, Moon, Planet purple, Star gold
+      tiers: ['#a8a29e', '#c9d6ea', '#a855f7', '#fde047', '#fb923c'], // Badge medals: Meteorite rock, Moon, Planet purple, Star gold, Black Hole (the accretion ring: its edge, text and glow)
+      bhTierRim: '#17151c', // Black Hole tier: the near-black disc inside the glowing orange ring
     },
     type: { sm: 15, md: 20, lg: 36, heavy: '800' }, // Three sizes; only the large size is heavy, everything else is the engine's 600
     line: { hair: 1.5, edge: 2, radius: 10, card: 18, button: 14 }, // Design units (button radius is the engine's)
@@ -371,6 +372,8 @@ const TUNING = {
     missions: { top: 64, headH: 32, rowH: 58, rowGap: 6, medalR: 20, bottom: 156, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17, toastBand: 96 }, // rowH for a one-line condition; each extra line adds lineH. Back sits above toastBand: the engine's toast (24 px up, two lines) takes taps while it shows
     swatch: { size: 46, gap: 10, perRow: 6, headH: 26, rowGap: 10, ring: 3, ballR: 13 }, // The Skins block on the missions screen (swatches at least 44 px)
     ticket: { w: 320, h: 50, r: 14, medalR: 18 }, // The badge ticket that pops over the top edge of the hole card
+    tierGlow: { rate: 0.4, min: 0.25, max: 0.85, r: 1.55, halo: 3 }, // Black Hole tier rim: glow pulses per second, its alpha range, its radius in medal radii, and the ticket's halo width (design px)
+    secret: { name: '???', text: 'Secret badge', mark: 1.15 }, // A secret badge not yet earned: its name, its one line, and the '?' size in medal radii
     // Skins (PRD v0.3 C2): data entries, each earned by one badge. A ball skin sets the body gradient (light, mid, edge, or
     // `stops` for chrome), the seam (`seamKind`: 'seam', 'corona' or 'crescent'), the rim and the shadow tint; anything left
     // out is the default ball. A trail skin sets the trail colour everywhere (only the default trail turns gravity purple near a
@@ -413,7 +416,7 @@ const TUNING = {
   // emblem's own colour, used for the card's border, glow ring and sparks.
   rank: {
     starsPerRank: 10,
-    menu: { emblem: 72, cardH: 88, margin: 16, pad: 12, nameY: 26, lineY: 56, barY: 70, barH: 6, chevron: 6, nameMin: 24, lineMin: 14, titleW: 220, titleAspect: 366 / 1024, titleGap: 12, gridGap: 22 }, // The headline card under the title; nameY, lineY, barY are from the card's top
+    menu: { emblem: 72, cardH: 88, margin: 16, pad: 12, nameY: 26, lineY: 56, barY: 70, barH: 6, chevron: 6, nameMin: 24, lineMin: 14, titleW: 220, titleAspect: 467 / 1024, titleGap: 12, gridGap: 22 }, // The headline card under the title; nameY, lineY, barY are from the card's top
     ladder: { emblem: 44, rowH: 56, rowGap: 6, pad: 10, dividerH: 30, headGap: 6, lineGap: 4, tail: 6, silRes: 128, silhouette: '#1e293b', lockedMedal: 0.35 }, // Rows on the missions screen; silRes is the silhouette canvas size
     card: {
       w: 300, h: 280, top: 28, emblem: 150, oldScale: 0.7, dim: 0.82,
@@ -444,6 +447,23 @@ const TUNING = {
       { name: 'Quasar', file: 'rank-15-quasar', col: '#e879f9' },
       { name: 'Black Hole', file: 'rank-16-black-hole', col: '#f08a24' },
     ],
+  },
+
+  // Exotic badges (PRD v0.7). The flight measurements only watch the physics (speed, each body's pull, contacts); they never change it.
+  // Speeds are design units per second, angles degrees, times minutes.
+  badges: {
+    bendTurn: 10,          // A gravity body "bent" the sinking shot if its pull alone turned the heading this much over the flight (net, in degrees)
+    heatSpeed: 80,         // Heat Death: sink slower than this (set by the harness: the lowest 10-step value with a 1 degree, 5 px sink on some hole; about 21 percent of sinkSpeed)
+    heatMinutes: 10,       // Heat Death: or hole out after this many minutes on the hole (screen on and app visible)
+    lagrangePull: 4,       // Lagrange Point: each of two bodies pulls at least this times restPull() (the open-field rest threshold)
+    lagrangeApart: 150,    // and the two pulls point at least this many degrees apart
+    lagrangeClear: 9,      // and the ball's edge is at least this far from every surface: open space, not hovering on a planet where a moon cancels its pull
+    relSpeed: 850,         // Relativistic: reach this speed on any shot (set by the harness; above the full-power launch speed of 820)
+    ftlSpeed: 970,         // FTL: reach this speed on any shot (set by the harness: the highest top speed a shot reaches over 1 degree of aim and 5 px of drag; well above relSpeed)
+    improbableStrokes: 42, // Improbability Drive: hole out on exactly this stroke
+    wormholeThree: 2,      // Wormhole: a hole in one on a hole whose three stars take at least this many strokes
+    chime: [{ f: 196, d: 0.18 }, { f: 246.94, d: 0.18 }, { f: 392, d: 0.5 }], chimeGap: 0.14, chimeGain: 0.2, // Black Hole tier: a lower, longer chime than the Star tier's
+    fxCount: 18, fxSpeed: 200, fxLife: 0.5, // The burst at the ball when a badge is earned in flight
   },
 };
 const T = TUNING;
@@ -930,6 +950,101 @@ function stepBall(lv, b, clock) {
   return null;
 }
 
+// ---------- Flight watch (PRD v0.7 C) ----------
+// What a flight did, for the exotic badges: its top speed, the net turn each gravity body's pull alone gave the heading, and whether
+// it touched anything. watchPre runs just before a step and watchPost just after; neither writes to the ball or to the physics scratch,
+// so a flight is bit-for-bit the same with or without them. The preview and the harness's own shots never call them.
+const FW = { n: 0, turn: [], top: 0, touched: false, got: 0 }; // got: the in-flight badges already fired on this flight
+const PUL = new Float64Array(64);
+let PK = 0;
+function put(b, x, y, r, mass) {
+  const dx = x - b.x, dy = y - b.y, d = Math.hypot(dx, dy) || 1e-6, dd = Math.max(d, r), a = (T.planetGravity * mass) / (dd * dd);
+  PUL[2 * PK] = (dx / d) * a; PUL[2 * PK + 1] = (dy / d) * a; PK++;
+}
+// Each gravity body's pull on the ball into PUL (ax, ay per slot), in a fixed order: planets with mass, suns, moons, black holes (the
+// same laws as stepBall). Returns the slot count; a sun out of reach holds a zero slot.
+function pulls(lv, b, clock) {
+  PK = 0;
+  for (const p of lv.planets) if (p.mass > 0) put(b, p.x, p.y, p.r, p.mass);
+  for (const s of lv.suns) if (sunMassOf(s) > 0) put(b, s.x, s.y, T.sunPullR, sunMassOf(s) * fall(sunReach(s), T.sunFade, dist(b.x, b.y, s.x, s.y)));
+  for (const m of lv.movers) if (m.type === 'moon') { const c = moonAt(lv, m, clock); put(b, c.x, c.y, m.r, m.mass); }
+  for (const h of lv.blackholes) if (h.mass > 0) put(b, h.x, h.y, T.bhPullR, h.mass * bhInfluence(h, b.x, b.y));
+  return PK;
+}
+function watchStart(lv, b) {
+  FW.n = pulls(lv, b, 0); FW.turn.length = FW.n; FW.turn.fill(0);
+  FW.top = 0; FW.touched = false; FW.got = 0;
+}
+// `clock` is the value the coming stepBall gets. Heading change from a pull a is (v x a) dt / |v|^2.
+function watchPre(lv, b, clock) {
+  const s2 = b.vx * b.vx + b.vy * b.vy, sp = Math.sqrt(s2);
+  if (sp > FW.top) FW.top = sp;
+  if (s2 < 1) return;
+  const n = pulls(lv, b, clock), k = STEP / s2;
+  for (let i = 0; i < n; i++) FW.turn[i] += (b.vx * PUL[2 * i + 1] - b.vy * PUL[2 * i]) * k;
+}
+function watchPost(b) { if (b.touch) FW.touched = true; }
+// How many gravity bodies bent the flight by at least bendTurn degrees.
+function bent() {
+  const lim = (T.badges.bendTurn * Math.PI) / 180;
+  let n = 0;
+  for (let i = 0; i < FW.n; i++) if (Math.abs(FW.turn[i]) >= lim) n++;
+  return n;
+}
+// The sinking shot's flags: Dark Matter (two bodies bent it and nothing was touched), Great Attractor (every body of three or more
+// bent it) and Heat Death's slow roll-in.
+const SINK = { dark: false, great: false, slow: false };
+function sinkFlags(b) {
+  const n = bent();
+  SINK.dark = !FW.touched && n >= 2;
+  SINK.great = FW.n >= 3 && n === FW.n;
+  SINK.slow = Math.hypot(b.vx, b.vy) < T.badges.heatSpeed;
+  return SINK;
+}
+// Kessler Cascade: after a step with an impact over bounceEventSpeed, marks the walls (the hole's own, then the four field edges,
+// slots lv.walls.length to +3) the ball is now touching. Returns how many walls are still untouched; `seen` is per hole.
+function kesslerMark(lv, b, seen) {
+  const R = T.ballR + 1e-4, nw = lv.walls.length;
+  for (let i = 0; i < nw; i++) {
+    const r = lv.walls[i];
+    if (!seen[i] && Math.hypot(b.x - clamp(b.x, r.x, r.x + r.w), b.y - clamp(b.y, r.y, r.y + r.h)) <= R) seen[i] = 1;
+  }
+  if (b.x <= R) seen[nw] = 1;
+  if (b.x >= T.designW - R) seen[nw + 1] = 1;
+  if (b.y <= R) seen[nw + 2] = 1;
+  if (b.y >= T.designH - R) seen[nw + 3] = 1;
+  let left = 0;
+  for (let i = 0; i < nw + 4; i++) if (!seen[i]) left++;
+  return left;
+}
+// The gap between the ball's edge and the nearest solid surface (walls, field edges, planets, suns, moons).
+function surfaceGap(lv, b, clock) {
+  let m = Math.min(b.x, b.y, T.designW - b.x, T.designH - b.y);
+  for (const r of lv.walls) m = Math.min(m, Math.hypot(b.x - clamp(b.x, r.x, r.x + r.w), b.y - clamp(b.y, r.y, r.y + r.h)));
+  for (const p of lv.planets) m = Math.min(m, dist(b.x, b.y, p.x, p.y) - p.r);
+  for (const s of lv.suns) m = Math.min(m, dist(b.x, b.y, s.x, s.y) - s.r);
+  for (const mv of lv.movers) if (mv.type === 'moon') { const c = moonAt(lv, mv, clock); m = Math.min(m, dist(b.x, b.y, c.x, c.y) - mv.r); }
+  return m - T.ballR;
+}
+// Lagrange Point: a ball at rest in open space (lagrangeClear from every surface) with two bodies each pulling at least lagrangePull
+// times restPull(), their pulls at least lagrangeApart degrees apart, and the net pull under restPull(): the pulls cancel.
+function lagrangeAt(lv, b, clock) {
+  if (surfaceGap(lv, b, clock) < T.badges.lagrangeClear) return false;
+  const n = pulls(lv, b, clock), rp = restPull(), need = T.badges.lagrangePull * rp, cos = Math.cos((T.badges.lagrangeApart * Math.PI) / 180);
+  let nx = 0, ny = 0;
+  for (let i = 0; i < n; i++) { nx += PUL[2 * i]; ny += PUL[2 * i + 1]; }
+  if (Math.hypot(nx, ny) >= rp) return false;
+  for (let i = 0; i < n; i++) {
+    const ai = Math.hypot(PUL[2 * i], PUL[2 * i + 1]);
+    if (ai < need) continue;
+    for (let j = i + 1; j < n; j++) {
+      const aj = Math.hypot(PUL[2 * j], PUL[2 * j + 1]);
+      if (aj >= need && (PUL[2 * i] * PUL[2 * j] + PUL[2 * i + 1] * PUL[2 * j + 1]) / (ai * aj) <= cos) return true;
+    }
+  }
+  return false;
+}
+
 // Drag in screen px (finger minus touch start) to launch velocity. Null inside the dead zone.
 function launchFromDrag(dx, dy) {
   const len = Math.hypot(dx, dy);
@@ -1031,7 +1146,7 @@ const NO_DASH = [], ORBIT_DASH = [3, 7];
 //   touchdown: a sinking shot played from a rest on a planet or moon; untouched: finish a hole that has a sun without touching it;
 //   runNoLand, runStrokes: a full run, every hole in LEVELS in order from hole 1, going on with Next. A retried attempt's strokes
 //   and rests count toward the run (a retry on hole 1 starts it again); leaving for the menu ends it.
-const BADGE_TIERS = ['Meteorite', 'Moon', 'Planet', 'Star'];
+const BADGE_TIERS = ['Meteorite', 'Moon', 'Planet', 'Star', 'Black Hole'];
 const BADGES = [
   { id: 'first-orbit', tier: 0, name: 'First Orbit', text: 'Three stars on any hole', kind: 'threeAny' },
   { id: 'banker', tier: 0, name: 'Banker', text: 'Ace hole 2', kind: 'ace', holes: [1] },
@@ -1044,7 +1159,20 @@ const BADGES = [
   { id: 'eclipse', tier: 3, name: 'Eclipse', text: 'Three stars on hole 10', kind: 'three', holes: [9] },
   { id: 'perfect-run', tier: 3, name: 'Perfect Run', text: 'Three stars on every hole', kind: 'threeAll' },
   { id: 'under-par', tier: 3, name: 'Under Par', text: '', kind: 'runStrokes' },
+  // PRD v0.7: nine exotic badges. `secret` ones show as a dark '?' medal until earned. `file` names the medal image when it is not
+  // medal-<id> (the drawn medal shows while it loads or if it fails). Kinds: the flight watch's sinking-shot flags
+  // (dark, great, heat), wholes of the hole (kessler, improbable, wormhole), and `live` ones earned the moment they happen.
+  { id: 'kessler-cascade', tier: 2, name: 'Kessler Cascade', text: 'Touch every wall on one hole, edges too, then still sink', kind: 'kessler' },
+  { id: 'dark-matter', tier: 2, secret: true, name: 'Dark Matter', text: 'Sink a shot two bodies bend, touching nothing', kind: 'dark' },
+  { id: 'relativistic', tier: 2, name: 'Relativistic', text: 'Reach near light speed on one shot', kind: 'live' },
+  { id: 'great-attractor', tier: 3, name: 'Great Attractor', text: 'Sink a shot every body on the hole bends (3 or more)', kind: 'great' },
+  { id: 'lagrange-point', tier: 3, name: 'Lagrange Point', text: 'Rest in open space where two bodies pull equally apart', kind: 'live' },
+  { id: 'improbability', file: 'medal-improbability-drive', tier: 4, secret: true, name: 'Improbability Drive', text: 'Hole out on exactly your 42nd stroke', kind: 'improbable' },
+  { id: 'wormhole', tier: 4, name: 'Wormhole', text: 'A hole in one where three stars take two shots', kind: 'wormhole' },
+  { id: 'heat-death', tier: 4, secret: true, name: 'Heat Death', text: 'Sink at a crawl, or hole out after 10 minutes', kind: 'heat' },
+  { id: 'ftl', tier: 4, name: 'FTL', text: `Hit ${T.badges.ftlSpeed} speed`, kind: 'live' },
 ];
+const badgeById = (id) => BADGES.find((b) => b.id === id);
 const runLimit = () => LEVELS.reduce((a, lv) => a + lv.stars.three, 0) + T.runSlack;
 function badgeText(b) {
   if (b.kind === 'runNoLand') return `Play holes 1 to ${LEVELS.length} in a row with Next, never resting on a planet or moon (a bounce is fine)`;
@@ -1077,8 +1205,15 @@ function savedBadge(b, stars, best) {
   if (b.kind === 'ace') return b.holes.every((i) => best[i] === 1);
   return false;
 }
-// Badges that need what happened on the hole just finished: ev = { touchdown, untouched, runDone, runStrokes, runLanded }.
+// Badges that need what happened on the hole just finished: ev = { touchdown, untouched, runDone, runStrokes, runLanded, strokes, three,
+// dark, great, slow, long, kessler }. The `live` kinds (Lagrange Point, Relativistic, FTL) are earned in flight by earn().
 function eventBadge(b, ev) {
+  if (b.kind === 'kessler') return ev.kessler;
+  if (b.kind === 'dark') return ev.dark;
+  if (b.kind === 'great') return ev.great;
+  if (b.kind === 'heat') return ev.slow || ev.long;
+  if (b.kind === 'improbable') return ev.strokes === T.badges.improbableStrokes;
+  if (b.kind === 'wormhole') return ev.strokes === 1 && ev.three >= T.badges.wormholeThree;
   if (b.kind === 'touchdown') return ev.touchdown;
   if (b.kind === 'untouched') return ev.untouched;
   if (b.kind === 'runNoLand') return ev.runDone && !ev.runLanded;
@@ -1193,7 +1328,7 @@ function loadImage(file) {
 function loadArt() {
   ART.title = loadImage('title-gravity-golf');
   ART.ranks = RANKS.map((r) => loadImage(r.file));
-  for (const b of BADGES) ART.medals.set(b.id, loadImage(`medal-${b.id}`));
+  for (const b of BADGES) ART.medals.set(b.id, loadImage(b.file || `medal-${b.id}`));
 }
 // A rank's silhouette for the ladder: the emblem's own shape in one dark colour, built once. Null without OffscreenCanvas (the disc is drawn live).
 function silhouette(o) {
@@ -1307,6 +1442,7 @@ function buildGradients(ctx) {
     cometTail: linear(ctx, 0, 0, -1, 0, [0, rgba(P.cometHead, 0.85), 0.35, rgba(P.cometTail, 0.4), 1, rgba(P.cometTail, 0)]),
     bhLens: radial(ctx, 0, 0, 0.95, 0, 0, A.blackhole.lens, [0, rgba(P.bhGlow, 0.9), 0.3, rgba(P.bhSwirl, 0.35), 1, rgba(P.bhGlow, 0)]),
     bhCore: radial(ctx, 0, 0, 0, 0, 0, 1, [0, P.bhCore, 0.75, P.bhCore, 1, rgba(P.bhGlow, 0.9)]),
+    tierGlow: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.tiers[4], 0.6), 0.62, rgba(P.tiers[4], 0.6), 1, rgba(P.tiers[4], 0)]), // the Black Hole tier's glow, unit radius = the glow's outer edge
   };
 }
 
@@ -1916,6 +2052,7 @@ function loadHole(idx) {
   S.sinkT = 0; S.sinkFrom = null;
   S.time = 0; S.swallows = 0; S.lands = 0; // for the ledger and the badge progress
   S.stuck = 0; S.stuckSaid = false;       // shots from a planet or sun that ended back on it (the 'More power' toast)
+  S.kz = new Uint8Array(lv.walls.length + 4); S.kzLeft = lv.walls.length + 4; // Kessler Cascade: the walls and four edges touched so far on this hole
   ghostClear();
 }
 
@@ -1939,6 +2076,7 @@ function launch(l) {
   f.x = S.ball.x; f.y = S.ball.y; f.on = S.ball.on; f.onA = S.ball.onA; f.planet = S.restPlanet; f.pi = S.ball.on >= 0 ? -1 : bodyAt(S.lv, S.ball);
   S.ball.vx = v.vx; S.ball.vy = v.vy; S.ball.on = -1;
   S.ball.sunIn = 0; S.ball.cometIn = 0; // a shot from rest against a sun is charged if it goes back into it
+  watchStart(S.lv, S.ball);
   S.clock0 = S.clock;
   S.acc = 0; S.steps = 0;
   S.phase = 'fly';
@@ -1991,6 +2129,17 @@ function returnToLastRest() {
   comeToRest();
 }
 
+// Badges earned in flight (Lagrange Point, Relativistic, FTL) are saved at once, so closing the app loses nothing, and wait here for the
+// next hole card's ticket.
+const PENDING = [];
+function earn(E, id) {
+  if (E.save.get('badges', {})[id]) return;
+  E.save.update('badges', (h) => ({ ...h, [id]: 1 }), {});
+  E.ledger.add('badge', { id, hole: S.idx + 1 });
+  PENDING.push(id);
+  badgeFx(E, badgeById(id).tier);
+}
+
 function finishHole(E) {
   const strokes = S.strokes, lv = S.lv, id = String(S.idx), stars = starsFor(strokes, lv.stars);
   const prev = E.save.get('best', {})[id], rankBefore = rankFor(starTotal(E.save.get('stars', {})));
@@ -2002,7 +2151,8 @@ function finishHole(E) {
   const inRun = RUN.on && RUN.next === S.idx;
   if (inRun) { RUN.strokes += strokes; RUN.next = S.idx + 1; }
   const ev = { touchdown: S.from.planet, untouched: lv.suns.length > 0 && S.ball.sunHits === 0,
-    runDone: inRun && !hasNext, runStrokes: RUN.strokes, runLanded: RUN.landed };
+    runDone: inRun && !hasNext, runStrokes: RUN.strokes, runLanded: RUN.landed,
+    strokes, three: lv.stars.three, dark: SINK.dark, great: SINK.great, slow: SINK.slow, long: S.time >= T.badges.heatMinutes * 60, kessler: S.kzLeft === 0 };
   E.ledger.add('hole', { hole: S.idx + 1, strokes, stars, swallows: S.swallows, sun: S.ball.sunHits, landed: S.lands > 0, time: S.time, run: inRun });
   E.save.update('prog', (g) => {
     const o = { ...g, lands: (g.lands || 0) + S.lands };
@@ -2012,9 +2162,10 @@ function finishHole(E) {
   }, {});
   if (ev.runDone) endRun(E, true);
   const had = E.save.get('badges', {}), won = E.save.get('stars', {}), bests = E.save.get('best', {});
-  const fresh = BADGES.filter((b) => !had[b.id] && (savedBadge(b, won, bests) || eventBadge(b, ev))).map((b) => b.id);
-  if (fresh.length) E.save.update('badges', (h) => { const o = { ...h }; for (const k of fresh) o[k] = 1; return o; }, {});
-  for (const id of fresh) E.ledger.add('badge', { id, hole: S.idx + 1 });
+  const now = BADGES.filter((b) => !had[b.id] && (savedBadge(b, won, bests) || eventBadge(b, ev))).map((b) => b.id);
+  if (now.length) E.save.update('badges', (h) => { const o = { ...h }; for (const k of now) o[k] = 1; return o; }, {});
+  for (const id of now) E.ledger.add('badge', { id, hole: S.idx + 1 });
+  const fresh = [...PENDING.splice(0), ...now].sort((a, b) => badgeById(b).tier - badgeById(a).tier); // earned in flight, then on this hole; the rarest ticket first
   const rankAfter = rankFor(starTotal(E.save.get('stars', {})));
   E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh, rankUp: rankAfter > rankBefore ? { from: rankBefore, to: rankAfter } : null });
 }
@@ -2057,6 +2208,19 @@ function burst(E, x, y, o) {
     speed: o.speed * v.s, life: o.life, size: o.size * v.s, angle: o.angle || 0,
     spread: o.spread === undefined ? Math.PI * 2 : o.spread, drag: J.particleDrag,
   });
+}
+
+// A badge's sound: the Star tier and below get the usual win; Black Hole gets a lower, longer three-note chime (principle 16).
+function badgeSound(E, tier, vol) {
+  const B = T.badges;
+  if (tier < 4) { E.audio.play('win', vol); return; }
+  for (let i = 0; i < B.chime.length; i++) E.audio.beep({ freq: B.chime[i].f, dur: B.chime[i].d, type: 'triangle', gain: B.chimeGain * vol * 2, delay: i * B.chimeGap });
+}
+// A badge earned in flight: the sound, a haptic and a burst in the tier's colour where the ball is.
+function badgeFx(E, tier) {
+  const B = T.badges;
+  badgeSound(E, tier, 0.5); E.haptic(J.sinkHaptic);
+  burst(E, S.ball.x, S.ball.y, { count: B.fxCount, color: P.tiers[tier], speed: B.fxSpeed, life: B.fxLife, size: J.burstSize });
 }
 
 function trailPush(x, y, col) {
@@ -2330,11 +2494,32 @@ function drawBanner(ctx, E) {
 
 // A badge medal: its generated image (locked ones at 35 percent), or while that loads or if it fails, a dark disc ringed in its tier
 // colour with the tier's icon (rock, crescent, ringed planet, star); dim when not earned. `id` is the badge; the tier headings pass none.
+let NOW = 0; // the scene's clock, for the Black Hole tier's slow glow pulse
+const tierPulse = () => { const g = A.tierGlow; return g.min + (g.max - g.min) * (0.5 + 0.5 * Math.sin(NOW * PI2 * g.rate)); };
+function drawTierGlow(ctx, x, y, r) {
+  const R = r * A.tierGlow.r;
+  ctx.save(); ctx.translate(x, y); ctx.scale(R, R);
+  ctx.globalAlpha = tierPulse(); ctx.fillStyle = G.tierGlow;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.restore();
+}
 function drawMedal(ctx, x, y, r, tier, got, id) {
+  const bd = id && badgeById(id), secret = !!(bd && bd.secret && !got);
+  if (tier === 4 && (got || secret)) drawTierGlow(ctx, x, y, r);
+  if (secret) { // a dark disc in the tier's rim with a '?'
+    ctx.save();
+    ctx.fillStyle = tier === 4 ? P.bhTierRim : P.tileLocked; ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill();
+    ctx.strokeStyle = P.tiers[tier]; ctx.lineWidth = A.line.edge; ctx.stroke();
+    ctx.fillStyle = P.tiers[tier]; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `${TY.heavy} ${Math.round(r * A.secret.mark)}px system-ui, sans-serif`;
+    ctx.fillText('?', x, y + 1);
+    ctx.restore();
+    return;
+  }
   const m = id && ART.medals.get(id);
   if (m && m.ok) { ctx.globalAlpha = got ? 1 : RT.ladder.lockedMedal; ctx.drawImage(m.img, x - r, y - r, 2 * r, 2 * r); ctx.globalAlpha = 1; return; }
   const col = got ? P.tiers[tier] : P.starOff;
-  ctx.fillStyle = got ? P.card : P.tileLocked; ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill();
+  ctx.fillStyle = got ? (tier === 4 ? P.bhTierRim : P.card) : P.tileLocked; ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill();
   ctx.strokeStyle = col; ctx.lineWidth = A.line.edge; ctx.stroke();
   ctx.globalAlpha = got ? 1 : 0.7; ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = A.line.hair;
   const q = r * 0.5;
@@ -2346,7 +2531,11 @@ function drawMedal(ctx, x, y, r, tier, got, id) {
   } else if (tier === 2) {
     ctx.beginPath(); ctx.arc(x, y, q * 0.72, 0, PI2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(x, y, q * 1.3, q * 0.4, -0.35, 0, PI2); ctx.stroke();
-  } else drawStar(ctx, x, y, q * 1.15, col);
+  } else if (tier === 3) drawStar(ctx, x, y, q * 1.15, col);
+  else { // Black Hole: a dark core inside a tilted accretion ring
+    ctx.fillStyle = got ? P.space : P.tileLocked; ctx.beginPath(); ctx.arc(x, y, q * 0.68, 0, PI2); ctx.fill(); ctx.stroke();
+    ctx.lineWidth = A.line.edge; ctx.beginPath(); ctx.ellipse(x, y, q * 1.45, q * 0.45, -0.35, 0, PI2); ctx.stroke();
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -2354,6 +2543,7 @@ function drawMedal(ctx, x, y, r, tier, got, id) {
 function drawTicket(ctx, E, b, k, y, more) {
   const TK = A.ticket, w = Math.min(TK.w, E.w - 40), x = (E.w - w) / 2, cx = E.w / 2, skins = skinsOf(b.id);
   ctx.save(); ctx.translate(cx, y); ctx.scale(k, k); ctx.translate(-cx, -y);
+  if (b.tier === 4) { ctx.globalAlpha = tierPulse(); const hw = A.tierGlow.halo; E.roundRect(x - hw, y - TK.h / 2 - hw, w + 2 * hw, TK.h + 2 * hw, TK.r + hw, null, P.tiers[4]); ctx.globalAlpha = 1; }
   E.roundRect(x, y - TK.h / 2, w, TK.h, TK.r, P.bannerBg, P.tiers[b.tier]);
   drawMedal(ctx, x + 12 + TK.medalR, y, TK.medalR, b.tier, true, b.id);
   const tx0 = x + 24 + 2 * TK.medalR;
@@ -2493,6 +2683,7 @@ const missions = {
     return { top, bot, max: Math.max(0, content - (bot - top)) };
   },
   render(ctx, E) {
+    NOW = E.time;
     const M = A.missions, p = progress(E), m = M.margin, w = E.w - 2 * m, v = coverView(E), info = rankInfo(p), L = RT.ladder;
     const lines = info.next ? wrapText(ctx, `rank:${w}:${ladderLine(info)}`, ladderLine(info), w - 2 * L.pad - L.emblem - L.pad) : [], ex = lines.length ? lines.length * M.lineH + L.lineGap : 0; // the next rank's row carries the progress line
     const step = L.rowH + L.rowGap, far = firstFar(), head = M.headH + L.headGap;
@@ -2514,14 +2705,15 @@ const missions = {
       E.text(`${name.toUpperCase()}   ${inTier.filter((b) => p.badges[b.id]).length} / ${inTier.length}`, m + 24, y + M.headH / 2, TX.tier[tier]);
       y += M.headH;
       for (const b of inTier) {
-        const tx0 = m + 24 + 2 * M.medalR, tw = w - (tx0 - m) - 12, prog = badgeProgress(b, p, p.prog);
-        const lines = wrapText(ctx, `${b.id}:${w}`, badgeText(b), tw), plines = wrapText(ctx, `${b.id}:${w}:${prog}`, prog, tw);
+        const got = !!p.badges[b.id], hidden = !!b.secret && !got; // a secret badge shows only its tier until it is earned
+        const tx0 = m + 24 + 2 * M.medalR, tw = w - (tx0 - m) - 12, prog = hidden ? '' : badgeProgress(b, p, p.prog);
+        const lines = wrapText(ctx, `${b.id}:${w}:${hidden}`, hidden ? A.secret.text : badgeText(b), tw), plines = wrapText(ctx, `${b.id}:${w}:${prog}`, prog, tw);
         const h = M.rowH + (lines.length + plines.length - 1) * M.lineH;
         if (y + h > V.top && y < V.bot) {
-          const got = !!p.badges[b.id];
-          E.roundRect(m, y, w, h, A.line.radius, got ? P.tile : P.tileLocked, got ? P.tiers[tier] : P.tileLockedEdge);
+          if (got && tier === 4) { ctx.globalAlpha = tierPulse(); E.roundRect(m - 2, y - 2, w + 4, h + 4, A.line.radius + 2, null, P.tiers[tier]); ctx.globalAlpha = 1; }
+          E.roundRect(m, y, w, h, A.line.radius, got ? P.tile : P.tileLocked, got || hidden ? P.tiers[tier] : P.tileLockedEdge);
           drawMedal(ctx, m + 12 + M.medalR, y + h / 2, M.medalR, tier, got, b.id);
-          E.text(b.name, tx0, y + 19, got ? TX.valueL : TX.offL);
+          E.text(hidden ? A.secret.name : b.name, tx0, y + 19, got ? TX.valueL : TX.offL);
           for (let i = 0; i < lines.length; i++) E.text(lines[i], tx0, y + 39 + i * M.lineH, got ? TX.labelL : TX.dimL);
           for (let i = 0; i < plines.length; i++) E.text(plines[i], tx0, y + 39 + (lines.length + i) * M.lineH, got ? TX.goalL : TX.progL);
         }
@@ -2647,9 +2839,13 @@ const play = {
     S.acc += dt;
     while (S.acc >= STEP && S.phase === 'fly') {
       S.acc -= STEP; S.steps++;
-      const b = S.ball, hitsBefore = b.hits, sunsBefore = b.sunHits, cometsBefore = b.cometHits, pvx = b.vx, pvy = b.vy;
-      let r = stepBall(S.lv, b, S.clock0 + S.steps * STEP);
-      if (b.hits !== hitsBefore) bounceFx(E, pvx, pvy);
+      const b = S.ball, hitsBefore = b.hits, sunsBefore = b.sunHits, cometsBefore = b.cometHits, pvx = b.vx, pvy = b.vy, clk = S.clock0 + S.steps * STEP;
+      watchPre(S.lv, b, clk);
+      let r = stepBall(S.lv, b, clk);
+      watchPost(b);
+      if (b.hits !== hitsBefore) { bounceFx(E, pvx, pvy); S.kzLeft = kesslerMark(S.lv, b, S.kz); }
+      if (FW.top >= T.badges.relSpeed && !(FW.got & 1)) { FW.got |= 1; earn(E, 'relativistic'); }
+      if (FW.top >= T.badges.ftlSpeed && !(FW.got & 2)) { FW.got |= 2; earn(E, 'ftl'); }
       if (b.cometHits !== cometsBefore) cometFx(E);
       if (b.sunHits !== sunsBefore) { S.strokes += T.sunPenalty * (b.sunHits - sunsBefore); sunFx(E, b.sunLast); }
       if (S.steps % J.trailEvery === 0) {
@@ -2658,11 +2854,15 @@ const play = {
         else trailPush(b.x, b.y, SK.trail.badge || !planetNear(S.lv, b, S.clock0 + S.steps * STEP) ? SK.trail.col : planetColor(S.lv)); // a chosen trail keeps its colour
       }
       if (!r && S.steps * STEP >= T.maxFlightSeconds) r = 'rest';
-      if (r === 'sink') { S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: b.x, y: b.y }; sinkFx(E); }
+      if (r === 'sink') { sinkFlags(b); S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: b.x, y: b.y }; sinkFx(E); }
       else if (r === 'swallow') {
         S.phase = 'swallow'; S.swT = 0; S.swX = b.x; S.swY = b.y; S.swBh = b.bh;
         S.strokes += T.bhPenalty; S.swallows++; swallowFx(E, b.bh);
-      } else if (r === 'rest') { const broke = !RUN.landed; comeToRest(); restFx(E); restNotes(E, broke && RUN.landed); }
+      } else if (r === 'rest') {
+        const lag = !b.touch && !b.land && b.moon < 0 && b.on < 0 && Math.hypot(b.vx, b.vy) < T.stopSpeed && lagrangeAt(S.lv, b, clk);
+        const broke = !RUN.landed; comeToRest(); restFx(E); restNotes(E, broke && RUN.landed);
+        if (lag) earn(E, 'lagrange-point');
+      }
     }
   },
 
@@ -2795,7 +2995,7 @@ const over = {
     this.starK = [0, 0, 0]; this.starDone = [false, false, false];
     this.beat = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop * 0.6 + J.buttonGap;
     this.btnNext = null; this.btnMenu = null; this.btnRetry = null;
-    this.badges = (p.badges || []).map((id) => BADGES.find((b) => b.id === id));
+    this.badges = (p.badges || []).map(badgeById);
     this.badgeT = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop + J.badgeDelay; // the first badge pops after the stars
     this.badgeOn = -1;
     RK.on = false; this.rkAt = this.beat + RT.card.delay; // the rank-up card, if this hole crossed a rank, follows the usual card
@@ -2812,12 +3012,13 @@ const over = {
       }
     }
     const bi = Math.min(this.badges.length - 1, Math.floor((this.t - this.badgeT) / J.badgeHold));
-    if (this.t >= this.badgeT && bi > this.badgeOn) { this.badgeOn = bi; E.audio.play('win', 0.5); E.haptic(J.sinkHaptic); }
+    if (this.t >= this.badgeT && bi > this.badgeOn) { this.badgeOn = bi; badgeSound(E, this.badges[bi].tier, 0.5); E.haptic(J.sinkHaptic); }
     this.ready = this.t >= this.beat;
     if (!this.rkDone && this.t >= this.rkAt) { this.rkDone = true; rankUpStart(E, this.p.rankUp.from, this.p.rankUp.to, 'card'); }
     rankUpUpdate(dt, E);
   },
   render(ctx, E) {
+    NOW = E.time;
     const p = this.p, cx = E.w / 2, t = this.t, v = coverView(E);
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, this.sky, sectorOf(p.hole), 0, 0, E.time); ctx.restore();
     ctx.save(); ctx.translate(0, (1 - this.slide) * E.h * J.cardSlideFrac);
@@ -2938,7 +3139,8 @@ export const game = {
     { key: 'bhFade', label: 'Black hole fade (x reach)', min: 1.2, max: 2, step: 0.05 },
   ],
   // Read by tools/sim-golf.mjs so the simulator runs the real physics.
-  sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt, sunRestR },
+  sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt, sunRestR,
+    FW, watchStart, watchPre, watchPost, sinkFlags, kesslerMark, lagrangeAt, restPull },
   start: 'menu',
   scenes: { menu, play, over, missions },
 };

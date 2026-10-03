@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'gravity-golf-v22';
+const CACHE_VERSION = 'gravity-golf-v23';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'gravity-golf-v';
 const ASSETS = [
@@ -15,6 +15,15 @@ const ASSETS = [
   './assets/medal-banker.webp',
   './assets/medal-binary-star.webp',
   './assets/medal-clockwork.webp',
+  './assets/medal-dark-matter.webp',
+  './assets/medal-ftl.webp',
+  './assets/medal-great-attractor.webp',
+  './assets/medal-heat-death.webp',
+  './assets/medal-improbability-drive.webp',
+  './assets/medal-kessler-cascade.webp',
+  './assets/medal-lagrange-point.webp',
+  './assets/medal-relativistic.webp',
+  './assets/medal-wormhole.webp',
   './assets/medal-eclipse.webp',
   './assets/medal-first-orbit.webp',
   './assets/medal-never-landed.webp',
