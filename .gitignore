@@ -3,3 +3,6 @@ node_modules/
 *.log
 .env
 .env.*
+
+# Builder worktrees made by the Agent tool
+.claude/worktrees/
