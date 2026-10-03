@@ -39,6 +39,20 @@ const TUNING = {
   bhFade: 1.5,           // Between reach and bhFade times reach the pull fades smoothly to zero; beyond, the black hole does nothing
   ghostSeconds: 3,       // PRD v0.4 B: the last shot's ghost keeps at most this much of the end of its flight
   ghostAlpha: 0.32,      // How strongly the ghost's dots show
+  // PRD v0.9: the blind fourth star. A blind try hides the preview and the ghost and draws only a short straight pointer; physics is untouched.
+  blind: {
+    label: 'Expert',     // The player-facing name of the mode: the HUD tag, the end card's button and line (the save and the code keep 'blind')
+    pointerLen: 64,      // Design px from the ball's edge gap to the arrow tip: it shows direction, never power or curve
+    gap: 6, pointerW: 4, backGrow: 1.5, headLen: 13, headHalf: 7, minLen: 20, alpha: 0.95, // Pointer: start gap from the ball, shaft width, dark backing, arrowhead, shortest length
+    hudClear: 38,        // Screen px below the HUD band: the tip is shortened to stay under it and the Blind tag
+    col: '#67e8f9', edge: '#22d3ee', core: '#ecfeff', // The fourth star's cyan comet colours
+    tag: { y: 16, w: 64, h: 24 }, // The HUD tag: centre below the HUD band, size (screen px)
+    starR: 4.5, tileStep: 14, tail: 1.8, tailW: 1.3, tailDx: -0.6, tailDy: 0.8, // Tile: comet star radius, star spacing on a three-star tile, comet tail length in radii and its direction
+    cardStarR: 17, cardStarsX: [-76, -20, 36], cardCometX: 94, // End card: the fourth star's radius and x offsets of the four slots (the three-star layout otherwise)
+    cardBtnW: 312, cardBtnGap: 64, cardBtnY: 148, cardExtra: 64, // End card Blind button: width, extra card height and the row's offset below the Next button
+    burstCount: 70, burstSpeedK: 1.6, flash: 0.18, haptic: 40, // A blind three-star sink: a bigger cyan burst, and a stronger flash
+    chime: [{ f: 659.25, d: 0.12 }, { f: 880, d: 0.12 }, { f: 1318.5, d: 0.32 }], chimeGap: 0.09, chimeGain: 0.16, // The brighter three-star sound: a rising chime over the usual coin and win
+  },
   previewFullHoles: 3,   // Holes 1 to this show the full preview
   previewFullSeconds: 2.0,   // Length of the full preview in simulated seconds
   previewShortSeconds: 0.4,  // Length of the preview after the full-preview holes
@@ -1156,6 +1170,7 @@ function coverView(E) {
   return { s, ox: (E.w - T.designW * s) / 2, oy: (E.h - T.designH * s) / 2 };
 }
 
+const blindCount = (blind) => { let n = 0; if (blind) for (let i = 0; i < LEVELS.length; i++) if (blind[i]) n++; return n; }; // fourth stars earned (PRD v0.9)
 function starsFor(strokes, st) { return strokes <= st.three ? 3 : strokes <= st.two ? 2 : 1; }
 function shots(n) { return `${n} ${n === 1 ? 'shot' : 'shots'}`; }
 
@@ -1167,8 +1182,8 @@ function openHole(best, unlocked) {
 
 function progress(E) {
   const best = E.save.get('best', {}), won = E.save.get('stars', {});
-  const stars = LEVELS.map((lv, i) => won[i] || 0);
-  return { best, stars, total: stars.reduce((a, b) => a + b, 0), unlocked: openHole(best, E.save.get('unlocked', 0)), badges: E.save.get('badges', {}), prog: E.save.get('prog', {}) };
+  const stars = LEVELS.map((lv, i) => won[i] || 0), blind = E.save.get('blind', {});
+  return { best, stars, blind, total: stars.reduce((a, b) => a + b, 0) + blindCount(blind), unlocked: openHole(best, E.save.get('unlocked', 0)), badges: E.save.get('badges', {}), prog: E.save.get('prog', {}) };
 }
 
 // ---------- Art (layer 5) ----------
@@ -1303,6 +1318,7 @@ const BTN = {
   half: { fill: P.slateDark, color: P.text, w: A.menu.missionsW, h: 48, size: TY.sm, edge: P.slate },
   back: { fill: P.slateDark, color: P.text, w: A.missions.backW, h: A.missions.backH, size: TY.md, edge: P.slate },
   secondCard: { fill: P.slateDark, color: P.text, w: 150, h: 48, size: TY.sm, edge: P.slate },
+  blind: { fill: P.slateDark, color: T.blind.col, w: T.blind.cardBtnW, h: 48, size: TY.sm, edge: T.blind.col },
   retryOn: { w: T.retryW, h: T.retryH, fill: P.slate, color: P.text, edge: P.slateLight },
   retryOff: { w: T.retryW, h: T.retryH, fill: P.retryOff, color: P.textOff, edge: P.slateDeep },
 };
@@ -1317,8 +1333,8 @@ function pill(E, label, cx, cy, o) {
 const RT = T.rank, RANKS = RT.ranks;
 const rankNeed = (rank) => (rank - 1) * RT.starsPerRank;
 const rankFor = (stars) => Math.min(Math.floor(stars / RT.starsPerRank) + 1, RANKS.length);
-const starTotal = (stars) => Object.values(stars || {}).reduce((a, b) => a + b, 0);
-const starsMax = () => LEVELS.length * 3;
+const starTotal = (stars, blind) => Object.values(stars || {}).reduce((a, b) => a + b, 0) + blindCount(blind);
+const starsMax = () => LEVELS.length * 4;
 const starWord = (n) => `${n} ${n === 1 ? 'star' : 'stars'}`;
 const firstFar = () => RANKS.findIndex((r, i) => rankNeed(i + 1) > starsMax()); // first rank today's holes cannot reach (index, or -1)
 
@@ -1332,7 +1348,7 @@ function rankInfo(p) {
   RI.frac = next ? (p.total - rankNeed(rank)) / RT.starsPerRank : 1;
   RI.far = next > 0 && rankNeed(next) > starsMax();
   RI.left = 0;
-  for (const s of p.stars) if (s > 0) RI.left += 3 - s;
+  for (let i = 0; i < p.stars.length; i++) if (p.stars[i] > 0) RI.left += 3 - p.stars[i] + (p.stars[i] === 3 && !p.blind[i] ? 1 : 0); // a missing fourth star counts on a hole that has three
   return RI;
 }
 // The largest size up to `size` (not below `min`) at which `text` fits `width`, measured once per text and width.
@@ -1689,6 +1705,15 @@ function drawStar(ctx, cx, cy, R, fill, stroke) {
   ctx.closePath();
   if (fill) { ctx.fillStyle = fill; ctx.fill(); }
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = A.line.hair; ctx.stroke(); }
+}
+
+// The fourth star (PRD v0.9): a smaller cyan star with a short comet tail, drawn the same on the tile and the end card; dim until earned.
+function drawCometStar(ctx, cx, cy, R, earned) {
+  const B = T.blind, col = earned ? B.col : P.starOff;
+  ctx.strokeStyle = col; ctx.lineWidth = (B.tailW * R) / B.starR; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx + B.tailDx * R * 0.4, cy + B.tailDy * R * 0.4); ctx.lineTo(cx + B.tailDx * R * B.tail, cy + B.tailDy * R * B.tail); ctx.stroke();
+  ctx.lineCap = 'butt';
+  if (earned) drawStar(ctx, cx, cy, R, B.col, B.core); else drawStar(ctx, cx, cy, R, null, P.starOff);
 }
 
 function drawLock(ctx, cx, cy) {
@@ -2189,7 +2214,9 @@ function earn(E, id) {
 
 function finishHole(E) {
   const strokes = S.strokes, lv = S.lv, id = String(S.idx), stars = starsFor(strokes, lv.stars);
-  const prev = E.save.get('best', {})[id], rankBefore = rankFor(starTotal(E.save.get('stars', {})));
+  const prev = E.save.get('best', {})[id], rankBefore = rankFor(starTotal(E.save.get('stars', {}), E.save.get('blind', {})));
+  const fourthNew = S.blind && strokes <= lv.stars.three && !E.save.get('blind', {})[id]; // PRD v0.9: the fourth star, saved with the rest and never lost
+  if (fourthNew) E.save.update('blind', (b) => ({ ...b, [id]: true }), {});
   const best = prev === undefined ? strokes : Math.min(prev, strokes);
   E.save.update('best', (b) => ({ ...b, [id]: best }), {});
   E.save.update('stars', (s) => ({ ...s, [id]: Math.max(s[id] || 0, stars) }), {});
@@ -2200,7 +2227,7 @@ function finishHole(E) {
   const ev = { touchdown: S.from.planet, untouched: lv.suns.length > 0 && S.ball.sunHits === 0,
     runDone: inRun && !hasNext, runStrokes: RUN.strokes, runLanded: RUN.landed,
     strokes, three: lv.stars.three, dark: SINK.dark, great: SINK.great, slow: SINK.slow, long: S.time >= T.badges.heatMinutes * 60, kessler: S.kzLeft === 0 };
-  E.ledger.add('hole', { hole: S.idx + 1, strokes, stars, swallows: S.swallows, sun: S.ball.sunHits, landed: S.lands > 0, time: S.time, run: inRun });
+  E.ledger.add('hole', { hole: S.idx + 1, blind: S.blind, strokes, stars, swallows: S.swallows, sun: S.ball.sunHits, landed: S.lands > 0, time: S.time, run: inRun });
   E.save.update('prog', (g) => {
     const o = { ...g, lands: (g.lands || 0) + S.lands };
     if (lv.suns.length) o.sunBest = Math.min(g.sunBest === undefined ? Infinity : g.sunBest, S.ball.sunHits);
@@ -2213,8 +2240,10 @@ function finishHole(E) {
   if (now.length) E.save.update('badges', (h) => { const o = { ...h }; for (const k of now) o[k] = 1; return o; }, {});
   for (const id of now) E.ledger.add('badge', { id, hole: S.idx + 1 });
   const fresh = [...PENDING.splice(0), ...now].sort((a, b) => badgeById(b).tier - badgeById(a).tier); // earned in flight, then on this hole; the rarest ticket first
-  const rankAfter = rankFor(starTotal(E.save.get('stars', {})));
-  E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh, rankUp: rankAfter > rankBefore ? { from: rankBefore, to: rankAfter } : null });
+  const rankAfter = rankFor(starTotal(E.save.get('stars', {}), E.save.get('blind', {})));
+  const owned = !!E.save.get('blind', {})[id], has3 = E.save.get('stars', {})[id] >= 3;
+  E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh,
+    blind: S.blind, fourth: owned, fourthNew, has3, rankUp: rankAfter > rankBefore ? { from: rankBefore, to: rankAfter } : null });
 }
 
 // A full run ends: finished (done) or left (a hole played out of order, Menu or Retry from the card, or hole 1 again).
@@ -2370,6 +2399,23 @@ function ghostKeep() { // the flight ended: its recording becomes the ghost, old
   GHOST.n = GHOST.count; GHOST.count = 0; GHOST.head = 0;
 }
 function ghostClear() { GHOST.n = 0; GHOST.count = 0; GHOST.head = 0; }
+// The blind try's direction pointer (PRD v0.9): a straight arrow of fixed length from the ball along the aim, nothing more.
+// The tip is shortened, never moved, to stay below the HUD band and the Blind tag.
+function drawPointer(ctx, E, v, b, l) {
+  const B = T.blind, d = Math.hypot(l.vx, l.vy) || 1, ux = l.vx / d, uy = l.vy / d;
+  const x0 = b.x + ux * (T.ballR + B.gap), y0 = b.y + uy * (T.ballR + B.gap);
+  let len = B.pointerLen;
+  if (uy < 0) len = Math.max(B.minLen, Math.min(len, (v.oy + y0 * v.s - (E.safe.top + T.hudH + B.hudClear)) / (-uy * v.s)));
+  const x1 = x0 + ux * len, y1 = y0 + uy * len, hx = x1 - ux * B.headLen, hy = y1 - uy * B.headLen;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.globalAlpha = B.alpha * 0.45; ctx.strokeStyle = P.shadow; ctx.fillStyle = P.shadow; ctx.lineWidth = B.pointerW + 2 * B.backGrow;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1 + ux * B.backGrow, y1 + uy * B.backGrow); ctx.lineTo(hx - uy * (B.headHalf + B.backGrow), hy + ux * (B.headHalf + B.backGrow)); ctx.lineTo(hx + uy * (B.headHalf + B.backGrow), hy - ux * (B.headHalf + B.backGrow)); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = B.alpha; ctx.strokeStyle = B.col; ctx.fillStyle = B.col; ctx.lineWidth = B.pointerW;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(hx - uy * B.headHalf, hy + ux * B.headHalf); ctx.lineTo(hx + uy * B.headHalf, hy - ux * B.headHalf); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 1; ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+}
 function drawGhost(ctx) {
   if (!GHOST.n) return;
   ctx.globalAlpha = T.ghostAlpha; ctx.fillStyle = P.trail; ctx.beginPath();
@@ -2473,14 +2519,20 @@ function restFx(E) {
 
 function sinkFx(E) {
   const lv = S.lv, stars = starsFor(S.strokes, lv.stars), three = stars === 3;
-  const from = E.save.get('stars', {})[S.idx] || 0;
-  CHANGED = stars > from ? { hole: S.idx, from, to: stars } : null;
+  const from = E.save.get('stars', {})[S.idx] || 0, B = T.blind;
+  const four = S.blind && S.strokes <= lv.stars.three; // a blind three-star finish: the brighter sound and burst
+  CHANGED = stars > from ? { hole: S.idx, from, to: stars } : four && !E.save.get('blind', {})[S.idx] ? { hole: S.idx, from: 3, to: 3, blind: true } : null;
+  if (four) burst(E, lv.hole.x, lv.hole.y, { count: B.burstCount, color: B.col, speed: J.burstSpeed * B.burstSpeedK, life: J.burstLife, size: J.burstSize });
   burst(E, lv.hole.x, lv.hole.y, { count: three ? J.burstBigCount : J.burstCount, color: P.green, speed: J.burstSpeed * (three ? 1.3 : 1), life: J.burstLife, size: J.burstSize });
   burst(E, lv.hole.x, lv.hole.y, { count: three ? J.burstBigCount / 2 : J.burstCount / 2, color: P.greenLight, speed: J.burstSpeed * 0.6, life: J.burstLife, size: J.burstSize * 0.7 });
   E.haptic(J.sinkHaptic);
   if (three) {
     E.audio.play('coin'); later(E, J.coinLead, () => E.audio.play('win'));
-    E.flash(P.green, J.threeStarFlash);
+    if (four) {
+      for (let i = 0; i < B.chime.length; i++) E.audio.beep({ freq: B.chime[i].f, dur: B.chime[i].d, type: 'triangle', gain: B.chimeGain, delay: J.coinLead + i * B.chimeGap });
+      E.haptic(B.haptic);
+    }
+    E.flash(four ? B.col : P.green, four ? B.flash : J.threeStarFlash);
   } else E.audio.play('win');
   FX.sink = 0;
   E.tween(J.sinkRingTime, (k) => { FX.sink = k; }, ease.outCubic);
@@ -2642,6 +2694,7 @@ const menu = {
       const pop = this.pop && this.pop.hole === i ? this.pop : null;
       const ts = pop ? lerp(J.menuPopFrom, 1, ease.outBack(clamp(this.t / J.menuPopTime, 0, 1))) : 1;
       if (ts !== 1) { ctx.save(); ctx.translate(tcx, y + th / 2); ctx.scale(ts, ts); ctx.translate(-tcx, -(y + th / 2)); }
+      const three = !locked && p.stars[i] >= 3; // a three-starred tile also shows the fourth-star slot (PRD v0.9)
       E.roundRect(x, y, tw, th, A.line.radius, locked ? P.tileLocked : P.tile, cleared ? P.green : locked ? P.tileLockedEdge : lv.boss ? P.bossAccent : P.slate);
       E.text(`${i + 1}`, tcx, y + tl.number, locked ? TX.tileNumOff : TX.tileNum);
       if (locked) {
@@ -2649,11 +2702,16 @@ const menu = {
         drawLock(ctx, tcx, y + tl.icon + 1);
       } else {
         drawBadge(ctx, lv, tcx, y + tl.icon, E.time);
+        const BL = T.blind, sy0 = y + th - tl.stars;
         for (let s = 0; s < 3; s++) {
-          const sx = tcx + (s - 1) * 15, sy = y + th - tl.stars, earned = s < p.stars[i];
+          const sx = three ? tcx + (s - 1.5) * BL.tileStep : tcx + (s - 1) * 15, sy = sy0, earned = s < p.stars[i];
           const k = pop && earned && s >= pop.from ? ease.outBack(clamp((this.t - J.menuStarDelay - (s - pop.from) * J.menuStarStagger) / J.menuStarPop, 0, 1)) : 1;
           if (!earned || k < 1) drawStar(ctx, sx, sy, tl.starR, null, P.starOff);
           if (earned && k > 0) drawStar(ctx, sx, sy, tl.starR * k, P.green);
+        }
+        if (three) {
+          const k = pop && pop.blind ? ease.outBack(clamp((this.t - J.menuStarDelay) / J.menuStarPop, 0, 1)) : 1, got = !!p.blind[i];
+          drawCometStar(ctx, tcx + 1.5 * BL.tileStep, sy0, BL.starR * (got ? k : 1), got && k > 0);
         }
       }
       if (ts !== 1) ctx.restore();
@@ -2857,6 +2915,7 @@ const play = {
     if (idx === 0 && !goOn) { RUN.on = true; RUN.next = 0; RUN.strokes = 0; RUN.landed = false; RUN.landedOn = -1; } // hole 1 starts a full run
     applySkins(E);
     loadHole(idx);
+    S.blind = !!(params && params.blind) && E.save.get('stars', {})[idx] >= 3; // only a three-starred hole can be tried blind
     resetFx();
     FX.hint = E.save.get('hintSeen', false) ? 0 : 1; // a fresh save: the hint stays until the first release
     FX.hintT = 0; FX.further = 1;
@@ -2942,11 +3001,14 @@ const play = {
     drawCup(ctx, lv.hole.x, lv.hole.y, FX.cup, t);
     if (FX.sink < 1) drawRing(ctx, lv.hole.x, lv.hole.y, T.holeR + J.sinkRingR * FX.sink, 4, P.green, 1 - FX.sink);
 
-    if (S.phase === 'aim') drawGhost(ctx);
+    if (S.phase === 'aim' && !S.blind) drawGhost(ctx);
     drawTrail(ctx, b.x, b.y);
 
     const aiming = S.phase === 'aim' ? currentLaunch() : null;
-    if (aiming) {
+    if (aiming && S.blind) { // a blind try draws the direction only: no dots, no power gauge, no glow growth
+      FX.power = 0;
+      drawPointer(ctx, E, v, b, aiming);
+    } else if (aiming) {
       FX.power = aiming.power;
       const seconds = S.idx < T.previewFullHoles ? T.previewFullSeconds : T.previewShortSeconds;
       const n = previewPoints(lv, b, aiming, S.clock, seconds);
@@ -2991,6 +3053,11 @@ const play = {
     E.text('PAR', E.w - 16, top - 9, TX.labelR);
     E.text(FX.hudPar, E.w - 16, top + 10, TX.valueGoalR);
     S.retryRect = retryButton(ctx, E, E.w - 16 - T.retryW / 2, E.safe.top + T.hudH + T.retryH / 2, S.phase === 'aim' ? BTN.retryOn : BTN.retryOff);
+    if (S.blind) {
+      const G = T.blind.tag, gy = E.safe.top + T.hudH + G.y;
+      E.roundRect(E.w / 2 - G.w / 2, gy - G.h / 2, G.w, G.h, G.h / 2, P.slateDark, T.blind.col);
+      E.text(T.blind.label, E.w / 2, gy, { size: TY.sm, color: T.blind.col });
+    }
     if (RUN.on && RUN.next === S.idx && S.idx > 0) { // the full run's strokes so far and the live Never Landed mark, once hole 1 is finished (v0.5 A2)
       const n = RUN.strokes + S.strokes, ry = E.safe.top + T.hudH;
       if (FX.hudRunN !== n) { FX.hudRunN = n; FX.hudRun = `Run: ${n} ${n === 1 ? 'stroke' : 'strokes'}`; }
@@ -3039,11 +3106,13 @@ const over = {
   enter(E, params) {
     const p = this.p = params;
     this.t = 0; this.t0 = E.time; this.slide = 0; this.ready = false; this.sky = `h${p.hole}`;
-    this.starK = [0, 0, 0]; this.starDone = [false, false, false];
-    this.beat = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop * 0.6 + J.buttonGap;
+    this.starK = [0, 0, 0, 0]; this.starDone = [false, false, false, false];
+    const n = p.stars + (p.fourthNew ? 1 : 0); // the fourth star pops after the three
+    this.beat = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starPop * 0.6 + J.buttonGap;
+    this.btnBlind = null; this.offer = p.has3 && !p.fourth; // the Expert button follows any finish (normal or Expert) of a three-starred hole, until its fourth star is won
     this.btnNext = null; this.btnMenu = null; this.btnRetry = null;
     this.badges = (p.badges || []).map(badgeById);
-    this.badgeT = J.starDelay + Math.max(0, p.stars - 1) * J.starStagger + J.starPop + J.badgeDelay; // the first badge pops after the stars
+    this.badgeT = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starPop + J.badgeDelay; // the first badge pops after the stars
     this.badgeOn = -1;
     RK.on = false; this.rkAt = this.beat + RT.card.delay; // the rank-up card, if this hole crossed a rank, follows the usual card
     this.rkDone = !(p.rankUp && p.rankUp.to > E.save.get('rankSeen', 1));
@@ -3052,10 +3121,12 @@ const over = {
   },
   update(dt, E) {
     this.t += dt;
-    for (let i = 0; i < this.p.stars; i++) {
+    const n = this.p.stars + (this.p.fourthNew ? 1 : 0);
+    for (let i = 0; i < n; i++) {
       if (!this.starDone[i] && this.t >= J.starDelay + i * J.starStagger) {
         this.starDone[i] = true; E.audio.play('coin');
         E.tween(J.starPop, (k) => { this.starK[i] = k; }, ease.outBack);
+        if (i === 3) E.haptic(T.blind.haptic);
       }
     }
     const bi = Math.min(this.badges.length - 1, Math.floor((this.t - this.badgeT) / J.badgeHold));
@@ -3070,7 +3141,7 @@ const over = {
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, this.sky, sectorOf(p.hole), 0, 0, E.time); ctx.restore();
     ctx.save(); ctx.translate(0, (1 - this.slide) * E.h * J.cardSlideFrac);
     const pw = Math.min(E.w - 32, 340), py = E.h * 0.085;
-    E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + 80 + 44 - py, A.line.card, P.card, p.boss ? P.bossAccent : P.slate);
+    E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + 80 + 44 - py + (this.offer ? T.blind.cardExtra : 0), A.line.card, P.card, p.boss ? P.bossAccent : P.slate);
     const tky = Math.max(py, E.safe.top + A.ticket.h / 2 + 4), ly = Math.max(E.h * 0.12, tky + A.ticket.h / 2 + 14), ny = Math.max(E.h * 0.16, ly + 28);
     if (p.boss) E.text('Boss', cx, ly, TX.bossMd); // the label and the name sit below the badge ticket's slot
     E.text(p.name, cx, ny, TX.dim);
@@ -3081,13 +3152,18 @@ const over = {
     ctx.restore();
     E.text(`Par ${p.par}`, cx, E.h * 0.24 + 40, TX.dim);
     E.text(`3 stars: ${shots(p.three)}   2 stars: ${shots(p.par)}`, cx, E.h * 0.24 + 68, TX.sm);
+    const BL = T.blind, four = p.has3 || p.blind; // a three-starred hole shows the fourth star's slot beside the three
     for (let i = 0; i < 3; i++) {
-      const sx = cx + (i - 1) * 64, sy = E.h * 0.24 + 120;
+      const sx = cx + (four ? BL.cardStarsX[i] : (i - 1) * 64), sy = E.h * 0.24 + 120;
       drawStar(ctx, sx, sy, 26, null, P.starOff);
       if (i < p.stars && this.starDone[i]) drawStar(ctx, sx, sy, 26 * this.starK[i], P.green);
     }
-    const line = p.stars === 3 ? (p.strokes === 1 ? 'Hole in one' : 'Under par') : '';
-    if (line) E.text(line, cx, E.h * 0.24 + 178, { size: TY.md, color: P.green, alpha: clamp((t - J.starDelay - (p.stars - 1) * J.starStagger) / J.lineFade, 0, 1) });
+    if (four) {
+      const got = p.fourth && (!p.fourthNew || this.starDone[3]);
+      drawCometStar(ctx, cx + BL.cardCometX, E.h * 0.24 + 120, BL.cardStarR * (p.fourthNew && got ? this.starK[3] : 1), got);
+    }
+    const line = p.fourthNew ? (p.strokes === 1 ? 'Hole in one' : T.blind.label) : p.stars === 3 ? (p.strokes === 1 ? 'Hole in one' : 'Under par') : '';
+    if (line) E.text(line, cx, E.h * 0.24 + 178, { size: TY.md, color: P.green, alpha: clamp((t - J.starDelay - (p.stars - 1 + (p.fourthNew ? 1 : 0)) * J.starStagger) / J.lineFade, 0, 1) });
     E.text(`Best ${p.best}`, cx, E.h * 0.24 + 214, TX.dim);
     if (this.ready) {
       const bk = ease.outBack(clamp((t - this.beat) / J.buttonPop, 0, 1)), by = E.h * 0.68;
@@ -3099,6 +3175,12 @@ const over = {
       this.btnRetry = pill(E, 'Retry', cx - hx, by + 80, BTN.secondCard);
       if (p.hasNext) this.btnMenu = pill(E, 'Menu', cx + hx, by + 80, BTN.secondCard);
       ctx.restore();
+      if (this.offer) {
+        const yb = by + BL.cardBtnY;
+        ctx.save(); ctx.translate(cx, yb); ctx.scale(bk, bk); ctx.translate(-cx, -yb);
+        this.btnBlind = pill(E, T.blind.label, cx, yb, BTN.blind);
+        ctx.restore();
+      }
     }
     if (this.badgeOn >= 0) { // the ticket straddles the card's top edge; each new badge takes the place of the one before
       const k = ease.outBack(clamp((t - this.badgeT - this.badgeOn * J.badgeHold) / J.badgePop, 0, 1));
@@ -3112,12 +3194,15 @@ const over = {
     if (!this.ready || !this.btnNext || p.startT < this.t0 + this.beat) return;
     if (E.hit(this.btnNext, p)) { if (!this.p.hasNext) endRun(E, false); E.setScene(this.p.hasNext ? 'play' : 'menu', { hole: this.p.hole + 1, run: true }); }
     else if (this.btnMenu && E.hit(this.btnMenu, p)) { endRun(E, false); E.setScene('menu'); }
-    else if (this.btnRetry && E.hit(this.btnRetry, p)) { // the hole again; a full run goes on, this attempt's strokes still counted (v0.5 A2)
-      const run = RUN.on && RUN.next === this.p.hole + 1;
-      if (run) RUN.next = this.p.hole;
-      E.ledger.add('retry', { hole: this.p.hole + 1, strokes: this.p.strokes, stars: this.p.stars, from: 'card', run });
-      E.audio.play('tap', J.retryTapVol); E.setScene('play', { hole: this.p.hole, run });
-    }
+    else if (this.btnRetry && E.hit(this.btnRetry, p)) this.again(E, this.p.blind, 'card'); // the hole again, blind if it was blind
+    else if (this.btnBlind && E.hit(this.btnBlind, p)) this.again(E, true, 'blind');
+  },
+  // The hole again; a full run goes on, this attempt's strokes still counted (v0.5 A2).
+  again(E, blind, from) {
+    const run = RUN.on && RUN.next === this.p.hole + 1;
+    if (run) RUN.next = this.p.hole;
+    E.ledger.add('retry', { hole: this.p.hole + 1, strokes: this.p.strokes, stars: this.p.stars, from, run });
+    E.audio.play('tap', J.retryTapVol); E.setScene('play', { hole: this.p.hole, run, blind });
   },
 };
 
@@ -3127,7 +3212,7 @@ const V01_PAR = [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 9,
+  saveVersion: 10,
   // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map;
   // v3 adds `unlocked`, rebuilt from the holes already cleared; v4 stores stars per hole, because v0.2 judges stars
   // by per-hole thresholds on re-authored holes: stars won under v0.1 pars are kept as they were; v5 adds badges and the skin choice;
@@ -3136,7 +3221,8 @@ export const game = {
   // hole plus one and the run records (`runBest`, `lastRun`) are dropped, as a run over 15 holes does not compare with one over 25;
   // v8 adds `rankSeen`, the highest rank whose card has been shown (the rank itself is computed from the stars, never stored): a save
   // with stars gets one below its current rank, so a veteran sees one card on the menu, and a save still on Asteroid gets 1 (no card);
-  // v9 is the 30-hole ladder (sector 6): the same `unlocked` and run-record clean-up as v7, so a veteran lands on the first new hole.
+  // v9 is the 30-hole ladder (sector 6): the same `unlocked` and run-record clean-up as v7, so a veteran lands on the first new hole;
+  // v10 adds `blind`, a map from hole index to true once its fourth (blind) star is won: an empty map, nothing else changes.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (data.unlocked === undefined) {
@@ -3160,6 +3246,7 @@ export const game = {
       data.unlocked = openHole(data.best, data.unlocked);
       if (data.prog) { delete data.prog.runBest; delete data.prog.lastRun; }
     }
+    if (fromVersion < 10) data.blind = typeof data.blind === 'object' && data.blind !== null ? data.blind : {};
     if (fromVersion < 8) data.rankSeen = Math.max(1, rankFor(starTotal(data.stars)) - 1);
     return data;
   },

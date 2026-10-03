@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'gravity-golf-v24';
+const CACHE_VERSION = 'gravity-golf-v25';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'gravity-golf-v';
 const ASSETS = [
