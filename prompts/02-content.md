@@ -23,6 +23,10 @@ Then edit `games/SLUG/src/game.js`. Do not create or modify any other file.
 - Level select or sequential unlock as PRD section 8 specifies. Clearing a level unlocks the next; the save stores the highest unlocked. Nothing else in the save yet.
 - A par, target, or expected score per level where PRD section 7 defines one, so the naked-run and the outsized-reward rules can be checked.
 
+## Must-pass versus notes
+
+The brief from the orchestrator lists which harness checks must pass and which only print notes (for example an extra two-stroke route that matches the three-star count is a note, not a failure). Do not spend time closing notes. Use the shared search helper in the game's harness when one exists instead of writing your own optimiser.
+
 ## Naked run
 
 Every entry you add must be clearable on base equipment by an excellent player. For each entry, write in a comment the intended solution in one line. If you cannot write one, the level is not valid.

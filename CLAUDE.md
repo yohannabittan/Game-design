@@ -43,6 +43,7 @@ The session the designer talks to is the orchestrator. It writes and reviews doc
 - **Escalation:** builder retry with findings, then next model up, then fix the PRD or prompt.
 - **Parallelism:** across games, and within a content layer as data shards merged by the orchestrator (ADR-0012). Never two builders on one game's mechanic.
 - **Log it:** each changelog line names the model that built the layer and whether it passed review first time.
+- **Keep it lean (2026-10-03):** at most three heavy agents at once (builders, reviewers, content shards); a fresh builder per round with a short brief, never a builder resumed across rounds; builders work in their own worktree (`tools/worktree.sh`) and the orchestrator merges a passed build; browser checks use `tools/drive.mjs`, frame time uses `tools/perf.mjs`, and each game's `docs/games/<slug>/CODEMAP.md` says which part of `game.js` to read.
 - **Count it:** after a build or review lands, run `python3 tools/usage.py` and commit `docs/usage/` with it, so the ledger outlives the container.
 
 ## Starting a new game

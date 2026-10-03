@@ -17,6 +17,8 @@ Read, in this order:
 
 Then run `npm run smoke` and record the result.
 
+Re-measure what is measured (frame time with `tools/perf.mjs`, success and clear rates, contrast); spot-check deterministic harness results (re-run one or two, not all) and spend the time saved playing the build with `tools/drive.mjs`.
+
 ## Check, in this order, and stop listing once you have found the blocking problems
 
 1. **Rule violations.** Files created or changed other than `game.js` (unless the layer allows assets). DOM access. `engine.js` edits. Libraries. `Math.random` in anything that affects play. Numbers outside `TUNING`. Save shape changed without a `saveVersion` bump and `migrate`.
