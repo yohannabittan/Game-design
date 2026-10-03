@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "smoke": "node tools/smoke.mjs",
+    "drive": "node tools/drive.mjs",
+    "perf": "node tools/perf.mjs",
     "serve": "python3 -m http.server 8080"
   },
   "devDependencies": {
