@@ -40,6 +40,7 @@ The session the designer talks to is the orchestrator. It writes and reviews doc
 
 - **Builder:** an `Agent` on `sonnet` by default, `opus` for feel-critical or high-risk layers. Prompt is the layer file from `prompts/` with placeholders filled, verbatim. Builders read the repo themselves.
 - **Reviewer:** an `Agent` on `sonnet` with fresh context running `prompts/08-review.md`. Reports, never edits.
+- **Artist:** a separate, long-lived Claude session (the art chat, on `sonnet`) that holds the image key and works from `docs/art/BRIEF.md` (ADR-0015). The orchestrator writes a pack into the brief, then hands it off by firing the Routine "Orchestrator → art session handoff"; the artist shows the designer a contact sheet, the designer picks, and the artist pushes finals to `docs/art/final/<slug>/` with a `docs/art/HANDOFF-<topic>.md` reply (it cannot message back). Art never runs ahead of a PRD; wiring is a build layer the orchestrator dispatches.
 - **Escalation:** builder retry with findings, then next model up, then fix the PRD or prompt.
 - **Parallelism:** across games, and within a content layer as data shards merged by the orchestrator (ADR-0012). Never two builders on one game's mechanic.
 - **Log it:** each changelog line names the model that built the layer and whether it passed review first time.
