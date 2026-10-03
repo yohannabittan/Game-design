@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'ink-v24';
+const CACHE_VERSION = 'ink-v25';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'ink-v';
 const ASSETS = [
@@ -12,6 +12,8 @@ const ASSETS = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-180.png',
+  './assets/title-ink@2x.png',
+  './assets/title-ink@3x.png',
 ];
 
 self.addEventListener('install', (event) => {

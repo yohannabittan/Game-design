@@ -158,7 +158,8 @@ const TUNING = {
       swatch: { size: 52, gap: 12, headH: 24, rowGap: 6, ring: 3, pen: 0.62 }, // The Skins block on the missions screen (swatch size at least 44 px) and the menu pen's scale
     },
     badge: { h: 32, w: 320, popSec: 0.3, delay: 0.25, medalR: 11, max: 3, gap: 4, stagger: 0.12 }, // The badge tickets over the result card: up to max, stacked upward, highest tier first
-    title: { size: 92, w: 280, h: 130, glyphHalf: 100, glyphTop: 22, seed: 4242, passes: 18, jitter: 1.7, edge: 2.4, edgePasses: 7, streaks: 90, streakMin: 14, streakMax: 64, shadowDx: 4, shadowDy: 4, swash: 8 }, // Brush-stroke title
+    title: { size: 92, w: 280, h: 130, glyphHalf: 100, glyphTop: 22, seed: 4242, passes: 18, jitter: 1.7, edge: 2.4, edgePasses: 7, streaks: 90, streakMin: 14, streakMax: 64, shadowDx: 4, shadowDy: 4, swash: 8 }, // Brush-stroke title (the fallback while the generated title loads, and if it fails)
+    titleImg: { w: 280, pad: 6, at3x: 2.5, src2: 'assets/title-ink@2x.png', src3: 'assets/title-ink@3x.png' }, // Generated tattoo-script title (ADR-0015): drawn this wide, 2x and 3x bitmaps, pad is blank space around it
     card: { h: 318, landH: 36, ruinedHeroY: 74, ruinedY: 109, w: 340, pad: 14, topPad: 26, pieceGap: 46, sidePad: 34, minScale: 0.3, maxScale: 1, starR: 17, starGap: 44, stampW: 112, stampH: 34, stampTilt: -0.1, blushMargin: 48, blushScale: 0.9, blush: 0.42, blushBlur: 34 }, // Result card
     intro: { sec: 5, fade: 0.5, bottom: 16, pad: 10, lineH: 18, maxW: 340, text: 'Land on the line. Skin is a blot, and three slips ruin the piece.' }, // Split stencils: a plate near the bottom of the screen (clear of the piece) for the first seconds after the piece opens
     callout: { sec: 2.6, fade: 0.5, gap: 8, pad: 8, h: 28, text: 'Blot: landed on skin' }, // The call-out above the first blot of a piece
@@ -900,7 +901,7 @@ const NUM = Array.from({ length: 201 }, (_, i) => `${i}`), PCT = Array.from({ le
 // Caches of everything built once. Body layers are per body part; the rest are per size or per stencil.
 const AC = {
   grainBuild: null, warmGo: false, warm: 0, warmGrid: 0, warmOl: 0, warmBmp: false, boot: 0, order: null, bodyBuild: {}, inkTile: {}, mach: {}, body: {}, comp: {}, ol: null, olIdx: -1, olK: 0, grain: null, gw: 0, gh: 0, outline: [], bbox: [], mini: [], blush: null, blushIdx: -1,
-  wrap: {}, mctx: null, title: null, titleK: 0, board: null, bw: 0, bh: 0, shapes: null, tilt: null,
+  wrap: {}, mctx: null, title: null, titleK: 0, titleImg: null, titleM: null, board: null, bw: 0, bh: 0, shapes: null, tilt: null,
 };
 
 function bboxOf(idx) {
@@ -1566,6 +1567,24 @@ function boardLayer(E) {
   return cv;
 }
 
+// The generated title image, once loaded (a failed or blocked load leaves the procedural title below as the title). Its menu metrics are measured from the bitmap.
+function loadTitleImage() {
+  const I = A.titleImg, img = new Image();
+  img.onload = () => {
+    if (!img.naturalWidth) return;
+    AC.titleM = { w: I.w, h: Math.round((I.w * img.naturalHeight) / img.naturalWidth) + I.pad, glyphHalf: I.w / 2, glyphTop: I.pad / 2 };
+    AC.titleImg = img;
+  };
+  img.src = (window.devicePixelRatio || 1) >= I.at3x ? I.src3 : I.src2;
+}
+// Title size on the menu: the image's while it is loaded, else the brush title's.
+const titleMetrics = () => AC.titleM || A.title;
+function drawTitle(ctx, E, x, y, ts) {
+  const m = titleMetrics();
+  if (AC.titleM) { ctx.imageSmoothingQuality = 'high'; ctx.drawImage(AC.titleImg, x, y + (A.titleImg.pad / 2) * ts, A.titleImg.w * ts, (m.h - A.titleImg.pad) * ts); }
+  else ctx.drawImage(titleLayer(E), x, y, m.w * ts, m.h * ts);
+}
+
 // The title: heavy letters built from many jittered copies (a rough, fat edge), a brush swash under them, dry-brush streaks cut through, and a misregistered blue
 // copy behind like an off-register flash print. Built once per pixel ratio.
 function titleLayer(E) {
@@ -1685,10 +1704,10 @@ const menu = {
   // under it. `out` is filled with the positions (nothing is allocated per frame).
   layout(E, rows, out) {
     const M = A.menu, cx = E.w / 2, top = E.safe.top, availBottom = E.h - E.safe.bottom, gap = T.gridGap, tabX = E.w - M.tab.w - E.safe.right, tabBottom = top + M.tab.y + M.tab.h;
-    const below = M.gapDaily + M.dailyH + M.gapPlay + M.playH + M.botPad;
+    const TM = titleMetrics(), below = M.gapDaily + M.dailyH + M.gapPlay + M.playH + M.botPad;
     const rest = (ts) => {
-      const y0 = Math.max(top + M.topPad, cx + A.title.glyphHalf * ts + 8 > tabX ? tabBottom + 4 - A.title.glyphTop * ts : 0);
-      const rowY = y0 + A.title.h * ts + M.rowH / 2, tilesTop = rowY + M.rowH / 2 + M.gapTag;
+      const y0 = Math.max(top + M.topPad, cx + TM.glyphHalf * ts + 8 > tabX ? tabBottom + 4 - TM.glyphTop * ts : 0);
+      const rowY = y0 + TM.h * ts + M.rowH / 2, tilesTop = rowY + M.rowH / 2 + M.gapTag;
       return { y0, rowY, tilesTop, viewH: availBottom - below - tilesTop };
     };
     const seen = Math.min(rows, M.rowsSeen), want = seen * M.tileWant + (seen - 1) * gap;
@@ -1717,19 +1736,20 @@ const menu = {
       const b = AC.boot++;
       ctx.fillStyle = P.board; ctx.fillRect(0, 0, E.w, E.h);
       if (b >= 1) ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
-      if (b >= 2) ctx.drawImage(titleLayer(E), E.w / 2 - A.title.w / 2, E.safe.top + A.menu.topPad, A.title.w, A.title.h);
+      if (b >= 2) drawTitle(ctx, E, E.w / 2 - titleMetrics().w / 2, E.safe.top + A.menu.topPad, 1);
       if (b === 3) { for (let i = 0; i < STENCILS.length; i++) miniPath(i); machineGfx(ctx, SK.m); }
       if (b < A.menu.bootFrames - 1) return;
     }
     ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
 
     const Y = this.layout(E, rows, this.pos || (this.pos = {})), m = M.margin, tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = Y.th;
-    ctx.drawImage(titleLayer(E), cx - (A.title.w * Y.ts) / 2, Y.y0, A.title.w * Y.ts, A.title.h * Y.ts);
+    const TM = titleMetrics();
+    drawTitle(ctx, E, cx - (TM.w * Y.ts) / 2, Y.y0, Y.ts);
     // The pen sits left of the title, below the engine's EXPORT tab (top left, 72 x 44) and above the count row, so it is never under either.
-    { const penTop = E.safe.top + 4 + 44 + 6, rowTop = Y.rowY - M.rowH / 2 - 2, k = Math.min(clamp((cx - A.title.glyphHalf * Y.ts - m - 8) / 60, 0.3, A.skins.swatch.pen), (rowTop - penTop) / (2 * M.penHalf));
-      if (k >= M.penMin) drawPen(ctx, m + (cx - A.title.glyphHalf * Y.ts - m) / 2 - 2, (penTop + rowTop) / 2, k); }
+    { const penTop = E.safe.top + 4 + 44 + 6, rowTop = Y.rowY - M.rowH / 2 - 2, k = Math.min(clamp((cx - TM.glyphHalf * Y.ts - m - 8) / 60, 0.3, A.skins.swatch.pen), (rowTop - penTop) / (2 * M.penHalf));
+      if (k >= M.penMin) drawPen(ctx, m + (cx - TM.glyphHalf * Y.ts - m) / 2 - 2, (penTop + rowTop) / 2, k); }
     // Where the INK title really is, for the release channel's five title taps (ADR-0016).
-    Object.assign(this.titleBox, { x: cx - A.title.glyphHalf * Y.ts, y: Y.y0, w: 2 * A.title.glyphHalf * Y.ts, h: A.title.h * Y.ts });
+    Object.assign(this.titleBox, { x: cx - TM.glyphHalf * Y.ts, y: Y.y0, w: 2 * TM.glyphHalf * Y.ts, h: TM.h * Y.ts });
     { const ex = E._exportTab, tb = this.titleBox; if (ex && tb.x < ex.x + ex.w + 2 && tb.y < ex.y + ex.h) { const cut = ex.x + ex.w + 2 - tb.x; tb.x += cut; tb.w -= cut; } } // keep the title's tap box off the EXPORT tab
     E.titleArea = this.titleBox;
     const str = `${p.total} / ${STENCILS.length * T.starPercents.length}`;
@@ -2282,6 +2302,7 @@ const over = {
 export const game = {
   slug: 'ink',
   title: 'Ink',
+  init() { loadTitleImage(); },
   saveVersion: 9,
   // v1 saved only best percentages: derive stars and the unlock from them. v3 kept bests per needle mode; v4 has one needle, so the dynamic bests become the bests
   // and every earlier best (all made with the classic needle) is dropped. Stars, clean and unlocks are kept.
