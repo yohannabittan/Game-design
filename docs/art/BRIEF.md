@@ -16,7 +16,7 @@ Yohann, a CPO who does not code. He plays the games on his iPhone from a home-sc
 
 - **One style anchor per game:** `docs/games/<slug>/style.md`. Every prompt is the anchor verbatim, then the subject, then the technical spec. Nothing else.
 - **Ledger:** append every generation to `docs/assets-ledger.md` (date, game, subject, size, quality, cost estimate, kept or discarded, path, the full prompt). Stop when the ledger reaches the budget below.
-- **Budget for this first pass: US$15 total** on the OpenAI account, unless the designer raises it.
+- **Budget: US$40 total** on the OpenAI account (first pass $15, raised to $25, then by $15 to $40 by the designer on 2026-10-03), unless the designer raises it again. The provider cap is $50.
 - **Images are for things you look at, never for things you play with.** Titles, portraits, backdrops, icons, medals, menu art: yes. Anything moving, hit-tested or physics-driven (the mochi in flight, targets, planets, jellies, items on the X-ray belt): no, those stay procedural canvas (their drawn shape is their hitbox, design principle 14).
 - **Technical:** sprites are transparent PNG (or WebP), backgrounds opaque; size each to its on-screen use at 3x phone density, no larger; a game's `assets/` folder stays under 1.5 MB; nothing private or copyrighted in prompts (the repo is a public website). Recoil uses parody names only, no real film titles, actors or logos.
 - **Do not edit any `games/<slug>/src/game.js`.** Wiring images into a game is a build layer the orchestrator dispatches (prompt `prompts/05-art.md`, which allows `games/<slug>/assets/` and the `sw.js` cache list). Your job ends at chosen files in the repo plus the ledger.

@@ -1,6 +1,6 @@
 # Generated assets ledger
 
-Budget set by the designer: $50 (provider cap); the first art pass (docs/art/BRIEF.md) was capped at $15, raised by the designer to $25 on 2026-10-03 for the Gravity Golf exotic medals and Checkpoint Pack 3. Generation stops when the total below reaches it. Costs are estimated from the API usage block at $40 per million output image tokens (the gpt-image-1 rate, an upper bound for gpt-image-1.5).
+Budget set by the designer: $50 (provider cap); the first art pass (docs/art/BRIEF.md) was capped at $15, raised by the designer to $25 on 2026-10-03 for the Gravity Golf exotic medals and Checkpoint Pack 3, and by another $15 to $40 the same day. Generation stops when the total below reaches it. Costs are estimated from the API usage block at $40 per million output image tokens (the gpt-image-1 rate, an upper bound for gpt-image-1.5).
 
 | Date | Game | Subject | Size / quality | Cost | Kept | Path | Prompt (after the style anchor) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
