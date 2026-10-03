@@ -60,3 +60,14 @@ The Golden Gun and Ray Gun, the spin-lever flourish reload, new genre sets as ne
 ## G. Shop checks (designer, 2026-10-02)
 
 The "every bought gun is some player's best next buy" target in B is retired: guns are chosen by play style. Kept: buying is never needed for any star, and the pacing targets for the first purchase.
+
+## H. Pictures in play and picture skins (designer, 2026-10-03)
+
+The designer asked for the gun in play to look like the Prop Room picture, and for skins to be pictures too. The art is in `docs/art/final/recoil/` (Pack 7; read `docs/art/HANDOFF-recoil-skins.md`).
+
+- **One mechanism.** Every gun and every skin is a picture: `gun-<gun>.png` for Standard and `gun-<gun>-<skin>.png` for the 14 skins. Each one is used everywhere the gun appears: in play, the Prop Room, the rack, the stats card and the result card. The procedural drawing stays as the fallback while an image loads or if it fails.
+- **Nothing is hit-tested on the gun** (only the targets), so the eight generated skins having their own silhouette inside the standard's box changes no rule.
+- **The muzzle follows the picture.** Muzzle flash, smoke and the shot's origin come from each picture's barrel tip. Measure it per file: the opaque pixel furthest along the barrel's line. Store it in a small data table in `game.js`, so a skin with a longer or shorter barrel still fires from its tip. The in-play size, pivot and recoil animation stay as they are, scaled so the picture's grip sits where the drawn grip sat.
+- **Assets.** Resize to the size each picture is drawn at 3x in play, which is its largest use, and use WebP where it saves a third. The `assets/` folder stays under 1.5 MB, with every file in the `sw.js` cache list.
+- **Readability.** In play the gun stays readable against every set, and never covers a target's hit zone more than the drawn gun did. Frame time must not be worse than v0.6 by more than 10 percent. Draw each picture once per frame at whole pixels, like the set blit fix.
+- **Out of scope:** new skins, changes to handling, or changes to how skins are earned.
