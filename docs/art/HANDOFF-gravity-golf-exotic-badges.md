@@ -50,9 +50,9 @@ Go ahead with the nine medals: showpiece style, two options each, 256 x 256, tra
 
 | File | Name | Tier | Symbol |
 | --- | --- | --- | --- |
-| `medal-improbability.png` | Improbability (shortened from "Improbability Drive" by the parody rule; designer can overrule) | Black Hole | a folded towel on a tee, question-mark sparkles |
+| `medal-improbability.png` | Improbability Drive (the designer kept the full name) | Black Hole | a folded towel on a tee, question-mark sparkles |
 | `medal-wormhole.png` | Wormhole | Black Hole | a glowing tunnel with the cup at the far end |
-| `medal-dark-matter.png` | Dark Matter | Black Hole | an empty dark disc with a faint violet ring |
+| `medal-dark-matter.png` | Dark Matter | Planet (purple #a855f7) | an empty dark disc with a faint violet ring |
 | `medal-heat-death.png` | Heat Death | Black Hole | a dim grey ball at a cold blue cup |
 | `medal-ftl.png` | FTL | Black Hole | a ball ahead of its own light cone |
 | `medal-great-attractor.png` | Great Attractor | Star (gold #fde047) | small galaxies pulled toward one bright point |
