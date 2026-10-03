@@ -71,3 +71,10 @@ The designer asked for the gun in play to look like the Prop Room picture, and f
 - **Assets.** Resize to the size each picture is drawn at 3x in play, which is its largest use, and use WebP where it saves a third. The `assets/` folder stays under 1.5 MB, with every file in the `sw.js` cache list.
 - **Readability.** In play the gun stays readable against every set, and never covers a target's hit zone more than the drawn gun did. Frame time must not be worse than v0.6 by more than 10 percent. Draw each picture once per frame at whole pixels, like the set blit fix.
 - **Out of scope:** new skins, changes to handling, or changes to how skins are earned.
+
+## I. The prop master as a picture (designer, 2026-10-03)
+
+- The Prop Room's shopkeeper becomes a generated picture (Pack 8): `prop-master.png` when resting, and `prop-master-sold.png` for about 1.2 s after a purchase, with the purchase sound. This is principle 16: every purchase shows.
+- He is drawn behind the counter, where the drawn prop master is now, at the same height. The procedural figure stays as the fallback.
+- Look only: there is no dialogue, and nothing on the shop changes.
+- He is wired in the next Recoil art build, once the designer has picked from the two options.

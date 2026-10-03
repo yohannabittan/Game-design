@@ -123,6 +123,21 @@ Files are `gun-<gun>-<skin>.png` into `docs/art/final/recoil/`. Two options each
 
 That is 14 skins and 28 generations, about US$3 to 4 at medium. The skins must read apart from each other and from the standard gun at 64 px; show each option at 64 px on the sheet too. When the designer picks, the finals go in `docs/art/final/recoil/`, and the orchestrator wires them, together with using the picture for the gun in play.
 
+### Pack 8: Recoil prop master (added 2026-10-03)
+
+Anchor: `docs/games/recoil/style.md`, plus its showpiece sentence: he is seen large and never played with. Context: `docs/games/recoil/prd-v0.6.md` B (the Prop Room) and I.
+
+The Prop Room's shopkeeper is the studio's prop master, an original character: a gruff, friendly 1980s backlot veteran in his fifties. He has a tweed flat cap, round glasses, a big moustache, rolled shirtsleeves, a canvas apron with a pencil and a tape measure in the pocket, and a clipboard. He is lit by the neon pink and teal of the set.
+
+He must not resemble any real actor or film character; the repo is a public website. He is shown waist-up, facing slightly right toward the guns, and cut off at the waist, because the game draws the counter in front of him. Transparent background, 512 x 768. Into `docs/art/final/recoil/`:
+
+| File | Pose |
+| --- | --- |
+| `prop-master.png` | resting: one hand on the counter edge, the other holding the clipboard, a half smile |
+| `prop-master-sold.png` | a purchase: a thumbs-up and a big grin, the clipboard tucked under his arm |
+
+Generate the resting pose first, then use it as the reference image for the second, so he is the same man. Two options each, about US$0.50.
+
 ## Process
 
 1. Generate **three options** per asset at medium quality (cheap), into `docs/art/candidates/<slug>/` (not under `games/`).
