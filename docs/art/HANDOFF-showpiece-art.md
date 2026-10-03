@@ -18,4 +18,4 @@ Launch and Checkpoint get no showpiece sentence for now: their icons stay flat b
 
 ## What was regenerated this way
 
-`title-backlot88`, `title-ink`, `title-gravity-golf`, `icon-gravity-golf`, `icon-recoil`, and the eleven Gravity Golf `medal-<id>` files. Once the designer picks, the richer versions replace the earlier ones under the same file names in `docs/art/final/<slug>/`, so wiring is unchanged. The Gravity Golf ranks (`HANDOFF-gravity-golf-ranks.md`) were already made this way.
+`title-backlot88`, `title-ink`, `title-gravity-golf`, `icon-gravity-golf`, `icon-recoil`, and the eleven Gravity Golf `medal-<id>` files. Picked 2026-10-03: every one of the sixteen moved to its rich version under the same file name in `docs/art/final/<slug>/`, so wiring is unchanged. **One change for Recoil:** `title-backlot88.png` now carries only the RECOIL lettering, searchlights and sunburst; the generator misspelled the small tagline, so it was erased, and the game draws "a Backlot 88 production" in canvas text under the image (PRD v0.6 A already describes the card that way). The Gravity Golf ranks (`HANDOFF-gravity-golf-ranks.md`) were already made this way.
