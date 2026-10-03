@@ -6,7 +6,7 @@ The idea: every hole you have three-starred can be replayed blind. Beat its thre
 
 ## A. Blind mode
 
-- **Unlock:** a hole with three stars offers a blind try. There are two ways in: a "Blind" button on the end card after a three-star finish, and a small blind toggle on that hole's tile in the select grid. Both are 44 px targets.
+- **Unlock:** a hole with three stars offers a blind try. The way in is the "Expert" button on that hole's end card, shown after any finish on a three-starred hole, normal or Expert, until the fourth star is won. It is a 44 px target. *(Amended after review, 2026-10-03: the tile toggle was dropped. At 44 px on a 65 px tile it covered the tile's centre, so a normal tap armed Expert by accident. Tile taps behave exactly as in v0.8; the tile only shows the fourth-star slot.)*
 - **What changes in a blind try:**
   - The trajectory preview is gone, even on holes 1 to 3.
   - The last shot's ghost is hidden.
