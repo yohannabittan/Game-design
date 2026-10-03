@@ -357,7 +357,7 @@ const TUNING = {
     saucer: { lights: 6, lightR: 0.13, band: 0.2, fall: 520, sparks: 7, sparkLen: 9, life: 0.7 }, // a saucer's rim lights and band (fractions of its radius), and its drop when hit: gravity, sparks, seconds
     squib: { drops: 9, speed: [60, 150], life: 0.5, r: [1.6, 3.2] }, // the make-up squib a headshot pops: droplets of stage blood
     props: { side: 132, master: 1.45, masterX: 150, gap: 8, cardMin: 140, cardMax: 190, headH: 52, art: 34, artTall: 56, artMin: 22, line: 16, row: 11, bar: 5, stamp: 0.9 }, // v0.6 B, the Prop Room: the prop master's column, his scale and (portrait) his x, the gap between cards, a card's least and most height, the header, the gun art's most height (landscape, portrait) and least height, the name's line pitch, a stat row's pitch and bar height, the seconds a SOLD stamp shows
-    logo: { title: 28, beam: 0.16, word: [0.01, 0.4, 0.96, 0.46] }, // the studio logo on the menu: the title size (the procedural fallback), and the searchlights' alpha; word is the card image's RECOIL lettering as fractions of the image (left, top, width, height), the part portrait shows
+    logo: { title: 28, beam: 0.16, word: [0.03, 0.29, 0.94, 0.5], top: 8, strip: 18 }, // the studio logo on the menu: the title size (the procedural fallback), and the searchlights' alpha; word is the card image's RECOIL lettering as fractions of the image (left, top, width, height), the part portrait shows; top is the margin above the portrait lettering, strip is the height kept under the landscape card for the tagline
     vhs: { pitch: 3, bandH: 14, bandSpeed: 22 }, // menu scan lines every `pitch` px; a faint tracking band `bandH` tall rolls down at `bandSpeed` px a second
   },
 };
@@ -2588,7 +2588,7 @@ function menuLayout(E, playLabel) {
   // room for the logo there, so it heads the screen.
   const rs = L.rows[2], rz = L.rows[4], sx = (row, i) => row.x + row.labelW + i * (row.tw + row.gap);
   L.props = { x: sx(rz, 3), y: rz.y, w: 2 * rz.tw + rz.gap, h: rz.h };
-  L.logo = land ? { x: L.props.x, y: rs.y, w: L.props.w, h: rz.y - rs.y - M.laneGap } : { x: E.w / 2 - 110, y: st + 2, w: 220, h: 50 };
+  L.logo = land ? { x: L.props.x, y: rs.y, w: L.props.w, h: rz.y - rs.y - M.laneGap } : { x: E.w / 2 - 110, y: st + A.logo.top, w: 220, h: 50 };
   L.titleArea = L.logo; // release: five taps on the logo show TUNE
   return L;
 }
@@ -2714,10 +2714,13 @@ function drawPegboard(ctx, x, y, w, h) {
 }
 // The studio logo (v0.6 A): "RECOIL" over "a Backlot 88 production", two searchlights crossing behind it and a row of stars, like the card before a picture.
 function drawLogo(ctx, E, r, land) {
-  if (land && drawArtImage(ctx, 'title', r.x + r.w / 2, r.y + r.h / 2, r.w, r.h)) return; // the generated title card carries its own searchlights, lettering and line
-  if (!land && ART_IMG.title) { // portrait has room for the lettering only; the line under it stays text at the minimum size
-    drawArtImage(ctx, 'title', r.x + r.w / 2, r.y + 16, r.w, 34, A.logo.word);
-    E.text('a Backlot 88 production', r.x + r.w / 2, r.y + 40, { size: TY.small, color: P.textDim });
+  if (land && drawArtImage(ctx, 'title', r.x + r.w / 2, r.y + (r.h - A.logo.strip) / 2, r.w, r.h - A.logo.strip)) { // the generated title card carries its own searchlights and lettering; the line is text in the strip under it
+    E.text('a Backlot 88 production', r.x + r.w / 2, r.y + r.h - A.logo.strip / 2 + 1, { size: TY.small, color: P.textDim });
+    return;
+  }
+  if (!land && ART_IMG.title) { // portrait has room for the lettering only; the line under it is text at the minimum size
+    drawArtImage(ctx, 'title', r.x + r.w / 2, r.y + 15, r.w, 30, A.logo.word);
+    E.text('a Backlot 88 production', r.x + r.w / 2, r.y + 37, { size: TY.small, color: P.textDim });
     return;
   }
   const cx = r.x + r.w / 2, K = A.logo, big = land ? K.title : TY.mid + 2, ty = land ? r.y + r.h * 0.42 : r.y + 16, sy = land ? r.y + r.h * 0.42 + big * 0.62 + 6 : r.y + 38;
