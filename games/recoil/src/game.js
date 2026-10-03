@@ -1601,33 +1601,66 @@ function drawGunArt(ctx, ga, x, y, k, rot, shadow) {
   ctx.restore();
 }
 
-// Generated art (ADR-0015): a movie-prop picture per gun for the tiles, and the studio title card. Each shows once it has loaded; until then, and if it never does, the procedural
-// drawing stands in. The gun in play stays procedural (it recoils, turns and wears skins; the pictures have no skins, principle 14).
-const ART_FILES = { pistol: 'gun-buddy-cop', carbine: 'gun-pulse-rifle', shotgun: 'gun-spin-lever', rifle: 'gun-assassins-scope', smg: 'gun-one-man-army', revolver: 'gun-make-my-day', title: 'title-backlot88' };
-const ART_IMG = {};
+// Generated art (ADR-0015, PRD v0.6 H): every gun and every skin is a picture (Pack 7), used everywhere the gun shows, in play too, and the title card. A picture shows once it has
+// loaded; until then, and if it never does, the procedural drawing stands in. Nothing is hit-tested on the gun, so a picture's own silhouette changes no rule.
+// GUN_PIC is measured from the pixels (PIL, on the shipped files): per gun `s` is game units per picture pixel and `gx` the grip's x in picture pixels (the picture's left edge sits where the
+// drawn gun's left edge did, its barrel tip where the drawn muzzle was), and per file [name, tipX, tipY] is the opaque pixel furthest along the barrel, in picture pixels. The bore axis
+// runs through the tip, so the picture hangs from the pivot by (gx, tipY), and the flash, the range finder and the shot's drawn origin start at (tipX - gx) * s.
+const GUN_PIC = {
+  pistol: { s: 0.2305, gx: 95.4, files: { std: ['gun-buddy-cop.webp', 269, 22], nickel: ['gun-buddy-cop-nickel.webp', 266, 15.9], blackout: ['gun-buddy-cop-blackout.webp', 269, 22], gold: ['gun-buddy-cop-gold.webp', 269, 19.2] } },
+  carbine: { s: 0.2531, gx: 185.7, files: { std: ['gun-pulse-rifle.webp', 384, 50.9], desert: ['gun-pulse-rifle-desert.webp', 387, 56.9], arctic: ['gun-pulse-rifle-arctic.webp', 384, 54.6] } },
+  shotgun: { s: 0.2524, gx: 266.4, files: { std: ['gun-spin-lever.webp', 512, 22.8], walnut: ['gun-spin-lever-walnut.webp', 512, 22.8], tactical: ['gun-spin-lever-tactical.webp', 512, 22.8] } },
+  rifle: { s: 0.2515, gx: 246.5, files: { std: ['gun-assassins-scope.webp', 509, 45.3], carbon: ['gun-assassins-scope-carbon.webp', 509, 45.3], bronze: ['gun-assassins-scope-bronze.webp', 509, 45.3], ghost: ['gun-assassins-scope-ghost.webp', 509, 45.3] } },
+  smg: { s: 0.3076, gx: 160.3, files: { std: ['gun-one-man-army.webp', 342, 32.3], brass: ['gun-one-man-army-brass.webp', 342, 29.2], hazard: ['gun-one-man-army-hazard.webp', 321, 42.1] } },
+  revolver: { s: 0.2082, gx: 91.3, files: { std: ['gun-make-my-day.webp', 370, 29.9], ivory: ['gun-make-my-day-ivory.webp', 372, 22.6], frost: ['gun-make-my-day-frost.webp', 372, 20.5] } },
+};
+const ART_FILES = { title: 'title-backlot88.png' }, PICS = {}, ART_IMG = {};
+GUN_IDS.forEach((id, gi) => {
+  const g = GUN_PIC[id];
+  Object.entries(g.files).forEach(([sk, [file, tx, ty]], si) => {
+    const key = sk === 'std' ? id : `${id}-${sk}`;
+    ART_FILES[key] = file;
+    PICS[key] = { key, idx: gi * SKIN_SLOTS + si, s: g.s, gx: g.gx, ty, muzzle: (tx - g.gx) * g.s };
+  });
+});
 function loadArtImages() {
   if (typeof Image === 'undefined') return;
   for (const [id, file] of Object.entries(ART_FILES)) {
     const im = new Image();
     im.onload = () => { if (im.naturalWidth) ART_IMG[id] = im; };
-    im.src = `assets/${file}.png`;
+    im.src = `assets/${file}`;
   }
 }
+// The loaded picture for a gun in a skin (an unknown skin is the standard one), or null while it is missing.
+function picOf(id, skin) {
+  const g = GUN_PIC[id];
+  if (!g) return null;
+  const p = PICS[skin && skin !== 'std' && g.files[skin] ? `${id}-${skin}` : id];
+  return ART_IMG[p.key] ? p : null;
+}
+// The drawn barrel tip's distance from the grip: the picture's, else the drawn gun's.
+function muzzleOf(id, skin) { const p = picOf(id, skin); return p ? p.muzzle : gunArt(id, skin).muzzle; }
 // The picture contained in a w x h box, centred at cx, cy; false when it has not loaded. `crop` is a source rectangle in fractions of the image.
-function drawArtImage(ctx, id, cx, cy, w, h, crop) {
+// `snap` draws it unscaled-transform at whole device pixels (a plain copy for the raster) when the view is not turned.
+function drawArtImage(ctx, id, cx, cy, w, h, crop, snap) {
   const im = ART_IMG[id];
   if (!im) return false;
   const sx = crop ? crop[0] * im.naturalWidth : 0, sy = crop ? crop[1] * im.naturalHeight : 0, sw = crop ? crop[2] * im.naturalWidth : im.naturalWidth, sh = crop ? crop[3] * im.naturalHeight : im.naturalHeight;
   const k = Math.min(w / sw, h / sh), dw = sw * k, dh = sh * k;
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(im, sx, sy, sw, sh, cx - dw / 2, cy - dh / 2, dw, dh);
+  const m = snap ? ctx.getTransform() : null;
+  if (m && m.b === 0 && m.c === 0) {
+    const x0 = Math.round(m.e + (cx - dw / 2) * m.a), y0 = Math.round(m.f + (cy - dh / 2) * m.d);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(im, sx, sy, sw, sh, x0, y0, Math.round(m.e + (cx + dw / 2) * m.a) - x0, Math.round(m.f + (cy + dh / 2) * m.d) - y0);
+    ctx.restore();
+  } else ctx.drawImage(im, sx, sy, sw, sh, cx - dw / 2, cy - dh / 2, dw, dh);
   return true;
 }
 
-// Every gun drawn at one scale, so sizes stay honest, centred on its own bounds inside a w x h box. A gun in its standard finish is the movie-prop picture; a worn skin keeps the
-// procedural gun, because the skin is what the player earned and the pictures do not carry it (principle 16).
+// Every gun drawn at one scale, so sizes stay honest, centred on its own bounds inside a w x h box: its picture in the skin it wears, else the procedural gun.
 function drawGunTile(ctx, id, cx, cy, w, h, skin) {
-  if ((!skin || skin === 'std') && drawArtImage(ctx, id, cx, cy, w, h)) return;
+  if (drawArtImage(ctx, skin && skin !== 'std' && GUN_PIC[id] && GUN_PIC[id].files[skin] ? `${id}-${skin}` : id, cx, cy, w, h, null, true)) return;
   const ga = gunArt(id, skin), k = Math.min(w / GUN_BOX.w, h / GUN_BOX.h);
   drawGunArt(ctx, ga, cx - ((ga.x0 + ga.x1) / 2) * k, cy - ((ga.y0 + ga.y1) / 2) * k, k, 0, false);
 }
@@ -1635,7 +1668,28 @@ function drawGunTile(ctx, id, cx, cy, w, h, skin) {
 // The gun is one sprite cut to its own bounds (outline and shadow included), turned about the grip at draw time.
 const GUN_PAD = 6;
 function paintGun(g, ga) { drawGunArt(g, ga, 0, 0, 1, 0, true); }
+// A picture gun: one sprite resized once to the screen's pixels, hung from the pivot at whole pixels and turned about it. Without offscreen canvases it is drawn straight.
+function drawGunPic(ctx, run, p) {
+  const im = ART_IMG[p.key], a = angleOf(run) * DEG, m = ctx.getTransform();
+  if (!SPR_K || typeof OffscreenCanvas === 'undefined') {
+    ctx.save(); ctx.translate(T.gunX, run.gunY); ctx.rotate(-a); ctx.scale(p.s, p.s); ctx.drawImage(im, -p.gx, -p.ty); ctx.restore();
+    return;
+  }
+  const key = K_GUN + 100 + p.idx, k = (SPR_K / 100) * p.s;
+  let s = SPR.get(key);
+  if (s === undefined) {
+    const cv = new OffscreenCanvas(Math.max(1, Math.round(im.naturalWidth * k)), Math.max(1, Math.round(im.naturalHeight * k))), g = cv.getContext('2d');
+    s = null;
+    if (g) { g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(im, 0, 0, cv.width, cv.height); s = cv; }
+    SPR.set(key, s);
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, Math.round(m.e + T.gunX * m.a), Math.round(m.f + run.gunY * m.d)); ctx.rotate(-a);
+  if (s) ctx.drawImage(s, -Math.round(p.gx * k), -Math.round(p.ty * k)); else ctx.drawImage(im, -p.gx * k, -p.ty * k, im.naturalWidth * k, im.naturalHeight * k);
+  ctx.restore();
+}
 function drawGun(ctx, run) {
+  const p = picOf(run.gun.id, S.skin);
+  if (p) { drawGunPic(ctx, run, p); return; }
   const ga = gunArt(run.gun.id, S.skin), key = K_GUN + ga.idx, w = ga.x1 - ga.x0 + 2 * GUN_PAD, h = ga.y1 - ga.y0 + 2 * GUN_PAD;
   ctx.save(); ctx.translate(T.gunX, run.gunY); ctx.rotate(-angleOf(run) * DEG);
   let s = SPR.get(key);
@@ -1653,7 +1707,7 @@ function drawGun(ctx, run) {
 
 // The muzzle flash sprite at the barrel tip, turned with the barrel. It grows as it fades.
 function drawFlash(ctx, run, f) {
-  const F = A.flash, a = angleOf(run) * DEG, m = gunArt(run.gun.id).muzzle, life = f.t / f.max, s = F.from + (1 - F.from) * (1 - life);
+  const F = A.flash, a = angleOf(run) * DEG, m = muzzleOf(run.gun.id, S.skin), life = f.t / f.max, s = F.from + (1 - F.from) * (1 - life);
   ctx.save(); ctx.translate(T.gunX + Math.cos(a) * m, run.gunY - Math.sin(a) * m); ctx.rotate(-a); ctx.scale(s, s);
   ctx.globalAlpha = life;
   ctx.fillStyle = P.orangeLight; ctx.fill(FLASH);
@@ -2004,7 +2058,7 @@ function drawMult(ctx, run) {
 // edge; a short one gets a soft cap so the end reads as deliberate.
 function drawRangeFinder(ctx, run, flash) {
   const F = A.finder, a = angleOf(run) * DEG, cs = Math.cos(a), sn = Math.sin(a), gx = T.gunX, gy = run.gunY;
-  const d0 = gunArt(run.gun.id).muzzle + F.gap, d1 = rangeLen(run), n = T.rangeDots, nb = F.ramp;
+  const d0 = muzzleOf(run.gun.id, S.skin) + F.gap, d1 = rangeLen(run), n = T.rangeDots, nb = F.ramp;
   if (d1 <= d0) return;
   // A dark track under the dots keeps them readable on paper, then one fill per colour step (colour and fade both step with distance).
   ctx.globalAlpha = F.trackAlpha; ctx.strokeStyle = P.ink; ctx.lineWidth = F.track; ctx.lineCap = 'round';
@@ -2424,7 +2478,7 @@ function ejectCasing(run) {
 function cosmetics(E, ev) {
   if (ev.type === 'shot') {
     // Shot lines leave the drawn muzzle: the event's origin is barrelLen along the barrel, the drawn tip may be further out.
-    const run = S.run, ex = gunArt(run.gun.id).muzzle - T.barrelLen, dx = ev.x1 - ev.x0, dy = ev.y1 - ev.y0, dl = Math.hypot(dx, dy) || 1;
+    const run = S.run, ex = muzzleOf(run.gun.id, S.skin) - T.barrelLen, dx = ev.x1 - ev.x0, dy = ev.y1 - ev.y0, dl = Math.hypot(dx, dy) || 1;
     const ox = ev.x0 + (dx / dl) * ex, oy = ev.y0 + (dy / dl) * ex;
     for (const l of ev.lines) S.fx.push({ k: 'tracer', x0: ox, y0: oy, x1: l.x1, y1: l.y1, t: T.tracerLife, max: T.tracerLife });
     S.fx.push({ k: 'flash', t: T.flashLife, max: T.flashLife });
