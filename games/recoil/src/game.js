@@ -357,7 +357,7 @@ const TUNING = {
     saucer: { lights: 6, lightR: 0.13, band: 0.2, fall: 520, sparks: 7, sparkLen: 9, life: 0.7 }, // a saucer's rim lights and band (fractions of its radius), and its drop when hit: gravity, sparks, seconds
     squib: { drops: 9, speed: [60, 150], life: 0.5, r: [1.6, 3.2] }, // the make-up squib a headshot pops: droplets of stage blood
     props: { side: 132, master: 1.45, masterX: 150, gap: 8, cardMin: 140, cardMax: 190, headH: 52, art: 34, artTall: 56, artMin: 22, line: 16, row: 11, bar: 5, stamp: 0.9 }, // v0.6 B, the Prop Room: the prop master's column, his scale and (portrait) his x, the gap between cards, a card's least and most height, the header, the gun art's most height (landscape, portrait) and least height, the name's line pitch, a stat row's pitch and bar height, the seconds a SOLD stamp shows
-    logo: { title: 28, beam: 0.16 }, // the studio logo on the menu: the title size, and the searchlights' alpha
+    logo: { title: 28, beam: 0.16, word: [0.01, 0.4, 0.96, 0.46] }, // the studio logo on the menu: the title size (the procedural fallback), and the searchlights' alpha; word is the card image's RECOIL lettering as fractions of the image (left, top, width, height), the part portrait shows
     vhs: { pitch: 3, bandH: 14, bandSpeed: 22 }, // menu scan lines every `pitch` px; a faint tracking band `bandH` tall rolls down at `bandSpeed` px a second
   },
 };
@@ -1601,8 +1601,33 @@ function drawGunArt(ctx, ga, x, y, k, rot, shadow) {
   ctx.restore();
 }
 
-// Every gun drawn at one scale, so sizes stay honest, centred on its own bounds inside a w x h box.
+// Generated art (ADR-0015): a movie-prop picture per gun for the tiles, and the studio title card. Each shows once it has loaded; until then, and if it never does, the procedural
+// drawing stands in. The gun in play stays procedural (it recoils, turns and wears skins; the pictures have no skins, principle 14).
+const ART_FILES = { pistol: 'gun-buddy-cop', carbine: 'gun-pulse-rifle', shotgun: 'gun-spin-lever', rifle: 'gun-assassins-scope', smg: 'gun-one-man-army', revolver: 'gun-make-my-day', title: 'title-backlot88' };
+const ART_IMG = {};
+function loadArtImages() {
+  if (typeof Image === 'undefined') return;
+  for (const [id, file] of Object.entries(ART_FILES)) {
+    const im = new Image();
+    im.onload = () => { if (im.naturalWidth) ART_IMG[id] = im; };
+    im.src = `assets/${file}.png`;
+  }
+}
+// The picture contained in a w x h box, centred at cx, cy; false when it has not loaded. `crop` is a source rectangle in fractions of the image.
+function drawArtImage(ctx, id, cx, cy, w, h, crop) {
+  const im = ART_IMG[id];
+  if (!im) return false;
+  const sx = crop ? crop[0] * im.naturalWidth : 0, sy = crop ? crop[1] * im.naturalHeight : 0, sw = crop ? crop[2] * im.naturalWidth : im.naturalWidth, sh = crop ? crop[3] * im.naturalHeight : im.naturalHeight;
+  const k = Math.min(w / sw, h / sh), dw = sw * k, dh = sh * k;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(im, sx, sy, sw, sh, cx - dw / 2, cy - dh / 2, dw, dh);
+  return true;
+}
+
+// Every gun drawn at one scale, so sizes stay honest, centred on its own bounds inside a w x h box. A gun in its standard finish is the movie-prop picture; a worn skin keeps the
+// procedural gun, because the skin is what the player earned and the pictures do not carry it (principle 16).
 function drawGunTile(ctx, id, cx, cy, w, h, skin) {
+  if ((!skin || skin === 'std') && drawArtImage(ctx, id, cx, cy, w, h)) return;
   const ga = gunArt(id, skin), k = Math.min(w / GUN_BOX.w, h / GUN_BOX.h);
   drawGunArt(ctx, ga, cx - ((ga.x0 + ga.x1) / 2) * k, cy - ((ga.y0 + ga.y1) / 2) * k, k, 0, false);
 }
@@ -2689,6 +2714,12 @@ function drawPegboard(ctx, x, y, w, h) {
 }
 // The studio logo (v0.6 A): "RECOIL" over "a Backlot 88 production", two searchlights crossing behind it and a row of stars, like the card before a picture.
 function drawLogo(ctx, E, r, land) {
+  if (land && drawArtImage(ctx, 'title', r.x + r.w / 2, r.y + r.h / 2, r.w, r.h)) return; // the generated title card carries its own searchlights, lettering and line
+  if (!land && ART_IMG.title) { // portrait has room for the lettering only; the line under it stays text at the minimum size
+    drawArtImage(ctx, 'title', r.x + r.w / 2, r.y + 16, r.w, 34, A.logo.word);
+    E.text('a Backlot 88 production', r.x + r.w / 2, r.y + 40, { size: TY.small, color: P.textDim });
+    return;
+  }
   const cx = r.x + r.w / 2, K = A.logo, big = land ? K.title : TY.mid + 2, ty = land ? r.y + r.h * 0.42 : r.y + 16, sy = land ? r.y + r.h * 0.42 + big * 0.62 + 6 : r.y + 38;
   if (land) {
     ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip(); ctx.globalAlpha = K.beam;
@@ -3525,7 +3556,7 @@ export const game = {
   },
   TUNING,
   init(E) {
-    buildArt(); prepMenu(E.dpr, E.ctx); menuPatterns(E.ctx, E.dpr); warmText(E.ctx);
+    buildArt(); loadArtImages(); prepMenu(E.dpr, E.ctx); menuPatterns(E.ctx, E.dpr); warmText(E.ctx);
     if (!E.save.get('mastery', null)) E.save.set('mastery', deriveMastery(E)); // a save from before v10: the counters the ledger still has, else zero
   }, // the art and the menu's sprites are built before the first frame
   experiments: EXPERIMENTS,

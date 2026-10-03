@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'recoil-v24';
+const CACHE_VERSION = 'recoil-v25';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'recoil-v';
 const ASSETS = [
@@ -12,6 +12,13 @@ const ASSETS = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-180.png',
+  './assets/gun-buddy-cop.png',
+  './assets/gun-pulse-rifle.png',
+  './assets/gun-spin-lever.png',
+  './assets/gun-assassins-scope.png',
+  './assets/gun-one-man-army.png',
+  './assets/gun-make-my-day.png',
+  './assets/title-backlot88.png',
 ];
 
 self.addEventListener('install', (event) => {
