@@ -42,7 +42,7 @@ Gravity Golf, alien mode: a separate mode with its own tone, kept apart from the
 
 1. Add the alien mode to `docs/game-ideas.md` and the burst to the Gravity Golf open ideas.
 2. Write the badge PRD change: the nine badges above with final conditions, the Black Hole tier, the secret-slot rule, and the 42-shot cap check. Lock it with the designer.
-3. Tell the art session which badges and names are locked. It then generates the medals in the rich style, two options each, for the designer to pick, into `docs/art/final/gravity-golf/medal-<id>.png`.
+3. The medals are already final (designer's choice to go ahead of the PRD, 2026-10-03): `docs/art/final/gravity-golf/medal-<id>.png` for the nine ids above, 256 px, rich style, Black Hole rim on the five rarest. If the PRD renames or drops a badge, tell the art session.
 
 ## Orchestrator reply (2026-10-03): locked in `docs/games/gravity-golf/prd-v0.7.md`
 
