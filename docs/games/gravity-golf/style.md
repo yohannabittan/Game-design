@@ -13,3 +13,9 @@ Holes come in sectors of five. Each sector adds one sentence after the anchor. T
 3. Meteor shower (holes 11 to 15): "A clear teal-navy sky crossed now and then by a few thin, faint meteor streaks heading down to the left."
 4. Deep space (holes 16 to 20): "Near-black deep space with sparse cool stars and a distant space whale silhouette, darker than the sky, with a barely visible light rim."
 5. Binary sunrise (holes 21 to 25): "Two suns, amber and rose, rising below the bottom edge, their low warm glow washing up into a dusky plum sky with warm stars."
+
+## Showpiece sentence (designer decision, 2026-10-03)
+
+Added after the anchor, never in place of it, for showpiece prompts only (the title, the icon and, where named, medals and ranks). Play objects use the anchor alone.
+
+"Showpiece art (title, icon, medals, ranks) is the richest art in the game: layered painterly textures, fine surface detail, glow, embers and particles, dramatic lighting, with the same crisp chunky silhouette."

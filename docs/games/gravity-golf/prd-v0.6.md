@@ -1,6 +1,6 @@
 # Gravity Golf PRD v0.6: a rank ladder from Asteroid to Black Hole, plus the generated title and medals
 
-Status: draft 2026-10-03, waiting for the designer to lock it. Builds on v0.5 and its amendments. Source: the designer's decisions in the art chat and in this one:
+Status: locked 2026-10-03 by the designer ("a good gamification mechanic to make you want to strive for more stars"). Builds on v0.5 and its amendments. Source: the designer's decisions in the art chat and in this one:
 - an overall progression rank on top of the badges, a ladder of space objects in the spirit of Khan Academy's point levels;
 - the sixteen emblems picked in the art chat;
 - about one rank every 3 to 5 holes, so a rank feels earned.
@@ -10,6 +10,7 @@ Art: the files in `docs/art/final/gravity-golf/` are `rank-01-asteroid.png` to `
 ## A. What drives the rank
 
 - **Stars drive it, nothing else.** Every star earned on any hole counts once, best result per hole, as now. Badges stay separate challenges and do not add points: one number to chase, and a player who replays a hole for its third star sees it move.
+- **Stars, not holes opened.** Holes still unlock one at a time by clearing the one before (unchanged), but the rank only counts stars, so a player who three-stars ten holes (30 stars, rank 4, Giant Planet) out-ranks one who has opened fifteen on one star each (15 stars, rank 2, Moon). Going back for third stars is the fastest way up, and the ladder's progress line should make that visible: when the next rank is reachable from stars missing on holes already open, the line says so ("4 stars to Red Dwarf: 6 left on holes you've played").
 - **Ten stars per rank** (`TUNING.rank.starsPerRank`). Rank 1, Asteroid, is where everyone starts with 0 stars. Rank n needs 10 × (n − 1) stars.
   - At two or three stars a hole, that is one rank every 3 to 5 holes.
 - **Today's 25 holes (75 stars) reach rank 8, Blue Star**, at 70 stars. Ranks 9 to 16 arrive with new sectors: each sector of 5 holes adds 15 stars, so about 1.5 ranks. Black Hole needs 150 stars, which is 50 holes. The thresholds never change when holes are added, so a rank is never taken away.
