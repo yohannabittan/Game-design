@@ -14,6 +14,14 @@ asteroid, moon, planet, giant planet, brown dwarf, red dwarf, yellow star, blue 
 
 Sixteen steps are drawn; the PRD can use fewer. Names are the designer's; "yellow star" is the plain star, "red giant" is the giant star.
 
+## Style sentence to add to `docs/games/gravity-golf/style.md` (designer decision, 2026-10-03)
+
+The ranks are purely visual, so they are the one place the game spends the generator's capacity on detail. Add this after the anchor, the way the sector sentences are added:
+
+"Rank emblems are the richest art in the game: layered painterly textures, fine surface detail, glow, embers and particles, dramatic lighting, with the same crisp chunky silhouette."
+
+Every rank prompt is the anchor, then this sentence, then a long per-step subject (in the ledger), at medium quality. Stars are glowing spheres except the white dwarf, which keeps a pointed star shape by choice. Every rank has a bold cartoon face.
+
 ## Art
 
 - Files: `docs/art/final/gravity-golf/rank-NN-<name>.png`, transparent PNG, 512 x 512, numbered in ladder order. They land there once the designer picks from the candidates (two options each are generated); until then they are not final.
