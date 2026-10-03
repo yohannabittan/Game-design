@@ -1,6 +1,6 @@
-# Gravity Golf PRD v0.9: the blind fourth star
+# Gravity Golf PRD v0.9: the Expert fourth star
 
-Status: locked 2026-10-03 by the designer: "3 stars with no or minimal range finder, just to indicate direction". Builds on v0.8.
+Status: locked 2026-10-03 by the designer: "3 stars with no or minimal range finder, just to indicate direction". Builds on v0.8. **Name (designer, 2026-10-03):** the mode is called "Expert" for players, never "Blind". The label lives in one TUNING constant, so it can be renamed in one place. "Blind" below is the internal name only.
 
 The idea: every hole you have three-starred can be replayed blind. Beat its three-star count with only a direction pointer, and you earn a fourth star. This is mastery content that makes every existing hole worth replaying. It costs no new holes and no harness proving, because the routes are the same.
 
