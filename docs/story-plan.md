@@ -1,6 +1,18 @@
-# Story plan for the library (draft, 2026-10-04)
+# Story plan for the library (draft, 2026-10-04, revised the same day)
 
 The designer asked for more explicit story across the games, starting with Recoil (`docs/games/recoil/prd-v0.7.md`, drafted). Nothing in this plan is built until the weekly usage resets and the designer locks each game's PRD.
+
+## Each game's emotional drive (designer, 2026-10-04)
+
+Each story is short, says why the action happens, and links the player to someone. The narrative supports the drive that makes you play the next level:
+
+| Game | Drive | Who you do it for |
+| --- | --- | --- |
+| Launch | love and longing | Daifuku, waiting 5 km away |
+| Recoil | ambition | yourself: your name on the poster |
+| Ink | care and trust | the client who wears your work forever |
+| Checkpoint | protection | the passengers on today's flight |
+| Gravity Golf | curiosity and discovery | humanity: are we alone? |
 
 ## One kit for every game
 
@@ -45,43 +57,53 @@ The art is already final: Mochi in four expressions, Daifuku twice, and the Moch
 - **Art:** none new.
 - **Cost:** one Sonnet build plus a review, about $10 to 15. **This is the cheapest and has the strongest emotional hook.**
 
-### Checkpoint: "Your first week on the line"
+### Checkpoint: "Get the flight home safe" (revised 2026-10-04)
+
+The drive is **protection**: people fly safely because you were fast and sharp.
 
 - **Cold open.**
-  1. "Day one at the airport checkpoint."
-  2. "Your supervisor has one rule: nothing dangerous flies."
-- **Voice:** the supervisor gives a one-line **morning briefing** before each day. That is one tip plus flavour, for example "Intel says fireworks season. Watch the tubes." It ties the story to the day's new contraband. On a breach, the supervisor's line explains what was missed.
-- **Flavour:** flagged travellers get a one-line excuse ("It's a gift for my nan!"), and cleared ones a thank-you. This is cosmetic.
-- **Career beats:** Rookie → Officer → Senior Officer → Chief of Security, by days survived and stars, with a card each.
-- **Payoff:** day 7 is the "holiday rush" finale with a results card: your week in numbers, and the supervisor's verdict.
-- **Art:** the supervisor (2 poses, briefing and stern), about $0.70.
-- **Cost:** about $15 to 20.
+  1. "Airport security. Today's flight leaves at dawn."
+  2. "Your job: nothing dangerous gets on board."
+- **Each day is a flight.** The supervisor's morning briefing names it and gives one tip ("Flight 4 to the coast. Fireworks season: watch the tubes.").
+- **The end card is the plane.**
+  - **A good day:** "Flight 4 landed. 182 passengers home safe."
+  - **A breach:** **"The flight didn't take off."** The plane stays grounded and passengers wait. Nothing violent, no hijacking: the stakes are kind but real.
+- **Flavour.** Flagged travellers get a one-line excuse ("It's a gift for my nan!"), and cleared ones a thank-you.
+- **The ladder, in the background.** Rookie → Officer → Senior → Chief, by flights landed.
+- **Payoff.** Day 7, the holiday rush, ends on a departures board of your week, all green or with the grounded ones marked.
+- **Art.** The supervisor (2 poses), plus optionally a plane on the runway for the end card, about $1.
+- **Cost.** About $15 to 20.
 
-### Ink: "From apprentice to your own shop"
+### Ink: "Someone wears your work forever" (revised 2026-10-04)
 
-- **Cold open.**
-  1. "A tattoo parlour. A steady hand wanted."
-  2. "The owner hands you a stencil: 'Show me.'"
-- **Voice:** the shop owner, a mentor, gives a one-line note on the result card ("Clean lines. Customers will come back.").
-- **Flavour:** each stencil becomes a client's **commission**, with one line of who asked for it: "A sailor wants an anchor for his first voyage." The level select stays the same, with a client line under each tile's art.
-- **Career beats:** Apprentice → Artist → Master, by stars.
-- **Payoff:** the existing gallery becomes **your portfolio**. At Master, a final card reads "Your own shop. Your name on the door."
-- **Art:** the mentor (2 poses), about $0.70.
-- **Cost:** about $15 to 20.
-
-### Gravity Golf: "A pebble that wanted to be a black hole"
-
-The rank ladder already tells a growth story: you start as an asteroid and gain mass.
+The drive is **care and trust**: a tattoo is permanent and means something to the person who wears it, and that is why precision matters.
 
 - **Cold open.**
-  1. "Space is mostly empty. You're mostly rock."
-  2. "Every hole you sink, you gather mass."
-- **Voice:** a small **comet caddie** with one line per result ("Nice bend. Physics approves."). Keep it light: it is a puzzle game.
-- **Career beats:** each rank-up card gets one story line, for example Moon: "Something finally orbits you." These are 16 lines.
-- **Flavour:** each sector gets an arrival card ("The Galactic Core. Everything here is heavy.").
-- **Payoff:** Black Hole is the ending card: "Nothing escapes you now. Not even par."
-- **Art:** the comet caddie (2 poses), about $0.70.
-- **Cost:** about $10 to 15.
+  1. "A tattoo lasts a lifetime."
+  2. "Every client trusts your hand with theirs."
+- **The client is the voice.** Before each stencil, one line says who they are and why they want it: "An anchor for my first voyage."
+- **The reveal (Elaina's idea, the heart of it).** After the fill, the view **zooms out from the skin to the client**. The game draws **your actual work**, slips included, onto the client's arm or shoulder. The client's face reacts: delighted on three stars, polite on one or two, upset on a ruined piece. The tattoo is the player's own result, so the client's reaction is to *your* hand.
+- **The ladder, quietly in the background.** Apprentice → Artist → Master, by stars. The shop owner appears only on rank-up cards. At Master: "Your own shop. Your name on the door."
+- **Payoff.** The gallery becomes your **portfolio of people**: each piece shown on its client.
+- **Art.** About 6 original clients, reused across levels, each with 3 expressions (happy, neutral, sad), waist-up with a clear skin patch where the game draws the tattoo. That is 18 images, about $2 to 3. A small data table gives each portrait its skin-patch rectangle.
+- **Cost.** Larger than the others, because of the zoom-out and the tattoo transfer: about $20 to 30.
+
+### Gravity Golf: "A probe looking for life" (revised 2026-10-04)
+
+The drive is **curiosity and discovery**. You are a small probe sent by humanity to explore the galaxy and look for life. Every hole is a **gravity assist**, the real trick spacecraft use to bend their path around planets, which is exactly the game's action.
+
+- **Cold open.**
+  1. "Humanity built you to answer one question."
+  2. "Are we alone? Ride the gravity. Find out."
+- **The voice is mission control,** one line per result: "Clean assist. Data received." For a miss: "We'll call that a scenic route."
+- **Sectors are the journey's stops.** Each arrival card is a discovery log:
+  - Starfield: "Rocks. No life."
+  - Nebula: "Gas, dust, no life. Yet."
+  - and so on, up to the Galactic Core.
+- **Ranks become what you've learned to bend around**, from Asteroid to Black Hole, with one line each.
+- **The hook.** Clearing hole 30, the Galactic Core boss, triggers the cliffhanger: **"A signal. Not natural. It's coming from beyond the core."** That sets up the alien mode in the backlog as the story's next chapter (First Contact, Probe and Mothership badges are already pencilled in).
+- **Art.** Mission control as a small screen-and-headset icon, or the probe itself (2 poses). About $0.70.
+- **Cost.** About $10 to 15.
 
 ## Order and total
 
