@@ -118,3 +118,16 @@ Test: list each mechanic with the share of typical sessions that meet it; anythi
 Every upgrade level visibly reskins something the player watches (the launcher, the character, the glider, the slam, the gun, the ball); a purchase you cannot see does not feel bought. Every action has a sound, a visual and a motion; a cue that matters has both a sound and a visual, so it works with the sound off.
 
 Test: play muted, then with sound and eyes half closed; every tap should feel like something, and every owned upgrade should be nameable from the screen alone.
+
+## 17. Every game has a reason to care: context, story, characters, emotion
+
+Mechanics, balance and progression make a game work; context, story, characters and emotion make it flavourful. Every game answers four questions, kept in its `world.md`:
+- **Context:** where you are and why the action happens.
+- **Story:** a short arc that starts, builds and pays off.
+- **Characters:** named people, with a voice, who the action is for or against.
+- **Emotion:** the drive that pulls you to the next level (love, ambition, care, protection, curiosity), and the beats that make you feel it.
+
+The story is short and sweet, easy to grasp, and supports the drive rather than decorating it. It never gates play and never costs more than one tap (designer, 2026-10-04).
+
+Test: a new player can say, after two minutes, who they are, who they are doing it for, and what they want next.
+

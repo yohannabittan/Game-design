@@ -14,6 +14,10 @@ This document is the one-shot contract. A builder session gets this, the skeleto
 
 One sentence. Then the fantasy in one more.
 
+## 1b. Context, story, characters, emotion
+
+From `world.md` (principle 17): the drive in one line, the cast by name, and which story pieces v0.1 carries. Usually that is the cold open and the voice on the result card; career beats and the payoff can come later. List the canonical lines the build copies.
+
 ## 2. The first ten seconds
 
 What the player sees, touches, and gets back, from launch to first meaningful feedback. This is also the spec for the first level.

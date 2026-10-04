@@ -17,6 +17,15 @@ Write what the player sees and does from the moment the game opens. No menu talk
 
 Who you are and what mastery looks like. One or two lines.
 
+## Context, story, characters, emotion
+
+Start `templates/world.md` as `docs/games/<slug>/world.md`, and answer here in one line each (principle 17):
+
+- **Context:** where you are and why the action happens.
+- **Story:** the arc in one sentence, from start to payoff.
+- **Characters:** who you are, and who you do it for or against, by name.
+- **Emotion:** the drive (love, ambition, care, protection, curiosity) and the moment it pays off.
+
 ## Three tips
 
 The tips a friend would give you after watching you play for a minute. If these do not come easily, the mechanic has no ladder yet.
@@ -44,5 +53,6 @@ The smallest v0.1: verb, skill axis, content count, what ends a session.
 - [ ] Perfect and sloppy plays get visibly different responses
 - [ ] A naked run (base equipment, excellent skill) is possible by design
 - [ ] It works in portrait with one thumb
+- [ ] Context, story, characters and emotion each have a one-line answer, and the story supports the drive
 
 All checked: copy `templates/prd-v0.1.md` and write the PRD. Otherwise back to the backlog with the missing answer in the row.
