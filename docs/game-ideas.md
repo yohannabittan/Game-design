@@ -26,6 +26,7 @@ After those three, the process should have had its own v0.2. Then pick from the 
 | Dolphin | P5 or P1 | Jump timing for air tricks | Excellent | Low | Endless, trick score | idea |
 | Act of God | P11 | Steer a tornado, destroy efficiently | Good | Medium | 1 town, timer, destruction percentage | idea |
 | Deep (Motherload-like) | P8 | Dig, sell, upgrade, dig deeper | Good | Medium | 1 mine, 3 ores, fuel, 3 upgrades | idea |
+| Swords and Sandals-like (gladiator arena) | P9 + P8 | Turn-based arena duels on a line. Each turn you step in, step back, or swing a light, normal or power blow: hit chance against stamina. Win purses, buy armour and weapons you can see on your fighter, raise stats (strength, agility, defence, vitality, charisma to taunt), climb from village pits to the grand arena | Excellent | Medium | 1 arena, 5 opponents of rising tiers, 3 attacks plus move and taunt, 1 shop, 4 stats | idea (designer, 2026-10-04: a childhood favourite; principle 17 fits naturally: a nobody fighting for freedom, the crowd's cheer as the emotion) |
 | Sinjid-like RPG | P9 + L1 | Turn-based combat with a build | Good | Medium | 3 enemies, 3 actions | idea |
 | Hold the House | P7 | Tower defense on one map | Good | Medium | 5 waves, 2 towers | idea |
 | Bloons-like | P7 | Path defense, tower variety | Good | Medium | Same as above with a path | idea |
