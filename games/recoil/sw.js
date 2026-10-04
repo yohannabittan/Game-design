@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'recoil-v28';
+const CACHE_VERSION = 'recoil-v29';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'recoil-v';
 const ASSETS = [
@@ -32,6 +32,8 @@ const ASSETS = [
   './assets/gun-spin-lever-tactical.webp',
   './assets/gun-spin-lever-walnut.webp',
   './assets/gun-spin-lever.webp',
+  './assets/prop-master-sold.webp',
+  './assets/prop-master.webp',
   './assets/title-backlot88.png',
 ];
 

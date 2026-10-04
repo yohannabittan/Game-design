@@ -356,7 +356,7 @@ const TUNING = {
     clap: { life: 0.55, snap: 0.12, fade: 0.15, w: 150, h: 74, stick: 18, y: 0.45 }, // v0.6 A: the clapperboard, in screen px: seconds shown (under 0.6), the snap, the fade, its size, the striped stick, and its height as a share of the field
     saucer: { lights: 6, lightR: 0.13, band: 0.2, fall: 520, sparks: 7, sparkLen: 9, life: 0.7 }, // a saucer's rim lights and band (fractions of its radius), and its drop when hit: gravity, sparks, seconds
     squib: { drops: 9, speed: [60, 150], life: 0.5, r: [1.6, 3.2] }, // the make-up squib a headshot pops: droplets of stage blood
-    props: { side: 132, master: 1.45, masterX: 150, gap: 8, cardMin: 140, cardMax: 190, headH: 52, art: 34, artTall: 56, artMin: 22, line: 16, row: 11, bar: 5, stamp: 0.9 }, // v0.6 B, the Prop Room: the prop master's column, his scale and (portrait) his x, the gap between cards, a card's least and most height, the header, the gun art's most height (landscape, portrait) and least height, the name's line pitch, a stat row's pitch and bar height, the seconds a SOLD stamp shows
+    props: { side: 132, master: 1.45, masterX: 150, gap: 8, cardMin: 140, cardMax: 190, headH: 52, art: 34, artTall: 56, artMin: 22, line: 16, row: 11, bar: 5, stamp: 0.9, soldShow: 1.2, picScale: 0.26, picScaleTall: 0.15, picRow: 625 }, // v0.6 B and I, the Prop Room: the prop master's column, his scale and (portrait) his x, the gap between cards, a card's least and most height, the header, the gun art's most height (landscape, portrait) and least height, the name's line pitch, a stat row's pitch and bar height, the seconds a SOLD stamp shows, then the prop master's picture: the seconds his sold pose shows, his scale in game units per pixel of the 512 x 768 canvas (landscape, portrait) and the canvas row that sits on the counter's top
     logo: { title: 28, beam: 0.16, word: [0.03, 0.29, 0.94, 0.5], top: 8, strip: 18 }, // the studio logo on the menu: the title size (the procedural fallback), and the searchlights' alpha; word is the card image's RECOIL lettering as fractions of the image (left, top, width, height), the part portrait shows; top is the margin above the portrait lettering, strip is the height kept under the landscape card for the tagline
     vhs: { pitch: 3, bandH: 14, bandSpeed: 22 }, // menu scan lines every `pitch` px; a faint tracking band `bandH` tall rolls down at `bandSpeed` px a second
   },
@@ -1612,9 +1612,9 @@ const GUN_PIC = {
   shotgun: { s: 0.2524, gx: 266.4, files: { std: ['gun-spin-lever.webp', 512, 22.8], walnut: ['gun-spin-lever-walnut.webp', 512, 22.8], tactical: ['gun-spin-lever-tactical.webp', 512, 22.8] } },
   rifle: { s: 0.2515, gx: 246.5, files: { std: ['gun-assassins-scope.webp', 509, 45.3], carbon: ['gun-assassins-scope-carbon.webp', 509, 45.3], bronze: ['gun-assassins-scope-bronze.webp', 509, 45.3], ghost: ['gun-assassins-scope-ghost.webp', 509, 45.3] } },
   smg: { s: 0.3076, gx: 160.3, files: { std: ['gun-one-man-army.webp', 342, 32.3], brass: ['gun-one-man-army-brass.webp', 342, 29.2], hazard: ['gun-one-man-army-hazard.webp', 321, 42.1] } },
-  revolver: { s: 0.2082, gx: 91.3, files: { std: ['gun-make-my-day.webp', 370, 29.9], ivory: ['gun-make-my-day-ivory.webp', 372, 22.6], frost: ['gun-make-my-day-frost.webp', 372, 20.5] } },
+  revolver: { s: 0.2082, gx: 91.3, files: { std: ['gun-make-my-day.webp', 370, 29.9], ivory: ['gun-make-my-day-ivory.webp', 372, 22.6], frost: ['gun-make-my-day-frost.webp', 370, 29.9] } },
 };
-const ART_FILES = { title: 'title-backlot88.png' }, PICS = {}, ART_IMG = {};
+const ART_FILES = { title: 'title-backlot88.png', master: 'prop-master.webp', masterSold: 'prop-master-sold.webp' }, PICS = {}, ART_IMG = {};
 GUN_IDS.forEach((id, gi) => {
   const g = GUN_PIC[id];
   Object.entries(g.files).forEach(([sk, [file, tx, ty]], si) => {
@@ -3068,6 +3068,12 @@ function drawPropMaster(ctx, cx, y, k) {
   ctx.fillStyle = P.ink; ctx.beginPath(); ctx.ellipse(-5, -56, 7, 2.6, 0.2, 0, PI2); ctx.ellipse(5, -56, 7, 2.6, -0.2, 0, PI2); ctx.fill(); // the moustache
   ctx.restore();
 }
+// The prop master as a picture (PRD v0.6 I): resting, or the sold pose after a purchase, on the same canvas position so the swap reads as a small bounce. The canvas is 512 x 768 and its
+// bottom edge is not a clean cut, so the counter (drawn after him) covers it: `picRow` is the canvas row that lands on the counter's top. False until the picture has loaded.
+function drawPropMasterPic(ctx, cx, y, s, sold) {
+  const key = sold && ART_IMG.masterSold ? 'masterSold' : 'master';
+  return drawArtImage(ctx, key, cx, y - (A.props.picRow - 384) * s, 512 * s, 768 * s, null, true);
+}
 function propsLayout(E) {
   const K = A.props, land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, 840), x0 = (E.w - W) / 2, top = E.safe.top, bottom = E.h - E.safe.bottom - 8;
   const L = { land, x0, W, back: { x: x0, y: top + 8, w: 84, h: 44 }, cards: [] };
@@ -3087,7 +3093,8 @@ const props = {
     E.text('Prop Room', E.w / 2, L.back.y + 22, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     // the counter, the prop master behind it and the register with the box office
     const ct = L.land ? sh.y + sh.h - 88 : sh.y + sh.h - 40, rx = L.land ? sh.x + 8 : sh.x + sh.w - 150, rw = L.land ? sh.w - 16 : 142, ry = L.land ? ct + 18 : sh.y + 12;
-    drawPropMaster(ctx, L.land ? sh.x + sh.w / 2 : sh.x + K.masterX, ct, L.land ? K.master : 0.9); // portrait: right of the Back button
+    const mx = L.land ? sh.x + sh.w / 2 : sh.x + K.masterX; // portrait: right of the Back button
+    if (!drawPropMasterPic(ctx, mx, ct, L.land ? K.picScale : K.picScaleTall, this.sold && E.time - this.sold.t0 < K.soldShow)) drawPropMaster(ctx, mx, ct, L.land ? K.master : 0.9);
     plate(E, sh.x, ct, sh.w, sh.y + sh.h - ct, P.counter, P.ink, 8); ctx.fillStyle = P.counterTop; rrect(ctx, sh.x + 2, ct + 2, sh.w - 4, 7, 3); ctx.fill();
     plate(E, rx, ry, rw, 58, P.register, P.brass, 8);
     E.text('Box office', rx + rw / 2, ry + 15, { size: TY.small, color: P.textDim });
