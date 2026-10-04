@@ -79,3 +79,14 @@ Designer: "the skill is not in hitting a hit box perfectly, so we can use an ima
 2. **Hitbox:** each item's hit area is its image's opaque bounding rectangle, rotated with the item, plus `hitMargin`; where rectangles overlap, contraband still wins (v0.1 rule). No correct tap may ever resolve to the wrong item.
 3. **Fairness:** each contraband image declares a tell box (the part that identifies it), in image coordinates in data; the packer keeps every contraband tell box at least 85 percent clear of other items' dense pixels, and the harness checks it from the images' alpha and colour, as it does now from polygons.
 4. Assets under 1.5 MB in total (an atlas is fine), cached in `sw.js`; text and targets unchanged; the must-holds of H stand.
+
+## K-lean. Build K without the image-based fairness checker (designer, 2026-10-04)
+
+The designer: the game is hard mainly because the drawn items do not look enough like the real objects, so the pictures come first and the image-based fairness work waits. This replaces points 2 and 3 of K for this build:
+
+- **Layout unchanged.** The packer, the item footprints (the procedural polygons) and the seeded bags stay exactly as they are. Each picture is drawn fitted inside its procedural shape's bounding box, at the same centre, size and rotation, keeping its aspect ratio. Polygons stay as invisible layout data and as the fallback drawing.
+- **Hit area.** Each item's tap area is the picture's opaque rectangle: alpha above 40, as fitted and rotated, plus `hitMargin`. Contraband still wins overlaps (the v0.1 rule), and no correct tap may resolve to the wrong item.
+- **Look.** Multiply compositing on the pale screen, so overlaps darken. Each contraband still reads at 64 px. The 10 body-scan pictures go on the scanned silhouette at their current spots. Body contraband reuses the belt pictures (gun, knife, taser, brass knuckles, lighter; box cutter for the boot blade).
+- **Fairness, checked lightly.** The existing tell-clearance check, based on polygons, still runs and must pass as before. The image-alpha version of point 3 is deferred. The reviewer eyeballs 10 seeded bags across days 1 to 7 for any contraband tell hidden by a picture, and lists them if found.
+- **Assets.** WebP with alpha, about 0.6 MB for all 56, plus whatever is already there. Under 1.5 MB, every file in `sw.js` ASSETS.
+- Everything else in K and H stands.
