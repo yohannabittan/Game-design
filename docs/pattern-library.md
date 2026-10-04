@@ -229,3 +229,23 @@ Every X normal levels, one level that changes shape: a moving goal, a second mec
 ### L7. Modes
 
 Every mechanic supports a standard set. Add them in this order once the kernel is fun: daily seed (free, adds comparison), endless (free if content is chunked), time attack, zen, boss rush, challenge (a constraint like naked run or one life).
+
+### L8. Wheel of fate (randomness you watch)
+
+Sources: the "Wheel of Fantasy" style of character-wheel videos (spinner apps such as Tiny Decisions), shared by the designer on 2026-10-04.
+
+Seeded setup randomness (ADR-0008) shown as a sequence of wheels, so a roll becomes a reveal and a story. What makes the format work:
+- **A question, then the answer.** Each wheel is a question in a header ("Origin?", "Trait?", "What now?"). The landed slice is the big answer below it.
+- **Slice size is the odds, and the player sees them.** A huge "No Notable Trait" slice keeps most results normal. Thin slivers ("Blessed", "Cursed") are the rare extremes, and landing one is the thrill.
+- **Tiered stat wheels.** A stat wheel runs Average to Mythic, with the weights shown by the slices.
+- **Nested wheels add depth.** Race leads to a sub-race; realm leads to a region.
+- **Every outcome carries a perk and a weakness,** shown on a card (claws and darkvision, but an allergy and sensitive hearing). That is principle 13 for free.
+- **An action wheel for the story.** "What now?" offers context options (train a stat, gain a companion, you are attacked, a visitor arrives, interact with a named character). Named characters persist and return, which is what makes it a serial.
+
+Rules for our games:
+- Setup only: wheels never decide a skill moment.
+- At most about 5 wheels before play, about 2 seconds each. The player taps to spin, and a second tap snaps to the result.
+- Slices are readable at phone size (about 12 per wheel, 14 px text). Larger wheels zoom on the result.
+- The tone stays universal: dark slices from the source format (killers, bodies) are swapped for comic ones (a baker, a former goat herder).
+- The rarest slivers are shown on a one-time "you were born ..." card worth screenshotting.
+
