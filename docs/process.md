@@ -28,6 +28,8 @@ One row in `docs/game-ideas.md`: name, pattern, hook, kernel. Thirty seconds. If
 
 Three yeses and it moves on. Any no and it goes back to the backlog with the missing answer noted.
 
+Alongside the card, start `templates/world.md` as `docs/games/<slug>/world.md`, with at least the drive (what you do, why, for whom, how it ends) and the cast's names. It grows with the game. Every story card, voice line, flavour line and portrait brief comes from it, so names and personalities never drift (designer, 2026-10-04).
+
 ## Stage 3. PRD v0.1
 
 `templates/prd-v0.1.md` into `docs/games/<slug>/prd-v0.1.md`. This is the one-shot contract. A builder session should be able to produce a playable game from this document plus the skeleton and nothing else. Every section is filled, the scope fence lists what is out, the acceptance criteria are testable, and the tuning table has numbers in it, even if they are guesses.

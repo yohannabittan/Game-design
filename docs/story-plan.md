@@ -105,6 +105,32 @@ The drive is **curiosity and discovery**. You are a small probe sent by humanity
 - **Art.** Mission control as a small screen-and-headset icon, or the probe itself (2 poses). About $0.70.
 - **Cost.** About $10 to 15.
 
+## World sheets and a first cast (designer, 2026-10-04)
+
+Every game gets a `docs/games/<slug>/world.md` (template `templates/world.md`): the drive, the setting, the cast with names and voices, and the canonical lines. Each one is written when that game's story PRD is, and the designer edits the names. First-pass cast, all names original:
+
+| Game | Player | Voice | Others |
+| --- | --- | --- | --- |
+| Launch | Mochi | Mochi himself | Daifuku, his love. The Mochi Maker 3000, the bakery's machine with one setting: FLING. Grandma Kiko, the baker who made them both, seen only in the cold open. |
+| Recoil | the newcomer (unnamed, so the player projects) | Director "Big Lou" Marlowe: loud, warm, impatient | Gus, the prop master: weary, proud of every prop. |
+| Checkpoint | Officer (the player's rank) | Supervisor Pat Okoye: calm, dry, protective | The travellers: one-line regulars such as Mr Abernathy and his snow globes. |
+| Ink | the apprentice | the client of the day | Rita, owner of the Lucky Needle parlour. About 6 recurring clients: Bram the sailor, June the grandmother, Theo the chef, Mina the runner, Kai the musician, Ola the bride. |
+| Gravity Golf | the probe, named Lumen | Mission Control, Dr Sam Ito: curious, encouraging, a little nerdy | Humanity, waiting for the answer. Whatever sent the signal. |
+
+## Gravity Golf: the probe log of real space facts (designer, 2026-10-04)
+
+The probe collects **one short, true fact** the first time it meets each kind of body or event. Mission Control says it on the result card, and it is saved to a **Probe Log** on the missions screen. Collecting knowledge for humanity is the drive made visible. About 15 facts:
+- the planet, moon, sun, binary stars, black hole, comet, nebula and asteroid;
+- each sector;
+- every rank object, from brown dwarf to quasar.
+
+Each is at most about 90 characters. For example:
+- Black hole: "Not even light escapes past the edge, called the event horizon."
+- Comet: "A comet is a dirty snowball; its tail always points away from the Sun."
+- Brown dwarf: "Too big to be a planet, too small to shine like a star."
+
+**Accuracy rule:** every fact is checked by the reviewer against a general reference, and none is phrased as a guess. Logged facts are kept in the save.
+
 ## Order and total
 
 1. Recoil, as drafted.
