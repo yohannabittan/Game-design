@@ -41,3 +41,22 @@ Opponents, parry, stats, wheels, market, story and progression.
 ## Acceptance
 
 `npm run smoke` passes. The three presets switch live in TUNE. A cut through a gap scores, and a cut across armour clangs.
+
+## Proto 2 (designer, 2026-10-04, after proto 1): the sword hand, parry, dodge, armour that fights back
+
+The offset blade won proto 1 (`playtests/2026-10-04-proto1.md`). Proto 2 replaces the drawn line with **direct control of your gladiator's sword hand**, and makes armour matter. It is still a one-time feel prototype: Sonnet builds it, with smoke checks only.
+
+- **Your arm.** Your gladiator's shoulder sits at the bottom centre of the screen (off-screen, implied). The sword hand follows your finger with the proto 1 offset (the blade tip sits `offset` px above the finger), with a little weight (`TUNING.hand.lag`) so the swing reads. The blade is drawn as a line from the hand, about `blade.len`.
+  - A **hit** happens when the blade's moving edge sweeps through a part with tip speed of at least `hit.minSpeed`. The damage grows with speed. A slow wipe does nothing.
+- **A gap hit.** The part takes damage; it has health, and after `part.hp` hits it is **disabled**: it goes dark, with a straw burst and a crunchy sound.
+  - Disabling the head stuns the dummy for 1.2 s, with stars.
+  - Disabling an arm makes the dummy's swings slower.
+  - When the chest and belly are both disabled, the dummy collapses: a round point, then a fresh dummy.
+- **An armour hit.** The blade **bounces**: a recoil animation, and your hand is locked for `armour.recoil` (0.35 s). The plate **dents**, drawn as a crack. After `armour.dents` (3) dents it **breaks off** and becomes a gap.
+- **The dummy swings back.** Every 2 to 3.5 s (seeded) it winds up with a readable tell: its arm rises and a glow marks the zone, high, middle or low. The swing lands `swing.windup` (0.7 s) later.
+  - **Parry:** a quick swipe forward (upward on screen, toward the dummy) during the last `parry.window` (0.3 s) before impact blocks it, with a bright clash. A parry inside the first third of that window is **perfect**: it opens a riposte, and the dummy staggers for 1 s so your hits count double.
+  - **Dodge:** a quick swipe back (downward) at any time during the wind-up steps you back, so the blow whiffs. There is no riposte.
+  - **A swipe during the wind-up is a defence, never a swing.** Outside a wind-up, all motion is the sword.
+  - **If the blow lands,** the screen flashes red and shakes, and you lose one of 3 hearts. Losing all 3 ends the round early.
+- **The round.** 45 s, or until 3 hearts are lost. The result card shows gap hits, clangs, plates broken, parries (perfect), dodges, hits taken and dummies felled.
+- **TUNE.** Expose `offset`, `hand.lag`, `hit.minSpeed`, `parry.window`, `swing.windup` and the swing interval. Presets: Gentle (a slow dummy, a wide parry), Standard, and Brutal.
