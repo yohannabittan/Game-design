@@ -370,6 +370,68 @@ const BODY = BODY_DATA.map((d) => ({ tier: 0, rot: 0, label: d.name, ...d, parts
 const BODY_BY_NAME = Object.fromEntries(BODY.map((b) => [b.name, b]));
 const BODY_NORMAL = BODY.filter((b) => !b.contraband);
 
+// ---------- item pictures (PRD v0.2 K-lean) ----------
+// Each picture is a WebP in assets/, fitted inside its procedural shape's bounding box (same centre, size and rotation, aspect kept); the shape
+// stays as the layout, the flag outline and the fallback while a picture loads or fails. PIC: file stem -> [width, height, then the box of
+// pixels with alpha above 40: x0, y0, x1, y1]. Body items reuse the belt pictures where BODY_PIC says so, turned `q` quarter turns clockwise.
+// The pictures were turned and flipped when baked so each lies the way its shape does.
+const PIC = {
+  banana: [256, 146, 2, 2, 254, 145], batteries: [243, 256, 0, 0, 243, 256], 'belt-buckle': [128, 82, 0, 0, 128, 82],
+  belt: [256, 202, 0, 0, 256, 202], book: [208, 256, 0, 0, 208, 256], 'box-cutter': [256, 61, 2, 2, 255, 60],
+  'brass-knuckles': [256, 157, 0, 0, 256, 157], cable: [256, 189, 0, 0, 256, 189], camera: [256, 165, 0, 0, 256, 165],
+  charger: [175, 256, 2, 1, 173, 254], coins: [128, 124, 1, 2, 126, 122], earrings: [128, 61, 0, 0, 128, 61], explosives: [256, 150, 2, 2, 254, 148],
+  fireworks: [164, 256, 0, 0, 164, 256], fork: [256, 43, 0, 0, 256, 43], glasses: [128, 41, 0, 0, 128, 41], gun: [256, 179, 0, 0, 256, 179],
+  'hair-clip': [128, 87, 0, 0, 128, 87], hairdryer: [185, 256, 0, 0, 185, 256], hammer: [256, 134, 0, 0, 256, 134],
+  headphones: [256, 254, 0, 0, 256, 254], keys: [256, 243, 0, 0, 256, 243], 'knee-brace': [128, 91, 0, 0, 128, 91], knife: [256, 42, 1, 1, 256, 41],
+  'knitting-needles': [256, 159, 0, 2, 256, 159], laptop: [256, 184, 0, 0, 256, 184], 'large-liquid': [96, 256, 0, 0, 96, 256],
+  lighter: [89, 256, 0, 0, 89, 256], mug: [256, 213, 0, 0, 256, 213], 'multi-tool': [256, 178, 1, 2, 255, 177], pen: [256, 35, 0, 0, 256, 35],
+  perfume: [191, 256, 0, 0, 191, 256], phone: [136, 256, 0, 0, 136, 256], 'power-bank': [256, 186, 0, 0, 256, 186], ring: [128, 128, 2, 2, 126, 126],
+  scissors: [256, 208, 0, 0, 256, 208], shirt: [256, 253, 0, 0, 256, 253], shoes: [256, 192, 0, 0, 256, 192],
+  'small-liquid': [113, 256, 0, 0, 113, 256], snacks: [246, 256, 0, 0, 246, 256], 'snow-globe': [213, 256, 0, 0, 213, 256],
+  stapler: [256, 108, 0, 0, 256, 108], sunglasses: [256, 169, 0, 0, 256, 169], tablet: [206, 256, 0, 0, 206, 256],
+  'tape-measure': [256, 248, 0, 0, 256, 248], taser: [256, 145, 2, 3, 255, 143], toothbrush: [256, 25, 0, 0, 256, 25],
+  'toy-gun': [256, 186, 0, 0, 256, 186], toy: [256, 256, 2, 2, 254, 254], umbrella: [59, 256, 1, 1, 58, 254], underwire: [128, 45, 0, 0, 128, 45],
+  'usb-stick': [89, 256, 0, 0, 89, 256], wallet: [256, 208, 0, 0, 256, 208], 'water-bottle': [89, 256, 0, 0, 89, 256],
+  wristwatch: [68, 128, 0, 0, 68, 128], zipper: [19, 128, 0, 0, 19, 128],
+};
+const BODY_PIC = { 'keys': ['keys', 0], 'phone': ['phone', 0], 'arm gun': ['gun', 0], 'leg knife': ['knife', 1], 'boot blade': ['box-cutter', 3], 'belt taser': ['taser', 1], 'knuckles': ['brass-knuckles', 0], 'pocket lighter': ['lighter', 0] };
+const picStem = (name) => name.replace(/ /g, '-');
+function fitPic(shape, st, q = 0) {
+  const r = PIC[st];
+  if (!r) return null;
+  const [iw, ih, x0, y0, x1, y1] = r, pts = shape.flat(), xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const bw = Math.max(...xs) - Math.min(...xs), bh = Math.max(...ys) - Math.min(...ys), pw = q & 1 ? y1 - y0 : x1 - x0, ph = q & 1 ? x1 - x0 : y1 - y0, s = Math.min(bw / pw, bh / ph);
+  return { st, q, s, iw, ih, mx: (x0 + x1) / 2, my: (y0 + y1) / 2, cx: (Math.max(...xs) + Math.min(...xs)) / 2, cy: (Math.max(...ys) + Math.min(...ys)) / 2, hw: (pw * s) / 2, hh: (ph * s) / 2 };
+}
+for (const i of ITEMS) i.pic = fitPic(i.shape, picStem(i.name));
+for (const b of BODY) { const [st, q] = BODY_PIC[b.name] || [picStem(b.name), 0]; b.pic = fitPic(b.parts.map((p) => p[1]), st, q); }
+// `on` turns true once every picture has loaded or failed; sprites painted before that are painted again.
+const IMG = { bmp: {}, on: false };
+function loadPics() {
+  if (typeof fetch !== 'function' || typeof createImageBitmap !== 'function' || typeof location === 'undefined') return;
+  const names = Object.keys(PIC);
+  let left = names.length;
+  const done = () => { if (--left === 0) IMG.on = true; };
+  for (const st of names) {
+    fetch(new URL(`../assets/item-${st}.webp`, import.meta.url).href).then((r) => (r.ok ? r.blob() : Promise.reject())).then(createImageBitmap).then((bm) => { IMG.bmp[st] = bm; }).catch(() => {}).then(done);
+  }
+}
+loadPics();
+// The picture, multiplied onto what is under it like the shapes are (overlaps darken, dense parts go black); false when there is none yet.
+function paintPic(c, pic) {
+  const bm = pic && IMG.bmp[pic.st];
+  if (!bm) return false;
+  c.save();
+  c.globalCompositeOperation = 'multiply';
+  c.imageSmoothingQuality = 'high';
+  c.translate(pic.cx, pic.cy); c.rotate((pic.q * Math.PI) / 2);
+  c.drawImage(bm, -pic.mx * pic.s, -pic.my * pic.s, pic.iw * pic.s, pic.ih * pic.s);
+  c.restore();
+  return true;
+}
+// How far a point (in the item's own frame) is from its picture's alpha rectangle; 0 inside.
+const picDist = (u, v, pic) => Math.hypot(Math.max(Math.abs(u - pic.cx) - pic.hw, 0), Math.max(Math.abs(v - pic.cy) - pic.hh, 0));
+
 // ---------- bag generation (setup only, seeded) ----------
 const xform = (x, y, rot) => { const c = Math.cos(rot * DEG), s = Math.sin(rot * DEG); return ([px, py]) => [x + px * c - py * s, y + px * s + py * c]; };
 function instance(def, x, y, rot) {
@@ -995,9 +1057,10 @@ function tapBelt(E, px, py) {
     if (b.gone || b.settled || b.trayT >= 0 || b.y >= S.H || b.y + b.h < 0) continue;
     const lx = px - BAG_X, ly = py - b.y;
     for (const it of b.items) {
-      const d = shapeDist(lx, ly, it.parts);
+      const co = Math.cos(it.rot * DEG), si = Math.sin(it.rot * DEG), dx = lx - it.x, dy = ly - it.y, u = dx * co + dy * si, v = dy * co - dx * si;
+      const d = it.def.pic ? picDist(u, v, it.def.pic) : shapeDist(lx, ly, it.parts);
       if (d > T.hitMargin) continue;
-      const key = d + Math.hypot(lx - it.x, ly - it.y) * 1e-4;
+      const key = d + Math.hypot(u - (it.def.pic ? it.def.pic.cx : 0), v - (it.def.pic ? it.def.pic.cy : 0)) * 1e-4;
       if (it.state !== 0) flagged = true;
       else if (it.contraband) { if (key < cd) { cd = key; c = [b, it]; } }
       else if (key < hd) { hd = key; h = [b, it]; }
@@ -1049,6 +1112,7 @@ function pullLever(E) {
 // Items are painted in X-ray colours: each part's fill multiplies onto what is under it (overlaps darken, dense parts go black), then its
 // darker edge. Only the material decides how a part looks: never the item's name, tier or position.
 function paintItem(c, def) {
+  if (paintPic(c, def.pic)) return;
   pathsOf(def);
   c.lineJoin = 'round';
   c.globalCompositeOperation = 'multiply';
@@ -1074,20 +1138,20 @@ function drawBagShell(ctx, b) {
 const canSprite = () => typeof OffscreenCanvas === 'function';
 const freeze = (cv) => (typeof cv.transferToImageBitmap === 'function' ? cv.transferToImageBitmap() : cv);
 const spriteScale = (E, L) => L.s * Math.min(E.dpr || 1, T.sprite.maxDpr);
-const bagSpriteOk = (E, L, b) => !canSprite() || !!(b.spr && b.spr.k === spriteScale(E, L));
+const bagSpriteOk = (E, L, b) => !canSprite() || !!(b.spr && b.spr.k === spriteScale(E, L) && b.spr.on === IMG.on);
 // Painted `per` items at a time across frames (a whole bag at a high pixel ratio is too much for one frame); true when finished.
 function makeBagSprite(E, L, b, per = Infinity) {
   if (!canSprite()) return true;
   const k = spriteScale(E, L), bx = itemsBox(b);
-  if (!b.wip || b.wip.k !== k) {
+  if (!b.wip || b.wip.k !== k || b.wip.on !== IMG.on) {
     const cv = new OffscreenCanvas(Math.ceil(bx.w * k), Math.ceil(bx.h * k)), c = cv.getContext('2d');
     c.scale(k, k); c.translate(-bx.x0, -bx.y0);
-    b.wip = { cv, c, k, i: 0 };
+    b.wip = { cv, c, k, i: 0, on: IMG.on };
   }
   const w = b.wip;
   for (let n = 0; n < per && w.i < b.items.length; n++, w.i++) { const it = b.items[w.i]; w.c.save(); w.c.translate(it.x, it.y); w.c.rotate(it.rot * DEG); paintItem(w.c, it.def); w.c.restore(); }
   if (w.i < b.items.length) return false;
-  b.spr = { cv: freeze(w.cv), k, w: Math.ceil(bx.w * k) / k, h: Math.ceil(bx.h * k) / k };
+  b.spr = { cv: freeze(w.cv), k, on: w.on, w: Math.ceil(bx.w * k) / k, h: Math.ceil(bx.h * k) / k };
   b.wip = null;
   return true;
 }
@@ -1192,8 +1256,9 @@ function paintScan(c, tr, w, h, cx, cy, k) {
   c.fillStyle = MT.skin.fill; c.fill(silPath, 'nonzero');
   c.globalCompositeOperation = 'multiply';
   for (const it of tr.body) {
-    pathsOf(it.def);
     c.save(); c.translate(it.x, it.y); c.rotate((it.def.rot || 0) * DEG);
+    if (paintPic(c, it.def.pic)) { c.restore(); continue; }
+    pathsOf(it.def);
     it.def.parts.forEach(([m], i) => { c.fillStyle = MT[m].fill; c.fill(it.def.paths[i]); });
     c.lineWidth = 1;
     it.def.parts.forEach(([m], i) => { c.strokeStyle = MT[m].edge; c.stroke(it.def.paths[i]); });
@@ -1202,12 +1267,12 @@ function paintScan(c, tr, w, h, cx, cy, k) {
   c.globalCompositeOperation = 'source-over';
   c.restore();
 }
-const scanSpriteOk = (E, L, tr) => !canSprite() || !!(tr.spr && tr.spr.k === spriteScale(E, L));
+const scanSpriteOk = (E, L, tr) => !canSprite() || !!(tr.spr && tr.spr.k === spriteScale(E, L) && tr.spr.on === IMG.on);
 function makeScanSprite(E, L, tr) {
   if (!canSprite()) return;
   const sc = L.scan, k = spriteScale(E, L), cv = new OffscreenCanvas(Math.ceil(sc.w * k), Math.ceil(sc.h * k)), c = cv.getContext('2d');
   c.scale(k, k); paintScan(c, tr, sc.w, sc.h, sc.cx - sc.x, sc.cy - sc.y, sc.k);
-  tr.spr = { cv: freeze(cv), k };
+  tr.spr = { cv: freeze(cv), k, on: IMG.on };
 }
 // The body scan shows only for a traveller who beeped (PRD v0.2 J1): its opacity is 0 for everyone else.
 const scanAlpha = (tr) => (!tr.beeps ? 0 : tr.state === 'scan' && !tr.swat ? Math.min(1, tr.t / 0.12) : tr.fadeT > 0 ? tr.fadeT / T.travel.scanFade : 0);
@@ -1755,7 +1820,10 @@ export const game = {
       const L = layout(E), out = [];
       for (const b of S.bags) {
         if (b.gone || b.y >= S.H || b.y + b.h < 0) continue;
-        for (const it of b.items) out.push({ id: `${b.idx}:${b.items.indexOf(it)}`, name: it.name, contraband: it.contraband, tier: it.tier, state: it.state, cy: b.y + it.y, x: L.ox + (BAG_X + it.x) * L.s, y: (b.y + it.y) * L.s });
+        for (const it of b.items) {
+          const pc = it.def.pic || { cx: 0, cy: 0 }, co = Math.cos(it.rot * DEG), si = Math.sin(it.rot * DEG), wx = it.x + pc.cx * co - pc.cy * si, wy = it.y + pc.cx * si + pc.cy * co;   // the centre of the tap rectangle
+          out.push({ id: `${b.idx}:${b.items.indexOf(it)}`, name: it.name, contraband: it.contraband, tier: it.tier, state: it.state, cy: b.y + wy, x: L.ox + (BAG_X + wx) * L.s, y: (b.y + wy) * L.s });
+        }
       }
       return out;
     },
