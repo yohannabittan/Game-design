@@ -248,4 +248,5 @@ Rules for our games:
 - Slices are readable at phone size (about 12 per wheel, 14 px text). Larger wheels zoom on the result.
 - The tone stays universal: dark slices from the source format (killers, bodies) are swapped for comic ones (a baker, a former goat herder).
 - The rarest slivers are shown on a one-time "you were born ..." card worth screenshotting.
+- **Modifier wheels** (the tabletop-style variant: armour class, +1, +2, -1, -2 to attack or defence). In the source format they decide hits. In ours they are **set before the fight and shown**, and they change the size of a skill window, never a die roll. For example: "Sand in your eyes: parry window -1", "Crowd loves you: +1 reach", "Old wound: left arm armour -1". The player always knows the modifiers before they act.
 
