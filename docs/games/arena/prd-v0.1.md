@@ -60,3 +60,24 @@ The offset blade won proto 1 (`playtests/2026-10-04-proto1.md`). Proto 2 replace
   - **If the blow lands,** the screen flashes red and shakes, and you lose one of 3 hearts. Losing all 3 ends the round early.
 - **The round.** 45 s, or until 3 hearts are lost. The result card shows gap hits, clangs, plates broken, parries (perfect), dodges, hits taken and dummies felled.
 - **TUNE.** Expose `offset`, `hand.lag`, `hit.minSpeed`, `parry.window`, `swing.windup` and the swing interval. Presets: Gentle (a slow dummy, a wide parry), Standard, and Brutal.
+
+## Proto 3 (designer, 2026-10-04, after proto 2): two gladiators on screen, sideways
+
+Proto 2's weight, tells and parry and dodge stay (`playtests/2026-10-04-proto2.md`). Proto 3 changes the framing. It is still a one-time feel prototype: Sonnet builds it, with smoke checks only.
+
+- **Landscape** (the designer chose sideways, as Recoil is). Set the manifest orientation to landscape, as Recoil's manifest does. Lay out for 844x390, and keep it working at 640x360.
+- **Two full-body gladiators**, side view, facing each other on a sand floor:
+  - **Yours** on the left, the **opponent** on the right, each about 60 percent of the screen height.
+  - They share one procedural body: head, chest, belly, two arms and legs, with a simple tunic and a gladiator helmet shape.
+  - Both have seeded armour plates on 3 or 4 parts, with the same dents, breaking and gaps as before.
+- **Your sword arm** is a two-bone arm (shoulder, elbow, hand) on your gladiator, solved each frame so the hand follows the finger with proto 1's offset and proto 2's weight. The hand's reach is limited by the arm's length; beyond that it stretches toward the finger but stops at full reach.
+  - The body leans a little toward the hand, so every swing moves the whole fighter.
+  - The blade comes from the hand. A hit needs tip speed, as in proto 2.
+  - The opponent stands in reach, so a full swing can touch their near half; their far arm needs a step in.
+- **The opponent** has proto 2's dummy behaviour on a gladiator body: high, middle or low wind-ups with a glow and a raised weapon arm; the same damage, disabling, stun, stagger and collapse. They also sway and step slightly, so their gaps move.
+- **Defence is the same gesture, now with the body:**
+  - **Parry:** a quick swipe toward the opponent (rightward) in the window. Your gladiator's blade snaps to the zone and clashes.
+  - **Dodge:** a quick swipe away (leftward) during the wind-up. Your gladiator hops back and returns.
+  - Outside wind-ups, motion is the sword.
+- **Hearts, the round and the result card** stay as in proto 2. A felled opponent is replaced by a fresh one with new armour.
+- **The thumb.** The finger is usually over the lower middle of the screen. Keep the opponent's tells and plates readable, using the offset and the fighters' height.
