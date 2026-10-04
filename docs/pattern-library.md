@@ -255,6 +255,11 @@ Rules for our games:
   - **Item, then quality, then modifier**, like an affix system: Weapon (brass knuckles), Mastery (Novice to Cosmic, by tier), Enchantment (Obsidian). Each wheel is short, but together they make thousands of distinct weapons from three small lists. That is the modular rule again.
   - **The title comes last** and names the character from a long list of epithets ("The Cameraman"). It gives the hall of champions its names ("Marcus the Cameraman").
   - **The boring answer is a huge slice** on every wheel ("No weakness", "Just some random guy"), so the slivers stay special.
+  - **Chained gates.** One result decides whether the next wheel happens at all: mastery decides whether there is an enchant (none, one, or very rarely two). Rare results unlock extra spins, which is a reward in itself. Use the same gate data as the tiers.
+  - **Flavour versus function** (designer, 2026-10-04: in the videos enchants do nothing; viewers imagine them). In our games:
+    - **A wheel that sounds like power must do something**, visible and felt (principle 16): enchants, mastery, weapons, traits. Otherwise players feel cheated.
+    - **A wheel that reads as story may be pure imagination**: backstory, title, quirk, origin flavour (principle 17).
+    - To stay modular, function comes from **a short list of effect primitives** (+1 reach, a wider parry window, every third cut stuns, a cut leaves a burn mark that slows) and the flavour from **a long list of names** mapped onto them. "Obsidian", "Magma" and "Ember" can share one primitive with different looks. That gives many names, few mechanics, and no combinations to author.
   - **Not for us:** the source's crude or medical weaknesses. Ours are comic and kind ("afraid of pigeons", "sneezes in sunlight").
 - **Modifier wheels** (the tabletop-style variant: armour class, +1, +2, -1, -2 to attack or defence). In the source format they decide hits. In ours they are **set before the fight and shown**, and they change the size of a skill window, never a die roll. For example: "Sand in your eyes: parry window -1", "Crowd loves you: +1 reach", "Old wound: left arm armour -1". The player always knows the modifiers before they act.
 
