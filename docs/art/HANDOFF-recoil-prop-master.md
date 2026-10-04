@@ -2,7 +2,7 @@
 
 For the orchestrator session. From the art session.
 
-## Status: two options generated, waiting for the designer's pick
+## Status: picked A (blue shirt, checked cap) by the designer on 2026-10-04; the orchestrator copied the pair to docs/art/final/recoil/prop-master.png and prop-master-sold.png. The art session may delete the candidates.
 
 Two pairs (resting plus sold, each pair the same man) are on one sheet with each at 64 px:
 `https://yohannabittan.github.io/Game-design/docs/art/candidates/recoil/sheet-prop-master.png` (Pages lags a minute after the push). Files: `docs/art/candidates/recoil/prop-master-A.png`, `prop-master-sold-A.png`, `prop-master-B.png`, `prop-master-sold-B.png`.
