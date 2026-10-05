@@ -305,6 +305,9 @@ const TUNING = {
     combo: { pop: 0.35, ring: 16, shake: 2.5, shakeTime: 0.1, dial: 0.4, freq: 523, semis: 2, maxSteps: 12, size: 2, sizeMax: 8, life: 1.1 },
     haptic: { combo: 14, launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, lock: 10, chute: 6, drop: 8, home: [30, 60, 30, 60, 60] },
   },
+  // The story (PRD v0.5): every card is one tap and skippable. tapGap is the seconds before a card takes a tap (so a stray
+  // double tap cannot skip it); arrivalTime the seconds an arrival line shows; portrait the largest result-card portrait in px.
+  story: { skipW: 96, skipH: 44, tapGap: 0.25, reunionGap: 0.45, arrivalTime: 2.4, portrait: 84, hearts: 9, artH: 190 },
 };
 const T = TUNING;
 const STEP = T.physicsStep;
@@ -891,9 +894,10 @@ function settleGoals(done, st) {
 const goalLine = (g, have) => (g.count && have !== undefined ? `${g.text}  ${Math.min(have, g.need)}/${g.need}` : g.text);
 
 // ---------- Save ----------
-// v8: { best: metres, sugar, ms: [milestone metres ever passed, on the v0.4 lines], flights, up: { band, fuel, aero, rocket, steady, scope },
+// v9: { best: metres, sugar, ms: [milestone metres ever passed, on the v0.4 lines], flights, up: { band, fuel, aero, rocket, steady, scope },
 //       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight (the machine's streak), birdTaught,
-//       mudTaught, home: the mochi has met the daifuku, actionsTaught: the three-action hint has shown }
+//       mudTaught, home: the mochi has met the daifuku, actionsTaught: the three-action hint has shown,
+//       openSeen: the cold open has shown, placesSeen: the highest place index whose arrival line has shown (0 to 4) }
 
 function finishFlight(E, r) {
   const m = metres(r), best = E.save.get('best', 0);
@@ -921,7 +925,7 @@ function finishFlight(E, r) {
   const tickets = gs.paid.map((g) => ({ name: g.name, cond: g.text, sugar: g.reward })).concat(firsts.map((ms) => ({ name: PLACES[T.milestones.indexOf(ms) + 1].name, short: PLACES[T.milestones.indexOf(ms) + 1].name.split(' ')[0], cond: `New place, ${ms} m`, sugar: T.milestoneBonus[T.milestones.indexOf(ms)] })))
     .sort((a, b) => b.sugar - a.sugar);
   const active = activeGoals(gs.done).map((g) => ({ g, have: before.includes(g.id) ? st[g.stat] : undefined, isNew: !before.includes(g.id) }));
-  return { m, best: Math.max(best, m), isNew: m > best, sugar: coinsOf(r), bonus, earned, chainMax: r.chainMax, tickets, active, seed: r.seed, why: r.ended, zone: r.launch.zone ?? 3, streak: perfectRow };
+  return { m, best: Math.max(best, m), isNew: m > best, sugar: coinsOf(r), bonus, earned, chainMax: r.chainMax, tickets, active, seed: r.seed, why: r.ended, crashes: r.crashes, zone: r.launch.zone ?? 3, streak: perfectRow };
 }
 
 // ---------- Shop ----------
@@ -2014,6 +2018,7 @@ const SFX = {
   freezer: (E) => { [1900, 1600, 1250].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.09, type: 'triangle', slide: 0.8, gain: 0.06, delay: i * 0.07 })); E.audio.noise({ dur: 0.25, gain: 0.05 }); },
   flare: (E) => { E.audio.beep({ freq: 180, dur: 0.18, type: 'sine', slide: 2, gain: 0.12 }); E.audio.noise({ dur: 0.12, gain: 0.06 }); },
   soft: (E) => E.audio.beep({ freq: 230, dur: 0.2, type: 'sine', slide: 0.6, gain: 0.08 }),
+  story: (E) => { E.audio.beep({ freq: 880, dur: 0.18, type: 'sine', gain: 0.07 }); E.audio.beep({ freq: 1320, dur: 0.26, type: 'sine', gain: 0.05, delay: 0.09 }); }, // a soft chime on a story card
   home: (E) => { [523, 659, 784, 1047].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.22, type: 'triangle', gain: 0.12, delay: i * 0.12 })); },
 };
 
@@ -2168,18 +2173,21 @@ const menu = {
     if (gy + 8 + 56 + 8 + 44 <= bottom) { // Play above Shop and Sound
       const py = Math.min(gy + 8 + 28, bottom - 44 - 8 - 28);
       this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 220, h: 56, size: TY.md });
-      this.btnShop = btn(E, 'Shop', E.w / 2 - 58, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
-      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 58, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.sm });
+      this.btnShop = btn(E, 'Shop', E.w / 2 - 116, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
+      this.btnStory = btn(E, 'Story', E.w / 2, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
+      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 116, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.sm });
     } else { // short screens: one row
       const py = Math.min(gy + 8 + 28, bottom - 28);
-      this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 180, h: 56, size: TY.md });
-      this.btnShop = btn(E, 'Shop', E.w / 2 - 90 - 12 - 50, py, { fill: P.panelSolid, w: 100, h: 48, size: TY.md });
-      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 90 + 12 + 50, py, { fill: P.panelSolid, w: 100, h: 48, size: TY.sm });
+      this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 150, h: 56, size: TY.md }); // Shop, Play, Sound, Story: Story on the right, clear of the machine
+      this.btnShop = btn(E, 'Shop', E.w / 2 - 126, py, { fill: P.panelSolid, w: 92, h: 48, size: TY.md });
+      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 126, py, { fill: P.panelSolid, w: 92, h: 48, size: TY.sm });
+      this.btnStory = btn(E, 'Story', E.w / 2 + 222, py, { fill: P.panelSolid, w: 84, h: 48, size: TY.md });
     }
   },
   onTap(p, E) {
     if (this.btnPlay && E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play'); }
     else if (this.btnShop && E.hit(this.btnShop, p)) { E.audio.play('tap'); E.setScene('shop', { from: 'menu' }); }
+    else if (this.btnStory && E.hit(this.btnStory, p)) { E.audio.play('tap'); E.setScene('story', { replay: true }); }
     else if (this.btnMute && E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
   },
   onKey(k, E) { if (k === ' ' || k === 'Enter') E.setScene('play'); },
@@ -2201,7 +2209,7 @@ const play = {
     S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime };
     S.zonePop = null; S.arc = null; S.arcPts = new Float64Array(800); S.callouts = []; S.endWait = T.endDelay;
     S.teachBird = !E.save.get('birdTaught', false); S.teachMud = !E.save.get('mudTaught', false);
-    S.teachAct = !E.save.get('actionsTaught', false); S.prevVy = 0; S.quit = false;
+    S.teachAct = !E.save.get('actionsTaught', false); S.prevVy = 0; S.quit = false; S.reunion = false;
   },
   // Flight time now: the steps run, the remainder carried, and the real time since this frame began at the current rate.
   stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)) * S.rate; },
@@ -2260,7 +2268,7 @@ const play = {
       if (Math.random() < 0.5) emit('cola', r.x, r.y + T.critterR, 1, { angle: back, spread: 0.6, speed: 120, g: 0, life: J.fizzLife, size: 2.6, color: P.soda });
       S.whooshT -= dt; if (S.whooshT <= 0) { S.whooshT = J.whoosh; SFX.whoosh(E); }
     }
-    if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene('over', finishFlight(E, r)); }
+    if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene(S.reunion ? 'reunion' : 'over', finishFlight(E, r)); }
   },
   squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
   onEvent(e, E) {
@@ -2325,8 +2333,9 @@ const play = {
       const i = T.milestones.indexOf(e.m) + 1, home = i === PLACES.length - 1;
       E.audio.play('win'); E.haptic(J.haptic.milestone); S.distPop = 0.3;
       S.banner = { text: `★ ${PLACES[i].name}`, t: J.bannerTime };
+      if (ARRIVAL[i] && i > E.save.get('placesSeen', 0)) { E.save.set('placesSeen', i); S.banner = { text: ARRIVAL[i], t: T.story.arrivalTime }; } // the first time ever: one line
       if (home && !E.save.get('home', false)) { // the Home moment: once, the first flight past 5000 m
-        E.save.set('home', true); E.ledger.add('home', { flights: E.save.get('flights', 0) + 1, seed: r.seed });
+        E.save.set('home', true); S.reunion = true; E.ledger.add('home', { flights: E.save.get('flights', 0) + 1, seed: r.seed });
         S.homeT = J.homeTime; SFX.home(E); E.haptic(J.haptic.home);
         S.banner = { text: '♥ Home! (keep going)', t: J.homeTime, color: P.text };
         const hx = placeFrom(i) + T.homeAhead;
@@ -2478,6 +2487,8 @@ function drawUpArrow(ctx, x, y, s) {
 // 14, 18 and 44 only.
 const over = {
   enter(E, p) {
+    p.look = p.look || (p.isNew ? 'happy' : p.why === 'mud' || p.crashes > 0 ? 'dizzy' : 'determined'); // Mochi's face and line, kept when the shop hands the card back
+    p.say = p.say || SAY[p.look][Math.floor(Math.random() * SAY[p.look].length)]; // cosmetic
     this.p = p; this.k = p.again ? 1 : 0; this.t0 = p.again ? -Infinity : E.time;
     if (!p.again) E.tween(J.cardSlide, (t) => { this.k = t; }, ease.outBack); // the card slides up; the buttons come after it
   },
@@ -2487,7 +2498,7 @@ const over = {
     if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null);
     ctx.fillStyle = P.shadow; ctx.fillRect(0, 0, E.w, E.h);
     const aw = E.w - sf.left - sf.right, ah = E.h - sf.top - sf.bottom;
-    const pw = Math.min(700, aw - 32), ph = Math.min(334, ah - 24), px = sf.left + (aw - pw) / 2;
+    const pw = Math.min(700, aw - 32), ph = Math.min(350, ah - 24), px = sf.left + (aw - pw) / 2;
     const py = Math.max(sf.top + 4, sf.top + (ah - ph) / 2 + (1 - this.k) * (E.h - sf.top)); // the slide's overshoot never passes the top
     E.roundRect(px, py, pw, ph, 18, P.panelSolid, P.panelEdge);
     const lw = Math.round(pw * 0.38), cx = px + lw / 2, count = clamp((E.time - this.t0 - J.cardSlide) / J.countUp, 0, 1);
@@ -2497,6 +2508,12 @@ const over = {
     E.text(`+${Math.round(p.earned * count)} sugar`, cx, py + 138, { size: TY.md, color: P.coin, weight: '800' });
     const zc = zoneText(p.zone);
     E.text(`${ZONES[p.zone].replace('!', '')} launch${p.chainMax >= 2 ? `, combo x${p.chainMax}` : ''}`, cx, py + 166, { size: TY.sm, color: zc, weight: '600' });
+    const slotTop = py + 176, slotH = py + ph - 92 - slotTop, size = Math.min(T.story.portrait, slotH, lw * 0.34); // Mochi's portrait and line, in the room under the launch line
+    if (size >= 44) {
+      drawArt(ctx, E, `mochi-${p.look}`, px + 14 + size / 2, slotTop + (slotH + size) / 2 - 4, size, size, E.time);
+      const tx = px + 14 + size + 10, tw = lw - 4 - (tx - px) - 6, sz = tw >= 140 ? TY.md : TY.sm, ls = wrap(E, p.say, tw, sz, '700').slice(0, 3);
+      ls.forEach((l, n) => E.text(l, tx, slotTop + slotH / 2 + (n - (ls.length - 1) / 2) * (sz + 5), { size: sz, align: 'left', color: P.text, weight: '700' }));
+    } else if (slotH > 14) E.text(fit(E, p.say, lw - 20, TY.sm, '700'), cx, slotTop + slotH / 2, { size: TY.sm, color: P.text, weight: '700' });
     E.text(`Seed ${p.seed}`, cx, py + ph - 84, { size: TY.sm, color: P.textOff, weight: '600' });
     // Tickets.
     const rx = px + lw, rw = pw - lw - 16;
@@ -2563,6 +2580,128 @@ function goalRow(E, x, y, w, g, cond, isNew) {
   return h;
 }
 
+// ---------- The story (PRD v0.5) ----------
+// Love and longing for Daifuku (world.md). Pack 5 art is webp in assets/, loaded once at boot; a picture that has not loaded
+// (or never will) is drawn by the procedural mochi, daifuku and machine, so the story never waits on a file.
+const ART_FILES = ['mochi-love', 'mochi-happy', 'mochi-dizzy', 'mochi-determined', 'daifuku', 'daifuku-wave', 'mochi-maker'], ART_IMG = {};
+function loadArt() {
+  if (typeof Image === 'undefined') return;
+  for (const id of ART_FILES) {
+    const im = new Image();
+    im.onload = () => { if (im.naturalWidth) ART_IMG[id] = im; };
+    im.src = `assets/${id}.webp`;
+  }
+}
+// A picture contained in a w x h box, standing on `bottom` at centre cx: the loaded webp, else the procedural drawing.
+function drawArt(ctx, E, id, cx, bottom, w, h, time = 0) {
+  const im = ART_IMG[id];
+  if (im) {
+    const k = Math.min(w / im.naturalWidth, h / im.naturalHeight), dw = im.naturalWidth * k, dh = im.naturalHeight * k;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(im, cx - dw / 2, bottom - dh, dw, dh);
+    return;
+  }
+  const lw = 2, bob = Math.sin(time * 3) * 1.5;
+  if (id === 'mochi-maker') { const k0 = Math.min(w / 210, h / 105); drawMachine(ctx, E, cx + 22 * k0 * MACHINE, bottom - 4, k0, lw, STORY_UP, 40, {}); }
+  else if (id.startsWith('daifuku')) { const r = Math.min(w, h) / 3; drawDaifuku(ctx, cx, bottom - r * 0.95 + bob, r, time, lw, id === 'daifuku-wave'); }
+  else {
+    const r = Math.min(w / 2.4, h / 2.2);
+    drawMochi(ctx, cx, bottom - r * 0.95 + bob, r, id === 'mochi-determined' ? -0.2 : 0, 1, id === 'mochi-dizzy' ? 0.85 : 1, lw, STORY_UP, time);
+    if (id === 'mochi-love' || id === 'mochi-happy') { ctx.fillStyle = P.heart; heartPath(ctx, cx + r * 1.0, bottom - r * 1.9, r * 0.3); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.stroke(); }
+  }
+}
+const STORY_UP = { band: 0, fuel: 0, aero: 0, rocket: 0, steady: 0, scope: 0 };
+
+// The cold open, one line a card (world.md), and the arrival lines (PRD v0.5 C), indexed by place.
+const STORY = [
+  { text: 'Grandma Kiko made Mochi for Daifuku.', art: ['mochi-love', 'daifuku'] },
+  { text: 'Then Daifuku was boxed and sent 5 km away.', art: ['daifuku-wave'] },
+  { text: 'The Mochi Maker 3000 has one setting: FLING.', art: ['mochi-maker'] },
+];
+const ARRIVAL = [null, 'Candy Meadow. Daifuku loves these.', 'Chocolate River. Don\'t look down.', 'Soda Springs. Fizzy fizzy!', 'Gingerbread Town. Almost there.'];
+const SAY = {
+  happy: ['Further than ever!', 'Daifuku, I\'m coming!', 'That\'s my best yet!'],
+  dizzy: ['Ow. Squishy, but okay.', 'Next time, the jelly.', 'Which way is up?'],
+  determined: ['Again. I\'m getting closer.', 'One more fling.', 'Home is that way.'],
+};
+const HOME_LINE = 'Home! (keep going)';
+
+// The bakery's sky and a strip of its ground; the cards sit on it.
+function storySky(ctx, E, groundY) {
+  const pl = PLACES[0], g = ctx.createLinearGradient(0, 0, 0, E.h);
+  g.addColorStop(0, pl.sky[0]); g.addColorStop(1, pl.sky[1]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, E.w, E.h);
+  ctx.fillStyle = pl.top; ctx.fillRect(0, groundY, E.w, E.h - groundY);
+  ctx.fillStyle = pl.soil; ctx.fillRect(0, groundY + 10, E.w, E.h - groundY - 10);
+}
+// A small right-pointing triangle that pulses: "tap for more" without a word.
+function tapMark(ctx, E, x, y, color = P.ink) {
+  const k = 1 + 0.15 * Math.sin(E.time * 6);
+  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(x - 7 * k, y - 9 * k); ctx.lineTo(x + 9 * k, y); ctx.lineTo(x - 7 * k, y + 9 * k); ctx.closePath(); ctx.fill();
+}
+
+// Three still cards, one tap each, Skip always visible. Shown once on a fresh save (openSeen is set as it opens, so
+// closing the app mid-way never repeats it) and again from the menu's Story button.
+const story = {
+  enter(E, p = {}) {
+    this.i = 0; this.t0 = E.time; this.btnSkip = null;
+    if (!p.replay) E.save.set('openSeen', true);
+    SFX.story(E);
+  },
+  render(ctx, E) {
+    const sf = E.safe, c = STORY[this.i], Y = T.story, aw = E.w - sf.left - sf.right;
+    const lines = wrap(E, c.text, Math.min(aw - 2 * (Y.skipW + 16), 700), TY.lg, '800'), lh = TY.lg + 6;
+    const top = sf.top + 66 + lines.length * lh, floor = E.h - sf.bottom - 44, groundY = floor - 8;
+    storySky(ctx, E, groundY);
+    lines.forEach((l, n) => E.text(l, sf.left + aw / 2, sf.top + 66 + (n + 0.5) * lh - lh / 2, { size: TY.lg, weight: '800', color: P.ink }));
+    const pop = ease.outBack(clamp((E.time - this.t0) / 0.35, 0, 1)), h = Math.min(Y.artH, floor - top - 4), n = c.art.length;
+    c.art.forEach((id, k) => {
+      const w = Math.min(h * 1.25, aw / (n + 0.4)), cx = sf.left + aw / 2 + (k - (n - 1) / 2) * (w + 16);
+      ctx.save(); ctx.translate(cx, floor); ctx.scale(pop, pop); ctx.translate(-cx, -floor);
+      drawArt(ctx, E, id, cx, floor, w, h, E.time);
+      ctx.restore();
+    });
+    STORY.forEach((_, k) => { ctx.globalAlpha = k === this.i ? 1 : 0.35; ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(E.w / 2 + (k - 1) * 18, E.h - sf.bottom - 20, k === this.i ? 5 : 4, 0, Math.PI * 2); ctx.fill(); });
+    ctx.globalAlpha = 1;
+    tapMark(ctx, E, E.w - sf.right - 32, E.h - sf.bottom - 22);
+    this.btnSkip = btn(E, 'Skip', E.w - sf.right - 16 - Y.skipW / 2, sf.top + 16 + Y.skipH / 2, { w: Y.skipW, h: Y.skipH, size: TY.md, fill: P.panelSolid });
+  },
+  onTap(p, E) {
+    if (this.btnSkip && E.hit(this.btnSkip, p)) { E.audio.play('tap'); this.finish(E); return; }
+    if (E.time - this.t0 < T.story.tapGap) return;
+    if (this.i + 1 >= STORY.length) { this.finish(E); return; }
+    this.i++; this.t0 = E.time; SFX.story(E);
+  },
+  onKey(k, E) { if (k === ' ' || k === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
+  finish(E) { E.setScene('menu'); },
+};
+
+// The reunion (PRD v0.5 D): the first flight that reaches Home ends here, before the result card. One tap goes on.
+const reunion = {
+  enter(E, card) { this.card = card; this.t0 = E.time; SFX.story(E); },
+  render(ctx, E) {
+    const v = view(E), sf = E.safe, aw = E.w - sf.left - sf.right, ah = E.h - sf.top - sf.bottom, cx = sf.left + aw / 2;
+    if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null);
+    ctx.fillStyle = P.shadow; ctx.fillRect(0, 0, E.w, E.h);
+    const pw = Math.min(560, aw - 32), ph = Math.min(300, ah - 24), px = cx - pw / 2, py = sf.top + (ah - ph) / 2;
+    E.roundRect(px, py, pw, ph, 18, P.panelSolid, P.panelEdge);
+    const k = ease.outBack(clamp((E.time - this.t0) / 0.4, 0, 1)), ah2 = Math.min(150, ph - 110), base = py + 28 + ah2 + 8;
+    ctx.save(); ctx.translate(cx, base); ctx.scale(k, k); ctx.translate(-cx, -base);
+    drawArt(ctx, E, 'mochi-love', cx - pw * 0.2, base, pw * 0.38, ah2, E.time);
+    drawArt(ctx, E, 'daifuku-wave', cx + pw * 0.2, base, pw * 0.38, ah2, E.time);
+    ctx.restore();
+    for (let i = 0; i < T.story.hearts; i++) { // a few hearts rising between them
+      const ph0 = (E.time * 0.45 + i / T.story.hearts) % 1, hx = cx + Math.sin(i * 2.4) * pw * 0.12, hy = base - 10 - ph0 * (ah2 + 20), hr = 5 + (i % 3) * 2;
+      ctx.globalAlpha = Math.sin(ph0 * Math.PI); ctx.fillStyle = P.heart; heartPath(ctx, hx, hy, hr); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    E.text(HOME_LINE, cx, py + ph - 42, { size: TY.lg, weight: '800', color: P.text });
+    if (E.time - this.t0 >= T.story.reunionGap) tapMark(ctx, E, px + pw - 26, py + ph - 26, P.text);
+  },
+  onTap(p, E) { if (E.time - this.t0 >= T.story.reunionGap) E.setScene('over', this.card); },
+  onKey(k, E) { if (k === ' ' || k === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
+};
+
 // ---------- Portrait ----------
 // Launch is landscape (ADR-0013). While the phone is held upright the game pauses under a dimmed prompt and takes no input.
 const upright = (E) => E.h > E.w;
@@ -2584,7 +2723,7 @@ function landscapeOnly(scene) {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 8,
+  saveVersion: 9,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
   // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`.
   // v5 (PRD v0.2 B): coins become sugar one for one; `up.steady` at 0; goals start at the top of the list with every distance
@@ -2593,7 +2732,9 @@ export const game = {
   // Chopsticks becomes Steady Gauge, the Cola Rocket's levels now strengthen the boost every flight has), `up.scope` (the
   // Brass Telescope) 0, `actionsTaught` false so the three actions are shown once; `holdTaught` is gone; `perfectRow` is the
   // machine's streak. v8 (PRD v0.4 B): Soda Springs and Gingerbread Town start earlier, so the places passed (`ms`, by
-  // their old lines 500, 1000, 2000, 3500, 5000) map by index onto the new lines; everything else is kept.
+  // their old lines 500, 1000, 2000, 3500, 5000) map by index onto the new lines; everything else is kept. v9 (PRD v0.5 F): the
+  // story: `openSeen` (the cold open has shown) and `placesSeen` (the highest place whose arrival line has shown); a save with
+  // any flight has seen the open and every place its best reached (a veteran meets no cold open and no stale arrival line).
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
     if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
@@ -2609,9 +2750,17 @@ export const game = {
     if (fromVersion < 8) { // the hint shows once more, as the actions are now glide and slam
       const old = [500, 1000, 2000, 3500, 5000]; data.ms = (data.ms || []).map((m) => T.milestones[old.indexOf(m)] ?? m); data.actionsTaught = false;
     }
+    if (fromVersion < 9) {
+      data.openSeen = (data.flights || 0) > 0;
+      data.placesSeen = Math.min(4, T.milestones.filter((m) => (data.best || 0) >= m).length);
+    }
     return data;
   },
   TUNING,
+  init(E) { // the portraits load before the first frame; a fresh save opens on the cold open
+    loadArt();
+    game.start = E.save.get('openSeen', false) ? 'menu' : 'story';
+  },
   // The TUNE panel (PRD v0.4 D): four strengths, and two whole feels. Floaty: light gravity, a soft launch, a long flat glide,
   // gentle thermals and freezers, soft slams. Punchy: heavy gravity, a hard launch, a short steep glide, hard slams with a
   // bigger jelly bonus, strong columns and a strong boost.
@@ -2631,5 +2780,5 @@ export const game = {
     UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView, PLACES, placeFrom, placeIndex, geyserOn, inCloud, palette: P,
     slamOf, impactOf, slopeAt, touching, ventAt, condense, openChute, speedOf },
   start: 'menu',
-  scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop) },
+  scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop), story: landscapeOnly(story), reunion: landscapeOnly(reunion) },
 };

@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'launch-v14';
+const CACHE_VERSION = 'launch-v15';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'launch-v';
 const ASSETS = [
@@ -12,6 +12,13 @@ const ASSETS = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-180.png',
+  './assets/mochi-love.webp',
+  './assets/mochi-happy.webp',
+  './assets/mochi-dizzy.webp',
+  './assets/mochi-determined.webp',
+  './assets/daifuku.webp',
+  './assets/daifuku-wave.webp',
+  './assets/mochi-maker.webp',
 ];
 
 self.addEventListener('install', (event) => {
