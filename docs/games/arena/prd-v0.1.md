@@ -81,3 +81,34 @@ Proto 2's weight, tells and parry and dodge stay (`playtests/2026-10-04-proto2.m
   - Outside wind-ups, motion is the sword.
 - **Hearts, the round and the result card** stay as in proto 2. A felled opponent is replaced by a fresh one with new armour.
 - **The thumb.** The finger is usually over the lower middle of the screen. Keep the opponent's tells and plates readable, using the offset and the fighters' height.
+
+## Proto 4 (designer, 2026-10-05, after proto 3): a real sword arm, a shield, and aiming that beats spamming
+
+From `playtests/2026-10-05-proto3.md` and the designer's notes. It is still a one-time feel prototype (Sonnet, smoke checks only).
+
+**Two thumbs** (landscape, ADR-0013, as in Recoil), so attack and defence never fight over one gesture:
+- the **right thumb** drives the sword arm;
+- the **left thumb** drives the shield and the dodge.
+
+**The sword arm** (the designer: "the arm mostly straight, the elbow bends if I draw back"):
+- **The arm is straight by default.** The hand sits on a circle of nearly full arm length around the shoulder, at the finger's angle, with the offset and the weight. **Drawing the finger back** toward your own body bends the elbow and chambers the sword.
+- **A gladius,** a short broad blade, held in a natural grip. The blade's angle follows the arm and the swing direction, so a swing reads as a slash, not a rapier lunge.
+- **Three attacks fall out of the motion.** All are judged by the blade's real path, with no gesture menus:
+  - **Overhead swing:** raise the hand above the head, then bring it down fast. **Strong**: it hits hard, dents a plate twice, and breaks plates fast. It mostly lands on helmets and shoulders, so it often **hits metal and bounces**, with a big recoil.
+  - **Jab:** chamber, by drawing back, then push the finger straight out fast. The **tip** stabs along that line, and only the tip hits. It is precise and cheap on stamina, and it does strong damage in a gap. Aimed from below upward, straight out, or from above downward, it lets you **pick a gap**. A jab into armour glances, with a small recoil.
+  - **Slash:** any other fast arc. Medium damage along the edge.
+- **Stamina:** every attack costs stamina (overhead the most, jab the least), shown as a bar under your hearts. It refills while you are not swinging. At zero, your arm slows and attacks deal half damage. Flailing runs you dry.
+- **Armour now punishes.** A clang recoils your arm for 0.5 s (0.7 s on an overhead), and **the opponent immediately counters**: a fast blow with a short tell that you must block or dodge.
+
+**The left thumb: shield and dodge** (the designer: "the parry swipe forward would bring up the shield"):
+- **A swipe forward,** to the right, **raises the shield** on your gladiator's off arm for 0.6 s.
+  - A blow that lands on the raised shield is **blocked**: it costs shield durability (shown as a bar; 4 blocks break it, and it recovers between opponents).
+  - A **perfect block,** raised within the last 0.15 s before impact, costs **no durability**, staggers them, and opens a **riposte**: hits count double for 1 s.
+- **A swipe back,** to the left, **dodges**: a hop back out of reach. It costs a good chunk of stamina and has a 1.2 s cooldown, and you must step back in, by holding the left thumb forward briefly, before you can hit again. Safe, but it costs tempo.
+
+**The opponent:**
+- **Guard:** between attacks they hold their club or arm across one zone, high, middle or low, chosen from the seed. That covers those parts like armour.
+- **Openings:** for 0.8 s after each of their attacks they **recover**, with their guard down. That is the moment for a jab into a gap. Read them, don't hack.
+- The tells, hearts, damage, disabling and felling stay as in proto 3.
+
+**The result card adds** overheads, jabs, slashes, blocks (perfect), dodges, stamina-outs and counters taken.
