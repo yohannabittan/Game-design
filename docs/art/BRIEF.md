@@ -138,6 +138,51 @@ He must not resemble any real actor or film character; the repo is a public webs
 
 Generate the resting pose first, then use it as the reference image for the second, so he is the same man. Two options each, about US$0.50.
 
+### Pack 9: Recoil director and premiere posters (added 2026-10-05)
+
+Anchor: `docs/games/recoil/style.md`; cast and tone: `docs/games/recoil/world.md`; spec: `docs/games/recoil/prd-v0.7.md` C, E and E2.
+
+- **Director "Big Lou" Marlowe**: an original, loud, kind-hearted 1980s movie director in his fifties, big build, baseball cap, sunglasses pushed up on the forehead, rolled shirtsleeves, a red megaphone. He must not resemble any real director or actor. Waist-up, facing slightly left, transparent background, 512 x 768, neon pink and teal rim light as in Pack 8. Generate `director.png` first (shouting into the megaphone, one arm out), then use it as the reference for `director-approve.png` (megaphone lowered, a big grin and a thumbs-up), so he is the same man. Two options each.
+- **Six posters**, 512 x 768, a painted 1980s action-poster look, **no text at all** (the game draws the titles; generated text misspells). One scene each, in the genre joke of its title: `poster-accuracy.png` (Screen Test: The Movie: a lone figure in a spotlight on a soundstage, targets behind), `poster-speed.png` (High Noon-ish: a western street of plywood flats at sunset, a clock tower), `poster-skeet.png` (Saucers Over Burbank: flying saucers that are clearly clay pigeons over a backlot town), `poster-boss.png` (Rubber Suit Rampage: a giant monster that is obviously a man in a rubber suit, crushing a cardboard city), `poster-zombies.png` (Night of the Extras: shambling zombie extras in visible make-up under a full moon, a boom mic in the corner), `poster-endless.png` (The Overnight Shoot: a tired crew under night lights, coffee cups, dawn breaking). The hero is always a silhouette or seen from behind, never a face that could be a real actor. Two options each.
+
+About US$2 to 3. Into `docs/art/final/recoil/`.
+
+### Pack 10: Checkpoint supervisor and plane (added 2026-10-05)
+
+Anchor: `docs/games/checkpoint/style.md`; cast: `docs/games/checkpoint/world.md`; spec: `docs/games/checkpoint/prd-v0.3.md`.
+
+- **Supervisor Pat Okoye**: an original airport security supervisor in her forties, calm and dry, navy uniform shirt with epaulettes, a lanyard with an ID card, reading glasses on a cord, a clipboard and a paper coffee cup. Waist-up, facing slightly right, transparent background, 512 x 768, in the game's flat clean style. `supervisor.png` (briefing: clipboard up, a small knowing smile) first, then `supervisor-proud.png` (arms folded, a warm proud smile) from it as reference. Two options each.
+- **The plane**: `plane.png`, a friendly generic twin-engine passenger jet in side view facing right, no airline name, logo or text, a white body with one soft colour stripe, transparent background, 1024 x 384. Two options.
+
+About US$1. Into `docs/art/final/checkpoint/`.
+
+### Pack 11: Ink clients and Rita (added 2026-10-05)
+
+Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.7.md` B to E. **This pack carries the reveal**: the game draws the player's own tattoo onto each portrait, so every image needs a **clear, bare, evenly lit patch of skin, facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it.
+
+Six original clients, adults, warm painted look, plain warm-lamp background (not transparent; the reveal fills the card), 768 x 1024, each in three expressions: **happy** (delighted, looking at the patch), **neutral** (polite, unsure), **sad** (disappointed, not angry). Generate happy first and use it as the reference for the other two, so each client is the same person in the same pose; only the face changes.
+
+| Files | Client | Framing that shows the skin patch |
+| --- | --- | --- |
+| `client-bram-{happy,neutral,sad}.png` | Bram, a weathered sailor in his sixties, knit cap, beard | seated, inner forearm turned up toward the viewer across the lower third |
+| `client-theo-{happy,neutral,sad}.png` | Theo, a chef in his thirties, chef's whites with the sleeve rolled | standing, forearm raised and turned out, inner forearm bare |
+| `client-june-{happy,neutral,sad}.png` | June, a grandmother around seventy, short silver curls, cardigan slipped off one shoulder | three-quarter back view, looking over the bare shoulder |
+| `client-ola-{happy,neutral,sad}.png` | Ola, a bride in her late twenties, a simple off-shoulder top (not a wedding dress) | three-quarter view, bare shoulder and upper arm toward the viewer |
+| `client-mina-{happy,neutral,sad}.png` | Mina, a runner in her thirties, running shorts, trainers | seated on the chair, one leg forward, the calf turned to the viewer |
+| `client-kai-{happy,neutral,sad}.png` | Kai, a musician in their twenties, headphones round the neck | seen from behind, sitting backwards on the chair, bare upper back, face turned to look over the shoulder |
+
+Plus **Rita**, `rita.png`: the Lucky Needle's owner, an original tattooist in her sixties, silver undercut, reading glasses, arms of faded traditional flash tattoos, a leather apron, arms folded, a proud half smile; waist-up, 512 x 768, transparent background.
+
+Diverse, real-looking people of different builds; no celebrity likeness. One option each for the neutral and sad (from the happy reference), two options for each happy and for Rita. About US$4 to 5. Into `docs/art/final/ink/`. In the handoff, list for each client the skin patch's rectangle in pixels (x, y, w, h) as you see it; the builder measures it again.
+
+### Pack 12: Gravity Golf Mission Control (added 2026-10-05)
+
+Anchor: `docs/games/gravity-golf/style.md`; cast: `docs/games/gravity-golf/world.md`; spec: `docs/games/gravity-golf/prd-v0.11.md`.
+
+- **Dr Sam Ito**, Mission Control: an original, friendly space scientist in their thirties, a headset with a mic, a mission patch on a fleece jacket, a mug with a little planet on it, glowing blue screens of star charts behind. Head and shoulders, 512 x 512, in a round-cornered "video call" frame, deep blue and violet palette. `mission-control.png` (warm smile, leaning to the mic) first, then `mission-control-wow.png` (eyes wide, a hand on the headset, amazed) from it as reference. Two options each.
+
+About US$0.50 to 1. Into `docs/art/final/gravity-golf/`.
+
 ## Handoffs from the orchestrator (2026-10-03)
 
 The designer pastes the orchestrator's one-line task into the art chat. (A Routine bound to the art chat was tried and does not reach it: each firing starts a new empty session.) The art session replies with a pushed `docs/art/HANDOFF-<topic>.md`, which the orchestrator reads when it pulls.
