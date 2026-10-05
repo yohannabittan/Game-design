@@ -130,3 +130,24 @@ From `playtests/2026-10-05-proto4.md`. It is still a one-time feel prototype (So
 - **Jab tip radius** of 10 px, so a jab aimed at a visible gap lands.
 - **Portrait guard.** If the screen is taller than it is wide, show a "Turn your phone sideways" card instead of the fight.
 - **TUNE presets:** Forgiving (slow tells, long perfect window), Standard and Brutal.
+
+## Proto 6 (designer, 2026-10-05, after proto 5): space to aim, fewer plates, a dodge button, exhaustion
+
+The designer struggled with proto 5:
+- "We're standing too close, which still makes it hard to aim for gaps."
+- "The other player's ripostes are killing me."
+- "Sometimes the other player is too armoured."
+- "Dodge should be like the shield: tap for a quick dodge, tap and hold for a longer dodge that burns stamina."
+- "No stamina should mean no sword swings for a bit."
+
+It is still a one-time feel prototype (Sonnet, smoke checks only). Keep proto 5 except:
+
+- **Space and size.** The fighters stand **apart**, with a clear gap of about 20 percent of the screen width between them. The camera frames them a little larger, so each body part is a bigger target.
+- **The lunge.** At rest your straight arm reaches the opponent's near edge (the front arm and the chest's front). To reach deeper gaps or the far side, push the hand past your reach toward them. Your gladiator **steps in with the swing**, a lunge of up to one stride, then steps back. A lunge costs extra stamina, and while lunging you can't raise the shield, so a lunge is a commitment.
+- **Fewer plates.** Each opponent wears **2 or 3 plates** (seeded), never a full set. At least one of chest or belly, and at least one leg, is always bare.
+- **Gentler counters.** The opponent counters only after an **overhead** clang. Ordinary clangs just recoil you. A counter's tell is 0.55 s, and its zone glows. **Forgiving** is the default preset.
+- **A dodge button.** A fourth left-thumb button, **Dodge**, sits below Low, at least 56 px.
+  - **A tap** is a quick sidestep back (0.35 s, small stamina cost).
+  - **A hold** keeps you backed off out of reach while it is held, burning stamina steadily. Release to step back in.
+  - The leftward swipe dodge is removed.
+- **Exhaustion.** At zero stamina your gladiator is **exhausted** for 1.5 s: there are no sword swings and the shield is slow to raise, and the stamina bar flashes. Stamina refills faster when you are not swinging, blocking or dodging.
