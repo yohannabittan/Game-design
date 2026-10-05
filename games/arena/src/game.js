@@ -1,8 +1,9 @@
-// Arena (proto 4): two full-body gladiators, side view, landscape (ADR-0013), two thumbs.
-// RIGHT thumb: the sword arm. It is straight on a near-full-length circle around the shoulder at the finger's angle, and the elbow bends only when
-// the finger draws back toward the body. A gladius hangs from the fist; its angle follows the arm and the swing. Overhead, jab (tip only) and slash
-// come out of the motion. Every attack costs stamina; armour and the foe's guard clang (recoil, then an immediate counter).
-// LEFT thumb (a touch that starts in the left third): swipe forward raises the shield, swipe back dodges out of reach.
+// Arena (proto 5): two full-body gladiators, side view, landscape (ADR-0013), two thumbs.
+// RIGHT thumb: the sword arm. The body stays upright and the sword leads: straight on a near-full-length circle around the shoulder at the finger's angle,
+// elbow bent only when the finger draws back. The torso leans (12 degrees at most) only on a fast slash past the arm's reach. Overhead, jab (tip only) and
+// slash come out of the motion. Every attack costs stamina; armour and the foe's guard clang (recoil; a counter only after an overhead clang or two clangs in a row).
+// LEFT hand: three shield buttons (High, Mid, Low) on the left edge: tap = shield up for 0.6 s, hold = keep it up (slow stamina drain). Only the matching zone blocks.
+// A swipe back that starts anywhere else in the left third is the dodge.
 // Layout: H = fighter body unit = screen height * fighter.height, feet on a floor line, one side each of the screen centre. Body units: x forward, y down, origin at the feet.
 // All particles are the game's own so a hit-stop freezes the burst, then lets it fly.
 
@@ -13,19 +14,18 @@ const TUNING = {
   hearts: 3,
   resetDelay: 0.9,         // seconds after a foe falls before a fresh one
   swayRate: 1.3,           // radians per second of the foe's sway
-  offset: 70,              // aim point above the finger, px
+  offset: 50,              // aim point above the finger, px
   hand: {
     lag: 0.035,            // seconds of weight in the hand
     regrip: 0.12,          // lag while the hand recovers from a bounce
     tiredLag: 2.4,         // lag multiplier at zero stamina
     rest: [0.5, -0.2],     // aim point at rest (finger up), from the shoulder, in body units
   },
-  arm: { len: 0.42, minFrac: 0.35, full: 0.97, chamberAt: 0.16, straightAt: 0.5 },  // arm in H; finger distance (H) at which the arm is chambered and at which it is straight
-  blade: { len: 0.36, pad: 5, tip: 0.22 },   // gladius length in H, hit pad px, fraction of the blade that is the jab tip
+  arm: { len: 0.45, minFrac: 0.35, full: 0.97, chamberAt: 0.16, straightAt: 0.5 },  // arm in H; finger distance (H) at which the arm is chambered and at which it is straight
+  blade: { len: 0.36, pad: 5, jabPad: 10, tip: 0.22 },   // gladius length in H, hit pad px, jab tip radius px, fraction of the blade that is the jab tip
   grip: { straight: -0.25, chamber: -0.6, tau: 0.045, trail: 0.018 },  // blade angle from the arm (radians, up is negative), smoothing, trail per rad/s of arm swing
-  fighter: { height: 0.68, floor: 0.88, sep: 0.5 },   // body unit as a fraction of screen height, feet line, half the gap between feet in H
-  lean: { gain: 0.5, max: 0.4, vel: 4200, min: -0.12, tau: 0.07 },  // radians toward the hand, and per px/s of tip speed
-  step: { max: 0.3, from: 0.55, gain: 0.9, tau: 0.09 },            // the step in, in H
+  fighter: { height: 0.68, floor: 0.88, sep: 0.33 },   // body unit as a fraction of screen height, feet line, half the gap between feet in H
+  lean: { base: 0.03, max: 0.21, beyond: 0.6, span: 0.2, fast: 0.7, tau: 0.06, back: 0.05 },  // radians (max = 12 degrees); aim distance (H) past which a fast slash leans, over span; fast = fraction of hit.mid
   dodge: { dur: 0.45, back: 0.32, hop: 0.12, cost: 30, cool: 1.2, stepIn: 0.3, stepDist: 45 },  // stepDist: px the left thumb must move forward and hold to step back in
   hit: { minSpeed: 450, mid: 950, fast: 1800, cool: 0.2 },   // tip px/s: slash threshold, slash damage 2, glow
   attack: {
@@ -44,9 +44,9 @@ const TUNING = {
     gapSpread: 1.5,
     lunge: 0.22,           // foe steps in this far (H) as the blow lands
   },
-  counter: { windup: 0.38 },
+  counter: { windup: 0.45, run: 2, runWindow: 3 },  // run: clangs in a row (within runWindow s) that bring a counter; an overhead clang always does
   open: { dur: 0.8 },      // seconds the foe is open after each of his blows
-  shield: { dur: 0.6, perfect: 0.15, hits: 4, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2 },
+  shield: { dur: 0.6, perfect: 0.15, hits: 4, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2, drain: 6, btnW: 64, btnH: 58, gap: 8 },  // drain: stamina per second of hold
   swipe: { minDist: 70, minSpeed: 600, span: 0.18 },
   juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, strawPerDmg: 14 },
   foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, armourMin: 3, armourMax: 4 },
@@ -66,9 +66,9 @@ const ARM_LEN = 0.30, CLUB_LEN = 0.40, SHOULDER = [0.05, -0.67];
 // The three zones: where the blow lands (body units), how the weapon arm is cocked and where the swing ends (angles from forward, y down),
 // and the guard: the arm angle held while guarding and the parts it covers.
 const ZONES = [
-  { id: 'high', y: -0.78, cock: -1.55, end: 1.15, label: 'HIGH', guard: -0.3, cover: ['head'] },
-  { id: 'mid',  y: -0.62, cock: -2.9,  end: 0.0,  label: 'MID',  guard: 0.2,  cover: ['chest', 'belly'] },
-  { id: 'low',  y: -0.18, cock: 2.5,   end: 0.9,  label: 'LOW',  guard: 1.05, cover: ['legs'] },
+  { id: 'high', y: -0.78, cock: -1.55, end: 1.15, label: 'HIGH', guard: -0.3, cover: ['head'], sy: -0.8 },
+  { id: 'mid',  y: -0.62, cock: -2.9,  end: 0.0,  label: 'MID',  guard: 0.2,  cover: ['chest', 'belly'], sy: -0.58 },
+  { id: 'low',  y: -0.18, cock: 2.5,   end: 0.9,  label: 'LOW',  guard: 1.05, cover: ['legs'], sy: -0.28 },
 ];
 const REST_TH = 0.9;
 
@@ -107,13 +107,13 @@ function newRound(E, seed) {
   Object.assign(state, {
     seed, rng: makeRng(seed ^ 0x9e3779b9), rack: 0, t: TUNING.roundTime, m: 0, stop: 0, kickA: 0, kickV: 0,
     hearts: TUNING.hearts, endT: 0, dodgeT: 0, dodgeCool: 0, away: false, stepT: 0, hurt: 0, done: false,
-    stamina: TUNING.stamina.max, lastAtk: -9, riposte: 0, open: 0,
+    stamina: TUNING.stamina.max, lastAtk: -9, riposte: 0, open: 0, clangRun: 0, lastClang: -9,
     gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
     fx: [], pops: [], streaks: [], trail: [],
-    you: { dx: 0, a: 0, kick: 0, kickV: 0, back: 0, hopX: 0, hopY: 0, tvx: 0, parts: makeParts(makeRng(seed ^ 0x5bd1e995), ['armF']), fr: {} },
+    you: { dx: 0, a: 0, kick: 0, kickV: 0, back: 0, hopX: 0, hopY: 0, parts: makeParts(makeRng(seed ^ 0x5bd1e995), ['armF']), fr: {} },
     foe: {},
     crowd: [],
-    sh: { down: false, id: -1, sx: 0, sy: 0, x: 0, y: 0, minX: 0, hist: [], t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0 },
+    sh: { down: false, id: -1, sx: 0, sy: 0, x: 0, y: 0, minX: 0, hist: [], t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, zy: -0.58 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, e: 1, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, hist: [], raisedT: -9, atk: null },
   });
   const cr = makeRng(seed ^ 0x1234567);
@@ -187,7 +187,8 @@ function poseFoe(E, dt) {
 function guardUp() { return !state.sw && state.open <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0; }
 const guarded = (p) => guardUp() && state.guardZone.cover.includes(p.d.id);
 const covered = (p) => p.armour || guarded(p);
-const raised = () => state.sh.t >= 0 && state.sh.t < TUNING.shield.dur;
+const raised = () => !state.sh.broken && (state.sh.held || (state.sh.t >= 0 && state.sh.t < TUNING.shield.dur));
+const blocks = (zone) => raised() && state.sh.zone === zone;
 
 function poseYou(E, dt) {
   const L = lay(E), y = state.you, D = TUNING.dodge, h = state.hand, sh = state.sh;
@@ -197,17 +198,22 @@ function poseYou(E, dt) {
   y.hopX = -D.back * L.H * y.back;
   y.hopY = state.dodgeT > 0 ? -D.hop * L.H * Math.sin(Math.PI * u) : 0;
   y.kickV += (-y.kick * 90 - y.kickV * 7) * dt; y.kick += y.kickV * dt;
-  const S0x = L.x0 + SHOULDER[0] * L.H, LN = TUNING.lean, ST = TUNING.step;
-  let leanT = clamp(((h.tgx - S0x) / (0.8 * L.H) - 0.3) * LN.gain, LN.min, LN.max) + clamp(y.tvx / LN.vel, -0.18, 0.18);
-  if (!h.down && h.lock <= 0) leanT = 0.05;
-  leanT -= 0.22 * y.back;
-  y.a += (leanT - y.a) * (1 - Math.exp(-dt / LN.tau));
-  const stepT = (h.down || h.lock > 0) && !state.away ? clamp((h.tgx - S0x - ST.from * L.H) * ST.gain, 0, ST.max * L.H) : 0;
-  y.dx += (stepT - y.dx) * (1 - Math.exp(-dt / ST.tau));
+  const LN = TUNING.lean, a = h.atk;
+  // upright, sword leading; lean only on a fast slash whose aim lies past the straight arm's reach
+  let leanT = LN.base;
+  if (a && a.kind === 'slash' && h.down && h.lock <= 0 && h.sp >= TUNING.hit.mid * LN.fast) leanT += LN.max * clamp((Math.hypot(h.tgx - h.sx, h.tgy - h.sy) / L.H - LN.beyond) / LN.span, 0, 1);
+  leanT = Math.min(leanT, LN.max) - 0.22 * y.back;
+  y.a += (leanT - y.a) * (1 - Math.exp(-dt / (leanT > y.a ? LN.tau : LN.back)));
+  sh.zy += (sh.zone.sy - sh.zy) * (1 - Math.exp(-dt / 0.05));
   sh.up += ((raised() ? 1 : 0) - sh.up) * (1 - Math.exp(-dt / (raised() ? 0.045 : 0.12)));
-  y.fr = { armB: { ox: PARTS[4].joint[0], oy: PARTS[4].joint[1], rot: shieldTh() - Math.PI / 2 + 0.05 * Math.sin(state.m * 1.9) } };
+  const [cx, cy] = shieldPos();
+  y.fr = { armB: { ox: PARTS[4].joint[0], oy: PARTS[4].joint[1], rot: Math.atan2(cy - PARTS[4].joint[1], cx - PARTS[4].joint[0]) - Math.PI / 2 + 0.05 * Math.sin(state.m * 1.9) } };
 }
-const shieldTh = () => lerp(1.69, -0.15, state.sh.up);
+// shield centre in body units: hanging at the hip, or raised to the zone
+function shieldPos() {
+  const sh = state.sh, J = PARTS[4].joint;
+  return [lerp(J[0] + 0.3 * Math.cos(1.69), 0.2, sh.up), lerp(J[1] + 0.3 * Math.sin(1.69), sh.zy, sh.up)];
+}
 
 // ----- particles -----
 function straw(x, y, ang, spread, speed, n) {
@@ -310,8 +316,7 @@ function moveHand(E, dt) {
   const iv = Math.max(dt, 0.001), vx = (h.ux - h.pux) / iv, vy = (h.uy - h.puy) / iv, inst = Math.hypot(vx, vy), kv = 1 - Math.exp(-dt / 0.03);
   h.vx += (vx - h.vx) * kv; h.vy += (vy - h.vy) * kv;
   h.along = h.vx * Math.cos(h.ang) + h.vy * Math.sin(h.ang);  // tip speed straight out from the shoulder
-  state.you.tvx += (vx - state.you.tvx) * (1 - Math.exp(-dt / 0.06));
-  h.sp = h.down && h.lock <= 0 ? h.sp * 0.5 + inst * 0.5 : 0;
+    h.sp = h.down && h.lock <= 0 ? h.sp * 0.5 + inst * 0.5 : 0;
   if (h.hy < h.sy - TUNING.attack.over.raise * L.H) h.raisedT = state.m;
   state.trail.push({ x: h.ux, y: h.uy, life: 0.12 });
   for (const q of state.trail) q.life -= dt;
@@ -349,7 +354,7 @@ function checkHits(E) {
   if (!a || a.done || h.lock > 0 || state.fallT > 0 || state.endT > 0 || state.away) return;
   const need = a.kind === 'jab' ? T.attack.jab.minSpeed : a.kind === 'over' ? T.attack.over.minSpeed : T.hit.minSpeed;
   if (h.sp < need) return;
-  const F = foeF(E), fm = state.foe, jab = a.kind === 'jab', pad = (jab ? T.blade.pad * 0.6 : T.blade.pad) / F.H;
+  const F = foeF(E), fm = state.foe, jab = a.kind === 'jab', pad = (jab ? T.blade.jabPad : T.blade.pad) / F.H;
   const found = new Map();
   for (const f of [1, 0.7, 0.4]) {
     const hx = h.phx + (h.hx - h.phx) * f, hy = h.phy + (h.hy - h.phy) * f, tx = h.pux + (h.ux - h.pux) * f, ty = h.puy + (h.uy - h.puy) * f;
@@ -401,13 +406,17 @@ function bounce(E, p, at, ang, sp, a) {
     E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 }); E.shake(8, 0.2); E.haptic(30);
     stop = J.stopBreak + 0.04;
   } else pop(at.x, at.y - 18, glance ? 'GLANCE' : !p.armour ? 'GUARDED' : p.dents >= A.dents - 1 ? 'DENT!' : 'CLANG', '#9aa4b2', glance ? 13 : 16);
-  if (!glance) counter(E);
+  if (!glance) {
+    const C = TUNING.counter;
+    state.clangRun = state.m - state.lastClang <= C.runWindow ? state.clangRun + 1 : 1; state.lastClang = state.m;
+    if (a.kind === 'over' || state.clangRun >= C.run) counter(E);
+  }
   return stop;
 }
 
 function counter(E) {
   if (state.sw || state.fallT > 0 || state.stun > 0 || state.endT > 0 || state.stagger > 0) return;
-  startSwing(true); state.counters++;
+  startSwing(true); state.counters++; state.clangRun = 0;
   const Ff = foeF(E); pop(Ff.x, Ff.y - 1.0 * Ff.H, 'COUNTER!', '#ff8a7a', 20);
 }
 
@@ -417,7 +426,7 @@ function gapHit(E, p, at, ang, sp, delay, a) {
   if (a.tired) dmg = Math.max(1, Math.floor(dmg * T.stamina.tired));
   const rip = state.riposte > 0;
   if (rip) dmg *= T.shield.riposteMul;
-  p.hp -= dmg; p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++;
+  p.hp -= dmg; p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; state.clangRun = 0;
   const gl = kind === 'jab' ? 0.03 : 0.06;
   p.gashes.push([[at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl]]);
   const big = dmg >= 3;
@@ -460,7 +469,7 @@ function startSwing(isCounter) {
   state.sw = { zone: ZONES[state.rng.int(0, ZONES.length - 1)], t: 0, wind, counter: !!isCounter, fin: 0, outcome: null };
 }
 
-// ----- the left thumb: a quick swipe forward raises the shield, a quick swipe back dodges -----
+// ----- the left hand: three shield buttons, and a quick swipe back that starts off the buttons dodges -----
 function shieldSwipe(E) {
   const s = state.sh, S = TUNING.swipe;
   if (!s.down || s.hist.length < 2) return;
@@ -470,14 +479,25 @@ function shieldSwipe(E) {
   const dx = last.x - first.x, dy = last.y - first.y, d = Math.hypot(dx, dy), dt = Math.max(0.03, last.t - first.t);
   if (d < S.minDist || d / dt < S.minSpeed || Math.abs(dx) < Math.abs(dy) * 1.3) return;
   s.hist.length = 0;
-  if (dx > 0) raiseShield(E); else dodge(E);
+  if (dx < 0) dodge(E);
 }
 
-function raiseShield(E) {
+function shieldBtns(E) {
+  const S = TUNING.shield, w = S.btnW, h = S.btnH, tot = 3 * h + 2 * S.gap;
+  const y0 = Math.max(E.safe.top + 76, (E.h - tot) / 2 + 14), x = 10 + E.safe.left;
+  return ZONES.map((z, i) => ({ z, x, y: y0 + i * (h + S.gap), w, h }));
+}
+
+function raiseShield(E, zone, pid) {
   const s = state.sh, Fy = youF(E);
   if (s.broken) { pop(Fy.x, Fy.y - 1.0 * Fy.H, 'NO SHIELD', '#94a3b8', 14); return; }
-  if (raised() || s.cool > 0) return;
-  s.t = 0; E.audio.beep({ freq: 260, dur: 0.07, type: 'triangle', slide: 1.5, gain: 0.12 }); E.haptic(8);
+  if (state.away) return;
+  if (!raised()) {
+    if (s.cool > 0) return;
+    s.t = 0; s.zone = zone; s.zy = zone.sy;
+    E.audio.beep({ freq: 260, dur: 0.07, type: 'triangle', slide: 1.5, gain: 0.12 }); E.haptic(8);
+  } else if (s.zone !== zone) { s.zone = zone; E.audio.beep({ freq: 330, dur: 0.05, type: 'triangle', gain: 0.08 }); }
+  if (pid != null) { s.held = true; s.hid = pid; }
 }
 
 function dodge(E) {
@@ -493,7 +513,8 @@ function dodge(E) {
 // Out of reach until the left thumb is moved forward and held.
 function updateDefence(dt, E) {
   const s = state.sh, D = TUNING.dodge, S = TUNING.shield;
-  if (s.t >= 0) { s.t += dt; if (s.t >= S.dur) { s.t = -1; s.cool = S.cool; } }
+  if (s.held) { state.stamina -= S.drain * dt; state.lastAtk = state.m; if (state.stamina <= 0) { state.stamina = 0; s.held = false; s.hid = -1; s.t = -1; s.cool = S.cool; } }
+  if (s.t >= 0) { s.t += dt; if (s.t >= S.dur && !s.held) { s.t = -1; s.cool = S.cool; } }
   s.cool = Math.max(0, s.cool - dt); s.flash = Math.max(0, s.flash - dt);
   state.dodgeCool = Math.max(0, state.dodgeCool - dt);
   if (state.away && state.dodgeT <= 0) {
@@ -508,7 +529,7 @@ function resolveSwing(E) {
   sw.fin = 0.4; state.open = TUNING.open.dur;
   state.streaks.push({ x1: Ff.x - L.H * 0.3, y1: zy - 30, x2: Fy.x - L.H * 0.1, y2: zy + 20, life: 0.22, max: 0.22, red: !state.away });
   if (state.away) { sw.outcome = 'whiff'; swooshSound(E, 0.2); pop(E.w / 2, zy - 30, 'OUT OF REACH', '#7de3ff', 18); return; }
-  if (raised()) {
+  if (blocks(sw.zone)) {
     const perfect = sh.t <= SH.perfect, bx = Fy.x + 0.28 * L.H, by = zy;
     sw.outcome = 'block'; state.blocks++; sh.flash = 0.25;
     sparks(bx, by, 0, perfect ? 30 : 16); ring(bx, by, perfect ? 130 : 70, perfect ? '#ffd24a' : '#ffffff');
@@ -730,11 +751,11 @@ function drawSwordArm(ctx, E) {
 
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
 function drawShield(ctx, E) {
-  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, th = shieldTh();
+  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint;
   if (sh.broken) return;
-  const [hx, hy] = toScreen(Fy, J[0] + 0.3 * Math.cos(th), J[1] + 0.3 * Math.sin(th));
+  const [hx, hy] = toScreen(Fy, ...shieldPos());
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
-  const r = lerp(0.11, 0.2, sh.up) * H, cx = hx + lerp(0.0, 0.06, sh.up) * H, cy = hy;
+  const r = lerp(0.11, 0.2, sh.up) * H, cx = hx, cy = hy;
   limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
   ctx.save(); ctx.translate(cx, cy);
   const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
@@ -748,6 +769,19 @@ function drawShield(ctx, E) {
   for (let i = 0; i < worn; i++) { const a = i * 1.7 + 0.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25); ctx.lineTo(Math.cos(a + 0.2) * r * 0.65, Math.sin(a + 0.2) * r * 0.65); ctx.lineTo(Math.cos(a - 0.1) * r * 0.95, Math.sin(a - 0.1) * r * 0.95); ctx.stroke(); }
   if (sh.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${sh.flash / 0.25 * 0.5})`; ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.28); ctx.fill(); }
   ctx.restore();
+}
+
+// The three shield buttons. The one matching the foe's tell glows; the raised one is lit; a held one shows its drain.
+function drawShieldBtns(ctx, E) {
+  const sh = state.sh, sw = state.sw, tell = sw && sw.fin <= 0 ? sw.zone : null;
+  const pulse = 0.5 + 0.5 * Math.sin(state.m * 14);
+  for (const b of shieldBtns(E)) {
+    const on = raised() && sh.zone === b.z, hot = tell === b.z, perfect = hot && sw.wind - sw.t <= TUNING.shield.perfect;
+    const fill = on ? 'rgba(214,162,74,0.85)' : hot ? `rgba(255,${perfect ? 220 : 120},60,${0.45 + 0.4 * pulse})` : 'rgba(20,16,26,0.55)';
+    E.roundRect(b.x, b.y, b.w, b.h, 12, sh.broken ? 'rgba(40,40,46,0.6)' : fill, hot ? '#ffd24a' : on ? '#fff0b8' : 'rgba(240,230,204,0.45)');
+    if (hot) { ctx.save(); ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 18; E.roundRect(b.x, b.y, b.w, b.h, 12, null, '#ffb347'); ctx.restore(); }
+    E.text(b.z.label, b.x + b.w / 2, b.y + b.h / 2, { size: 15, weight: '800', color: on ? '#2a1c10' : '#f0e6cc' });
+  }
 }
 
 // The foe's guard: the parts his arm covers, outlined, plus the OPEN flag while he recovers.
@@ -791,7 +825,7 @@ function drawZone(ctx, E) {
   ctx.strokeStyle = ar; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const ax = x0 + w * 0.18, s = 7;
   ctx.beginPath(); ctx.moveTo(ax - s, y - s); ctx.lineTo(ax - 2 * s, y); ctx.lineTo(ax - s, y + s); ctx.stroke();
-  E.text(perfect ? 'BLOCK NOW' : inWin ? 'BLOCK' : sw.counter ? 'COUNTER' : sw.zone.label, (x0 + x1) / 2, y - bh - 10, { size: 18, weight: '800', color: `rgb(${rgb})` });
+  E.text(perfect ? `${sw.zone.label} NOW` : inWin ? `SHIELD ${sw.zone.label}` : sw.counter ? `COUNTER ${sw.zone.label}` : sw.zone.label, (x0 + x1) / 2, y - bh - 10, { size: 18, weight: '800', color: `rgb(${rgb})` });
 }
 
 function drawBackground(ctx, E) {
@@ -816,12 +850,25 @@ function drawBackground(ctx, E) {
 }
 
 // ----- scenes -----
+const portrait = (E) => E.h > E.w;
+function rotateCard(ctx, E) {
+  ctx.fillStyle = '#14101a'; ctx.fillRect(0, 0, E.w, E.h);
+  const w = Math.min(E.w - 32, 320), h = 190, x = (E.w - w) / 2, y = (E.h - h) / 2;
+  E.roundRect(x, y, w, h, 18, '#241c2e', '#e6c866');
+  ctx.save(); ctx.translate(E.w / 2, y + 66); ctx.rotate(-0.5 + 0.5 * Math.sin(E.time * 2));
+  ctx.strokeStyle = '#e6c866'; ctx.lineWidth = 4; ctx.strokeRect(-24, -40, 48, 80);
+  ctx.beginPath(); ctx.arc(0, 30, 4, 0, 6.28); ctx.stroke(); ctx.restore();
+  E.text('Turn your phone sideways', E.w / 2, y + 138, { size: 20, weight: '800', color: '#f0e6cc' });
+  E.text('Arena is played in landscape', E.w / 2, y + 164, { size: 13, color: '#9aa4b2' });
+}
+
 const menu = {
   enter() { this.btnPlay = null; this.btnMute = null; },
   render(ctx, E) {
+    if (portrait(E)) { this.btnPlay = this.btnMute = null; rotateCard(ctx, E); return; }
     E.text('ARENA', E.w / 2, E.h * 0.22, { size: 44, weight: '800', color: '#e6c866' });
     E.text('Right thumb: sword. Draw back, then jab out; slash; raise the hand and bring it down.', E.w / 2, E.h * 0.22 + 40, { size: 14, color: '#9aa4b2' });
-    E.text('Left thumb: swipe right to raise the shield, left to dodge. Aim for the gaps.', E.w / 2, E.h * 0.22 + 62, { size: 14, color: '#9aa4b2' });
+    E.text('Left thumb: tap High, Mid or Low to raise the shield (hold to keep it up); swipe left to dodge.', E.w / 2, E.h * 0.22 + 62, { size: 14, color: '#9aa4b2' });
     E.text(`Best: ${E.save.get('best2', 0)} gap hits`, E.w / 2, E.h * 0.22 + 92, { size: 17, color: '#fbbf24' });
     this.btnPlay = E.button('Play', E.w / 2, E.h * 0.62);
     this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, E.h * 0.62 + 66, { fill: '#1f2937', w: 160, h: 44, size: 16 });
@@ -847,6 +894,7 @@ const play = {
   state, lay, foeF, youF, toScreen,
   enter(E, params) { newRound(E, params.seed); initHand(E); },
   update(dt, E) {
+    if (portrait(E)) return;
     if (state.stop > 0) { state.stop -= dt; return; }
     state.m += dt;
     if (state.endT <= 0) state.t -= dt;
@@ -897,9 +945,11 @@ const play = {
   },
   // two thumbs: a touch that starts in the left third is the shield thumb, any other is the sword thumb
   onPointerDown(p, E) {
-    if (state.endT > 0) return;
+    if (state.endT > 0 || portrait(E)) return;
     if (p.startX < E.w / 3) {
       const s = state.sh;
+      const b = shieldBtns(E).find((q) => p.x >= q.x - 6 && p.x <= q.x + q.w + 6 && p.y >= q.y - 4 && p.y <= q.y + q.h + 4);
+      if (b) { raiseShield(E, b.z, p.id); return; }
       if (s.down) return;
       s.down = true; s.id = p.id; s.sx = s.x = s.minX = p.x; s.sy = s.y = p.y; s.hist = [{ x: p.x, y: p.y, t: now() }];
       return;
@@ -925,10 +975,12 @@ const play = {
   },
   onPointerUp(p) {
     const s = state.sh, h = state.hand;
-    if (s.down && s.id === p.id) { s.down = false; s.hist = []; }
+    if (s.hid === p.id) { s.held = false; s.hid = -1; }
+    else if (s.down && s.id === p.id) { s.down = false; s.hist = []; }
     else if (h.down && h.id === p.id) { h.down = false; h.hist = []; h.sp = 0; h.atk = null; }
   },
   render(ctx, E) {
+    if (portrait(E)) { rotateCard(ctx, E); return; }
     ctx.save();
     drawBackground(ctx, E);
     drawFighter(ctx, E, youF(E), state.you, YOU, 'you');
@@ -937,6 +989,7 @@ const play = {
     drawZone(ctx, E);
     drawShield(ctx, E);
     drawSwordArm(ctx, E);
+    drawShieldBtns(ctx, E);
 
     for (const f of state.fx) {
       const t = clamp(f.life / f.max, 0, 1);
@@ -1000,9 +1053,7 @@ const play = {
     if (state.riposte > 0) E.text('RIPOSTE x2', E.w / 2, top + 62, { size: 16, weight: '800', color: '#ffd24a' });
     ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(0, top + 50, E.w * 0.3, 3);
     ctx.fillStyle = '#e6c866'; ctx.fillRect(0, top + 50, E.w * 0.3 * clamp(state.t / TUNING.roundTime, 0, 1), 3);
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(E.w / 3, E.h * 0.45, 1, E.h * 0.5);
-    E.text('SHIELD', E.w / 6, E.h - 18 - E.safe.bottom, { size: 12, weight: '700', color: '#f0e6cc', alpha: 0.35 });
-    if (state.t > TUNING.roundTime - 8) E.text('left thumb: swipe right = shield, swipe left = dodge  |  right thumb: sword', E.w / 2, E.h - 8 - E.safe.bottom, { size: 12, color: '#f0e6cc', alpha: clamp((state.t - (TUNING.roundTime - 8)) / 1.5 + 0.2, 0, 1) });
+    if (state.t > TUNING.roundTime - 8) E.text('left: tap High / Mid / Low = shield (hold to keep), swipe left = dodge  |  right thumb: sword', E.w / 2, E.h - 8 - E.safe.bottom, { size: 12, color: '#f0e6cc', alpha: clamp((state.t - (TUNING.roundTime - 8)) / 1.5 + 0.2, 0, 1) });
   },
   onPause() {},
 };
@@ -1030,7 +1081,7 @@ const over = {
   },
 };
 
-const STD = { offset: 70, 'hand.lag': 0.035, 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 'shield.perfect': 0.15, 'shield.hits': 4, 'open.dur': 0.8, 'swing.windup': 0.7, 'swing.gap': 2.0, 'dodge.cost': 30 };
+const STD = { offset: 50, 'hand.lag': 0.035, 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 'shield.perfect': 0.15, 'shield.hits': 4, 'shield.drain': 6, 'open.dur': 0.8, 'swing.windup': 0.7, 'swing.gap': 2.0, 'counter.windup': 0.45, 'dodge.cost': 30 };
 
 export const game = {
   slug: 'arena',
@@ -1046,15 +1097,17 @@ export const game = {
     { key: 'attack.over.cost', label: 'Overhead cost', min: 5, max: 60, step: 1 },
     { key: 'shield.perfect', label: 'Perfect block window (s)', min: 0.05, max: 0.4, step: 0.01 },
     { key: 'shield.hits', label: 'Shield blocks to break', min: 1, max: 8, step: 1 },
+    { key: 'shield.drain', label: 'Shield hold drain (/s)', min: 0, max: 30, step: 1 },
     { key: 'open.dur', label: 'Foe opening (s)', min: 0.3, max: 1.6, step: 0.1 },
     { key: 'swing.windup', label: 'Wind-up (s)', min: 0.4, max: 1.2, step: 0.05 },
+    { key: 'counter.windup', label: 'Counter wind-up (s)', min: 0.25, max: 1.0, step: 0.05 },
     { key: 'swing.gap', label: 'Swing interval (s)', min: 0.8, max: 4, step: 0.1 },
     { key: 'dodge.cost', label: 'Dodge cost', min: 5, max: 70, step: 1 },
   ],
   presets: [
-    { label: 'Gentle', values: { ...STD, 'stamina.regen': 45, 'attack.over.cost': 20, 'shield.perfect': 0.25, 'shield.hits': 6, 'open.dur': 1.1, 'swing.windup': 0.95, 'swing.gap': 3.2, 'hit.minSpeed': 400, 'dodge.cost': 22 } },
+    { label: 'Forgiving', values: { ...STD, 'stamina.regen': 45, 'attack.over.cost': 20, 'shield.perfect': 0.25, 'shield.hits': 6, 'shield.drain': 3, 'open.dur': 1.1, 'swing.windup': 0.95, 'swing.gap': 3.2, 'counter.windup': 0.65, 'hit.minSpeed': 400, 'dodge.cost': 22 } },
     { label: 'Standard', values: { ...STD } },
-    { label: 'Brutal', values: { ...STD, 'stamina.regen': 22, 'attack.over.cost': 34, 'shield.perfect': 0.1, 'shield.hits': 3, 'open.dur': 0.6, 'swing.windup': 0.55, 'swing.gap': 1.3, 'hit.minSpeed': 600, 'dodge.cost': 40 } },
+    { label: 'Brutal', values: { ...STD, 'stamina.regen': 22, 'attack.over.cost': 34, 'shield.perfect': 0.1, 'shield.hits': 3, 'shield.drain': 12, 'open.dur': 0.6, 'swing.windup': 0.55, 'swing.gap': 1.3, 'counter.windup': 0.3, 'hit.minSpeed': 600, 'dodge.cost': 40 } },
   ],
   start: 'menu',
   scenes: { menu, play, over },
