@@ -1,6 +1,6 @@
 # Story plan for the library (draft, 2026-10-04, revised the same day)
 
-The designer asked for more explicit story across the games, starting with Recoil (`docs/games/recoil/prd-v0.7.md`, drafted). Nothing in this plan is built until the weekly usage resets and the designer locks each game's PRD.
+The designer asked for more explicit story across the games, starting with Recoil (`docs/games/recoil/prd-v0.7.md`, drafted). Started 2026-10-05 after the usage reset. PRDs: Recoil v0.7, Launch v0.5, Checkpoint v0.3, Ink v0.7, Gravity Golf v0.10 (holes) and v0.11 (story); art Packs 9 to 12 in `docs/art/BRIEF.md`.
 
 ## Each game's emotional drive (designer, 2026-10-04)
 
