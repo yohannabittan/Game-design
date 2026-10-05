@@ -11,6 +11,16 @@ Status: locked 2026-10-05 by the designer ("this is way better and sweeter"; the
 
 Shown once to every save on this version, veterans included, because the story is new; one tap skips it. Replayable from Story.
 
+### A2. The cold open is animated (designer, 2026-10-05: "instead of just showing the story as panels of text, can you animate them")
+
+Each card is a short canvas scene (about 3 to 4 s) built from the portraits plus a few simple drawn props, with squash-and-stretch tweens and the existing particles; the text fades in under the scene. A tap during a scene jumps to its end; the next tap advances; it also advances by itself a second after the scene ends; Skip ends the whole open. About 15 s in all.
+1. **The window.** A bakery shelf behind a drawn window frame, Mochi and Daifuku side by side. Mochi wiggles closer in three small squashy hops; on the last a heart pops between them.
+2. **The purchase.** A drawn child's hand reaches in, lifts Daifuku into a little pink box, and the box slides off to the right with a bounce; Mochi droops (squash down) and a single tear drop falls.
+3. **The road.** Mochi tries to hop down a road; each hop is tiny; a signpost "5 km →" sits far away and the road stretches as he hops; a sweat drop, then he stops, puffing.
+4. **The machine.** The Mochi Maker 3000 slides in from the left, puffs steam, its gauge needle swings to FLING; Mochi's face turns determined, he hops into the barrel, the barrel recoils with a burst of sparkles and the open hands over to the menu.
+
+The proposal (E) gets the same treatment: Mochi lands by the window with a big squash, the bubble ring sparkles as he holds it up, Daifuku's "Yes!" bursts hearts. Motion is cosmetic (no seeded randomness needed) and respects mute for any sound.
+
 ## B. Gifts for Daifuku
 
 - The first time ever a flight enters a place, Mochi picks up a gift, said by the in-flight banner:
