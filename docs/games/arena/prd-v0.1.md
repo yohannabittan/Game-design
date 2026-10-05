@@ -151,3 +151,8 @@ It is still a one-time feel prototype (Sonnet, smoke checks only). Keep proto 5 
   - **A hold** keeps you backed off out of reach while it is held, burning stamina steadily. Release to step back in.
   - The leftward swipe dodge is removed.
 - **Exhaustion.** At zero stamina your gladiator is **exhausted** for 1.5 s: there are no sword swings and the shield is slow to raise, and the stamina bar flashes. Stamina refills faster when you are not swinging, blocking or dodging.
+- **A real definition of gaps** (designer, 2026-10-05, added before the proto 6 build). There are three kinds of target, all drawn so the player can see which is which:
+  1. **Joint slots:** small unarmoured slits **between** pieces of armour that stay open even under a full set. These are the neck (between helmet and chest plate), the armpit, the waist (between chest and belly plates), the inside of the elbow and behind the knee. They are drawn as dark slits with a faint rim. They are small, but a jab or slash through one deals **high damage**. This is the precise, expert target.
+  2. **Bare parts:** whole body parts with no plate. Large targets, normal damage.
+  3. **Plates:** they protect. A hit recoils and dents, and three dents break the plate, as now. **Breaking plates is optional**: a strategy, never a requirement.
+- **Winning without breaking anything.** Each opponent has one health bar, shown above them. Hits on joint slots and bare parts take it down: joint slots for about 3 times a bare-part hit. Plates take no health. A clean, aimed fight that never cracks a plate fells the opponent fastest. Disabling individual parts still works as before (arm, legs, head).
