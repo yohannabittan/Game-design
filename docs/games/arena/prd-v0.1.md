@@ -112,3 +112,21 @@ From `playtests/2026-10-05-proto3.md` and the designer's notes. It is still a on
 - The tells, hearts, damage, disabling and felling stay as in proto 3.
 
 **The result card adds** overheads, jabs, slashes, blocks (perfect), dodges, stamina-outs and counters taken.
+
+## Proto 5 (designer, 2026-10-05, after proto 4): the sword leads, a three-button shield
+
+From `playtests/2026-10-05-proto4.md`. It is still a one-time feel prototype (Sonnet, smoke checks only). Keep everything in proto 4 except:
+
+- **Stance.** The body stays **upright** by default; **the sword leads**. The torso leans only during a fast slash whose target sits beyond the straight arm's reach, up to `lean.max` (12°), and returns at once. Otherwise the shoulder stays put.
+  - The hand can travel **low**: the arm's circle reaches the opponent's knees and shins without pulling back.
+  - The fighters stand close enough that a straight arm reaches the opponent's chest, belly, legs and near arm.
+- **Shield: three buttons** stacked on the left edge, inside the safe area: **High**, **Mid** and **Low**, each at least 56 px.
+  - A **tap raises the shield to that zone** for 0.6 s; a **hold keeps it up**, draining stamina slowly.
+  - A block in the matching zone works as in proto 4 (durability, a perfect block in the last 0.15 s, a riposte).
+  - A wrong-zone shield doesn't block.
+  - A **swipe back** (leftward) that starts anywhere on the left third stays the **dodge**.
+  - The buttons glow in the zone of the current tell, so first-timers learn the match.
+- **Softer counters.** A clang only triggers a counter after an **overhead** clang, or after **two clangs in a row**. The counter's tell is 0.45 s, and its zone glows like any tell.
+- **Jab tip radius** of 10 px, so a jab aimed at a visible gap lands.
+- **Portrait guard.** If the screen is taller than it is wide, show a "Turn your phone sideways" card instead of the fight.
+- **TUNE presets:** Forgiving (slow tells, long perfect window), Standard and Brutal.
