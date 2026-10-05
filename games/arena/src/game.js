@@ -1,9 +1,10 @@
+// Arena (proto 6): fighters apart, a lunge to reach deep targets, joint slots (3x), one health bar, a dodge button, exhaustion.
 // Arena (proto 5): two full-body gladiators, side view, landscape (ADR-0013), two thumbs.
 // RIGHT thumb: the sword arm. The body stays upright and the sword leads: straight on a near-full-length circle around the shoulder at the finger's angle,
 // elbow bent only when the finger draws back. The torso leans (12 degrees at most) only on a fast slash past the arm's reach. Overhead, jab (tip only) and
-// slash come out of the motion. Every attack costs stamina; armour and the foe's guard clang (recoil; a counter only after an overhead clang or two clangs in a row).
+// slash come out of the motion. Every attack costs stamina; armour and the foe's guard clang (recoil; a counter only after an overhead clang).
 // LEFT hand: three shield buttons (High, Mid, Low) on the left edge: tap = shield up for 0.6 s, hold = keep it up (slow stamina drain). Only the matching zone blocks.
-// A swipe back that starts anywhere else in the left third is the dodge.
+// A fourth button, Dodge: tap = quick sidestep, hold = stay backed off (burns stamina). No stamina = exhausted: no swings for 1.5 s, slow shield.
 // Layout: H = fighter body unit = screen height * fighter.height, feet on a floor line, one side each of the screen centre. Body units: x forward, y down, origin at the feet.
 // All particles are the game's own so a hit-stop freezes the burst, then lets it fly.
 
@@ -24,32 +25,32 @@ const TUNING = {
   arm: { len: 0.45, minFrac: 0.35, full: 0.97, chamberAt: 0.16, straightAt: 0.5 },  // arm in H; finger distance (H) at which the arm is chambered and at which it is straight
   blade: { len: 0.36, pad: 5, jabPad: 10, tip: 0.22 },   // gladius length in H, hit pad px, jab tip radius px, fraction of the blade that is the jab tip
   grip: { straight: -0.25, chamber: -0.6, tau: 0.045, trail: 0.018 },  // blade angle from the arm (radians, up is negative), smoothing, trail per rad/s of arm swing
-  fighter: { height: 0.68, floor: 0.88, sep: 0.33 },   // body unit as a fraction of screen height, feet line, half the gap between feet in H
+  fighter: { height: 0.72, floor: 0.92, gap: 0.2, body: 0.12 },   // body unit as a fraction of screen height, feet line, clear gap between the bodies (fraction of width), half body width in H
+  lunge: { start: 0.7, full: 1.0, stride: 0.3, cost: 10, tauIn: 0.06, tauOut: 0.14 },  // aim distance from the shoulder (H) where the lunge starts and is full; stride in H; extra stamina
   lean: { base: 0.03, max: 0.21, beyond: 0.6, span: 0.2, fast: 0.7, tau: 0.06, back: 0.05 },  // radians (max = 12 degrees); aim distance (H) past which a fast slash leans, over span; fast = fraction of hit.mid
-  dodge: { dur: 0.45, back: 0.32, hop: 0.12, cost: 30, cool: 1.2, stepIn: 0.3, stepDist: 45 },  // stepDist: px the left thumb must move forward and hold to step back in
-  hit: { minSpeed: 450, mid: 950, fast: 1800, cool: 0.2 },   // tip px/s: slash threshold, slash damage 2, glow
+  dodge: { dur: 0.35, back: 0.32, hop: 0.1, cost: 12, cool: 0.2, drain: 14 },  // dur: a tap's sidestep; a hold stays back and drains stamina per second
+  hit: { minSpeed: 400, mid: 950, fast: 1800, cool: 0.2 },   // tip px/s: slash threshold, slash damage 2, glow
   attack: {
     jab: { cost: 8, minSpeed: 520, dmg: 2, recoil: 0.18 },
     slash: { cost: 14, dmg: 1, fastDmg: 2, recoil: 0.5, dents: 1 },
-    over: { cost: 28, minSpeed: 750, dmg: 3, recoil: 0.7, dents: 2, raise: 0.2, window: 0.6 },  // raise: hand this far (H) above the shoulder; window: seconds it counts
+    over: { cost: 20, minSpeed: 750, dmg: 3, recoil: 0.7, dents: 2, raise: 0.2, window: 0.6 },  // raise: hand this far (H) above the shoulder; window: seconds it counts
   },
-  stamina: { max: 100, regen: 32, delay: 0.45, tired: 0.5 },  // tired: damage multiplier at zero
+  stamina: { max: 100, regen: 45, delay: 0.45, tired: 0.5, idleMul: 1.8, exhaust: 1.5 },  // tired: damage multiplier at zero; idleMul: regen when not swinging, blocking or dodging; exhaust: seconds with no swings at zero
   part: { hp: 3 },         // damage a gap part takes before it is disabled
   armour: { dents: 3, kick: 0.6 },
   stun: 1.2,               // seconds the foe is stunned when the head goes
   armSlow: 0.4,            // each disabled arm lengthens the wind-up by this fraction
   swing: {
-    windup: 0.7,           // seconds from the first tell to the blow
-    gap: 2.0,              // seconds between swings: gap to gap + gapSpread
+    windup: 0.95,          // seconds from the first tell to the blow
+    gap: 3.2,              // seconds between swings: gap to gap + gapSpread
     gapSpread: 1.5,
     lunge: 0.22,           // foe steps in this far (H) as the blow lands
   },
-  counter: { windup: 0.45, run: 2, runWindow: 3 },  // run: clangs in a row (within runWindow s) that bring a counter; an overhead clang always does
-  open: { dur: 0.8 },      // seconds the foe is open after each of his blows
-  shield: { dur: 0.6, perfect: 0.15, hits: 4, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2, drain: 6, btnW: 64, btnH: 58, gap: 8 },  // drain: stamina per second of hold
-  swipe: { minDist: 70, minSpeed: 600, span: 0.18 },
+  counter: { windup: 0.55 },  // only an overhead clang brings a counter
+  open: { dur: 1.1 },      // seconds the foe is open after each of his blows
+  shield: { dur: 0.6, perfect: 0.25, hits: 6, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2, drain: 3, slow: 0.45, btnW: 64, btnH: 56, gap: 6 },  // drain: stamina per second of hold
   juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, strawPerDmg: 14 },
-  foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, armourMin: 3, armourMax: 4 },
+  foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, armourMin: 2, armourMax: 3, hp: 14, slotMul: 3 },  // plates take no health; a joint slot hit deals slotMul times a bare hit
 };
 
 // Parts in body units. Arms hang from a joint (their own frame): d is relative to the joint.
@@ -60,6 +61,14 @@ const PARTS = [
   { id: 'armF',  shape: 'rect',   x: 0,    y: 0.15,  w: 0.09, h: 0.30, joint: [0.05, -0.67] },
   { id: 'armB',  shape: 'rect',   x: 0,    y: 0.15,  w: 0.085, h: 0.30, joint: [-0.04, -0.67] },
   { id: 'legs',  shape: 'rect',   x: 0,    y: -0.19, w: 0.22, h: 0.38 },
+];
+// Joint slots: always open, drawn as dark slits. 'frame' names the limb they ride on.
+const SLOTS = [
+  { id: 'slot-neck', label: 'NECK', shape: 'rect', x: 0.03, y: -0.70, w: 0.085, h: 0.05 },
+  { id: 'slot-armpit', label: 'ARMPIT', shape: 'rect', x: 0.115, y: -0.60, w: 0.045, h: 0.085 },
+  { id: 'slot-waist', label: 'WAIST', shape: 'rect', x: 0, y: -0.51, w: 0.21, h: 0.04 },
+  { id: 'slot-elbow', label: 'ELBOW', shape: 'rect', x: 0, y: 0.15, w: 0.085, h: 0.04, frame: 'armF' },
+  { id: 'slot-knee', label: 'KNEE', shape: 'rect', x: 0.075, y: -0.20, w: 0.045, h: 0.06 },
 ];
 const ARM_LEN = 0.30, CLUB_LEN = 0.40, SHOULDER = [0.05, -0.67];
 
@@ -81,19 +90,24 @@ const easeOut = (u) => 1 - (1 - u) * (1 - u);
 const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const ZERO = { ox: 0, oy: 0, rot: 0 };
 
-function makeParts(rng, noArmour) {
+function makeParts(rng, noArmour, slots) {
   const F = TUNING.foe;
-  const ids = PARTS.map((_, i) => i).filter((i) => !noArmour.includes(PARTS[i].id));
-  const order = rng.shuffle(ids);
+  const ids = PARTS.map((_, i) => i).filter((i) => !noArmour.includes(PARTS[i].id) && PARTS[i].id !== 'legs');  // the legs are always bare
   const n = rng.chance(0.5) ? F.armourMin : F.armourMax;
-  const armoured = new Set(order.slice(0, n));
-  return PARTS.map((d, i) => ({ d, armour: armoured.has(i), cut: false, hp: TUNING.part.hp, dents: 0, cracks: [], gashes: [], flash: 0, clang: 0, cool: 0 }));
+  const chest = PARTS.findIndex((q) => q.id === 'chest'), belly = PARTS.findIndex((q) => q.id === 'belly');
+  let armoured;
+  for (let k = 0; k < 30; k++) { armoured = new Set(rng.shuffle(ids).slice(0, n)); if (!(armoured.has(chest) && armoured.has(belly))) break; }
+  if (armoured.has(chest) && armoured.has(belly)) armoured.delete(belly);
+  const mk = (d, armour) => ({ d, armour, slot: false, cut: false, hp: TUNING.part.hp, dents: 0, cracks: [], gashes: [], flash: 0, clang: 0, cool: 0 });
+  const out = PARTS.map((d, i) => mk(d, armoured.has(i)));
+  if (slots) for (const d of SLOTS) { const q = mk(d, false); q.slot = true; out.push(q); }
+  return out;
 }
 
 function newRack(E) {
   const rng = makeRng(state.seed + state.rack * 7919);
   const f = state.foe;
-  f.parts = makeParts(rng, []);
+  f.parts = makeParts(rng, [], true); f.hp = TUNING.foe.hp; f.shown = f.hp;
   f.th = REST_TH; f.dx = 0; f.dy = 0; f.a = 0; f.fr = {};
   state.pop = 1; state.fallT = 0; state.sw = null; state.stun = 0; state.stagger = 0; state.kickA = 0; state.kickV = 0;
   state.swingIn = nextGap();
@@ -106,14 +120,14 @@ function nextGap() { const S = TUNING.swing; return S.gap + state.rng.range(0, S
 function newRound(E, seed) {
   Object.assign(state, {
     seed, rng: makeRng(seed ^ 0x9e3779b9), rack: 0, t: TUNING.roundTime, m: 0, stop: 0, kickA: 0, kickV: 0,
-    hearts: TUNING.hearts, endT: 0, dodgeT: 0, dodgeCool: 0, away: false, stepT: 0, hurt: 0, done: false,
-    stamina: TUNING.stamina.max, lastAtk: -9, riposte: 0, open: 0, clangRun: 0, lastClang: -9,
+    hearts: TUNING.hearts, endT: 0, dodgeT: 0, dodgeCool: 0, away: false, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, slotHits: 0, dg: { down: false, id: -1, t: 0 },
+    stamina: TUNING.stamina.max, lastAtk: -9, riposte: 0, open: 0, 
     gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
     fx: [], pops: [], streaks: [], trail: [],
-    you: { dx: 0, a: 0, kick: 0, kickV: 0, back: 0, hopX: 0, hopY: 0, parts: makeParts(makeRng(seed ^ 0x5bd1e995), ['armF']), fr: {} },
+    you: { dx: 0, lunge: 0, lungeK: 0, a: 0, kick: 0, kickV: 0, back: 0, hopX: 0, hopY: 0, parts: makeParts(makeRng(seed ^ 0x5bd1e995), ['armF'], false), fr: {} },
     foe: {},
     crowd: [],
-    sh: { down: false, id: -1, sx: 0, sy: 0, x: 0, y: 0, minX: 0, hist: [], t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, zy: -0.58 },
+    sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, zy: -0.58, arm: 0 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, e: 1, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, hist: [], raisedT: -9, atk: null },
   });
   const cr = makeRng(seed ^ 0x1234567);
@@ -124,10 +138,10 @@ function newRound(E, seed) {
 
 // ----- layout and frames -----
 function lay(E) {
-  const F = TUNING.fighter, H = E.h * F.height;
-  return { H, floor: E.h * F.floor, x0: E.w / 2 - H * F.sep, x1: E.w / 2 + H * F.sep };
+  const F = TUNING.fighter, H = E.h * F.height, half = (E.w * F.gap + 2 * F.body * H) / 2;
+  return { H, floor: E.h * F.floor, x0: E.w / 2 - half, x1: E.w / 2 + half };
 }
-function youF(E) { const L = lay(E), y = state.you; return { x: L.x0 + y.dx + y.hopX, y: L.floor + y.hopY, a: y.a, dir: 1, H: L.H }; }
+function youF(E) { const L = lay(E), y = state.you; return { x: L.x0 + y.dx + y.hopX + y.lunge, y: L.floor + y.hopY, a: y.a, dir: 1, H: L.H }; }
 function foeF(E) { const L = lay(E), f = state.foe; return { x: L.x1 + f.dx, y: L.floor + f.dy, a: f.a, dir: -1, H: L.H }; }
 function toScreen(F, lx, ly) {
   const c = Math.cos(F.a), s = Math.sin(F.a);
@@ -138,11 +152,11 @@ function toLocal(F, X, Y) {
   return [ax * c + ay * s, -ax * s + ay * c];
 }
 function partLocal(p, fm, lx, ly) {
-  const fr = fm.fr[p.d.id] || ZERO, dx = lx - fr.ox, dy = ly - fr.oy, c = Math.cos(fr.rot), s = Math.sin(fr.rot);
+  const fr = fm.fr[p.d.frame || p.d.id] || ZERO, dx = lx - fr.ox, dy = ly - fr.oy, c = Math.cos(fr.rot), s = Math.sin(fr.rot);
   return [dx * c + dy * s, -dx * s + dy * c];
 }
 function partCenter(F, fm, p) {
-  const fr = fm.fr[p.d.id] || ZERO, c = Math.cos(fr.rot), s = Math.sin(fr.rot), d = p.d;
+  const fr = fm.fr[p.d.frame || p.d.id] || ZERO, c = Math.cos(fr.rot), s = Math.sin(fr.rot), d = p.d;
   return toScreen(F, fr.ox + d.x * c - d.y * s, fr.oy + d.x * s + d.y * c);
 }
 function inside(d, lx, ly, pad) {
@@ -184,14 +198,32 @@ function poseFoe(E, dt) {
   };
 }
 
+function tiredPop(E) {
+  if (state.m - state.exMsg < 0.8) return;
+  state.exMsg = state.m;
+  const Fy = youF(E); pop(Fy.x, Fy.y - 1.0 * Fy.H, state.exhaust > 0 ? 'EXHAUSTED' : 'TOO TIRED', '#fca5a5', 16);
+}
+
 function guardUp() { return !state.sw && state.open <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0; }
 const guarded = (p) => guardUp() && state.guardZone.cover.includes(p.d.id);
 const covered = (p) => p.armour || guarded(p);
-const raised = () => !state.sh.broken && (state.sh.held || (state.sh.t >= 0 && state.sh.t < TUNING.shield.dur));
+const raised = () => !state.sh.broken && state.sh.arm <= 0 && state.you.lungeK < 0.15 && (state.sh.held || (state.sh.t >= 0 && state.sh.t < TUNING.shield.dur));
 const blocks = (zone) => raised() && state.sh.zone === zone;
 
 function poseYou(E, dt) {
   const L = lay(E), y = state.you, D = TUNING.dodge, h = state.hand, sh = state.sh;
+  const LU = TUNING.lunge;
+  // lunge: the aim point pushed past the reach steps the gladiator in, up to a stride; he steps back when the hand relaxes or recoils
+  let tk = 0;
+  if (h.down && h.lock <= 0 && !state.away && state.exhaust <= 0 && state.endT <= 0 && state.fallT <= 0) {
+    tk = clamp((Math.hypot(h.tgx - (h.sx - y.lunge), h.tgy - h.sy) / L.H - LU.start) / (LU.full - LU.start), 0, 1);
+    if (tk > 0.1 && !state.lunging) {
+      if (state.stamina >= LU.cost) { state.stamina -= LU.cost; state.lastAtk = state.m; state.lunging = true; state.lunges++; swooshSound(E, 0.1); }
+      else { tk = 0; tiredPop(E); }
+    } else if (tk < 0.05) state.lunging = false;
+  } else state.lunging = false;
+  y.lungeK += (tk - y.lungeK) * (1 - Math.exp(-dt / (tk > y.lungeK ? LU.tauIn : LU.tauOut)));
+  y.lunge = y.lungeK * LU.stride * L.H;
   const want = state.away ? 1 : 0;
   y.back += (want - y.back) * (1 - Math.exp(-dt / (want ? 0.05 : 0.14)));
   const u = state.dodgeT > 0 ? 1 - state.dodgeT / D.dur : 1;
@@ -294,7 +326,7 @@ function solveArm(E, dt) {
 }
 
 function moveHand(E, dt) {
-  const h = state.hand, HT = TUNING.hand, L = lay(E), tired = state.stamina <= 0;
+  const h = state.hand, HT = TUNING.hand, L = lay(E), tired = state.stamina <= 0 || state.exhaust > 0;
   h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy;
   if (h.lock > 0) {
     h.lock -= dt;
@@ -326,7 +358,7 @@ function moveHand(E, dt) {
 // An attack is born when the tip gets fast, and is named by how it moves: straight out from the shoulder (jab), down after the hand was above the head (overhead),
 // up (a free raise, no blow), or any other arc (slash). The cost is paid then.
 function updateAttack(E, dt) {
-  const h = state.hand, T = TUNING, AT = T.attack, S = T.stamina;
+  const h = state.hand, T = TUNING, AT = T.attack, S = T.stamina, sh = state.sh;
   const live = h.down && h.lock <= 0 && !state.away && state.endT <= 0 && state.fallT <= 0;
   if (h.atk && (!live || h.sp < T.hit.minSpeed * 0.55)) h.atk = null;
   if (!h.atk && live && h.sp >= T.hit.minSpeed) {
@@ -337,16 +369,25 @@ function updateAttack(E, dt) {
     else if (uy < -0.7) kind = 'raise';
     else kind = 'slash';
     if (kind === 'raise') h.atk = { kind, done: true };
+    else if (kind && state.exhaust > 0) tiredPop(E);
     else if (kind) {
       const tired = state.stamina <= 0, cost = AT[kind].cost;
       state.stamina = Math.max(0, state.stamina - cost);
-      if (state.stamina <= 0 && !tired) { state.staOuts++; pop(h.hx, h.hy - 30, 'OUT OF BREATH', '#fca5a5', 15); }
       state.lastAtk = state.m;
       h.atk = { kind, tired, done: false };
       if (kind === 'over') state.overheads++; else if (kind === 'jab') state.jabs++; else state.slashes++;
     }
   }
-  if (!h.atk && state.m - state.lastAtk > S.delay) state.stamina = Math.min(S.max, state.stamina + S.regen * dt);
+  // regen: only when not swinging, holding or dodging; faster when also not blocking
+  if (state.m - state.lastAtk > S.delay && !sh.held && !state.away) state.stamina = Math.min(S.max, state.stamina + S.regen * (raised() ? 1 : S.idleMul) * dt);
+}
+
+function checkExhaust(E, dt) {
+  state.exhaust = Math.max(0, state.exhaust - dt);
+  if (state.stamina <= 0 && state.exhaust <= 0) {
+    state.stamina = 0; state.exhaust = TUNING.stamina.exhaust; state.staOuts++; state.hand.atk = null;
+    const Fy = youF(E); pop(Fy.x, Fy.y - 1.0 * Fy.H, 'EXHAUSTED', '#fca5a5', 20); E.haptic(20);
+  }
 }
 
 function checkHits(E) {
@@ -372,9 +413,13 @@ function checkHits(E) {
   }
   if (!found.size) return;
   const ang = Math.atan2(h.vy, h.vx), sp = h.sp, arr = [...found];
-  const cov = arr.filter(([p]) => covered(p)), gaps = arr.filter(([p]) => !covered(p));
+  const slots = arr.filter(([p]) => p.slot), rest = arr.filter(([p]) => !p.slot);
+  const cov = rest.filter(([p]) => covered(p)), gaps = rest.filter(([p]) => !covered(p));
   let stop = 0;
-  if (jab) {
+  if (slots.length) {
+    stop = gapHit(E, slots[0][0], slots[0][1], ang, sp, 0, a);
+    if (!jab) gaps.forEach(([p, at], i) => { stop = Math.max(stop, gapHit(E, p, at, ang, sp, (i + 1) * 0.04, a)); });
+  } else if (jab) {
     if (gaps.length) stop = gapHit(E, gaps[0][0], gaps[0][1], ang, sp, 0, a);
     else stop = bounce(E, cov[0][0], cov[0][1], ang, sp, a);
   } else if (cov.length) stop = bounce(E, cov[0][0], cov[0][1], ang, sp, a);
@@ -406,41 +451,40 @@ function bounce(E, p, at, ang, sp, a) {
     E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 }); E.shake(8, 0.2); E.haptic(30);
     stop = J.stopBreak + 0.04;
   } else pop(at.x, at.y - 18, glance ? 'GLANCE' : !p.armour ? 'GUARDED' : p.dents >= A.dents - 1 ? 'DENT!' : 'CLANG', '#9aa4b2', glance ? 13 : 16);
-  if (!glance) {
-    const C = TUNING.counter;
-    state.clangRun = state.m - state.lastClang <= C.runWindow ? state.clangRun + 1 : 1; state.lastClang = state.m;
-    if (a.kind === 'over' || state.clangRun >= C.run) counter(E);
-  }
+  if (a.kind === 'over') counter(E);
   return stop;
 }
 
 function counter(E) {
   if (state.sw || state.fallT > 0 || state.stun > 0 || state.endT > 0 || state.stagger > 0) return;
-  startSwing(true); state.counters++; state.clangRun = 0;
+  startSwing(true); state.counters++;
   const Ff = foeF(E); pop(Ff.x, Ff.y - 1.0 * Ff.H, 'COUNTER!', '#ff8a7a', 20);
 }
 
 function gapHit(E, p, at, ang, sp, delay, a) {
-  const T = TUNING, J = T.juice, AT = T.attack, kind = a.kind;
+  const T = TUNING, J = T.juice, AT = T.attack, kind = a.kind, f = state.foe, slot = p.slot;
   let dmg = kind === 'jab' ? AT.jab.dmg : kind === 'over' ? AT.over.dmg : sp >= T.hit.mid ? AT.slash.fastDmg : AT.slash.dmg;
   if (a.tired) dmg = Math.max(1, Math.floor(dmg * T.stamina.tired));
   const rip = state.riposte > 0;
   if (rip) dmg *= T.shield.riposteMul;
-  p.hp -= dmg; p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; state.clangRun = 0;
+  const dealt = slot ? dmg * T.foe.slotMul : dmg;
+  p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; if (slot) state.slotHits++;
+  f.hp -= dealt;
   const gl = kind === 'jab' ? 0.03 : 0.06;
-  p.gashes.push([[at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl]]);
-  const big = dmg >= 3;
-  const n = Math.min(60, J.strawPerDmg * dmg);
-  straw(at.x, at.y, ang + Math.PI / 2, 2.6, 260 + dmg * 50, n >> 1);
-  straw(at.x, at.y, ang - Math.PI / 2, 2.6, 260 + dmg * 50, n >> 1);
-  dust(at.x, at.y, 3 + dmg * 3);
+  if (!slot) { p.hp -= dmg; p.gashes.push([[at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl]]); }
+  const big = dealt >= 3;
+  const n = Math.min(60, J.strawPerDmg * dealt);
+  straw(at.x, at.y, ang + Math.PI / 2, 2.6, 260 + dealt * 50, n >> 1);
+  straw(at.x, at.y, ang - Math.PI / 2, 2.6, 260 + dealt * 50, n >> 1);
+  dust(at.x, at.y, 3 + dealt * 3);
   sliceSound(E, delay, big);
-  pop(at.x, at.y - 20, rip ? `RIPOSTE x${dmg}` : kind === 'jab' ? 'STAB' : kind === 'over' ? 'SMASH!' : dmg >= 2 ? 'HARD' : 'HIT', rip ? '#ffd24a' : big ? '#ffb347' : '#fff0b8', 15 + dmg * 5);
-  state.kickV += T.foe.kick * (Math.cos(ang) > 0 ? -1 : 0.5) * (0.6 + dmg * 0.4);
-  E.shake(2 + dmg * 2.5, 0.1); E.haptic(10 + dmg * 8);
+  pop(at.x, at.y - 20, rip ? `RIPOSTE x${dealt}` : slot ? `${p.d.label}!` : kind === 'jab' ? 'STAB' : kind === 'over' ? 'SMASH!' : dealt >= 2 ? 'HARD' : 'HIT', rip ? '#ffd24a' : slot ? '#ff6a4a' : big ? '#ffb347' : '#fff0b8', Math.min(34, 15 + dealt * 4));
+  state.kickV += T.foe.kick * (Math.cos(ang) > 0 ? -1 : 0.5) * (0.6 + Math.min(dealt, 4) * 0.4);
+  E.shake(2 + Math.min(dealt, 5) * 2.5, 0.1); E.haptic(10 + Math.min(dealt, 5) * 8);
   if (big) E.flash('#fff0b8', 0.07);
-  let stop = dmg >= 3 ? J.stop3 : dmg === 2 ? J.stop2 : J.stop1;
-  if (p.hp <= 0) { disable(E, p, at, ang); stop += 0.04; }
+  let stop = dealt >= 3 ? J.stop3 : dealt === 2 ? J.stop2 : J.stop1;
+  if (!slot && p.hp <= 0) { disable(E, p, at, ang); stop += 0.04; }
+  if (f.hp <= 0) fell(E);
   return stop;
 }
 
@@ -453,11 +497,12 @@ function disable(E, p, at, ang) {
     state.stun = TUNING.stun; state.sw = null; state.swingIn = nextGap();
     pop(at.x, at.y - 70, 'STUNNED', '#a5b4fc', 20);
   }
-  const P = (k) => state.foe.parts.find((q) => q.d.id === k);
-  if (P('chest').cut && P('belly').cut && !state.fallT) {
-    state.felled++; state.fallT = 0.01; state.sw = null;
-    pop(E.w * 0.62, E.h * 0.3, 'FOE DOWN', '#ffd24a', 28); E.shake(10, 0.3); E.flash('#fff0b8', 0.1); E.audio.play('coin');
-  }
+}
+
+function fell(E) {
+  if (state.fallT > 0) return;
+  state.felled++; state.fallT = 0.01; state.sw = null;
+  pop(E.w * 0.62, E.h * 0.3, 'FOE DOWN', '#ffd24a', 28); E.shake(10, 0.3); E.flash('#fff0b8', 0.1); E.audio.play('coin');
 }
 
 
@@ -469,58 +514,54 @@ function startSwing(isCounter) {
   state.sw = { zone: ZONES[state.rng.int(0, ZONES.length - 1)], t: 0, wind, counter: !!isCounter, fin: 0, outcome: null };
 }
 
-// ----- the left hand: three shield buttons, and a quick swipe back that starts off the buttons dodges -----
-function shieldSwipe(E) {
-  const s = state.sh, S = TUNING.swipe;
-  if (!s.down || s.hist.length < 2) return;
-  const last = s.hist[s.hist.length - 1];
-  let first = s.hist[0];
-  for (const q of s.hist) if (last.t - q.t <= S.span) { first = q; break; }
-  const dx = last.x - first.x, dy = last.y - first.y, d = Math.hypot(dx, dy), dt = Math.max(0.03, last.t - first.t);
-  if (d < S.minDist || d / dt < S.minSpeed || Math.abs(dx) < Math.abs(dy) * 1.3) return;
-  s.hist.length = 0;
-  if (dx < 0) dodge(E);
-}
-
+// ----- the left hand: three shield buttons and a dodge button (tap = quick sidestep, hold = stay backed off) -----
 function shieldBtns(E) {
-  const S = TUNING.shield, w = S.btnW, h = S.btnH, tot = 3 * h + 2 * S.gap;
-  const y0 = Math.max(E.safe.top + 76, (E.h - tot) / 2 + 14), x = 10 + E.safe.left;
-  return ZONES.map((z, i) => ({ z, x, y: y0 + i * (h + S.gap), w, h }));
+  const S = TUNING.shield, w = S.btnW, h = S.btnH, tot = 4 * h + 3 * S.gap;
+  const y0 = Math.max(E.safe.top + 70, (E.h - tot) / 2 + 20), x = 10 + E.safe.left;
+  const out = ZONES.map((z, i) => ({ z, x, y: y0 + i * (h + S.gap), w, h }));
+  out.push({ z: null, dodge: true, x, y: y0 + 3 * (h + S.gap), w, h });
+  return out;
 }
 
 function raiseShield(E, zone, pid) {
   const s = state.sh, Fy = youF(E);
   if (s.broken) { pop(Fy.x, Fy.y - 1.0 * Fy.H, 'NO SHIELD', '#94a3b8', 14); return; }
-  if (state.away) return;
-  if (!raised()) {
+  if (state.away || state.you.lungeK >= 0.15) return;
+  if (!raised() && !(s.arm > 0)) {
     if (s.cool > 0) return;
-    s.t = 0; s.zone = zone; s.zy = zone.sy;
+    s.zone = zone; s.zy = zone.sy;
+    if (state.exhaust > 0) { s.arm = TUNING.shield.slow; s.t = -1; } else s.t = 0;
     E.audio.beep({ freq: 260, dur: 0.07, type: 'triangle', slide: 1.5, gain: 0.12 }); E.haptic(8);
   } else if (s.zone !== zone) { s.zone = zone; E.audio.beep({ freq: 330, dur: 0.05, type: 'triangle', gain: 0.08 }); }
   if (pid != null) { s.held = true; s.hid = pid; }
 }
 
-function dodge(E) {
+function dodge(E, pid) {
   const D = TUNING.dodge, Fy = youF(E), s = state.sh, h = state.hand;
   if (state.away || state.dodgeCool > 0) return;
-  if (state.stamina < D.cost) { pop(Fy.x, Fy.y - 1.0 * Fy.H, 'TOO TIRED', '#fca5a5', 16); return; }
+  if (state.stamina < D.cost) { tiredPop(E); return; }
   state.stamina -= D.cost; state.lastAtk = state.m;
-  state.dodges++; state.away = true; state.stepT = 0; state.dodgeT = D.dur; state.dodgeCool = D.cool; s.minX = s.x; h.atk = null;
+  state.dodges++; state.away = true; state.dodgeT = D.dur; h.atk = null;
+  state.dg.down = true; state.dg.id = pid; state.dg.t = 0;
+  s.held = false; s.hid = -1; s.t = -1; s.arm = 0;
   pop(Fy.x, Fy.y - 1.0 * Fy.H, 'DODGE', '#7de3ff', 26); swooshSound(E, 0.16); E.haptic(12);
   dust(Fy.x, Fy.y, 8);
 }
 
-// Out of reach until the left thumb is moved forward and held.
 function updateDefence(dt, E) {
-  const s = state.sh, D = TUNING.dodge, S = TUNING.shield;
+  const s = state.sh, D = TUNING.dodge, S = TUNING.shield, dg = state.dg;
   if (s.held) { state.stamina -= S.drain * dt; state.lastAtk = state.m; if (state.stamina <= 0) { state.stamina = 0; s.held = false; s.hid = -1; s.t = -1; s.cool = S.cool; } }
+  if (s.arm > 0) { s.arm -= dt; if (s.arm <= 0) s.t = 0; }
   if (s.t >= 0) { s.t += dt; if (s.t >= S.dur && !s.held) { s.t = -1; s.cool = S.cool; } }
   s.cool = Math.max(0, s.cool - dt); s.flash = Math.max(0, s.flash - dt);
   state.dodgeCool = Math.max(0, state.dodgeCool - dt);
-  if (state.away && state.dodgeT <= 0) {
-    const fwd = s.down && s.x - s.minX > D.stepDist;
-    state.stepT = fwd ? state.stepT + dt : Math.max(0, state.stepT - dt * 2);
-    if (state.stepT >= D.stepIn) { state.away = false; state.stepT = 0; const Fy = youF(E); pop(Fy.x + 20, Fy.y - 1.0 * Fy.H, 'IN', '#7de3ff', 18); dust(Fy.x, Fy.y, 5); }
+  if (dg.down) {
+    dg.t += dt;
+    if (dg.t > D.dur) { state.stamina -= D.drain * dt; state.lastAtk = state.m; if (state.stamina <= 0) { state.stamina = 0; dg.down = false; dg.id = -1; } }
+  }
+  if (state.away && !dg.down && state.dodgeT <= 0) {
+    state.away = false; state.dodgeCool = D.cool;
+    const Fy = youF(E); pop(Fy.x + 20, Fy.y - 1.0 * Fy.H, 'IN', '#7de3ff', 18); dust(Fy.x, Fy.y, 5);
   }
 }
 
@@ -635,6 +676,25 @@ function drawPart(ctx, p, H, st, fr) {
   ctx.restore();
 }
 
+// A joint slot: a dark slit with a faint rim, riding on its limb.
+function drawSlot(ctx, p, H, fm) {
+  const d = p.d, fr = d.frame ? fm.fr[d.frame] : null;
+  ctx.save();
+  if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); }
+  path(ctx, d, H);
+  ctx.fillStyle = '#0b0705'; ctx.fill();
+  ctx.strokeStyle = p.flash > 0 ? '#fff0b8' : 'rgba(255,214,150,0.55)'; ctx.lineWidth = p.flash > 0 ? 3 : 1.5; ctx.stroke();
+  ctx.restore();
+}
+
+function foeHealth(ctx, E) {
+  const F = foeF(E), f = state.foe, w = 0.46 * F.H, h = 10, x = F.x - w / 2, y = Math.max(E.safe.top + 8, lay(E).floor - 1.16 * F.H);
+  const k = clamp(f.hp / TUNING.foe.hp, 0, 1), ks = clamp(f.shown / TUNING.foe.hp, 0, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+  ctx.fillStyle = '#f2d88a'; ctx.fillRect(x, y, w * ks, h);
+  ctx.fillStyle = k < 0.3 ? '#ef4444' : '#d9483a'; ctx.fillRect(x, y, w * k, h);
+}
+
 function limb(ctx, pts, w, col) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = w + 3; ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
@@ -701,6 +761,7 @@ function drawFighter(ctx, E, F, fm, st, who) {
     ctx.fillStyle = '#4a3320';
     for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc((i - 1) * 0.02 * H, (ARM_LEN + CLUB_LEN - 0.04 - (i % 2) * 0.05) * H, 2.2, 0, 6.28); ctx.fill(); }
     ctx.restore();
+    for (const q of fm.parts) if (q.slot) drawSlot(ctx, q, H, fm);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -771,13 +832,20 @@ function drawShield(ctx, E) {
   ctx.restore();
 }
 
-// The three shield buttons. The one matching the foe's tell glows; the raised one is lit; a held one shows its drain.
+// The shield buttons and the dodge button. The shield button matching the foe's tell glows; the raised one is lit; Dodge lights while you are backed off.
 function drawShieldBtns(ctx, E) {
   const sh = state.sh, sw = state.sw, tell = sw && sw.fin <= 0 ? sw.zone : null;
   const pulse = 0.5 + 0.5 * Math.sin(state.m * 14);
   for (const b of shieldBtns(E)) {
+    if (b.dodge) {
+      const on = state.away, cd = state.dodgeCool > 0 && !on;
+      E.roundRect(b.x, b.y, b.w, b.h, 12, on ? 'rgba(125,227,255,0.8)' : cd ? 'rgba(20,16,26,0.3)' : 'rgba(20,40,52,0.6)', on ? '#d7f6ff' : 'rgba(125,227,255,0.6)');
+      E.text('DODGE', b.x + b.w / 2, b.y + b.h / 2 - (state.dg.down ? 6 : 0), { size: 13, weight: '800', color: on ? '#0b2530' : '#bff0ff' });
+      if (state.dg.down) E.text('hold', b.x + b.w / 2, b.y + b.h / 2 + 10, { size: 10, color: '#0b2530' });
+      continue;
+    }
     const on = raised() && sh.zone === b.z, hot = tell === b.z, perfect = hot && sw.wind - sw.t <= TUNING.shield.perfect;
-    const fill = on ? 'rgba(214,162,74,0.85)' : hot ? `rgba(255,${perfect ? 220 : 120},60,${0.45 + 0.4 * pulse})` : 'rgba(20,16,26,0.55)';
+    const fill = on ? 'rgba(214,162,74,0.85)' : hot ? `rgba(255,${perfect ? 220 : 120},60,${0.45 + 0.4 * pulse})` : sh.arm > 0 && sh.zone === b.z ? 'rgba(214,162,74,0.35)' : 'rgba(20,16,26,0.55)';
     E.roundRect(b.x, b.y, b.w, b.h, 12, sh.broken ? 'rgba(40,40,46,0.6)' : fill, hot ? '#ffd24a' : on ? '#fff0b8' : 'rgba(240,230,204,0.45)');
     if (hot) { ctx.save(); ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 18; E.roundRect(b.x, b.y, b.w, b.h, 12, null, '#ffb347'); ctx.restore(); }
     E.text(b.z.label, b.x + b.w / 2, b.y + b.h / 2, { size: 15, weight: '800', color: on ? '#2a1c10' : '#f0e6cc' });
@@ -819,6 +887,11 @@ function drawZone(ctx, E) {
   const g = ctx.createLinearGradient(0, y - bh, 0, y + bh);
   g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`);
   ctx.fillStyle = g; ctx.fillRect(x0, y - bh, w, bh * 2);
+  if (sw.counter) {
+    const [gx, gy] = toScreen(Ff, 0.2, sw.zone.y);
+    ctx.save(); ctx.shadowColor = '#ff5a3a'; ctx.shadowBlur = 30 + 20 * pulse;
+    ctx.strokeStyle = `rgba(255,120,80,${0.6 + 0.4 * pulse})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(gx, gy, 0.16 * L.H, 0, 6.28); ctx.stroke(); ctx.restore();
+  }
   ctx.strokeStyle = `rgba(${rgb},${0.5 + 0.4 * pulse})`; ctx.lineWidth = 3; ctx.setLineDash([14, 10]);
   ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x0, y); ctx.stroke(); ctx.setLineDash([]);
   const ar = `rgba(${rgb},${0.55 + 0.4 * pulse})`;
@@ -867,8 +940,8 @@ const menu = {
   render(ctx, E) {
     if (portrait(E)) { this.btnPlay = this.btnMute = null; rotateCard(ctx, E); return; }
     E.text('ARENA', E.w / 2, E.h * 0.22, { size: 44, weight: '800', color: '#e6c866' });
-    E.text('Right thumb: sword. Draw back, then jab out; slash; raise the hand and bring it down.', E.w / 2, E.h * 0.22 + 40, { size: 14, color: '#9aa4b2' });
-    E.text('Left thumb: tap High, Mid or Low to raise the shield (hold to keep it up); swipe left to dodge.', E.w / 2, E.h * 0.22 + 62, { size: 14, color: '#9aa4b2' });
+    E.text('Right thumb: sword. Jab out, slash, overhead. Aim for the dark slits. Push past your reach to lunge.', E.w / 2, E.h * 0.22 + 40, { size: 14, color: '#9aa4b2' });
+    E.text('Left thumb: High, Mid, Low = shield (hold to keep it up); Dodge = tap to sidestep, hold to stay back.', E.w / 2, E.h * 0.22 + 62, { size: 14, color: '#9aa4b2' });
     E.text(`Best: ${E.save.get('best2', 0)} gap hits`, E.w / 2, E.h * 0.22 + 92, { size: 17, color: '#fbbf24' });
     this.btnPlay = E.button('Play', E.w / 2, E.h * 0.62);
     this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, E.h * 0.62 + 66, { fill: '#1f2937', w: 160, h: 44, size: 16 });
@@ -915,6 +988,8 @@ const play = {
     checkHits(E);
     updateSwing(dt, E);
     updateDefence(dt, E);
+    checkExhaust(E, dt);
+    state.foe.shown += (Math.max(0, state.foe.hp) - state.foe.shown) * (1 - Math.exp(-dt / 0.25));
     poseFoe(E, 0);
 
     if (state.fallT > 0) {
@@ -939,19 +1014,17 @@ const play = {
     if (state.done) return; state.done = true;
     const best = E.save.get('best2', 0), isNew = state.gapHits > best;
     if (isNew) E.save.set('best2', state.gapHits);
-    const r = { gapHits: state.gapHits, clangs: state.clangs, broken: state.broken, overheads: state.overheads, jabs: state.jabs, slashes: state.slashes, blocks: state.blocks, perfects: state.perfects, dodges: state.dodges, staOuts: state.staOuts, counters: state.counters, counterHits: state.counterHits, taken: state.taken, felled: state.felled };
+    const r = { gapHits: state.gapHits, slotHits: state.slotHits, lunges: state.lunges, clangs: state.clangs, broken: state.broken, overheads: state.overheads, jabs: state.jabs, slashes: state.slashes, blocks: state.blocks, perfects: state.perfects, dodges: state.dodges, staOuts: state.staOuts, counters: state.counters, counterHits: state.counterHits, taken: state.taken, felled: state.felled };
     E.ledger.add('result', { ...r, hearts: state.hearts, left: Math.round(state.t) });
     E.setScene('over', { ...r, hearts: state.hearts, best: Math.max(best, state.gapHits), isNew });
   },
-  // two thumbs: a touch that starts in the left third is the shield thumb, any other is the sword thumb
+  // two thumbs: a touch that starts in the left third is the shield and dodge thumb (buttons only), any other is the sword thumb
   onPointerDown(p, E) {
     if (state.endT > 0 || portrait(E)) return;
     if (p.startX < E.w / 3) {
-      const s = state.sh;
       const b = shieldBtns(E).find((q) => p.x >= q.x - 6 && p.x <= q.x + q.w + 6 && p.y >= q.y - 4 && p.y <= q.y + q.h + 4);
-      if (b) { raiseShield(E, b.z, p.id); return; }
-      if (s.down) return;
-      s.down = true; s.id = p.id; s.sx = s.x = s.minX = p.x; s.sy = s.y = p.y; s.hist = [{ x: p.x, y: p.y, t: now() }];
+      if (b && b.dodge) dodge(E, p.id);
+      else if (b) raiseShield(E, b.z, p.id);
       return;
     }
     const h = state.hand;
@@ -963,20 +1036,13 @@ const play = {
     }
   },
   onPointerMove(p, E) {
-    const s = state.sh, h = state.hand, t = now();
-    if (s.down && s.id === p.id) {
-      s.x = p.x; s.y = p.y; s.minX = Math.min(s.minX, p.x);
-      s.hist.push({ x: p.x, y: p.y, t });
-      while (s.hist.length > 2 && t - s.hist[0].t > 0.35) s.hist.shift();
-      shieldSwipe(E);
-    } else if (h.down && h.id === p.id) {
-      h.fx = p.x; h.fy = p.y;
-    }
+    const h = state.hand;
+    if (h.down && h.id === p.id) { h.fx = p.x; h.fy = p.y; }
   },
   onPointerUp(p) {
-    const s = state.sh, h = state.hand;
-    if (s.hid === p.id) { s.held = false; s.hid = -1; }
-    else if (s.down && s.id === p.id) { s.down = false; s.hist = []; }
+    const s = state.sh, h = state.hand, dg = state.dg;
+    if (dg.down && dg.id === p.id) { dg.down = false; dg.id = -1; }
+    else if (s.hid === p.id) { s.held = false; s.hid = -1; }
     else if (h.down && h.id === p.id) { h.down = false; h.hist = []; h.sp = 0; h.atk = null; }
   },
   render(ctx, E) {
@@ -986,6 +1052,7 @@ const play = {
     drawFighter(ctx, E, youF(E), state.you, YOU, 'you');
     drawFighter(ctx, E, foeF(E), state.foe, FOE, 'foe');
     drawGuard(ctx, E);
+    foeHealth(ctx, E);
     drawZone(ctx, E);
     drawShield(ctx, E);
     drawSwordArm(ctx, E);
@@ -1042,18 +1109,20 @@ const play = {
     for (let i = 0; i < TUNING.hearts; i++) E.text('\u2665', E.w - r - 10 - i * 26, top + 14, { size: 26, color: i < state.hearts ? '#ef4444' : '#3b3f46' });
     const bw = 110, bx = E.w - r - bw, sf = state.stamina / TS.max;
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(bx - 1, top + 29, bw + 2, 11);
-    ctx.fillStyle = state.stamina <= 0 ? '#ef4444' : sf < 0.25 ? '#f59e0b' : '#4ade80'; ctx.fillRect(bx, top + 30, bw * sf, 9);
-    E.text('stamina', bx - 6, top + 36, { size: 10, align: 'right', color: '#c4b99a' });
+    const flashOn = state.exhaust > 0 && Math.floor(state.m * 8) % 2 === 0;
+    if (state.exhaust > 0) { ctx.fillStyle = flashOn ? '#ffffff' : '#ef4444'; ctx.fillRect(bx, top + 30, bw * clamp(1 - state.exhaust / TS.exhaust, 0.05, 1), 9); }
+    else { ctx.fillStyle = sf < 0.25 ? '#f59e0b' : '#4ade80'; ctx.fillRect(bx, top + 30, bw * sf, 9); }
+    E.text(state.exhaust > 0 ? 'EXHAUSTED' : 'stamina', bx - 6, top + 36, { size: 10, align: 'right', color: state.exhaust > 0 ? '#fca5a5' : '#c4b99a', weight: state.exhaust > 0 ? '800' : '400' });
     for (let i = 0; i < SHD.hits; i++) {
       ctx.fillStyle = state.sh.broken ? '#3b3f46' : i < state.sh.hits ? '#d6a24a' : '#3b3f46';
       ctx.fillRect(bx + i * (bw / SHD.hits), top + 60, bw / SHD.hits - 4, 7);
     }
     E.text(state.sh.broken ? 'shield broken' : 'shield', bx - 6, top + 66, { size: 10, align: 'right', color: state.sh.broken ? '#ef4444' : '#c4b99a' });
-    if (state.dodgeCool > 0 || state.away) E.text(state.away ? 'hold left thumb forward to step in' : 'dodge', bx + bw, top + 80, { size: 10, align: 'right', color: '#7de3ff' });
+    if (state.away) E.text(state.dg.down && state.dg.t > TUNING.dodge.dur ? 'backed off (burning stamina)' : 'dodge', bx + bw, top + 80, { size: 10, align: 'right', color: '#7de3ff' });
     if (state.riposte > 0) E.text('RIPOSTE x2', E.w / 2, top + 62, { size: 16, weight: '800', color: '#ffd24a' });
     ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(0, top + 50, E.w * 0.3, 3);
     ctx.fillStyle = '#e6c866'; ctx.fillRect(0, top + 50, E.w * 0.3 * clamp(state.t / TUNING.roundTime, 0, 1), 3);
-    if (state.t > TUNING.roundTime - 8) E.text('left: tap High / Mid / Low = shield (hold to keep), swipe left = dodge  |  right thumb: sword', E.w / 2, E.h - 8 - E.safe.bottom, { size: 12, color: '#f0e6cc', alpha: clamp((state.t - (TUNING.roundTime - 8)) / 1.5 + 0.2, 0, 1) });
+    if (state.t > TUNING.roundTime - 8) E.text('left: High / Mid / Low = shield (hold to keep), Dodge = tap or hold  |  right thumb: sword, push past your reach to lunge', E.w / 2, E.h - 8 - E.safe.bottom, { size: 12, color: '#f0e6cc', alpha: clamp((state.t - (TUNING.roundTime - 8)) / 1.5 + 0.2, 0, 1) });
   },
   onPause() {},
 };
@@ -1070,7 +1139,7 @@ const over = {
     E.text(`${Math.round(p.gapHits * this.k)}`, lx, y + 68, { size: 68, weight: '800', color: '#ffd24a' });
     E.text('gap hits', lx, y + 112, { size: 15, color: '#9aa4b2' });
     E.text(p.isNew ? 'New best!' : `Best ${p.best}`, lx, y + 138, { size: 18, color: '#fbbf24' });
-    const lines = [`${p.overheads} overheads | ${p.jabs} jabs | ${p.slashes} slashes`, `${p.clangs} clangs | ${p.broken} plates broken`, `${p.blocks} blocks (${p.perfects} perfect) | ${p.dodges} dodges`, `${p.staOuts} stamina-outs | ${p.counters} counters (${p.counterHits} hit)`, `${p.taken} hits taken | ${p.felled} foes felled`];
+    const lines = [`${p.overheads} overheads | ${p.jabs} jabs | ${p.slashes} slashes`, `${p.slotHits} joint hits | ${p.lunges} lunges | ${p.clangs} clangs | ${p.broken} plates`, `${p.blocks} blocks (${p.perfects} perfect) | ${p.dodges} dodges`, `${p.staOuts} stamina-outs | ${p.counters} counters (${p.counterHits} hit)`, `${p.taken} hits taken | ${p.felled} foes felled`];
     lines.forEach((s, i) => E.text(s, rx, y - 12 + i * 23, { size: 14, color: '#cbd5e1' }));
     this.btnAgain = E.button('Again', rx - 72, E.h * 0.74, { w: 130, h: 52, size: 20 });
     this.btnMenu = E.button('Menu', rx + 72, E.h * 0.74, { w: 130, h: 52, size: 20, fill: '#334155' });
@@ -1081,7 +1150,7 @@ const over = {
   },
 };
 
-const STD = { offset: 50, 'hand.lag': 0.035, 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 'shield.perfect': 0.15, 'shield.hits': 4, 'shield.drain': 6, 'open.dur': 0.8, 'swing.windup': 0.7, 'swing.gap': 2.0, 'counter.windup': 0.45, 'dodge.cost': 30 };
+const STD = { offset: 50, 'hand.lag': 0.035, 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 'shield.perfect': 0.15, 'shield.hits': 4, 'shield.drain': 6, 'open.dur': 0.8, 'swing.windup': 0.7, 'swing.gap': 2.0, 'counter.windup': 0.55, 'dodge.cost': 18 };
 
 export const game = {
   slug: 'arena',
@@ -1105,9 +1174,9 @@ export const game = {
     { key: 'dodge.cost', label: 'Dodge cost', min: 5, max: 70, step: 1 },
   ],
   presets: [
-    { label: 'Forgiving', values: { ...STD, 'stamina.regen': 45, 'attack.over.cost': 20, 'shield.perfect': 0.25, 'shield.hits': 6, 'shield.drain': 3, 'open.dur': 1.1, 'swing.windup': 0.95, 'swing.gap': 3.2, 'counter.windup': 0.65, 'hit.minSpeed': 400, 'dodge.cost': 22 } },
+    { label: 'Forgiving', values: { ...STD, 'stamina.regen': 45, 'attack.over.cost': 20, 'shield.perfect': 0.25, 'shield.hits': 6, 'shield.drain': 3, 'open.dur': 1.1, 'swing.windup': 0.95, 'swing.gap': 3.2, 'counter.windup': 0.55, 'hit.minSpeed': 400, 'dodge.cost': 12 } },
     { label: 'Standard', values: { ...STD } },
-    { label: 'Brutal', values: { ...STD, 'stamina.regen': 22, 'attack.over.cost': 34, 'shield.perfect': 0.1, 'shield.hits': 3, 'shield.drain': 12, 'open.dur': 0.6, 'swing.windup': 0.55, 'swing.gap': 1.3, 'counter.windup': 0.3, 'hit.minSpeed': 600, 'dodge.cost': 40 } },
+    { label: 'Brutal', values: { ...STD, 'stamina.regen': 22, 'attack.over.cost': 34, 'shield.perfect': 0.1, 'shield.hits': 3, 'shield.drain': 12, 'open.dur': 0.6, 'swing.windup': 0.55, 'swing.gap': 1.3, 'counter.windup': 0.35, 'hit.minSpeed': 600, 'dodge.cost': 28 } },
   ],
   start: 'menu',
   scenes: { menu, play, over },
