@@ -305,9 +305,11 @@ const TUNING = {
     combo: { pop: 0.35, ring: 16, shake: 2.5, shakeTime: 0.1, dial: 0.4, freq: 523, semis: 2, maxSteps: 12, size: 2, sizeMax: 8, life: 1.1 },
     haptic: { combo: 14, launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, lock: 10, chute: 6, drop: 8, home: [30, 60, 30, 60, 60] },
   },
-  // The story (PRD v0.5): every card is one tap and skippable. tapGap is the seconds before a card takes a tap (so a stray
-  // double tap cannot skip it); arrivalTime the seconds an arrival line shows; portrait the largest result-card portrait in px.
-  story: { skipW: 96, skipH: 44, tapGap: 0.25, reunionGap: 0.45, arrivalTime: 2.4, portrait: 84, hearts: 9, artH: 190 },
+  // The story (PRD v0.6): animated cards, every one skippable. tapGap is the seconds before a card takes a tap (so a stray double
+  // tap cannot skip it); autoGap the seconds a card waits after its scene before going on; dur and proposalDur each scene's length;
+  // version the story version `openSeen` records; arrivalTime the seconds a gift line shows; portrait the largest result-card
+  // portrait in px; windowChance: Daifuku's window inset shows one new best in this many.
+  story: { skipW: 96, skipH: 44, tapGap: 0.25, autoGap: 1, dur: [2.8, 3.2, 3.2, 3.6], proposalDur: [2.6, 3, 2.6, 3], version: 2, arrivalTime: 2.4, portrait: 84, windowChance: 3 },
 };
 const T = TUNING;
 const STEP = T.physicsStep;
@@ -316,7 +318,7 @@ const DEG = Math.PI / 180;
 // ---------- Places (PRD v0.2 E) ----------
 // The mochi flies from the bakery counter home to the daifuku; each milestone opens a place with its own sky by day, rolling
 // hills (two sines each: frequencies f, weights w, amplitude amp and base in design px, a seed), ground (top strip and soil)
-// and backdrop motif. Places start at 0 and at each TUNING.milestones distance; Home flies on the tier 3 field.
+// and backdrop motif. Places start at 0 and at each TUNING.milestones distance; Tea Party (called Home before v0.6) flies on the tier 3 field.
 // Style sentences: docs/games/launch/style.md.
 const PLACES = [
   { name: 'The Bakery', sky: ['#fff1dc', '#f5c1c6'], top: '#7fae6a', soil: '#5f8a58', motif: 'bakery',
@@ -329,7 +331,7 @@ const PLACES = [
     hills: { far: '#d3dbf3', near: '#bcc8ec', f: [0.008, 0.019], w: [0.45, 0.45], amp: [58, 36], base: [64, 40], seed: [3.3, 5.0] } },
   { name: 'Gingerbread Town', sky: ['#fbf1d8', '#e8c3cb'], top: '#bf9a78', soil: '#937260', motif: 'houses',
     hills: { far: '#ead3be', near: '#dcbda2', f: [0.0035, 0.008], w: [0.4, 0.3], amp: [34, 24], base: [74, 42], seed: [4.6, 1.7] } },
-  { name: 'Home', sky: ['#fff1f2', '#f4bfd3'], top: '#86b86f', soil: '#5c8a58', motif: 'strawberries',
+  { name: 'Tea Party', sky: ['#fff1f2', '#f4bfd3'], top: '#86b86f', soil: '#5c8a58', motif: 'strawberries',
     hills: { far: '#f4c8d6', near: '#cfe6bf', f: [0.007, 0.016], w: [0.5, 0.35], amp: [44, 32], base: [66, 38], seed: [5.9, 3.4] } },
 ];
 const placeFrom = (i) => (i ? T.milestones[i - 1] : 0) * T.unitsPerMetre; // units
@@ -898,6 +900,9 @@ const goalLine = (g, have) => (g.count && have !== undefined ? `${g.text}  ${Mat
 //       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight (the machine's streak), birdTaught,
 //       mudTaught, home: the mochi has met the daifuku, actionsTaught: the three-action hint has shown,
 //       openSeen: the cold open has shown, placesSeen: the highest place index whose arrival line has shown (0 to 4) }
+// v10 (PRD v0.6): openSeen is the story version shown (a number, 2 now; v9's true reads as 1), placesSeen is also the gifts found
+//       (the first Mochi picks up on entering each of the four places), and proposed: the proposal has shown. `home` stays the
+//       flag for reaching Tea Party (the place called Home before v0.6).
 
 function finishFlight(E, r) {
   const m = metres(r), best = E.save.get('best', 0);
@@ -1214,7 +1219,7 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   if (X(hx + 200) > 0 && X(hx - 200) < E.w) {
     shopfront(ctx, X(hx + 60), gy, 90 * z * s, s * z, lw, true);
     const hop = S.homeT > 0 ? Math.abs(Math.sin((J.homeTime - S.homeT) * 9)) * 10 * s * sprite : 0;
-    drawDaifuku(ctx, X(hx), gy - T.critterR * s * sprite - hop, T.critterR * s * sprite, E.time, lw);
+    if (!E.save.get('proposed', false)) drawDaifuku(ctx, X(hx), gy - T.critterR * s * sprite - hop, T.critterR * s * sprite, E.time, lw); // after the proposal she is with him
   }
 
   // The ground band, each place in its own colours from its line: a top strip, soil, distance ticks and labels.
@@ -2082,7 +2087,7 @@ function drawHud(E, r, fuel, fuelMax, info) {
   if (S.banner) {
     const k = S.banner.t / J.bannerTime, inK = ease.outBack(clamp((1 - k) / 0.2, 0, 1)), a = clamp(k / 0.15, 0, 1);
     E.ctx.globalAlpha = a;
-    pill(E, S.banner.text, E.w / 2, sf.top + 80 + 28 * inK, TY.lg, 'center', S.banner.color || P.coin);
+    pill(E, S.banner.text, E.w / 2, sf.top + 88 + 28 * inK, TY.lg, 'center', S.banner.color || P.coin);
     E.ctx.globalAlpha = 1;
   }
   if (S.actT > 0) { // the three actions, once, from the top of the first arc
@@ -2099,22 +2104,22 @@ const btn = (E, label, cx, cy, o = {}) => E.button(label, cx, cy, { fill: P.butt
 
 // The journey strip (PRD v0.2 E): the bakery at the left, the five places as a road in their own ground colours with a small
 // picture each, the daifuku and a heart at the right; places reached are bright, the rest ghosted (state drawn, not
-// written); the best distance is a small mochi on the road, and once Home is reached the two sit together. No text.
+// written); the best distance is a small mochi on the road, and once the proposal has shown (`ride`) a small daifuku rides beside him. No text.
 // The strip only changes with its width, the best, Home and the gear, so it is drawn once into a sprite and reused (the menu
 // redraws every frame, and a few dozen small shapes a frame cost more than one image on a slow phone).
 let JOURNEY = null;
-function journeyStrip(E, x0, x1, y, best, home, up) {
-  const h = 46, w = x1 - x0, key = JSON.stringify([w, best, home, up, E.dpr]);
-  if (typeof OffscreenCanvas === 'undefined') { drawJourney(E.ctx, x0, x1, y, best, home, up); return; }
+function journeyStrip(E, x0, x1, y, best, ride, up) {
+  const h = 46, w = x1 - x0, key = JSON.stringify([w, best, ride, up, E.dpr]);
+  if (typeof OffscreenCanvas === 'undefined') { drawJourney(E.ctx, x0, x1, y, best, ride, up); return; }
   if (!JOURNEY || JOURNEY.key !== key) {
     const cv = new OffscreenCanvas(Math.ceil(w * E.dpr), Math.ceil((h + 4) * E.dpr)), c = cv.getContext('2d');
     c.scale(E.dpr, E.dpr); c.translate(-x0, -(y - h / 2 - 2));
-    drawJourney(c, x0, x1, y, best, home, up);
+    drawJourney(c, x0, x1, y, best, ride, up);
     JOURNEY = { key, cv };
   }
   E.ctx.drawImage(JOURNEY.cv, x0, y - h / 2 - 2, w, h + 4);
 }
-function drawJourney(ctx, x0, x1, y, best, home, up) {
+function drawJourney(ctx, x0, x1, y, best, ride, up) {
   const lw = 2, h = 46, n = PLACES.length - 1, time = 0;
   roundRectPath(ctx, x0, y - h / 2, x1 - x0, h, T.style.radius); ctx.fillStyle = P.panel; ctx.fill();
   const rx0 = x0 + 46, rx1 = x1 - 46, seg = (rx1 - rx0) / n, ry = y + 12;
@@ -2130,14 +2135,14 @@ function drawJourney(ctx, x0, x1, y, best, home, up) {
   ctx.globalAlpha = 1; ctx.lineCap = 'butt';
   drawBakery(ctx, x0 + 10, ry + 4, 26, 0.3, 1.4);
   const dx = x1 - 22, r = 9;
-  if (home) { // together at the end of the road, a heart over them
-    drawDaifuku(ctx, dx + 6, ry - r + 2, r, time, 1.6, false);
-    drawMochi(ctx, dx - 14, ry - r + 2, r, 0, 1, 1, 1.6, up, time);
-    ctx.fillStyle = P.heart; heartPath(ctx, dx - 4, y - 14, 6); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = P.heart; heartPath(ctx, dx, y - 14, 5); ctx.fill();
+  const mx = Math.min(posOf(best), rx1);
+  if (ride) { // after the proposal she rides along, small, beside him
+    drawDaifuku(ctx, mx + r * 1.9, ry - r * 0.7 + 2, r * 0.72, time, 1.4, false);
+    drawMochi(ctx, mx, ry - r - 1, r, 0, 1, 1, 1.6, up, time);
   } else {
     ctx.globalAlpha = 0.6; drawDaifuku(ctx, dx, ry - r + 2, r, time, 1.6, false); ctx.globalAlpha = 1;
-    ctx.fillStyle = P.heart; heartPath(ctx, dx, y - 14, 5); ctx.fill();
-    drawMochi(ctx, Math.min(posOf(best), rx1), ry - r - 1, r, 0, 1, 1, 1.6, up, time);
+    drawMochi(ctx, mx, ry - r - 1, r, 0, 1, 1, 1.6, up, time);
   }
 }
 
@@ -2152,13 +2157,32 @@ function drawPlaceIcon(ctx, i, x, y, r, lw) {
   else { shape(P.house[0], () => ctx.rect(x - r * 0.7, y - r * 0.1, r * 1.4, r)); shape(P.house[1], () => { ctx.moveTo(x - r, y); ctx.lineTo(x, y - r); ctx.lineTo(x + r, y); ctx.closePath(); }); }
 }
 
+// The gift box beside the journey strip (PRD v0.6 B): four slots, an empty outline until Mochi has picked the gift up there. A
+// sugar flower, a chocolate heart, a soda bubble ring and a gingerbread ribbon.
+function drawGiftBox(ctx, x, y, found) {
+  const w = 108, h = 30;
+  roundRectPath(ctx, x, y, w, h, 10); ctx.fillStyle = P.panel; ctx.fill();
+  ctx.lineJoin = 'round'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 4; i++) {
+    const cx = x + 15 + i * 26, cy = y + h / 2, on = i < found;
+    if (!on) { ctx.strokeStyle = P.textOff; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(cx, cy, 8.5, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); continue; }
+    ctx.strokeStyle = P.ink;
+    if (i === 0) { ctx.fillStyle = P.awning; for (let k = 0; k < 5; k++) { const a = k * 1.2566; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 5, cy + Math.sin(a) * 5, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } ctx.fillStyle = P.coin; ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill(); }
+    else if (i === 1) { ctx.fillStyle = '#8a5a44'; heartPath(ctx, cx, cy, 8); ctx.fill(); ctx.stroke(); }
+    else if (i === 2) { ctx.strokeStyle = '#cfe9ff'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(cx, cy, 6.5, 0, Math.PI * 2); ctx.stroke(); ctx.strokeStyle = P.halo; ctx.lineWidth = 1.5; ctx.stroke(); ctx.lineWidth = 1.5; }
+    else { ctx.fillStyle = '#d9a46c'; for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + d * 9, cy - 6); ctx.lineTo(cx + d * 9, cy + 6); ctx.closePath(); ctx.fill(); ctx.stroke(); } ctx.fillStyle = '#e8c08c'; ctx.beginPath(); ctx.arc(cx, cy, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  }
+}
+
 // The menu (principle 11): the journey strip along the top, the title, one headline number (the best distance), the three
 // active goals under it, then Play, Shop and Sound.
 const menu = {
   render(ctx, E) {
     const v = view(E), sf = E.safe, up = levelsOf(E), best = E.save.get('best', 0);
     const world = drawWorld(ctx, E, v, newCamera(v.vw), null, null, up);
-    journeyStrip(E, sf.left + 92, E.w - sf.right - 84, sf.top + 29, best, E.save.get('home', false), up); // clear of EXPORT and TUNE
+    journeyStrip(E, sf.left + 92, E.w - sf.right - 84, sf.top + 29, best, E.save.get('proposed', false), up); // clear of EXPORT and TUNE
+    drawGiftBox(ctx, E.w - sf.right - 16 - 108, sf.top + 58, Math.min(4, E.save.get('placesSeen', 0)));
+    if (E.save.get('proposed', false)) drawDaifuku(ctx, Math.max(sf.left + 18, world.mx - 112 * world.mk), world.gy - 14, 13, E.time, 2, false); // she rides along, small, beside the machine
     const titled = E.h - sf.top - sf.bottom >= T.menuTitleMinH; // on a short screen the strip is the title
     const cy = titled ? sf.top + 52 + Math.max(32, E.h * 0.12 - 14) : sf.top + 34;
     if (titled) E.text('LAUNCH', E.w / 2, cy, { size: TY.xl, weight: '800', color: P.ink });
@@ -2209,7 +2233,7 @@ const play = {
     S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime };
     S.zonePop = null; S.arc = null; S.arcPts = new Float64Array(800); S.callouts = []; S.endWait = T.endDelay;
     S.teachBird = !E.save.get('birdTaught', false); S.teachMud = !E.save.get('mudTaught', false);
-    S.teachAct = !E.save.get('actionsTaught', false); S.prevVy = 0; S.quit = false; S.reunion = false;
+    S.teachAct = !E.save.get('actionsTaught', false); S.prevVy = 0; S.quit = false; S.propose = E.save.get('home', false) && !E.save.get('proposed', false); // a save that met her before v0.6 owes the proposal after this flight
   },
   // Flight time now: the steps run, the remainder carried, and the real time since this frame began at the current rate.
   stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)) * S.rate; },
@@ -2268,7 +2292,7 @@ const play = {
       if (Math.random() < 0.5) emit('cola', r.x, r.y + T.critterR, 1, { angle: back, spread: 0.6, speed: 120, g: 0, life: J.fizzLife, size: 2.6, color: P.soda });
       S.whooshT -= dt; if (S.whooshT <= 0) { S.whooshT = J.whoosh; SFX.whoosh(E); }
     }
-    if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene(S.reunion ? 'reunion' : 'over', finishFlight(E, r)); }
+    if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene(S.propose ? 'proposal' : 'over', finishFlight(E, r)); }
   },
   squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
   onEvent(e, E) {
@@ -2333,11 +2357,12 @@ const play = {
       const i = T.milestones.indexOf(e.m) + 1, home = i === PLACES.length - 1;
       E.audio.play('win'); E.haptic(J.haptic.milestone); S.distPop = 0.3;
       S.banner = { text: `★ ${PLACES[i].name}`, t: J.bannerTime };
-      if (ARRIVAL[i] && i > E.save.get('placesSeen', 0)) { E.save.set('placesSeen', i); S.banner = { text: ARRIVAL[i], t: T.story.arrivalTime }; } // the first time ever: one line
-      if (home && !E.save.get('home', false)) { // the Home moment: once, the first flight past 5000 m
-        E.save.set('home', true); S.reunion = true; E.ledger.add('home', { flights: E.save.get('flights', 0) + 1, seed: r.seed });
+      if (GIFTS[i] && i > E.save.get('placesSeen', 0)) { E.save.set('placesSeen', i); S.banner = { text: GIFTS[i], t: T.story.arrivalTime }; } // the first time ever: Mochi's gift for Daifuku
+      if (home && !E.save.get('proposed', false)) S.propose = true; // the proposal follows this flight
+      if (home && !E.save.get('home', false)) { // the Tea Party moment: once, the first flight past 5000 m
+        E.save.set('home', true); E.ledger.add('home', { flights: E.save.get('flights', 0) + 1, seed: r.seed });
         S.homeT = J.homeTime; SFX.home(E); E.haptic(J.haptic.home);
-        S.banner = { text: '♥ Home! (keep going)', t: J.homeTime, color: P.text };
+        S.banner = { text: '♥ Tea Party', t: J.homeTime, color: P.text };
         const hx = placeFrom(i) + T.homeAhead;
         emit('heart', hx, 2.6 * T.critterR, J.hearts, { angle: Math.PI / 2, spread: 1.6, speed: 160, g: -60, life: 1.6, size: 4, color: P.heart });
         emit('heart', r.x, r.y + T.critterR, J.hearts / 2, { angle: Math.PI / 2, spread: 2, speed: 120, g: -60, life: 1.4, size: 3.5, color: P.heart });
@@ -2488,7 +2513,9 @@ function drawUpArrow(ctx, x, y, s) {
 const over = {
   enter(E, p) {
     p.look = p.look || (p.isNew ? 'happy' : p.why === 'mud' || p.crashes > 0 ? 'dizzy' : 'determined'); // Mochi's face and line, kept when the shop hands the card back
-    p.say = p.say || SAY[p.look][Math.floor(Math.random() * SAY[p.look].length)]; // cosmetic
+    const pool = E.save.get('proposed', false) && p.look !== 'dizzy' ? HONEYMOON : SAY[p.look]; // after the proposal the happy lines are the honeymoon's
+    p.say = p.say || pool[Math.floor(Math.random() * pool.length)]; // cosmetic
+    if (p.window === undefined) p.window = p.isNew && Math.random() * T.story.windowChance < 1 ? Math.floor(Math.random() * WINDOW_SAY.length) : -1; // Daifuku's window, one new best in three
     this.p = p; this.k = p.again ? 1 : 0; this.t0 = p.again ? -Infinity : E.time;
     if (!p.again) E.tween(J.cardSlide, (t) => { this.k = t; }, ease.outBack); // the card slides up; the buttons come after it
   },
@@ -2542,11 +2569,25 @@ const over = {
     E.text(p.active.length ? 'Goals' : 'Every goal done!', rx + 12, gy + 4, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
     gy += 16;
     for (const a of p.active) gy += goalRow(E, rx + 12, gy, rw - 12, a.g, goalLine(a.g, a.have), a.isNew) + 6;
-    if (!this.ready(E)) { this.btnMenu = this.btnAgain = this.btnShop = null; return; }
-    const by = py + ph - 38, bw = Math.min(230, pw - 240);
+    if (!this.ready(E)) { this.btnMenu = this.btnAgain = this.btnShop = this.inset = null; return; }
+    const by = py + ph - 38, gl = px + 16 + 84 + 8, sl = px + pw - 16 - 100 - 8;
+    // Daifuku at her window: her frame and her whole line (two or three lines) sit between Menu and Launch Again, which gives way.
+    let bw = Math.min(230, pw - 240), wl = null, ax = px + pw / 2 + 2;
+    if (p.window >= 0) {
+      const gw = 64, tt = Math.min(190, sl - gl - gw - 16 - 150), b = Math.min(230, sl - gl - gw - 16 - tt);
+      if (tt >= 130 && b >= 150) {
+        wl = wrap(E, WINDOW_SAY[p.window], tt, TY.sm, '700'); bw = b; ax = sl - b / 2;
+        this.inset = { x: gl, y: by - 24, w: gw, h: 48 }; this.winText = { x: gl + gw + 8, w: tt };
+      }
+    }
     this.btnMenu = btn(E, 'Menu', px + 16 + 42, by, { w: 84, h: 52, size: TY.md, fill: P.buttonOff });
-    this.btnAgain = btn(E, 'Launch Again', px + pw / 2 + 2, by, { w: bw, h: 52, size: TY.md });
+    this.btnAgain = btn(E, 'Launch Again', ax, by, { w: bw, h: 52, size: TY.md });
     this.btnShop = btn(E, 'Shop', px + pw - 16 - 50, by, { w: 100, h: 52, size: TY.md, fill: P.buttonOff });
+    if (!wl) this.inset = null;
+    else {
+      drawWindowInset(ctx, E, this.inset.x, this.inset.y, this.inset.w, 48, E.time);
+      wl.forEach((l, n) => E.text(l, this.winText.x, by + (n - (wl.length - 1) / 2) * 16, { size: TY.sm, align: 'left', color: P.tealLight, weight: '700' }));
+    }
   },
   onTap(p, E) {
     if (!this.ready(E)) return;
@@ -2580,9 +2621,9 @@ function goalRow(E, x, y, w, g, cond, isNew) {
   return h;
 }
 
-// ---------- The story (PRD v0.5) ----------
-// Love and longing for Daifuku (world.md). Pack 5 art is webp in assets/, loaded once at boot; a picture that has not loaded
-// (or never will) is drawn by the procedural mochi, daifuku and machine, so the story never waits on a file.
+// ---------- The story (PRD v0.6) ----------
+// Mochi's love letter (world.md). Pack 5 art is webp in assets/, loaded once at boot; a picture that has not loaded (or never
+// will, like Pack 13 until it lands) is drawn by the procedural mochi, daifuku and machine, so the story never waits on a file.
 const ART_FILES = ['mochi-love', 'mochi-happy', 'mochi-dizzy', 'mochi-determined', 'daifuku', 'daifuku-wave', 'mochi-maker'], ART_IMG = {};
 function loadArt() {
   if (typeof Image === 'undefined') return;
@@ -2603,6 +2644,7 @@ function drawArt(ctx, E, id, cx, bottom, w, h, time = 0) {
   }
   const lw = 2, bob = Math.sin(time * 3) * 1.5;
   if (id === 'mochi-maker') { const k0 = Math.min(w / 210, h / 105); drawMachine(ctx, E, cx + 22 * k0 * MACHINE, bottom - 4, k0, lw, STORY_UP, 40, {}); }
+  else if (id === 'daifuku-window') drawWindowInset(ctx, E, cx - w / 2, bottom - h, w, h, time);
   else if (id.startsWith('daifuku')) { const r = Math.min(w, h) / 3; drawDaifuku(ctx, cx, bottom - r * 0.95 + bob, r, time, lw, id === 'daifuku-wave'); }
   else {
     const r = Math.min(w / 2.4, h / 2.2);
@@ -2612,23 +2654,32 @@ function drawArt(ctx, E, id, cx, bottom, w, h, time = 0) {
 }
 const STORY_UP = { band: 0, fuel: 0, aero: 0, rocket: 0, steady: 0, scope: 0 };
 
-// The cold open, one line a card (world.md), and the arrival lines (PRD v0.5 C), indexed by place.
+// The cold open (PRD v0.6 A, A2): one animated card each, and the proposal (E); `at` is the scene's length in TUNING.story.
 const STORY = [
-  { text: 'Grandma Kiko made Mochi for Daifuku.', art: ['mochi-love', 'daifuku'] },
-  { text: 'Then Daifuku was boxed and sent 5 km away.', art: ['daifuku-wave'] },
-  { text: 'The Mochi Maker 3000 has one setting: FLING.', art: ['mochi-maker'] },
+  { text: 'Every morning in the bakery window, Mochi wiggled a little closer to Daifuku.', draw: sceneWindow },
+  { text: 'Then a little girl bought Daifuku for her grandma\'s tea party, 5 km away.', draw: scenePurchase },
+  { text: 'Mochi\'s legs are very small. 5 km is very far.', draw: sceneRoad },
+  { text: 'Then he remembered the bakery\'s Mochi Maker 3000. It has one setting: FLING.', draw: sceneMachine },
 ];
-const ARRIVAL = [null, 'Candy Meadow. Daifuku loves these.', 'Chocolate River. Don\'t look down.', 'Soda Springs. Fizzy fizzy!', 'Gingerbread Town. Almost there.'];
+const PROPOSAL = [
+  { text: 'Mochi landed right by the window.', draw: sceneLanding },
+  { text: 'He held out the soda bubble, just like a ring. \'Will you be my sweetheart?\'', draw: sceneRing },
+  { text: '\'Yes!\'', draw: sceneYes },
+  { text: 'Now they fly together. How far can love go?', draw: sceneTogether },
+];
+const GIFTS = [null, 'A sugar flower for Daifuku!', 'A chocolate heart for Daifuku!', 'A soda bubble... shaped like a ring!', 'A gingerbread ribbon, to wrap it all.'];
 const SAY = {
-  happy: ['Further than ever!', 'Daifuku, I\'m coming!', 'That\'s my best yet!'],
-  dizzy: ['Ow. Squishy, but okay.', 'Next time, the jelly.', 'Which way is up?'],
-  determined: ['Again. I\'m getting closer.', 'One more fling.', 'Home is that way.'],
+  happy: ['Closer! \'Hi, Daifuku.\' No, too casual.', 'Daifuku, you\'re my... um... sweet.', 'Nearly there. \'Will you...\' Eek!'],
+  dizzy: ['Note to self: no mud before the big moment.', 'Squished. But my heart is fine.', 'Still cute? Still cute.'],
+  determined: ['\'Hello.\' Too formal. \'Hey you.\' Too cool.', 'One more fling. Daifuku is waiting.', 'I\'ll say it when I get there. I will.'],
 };
-const HOME_LINE = 'Home! (keep going)';
+const HONEYMOON = ['Honeymoon flight! Wheee!', 'Daifuku says: higher!', 'Best. Date. Ever.'];
+const WINDOW_SAY = ['Was that... a mochi in the sky?', 'I wish Mochi were here.', 'I saved a seat by the window.'];
+const storySeen = (E) => Number(E.save.get('openSeen', 0)) || 0; // the story version shown (v9's true reads as 1)
 
-// The bakery's sky and a strip of its ground; the cards sit on it.
-function storySky(ctx, E, groundY) {
-  const pl = PLACES[0], g = ctx.createLinearGradient(0, 0, 0, E.h);
+// The sky and a strip of a place's ground; the scenes sit on it.
+function storySky(ctx, E, groundY, place = 0) {
+  const pl = PLACES[place], g = ctx.createLinearGradient(0, 0, 0, E.h);
   g.addColorStop(0, pl.sky[0]); g.addColorStop(1, pl.sky[1]);
   ctx.fillStyle = g; ctx.fillRect(0, 0, E.w, E.h);
   ctx.fillStyle = pl.top; ctx.fillRect(0, groundY, E.w, E.h - groundY);
@@ -2640,67 +2691,321 @@ function tapMark(ctx, E, x, y, color = P.ink) {
   ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(x - 7 * k, y - 9 * k); ctx.lineTo(x + 9 * k, y); ctx.lineTo(x - 7 * k, y + 9 * k); ctx.closePath(); ctx.fill();
 }
 
-// Three still cards, one tap each, Skip always visible. Shown once on a fresh save (openSeen is set as it opens, so
-// closing the app mid-way never repeats it) and again from the menu's Story button.
-const story = {
-  enter(E, p = {}) {
-    this.i = 0; this.t0 = E.time; this.btnSkip = null;
-    if (!p.replay) E.save.set('openSeen', true);
-    SFX.story(E);
-  },
-  render(ctx, E) {
-    const sf = E.safe, c = STORY[this.i], Y = T.story, aw = E.w - sf.left - sf.right;
-    const lines = wrap(E, c.text, Math.min(aw - 2 * (Y.skipW + 16), 700), TY.lg, '800'), lh = TY.lg + 6;
-    const top = sf.top + 66 + lines.length * lh, floor = E.h - sf.bottom - 44, groundY = floor - 8;
-    storySky(ctx, E, groundY);
-    lines.forEach((l, n) => E.text(l, sf.left + aw / 2, sf.top + 66 + (n + 0.5) * lh - lh / 2, { size: TY.lg, weight: '800', color: P.ink }));
-    const pop = ease.outBack(clamp((E.time - this.t0) / 0.35, 0, 1)), h = Math.min(Y.artH, floor - top - 4), n = c.art.length;
-    c.art.forEach((id, k) => {
-      const w = Math.min(h * 1.25, aw / (n + 0.4)), cx = sf.left + aw / 2 + (k - (n - 1) / 2) * (w + 16);
-      ctx.save(); ctx.translate(cx, floor); ctx.scale(pop, pop); ctx.translate(-cx, -floor);
-      drawArt(ctx, E, id, cx, floor, w, h, E.time);
-      ctx.restore();
-    });
-    STORY.forEach((_, k) => { ctx.globalAlpha = k === this.i ? 1 : 0.35; ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(E.w / 2 + (k - 1) * 18, E.h - sf.bottom - 20, k === this.i ? 5 : 4, 0, Math.PI * 2); ctx.fill(); });
-    ctx.globalAlpha = 1;
-    tapMark(ctx, E, E.w - sf.right - 32, E.h - sf.bottom - 22);
-    this.btnSkip = btn(E, 'Skip', E.w - sf.right - 16 - Y.skipW / 2, sf.top + 16 + Y.skipH / 2, { w: Y.skipW, h: Y.skipH, size: TY.md, fill: P.panelSolid });
-  },
-  onTap(p, E) {
-    if (this.btnSkip && E.hit(this.btnSkip, p)) { E.audio.play('tap'); this.finish(E); return; }
-    if (E.time - this.t0 < T.story.tapGap) return;
-    if (this.i + 1 >= STORY.length) { this.finish(E); return; }
-    this.i++; this.t0 = E.time; SFX.story(E);
-  },
-  onKey(k, E) { if (k === ' ' || k === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
-  finish(E) { E.setScene('menu'); },
-};
+// ---- Scene toolkit: every scene is a pure function of its time t, so a tap can jump straight to the end ----
+const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const blend = (a, b, k) => a + (b - a) * k;
+// A portrait standing at (x, bottom), squashed or stretched about its feet (sx, sy), tilted and faded.
+function pic(ctx, E, id, x, bottom, size, o = {}) {
+  ctx.save(); ctx.globalAlpha *= o.alpha ?? 1;
+  ctx.translate(x, bottom); if (o.rot) ctx.rotate(o.rot); ctx.scale(o.sx ?? 1, o.sy ?? 1); ctx.translate(-x, -bottom);
+  drawArt(ctx, E, id, x, bottom, size, size, o.time ?? E.time);
+  ctx.restore();
+}
+// One hop, p from 0 to 1: the arc (0 to 1) and the squash before take-off and on landing, stretch in the air.
+function hopOf(p) {
+  const a = Math.sin(Math.PI * p), c = Math.max(0, 1 - p * 6) + Math.max(0, p * 6 - 5);
+  return { y: a, sx: 1 - 0.1 * a + 0.22 * c, sy: 1 + 0.16 * a - 0.24 * c };
+}
+function sparkle(ctx, x, y, r, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = P.coin; ctx.strokeStyle = P.white; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const an = i * Math.PI / 4 - Math.PI / 2, rr = i % 2 ? r * 0.3 : r; ctx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); }
+  ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+}
+function miniHeart(ctx, x, y, r, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = P.heart; heartPath(ctx, x, y, r); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+}
+function tear(ctx, x, y, r, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#8fd0f5'; ctx.strokeStyle = P.ink; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x, y - r * 1.8); ctx.quadraticCurveTo(x + r * 1.2, y - r * 0.1, x, y + r); ctx.quadraticCurveTo(x - r * 1.2, y - r * 0.1, x, y - r * 1.8); ctx.fill(); ctx.stroke(); ctx.restore();
+}
+function puffDot(ctx, x, y, r, a) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+// n things flying out of (x, y) and fading as p goes 0 to 1: fn(x, y, i, alpha).
+function burst(ctx, x, y, p, n, R, fn, grav = 0) {
+  if (p <= 0 || p >= 1) return;
+  const k = ease.outQuad(p);
+  for (let i = 0; i < n; i++) { const an = (i / n) * Math.PI * 2 + 0.4; fn(x + Math.cos(an) * R * k, y + Math.sin(an) * R * k + grav * p * p, i, 1 - p); }
+}
 
-// The reunion (PRD v0.5 D): the first flight that reaches Home ends here, before the result card. One tap goes on.
-const reunion = {
-  enter(E, card) { this.card = card; this.t0 = E.time; SFX.story(E); },
-  render(ctx, E) {
-    const v = view(E), sf = E.safe, aw = E.w - sf.left - sf.right, ah = E.h - sf.top - sf.bottom, cx = sf.left + aw / 2;
-    if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null);
-    ctx.fillStyle = P.shadow; ctx.fillRect(0, 0, E.w, E.h);
-    const pw = Math.min(560, aw - 32), ph = Math.min(300, ah - 24), px = cx - pw / 2, py = sf.top + (ah - ph) / 2;
-    E.roundRect(px, py, pw, ph, 18, P.panelSolid, P.panelEdge);
-    const k = ease.outBack(clamp((E.time - this.t0) / 0.4, 0, 1)), ah2 = Math.min(150, ph - 110), base = py + 28 + ah2 + 8;
-    ctx.save(); ctx.translate(cx, base); ctx.scale(k, k); ctx.translate(-cx, -base);
-    drawArt(ctx, E, 'mochi-love', cx - pw * 0.2, base, pw * 0.38, ah2, E.time);
-    drawArt(ctx, E, 'daifuku-wave', cx + pw * 0.2, base, pw * 0.38, ah2, E.time);
-    ctx.restore();
-    for (let i = 0; i < T.story.hearts; i++) { // a few hearts rising between them
-      const ph0 = (E.time * 0.45 + i / T.story.hearts) % 1, hx = cx + Math.sin(i * 2.4) * pw * 0.12, hy = base - 10 - ph0 * (ah2 + 20), hr = 5 + (i % 3) * 2;
-      ctx.globalAlpha = Math.sin(ph0 * Math.PI); ctx.fillStyle = P.heart; heartPath(ctx, hx, hy, hr); ctx.fill();
+// A bakery or tea-party window in a wall: the back (interior, shelf), then the front (glass glare, frame, awning or curtains).
+function windowBack(ctx, g, kind) {
+  const { wx, wy, fw, wh } = g;
+  ctx.fillStyle = kind === 'tea' ? '#f6d3d6' : P.shopWall; ctx.fillRect(wx - 26, g.top + 6, fw + 52, g.groundY - g.top - 6); // the wall
+  ctx.fillStyle = kind === 'tea' ? '#c9697f' : '#b8786a'; ctx.fillRect(wx - 30, g.top + 2, fw + 60, 14); // the roof edge
+  ctx.fillStyle = P.halo; ctx.fillRect(wx, wy, fw, wh);
+  const sy = wy + wh * 0.3; ctx.fillStyle = '#c99a6e'; ctx.fillRect(wx, sy, fw, 6);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 5; i++) {
+    const ix = wx + fw * (i + 0.5) / 5, r = Math.min(12, fw / 5 * 0.28);
+    if (kind === 'tea') { // cups
+      ctx.fillStyle = i % 2 ? '#f6a9c0' : P.white; ctx.beginPath(); ctx.moveTo(ix - r, sy - r * 1.3); ctx.lineTo(ix + r, sy - r * 1.3); ctx.lineTo(ix + r * 0.6, sy); ctx.lineTo(ix - r * 0.6, sy); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else { // buns with icing
+      ctx.fillStyle = i % 2 ? '#e9b97a' : '#f4cfa0'; ctx.beginPath(); ctx.ellipse(ix, sy - r * 0.55, r * 1.25, r * 0.85, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = P.awning; ctx.beginPath(); ctx.ellipse(ix, sy - r * 0.8, r * 0.9, r * 0.4, 0, Math.PI, 0); ctx.fill();
     }
-    ctx.globalAlpha = 1;
-    E.text(HOME_LINE, cx, py + ph - 42, { size: TY.lg, weight: '800', color: P.text });
-    if (E.time - this.t0 >= T.story.reunionGap) tapMark(ctx, E, px + pw - 26, py + ph - 26, P.text);
-  },
-  onTap(p, E) { if (E.time - this.t0 >= T.story.reunionGap) E.setScene('over', this.card); },
-  onKey(k, E) { if (k === ' ' || k === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
-};
+  }
+}
+function windowFront(ctx, g, kind) {
+  const { wx, wy, fw, wh } = g;
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, fw, wh); ctx.clip(); ctx.globalAlpha = 0.14; ctx.fillStyle = P.white;
+  for (const [a, b] of [[0.14, 0.26], [0.32, 0.36]]) { ctx.beginPath(); ctx.moveTo(wx + fw * a, wy); ctx.lineTo(wx + fw * b, wy); ctx.lineTo(wx + fw * (b - 0.2), wy + wh); ctx.lineTo(wx + fw * (a - 0.2), wy + wh); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+  ctx.strokeStyle = '#9a6a4a'; ctx.lineWidth = 9; ctx.lineJoin = 'round'; ctx.strokeRect(wx - 2, wy - 2, fw + 4, wh + 4);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; ctx.strokeRect(wx - 7, wy - 7, fw + 14, wh + 14); ctx.strokeRect(wx + 2.5, wy + 2.5, fw - 5, wh - 5);
+  ctx.fillStyle = '#c99a6e'; ctx.fillRect(wx - 12, wy + wh + 2, fw + 24, g.groundY - (wy + wh) + 4); ctx.strokeRect(wx - 12, wy + wh + 2, fw + 24, g.groundY - (wy + wh) + 4); // the sill
+  if (kind === 'tea') { // curtains tied back
+    ctx.fillStyle = '#f6a9c0'; ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(wx + fw * 0.2, wy); ctx.quadraticCurveTo(wx + fw * 0.06, wy + wh * 0.35, wx + fw * 0.1, wy + wh * 0.62); ctx.lineTo(wx, wy + wh * 0.62); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx + fw, wy); ctx.lineTo(wx + fw * 0.8, wy); ctx.quadraticCurveTo(wx + fw * 0.94, wy + wh * 0.35, wx + fw * 0.9, wy + wh * 0.62); ctx.lineTo(wx + fw, wy + wh * 0.62); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else { // the striped awning
+    const n = 8, sw = (fw + 20) / n;
+    for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 ? P.white : P.awning; ctx.beginPath(); ctx.moveTo(wx - 10 + i * sw, wy - 22); ctx.lineTo(wx - 10 + (i + 1) * sw, wy - 22); ctx.lineTo(wx - 10 + (i + 1) * sw, wy - 8); ctx.arc(wx - 10 + (i + 0.5) * sw, wy - 8, sw / 2, 0, Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  }
+}
+// Daifuku at the tea-party window: Pack 13's `daifuku-window` when it has landed (drawArt), else her portrait in a drawn frame.
+function drawWindowInset(ctx, E, x, y, w, h, time) {
+  E.roundRect(x, y, w, h, 8, P.halo, '#9a6a4a');
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 3, y + 3, w - 6, h - 6); ctx.clip();
+  drawArt(ctx, E, 'daifuku', x + w / 2, y + h - 3, h - 8, h - 8, time);
+  ctx.fillStyle = '#f6a9c0'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w * 0.24, y); ctx.quadraticCurveTo(x + w * 0.08, y + h * 0.4, x + w * 0.12, y + h * 0.7); ctx.lineTo(x, y + h * 0.7); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(x + w * 0.76, y); ctx.quadraticCurveTo(x + w * 0.92, y + h * 0.4, x + w * 0.88, y + h * 0.7); ctx.lineTo(x + w, y + h * 0.7); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  E.roundRect(x, y, w, h, 8, 'rgba(0,0,0,0)', '#9a6a4a');
+}
+
+// ---- The four cold-open scenes (PRD v0.6 A2). g: { ctx, E, t, cs, left, aw, cx, top, floor, groundY, stand, H, fw, wx, wy, wh } ----
+// 1. The window: three small squashy hops closer, and a heart pops between them on the last.
+function sceneWindow(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, gap0 = g.fw * 0.36, gap1 = cs * 0.62, sill = g.wy + g.wh;
+  windowBack(ctx, g, 'bakery');
+  const hops = [[0.4, 1.0], [1.1, 1.7], [1.8, 2.4]];
+  let done = 0, cur = null;
+  hops.forEach(([a, b], i) => { if (t >= b) done = i + 1; else if (t > a) cur = { i, p: (t - a) / (b - a) }; });
+  const prog = (done + (cur ? ease.inOut(cur.p) : 0)) / 3, x = xD - blend(gap0, gap1, prog), o = cur ? hopOf(cur.p) : { y: 0, sx: 1, sy: 1 };
+  const wig = t < 0.4 || (!cur && t < 2.4) ? Math.sin(t * 20) * 0.06 : 0;
+  const pulse = t > 2.4 ? 1 + 0.08 * Math.sin((t - 2.4) * 16) * Math.exp(-(t - 2.4) * 3) : 1;
+  pic(ctx, E, 'daifuku', xD, sill, cs, { sx: pulse, sy: 2 - pulse });
+  pic(ctx, E, 'mochi-love', x, sill - o.y * cs * 0.22, cs, { sx: o.sx, sy: o.sy, rot: wig });
+  windowFront(ctx, g, 'bakery');
+  if (t > 2.4) { const k = seg(t, 2.4, 2.9); miniHeart(ctx, (x + xD) / 2, sill - cs * 1.05 - 22 * k, 14 * ease.outBack(k)); sparkle(ctx, (x + xD) / 2 - 22, sill - cs * 1.1, 6 * k, k); sparkle(ctx, (x + xD) / 2 + 24, sill - cs * 1.2, 5 * k, k); }
+}
+// 2. The purchase: a child's hand lifts Daifuku into a pink box that slides off with a bounce; Mochi droops and a tear falls.
+function scenePurchase(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, boxX0 = g.cx + g.fw * 0.37, sill = g.wy + g.wh, bw = cs * 0.8, bh = cs * 0.5;
+  windowBack(ctx, g, 'bakery');
+  const slideK = seg(t, 1.95, 2.6), slide = slideK * slideK * (g.fw * 0.9), bob = slideK > 0 && slideK < 1 ? Math.abs(Math.sin(slideK * Math.PI * 3)) * 16 : 0;
+  const bx = boxX0 + slide, by = sill - bob;
+  // Daifuku: stands, is lifted over the box, lowered in, and goes with the box.
+  const lift = cs * 0.9 * ease.outQuad(seg(t, 0.6, 1.0)), lower = ease.inOut(seg(t, 1.4, 1.7));
+  const dx = t < 1.0 ? xD : blend(xD, boxX0, ease.inOut(seg(t, 1.0, 1.4)));
+  const h = blend(lift, bh * 0.5, lower), dsize = cs * blend(1, 0.62, lower);
+  const inBox = t >= 1.7, ox = inBox ? slide : 0, oy = inBox ? bob : 0;
+  // Mochi droops (squash down) once she is gone.
+  const sad = ease.outQuad(seg(t, 1.9, 2.5)), wob = t < 1.9 ? Math.sin(t * 3) * 0.02 : 0;
+  const mx = xD - cs * 0.62;
+  pic(ctx, E, sad > 0 ? 'mochi-dizzy' : 'mochi-love', mx, sill, cs, { sx: 1 + 0.12 * sad, sy: 1 - 0.22 * sad, rot: wob }); // heart eyes and the heart go with the box
+  pic(ctx, E, t < 0.7 ? 'daifuku' : 'daifuku-wave', dx + ox, sill - h - oy, dsize, { sy: 1 + (t > 0.6 && t < 1.4 ? 0.05 * Math.sin(t * 20) : 0) });
+  windowFront(ctx, g, 'bakery');
+  // The pink box with its ribbon, and the lid that closes on her.
+  ctx.save(); ctx.strokeStyle = P.ink; ctx.lineWidth = 2;
+  ctx.fillStyle = '#f7a8c4'; ctx.fillRect(bx - bw / 2, by - bh, bw, bh); ctx.strokeRect(bx - bw / 2, by - bh, bw, bh);
+  ctx.fillStyle = P.white; ctx.fillRect(bx - 5, by - bh, 10, bh); ctx.strokeRect(bx - 5, by - bh, 10, bh);
+  const open = 1 - ease.outBack(seg(t, 1.75, 2.0)), lidW = bw + 8;
+  ctx.translate(bx + lidW / 2, by - bh); ctx.rotate(open * 1.35);
+  ctx.fillStyle = '#f48bb0'; ctx.fillRect(-lidW, -12, lidW, 12); ctx.strokeRect(-lidW, -12, lidW, 12);
+  ctx.fillStyle = P.white; ctx.fillRect(-lidW / 2 - 5, -12, 10, 12);
+  if (open < 0.05) { ctx.fillStyle = P.heart; ctx.beginPath(); ctx.arc(-lidW / 2 - 7, -17, 6, 0, Math.PI * 2); ctx.arc(-lidW / 2 + 7, -17, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  ctx.restore();
+  // The hand: a sleeve and a small hand from above, over her, then away.
+  const handY = t < 1.0 ? blend(g.wy - 80, sill - h - dsize * 0.78, ease.outCubic(seg(t, 0.15, 0.6))) : sill - h - oy - dsize * 0.78;
+  const away = seg(t, 1.75, 2.3), hy = handY - away * (cs * 1.6), hx = t < 1.0 ? xD : dx + ox;
+  if (away < 1) {
+    ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = 30; ctx.beginPath(); ctx.moveTo(hx + 8, g.top - 30); ctx.lineTo(hx + 4, hy - 6); ctx.stroke();
+    ctx.strokeStyle = '#8ec5e8'; ctx.lineWidth = 26; ctx.beginPath(); ctx.moveTo(hx + 8, g.top - 30); ctx.lineTo(hx + 5, hy - 26); ctx.stroke();
+    ctx.strokeStyle = '#f3c9a5'; ctx.lineWidth = 22; ctx.beginPath(); ctx.moveTo(hx + 5, hy - 26); ctx.lineTo(hx + 4, hy - 6); ctx.stroke();
+    ctx.fillStyle = '#f3c9a5'; ctx.beginPath(); ctx.ellipse(hx, hy, 16, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    for (const fx of [-9, -3, 3, 9]) { ctx.beginPath(); ctx.ellipse(hx + fx, hy + 11, 3.5, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+  }
+  if (t > 2.3) { const k = seg(t, 2.3, 3.2); tear(ctx, mx + cs * 0.22, sill - cs * 0.55 + k * cs * 0.5, 4.5, Math.min(1, 3 * (1 - k))); }
+}
+// 3. The road: tiny hops, a signpost that keeps backing away, a sweat drop, then puffing.
+function sceneRoad(g) {
+  const { ctx, E, t, cs } = g, y = g.stand, x0 = g.left + g.aw * 0.14;
+  const stretch = ease.inOut(seg(t, 0.4, 2.2));
+  ctx.fillStyle = '#e6c9a0'; ctx.fillRect(0, g.groundY, E.w, 24);
+  ctx.fillStyle = P.halo;
+  const sx = g.cx + g.aw * blend(0.17, 0.36, stretch), gap = blend(26, 68, stretch);
+  for (let d = sx; d > -gap; d -= gap) ctx.fillRect(d - 9, g.groundY + 10, 18, 4);
+  for (let d = sx + gap; d < E.w + gap; d += gap) ctx.fillRect(d - 9, g.groundY + 10, 18, 4);
+  const ss = blend(1, 0.72, stretch), sy = y - 8 - 8 * stretch, bw = 92 * ss, bh = 36 * ss; // the signpost
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.fillStyle = '#c99a6e'; ctx.fillRect(sx - 3, sy - 66 * ss, 6, 66 * ss); ctx.strokeRect(sx - 3, sy - 66 * ss, 6, 66 * ss);
+  E.roundRect(sx - bw / 2, sy - 66 * ss - bh + 6, bw, bh, 6, P.halo, P.ink);
+  E.text('5 km →', sx, sy - 66 * ss - bh / 2 + 6, { size: Math.round(blend(18, 14, stretch)), weight: '800', color: P.ink });
+  const hops = [[0.5, 1.0], [1.1, 1.6], [1.7, 2.2]];
+  let done = 0, cur = null;
+  hops.forEach(([a, b], i) => { if (t >= b) done = i + 1; else if (t > a) cur = { p: (t - a) / (b - a) }; });
+  const step = g.aw * 0.05, x = x0 + (done + (cur ? ease.inOut(cur.p) : 0)) * step, o = cur ? hopOf(cur.p) : { y: 0, sx: 1, sy: 1 };
+  const breath = t > 2.3 ? 0.05 * Math.sin((t - 2.3) * 11) : 0;
+  pic(ctx, E, 'mochi-determined', x, y - o.y * cs * 0.12, cs, { sx: o.sx * (1 + breath), sy: o.sy * (1 - breath) });
+  if (t > 2.0) { const k = seg(t, 2.0, 2.9); tear(ctx, x + cs * 0.3, y - cs * 0.82 + k * cs * 0.22, 4, Math.min(1, 3 * (1 - k)) ); }
+  if (t > 2.3) for (let i = 0; i < 3; i++) { const p = ((t - 2.3) * 1.6 + i / 3) % 1; puffDot(ctx, x + cs * 0.4 + p * 20, y - cs * 0.3 - p * cs * 0.4, 3 + 6 * p, 0.8 * (1 - p)); }
+}
+// 4. The machine: it slides in, steams, its needle swings to FLING; Mochi turns determined, hops in, and is fired off.
+function sceneMachine(g) {
+  const { ctx, E, t, cs } = g, k0 = Math.min(g.H * 0.62 / 110, g.aw * 0.5 / 170), k = k0 * MACHINE, gy = g.groundY + 6;
+  const mxT = g.cx + 50 * k0, mx = blend(g.left - 30 * k0, mxT, ease.outBack(seg(t, 0, 0.9)));
+  const aim = blend(14, 40, ease.inOut(seg(t, 0.9, 1.7))) * DEG, mouthX = mxT + Math.cos(aim) * T.barrelLen * k0, mouthY = gy - T.pivotH * k0 - Math.sin(aim) * T.barrelLen * k0;
+  const standX = Math.min(g.left + g.aw - cs * 0.6, mouthX + cs * 1.0), size = cs * 0.9;
+  const face = t < 1.9 ? 'mochi-love' : 'mochi-determined', pop = t >= 1.9 ? 1 + 0.18 * Math.sin((t - 1.9) * 14) * Math.exp(-(t - 1.9) * 5) : 1;
+  const hopP = seg(t, 2.1, 2.7);
+  if (hopP < 1) { // Mochi, first beside the machine and then arcing into the barrel's mouth, behind it
+    const hx = blend(standX, mouthX - 6 * k0, ease.inOut(hopP)), sc = 1 - 0.5 * ease.inQuad(hopP);
+    const hy = blend(g.stand, mouthY + size * sc * 0.45, hopP) - Math.sin(Math.PI * hopP) * cs * 0.7;
+    const o = hopP > 0 ? hopOf(Math.min(1, hopP * 1.0)) : { sx: 1, sy: 1 };
+    pic(ctx, E, face, hx, hy, size * sc, { sx: hopP > 0 ? o.sx : pop, sy: hopP > 0 ? o.sy : 2 - pop, alpha: 1 - 0.7 * seg(hopP, 0.85, 1) });
+  }
+  const rec = t > 2.7 ? Math.exp(-(t - 2.7) * 8) * Math.cos((t - 2.7) * 28) : 0;
+  const mxa = mx - rec * 9 * k0;
+  drawMachine(ctx, E, mxa, gy, k0, 2, STORY_UP, aim / DEG, { gauge: 0.62 * ease.outElastic(seg(t, 1.0, 1.9)) + 0.03 * Math.sin(t * 40) * (1 - seg(t, 0.4, 0.9)) * seg(t, 0.2, 0.4), lit: t >= 1.9 ? 0 : -1, glow: seg(t, 1.9, 2.1) * (1 - seg(t, 3.0, 3.6)), pump: t > 2.7 ? 1 - seg(t, 2.7, 3.2) : 0 });
+  if (t > 0.9) for (let i = 0; i < 6; i++) { const p = ((t - 0.9) * 0.8 + i / 6) % 1; puffDot(ctx, mxa - 80 * k + Math.sin(i * 2 + t) * 6, gy - 78 * k - p * 60, 5 + 12 * p, 0.7 * (1 - p)); }
+  if (t > 1.9) { const q = ease.outBack(seg(t, 1.9, 2.25)); E.text('FLING', mxa - 40 * k, gy - 100 * k, { size: Math.max(1, Math.round(TY.lg * q)), weight: '800', color: P.berry }); }
+  burst(ctx, mouthX, mouthY, seg(t, 2.72, 3.4), 10, 64 * k0, (x, y, i, a) => sparkle(ctx, x, y, 6 + (i % 3) * 2, a));
+  const fp = seg(t, 2.75, 3.5);
+  if (fp > 0 && fp < 1) pic(ctx, E, 'mochi-determined', mouthX + Math.cos(aim) * fp * fp * g.aw * 0.8, mouthY - Math.sin(aim) * fp * fp * g.aw * 0.8 + size * 0.4, size, { rot: -aim, sx: 1.25, sy: 0.85 });
+}
+
+// ---- The proposal scenes (PRD v0.6 E): the Tea Party window ----
+// 1. Mochi lands by the window with a big squash.
+function sceneLanding(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, sill = g.wy + g.wh, xM = xD - cs * 0.95;
+  windowBack(ctx, g, 'tea');
+  const jump = t > 1.15 ? Math.abs(Math.sin((t - 1.15) * 9)) * Math.exp(-(t - 1.15) * 2.2) * cs * 0.18 : 0;
+  pic(ctx, E, 'daifuku', xD, sill - jump, cs, { sy: 1 + 0.05 * Math.sin(t * 5) });
+  windowFront(ctx, g, 'tea');
+  const fp = seg(t, 0.15, 1.0);
+  if (fp < 1) { // flying in on an arc from the left
+    const x = blend(g.left - cs * 0.5, xM, fp), y = g.stand - Math.sin(Math.PI * fp) * g.H * 0.55;
+    pic(ctx, E, 'mochi-happy', x, y, cs, { rot: blend(-0.5, 0.5, fp), sx: 1.15, sy: 0.9 });
+  } else {
+    const s = Math.exp(-(t - 1.0) * 6) * Math.cos((t - 1.0) * 22), l = t < 1.0 ? 0 : s;
+    pic(ctx, E, 'mochi-love', xM, g.stand, cs, { sx: 1 + 0.4 * l, sy: 1 - 0.45 * l });
+    burst(ctx, xM, g.stand - 6, seg(t, 1.0, 1.6), 8, cs * 0.8, (x, y, i, a) => puffDot(ctx, x, g.stand - 6 - Math.abs(y - (g.stand - 6)) * 0.4, 5, a * 0.8));
+  }
+}
+// 2. The soda-bubble ring: held up, sparkling.
+function sceneRing(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, sill = g.wy + g.wh, xM = xD - cs * 0.95;
+  windowBack(ctx, g, 'tea');
+  pic(ctx, E, 'daifuku', xD, sill, cs, { sx: 1 + 0.03 * Math.sin(t * 6), sy: 1 - 0.03 * Math.sin(t * 6) });
+  windowFront(ctx, g, 'tea');
+  const up = ease.outBack(seg(t, 0.3, 1.1)), rx = xM + cs * 0.42, ry = blend(g.stand - cs * 0.3, g.stand - cs * 1.08, up) + Math.sin(t * 4) * 2 * seg(t, 1.1, 1.3), rr = cs * 0.2 * blend(0.4, 1, up);
+  const hasArt = !!ART_IMG['mochi-ring'];
+  pic(ctx, E, hasArt ? 'mochi-ring' : 'mochi-love', xM, g.stand, cs, { sy: 1 + 0.03 * Math.sin(t * 6), sx: 1 - 0.02 * Math.sin(t * 6) });
+  if (!hasArt) { // the bubble ring: a pale iridescent circle with a shine
+    const gr = ctx.createLinearGradient(rx - rr, ry - rr, rx + rr, ry + rr); gr.addColorStop(0, '#ffd1e8'); gr.addColorStop(0.5, '#cfe9ff'); gr.addColorStop(1, '#fff3b8');
+    ctx.save(); ctx.strokeStyle = P.ink; ctx.lineWidth = rr * 0.5 + 2; ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = gr; ctx.lineWidth = rr * 0.5; ctx.stroke(); ctx.strokeStyle = P.white; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, rr, Math.PI * 1.15, Math.PI * 1.45); ctx.stroke(); ctx.restore();
+  }
+  if (t > 1.0) for (let i = 0; i < 4; i++) { const p = ((t - 1.0) * 1.3 + i / 4) % 1, an = i * 1.7 + 0.5; sparkle(ctx, rx + Math.cos(an) * rr * 1.7, ry + Math.sin(an) * rr * 1.7, 4 + 5 * Math.sin(p * Math.PI), Math.sin(p * Math.PI)); }
+  if (t > 1.6) { const k = seg(t, 1.6, 2.0); miniHeart(ctx, xD, sill - cs * 1.15 - 8 * k, 11 * ease.outBack(k)); }
+}
+// 3. "Yes!": Daifuku hops out to Mochi and hearts burst.
+function sceneYes(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, sill = g.wy + g.wh, xM = xD - cs * 0.95, x2 = xM + cs * 0.9;
+  windowBack(ctx, g, 'tea'); windowFront(ctx, g, 'tea');
+  const jp = seg(t, 0.15, 0.75), dxp = blend(xD, x2, ease.inOut(jp)), dy = blend(sill, g.stand, jp) - Math.sin(Math.PI * jp) * cs * 0.9, landed = t > 0.75 ? Math.exp(-(t - 0.75) * 6) * Math.cos((t - 0.75) * 22) : 0;
+  const cheer = t > 1.0 ? Math.abs(Math.sin((t - 1.0) * 7)) * cs * 0.2 : 0, o = t > 1.0 ? hopOf(((t - 1.0) * 1.1) % 1) : { sx: 1, sy: 1 };
+  pic(ctx, E, 'mochi-love', xM, g.stand - cheer, cs, { sx: t > 1 ? o.sx : 1, sy: t > 1 ? o.sy : 1 });
+  pic(ctx, E, 'daifuku-wave', dxp, jp < 1 ? dy : g.stand - cheer, cs, jp < 1 ? { sx: 0.95, sy: 1.1, rot: blend(-0.3, 0.3, jp) } : { sx: t > 1 ? o.sx : 1 + 0.4 * landed, sy: t > 1 ? o.sy : 1 - 0.45 * landed });
+  burst(ctx, (xM + x2) / 2, g.stand - cs * 1.0, seg(t, 0.75, 2.2), 14, cs * 1.5, (x, y, i, a) => miniHeart(ctx, x, y, 7 + (i % 3) * 3, a), cs * 0.6);
+}
+// 4. Together: they hop away side by side, hearts trailing.
+function sceneTogether(g) {
+  const { ctx, E, t, cs } = g, x0 = g.cx - g.aw * 0.18, x1 = g.cx + g.aw * 0.2, hops = [[0.2, 0.9], [1.0, 1.7], [1.8, 2.5]];
+  let done = 0, cur = null;
+  hops.forEach(([a, b], i) => { if (t >= b) done = i + 1; else if (t > a) cur = { p: (t - a) / (b - a) }; });
+  const prog = (done + (cur ? ease.inOut(cur.p) : 0)) / 3, x = blend(x0, x1, prog), o = cur ? hopOf(cur.p) : { y: 0, sx: 1, sy: 1 }, y = g.stand - o.y * cs * 0.4;
+  for (let i = 0; i < 5; i++) { const p = ((t * 0.9 + i / 5) % 1); miniHeart(ctx, x - cs * 0.9 - p * 50, g.stand - cs * 0.5 - p * 30 + Math.sin(i * 3) * 10, 5 + 3 * (1 - p), (1 - p) * 0.9 * seg(t, 0.2, 0.5)); }
+  pic(ctx, E, 'mochi-love', x - cs * 0.42, y, cs, { sx: o.sx, sy: o.sy });
+  pic(ctx, E, 'daifuku-wave', x + cs * 0.42, y, cs, { sx: o.sx, sy: o.sy });
+  if (t > 2.5) { const k = seg(t, 2.5, 3.0); miniHeart(ctx, x, g.stand - cs * 1.35 - 20 * k, 20 * ease.outBack(k)); sparkle(ctx, x - 34, g.stand - cs * 1.4, 7 * k, k); sparkle(ctx, x + 36, g.stand - cs * 1.55, 6 * k, k); }
+}
+
+// The scene player shared by the cold open and the proposal: one animated card at a time on the sky, its line fading in under
+// it. A tap during a scene jumps to its end, the next tap goes on, and a card goes on by itself TUNING.story.autoGap seconds
+// after its scene ends; Skip ends the lot. Dots (top) count the cards, a pulsing triangle shows when a tap goes on.
+function cardsScene(def) {
+  return {
+    enter(E, p = {}) {
+      this.p = p; this.i = 0; this.t0 = E.time; this.btnSkip = null; this.tapT = -Infinity;
+      def.enter(E, p, this);
+      SFX.story(E);
+    },
+    cards: () => def.cards,
+    dur(i) { return def.dur()[i]; },
+    advance(E) {
+      if (this.i + 1 >= def.cards.length) { def.finish(E, this); return; }
+      this.i++; this.t0 = E.time; SFX.story(E);
+    },
+    update(dt, E) { if (E.time - this.t0 >= this.dur(this.i) + T.story.autoGap) this.advance(E); },
+    render(ctx, E) {
+      const sf = E.safe, Y = T.story, aw = E.w - sf.left - sf.right, cx = sf.left + aw / 2, c = def.cards[this.i], d = this.dur(this.i);
+      if (def.backdrop) def.backdrop(ctx, E, this);
+      const t = Math.min(E.time - this.t0, d);
+      const capW = Math.min(aw - 120, 700);
+      let size = TY.lg, lines;
+      for (const s of [TY.lg, 22, TY.md]) { size = s; lines = wrap(E, c.text, capW - 28, s, '800'); if (lines.length <= 2) break; }
+      if (lines.length === 2) for (let w = capW - 28 - 12; w > 120; w -= 12) { const l2 = wrap(E, c.text, w, size, '800'); if (l2.length > 2) break; lines = l2; } // balance the two lines
+      const lh = size + 6, capH = lines.length * lh + 12, capTop = E.h - sf.bottom - 8 - capH, floor = capTop - 10;
+      const top = sf.top + 8, H = floor - top, groundY = floor - 12;
+      storySky(ctx, E, groundY, def.place);
+      const fw = Math.min(aw * 0.78, 520, aw - 2 * (Y.skipW + 16) - 64), wy = top + 34, sill = groundY - 6;
+      c.draw({ ctx, E, t, cs: clamp(H * 0.4, 60, 128), left: sf.left, aw, cx, top, floor, groundY, stand: groundY + 10, H, fw, wx: cx - fw / 2, wy, wh: sill - wy });
+      const fade = seg(t, 0.5, 1.1);
+      if (fade > 0) {
+        ctx.save(); ctx.globalAlpha = fade;
+        let cw = 0; ctx.font = `800 ${size}px system-ui, sans-serif`; for (const l of lines) cw = Math.max(cw, ctx.measureText(l).width);
+        E.roundRect(cx - cw / 2 - 14, capTop + (1 - fade) * 6, cw + 28, capH, 12, P.panel);
+        lines.forEach((l, n) => E.text(l, cx, capTop + (1 - fade) * 6 + 6 + (n + 0.5) * lh, { size, weight: '800', color: P.text }));
+        ctx.restore();
+      }
+      def.cards.forEach((_, k) => { ctx.globalAlpha = k === this.i ? 1 : 0.35; ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(E.w / 2 + (k - (def.cards.length - 1) / 2) * 18, sf.top + 14, k === this.i ? 5 : 4, 0, Math.PI * 2); ctx.fill(); });
+      ctx.globalAlpha = 1;
+      if (E.time - this.t0 >= d) tapMark(ctx, E, E.w - sf.right - 32, E.h - sf.bottom - 22);
+      this.btnSkip = btn(E, 'Skip', E.w - sf.right - 16 - Y.skipW / 2, sf.top + 16 + Y.skipH / 2, { w: Y.skipW, h: Y.skipH, size: TY.md, fill: P.panelSolid });
+      this.cap = { x: cx - capW / 2, y: capTop, w: capW, h: capH, lines: lines.length };
+    },
+    onTap(p, E) {
+      if (this.btnSkip && E.hit(this.btnSkip, p)) { E.audio.play('tap'); def.finish(E, this); return; }
+      if (E.time - this.tapT < T.story.tapGap) return;
+      this.tapT = E.time;
+      if (E.time - this.t0 < this.dur(this.i)) { this.t0 = E.time - this.dur(this.i); return; } // jump to the end of the scene
+      this.advance(E);
+    },
+    onKey(k, E) { if (k === ' ' || k === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
+  };
+}
+
+// The cold open: shown once on a save at story version 1 or less (openSeen is set as it opens, so closing the app mid-way never
+// repeats it) and again from the menu's Story button.
+const story = cardsScene({
+  cards: STORY, place: 0, dur: () => T.story.dur,
+  enter(E, p) { if (!p.replay && storySeen(E) < T.story.version) E.save.set('openSeen', T.story.version); },
+  finish(E) { E.setScene('menu'); },
+});
+
+// The proposal (PRD v0.6 E): the first flight that reaches Tea Party ends here, before the result card. `proposed` is set as
+// the first beat shows, so a flight cut short by backgrounding still owes it.
+const proposal = cardsScene({
+  cards: PROPOSAL, place: 5, dur: () => T.story.proposalDur,
+  enter(E, card, self) { self.card = card; E.save.set('proposed', true); E.ledger.add('proposal', { m: card.m }); },
+  finish(E, self) { E.setScene('over', self.card); },
+});
 
 // ---------- Portrait ----------
 // Launch is landscape (ADR-0013). While the phone is held upright the game pauses under a dimmed prompt and takes no input.
@@ -2723,7 +3028,7 @@ function landscapeOnly(scene) {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 9,
+  saveVersion: 10,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
   // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`.
   // v5 (PRD v0.2 B): coins become sugar one for one; `up.steady` at 0; goals start at the top of the list with every distance
@@ -2735,6 +3040,9 @@ export const game = {
   // their old lines 500, 1000, 2000, 3500, 5000) map by index onto the new lines; everything else is kept. v9 (PRD v0.5 F): the
   // story: `openSeen` (the cold open has shown) and `placesSeen` (the highest place whose arrival line has shown); a save with
   // any flight has seen the open and every place its best reached (a veteran meets no cold open and no stale arrival line).
+  // v10 (PRD v0.6 H): the story is new. `openSeen` becomes the story version shown (v9's true reads as 1, so the new cold open
+  // shows once; a fresh or older save reads 0), `placesSeen` also counts the gifts found and is reset to 0 (a veteran's 4 would start the gift box full, so every save finds each gift once on its next flights), and `proposed` (the proposal has shown) is
+  // false for everyone, so a save that already reached Home sees the proposal at the end of its next flight, once.
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
     if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
@@ -2754,12 +3062,13 @@ export const game = {
       data.openSeen = (data.flights || 0) > 0;
       data.placesSeen = Math.min(4, T.milestones.filter((m) => (data.best || 0) >= m).length);
     }
+    if (fromVersion < 10) { data.openSeen = data.openSeen ? 1 : 0; data.proposed = false; data.placesSeen = 0; } // every save finds each gift once
     return data;
   },
   TUNING,
   init(E) { // the portraits load before the first frame; a fresh save opens on the cold open
     loadArt();
-    game.start = E.save.get('openSeen', false) ? 'menu' : 'story';
+    game.start = storySeen(E) >= T.story.version ? 'menu' : 'story';
   },
   // The TUNE panel (PRD v0.4 D): four strengths, and two whole feels. Floaty: light gravity, a soft launch, a long flat glide,
   // gentle thermals and freezers, soft slams. Punchy: heavy gravity, a hard launch, a short steep glide, hard slams with a
@@ -2780,5 +3089,5 @@ export const game = {
     UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView, PLACES, placeFrom, placeIndex, geyserOn, inCloud, palette: P,
     slamOf, impactOf, slopeAt, touching, ventAt, condense, openChute, speedOf },
   start: 'menu',
-  scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop), story: landscapeOnly(story), reunion: landscapeOnly(reunion) },
+  scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop), story: landscapeOnly(story), proposal: landscapeOnly(proposal) },
 };
