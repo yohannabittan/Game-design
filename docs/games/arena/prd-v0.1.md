@@ -156,3 +156,19 @@ It is still a one-time feel prototype (Sonnet, smoke checks only). Keep proto 5 
   2. **Bare parts:** whole body parts with no plate. Large targets, normal damage.
   3. **Plates:** they protect. A hit recoils and dents, and three dents break the plate, as now. **Breaking plates is optional**: a strategy, never a requirement.
 - **Winning without breaking anything.** Each opponent has one health bar, shown above them. Hits on joint slots and bare parts take it down: joint slots for about 3 times a bare-part hit. Plates take no health. A clean, aimed fight that never cracks a plate fells the opponent fastest. Disabling individual parts still works as before (arm, legs, head).
+
+## Proto 7 (designer, 2026-10-05, after proto 6): one hit per swing, and an opponent who fights back
+
+Source: the designer's proto 6 playtest: "It feels a bit repetitive and now there's not really a challenge because you can hit multiple gaps in one hit and just wreck the character." The export agrees: the last three bouts felled 7 or 8 opponents each, with 34 or 35 slashes, 21 to 31 slot hits, and 0 to 2 hits taken.
+
+- **One hit per swing.** The first thing the blade meets decides the swing. A plate clangs and the swing stops there. A slot or a bare part takes the damage and the swing ends. A slash can no longer rake across several targets.
+- **Slots take a thrust.** A joint slot is a thin slit, so only a jab whose tip goes in roughly along the slit counts as a slot hit, at 3x damage. A slash across a slot counts as a bare hit. The jab is the precision tool; the slash is the safe, low-reward one.
+- **More health.** The foe's health goes up, so a clean fight takes several good hits: about 4 slot jabs, or 10 or more bare cuts.
+- **The opponent defends.** When a part is hit, he moves his guard or shield to cover it for a few seconds, so the same spot twice in a row is blocked and you must vary your target. His shield blocks the zone where he holds it, which is drawn clearly. Between his attacks he steps in and out of your reach.
+- **Three fighting styles, seeded,** one per opponent in the sequence:
+  - **Shield wall:** a big shield, slow, counters after a blocked swing.
+  - **Duelist:** no shield, a quick sidestep away from your lunge, fast tells.
+  - **Brute:** heavy plates and few gaps, slow big swings that drain your stamina when you block them.
+  
+  The name of the style shows above his health bar.
+- Everything else from proto 6 stays.
