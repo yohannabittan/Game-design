@@ -9,7 +9,7 @@
 
 ## Setting
 
-A sweets countryside: the Bakery, Candy Meadow, Chocolate River, Soda Springs, Gingerbread Town, then Home among the strawberries. Soft pastel skies (`style.md`).
+A sweets countryside: the Bakery, Candy Meadow, Chocolate River, Soda Springs, Gingerbread Town, then the Tea Party at grandma's cottage among the strawberries. Soft pastel skies (`style.md`).
 
 ## Cast
 
