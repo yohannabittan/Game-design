@@ -39,6 +39,16 @@ Consolidated 2026-10-03 from the sessions that made Packs 1 to 8 for five games:
 - Erase text by inpainting its box from the surroundings with a normalised blur. Deleting the rectangle leaves a hole.
 - Mirror left-facing sprites; check the result.
 
+## Character sets (Packs 9 to 12)
+- A same-person set works as: generate the base pose, then edit it with the base as the reference ("redraw the same man ... change only the pose and expression"), two takes each, and keep the take whose body drifts least from the base (a mean grey difference over the body area, about 35 levels for expressions). Mina's pair barely moved; Bram's neutral sat 68 px lower. A builder that places something on the body must measure each image, never the set.
+- Reference edits fail in three ways: they invent a prop ("purchase" painted cash, fixed by "no money, no papers"), they lose the background (Sam's amazed pose went transparent, fixed by restating the blue screens in the prompt), and they barely change ("change only X" needs a strong, specific X). Retry with the failure named.
+- A masked edit of just the face changed the person (a younger man with a dark beard). The plain edit kept him. Do not use a mask to change an expression.
+- The Checkpoint anchor describes an X-ray of an object, so on a person it gave a photograph. Characters in games whose anchor is about objects need a short cast sentence in the game's palette (recorded in the ledger).
+- A bare skin patch needs words for what must be absent: "one uniform flat skin tone, no lighter rectangle, no tan lines, no marks". Without them Kai's back got a pale rectangle painted on it, Mina's calf came out small and diagonal, and a bride's top read as a towel. Check every patch by overlaying a rectangle; the first sets of three needed redoing.
+- No-text posters worked: say "no letters, numbers, logos, title lettering or credits", and that a clock face and a clapperboard are blank. Keep the hero a silhouette from behind so no face can resemble an actor.
+- Safe batches: a script that dies on an empty API response loses the queue (it happened once), so retry on a bad body. Never `pkill -f` a pattern that also matches the shell running the command; use `pgrep -f "[x]yz"`. Queue batches behind a running one with an `until ! pgrep` loop.
+- Candidates for 36 portraits: WebP at quality 95 is about 0.37 MB each against 1.5 MB as PNG; a 36-image sheet is a 1.2 MB JPEG.
+
 ## Working with the designer
 - He picks on one numbered sheet: columns "current | A | B", every option also at 64 px, because thumbnails decide. He circles in green on a downsized screenshot. Read the circles by detecting green per row and column, then check any close row on an enlarged crop.
 - Tastes shown: richer detail for purely visual things (titles, icons, medals, ranks); flat and matched to the procedural drawing for anything played with; a face on every character emblem; spheres for stars but he likes the pointed white dwarf; parody and jokes (a towel, a teacup, dice). When he says "just pick", choose the clearest silhouette at 64 px.
