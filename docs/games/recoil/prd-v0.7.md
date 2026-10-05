@@ -1,6 +1,6 @@
 # Recoil PRD v0.7: the story of an action career
 
-Status: draft 2026-10-04, waiting for the designer to lock it. Builds on v0.6, sections A to I. Source: the designer: "there's no exposition actually telling the story; we should tell a story more explicitly"; tone "accessible to everyone, including people not alive in the 80s"; career "Extra, Intern, Stunt Double, Action Star".
+Status: locked 2026-10-05 by the designer ("Yeah good plan but don't execute until usage refreshes"; the usage reset 2026-10-05). Cast from `docs/games/recoil/world.md`. Builds on v0.6, sections A to I. Source: the designer: "there's no exposition actually telling the story; we should tell a story more explicitly"; tone "accessible to everyone, including people not alive in the 80s"; career "Extra, Intern, Stunt Double, Action Star".
 
 ## A. Tone
 
@@ -26,7 +26,7 @@ Status: draft 2026-10-04, waiting for the designer to lock it. Builds on v0.6, s
   1. "Backlot 88. A studio that makes action movies."
   2. "You're an extra. Your only line so far was a scream."
   3. "The director needs a new action star. Prove it's you."
-- **The director's portrait** sits on cards 2 and 3. He is an original character: a loud, kind-hearted director with a megaphone, a cap and sunglasses pushed up. This needs one art pack from the Artist, two poses: shouting and approving.
+- **The director's portrait** sits on cards 2 and 3. He is Director "Big Lou" Marlowe, an original character: a loud, kind-hearted director with a megaphone, a cap and sunglasses pushed up. This needs one art pack from the Artist, two poses: shouting and approving.
 
 ## D. Voices on the existing screens
 
@@ -36,7 +36,7 @@ Status: draft 2026-10-04, waiting for the designer to lock it. Builds on v0.6, s
   - 2: "Good take. Let's get one more."
   - 3: "Print it! That's the one."
   - The critic quote stays as the newspaper's verdict.
-- **The prop master's one-liners** in the Prop Room: one line per gun, shown in a small speech strip when its card is selected. For example: "Pulse Rifle. Three sequels, two lawsuits. Careful." They are written by the builder in this tone, with no real film references, and listed in the changelog for the designer to edit.
+- **The prop master's one-liners** in the Prop Room, spoken by Gus the prop master: one line per gun, shown in a small speech strip when its card is selected. For example: "Pulse Rifle. Three sequels, two lawsuits. Careful." They are written by the builder in this tone, with no real film references, and listed in the changelog for the designer to edit.
 
 ## E. Premiere posters (the payoff)
 
@@ -49,6 +49,11 @@ Status: draft 2026-10-04, waiting for the designer to lock it. Builds on v0.6, s
   - Zombies: "Night of the Extras"
   - Endless: "The Overnight Shoot"
   - The titles are drawn by the game, not baked into the image (the Artist's learnings: generated text misspells).
+
+## E2. Art and fallbacks
+
+- The director (Pack 9: `director.png` shouting, `director-approve.png` approving) and the six posters come from the Artist into `docs/art/final/recoil/`. The build wires whatever is there as webp in `games/recoil/assets/` and draws a procedural fallback for anything missing: a megaphone silhouette for the director, and a coloured poster card with the title for a poster. When the art lands later, the orchestrator adds the files and nothing else changes.
+- The director's note shows the approving pose on 2 and 3 stars and the shouting pose otherwise.
 
 ## F. Saves
 
