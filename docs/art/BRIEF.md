@@ -183,6 +183,15 @@ Anchor: `docs/games/gravity-golf/style.md`; cast: `docs/games/gravity-golf/world
 
 About US$0.50 to 1. Into `docs/art/final/gravity-golf/`.
 
+### Pack 13: Launch love story (added 2026-10-05)
+
+Anchor: the Pack 5 finals in `docs/art/final/launch/` (same chunky outline, same faces) and `docs/games/launch/style.md`; spec: `docs/games/launch/prd-v0.6.md` D and E. Use the Pack 5 Daifuku and Mochi images as reference images so they are the same characters.
+
+- `daifuku-window.png`: Daifuku sitting on a windowsill of a cosy cottage, a teacup and a strawberry beside, looking out hopefully, a soft pink sky; the window frame visible around. 768 x 768, transparent outside the window frame.
+- `mochi-ring.png`: Mochi blushing, eyes shining, holding up in front of him a shimmering pink soda bubble shaped like a ring (with a tiny sparkle), as if proposing. 512 x 512, transparent background.
+
+Two options each, about US$0.50 to 1. Into `docs/art/final/launch/`.
+
 ## Handoffs from the orchestrator (2026-10-03)
 
 The designer pastes the orchestrator's one-line task into the art chat. (A Routine bound to the art chat was tried and does not reach it: each firing starts a new empty session.) The art session replies with a pushed `docs/art/HANDOFF-<topic>.md`, which the orchestrator reads when it pulls.

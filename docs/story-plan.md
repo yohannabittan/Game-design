@@ -43,7 +43,7 @@ Rules for all of it:
 - **Payoff:** a premiere poster per set, on a poster wall.
 - **Art:** the director (2 poses) and 6 posters.
 
-### Launch: "Mochi's way home" (the story exists, but is told only by the journey strip)
+### Launch: "Mochi's love letter" (PRD v0.6; v0.5 "Mochi's way home" was too simple)
 
 The art is already final: Mochi in four expressions, Daifuku twice, and the Mochi Maker, in `docs/art/final/launch/` (Pack 5, never wired).
 
