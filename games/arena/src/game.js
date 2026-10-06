@@ -17,7 +17,8 @@ const TUNING = {
   hearts: 3,
   resetDelay: 0.9,         // seconds after a foe falls before a fresh one
   swayRate: 1.3,           // radians per second of the foe's sway
-  offset: 50,              // aim point above the finger, px
+  offset: 50,              // aim point above the finger, px (absolute control only)
+  control: { relative: 1, gain: 1.6, guard: [0.38, -0.08], lungeStart: 1.3, lungeFull: 1.7, back: 0.12, jabCone: 0.68 },  // relative: 1 trackpad, 0 absolute (proto 7); gain: hand px per thumb px; guard: hand at touch-down from the shoulder (H); lunge from thumb offset x gain, in arm lengths (start, full); back: seconds to ease to guard on lift; jabCone: cosine of the widest push angle (off the guard line) that still counts as a jab, wider than absolute's 0.85 because the blade swings as the arm extends
   hand: {
     lag: 0.035,            // seconds of weight in the hand
     regrip: 0.12,          // lag while the hand recovers from a bounce
@@ -243,6 +244,14 @@ function setCover(p) {
 }
 const raised = () => !state.sh.broken && state.sh.arm <= 0 && state.you.lungeK < 0.15 && (state.sh.held || (state.sh.t >= 0 && state.sh.t < TUNING.shield.dur));
 const blocks = (zone) => raised() && state.sh.zone === zone;
+const relative = () => TUNING.control.relative >= 0.5;
+// the guard: a relaxed, half-bent arm in front of the body (relative control), in screen px, on the body as it stands now
+function guardPt(E) {
+  const L = lay(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), g = TUNING.control.guard;
+  return [sx + g[0] * L.H, sy + g[1] * L.H];
+}
+// thumb offset from the anchor, times the gain, px
+function relOff() { const h = state.hand, G = TUNING.control.gain; return [(h.fx - h.ax) * G, (h.fy - h.ay) * G]; }
 
 function poseYou(E, dt) {
   const L = lay(E), y = state.you, D = TUNING.dodge, h = state.hand, sh = state.sh;
@@ -250,7 +259,8 @@ function poseYou(E, dt) {
   // lunge: the aim point pushed past the reach steps the gladiator in, up to a stride; he steps back when the hand relaxes or recoils
   let tk = 0;
   if (h.down && h.lock <= 0 && !state.away && state.exhaust <= 0 && state.endT <= 0 && state.fallT <= 0) {
-    tk = clamp((Math.hypot(h.tgx - (h.sx - y.lunge), h.tgy - h.sy) / L.H - LU.start) / (LU.full - LU.start), 0, 1);
+    if (relative()) { const [ox, oy] = relOff(), C = TUNING.control; tk = clamp((Math.hypot(ox, oy) / (TUNING.arm.len * L.H) - C.lungeStart) / (C.lungeFull - C.lungeStart), 0, 1); }
+    else tk = clamp((Math.hypot(h.tgx - (h.sx - y.lunge), h.tgy - h.sy) / L.H - LU.start) / (LU.full - LU.start), 0, 1);
     if (tk > 0.1 && !state.lunging) {
       if (state.stamina >= LU.cost) { state.stamina -= LU.cost; state.lastAtk = state.m; state.lunging = true; state.lunges++; swooshSound(E, 0.1); }
       else { tk = 0; tiredPop(E); }
@@ -359,6 +369,12 @@ function solveArm(E, dt) {
   h.ux = h.hx + h.bx * blade; h.uy = h.hy + h.by * blade;
 }
 
+function restPt(E) {
+  if (relative()) return guardPt(E);
+  const [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), L = lay(E);
+  return [sx + TUNING.hand.rest[0] * L.H, sy + TUNING.hand.rest[1] * L.H];
+}
+
 function moveHand(E, dt) {
   const h = state.hand, HT = TUNING.hand, L = lay(E), tired = state.stamina <= 0 || state.exhaust > 0;
   h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy;
@@ -371,19 +387,22 @@ function moveHand(E, dt) {
   } else if (h.down) {
     const lag = (h.grip > 0 ? HT.regrip : HT.lag) * (tired ? HT.tiredLag : 1);
     const k = 1 - Math.exp(-dt / lag);
-    h.tgx += (clamp(h.fx, 0, E.w) - h.tgx) * k; h.tgy += (h.fy - TUNING.offset - h.tgy) * k;
+    if (relative()) {
+      const [gx, gy] = guardPt(E), [ox, oy] = relOff();
+      h.tgx += (clamp(gx + ox, 10, E.w - 10) - h.tgx) * k; h.tgy += (clamp(gy + oy, E.safe.top + 40, E.h - 10) - h.tgy) * k;
+    } else { h.tgx += (clamp(h.fx, 0, E.w) - h.tgx) * k; h.tgy += (h.fy - TUNING.offset - h.tgy) * k; }
     if (h.grip > 0) h.grip -= dt;
   } else {
-    const [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
-    const k = 1 - Math.exp(-dt / 0.09);
-    h.tgx += (sx + HT.rest[0] * L.H - h.tgx) * k; h.tgy += (sy + HT.rest[1] * L.H - h.tgy) * k;
+    const [rx, ry] = restPt(E);
+    const k = 1 - Math.exp(-dt / (relative() ? TUNING.control.back : 0.09));
+    h.tgx += (rx - h.tgx) * k; h.tgy += (ry - h.tgy) * k;
   }
   solveArm(E, dt);
   const iv = Math.max(dt, 0.001), vx = (h.ux - h.pux) / iv, vy = (h.uy - h.puy) / iv, inst = Math.hypot(vx, vy), kv = 1 - Math.exp(-dt / 0.03);
   h.vx += (vx - h.vx) * kv; h.vy += (vy - h.vy) * kv;
   h.along = h.vx * Math.cos(h.ang) + h.vy * Math.sin(h.ang);  // tip speed straight out from the shoulder
     h.sp = h.down && h.lock <= 0 ? h.sp * 0.5 + inst * 0.5 : 0;
-  if (h.hy < h.sy - TUNING.attack.over.raise * L.H) h.raisedT = state.m;
+  if (h.hy < (relative() ? guardPt(E)[1] : h.sy) - TUNING.attack.over.raise * L.H) h.raisedT = state.m;
   state.trail.push({ x: h.ux, y: h.uy, life: 0.12 });
   for (const q of state.trail) q.life -= dt;
   state.trail = state.trail.filter((q) => q.life > 0);
@@ -396,9 +415,11 @@ function updateAttack(E, dt) {
   const live = h.down && h.lock <= 0 && !state.away && state.endT <= 0 && state.fallT <= 0;
   if (h.atk && (!live || h.sp < T.hit.minSpeed * 0.55)) h.atk = null;
   if (!h.atk && live && h.sp >= T.hit.minSpeed) {
-    const spv = Math.hypot(h.vx, h.vy) || 1, ux = h.vx / spv, uy = h.vy / spv, along = (h.vx * Math.cos(h.ang) + h.vy * Math.sin(h.ang)) / spv;
+    const spv = Math.hypot(h.vx, h.vy) || 1, ux = h.vx / spv, uy = h.vy / spv;
+    // relative control: a jab is a push forward along the guard line, whatever the arm's aim; absolute: straight out from the shoulder
+    const ga = relative() ? Math.atan2(TUNING.control.guard[1], TUNING.control.guard[0]) : h.ang, along = (h.vx * Math.cos(ga) + h.vy * Math.sin(ga)) / spv;
     let kind = null;
-    if (along > 0.85) { if (spv >= AT.jab.minSpeed) kind = 'jab'; }
+    if (along > (relative() ? TUNING.control.jabCone : 0.85)) { if (spv >= AT.jab.minSpeed) kind = 'jab'; }
     else if (uy > 0.25 && state.m - h.raisedT < AT.over.window) { if (spv >= AT.over.minSpeed) kind = 'over'; }
     else if (uy < -0.7) kind = 'raise';
     else kind = 'slash';
@@ -841,7 +862,13 @@ function drawSwordArm(ctx, E) {
   if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(h.ux, h.uy, 6, 0, 6.28); ctx.fill(); }
   ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
   ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();
-  if (h.down) {
+  if (h.down && relative()) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(h.ax, h.ay, 22, 0, 6.28); ctx.stroke();
+    ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath(); ctx.moveTo(h.ax, h.ay); ctx.lineTo(h.fx, h.fy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(h.fx, h.fy, 7, 0, 6.28); ctx.fill();
+  } else if (h.down) {
     ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(h.fx, h.fy); ctx.lineTo(h.fx, h.fy - TUNING.offset); ctx.stroke(); ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(h.fx, h.fy, 14, 0, 6.28); ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.stroke();
@@ -983,7 +1010,7 @@ const menu = {
   render(ctx, E) {
     if (portrait(E)) { this.btnPlay = this.btnMute = null; rotateCard(ctx, E); return; }
     E.text('ARENA', E.w / 2, E.h * 0.22, { size: 44, weight: '800', color: '#e6c866' });
-    E.text('Right thumb: sword. Jab out, slash, overhead. Aim for the dark slits. Push past your reach to lunge.', E.w / 2, E.h * 0.22 + 40, { size: 14, color: '#9aa4b2' });
+    E.text(relative() ? 'Right thumb: sword, anywhere on the right. Move it like a trackpad: push to jab, sweep to slash, up then down to overhead. Push far past your reach to lunge.' : 'Right thumb: sword. Jab out, slash, overhead. Aim for the dark slits. Push past your reach to lunge.', E.w / 2, E.h * 0.22 + 40, { size: 14, color: '#9aa4b2' });
     E.text('Left thumb: High, Mid, Low = shield (hold to keep it up); Dodge = tap to sidestep, hold to stay back.', E.w / 2, E.h * 0.22 + 62, { size: 14, color: '#9aa4b2' });
     E.text(`Best: ${E.save.get('best2', 0)} gap hits`, E.w / 2, E.h * 0.22 + 92, { size: 17, color: '#fbbf24' });
     this.btnPlay = E.button('Play', E.w / 2, E.h * 0.62);
@@ -998,7 +1025,7 @@ const menu = {
 function initHand(E) {
   const h = state.hand, L = lay(E);
   const [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
-  h.tgx = sx + TUNING.hand.rest[0] * L.H; h.tgy = sy + TUNING.hand.rest[1] * L.H;
+  [h.tgx, h.tgy] = restPt(E);
   h.pang = Math.atan2(h.tgy - sy, h.tgx - sx);
   solveArm(E, 0);
   h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy; state.you.a = 0.05;
@@ -1078,8 +1105,10 @@ const play = {
     const h = state.hand;
     if (h.down) return;
     h.down = true; h.id = p.id; h.fx = p.x; h.fy = p.y; h.hist = [{ x: p.x, y: p.y, t: now() }];
+    h.ax = p.x; h.ay = p.y;
     if (h.lock <= 0) {
-      h.tgx = p.x; h.tgy = p.y - TUNING.offset; h.grip = 0; solveArm(E, 0);
+      if (relative()) [h.tgx, h.tgy] = guardPt(E); else { h.tgx = p.x; h.tgy = p.y - TUNING.offset; }
+      h.grip = 0; solveArm(E, 0);
       h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy; h.sp = 0; h.vx = h.vy = 0;
     }
   },
@@ -1170,7 +1199,7 @@ const play = {
     if (state.riposte > 0) E.text('RIPOSTE x2', E.w / 2, top + 62, { size: 16, weight: '800', color: '#ffd24a' });
     ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(0, top + 50, E.w * 0.3, 3);
     ctx.fillStyle = '#e6c866'; ctx.fillRect(0, top + 50, E.w * 0.3 * clamp(state.t / TUNING.roundTime, 0, 1), 3);
-    if (state.t > TUNING.roundTime - 8) E.text('left: High / Mid / Low = shield (hold to keep), Dodge = tap or hold  |  right thumb: sword, push past your reach to lunge', E.w / 2, E.h - 8 - E.safe.bottom, { size: 12, color: '#f0e6cc', alpha: clamp((state.t - (TUNING.roundTime - 8)) / 1.5 + 0.2, 0, 1) });
+    if (state.t > TUNING.roundTime - 8) E.text('left: High / Mid / Low = shield, Dodge  |  right thumb: sword (' + (relative() ? 'trackpad, push far to lunge' : 'push past reach to lunge') + ')', E.w / 2, E.h - 8 - E.safe.bottom, { size: 12, color: '#f0e6cc', alpha: clamp((state.t - (TUNING.roundTime - 8)) / 1.5 + 0.2, 0, 1) });
   },
   onPause() {},
 };
@@ -1207,7 +1236,10 @@ export const game = {
   migrate(data, fromVersion) { return data; },
   TUNING,
   experiments: [
-    { key: 'offset', label: 'Aim offset (px)', min: 0, max: 130, step: 5 },
+    { key: 'control.relative', label: 'Sword control (0 Absolute, 1 Relative)', min: 0, max: 1, step: 1 },
+    { key: 'control.gain', label: 'Relative gain', min: 1, max: 2.6, step: 0.1 },
+    { key: 'control.lungeStart', label: 'Lunge push (x reach)', min: 1, max: 1.6, step: 0.05 },
+    { key: 'offset', label: 'Aim offset, absolute (px)', min: 0, max: 130, step: 5 },
     { key: 'hand.lag', label: 'Hand weight (s)', min: 0.005, max: 0.12, step: 0.005 },
     { key: 'hit.minSpeed', label: 'Min hit speed (px/s)', min: 200, max: 1200, step: 25 },
     { key: 'stamina.regen', label: 'Stamina regen (/s)', min: 10, max: 80, step: 2 },
