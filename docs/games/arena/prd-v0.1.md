@@ -172,3 +172,20 @@ Source: the designer's proto 6 playtest: "It feels a bit repetitive and now ther
   
   The name of the style shows above his health bar.
 - Everything else from proto 6 stays.
+
+## Proto 8 (designer, 2026-10-06, after proto 7): the sword thumb works like a trackpad
+
+Source: the designer's proto 7 playtest. "A number of things are better, but I think I learned the major problem. Holding the phone sideways, the comfortable place for the thumb to sit is near the right side of the screen, which means the comfortable action is the lunge strike and hold close to the enemy. To avoid that I have to push my thumb to the middle of the screen and then pull it back to move the sword and stab." The cause: the sword hand follows the thumb's position on screen, so the resting thumb, at the right edge, means full reach.
+
+- **Relative control (trackpad), the new default.**
+  - Wherever the right thumb touches down, the sword hand is at its guard: a relaxed, half-bent arm in front of the body.
+  - Moving the thumb moves the hand by that offset times a gain of about 1.6 (TUNE), so a small, comfortable thumb movement covers the whole reach.
+  - Lifting the thumb returns the hand smoothly to guard, and the next touch re-anchors.
+- **Strikes keep their gestures, measured from the anchor.**
+  - A jab is a quick push forward from the anchor.
+  - A slash is a quick sweep across.
+  - An overhead is up, then down.
+  - A **lunge** needs a deliberate push past the full reach from the anchor, about 1.3 times the reach in thumb movement after the gain (TUNE). The comfortable resting thumb never lunges.
+- **A faint ring** shows where the thumb anchored, and a line runs from it to the current thumb position, so the player can see the offset.
+- **TUNE switch "Sword control":** Relative (default) or Absolute (proto 7), so the designer can compare in one session.
+- Everything else from proto 7 stays.
