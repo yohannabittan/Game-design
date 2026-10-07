@@ -1,5 +1,8 @@
-// Arena (proto 7): one hit per swing (the first thing the blade meets), slots count only for a jab along the slit, the foe covers the part you hit,
-// steps in and out, and fights in one of three seeded styles (Shield wall, Duelist, Brute).
+// Arena (proto 9): a five-opponent gauntlet of rolled fighters (size, weapon, armour set, three stats, an intro card), and a foe with intent:
+// a per-weapon move set with honest tells (chop, thrust, sweep, a zone-changing combo, a feint, a shield bash, a net throw), his own stamina and a winded
+// state, footwork that keeps his weapon's range, and a short memory of your habits. Every exchange is planned with the fight RNG when it starts.
+// Arena (proto 8): the sword thumb works like a trackpad (relative control).
+// Arena (proto 7): one hit per swing (the first thing the blade meets), slots count only for a jab along the slit, the foe covers the part you hit.
 // Arena (proto 6): fighters apart, a lunge to reach deep targets, joint slots (3x), one health bar, a dodge button, exhaustion.
 // Arena (proto 5): two full-body gladiators, side view, landscape (ADR-0013), two thumbs.
 // RIGHT thumb: the sword arm. The body stays upright and the sword leads: straight on a near-full-length circle around the shoulder at the finger's angle,
@@ -7,18 +10,19 @@
 // slash come out of the motion. Every attack costs stamina; armour and the foe's guard clang (recoil; a counter only after an overhead clang).
 // LEFT hand: three shield buttons (High, Mid, Low) on the left edge: tap = shield up for 0.6 s, hold = keep it up (slow stamina drain). Only the matching zone blocks.
 // A fourth button, Dodge: tap = quick sidestep, hold = stay backed off (burns stamina). No stamina = exhausted: no swings for 1.5 s, slow shield.
-// Layout: H = fighter body unit = screen height * fighter.height, feet on a floor line, one side each of the screen centre. Body units: x forward, y down, origin at the feet.
+// Layout: H = fighter body unit = screen height * fighter.height (the foe's is scaled by his size), feet on a floor line. Body units: x forward, y down, origin at the feet.
 // All particles are the game's own so a hit-stop freezes the burst, then lets it fly.
 
 import { makeRng, clamp, lerp } from './engine.js';
 
 const TUNING = {
-  roundTime: 45,           // seconds per round
-  hearts: 3,
-  resetDelay: 0.9,         // seconds after a foe falls before a fresh one
+  hearts: 3,               // drawn as hearts, counted in halves
+  heal: 1,                 // half hearts back for each foe felled
+  bouts: 5,                // opponents in the gauntlet
+  resetDelay: 0.9,         // seconds after a foe falls before the next intro card
   swayRate: 1.3,           // radians per second of the foe's sway
   offset: 50,              // aim point above the finger, px (absolute control only)
-  control: { relative: 1, gain: 1.6, guard: [0.38, -0.08], lungeStart: 1.3, lungeFull: 1.7, back: 0.12, jabCone: 0.68 },  // relative: 1 trackpad, 0 absolute (proto 7); gain: hand px per thumb px; guard: hand at touch-down from the shoulder (H); lunge from thumb offset x gain, in arm lengths (start, full); back: seconds to ease to guard on lift; jabCone: cosine of the widest push angle (off the guard line) that still counts as a jab, wider than absolute's 0.85 because the blade swings as the arm extends
+  control: { relative: 1, gain: 1.6, guard: [0.38, -0.08], lungeStart: 1.3, lungeFull: 1.7, back: 0.12, jabCone: 0.68 },  // relative: 1 trackpad, 0 absolute (proto 7); gain: hand px per thumb px; guard: hand at touch-down from the shoulder (H); lunge from thumb offset x gain, in arm lengths (start, full); back: seconds to ease to guard on lift; jabCone: cosine of the widest push angle (off the guard line) that still counts as a jab
   hand: {
     lag: 0.035,            // seconds of weight in the hand
     regrip: 0.12,          // lag while the hand recovers from a bounce
@@ -44,25 +48,73 @@ const TUNING = {
   stun: 1.2,               // seconds the foe is stunned when the head goes
   armSlow: 0.4,            // each disabled arm lengthens the wind-up by this fraction
   swing: {
-    windup: 0.95,          // seconds from the first tell to the blow
-    gap: 3.2,              // seconds between swings: gap to gap + gapSpread
+    windup: 0.95,          // base seconds from the first tell to the blow, scaled by the move, weapon, size, Speed and rhythm
+    gap: 3.2,              // base seconds between exchanges: gap * 0.6 + up to gapSpread, scaled by the rhythm
     gapSpread: 1.5,
     lunge: 0.22,           // foe steps in this far (H) as the blow lands
   },
-  counter: { windup: 0.55 },  // only an overhead clang brings a counter
-  open: { dur: 1.1 },      // seconds the foe is open after each of his blows
+  counter: { windup: 0.55 },  // only an overhead clang (or any clang on a shield-bearer) brings a counter
+  open: { dur: 1.1 },      // seconds the foe is open after each of his moves
   shield: { dur: 0.6, perfect: 0.25, hits: 6, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2, drain: 3, slow: 0.45, btnW: 64, btnH: 56, gap: 6 },  // drain: stamina per second of hold
   juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, strawPerDmg: 14 },
-  foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, armourMin: 2, armourMax: 3, hp: 26, slotMul: 3 },  // plates take no health; a slot jab deals slotMul times a bare hit; hp is scaled by the style
+  foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, hp: 22, tierHp: 0.1, champHp: 1.15, slotMul: 3, dmgCap: 3, coverShield: 0.2, coverGuard: 0.1 },  // hp scaled by size and tier; dmgCap: most half hearts one blow takes; cover radii (H) with and without a shield
   cover: { dur: 3.2, slide: 0.07, jabTol: 0.8 },  // seconds the foe's guard stays on the part you hit; seconds to slide there; radians a jab may stray from the slit's axis
-  step: { every: [0.9, 2.1], in: -0.07, out: 0.22, tau: 0.16, dodge: 0.3, dodgeDur: 0.7, dodgeCool: 1.6 },  // the foe's stepping (H); the Duelist's sidestep from a lunge
-  // r: cover radius (H); windup and gap scale his tells and pauses; plates null = 2 or 3 seeded; slots: how many joint slots he has; drain: your stamina lost when you block him
-  styles: [
-    { id: 'wall', name: 'SHIELD WALL', hp: 1, windup: 1.25, gap: 1.15, r: 0.2, plates: null, slots: 5, counterOnBlock: true, drain: 0, stepMul: 0.5, sidestep: false, tint: '#7dd3fc', label: 'SHIELD' },
-    { id: 'duel', name: 'DUELIST', hp: 0.85, windup: 0.7, gap: 0.8, r: 0.085, plates: 2, slots: 5, counterOnBlock: false, drain: 0, stepMul: 1, sidestep: true, tint: '#fde68a', label: 'GUARD' },
-    { id: 'brute', name: 'BRUTE', hp: 1.3, windup: 1.3, gap: 1.2, r: 0.12, plates: 4, slots: 2, counterOnBlock: false, drain: 25, stepMul: 0.4, sidestep: false, tint: '#fca5a5', label: 'SHIELD' },
+  step: { circle: [-0.05, 0.07], period: 3.4, tau: 0.16, lead: 0.5, dodge: 0.3, dodgeDur: 0.7, dodgeCool: 2.4 },  // footwork (H): a slow drift around his range (period s); lead: seconds before a move he steps to striking distance; his sidestep from a lunge
+  // his stamina: base + per Stamina point; costs per move are in moves; block: paid when your blow meets his guard; winded: seconds with guard down at zero; combo: seconds winded after any combo
+  foeSta: { base: 40, per: 14, regen: 16, delay: 0.6, block: 8, winded: 1.5, combo: 1.4, windedRegen: 2.5, windedDmg: 1.5, windedStep: 4 },
+  // feint: show = fraction of the move's tell spent on the fake zone, cock = how far the fake winds up (an honest, shallower cock), after = seconds of real tell left after the switch
+  moves: {
+    chop:   { wind: 1.05, cost: 18, dmg: 2 },
+    thrust: { wind: 0.85, cost: 12, dmg: 1, high: 0.35 },   // high: a spear's chance to thrust at the face
+    sweep:  { wind: 0.95, cost: 14, dmg: 1 },
+    combo:  { wind: 0.9, next: 0.6, cost: 10, dmg: 1 },     // cost and damage per hit; next: windup of each later hit as a fraction of the first
+    feint:  { show: 0.6, cock: 0.6, after: 0.55, cost: 8, dmg: 1 },
+    bash:   { wind: 0.7, cost: 15, drain: 30, blocked: 0.4, push: 0.2, w: 1.2 },  // drain: your stamina; blocked: drain fraction when you block it; push: H; w: weight for a shield-bearer
+    net:    { wind: 0.95, cost: 14, dur: 2.2, slow: 2.6 },  // dur: seconds you are slowed; slow: hand lag multiplier while netted
+  },
+  // rhythm of an exchange: how many moves, the pause between them (s), windup multiplier, the pause after it (x the base gap), feint weight multiplier
+  rhythm: [
+    { id: 'flurry', w: 1, n: [2, 3], gap: 0.3, wind: 0.85, after: 1.0, feint: 0.7 },
+    { id: 'probe', w: 1, n: [1, 1], gap: 0, wind: 1.15, after: 0.65, feint: 2 },
+    { id: 'pause', w: 0.8, n: [1, 2], gap: 0.7, wind: 1, after: 1.5, feint: 1 },
   ],
+  // what he remembers of you: blockRun same-zone blocks in a row (the read fades memWin s after the last) make him avoid that zone (avoid x weight); lunges in lungeWin s make him sidestep and punish;
+  // turtle: share of recent time (tau s) your shield is up that makes him feint and bash more; lowSta: your stamina fraction below which he presses
+  read: { blockRun: 3, memWin: 20, avoid: 0.08, lunges: 2, lungeWin: 10, turtle: 0.45, turtleTau: 4, turtleFeint: 3, turtleBash: 4, lowSta: 0.3, pressMul: 3, pressWind: 0.88 },
+  retreat: { chance: 0.5, hurt: 0.6, dur: 1.2, dist: 0.2 },  // chance per exchange that a hit below hurt (health fraction) sends him back dist (H) for dur s
+  stat: { strDmg: [0.75, 0.1], spdWind: [1.25, 0.1], spdStep: [1.3, 0.12] },  // multiplier = a - b * stat (Strength adds: a + b * stat)
+  // sizes: drawn scale, health, extra range (H), damage, windup and footwork multipliers, stat bias (Strength, Speed, Stamina)
+  sizes: [
+    { id: 'S', name: 'SMALL', scale: 0.86, hp: 0.8, reach: -0.04, dmg: 0.9, wind: 0.9, step: 0.8, bias: [-1, 1, 0] },
+    { id: 'M', name: 'MEDIUM', scale: 1, hp: 1, reach: 0, dmg: 1, wind: 1, step: 1, bias: [0, 0, 0] },
+    { id: 'L', name: 'LARGE', scale: 1.15, hp: 1.3, reach: 0.06, dmg: 1.2, wind: 1.12, step: 1.3, bias: [1, -1, 0.5] },
+  ],
+  // weapons: home and striking distance (H, beyond the base stance), windup multiplier, damage, drawn length (H), move weights, combo length, shield chance, your stamina drained per block, shield wear per block
+  weapons: [
+    { id: 'gladius', name: 'GLADIUS', range: 0.12, strike: -0.04, speed: 0.9, dmg: 1, len: 0.3, moves: { chop: 2, thrust: 2, sweep: 1.5, combo: 3, feint: 1.5 }, combo: [2, 3], shield: 0.7, drain: 0, wear: 1 },
+    { id: 'spear', name: 'SPEAR', range: 0.34, strike: 0.2, speed: 1, dmg: 1, len: 0.8, moves: { chop: 0.8, thrust: 4, sweep: 2, combo: 1, feint: 1.5 }, combo: [2, 2], shield: 0.5, drain: 0, wear: 1 },
+    { id: 'axe', name: 'AXE', alt: 'MACE', range: 0.16, strike: 0, speed: 1.25, dmg: 1.6, len: 0.44, moves: { chop: 4, thrust: 0.4, sweep: 2, combo: 1, feint: 1 }, combo: [2, 2], shield: 0.3, drain: 18, wear: 2 },
+    { id: 'dagger', name: 'DAGGER & NET', range: 0.04, strike: -0.16, speed: 0.85, dmg: 0.8, len: 0.17, moves: { chop: 1, thrust: 3, sweep: 1, combo: 2, feint: 2, net: 1.6 }, combo: [2, 3], shield: 0, drain: 0, wear: 1 },
+  ],
+  // armour sets: plates (min, max), a helmet, joint slots open
+  armourSets: [
+    { id: 'light', name: 'LIGHT', plates: [1, 1], helmet: false, slots: 3 },
+    { id: 'medium', name: 'MEDIUM', plates: [2, 3], helmet: false, slots: 4 },
+    { id: 'heavy', name: 'HEAVY', plates: [4, 4], helmet: true, slots: 5 },
+  ],
+  net: { stuck: 1 },       // lunges are blocked while netted (1) or not (0)
 };
+
+// The gauntlet: what each bout may roll (sizes, armour sets) and the stat level it centres on. The fifth is the named champion.
+const GAUNTLET = [
+  { sizes: ['S'], armour: ['light'], stat: 1.3 },
+  { sizes: ['S', 'M'], armour: ['light', 'medium'], stat: 1.9 },
+  { sizes: ['M', 'L'], armour: ['medium'], stat: 2.6 },
+  { sizes: ['S', 'M', 'L'], armour: ['medium', 'heavy'], stat: 3.2 },
+  { sizes: ['M', 'L'], armour: ['heavy'], stat: 4, champion: true },
+];
+const NAMES = ['Crixus', 'Priscus', 'Verus', 'Celadus', 'Hermes', 'Triumphus', 'Tetraites', 'Spiculus', 'Carpophorus', 'Attilius', 'Oenomaus', 'Gannicus', 'Pugnax', 'Calamus', 'Asteropaeus'];
+const CHAMPIONS = ['Flamma the Unbroken', 'Marcus the Red', 'Varro of Capua', 'Aurelius the Golden'];
 
 // Parts in body units. Arms hang from a joint (their own frame): d is relative to the joint.
 const PARTS = [
@@ -81,15 +133,27 @@ const SLOTS = [
   { id: 'slot-elbow', label: 'ELBOW', shape: 'rect', x: 0, y: 0.15, w: 0.085, h: 0.04, axis: 0, frame: 'armF' },
   { id: 'slot-knee', label: 'KNEE', shape: 'rect', x: 0.075, y: -0.20, w: 0.045, h: 0.06, axis: 0.3 },
 ];
-const ARM_LEN = 0.30, CLUB_LEN = 0.40, SHOULDER = [0.05, -0.67];
+const ARM_LEN = 0.30, SHOULDER = [0.05, -0.67];
 
-// The three zones: where the blow lands (body units), how the weapon arm is cocked and where the swing ends (angles from forward, y down),
-
+// The three zones: where the blow lands (body units), the shield height that blocks it.
 const ZONES = [
-  { id: 'high', y: -0.78, cock: -1.55, end: 1.15, label: 'HIGH', sy: -0.8 },
-  { id: 'mid',  y: -0.62, cock: -2.9,  end: 0.0,  label: 'MID',  guard: 0.2,  cover: ['chest', 'belly'], sy: -0.58 },
-  { id: 'low',  y: -0.18, cock: 2.5,   end: 0.9,  label: 'LOW',  guard: 1.05, cover: ['legs'], sy: -0.28 },
+  { id: 'high', y: -0.78, label: 'HIGH', sy: -0.8 },
+  { id: 'mid',  y: -0.62, label: 'MID', sy: -0.58 },
+  { id: 'low',  y: -0.18, label: 'LOW', sy: -0.28 },
 ];
+const ZONE = Object.fromEntries(ZONES.map((z) => [z.id, z]));
+// The foe's weapon arm for each blow: cocked angle and end angle (from forward, y down), lean while winding, crouch, how far the blow lunges (x swing.lunge).
+const POSES = {
+  chop:   { cock: -1.55, end: 1.15, lean: -0.18, crouch: 0, lunge: 1 },
+  slash:  { cock: -2.9, end: 0.0, lean: -0.08, crouch: 0, lunge: 1 },
+  sweep:  { cock: 2.5, end: 0.9, lean: 0.22, crouch: 0.05, lunge: 1 },
+  thrust: { cock: 0.1, end: -0.08, lean: -0.16, crouch: 0.01, lunge: 1.7 },
+  bash:   { cock: 1.3, end: 0.7, lean: -0.22, crouch: 0, lunge: 1.9 },
+  net:    { cock: -2.4, end: 0.2, lean: -0.12, crouch: 0, lunge: 0.6 },
+};
+const ZONE_POSE = { high: 'chop', mid: 'slash', low: 'sweep' };
+const MOVE_ZONE = { chop: 'high', thrust: 'mid', sweep: 'low' };
+const POSE_NAME = { chop: 'CHOP', slash: 'SLASH', sweep: 'SWEEP', thrust: 'THRUST', bash: 'BASH', net: 'NET' };
 const REST_TH = 0.9;
 
 const STRAW = ['#e6c866', '#d4b04a', '#f2dc90', '#b8923a'];
@@ -100,45 +164,85 @@ const now = () => performance.now() / 1000;
 const easeOut = (u) => 1 - (1 - u) * (1 - u);
 const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const ZERO = { ox: 0, oy: 0, rot: 0 };
+const pidx = (id) => PARTS.findIndex((q) => q.id === id);
+const mkPart = (d, armour) => ({ d, armour, cx: d.x, cy: d.y, slot: false, cut: false, hp: TUNING.part.hp, dents: 0, cracks: [], gashes: [], flash: 0, clang: 0, cool: 0 });
 
-function makeParts(rng, noArmour, slots, style) {
-  const F = TUNING.foe;
-  const ids = PARTS.map((_, i) => i).filter((i) => !noArmour.includes(PARTS[i].id) && PARTS[i].id !== 'legs');  // the legs are always bare
-  const n = style && style.plates ? style.plates : rng.chance(0.5) ? F.armourMin : F.armourMax;
-  const chest = PARTS.findIndex((q) => q.id === 'chest'), belly = PARTS.findIndex((q) => q.id === 'belly');
-  let armoured;
-  for (let k = 0; k < 30; k++) { armoured = new Set(rng.shuffle(ids).slice(0, n)); if (!(armoured.has(chest) && armoured.has(belly))) break; }
-  if (armoured.has(chest) && armoured.has(belly)) armoured.delete(belly);
-  if (n > 3) for (const id of ['head', 'armF', 'armB']) armoured.add(PARTS.findIndex((q) => q.id === id));  // heavy plates: everything but one of chest and belly
-  const mk = (d, armour) => ({ d, armour, cx: d.x, cy: d.y, slot: false, cut: false, hp: TUNING.part.hp, dents: 0, cracks: [], gashes: [], flash: 0, clang: 0, cool: 0 });
-  const out = PARTS.map((d, i) => mk(d, armoured.has(i)));
-  if (slots) for (const d of (style && style.slots < SLOTS.length ? rng.shuffle(SLOTS).slice(0, style.slots) : SLOTS)) { const q = mk(d, false); q.slot = true; out.push(q); }
+// Your own plates are for show: two of head, chest, near arm.
+function playerParts(rng) {
+  const on = new Set(rng.shuffle(['head', 'chest', 'armB']).slice(0, 2));
+  return PARTS.map((d) => mkPart(d, on.has(d.id)));
+}
+
+// The foe's plates follow his set: light 1, medium 2 or 3 (never chest and belly both, legs bare), heavy a helmet and 4 of chest, belly, arms and legs.
+// The set also decides how many joint slots are open between the pieces.
+function foeParts(rng, set) {
+  let on;
+  if (set.helmet) on = new Set(['head', ...rng.shuffle(['chest', 'belly', 'armF', 'armB', 'legs']).slice(0, set.plates[0])]);
+  else {
+    const n = rng.int(set.plates[0], set.plates[1]);
+    for (let k = 0; k < 30; k++) { on = new Set(rng.shuffle(n === 1 ? ['chest', 'belly', 'armF', 'armB'] : ['head', 'chest', 'belly', 'armF', 'armB']).slice(0, n)); if (!(on.has('chest') && on.has('belly'))) break; }
+    if (on.has('chest') && on.has('belly')) on.delete('belly');
+  }
+  const out = PARTS.map((d) => mkPart(d, on.has(d.id)));
+  for (const d of rng.shuffle(SLOTS).slice(0, set.slots)) { const q = mkPart(d, false); q.slot = true; out.push(q); }
   return out;
 }
 
+// One fighter of the gauntlet, rolled from the bout's tables: size, weapon, armour set, three 1-5 stats with the size's bias.
+function rollFighter(rng, tier, weapon, used) {
+  const G = GAUNTLET[tier], T = TUNING;
+  let size, set;
+  for (let k = 0; k < 20; k++) {
+    const si = rng.pick(G.sizes), ai = rng.pick(G.armour);
+    size = T.sizes.find((z) => z.id === si); set = T.armourSets.find((z) => z.id === ai);
+    if (!used.has(`${size.id}${weapon.id}${set.id}`)) break;
+  }
+  used.add(`${size.id}${weapon.id}${set.id}`);
+  const roll = (b) => clamp(Math.round(G.stat + b + rng.range(-1, 1)), 1, 5);
+  const best = (b) => (G.champion ? Math.max(roll(b), roll(b)) : roll(b));
+  const stats = size.bias.map(best);
+  const name = G.champion ? rng.pick(CHAMPIONS) : rng.pick(NAMES);
+  return { tier, name, champion: !!G.champion, size, weapon, set, str: stats[0], spd: stats[1], sta: stats[2], shield: rng.chance(weapon.shield), mace: rng.chance(0.5), partSeed: (rng() * 2 ** 32) >>> 0 };
+}
+
+function rollGauntlet(seed) {
+  const rng = makeRng(seed ^ 0x51ed270b), used = new Set(), W = TUNING.weapons;
+  const order = rng.shuffle(W.map((_, i) => i));
+  return GAUNTLET.map((_, i) => rollFighter(rng, i, W[i < order.length ? order[i] : rng.int(0, W.length - 1)], used));
+}
+
+const statMul = (k, v) => TUNING.stat[k][0] - TUNING.stat[k][1] * v;
+
 function newRack(E) {
-  const rng = makeRng(state.seed + state.rack * 7919);
-  const f = state.foe;
-  const st = TUNING.styles[state.styleOrder[state.rack % state.styleOrder.length]];
-  f.style = st; f.parts = makeParts(rng, [], true, st); f.maxHp = Math.round(TUNING.foe.hp * st.hp); f.hp = f.maxHp; f.shown = f.hp;
+  const f = state.foe, d = state.gauntlet[state.rack], FT = TUNING.foe;
+  Object.assign(f, d);
+  f.wname = d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
+  f.parts = foeParts(makeRng(d.partSeed), d.set);
+  f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1)); f.hp = f.maxHp; f.shown = f.hp;
+  f.staMax = TUNING.foeSta.base + TUNING.foeSta.per * d.sta; f.sta = f.staMax; f.staT = 9; f.staShown = 1;
+  f.home = d.weapon.range + d.size.reach; f.strike = d.weapon.strike + d.size.reach;
   f.th = REST_TH; f.dx = 0; f.dy = 0; f.a = 0; f.fr = {};
-  state.cover = null; state.step = { x: 0, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
-  state.pop = 1; state.fallT = 0; state.sw = null; state.stun = 0; state.stagger = 0; state.kickA = 0; state.kickV = 0;
-  state.swingIn = nextGap();
+  state.rng = makeRng(state.seed + state.rack * 7919);
+  state.cover = null; state.step = { x: f.home, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
+  state.pop = 1; state.fallT = 0; state.sw = null; state.move = null; state.plan = null; state.stun = 0; state.stagger = 0; state.kickA = 0; state.kickV = 0;
+  state.winded = 0; state.windedMax = 1; state.retreat = 0; state.mood = { retreat: false };
+  state.mem = { blocks: [], lunges: [], turtle: 0 };
+  state.swingIn = 1.2; state.intro = true; state.introT = 0; state.bout = { felled: false };
   state.open = 0; state.riposte = 0;
   state.sh.hits = TUNING.shield.hits; state.sh.broken = false;
 }
 
-function nextGap() { const S = TUNING.swing; return (S.gap + state.rng.range(0, S.gapSpread)) * state.foe.style.gap; }
+function nextGap() { const S = TUNING.swing; return S.gap * 0.6 + state.rng.range(0, S.gapSpread); }
 
 function newRound(E, seed) {
   Object.assign(state, {
-    seed, rng: makeRng(seed ^ 0x9e3779b9), styleOrder: makeRng(seed ^ 0x2f6b1c07).shuffle(TUNING.styles.map((_, i) => i)), rack: 0, t: TUNING.roundTime, m: 0, stop: 0, kickA: 0, kickV: 0,
-    hearts: TUNING.hearts, endT: 0, dodgeT: 0, dodgeCool: 0, away: false, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, slotHits: 0, dg: { down: false, id: -1, t: 0 },
-    stamina: TUNING.stamina.max, lastAtk: -9, riposte: 0, open: 0, 
+    seed, rng: makeRng(seed ^ 0x9e3779b9), gauntlet: rollGauntlet(seed), results: [], rack: 0, m: 0, stop: 0, kickA: 0, kickV: 0,
+    hp: TUNING.hearts * 2, endT: 0, dodgeT: 0, dodgeCool: 0, away: false, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, slotHits: 0, dg: { down: false, id: -1, t: 0 },
+    stamina: TUNING.stamina.max, lastAtk: -9, riposte: 0, open: 0, netT: 0, pushT: 0,
     gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
+    feints: 0, feintsRead: 0, feintsBit: 0, combos: 0, windeds: 0, punishes: 0, bashes: 0, bashHits: 0, nets: 0, netted: 0, zoneReads: 0, lungeReads: 0, turtleReads: 0, presses: 0, retreats: 0, moveCount: {},
     fx: [], pops: [], streaks: [], trail: [],
-    you: { dx: 0, lunge: 0, lungeK: 0, a: 0, kick: 0, kickV: 0, back: 0, hopX: 0, hopY: 0, parts: makeParts(makeRng(seed ^ 0x5bd1e995), ['armF'], false), fr: {} },
+    you: { dx: 0, lunge: 0, lungeK: 0, a: 0, kick: 0, kickV: 0, back: 0, hopX: 0, hopY: 0, push: 0, parts: playerParts(makeRng(seed ^ 0x5bd1e995)), fr: {} },
     foe: {},
     crowd: [],
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, zy: -0.58, arm: 0 },
@@ -147,7 +251,6 @@ function newRound(E, seed) {
   const cr = makeRng(seed ^ 0x1234567);
   for (let i = 0; i < 70; i++) state.crowd.push({ x: cr.range(0, 1), y: cr.range(0, 1), r: cr.range(2, 4), c: cr.int(0, 3) });
   newRack(E);
-  state.swingIn += 0.6;
 }
 
 // ----- layout and frames -----
@@ -155,8 +258,9 @@ function lay(E) {
   const F = TUNING.fighter, H = E.h * F.height, half = (E.w * F.gap + 2 * F.body * H) / 2;
   return { H, floor: E.h * F.floor, x0: E.w / 2 - half, x1: E.w / 2 + half };
 }
-function youF(E) { const L = lay(E), y = state.you; return { x: L.x0 + y.dx + y.hopX + y.lunge, y: L.floor + y.hopY, a: y.a, dir: 1, H: L.H }; }
-function foeF(E) { const L = lay(E), f = state.foe; return { x: L.x1 + f.dx, y: L.floor + f.dy, a: f.a, dir: -1, H: L.H }; }
+function youF(E) { const L = lay(E), y = state.you; return { x: L.x0 + y.dx + y.hopX + y.lunge - y.push * L.H, y: L.floor + y.hopY, a: y.a, dir: 1, H: L.H }; }
+// the foe is drawn at his size: the frame's unit scales, his near edge stays where a medium fighter's would be
+function foeF(E) { const L = lay(E), f = state.foe, k = f.size ? f.size.scale : 1; return { x: L.x1 + f.dx + (k - 1) * TUNING.fighter.body * L.H, y: L.floor + f.dy, a: f.a, dir: -1, H: L.H * k }; }
 function toScreen(F, lx, ly) {
   const c = Math.cos(F.a), s = Math.sin(F.a);
   return [F.x + F.dir * (lx * c - ly * s) * F.H, F.y + (lx * s + ly * c) * F.H];
@@ -179,24 +283,30 @@ function inside(d, lx, ly, pad) {
 }
 const zoneScreenY = (L, zone) => L.floor + zone.y * L.H;
 
-// ----- the foe's pose: sway, wind-up, lunge, fall -----
+// ----- the foe's pose: sway, wind-up, lunge, fall, winded -----
+const cockOf = (sw, pose, zone) => POSES[pose].cock + (pose === 'thrust' && zone.id === 'high' ? -0.35 : 0);
 function poseFoe(E, dt) {
   const L = lay(E), f = state.foe, sw = state.sw, S = TUNING.swing, FT = TUNING.foe;
   const fall = state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
   let lean = FT.swayDeg * Math.PI / 180 * Math.sin(state.m * TUNING.swayRate * 1.3) + state.kickA, crouch = 0, lunge = 0;
   let th = covering() ? clamp(-0.3 + 2.3 * (state.cover.y + 0.8), -0.4, 1.1) + 0.05 * Math.sin(state.m * 3) : REST_TH + 0.08 * Math.sin(state.m * 3);
-  if (!sw && state.open > 0 && fall === 0) lean += 0.1;
+  if (state.winded > 0 && fall === 0) { th = 1.4 + 0.06 * Math.sin(state.m * 2.2); lean += 0.24 + 0.05 * Math.sin(state.m * 6); crouch = 0.05; }
+  else if (!sw && state.open > 0 && fall === 0) lean += 0.1;
   if (sw) {
-    const z = sw.zone;
+    const P = POSES[sw.pose];
     if (sw.fin > 0) {
-      const v = clamp((0.4 - sw.fin) / 0.12, 0, 1), back = clamp(sw.fin / 0.2, 0, 1);
-      th = z.cock + (z.end - z.cock) * v * v;
-      lunge = S.lunge * easeOut(v) * back; lean += 0.22 * easeOut(v) * back;
+      const v = clamp((0.4 - sw.fin) / 0.12, 0, 1), back = clamp(sw.fin / 0.2, 0, 1), c = cockOf(sw, sw.pose, sw.zone);
+      th = c + (P.end - c) * v * v;
+      lunge = S.lunge * P.lunge * easeOut(v) * back; lean += 0.22 * easeOut(v) * back;
+    } else if (sw.fake && !sw.switched) {
+      // the fake winds only part of the way and never trembles: the honest tell of a feint
+      const FP = POSES[sw.fakePose], u = clamp(sw.t / (sw.switchAt * 0.8), 0, 1), e = easeOut(u) * TUNING.moves.feint.cock;
+      th = sw.th0 + (cockOf(sw, sw.fakePose, sw.fake) - sw.th0) * e;
+      lean += FP.lean * e; crouch = FP.crouch * e;
     } else {
-      const u = clamp(sw.t / (sw.wind * 0.55), 0, 1), e = easeOut(u);
-      th = REST_TH + (z.cock - REST_TH) * e + (u >= 1 ? Math.sin(sw.t * 55) * 0.035 : 0);
-      lean += (z.id === 'high' ? -0.18 : z.id === 'mid' ? -0.08 : 0.22) * e;
-      crouch = z.id === 'low' ? 0.05 * e : 0;
+      const t0 = sw.switched ? sw.switchAt : 0, u = clamp((sw.t - t0) / ((sw.wind - t0) * 0.55), 0, 1), e = easeOut(u);
+      th = sw.th0 + (cockOf(sw, sw.pose, sw.zone) - sw.th0) * e + (u >= 1 ? Math.sin(sw.t * 55) * 0.035 : 0);
+      lean += P.lean * e; crouch = P.crouch * e;
     }
     f.th = th;
   } else {
@@ -204,11 +314,11 @@ function poseFoe(E, dt) {
     th = f.th;
   }
   f.dx = -(lunge * L.H) + Math.sin(state.m * TUNING.swayRate * 0.8) * FT.swayX * L.H + fall * 0.3 * L.H + state.step.x * L.H;
-  f.dy = crouch * L.H + Math.abs(Math.sin(state.m * 2.4)) * -3;
+  f.dy = crouch * L.H + Math.abs(Math.sin(state.m * (state.winded > 0 ? 4.5 : 2.4))) * -3;
   f.a = lean - fall * 1.45;
   f.fr = {
     armF: { ox: SHOULDER[0], oy: SHOULDER[1], rot: th - Math.PI / 2 },
-    armB: { ox: PARTS[4].joint[0], oy: PARTS[4].joint[1], rot: 0.14 + 0.08 * Math.sin(state.m * 1.7) },
+    armB: { ox: PARTS[4].joint[0], oy: PARTS[4].joint[1], rot: sw && sw.pose === 'bash' && sw.fin <= 0 ? -1.2 : 0.14 + 0.08 * Math.sin(state.m * 1.7) },
   };
   for (const p of f.parts) {
     const fr = f.fr[p.d.frame || p.d.id] || ZERO, c = Math.cos(fr.rot), sn = Math.sin(fr.rot);
@@ -216,15 +326,21 @@ function poseFoe(E, dt) {
   }
 }
 
-// The foe steps in and out between his blows; he commits (home position) while he swings. The Duelist slips back from a lunge.
-function stepFoe(dt) {
-  const T = TUNING.step, st = state.step, sty = state.foe.style, mul = sty.stepMul;
+// Footwork: he drifts around the distance his weapon wants, steps to striking distance just before and while he attacks (and while open),
+// backs off when hurt (if this exchange's mood says so), and sidesteps your lunge once he has read it. No randomness here: the drift is a slow wave.
+function stepFoe(dt, E) {
+  const T = TUNING.step, st = state.step, f = state.foe, tau = T.tau * statMul('spdStep', f.spd) * f.size.step;
   st.dodgeT = Math.max(0, st.dodgeT - dt); st.dodgeCool = Math.max(0, st.dodgeCool - dt);
-  if (sty.sidestep && state.you.lungeK > 0.5 && st.dodgeCool <= 0 && !state.sw && state.fallT <= 0) { st.dodgeT = T.dodgeDur; st.dodgeCool = T.dodgeCool; st.t = 0.5; }
-  st.t -= dt;
-  if (st.t <= 0) { st.tgt = state.rng.range(T.in, T.out) * mul; st.t = state.rng.range(T.every[0], T.every[1]); }
-  const want = state.fallT > 0 ? 0 : st.dodgeT > 0 ? T.dodge : state.sw ? 0 : st.tgt;
-  st.x += (want - st.x) * (1 - Math.exp(-dt / T.tau));
+  const free = !state.sw && state.winded <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0 && !state.intro && state.endT <= 0;
+  if (free && state.you.lungeK > 0.5 && st.dodgeCool <= 0 && (lungeRead() || f.spd >= 5)) {
+    st.dodgeT = T.dodgeDur; st.dodgeCool = T.dodgeCool;
+    if (lungeRead()) { state.lungeReads++; readPop(E, 'READS YOUR LUNGE'); counter(E, 'thrust'); }
+  }
+  if (state.fallT > 0 || state.winded > 0 || state.stagger > 0) return;
+  const c = T.circle, wave = (c[0] + c[1]) / 2 + (c[1] - c[0]) / 2 * Math.sin(state.m * 2 * Math.PI / T.period + state.rack);
+  const want = st.dodgeT > 0 ? f.home + T.dodge : state.retreat > 0 ? f.home + TUNING.retreat.dist
+    : state.sw || state.open > 0 || (!state.intro && state.swingIn < T.lead) ? f.strike : f.home + wave;
+  st.x += (want - st.x) * (1 - Math.exp(-dt / tau));
 }
 
 function tiredPop(E) {
@@ -233,13 +349,13 @@ function tiredPop(E) {
   const Fy = youF(E); pop(Fy.x, Fy.y - 1.0 * Fy.H, state.exhaust > 0 ? 'EXHAUSTED' : 'TOO TIRED', '#fca5a5', 16);
 }
 
-function guardUp() { return !state.sw && state.open <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0; }
-// The foe's cover: after a blow lands he slides his guard (or shield) over that spot for a few seconds. It is down while he swings, is open or stunned.
+function guardUp() { return !state.sw && state.open <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0 && state.winded <= 0; }
+// The foe's cover: after a blow lands he slides his guard (or shield) over that spot for a few seconds. It is down while he swings, is open, winded or stunned.
 const covering = () => !!state.cover && state.cover.t > 0 && guardUp();
 const guarded = (p) => covering() && Math.hypot(p.cx - state.cover.x, p.cy - state.cover.y) <= state.cover.r;
 const covered = (p) => p.armour || guarded(p);
 function setCover(p) {
-  const c = state.cover, r = state.foe.style.r;
+  const c = state.cover, r = state.foe.shield ? TUNING.foe.coverShield : TUNING.foe.coverGuard;
   state.cover = { x: p.cx, y: p.cy, r, t: TUNING.cover.dur, max: TUNING.cover.dur, dx: c ? c.dx : 0.28, dy: c ? c.dy : -0.67 };
 }
 const raised = () => !state.sh.broken && state.sh.arm <= 0 && state.you.lungeK < 0.15 && (state.sh.held || (state.sh.t >= 0 && state.sh.t < TUNING.shield.dur));
@@ -258,11 +374,11 @@ function poseYou(E, dt) {
   const LU = TUNING.lunge;
   // lunge: the aim point pushed past the reach steps the gladiator in, up to a stride; he steps back when the hand relaxes or recoils
   let tk = 0;
-  if (h.down && h.lock <= 0 && !state.away && state.exhaust <= 0 && state.endT <= 0 && state.fallT <= 0) {
+  if (h.down && h.lock <= 0 && !state.away && state.exhaust <= 0 && state.endT <= 0 && state.fallT <= 0 && !(state.netT > 0 && TUNING.net.stuck)) {
     if (relative()) { const [ox, oy] = relOff(), C = TUNING.control; tk = clamp((Math.hypot(ox, oy) / (TUNING.arm.len * L.H) - C.lungeStart) / (C.lungeFull - C.lungeStart), 0, 1); }
     else tk = clamp((Math.hypot(h.tgx - (h.sx - y.lunge), h.tgy - h.sy) / L.H - LU.start) / (LU.full - LU.start), 0, 1);
     if (tk > 0.1 && !state.lunging) {
-      if (state.stamina >= LU.cost) { state.stamina -= LU.cost; state.lastAtk = state.m; state.lunging = true; state.lunges++; swooshSound(E, 0.1); }
+      if (state.stamina >= LU.cost) { state.stamina -= LU.cost; state.lastAtk = state.m; state.lunging = true; state.lunges++; state.mem.lunges.push(state.m); swooshSound(E, 0.1); }
       else { tk = 0; tiredPop(E); }
     } else if (tk < 0.05) state.lunging = false;
   } else state.lunging = false;
@@ -274,6 +390,7 @@ function poseYou(E, dt) {
   y.hopX = -D.back * L.H * y.back;
   y.hopY = state.dodgeT > 0 ? -D.hop * L.H * Math.sin(Math.PI * u) : 0;
   y.kickV += (-y.kick * 90 - y.kickV * 7) * dt; y.kick += y.kickV * dt;
+  y.push += ((state.pushT > 0 ? TUNING.moves.bash.push : 0) - y.push) * (1 - Math.exp(-dt / (state.pushT > 0 ? 0.05 : 0.25)));
   const LN = TUNING.lean, a = h.atk;
   // upright, sword leading; lean only on a fast slash whose aim lies past the straight arm's reach
   let leanT = LN.base;
@@ -385,7 +502,7 @@ function moveHand(E, dt) {
     h.tgx = clamp(h.tgx, 10, E.w - 10); h.tgy = clamp(h.tgy, E.safe.top + 40, E.h - 10);
     if (h.lock <= 0) h.grip = 0.3;
   } else if (h.down) {
-    const lag = (h.grip > 0 ? HT.regrip : HT.lag) * (tired ? HT.tiredLag : 1);
+    const lag = (h.grip > 0 ? HT.regrip : HT.lag) * (tired ? HT.tiredLag : 1) * (state.netT > 0 ? TUNING.moves.net.slow : 1);
     const k = 1 - Math.exp(-dt / lag);
     if (relative()) {
       const [gx, gy] = guardPt(E), [ox, oy] = relOff();
@@ -510,13 +627,19 @@ function bounce(E, p, at, ang, sp, a) {
     stop = J.stopBreak + 0.04;
   } else pop(at.x, at.y - 18, glance ? 'GLANCE' : !p.armour ? 'GUARDED' : p.dents >= A.dents - 1 ? 'DENT!' : 'CLANG', '#9aa4b2', glance ? 13 : 16);
   if (state.cover) state.cover.t = Math.max(state.cover.t, TUNING.cover.dur * 0.5);
-  if (a.kind === 'over' || state.foe.style.counterOnBlock) counter(E);
+  const onGuard = !p.armour;
+  if (onGuard) spendFoe(E, TUNING.foeSta.block);
+  if (a.kind === 'over' || (state.foe.shield && onGuard)) counter(E);
   return stop;
 }
 
-function counter(E) {
-  if (state.sw || state.fallT > 0 || state.stun > 0 || state.endT > 0 || state.stagger > 0) return;
-  startSwing(true); state.counters++;
+// A counter is a fresh one-move exchange: a quick thrust or chop, planned now with the fight RNG, its zone glowing like any tell.
+function counter(E, kind) {
+  if (state.sw || state.fallT > 0 || state.stun > 0 || state.endT > 0 || state.stagger > 0 || state.winded > 0 || state.intro) return;
+  const k = kind || (state.rng.chance(0.5) ? 'thrust' : 'chop');
+  state.plan = null;
+  startMove(E, buildMove(state.rng, k, { avoid: blockRun(), wind: 1, fixed: TUNING.counter.windup * statMul('spdWind', state.foe.spd) }), true);
+  state.counters++;
   const Ff = foeF(E); pop(Ff.x, Ff.y - 1.0 * Ff.H, 'COUNTER!', '#ff8a7a', 20);
 }
 
@@ -524,10 +647,10 @@ function gapHit(E, p, at, ang, sp, delay, a, thrust) {
   const T = TUNING, J = T.juice, AT = T.attack, kind = a.kind, f = state.foe, slot = p.slot;
   let dmg = kind === 'jab' ? AT.jab.dmg : kind === 'over' ? AT.over.dmg : sp >= T.hit.mid ? AT.slash.fastDmg : AT.slash.dmg;
   if (a.tired) dmg = Math.max(1, Math.floor(dmg * T.stamina.tired));
-  const rip = state.riposte > 0;
+  const rip = state.riposte > 0, winded = state.winded > 0;
   if (rip) dmg *= T.shield.riposteMul;
-  const dealt = thrust ? dmg * T.foe.slotMul : dmg;
-  p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; if (thrust) state.slotHits++;
+  const dealt = Math.round((thrust ? dmg * T.foe.slotMul : dmg) * (winded ? T.foeSta.windedDmg : 1));
+  p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; if (thrust) state.slotHits++; if (winded) state.punishes++;
   f.hp -= dealt;
   const gl = kind === 'jab' ? 0.03 : 0.06;
   if (!slot) { p.hp -= dmg; p.gashes.push([[at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl]]); }
@@ -537,13 +660,20 @@ function gapHit(E, p, at, ang, sp, delay, a, thrust) {
   straw(at.x, at.y, ang - Math.PI / 2, 2.6, 260 + dealt * 50, n >> 1);
   dust(at.x, at.y, 3 + dealt * 3);
   sliceSound(E, delay, big);
-  pop(at.x, at.y - 20, rip ? `RIPOSTE x${dealt}` : thrust ? `${p.d.label}!` : kind === 'jab' ? 'STAB' : kind === 'over' ? 'SMASH!' : dealt >= 2 ? 'HARD' : 'HIT', rip ? '#ffd24a' : thrust ? '#ff6a4a' : big ? '#ffb347' : '#fff0b8', Math.min(34, 15 + dealt * 4));
+  pop(at.x, at.y - 20, rip ? `RIPOSTE x${dealt}` : winded ? `PUNISH x${dealt}` : thrust ? `${p.d.label}!` : kind === 'jab' ? 'STAB' : kind === 'over' ? 'SMASH!' : dealt >= 2 ? 'HARD' : 'HIT', rip ? '#ffd24a' : thrust ? '#ff6a4a' : big ? '#ffb347' : '#fff0b8', Math.min(34, 15 + dealt * 4));
   state.kickV += T.foe.kick * (Math.cos(ang) > 0 ? -1 : 0.5) * (0.6 + Math.min(dealt, 4) * 0.4);
   E.shake(2 + Math.min(dealt, 5) * 2.5, 0.1); E.haptic(10 + Math.min(dealt, 5) * 8);
   if (big) E.flash('#fff0b8', 0.07);
   let stop = dealt >= 3 ? J.stop3 : dealt === 2 ? J.stop2 : J.stop1;
   if (!slot && p.hp <= 0) { disable(E, p, at, ang); stop += 0.04; }
-  if (f.hp <= 0) fell(E); else setCover(p);
+  if (f.hp <= 0) fell(E);
+  else {
+    setCover(p);
+    // he backs off when hurt, if this exchange's mood (rolled when it was planned) says so
+    if (state.mood.retreat && !state.sw && state.winded <= 0 && f.hp < f.maxHp * T.retreat.hurt) {
+      state.mood.retreat = false; state.retreat = T.retreat.dur; state.retreats++; state.swingIn = Math.max(state.swingIn, T.retreat.dur);
+    }
+  }
   return stop;
 }
 
@@ -553,24 +683,155 @@ function disable(E, p, at, ang) {
   pop(at.x, at.y - 44, 'DOWN', '#ff9f43', 20);
   E.audio.beep({ freq: 90, dur: 0.22, type: 'sine', slide: 0.4, gain: 0.3 });
   if (p.d.id === 'head') {
-    state.stun = TUNING.stun; state.sw = null; state.swingIn = nextGap();
+    state.stun = TUNING.stun; state.sw = null; state.move = null; state.plan = null; state.swingIn = nextGap();
     pop(at.x, at.y - 70, 'STUNNED', '#a5b4fc', 20);
   }
 }
 
 function fell(E) {
   if (state.fallT > 0) return;
-  state.felled++; state.fallT = 0.01; state.sw = null;
+  state.felled++; state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.results[state.rack] = 'felled';
+  state.hp = Math.min(TUNING.hearts * 2, state.hp + TUNING.heal);
   pop(E.w * 0.62, E.h * 0.3, 'FOE DOWN', '#ffd24a', 28); E.shake(10, 0.3); E.flash('#fff0b8', 0.1); E.audio.play('coin');
 }
 
 
-// ----- the foe swings back -----
-function startSwing(isCounter) {
-  const S = TUNING.swing;
-  const arms = state.foe.parts.filter((p) => (p.d.id === 'armF' || p.d.id === 'armB') && p.cut).length;
-  const wind = (isCounter ? TUNING.counter.windup : S.windup) * state.foe.style.windup * (1 + TUNING.armSlow * arms);
-  state.sw = { zone: ZONES[state.rng.int(0, ZONES.length - 1)], t: 0, wind, counter: !!isCounter, fin: 0, outcome: null };
+// ----- the foe's mind: each exchange is planned with the fight RNG when it starts, then played out exactly, so every tell is honest -----
+// What he remembers of you.
+function blockRun() {
+  const R = TUNING.read, b = state.mem.blocks;
+  if (b.length < R.blockRun || state.m - b[b.length - 1].t > R.memWin) return null;
+  const last = b.slice(-R.blockRun);
+  return last.every((q) => q.z === last[0].z) ? last[0].z : null;
+}
+const lungeRead = () => state.mem.lunges.filter((t) => state.m - t < TUNING.read.lungeWin).length >= TUNING.read.lunges;
+const turtling = () => state.mem.turtle >= TUNING.read.turtle;
+const pressing = () => state.stamina < TUNING.stamina.max * TUNING.read.lowSta;
+function readPop(E, s) { const Ff = foeF(E); pop(Ff.x, Ff.y - 1.12 * Ff.H, s, '#c4b5fd', 14); }
+
+function pickW(rng, list) { let tot = 0; for (const e of list) tot += e[1]; let r = rng() * tot; for (const e of list) { r -= e[1]; if (r < 0) return e[0]; } return list[list.length - 1][0]; }
+const pickZone = (rng, avoid, not) => pickW(rng, ZONES.filter((z) => z.id !== not).map((z) => [z.id, z.id === avoid ? TUNING.read.avoid : 1]));
+// half hearts one blow takes: the move, weapon, size and Strength
+function blowDmg(k) {
+  const f = state.foe, S = TUNING.stat.strDmg;
+  return k <= 0 ? 0 : clamp(Math.round(k * f.weapon.dmg * f.size.dmg * (S[0] + S[1] * f.str)), 1, TUNING.foe.dmgCap);
+}
+
+// A move is a list of blows, each with its zone, windup, damage and pose; a feint's one blow carries the fake zone it shows first.
+function buildMove(rng, kind, ctx) {
+  const f = state.foe, M = TUNING.moves, W = f.weapon, avoid = ctx.avoid, spd = f.size.wind * statMul('spdWind', f.spd);
+  const base = TUNING.swing.windup * W.speed * spd * ctx.wind, wind = (k) => ctx.fixed || base * k;
+  const blow = (zone, w, dmg, pose) => ({ zone, wind: w, dmg: blowDmg(dmg), pose });
+  const mv = { kind, cost: M[kind].cost, hits: [] };
+  if (kind === 'chop') mv.hits.push(blow('high', wind(M.chop.wind), M.chop.dmg, 'chop'));
+  else if (kind === 'sweep') mv.hits.push(blow('low', wind(M.sweep.wind), M.sweep.dmg, 'sweep'));
+  else if (kind === 'thrust') {
+    const z = avoid === 'mid' || (avoid !== 'high' && W.id === 'spear' && rng.chance(M.thrust.high)) ? 'high' : 'mid';
+    mv.hits.push(blow(z, wind(M.thrust.wind), M.thrust.dmg, 'thrust'));
+  } else if (kind === 'combo') {
+    const n = rng.int(W.combo[0], W.combo[1]);
+    let z = pickZone(rng, avoid);
+    for (let i = 0; i < n; i++) {
+      if (i) z = pickZone(rng, avoid, z);
+      mv.hits.push(blow(z, base * M.combo.wind * (i ? M.combo.next : 1), M.combo.dmg, W.id === 'spear' && z !== 'low' ? 'thrust' : ZONE_POSE[z]));
+    }
+    mv.cost = M.combo.cost * n;
+  } else if (kind === 'feint') {
+    // the zone you have been blocking is the best lie
+    const fake = avoid || pickZone(rng, null), real = pickZone(rng, avoid, fake), show = base * M.feint.show;
+    mv.hits.push({ ...blow(real, show + M.feint.after * spd, M.feint.dmg, ZONE_POSE[real]), fake, fakePose: ZONE_POSE[fake], switchAt: show });
+  } else if (kind === 'bash') mv.hits.push(blow('mid', wind(M.bash.wind), 0, 'bash'));
+  else if (kind === 'net') mv.hits.push(blow('mid', wind(M.net.wind), 0, 'net'));
+  return mv;
+}
+
+// An exchange: a rhythm (flurry, probe or pause), one to three moves weighted by his weapon and by what he has read of you, his mood if hurt, the pause after.
+function planExchange(E) {
+  const rng = state.rng, f = state.foe, R = TUNING.read;
+  const avoid = blockRun(), turtle = turtling(), press = pressing();
+  const rh = pickW(rng, TUNING.rhythm.map((r) => [r, r.w * (press && r.id === 'flurry' ? R.pressMul : 1)]));
+  const n = rng.int(rh.n[0], rh.n[1]), wind = rh.wind * (press ? R.pressWind : 1), q = [];
+  for (let i = 0; i < n; i++) {
+    const w = Object.entries(f.weapon.moves).map(([k, v]) => [k, v * (k === 'feint' ? rh.feint * (turtle ? R.turtleFeint : 1) : 1) * (avoid && MOVE_ZONE[k] === avoid ? R.avoid : 1)]);
+    if (f.shield) w.push(['bash', TUNING.moves.bash.w * (turtle ? R.turtleBash : 1)]);
+    const kind = pickW(rng, w);
+    q.push(buildMove(rng, kind, { avoid, wind }));
+    if (kind === 'combo') break;  // a combo ends the exchange: he is winded after it
+  }
+  state.mood.retreat = rng.chance(TUNING.retreat.chance);
+  if (avoid) { state.zoneReads++; readPop(E, `READS YOUR ${ZONE[avoid].label} GUARD`); }
+  else if (turtle) { state.turtleReads++; readPop(E, 'READS YOUR SHIELD'); }
+  else if (press) { state.presses++; readPop(E, 'PRESSES YOU'); }
+  return { q, gap: rh.gap, after: nextGap() * rh.after, rhythm: rh.id, avoid };
+}
+
+function startMove(E, mv, isCounter) {
+  const f = state.foe;
+  state.move = mv; mv.idx = 0; mv.counter = !!isCounter;
+  f.sta -= mv.cost; f.staT = 0;
+  state.moveCount[mv.kind] = (state.moveCount[mv.kind] || 0) + 1;
+  if (mv.kind === 'feint') state.feints++; else if (mv.kind === 'combo') state.combos++; else if (mv.kind === 'bash') state.bashes++; else if (mv.kind === 'net') state.nets++;
+  startBlow();
+}
+function startBlow() {
+  const mv = state.move, h = mv.hits[mv.idx], f = state.foe;
+  const k = 1 + TUNING.armSlow * f.parts.filter((p) => (p.d.id === 'armF' || p.d.id === 'armB') && p.cut).length;
+  state.sw = {
+    zone: ZONE[h.fake || h.zone], real: ZONE[h.zone], fake: h.fake ? ZONE[h.fake] : null, fakePose: h.fakePose, switchAt: (h.switchAt || 0) * k, switched: false,
+    t: 0, wind: h.wind * k, dmg: h.dmg, pose: h.pose, kind: mv.kind, idx: mv.idx, n: mv.hits.length, counter: mv.counter, fin: 0, outcome: null, th0: f.th,
+  };
+}
+function feintSwitch(E) {
+  const sw = state.sw;
+  sw.switched = true; sw.th0 = state.foe.th; sw.zone = sw.real;
+  const Ff = foeF(E); pop(Ff.x - 0.3 * Ff.H, zoneScreenY(lay(E), sw.real) + 0.16 * lay(E).H, 'FEINT!', '#c4b5fd', 20);
+  E.audio.beep({ freq: 520, dur: 0.06, type: 'square', slide: 1.6, gain: 0.06 });
+}
+// a blow is done: the next blow of a combo, the next move of the exchange, or a pause; winded after a combo or at zero stamina, open otherwise
+function endBlow(E) {
+  const mv = state.move; state.sw = null;
+  if (mv && !mv.broken && mv.idx + 1 < mv.hits.length) { mv.idx++; startBlow(); return; }
+  state.move = null;
+  const plan = state.plan;
+  if (plan && plan.q.length) state.swingIn = plan.gap; else { state.swingIn = plan ? plan.after : nextGap(); state.plan = null; }
+  if (state.foe.sta <= 0) windFoe(E, TUNING.foeSta.winded);
+  else if (mv && mv.kind === 'combo' && !mv.broken) windFoe(E, TUNING.foeSta.combo);
+  else state.open = TUNING.open.dur;
+}
+function spendFoe(E, n) {
+  const f = state.foe; f.sta -= n; f.staT = 0;
+  if (f.sta <= 0 && !state.sw && state.winded <= 0) windFoe(E, TUNING.foeSta.winded);
+}
+function windFoe(E, dur) {
+  if (state.fallT > 0) return;
+  state.winded = dur; state.windedMax = dur; state.windeds++;
+  state.sw = null; state.move = null; state.plan = null; state.open = 0; state.retreat = 0; state.swingIn = Math.max(state.swingIn, 0.6);
+  state.foe.sta = Math.max(0, state.foe.sta);
+  E.audio.beep({ freq: 180, dur: 0.3, type: 'sine', slide: 0.5, gain: 0.16 });
+}
+
+function updateFoe(dt, E) {
+  const f = state.foe, FS = TUNING.foeSta;
+  if (state.fallT > 0 || state.intro) return;
+  f.staT += dt;
+  if (!state.sw && f.staT > FS.delay) f.sta = Math.min(f.staMax, f.sta + FS.regen * (state.winded > 0 ? FS.windedRegen : 1) * dt);
+  state.retreat = Math.max(0, state.retreat - dt);
+  if (state.winded > 0) { state.winded = Math.max(0, state.winded - dt); return; }
+  if (state.stun > 0) { state.stun -= dt; return; }
+  const sw = state.sw;
+  if (sw) {
+    if (sw.fin > 0) { sw.fin -= dt; if (sw.fin <= 0) endBlow(E); return; }
+    sw.t += dt;
+    if (sw.fake && !sw.switched && sw.t >= sw.switchAt) feintSwitch(E);
+    if (sw.t >= sw.wind) resolveSwing(E);
+    return;
+  }
+  if (state.stagger > 0) return;
+  state.swingIn -= dt;
+  if (state.swingIn <= 0 && state.endT <= 0) {
+    if (!state.plan) state.plan = planExchange(E);
+    startMove(E, state.plan.q.shift(), false);
+  }
 }
 
 // ----- the left hand: three shield buttons and a dodge button (tap = quick sidestep, hold = stay backed off) -----
@@ -625,58 +886,67 @@ function updateDefence(dt, E) {
 }
 
 function resolveSwing(E) {
-  const sw = state.sw, L = lay(E), zy = zoneScreenY(L, sw.zone), Fy = youF(E), Ff = foeF(E), sh = state.sh, SH = TUNING.shield;
-  sw.fin = 0.4; state.open = TUNING.open.dur;
-  state.streaks.push({ x1: Ff.x - L.H * 0.3, y1: zy - 30, x2: Fy.x - L.H * 0.1, y2: zy + 20, life: 0.22, max: 0.22, red: !state.away });
-  if (state.away) { sw.outcome = 'whiff'; swooshSound(E, 0.2); pop(E.w / 2, zy - 30, 'OUT OF REACH', '#7de3ff', 18); return; }
+  const sw = state.sw, L = lay(E), zy = zoneScreenY(L, sw.zone), Fy = youF(E), Ff = foeF(E), sh = state.sh, SH = TUNING.shield, M = TUNING.moves, W = state.foe.weapon;
+  const net = sw.pose === 'net', bash = sw.pose === 'bash', feint = !!sw.fake;
+  sw.fin = 0.4;
+  state.streaks.push({ x1: Ff.x - Ff.H * 0.3, y1: zy - 30, x2: Fy.x - L.H * 0.1, y2: zy + 20, life: 0.22, max: 0.22, red: !state.away, net });
+  if (state.away) {
+    sw.outcome = 'whiff'; if (feint) state.feintsRead++;
+    swooshSound(E, 0.2); pop(E.w / 2, zy - 30, net ? 'NET DODGED' : feint ? 'FEINT READ' : 'OUT OF REACH', '#7de3ff', 18); return;
+  }
   if (blocks(sw.zone)) {
-    const perfect = sh.t <= SH.perfect, bx = Fy.x + 0.28 * L.H, by = zy;
-    sw.outcome = 'block'; state.blocks++; sh.flash = 0.25;
+    const perfect = sh.t <= SH.perfect && !net && !bash, bx = Fy.x + 0.28 * L.H, by = zy;
+    sw.outcome = 'block'; state.blocks++; sh.flash = 0.25; if (feint) state.feintsRead++;
+    state.mem.blocks.push({ z: sw.zone.id, t: state.m }); if (state.mem.blocks.length > 6) state.mem.blocks.shift();
+    // a read of your guard breaks off the rest of this exchange, so his next move already aims elsewhere
+    const run = blockRun();
+    if (run && state.plan && state.plan.avoid !== run) { state.plan.q = []; state.plan.after = Math.min(state.plan.after, 1.2); }
     sparks(bx, by, 0, perfect ? 30 : 16); ring(bx, by, perfect ? 130 : 70, perfect ? '#ffd24a' : '#ffffff');
+    if (net) { pop(bx, by - 40, 'NET BLOCKED', '#ffffff', 22); clangSound(E, 0); return; }
     if (perfect) {
-      state.perfects++; state.stagger = SH.stagger; state.riposte = SH.riposte;
+      state.perfects++; state.stagger = SH.stagger; state.riposte = SH.riposte; state.plan = null; if (state.move) state.move.broken = true;
       parrySound(E); E.shake(10, 0.2); E.haptic(35); E.flash('#fff0b8', 0.1); E.audio.play('coin');
       state.stop = Math.max(state.stop, 0.12);
-      pop(bx, by - 40, 'PERFECT BLOCK', '#ffd24a', 28); pop(bx + 30, by - 70, 'RIPOSTE!', '#ffd24a', 18);
+      pop(bx, by - 40, 'PERFECT BLOCK', '#ffd24a', 28); pop(bx + 30, by - 70, feint ? 'FEINT READ!' : 'RIPOSTE!', '#ffd24a', 18);
       state.kickV += -0.8;
     } else {
-      sh.hits--;
-      if (state.foe.style.drain) { state.stamina = Math.max(0, state.stamina - state.foe.style.drain); state.lastAtk = state.m; pop(bx, by - 70, 'DRAINED', '#fca5a5', 14); }
-      clangSound(E, 0); E.shake(6, 0.15); E.haptic(22); state.stop = Math.max(state.stop, 0.06);
-      pop(bx, by - 40, 'BLOCK', '#ffffff', 24);
-      state.you.kickV -= 3;
+      sh.hits -= bash ? 1 : W.wear;
+      const drain = bash ? M.bash.drain * M.bash.blocked : W.drain;
+      if (drain) { state.stamina = Math.max(0, state.stamina - drain); state.lastAtk = state.m; pop(bx, by - 70, 'DRAINED', '#fca5a5', 14); }
+      if (bash) state.pushT = 0.2;
+      clangSound(E, 0); E.shake(bash || W.wear > 1 ? 9 : 6, 0.15); E.haptic(22); state.stop = Math.max(state.stop, 0.06);
+      pop(bx, by - 40, feint ? 'FEINT READ' : bash ? 'BASH BLOCKED' : W.wear > 1 ? 'SHIELD CRACKS' : 'BLOCK', '#ffffff', 24);
+      state.you.kickV -= bash ? 6 : 3;
       if (sh.hits <= 0) {
-        sh.broken = true; sh.t = -1; sh.up = 0;
+        sh.hits = 0; sh.broken = true; sh.t = -1; sh.up = 0;
         plateBits(bx, by, 12); pop(bx, by - 70, 'SHIELD BROKEN', '#ff9f43', 22); E.shake(9, 0.2);
         E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 });
       }
     }
     return;
   }
-  sw.outcome = 'hit'; state.hearts--; state.taken++; state.hurt = 0.4; if (sw.counter) state.counterHits++;
-  E.flash('#ff2a2a', 0.3); E.shake(16, 0.35); E.haptic(70);
-  E.audio.play('boom'); E.audio.play('lose', 0.5);
-  pop(Fy.x, zy - 40, 'OUCH', '#ff5a4a', 34);
-  state.you.kickV -= 7;
-  state.hand.lock = Math.max(state.hand.lock, 0.2); state.hand.hvx = -200; state.hand.hvy = 120; state.hand.atk = null;
-  if (state.hearts <= 0) state.endT = 1.0;
-}
-
-function updateSwing(dt, E) {
-  if (state.fallT > 0) return;
-  if (state.stun > 0) { state.stun -= dt; return; }
-  const sw = state.sw;
-  if (sw) {
-    if (sw.fin > 0) { sw.fin -= dt; if (sw.fin <= 0) { state.sw = null; state.swingIn = nextGap(); } return; }
-    sw.t += dt;
-    if (sw.t >= sw.wind) resolveSwing(E);
+  state.mem.blocks = [];
+  if (feint) state.feintsBit++;
+  if (net) {
+    sw.outcome = 'net'; state.netT = M.net.dur; state.netted++;
+    pop(Fy.x, zy - 40, 'NETTED', '#e2e8f0', 30); E.shake(6, 0.2); E.haptic(30); E.audio.noise({ dur: 0.25, gain: 0.2 });
     return;
   }
-  if (state.stagger > 0) return;
-  state.swingIn -= dt;
-  if (state.swingIn <= 0 && state.endT <= 0) startSwing(false);
+  if (bash) {
+    sw.outcome = 'bash'; state.bashHits++; state.pushT = 0.35;
+    state.stamina = Math.max(0, state.stamina - M.bash.drain); state.lastAtk = state.m;
+    pop(Fy.x, zy - 40, 'BASHED', '#fca5a5', 30); E.shake(12, 0.25); E.haptic(45); clangSound(E, 0); E.audio.play('boom', 0.5);
+    state.you.kickV -= 8; state.hand.lock = Math.max(state.hand.lock, 0.3); state.hand.hvx = -260; state.hand.hvy = 60; state.hand.atk = null;
+    return;
+  }
+  sw.outcome = 'hit'; state.hp -= sw.dmg; state.taken++; state.hurt = 0.4; if (sw.counter) state.counterHits++;
+  E.flash('#ff2a2a', 0.3); E.shake(12 + 4 * sw.dmg, 0.35); E.haptic(50 + 20 * sw.dmg);
+  E.audio.play('boom'); E.audio.play('lose', 0.5);
+  pop(Fy.x, zy - 40, feint ? 'FEINTED!' : sw.dmg >= 2 ? `OUCH x${sw.dmg}` : 'OUCH', '#ff5a4a', 30 + 4 * sw.dmg);
+  state.you.kickV -= 7;
+  state.hand.lock = Math.max(state.hand.lock, 0.2); state.hand.hvx = -200; state.hand.hvy = 120; state.hand.atk = null;
+  if (state.hp <= 0) { state.hp = 0; state.endT = 1.0; state.results[state.rack] = 'lost'; }
 }
-
 
 // ----- drawing: one procedural body for both fighters -----
 function path(ctx, d, H, inset = 0) {
@@ -748,18 +1018,62 @@ function drawSlot(ctx, p, H, fm) {
 }
 
 function foeHealth(ctx, E) {
-  const F = foeF(E), f = state.foe, w = 0.46 * F.H, h = 10, x = F.x - w / 2, y = Math.max(E.safe.top + 8, lay(E).floor - 1.16 * F.H);
-  const k = clamp(f.hp / f.maxHp, 0, 1), ks = clamp(f.shown / f.maxHp, 0, 1);
-  E.text(f.style.name, F.x, y - 11, { size: 12, color: f.style.tint, weight: '800' });
-  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+  const F = foeF(E), L = lay(E), f = state.foe, w = 0.46 * L.H, h = 10, x = F.x - w / 2, y = Math.max(E.safe.top + 26, L.floor - 1.16 * L.H);
+  const k = clamp(f.hp / f.maxHp, 0, 1), ks = clamp(f.shown / f.maxHp, 0, 1), sk = clamp(f.sta / f.staMax, 0, 1);
+  E.text(`${f.name.toUpperCase()}  ${f.size.id} \u00b7 ${f.wname}`, F.x, y - 11, { size: 12, color: f.champion ? '#ffd24a' : '#f0e6cc', weight: '800' });
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 11);
   ctx.fillStyle = '#f2d88a'; ctx.fillRect(x, y, w * ks, h);
   ctx.fillStyle = k < 0.3 ? '#ef4444' : '#d9483a'; ctx.fillRect(x, y, w * k, h);
+  const wd = state.winded > 0, on = Math.floor(state.m * 8) % 2 === 0;
+  ctx.fillStyle = wd ? (on ? '#ffd24a' : '#7c5a10') : sk < 0.25 ? '#f59e0b' : '#7dd3fc';
+  ctx.fillRect(x, y + h + 2, wd ? w * clamp(1 - state.winded / state.windedMax, 0.04, 1) : w * sk, 5);
 }
 
 function limb(ctx, pts, w, col) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = w + 3; ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
   ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+}
+
+// Something held in the off hand (far arm), drawn in that arm's frame at the fist.
+function offHand(ctx, fr, H, fn) { ctx.save(); ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); ctx.translate(0, 0.3 * H); fn(); ctx.restore(); }
+function drawScutum(ctx, H, k) {
+  const w = 0.17 * H * k, h = 0.32 * H * k;
+  rrect(ctx, -w / 2, -h / 2, w, h, 0.04 * H * k);
+  ctx.fillStyle = '#8f2a24'; ctx.fill(); ctx.strokeStyle = '#e6c866'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(0, 0, 0.03 * H * k, 0, 6.28); ctx.fill();
+  ctx.strokeStyle = 'rgba(230,200,102,0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -h / 2 + 6); ctx.lineTo(0, h / 2 - 6); ctx.stroke();
+}
+function rrect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function drawNet(ctx, x, y, r) {
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fillStyle = 'rgba(200,190,160,0.25)'; ctx.fill(); ctx.clip();
+  ctx.strokeStyle = 'rgba(230,220,190,0.85)'; ctx.lineWidth = 1.2;
+  for (let i = -4; i <= 4; i++) { ctx.beginPath(); ctx.moveTo(x - r + i * r / 2, y - r); ctx.lineTo(x + r + i * r / 2, y + r); ctx.moveTo(x + r - i * r / 2, y - r); ctx.lineTo(x - r - i * r / 2, y + r); ctx.stroke(); }
+  ctx.restore();
+  ctx.strokeStyle = '#6b5a3a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.stroke();
+}
+// The foe's weapon in his arm's frame: the fist at (0, ARM_LEN), the weapon along +y; frame -x is the edge that leads a chop.
+function drawWeapon(ctx, f, H) {
+  const W = f.weapon, y0 = ARM_LEN * H, len = W.len * H;
+  ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  const leaf = (y1, y2, w) => { ctx.beginPath(); ctx.moveTo(-w * 0.8, y1); ctx.lineTo(-w, y1 + (y2 - y1) * 0.3); ctx.lineTo(-w * 0.6, y1 + (y2 - y1) * 0.75); ctx.lineTo(0, y2); ctx.lineTo(w * 0.6, y1 + (y2 - y1) * 0.75); ctx.lineTo(w, y1 + (y2 - y1) * 0.3); ctx.lineTo(w * 0.8, y1); ctx.closePath(); ctx.fillStyle = '#d5dce4'; ctx.fill(); ctx.stroke(); };
+  const pole = (a, b, w) => { ctx.fillStyle = '#7a5532'; ctx.fillRect(-w / 2, a, w, b - a); ctx.strokeRect(-w / 2, a, w, b - a); };
+  if (W.id === 'spear') { pole(y0 - 0.3 * H, y0 + len, 0.02 * H); leaf(y0 + len, y0 + len + 0.12 * H, 0.026 * H); }
+  else if (W.id === 'axe') {
+    pole(y0 - 0.05 * H, y0 + len, 0.026 * H);
+    if (f.mace) {
+      ctx.fillStyle = '#4b5059'; ctx.beginPath(); ctx.arc(0, y0 + len, 0.06 * H, 0, 6.28); ctx.fill(); ctx.stroke();
+      for (let i = 0; i < 8; i++) { const a = i * 0.785; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 0.05 * H, y0 + len + Math.sin(a) * 0.05 * H); ctx.lineTo(Math.cos(a) * 0.085 * H, y0 + len + Math.sin(a) * 0.085 * H); ctx.stroke(); }
+    } else {
+      const hy = y0 + len - 0.05 * H;
+      ctx.fillStyle = '#b7c0ca'; ctx.beginPath(); ctx.moveTo(-0.01 * H, hy - 0.04 * H); ctx.lineTo(-0.12 * H, hy - 0.09 * H); ctx.quadraticCurveTo(-0.15 * H, hy + 0.02 * H, -0.12 * H, hy + 0.11 * H); ctx.lineTo(-0.01 * H, hy + 0.06 * H); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = '#3a2a1a'; ctx.fillRect(-0.012 * H, y0 - 0.05 * H, 0.024 * H, 0.08 * H);
+    ctx.strokeStyle = '#c9a43a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-0.04 * H, y0 + 0.035 * H); ctx.lineTo(0.04 * H, y0 + 0.035 * H); ctx.stroke();
+    ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 2;
+    leaf(y0 + 0.04 * H, y0 + 0.04 * H + len, W.id === 'dagger' ? 0.018 * H : 0.026 * H);
+  }
 }
 
 // who: 'you' or 'foe'. The foe also draws his weapon arm and club; yours is drawn in screen space by drawSwordArm.
@@ -771,9 +1085,10 @@ function drawFighter(ctx, E, F, fm, st, who) {
   ctx.beginPath(); ctx.ellipse(F.x + (isFoe ? 0 : 0), L.floor + 3, H * 0.22, H * 0.035, 0, 0, 6.28); ctx.fill();
   ctx.save();
   ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
-  if (isFoe && state.stagger > 0) {
+  if (isFoe && (state.stagger > 0 || state.winded > 0)) {
+    const k = state.winded > 0 ? 0.35 + 0.25 * Math.sin(state.m * 9) : 0.45;
     const g = ctx.createRadialGradient(0, -0.5 * H, 10, 0, -0.5 * H, 0.6 * H);
-    g.addColorStop(0, 'rgba(255,210,74,0.45)'); g.addColorStop(1, 'rgba(255,210,74,0)');
+    g.addColorStop(0, `rgba(255,210,74,${k})`); g.addColorStop(1, 'rgba(255,210,74,0)');
     ctx.fillStyle = g; ctx.fillRect(-0.7 * H, -1.1 * H, 1.4 * H, 1.3 * H);
   }
   const sc = isFoe && state.pop < 1 ? 0.85 + 0.15 * (1 - state.pop) : 1;
@@ -781,8 +1096,10 @@ function drawFighter(ctx, E, F, fm, st, who) {
   ctx.globalAlpha = isFoe && state.pop < 1 ? 1 - state.pop * 0.7 : 1;
   if (fall > 0) ctx.globalAlpha = 1 - fall * 0.5;
   // far arm
-  const armB = P('armB');
+  const armB = P('armB'), sw = isFoe ? state.sw : null, bashing = sw && sw.pose === 'bash';
   drawPart(ctx, armB, H, st, fm.fr.armB);
+  if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawScutum(ctx, H, 0.75));
+  if (isFoe && fm.weapon.id === 'dagger' && !(sw && sw.pose === 'net' && sw.fin <= 0)) offHand(ctx, fm.fr.armB, H, () => drawNet(ctx, 0, 0.03 * H, 0.07 * H));
   // legs, two segments each, a stance that shifts with the sway
   const legs = P('legs'), lc = legs.cut ? '#2b2217' : st.skin, wob = Math.sin(state.m * 2.1) * 0.015;
   limb(ctx, [[-0.02 * H, -0.37 * H], [-0.07 * H, -0.19 * H], [(-0.12 + wob) * H, -0.02 * H]], 0.075 * H, lc);
@@ -817,12 +1134,10 @@ function drawFighter(ctx, E, F, fm, st, who) {
     ctx.save(); ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot);
     ctx.fillStyle = st.skin; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, ARM_LEN * H, 0.042 * H, 0, 6.28); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#7a5532';
-    ctx.beginPath(); ctx.moveTo(-0.016 * H, (ARM_LEN - 0.04) * H); ctx.lineTo(0.016 * H, (ARM_LEN - 0.04) * H); ctx.lineTo(0.042 * H, (ARM_LEN + CLUB_LEN) * H); ctx.lineTo(-0.042 * H, (ARM_LEN + CLUB_LEN) * H); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#4a3320';
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc((i - 1) * 0.02 * H, (ARM_LEN + CLUB_LEN - 0.04 - (i % 2) * 0.05) * H, 2.2, 0, 6.28); ctx.fill(); }
+    if (sw && sw.pose === 'net' && sw.fin <= 0) drawNet(ctx, 0, (ARM_LEN + 0.05) * H, 0.1 * H); else drawWeapon(ctx, fm, H);
     ctx.restore();
     for (const q of fm.parts) if (q.slot) drawSlot(ctx, q, H, fm);
+    if (fm.shield && bashing) { ctx.save(); ctx.translate((0.2 + 0.1 * (sw.fin > 0 ? 1 : clamp(sw.t / sw.wind, 0, 1))) * H, -0.52 * H); drawScutum(ctx, H, 1); ctx.restore(); }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -922,8 +1237,13 @@ function drawShieldBtns(ctx, E) {
 // The foe's cover: a shield or guard disc sliding over the part you just hit, plus the OPEN flag while he recovers.
 function drawGuard(ctx, E) {
   if (state.fallT > 0) return;
-  const F = foeF(E), H = F.H, sty = state.foe.style;
-  if (covering()) {
+  const F = foeF(E), H = F.H, sty = state.foe.shield ? { tint: '#7dd3fc', label: 'SHIELD' } : { tint: '#fde68a', label: 'GUARD' };
+  if (state.winded > 0) {
+    const [ox, oy] = toScreen(F, 0.03, -1.04), k = state.winded / state.windedMax, pulse = 0.5 + 0.5 * Math.sin(state.m * 10);
+    E.text('WINDED', ox, oy - 14, { size: 22, color: '#ffd24a', weight: '800', alpha: 0.75 + 0.25 * pulse });
+    E.text('guard down: punish!', ox, oy + 6, { size: 12, color: '#fff0b8', weight: '700' });
+    ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.fillRect(ox - 34, oy + 16, 68 * k, 4);
+  } else if (covering()) {
     const c = state.cover, r = c.r * H, k = clamp(c.t / c.max, 0, 1);
     ctx.save(); ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
     ctx.translate(c.dx * H, c.dy * H);
@@ -968,7 +1288,9 @@ function drawZone(ctx, E) {
   ctx.strokeStyle = ar; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const ax = x0 + w * 0.18, s = 7;
   ctx.beginPath(); ctx.moveTo(ax - s, y - s); ctx.lineTo(ax - 2 * s, y); ctx.lineTo(ax - s, y + s); ctx.stroke();
-  E.text(perfect ? `${sw.zone.label} NOW` : inWin ? `SHIELD ${sw.zone.label}` : sw.counter ? `COUNTER ${sw.zone.label}` : sw.zone.label, (x0 + x1) / 2, y - bh - 10, { size: 18, weight: '800', color: `rgb(${rgb})` });
+  const pose = sw.fake && !sw.switched ? sw.fakePose : sw.pose, name = sw.kind === 'combo' ? `COMBO ${sw.idx + 1}/${sw.n}` : POSE_NAME[pose];
+  const what = pose === 'bash' ? 'BASH: DODGE' : pose === 'net' ? 'NET: DODGE' : null;
+  E.text(what || (perfect ? `${sw.zone.label} NOW` : inWin ? `SHIELD ${sw.zone.label}` : `${sw.counter ? 'COUNTER ' : ''}${name} ${sw.zone.label}`), (x0 + x1) / 2, y - bh - 10, { size: 18, weight: '800', color: `rgb(${rgb})` });
 }
 
 function drawBackground(ctx, E) {
@@ -992,6 +1314,70 @@ function drawBackground(ctx, E) {
   ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(-20, sandTop, E.w + 40, 3);
 }
 
+// ----- fighter cards: the intro before each bout, and the row on the end card -----
+const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps you at range', axe: 'big overheads that crack shields', dagger: 'rushes in; the net slows you' };
+// A little body with his plates (grey) and open joint slots (dark), at scale s px per body unit, feet at (x, y).
+function armourIcon(ctx, d, x, y, s) {
+  const parts = foeParts(makeRng(d.partSeed), d.set);
+  ctx.save(); ctx.translate(x, y);
+  for (const q of parts) {
+    const p = q.d, j = p.joint || (p.frame ? PARTS[pidx(p.frame)].joint : [0, 0]);
+    const side = p.id === 'armF' || p.frame === 'armF' ? 0.11 : p.id === 'armB' ? -0.11 : 0, cx = (j[0] + p.x + side) * s, cy = (j[1] + p.y) * s;
+    ctx.beginPath();
+    if (p.shape === 'circle') ctx.arc(cx, cy, p.r * s, 0, 6.28);
+    else ctx.rect(cx - p.w * s / 2, cy - p.h * s / 2, p.w * s, p.h * s);
+    ctx.fillStyle = q.slot ? '#0b0705' : q.armour ? '#aab3bc' : '#b9835a'; ctx.fill();
+    ctx.strokeStyle = q.slot ? 'rgba(255,214,150,0.7)' : '#2a1c10'; ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.restore();
+}
+function statBars(ctx, E, d, x, y, w, rowH, size) {
+  [['STR', d.str], ['SPD', d.spd], ['STA', d.sta]].forEach(([k, v], i) => {
+    const yy = y + i * rowH;
+    E.text(k, x, yy, { size, align: 'left', color: '#c4b99a', weight: '700' });
+    const sx = x + size * 2.6, seg = (w - size * 2.6) / 5;
+    for (let n = 0; n < 5; n++) { ctx.fillStyle = n < v ? '#e6c866' : 'rgba(255,255,255,0.12)'; ctx.fillRect(sx + n * seg, yy - size * 0.35, seg - 3, size * 0.7); }
+  });
+}
+function weaponIcon(ctx, d, x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI / 2); ctx.translate(0, -ARM_LEN * s);
+  drawWeapon(ctx, { weapon: d.weapon, mace: d.mace }, s); ctx.restore();
+}
+function drawIntro(ctx, E) {
+  const d = state.foe, w = Math.min(E.w - 32, 460), h = Math.min(E.h - 40, 300), x = (E.w - w) / 2, y = (E.h - h) / 2;
+  ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
+  E.roundRect(x, y, w, h, 18, '#221a2b', d.champion ? '#ffd24a' : '#e6c866');
+  E.text(d.champion ? `THE CHAMPION  \u00b7  BOUT ${state.rack + 1} OF ${state.gauntlet.length}` : `BOUT ${state.rack + 1} OF ${state.gauntlet.length}`, E.w / 2, y + 22, { size: 13, weight: '800', color: d.champion ? '#ffd24a' : '#c4b99a' });
+  E.text(d.name.toUpperCase(), E.w / 2, y + 52, { size: d.name.length > 14 ? 24 : 30, weight: '800', color: '#f0e6cc' });
+  const col = x + 28, s = Math.min(110, h * 0.42);
+  armourIcon(ctx, d, col + 40, y + 96 + s * 0.92, s);
+  E.text(`${d.set.name} ARMOUR`, col + 40, y + h - 58, { size: 12, weight: '800', color: '#aab3bc' });
+  E.text(`${d.set.slots} gaps open`, col + 40, y + h - 42, { size: 11, color: '#c4b99a' });
+  const rx = x + w * 0.38, rw = w * 0.56;
+  E.text(`${d.size.name}`, rx, y + 92, { size: 18, weight: '800', align: 'left', color: '#fde68a' });
+  E.text(d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name, rx, y + 120, { size: 18, weight: '800', align: 'left', color: '#f0e6cc' });
+  weaponIcon(ctx, d, rx + rw - 14 - d.weapon.len * 110, y + 112, 110);
+  E.text(WEAPON_TIP[d.weapon.id] + (d.shield ? ', carries a shield' : ''), rx, y + 142, { size: 12, align: 'left', color: '#9aa4b2' });
+  statBars(ctx, E, d, rx, y + 172, rw, 24, 13);
+  const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
+  E.text('Tap to fight', E.w / 2, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
+}
+function miniCard(ctx, E, d, x, y, w, h, res) {
+  const stroke = res === 'felled' ? '#4ade80' : res === 'lost' ? '#ef4444' : 'rgba(240,230,204,0.25)';
+  E.roundRect(x, y, w, h, 12, res ? '#221a2b' : 'rgba(34,26,43,0.5)', stroke);
+  const a = res ? 1 : 0.45;
+  ctx.globalAlpha = a;
+  E.text(d.champion ? 'CHAMPION' : `BOUT ${d.tier + 1}`, x + w / 2, y + 13, { size: 10, weight: '800', color: d.champion ? '#ffd24a' : '#c4b99a', alpha: a });
+  E.text(d.name.length > 13 ? d.name.split(' ')[0].toUpperCase() : d.name.toUpperCase(), x + w / 2, y + 30, { size: 14, weight: '800', color: '#f0e6cc', alpha: a });
+  E.text(`${d.size.id} \u00b7 ${d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name}`, x + w / 2, y + 47, { size: 10, weight: '700', color: '#fde68a', alpha: a });
+  ctx.globalAlpha = a;
+  armourIcon(ctx, d, x + w * 0.28, y + 104, 54);
+  statBars(ctx, E, d, x + w * 0.5, y + 70, w * 0.46, 15, 9);
+  E.text(d.set.name, x + w * 0.72, y + 118, { size: 9, color: '#aab3bc', alpha: a });
+  ctx.globalAlpha = 1;
+  E.text(res === 'felled' ? 'FELLED' : res === 'lost' ? 'CUT YOU DOWN' : 'NOT REACHED', x + w / 2, y + h - 14, { size: 11, weight: '800', color: res === 'felled' ? '#4ade80' : res === 'lost' ? '#ef4444' : '#6b7280' });
+}
+
 // ----- scenes -----
 const portrait = (E) => E.h > E.w;
 function rotateCard(ctx, E) {
@@ -1012,9 +1398,10 @@ const menu = {
     E.text('ARENA', E.w / 2, E.h * 0.22, { size: 44, weight: '800', color: '#e6c866' });
     E.text(relative() ? 'Right thumb: sword, anywhere on the right. Move it like a trackpad: push to jab, sweep to slash, up then down to overhead. Push far past your reach to lunge.' : 'Right thumb: sword. Jab out, slash, overhead. Aim for the dark slits. Push past your reach to lunge.', E.w / 2, E.h * 0.22 + 40, { size: 14, color: '#9aa4b2' });
     E.text('Left thumb: High, Mid, Low = shield (hold to keep it up); Dodge = tap to sidestep, hold to stay back.', E.w / 2, E.h * 0.22 + 62, { size: 14, color: '#9aa4b2' });
-    E.text(`Best: ${E.save.get('best2', 0)} gap hits`, E.w / 2, E.h * 0.22 + 92, { size: 17, color: '#fbbf24' });
+    E.text('A gauntlet of five rolled fighters. Your hearts carry over; each one felled gives half a heart back.', E.w / 2, E.h * 0.22 + 84, { size: 14, color: '#c4b99a' });
+    E.text(`Best: ${E.save.get('best2', 0)} gap hits`, E.w / 2, E.h * 0.22 + 108, { size: 17, color: '#fbbf24' });
     this.btnPlay = E.button('Play', E.w / 2, E.h * 0.62);
-    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, E.h * 0.62 + 66, { fill: '#1f2937', w: 160, h: 44, size: 16 });
+    this.btnMute = E.button(E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, Math.min(E.h * 0.62 + 66, E.h - 30 - E.safe.bottom), { fill: '#1f2937', w: 160, h: 44, size: 16 });
   },
   onTap(p, E) {
     if (this.btnPlay && E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play', { seed: (Math.random() * 2 ** 32) >>> 0 }); }
@@ -1034,13 +1421,22 @@ function initHand(E) {
 }
 
 const play = {
-  state, lay, foeF, youF, toScreen,
+  state, lay, foeF, youF, toScreen, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING,
   enter(E, params) { newRound(E, params.seed); initHand(E); },
   update(dt, E) {
     if (portrait(E)) return;
+    if (state.intro) {
+      state.m += dt; state.introT += dt;
+      if (state.pop > 0) state.pop = Math.max(0, state.pop - dt * 4);
+      poseFoe(E, dt); poseYou(E, dt); moveHand(E, dt);
+      for (const q of state.pops) q.life -= dt;
+      state.pops = state.pops.filter((q) => q.life > 0);
+      return;
+    }
     if (state.stop > 0) { state.stop -= dt; return; }
     state.m += dt;
-    if (state.endT <= 0) state.t -= dt;
+    state.netT = Math.max(0, state.netT - dt); state.pushT = Math.max(0, state.pushT - dt);
+    state.mem.turtle += ((raised() ? 1 : 0) - state.mem.turtle) * (1 - Math.exp(-dt / TUNING.read.turtleTau));
     state.kickV += (-state.kickA * 90 - state.kickV * 7) * dt;
     state.kickA += state.kickV * dt;
     for (const p of state.foe.parts) { p.flash = Math.max(0, p.flash - dt); p.clang = Math.max(0, p.clang - dt); p.cool = Math.max(0, p.cool - dt); }
@@ -1054,14 +1450,14 @@ const play = {
       const c = state.cover, k = 1 - Math.exp(-dt / TUNING.cover.slide);
       c.t -= dt; c.dx += (c.x - c.dx) * k; c.dy += (c.y - c.dy) * k;
     }
-    stepFoe(dt);
+    stepFoe(dt, E);
 
     poseFoe(E, dt);
     poseYou(E, dt);
     moveHand(E, dt);
     updateAttack(E, dt);
     checkHits(E);
-    updateSwing(dt, E);
+    updateFoe(dt, E);
     updateDefence(dt, E);
     checkExhaust(E, dt);
     state.foe.shown += (Math.max(0, state.foe.hp) - state.foe.shown) * (1 - Math.exp(-dt / 0.25));
@@ -1069,7 +1465,10 @@ const play = {
 
     if (state.fallT > 0) {
       state.fallT += dt;
-      if (state.fallT >= TUNING.resetDelay) { state.rack++; newRack(E); poseFoe(E, 0.016); pop(E.w * 0.7, E.h * 0.3, state.foe.style.name, '#e6c866', 20); if (state.sh.broken === false) pop(E.w * 0.2, E.h * 0.3, 'SHIELD MENDED', '#e6c866', 14); }
+      if (state.fallT >= TUNING.resetDelay) {
+        if (state.rack + 1 >= Math.min(TUNING.bouts, state.gauntlet.length)) { this.finish(E); return; }
+        state.rack++; newRack(E); poseFoe(E, 0.016);
+      }
     }
     for (const f of state.fx) {
       f.life -= dt; f.vy += (f.g || 0) * dt; f.x += f.vx * dt || 0; f.y += f.vy * dt || 0;
@@ -1083,19 +1482,23 @@ const play = {
     state.pops = state.pops.filter((q) => q.life > 0);
 
     if (state.endT > 0) { state.endT -= dt; if (state.endT <= 0) this.finish(E); }
-    else if (state.t <= 0) this.finish(E);
   },
   finish(E) {
     if (state.done) return; state.done = true;
     const best = E.save.get('best2', 0), isNew = state.gapHits > best;
     if (isNew) E.save.set('best2', state.gapHits);
-    const r = { gapHits: state.gapHits, slotHits: state.slotHits, lunges: state.lunges, clangs: state.clangs, broken: state.broken, overheads: state.overheads, jabs: state.jabs, slashes: state.slashes, blocks: state.blocks, perfects: state.perfects, dodges: state.dodges, staOuts: state.staOuts, counters: state.counters, counterHits: state.counterHits, taken: state.taken, felled: state.felled };
-    E.ledger.add('result', { ...r, hearts: state.hearts, left: Math.round(state.t) });
-    E.setScene('over', { ...r, hearts: state.hearts, best: Math.max(best, state.gapHits), isNew });
+    const g = state.gauntlet, won = state.results.filter((r) => r === 'felled').length >= g.length, reached = Math.min(g.length, state.rack + 1);
+    const r = { gapHits: state.gapHits, slotHits: state.slotHits, lunges: state.lunges, clangs: state.clangs, broken: state.broken, overheads: state.overheads, jabs: state.jabs, slashes: state.slashes, blocks: state.blocks, perfects: state.perfects, dodges: state.dodges, staOuts: state.staOuts, counters: state.counters, counterHits: state.counterHits, taken: state.taken, felled: state.felled,
+      feints: state.feints, feintsRead: state.feintsRead, feintsBit: state.feintsBit, combos: state.combos, windeds: state.windeds, punishes: state.punishes, bashes: state.bashes, bashHits: state.bashHits, nets: state.nets, netted: state.netted,
+      zoneReads: state.zoneReads, lungeReads: state.lungeReads, turtleReads: state.turtleReads, presses: state.presses, retreats: state.retreats };
+    E.ledger.add('result', { ...r, won, reached, halves: state.hp, sizes: g.map((d) => d.size.id).join(''), weapons: g.map((d) => d.weapon.id).join(','), armour: g.map((d) => d.set.id[0]).join(''),
+      stats: g.map((d) => `${d.str}${d.spd}${d.sta}`).join(','), champ: g[g.length - 1].name, lostTo: won ? '' : `${g[reached - 1].name} ${g[reached - 1].size.id} ${g[reached - 1].weapon.id}`,
+      moves: Object.entries(state.moveCount).map(([k, v]) => `${k}${v}`).join(',') });
+    E.setScene('over', { ...r, won, reached, hp: state.hp, gauntlet: g, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew });
   },
   // two thumbs: a touch that starts in the left third is the shield and dodge thumb (buttons only), any other is the sword thumb
   onPointerDown(p, E) {
-    if (state.endT > 0 || portrait(E)) return;
+    if (state.endT > 0 || portrait(E) || state.intro) return;
     if (p.startX < E.w / 3) {
       const b = shieldBtns(E).find((q) => p.x >= q.x - 6 && p.x <= q.x + q.w + 6 && p.y >= q.y - 4 && p.y <= q.y + q.h + 4);
       if (b && b.dodge) dodge(E, p.id);
@@ -1116,6 +1519,9 @@ const play = {
     const h = state.hand;
     if (h.down && h.id === p.id) { h.fx = p.x; h.fy = p.y; }
   },
+  onTap(p, E) {
+    if (state.intro && state.introT > 0.35 && !portrait(E)) { state.intro = false; state.swingIn = 1.2; E.audio.play('tap'); }
+  },
   onPointerUp(p) {
     const s = state.sh, h = state.hand, dg = state.dg;
     if (dg.down && dg.id === p.id) { dg.down = false; dg.id = -1; }
@@ -1127,6 +1533,7 @@ const play = {
     ctx.save();
     drawBackground(ctx, E);
     drawFighter(ctx, E, youF(E), state.you, YOU, 'you');
+    if (state.netT > 0) { const Fy = youF(E); drawNet(ctx, Fy.x, Fy.y - 0.55 * Fy.H, 0.32 * Fy.H * clamp(state.netT / 0.3, 0.6, 1)); }
     drawFighter(ctx, E, foeF(E), state.foe, FOE, 'foe');
     drawGuard(ctx, E);
     foeHealth(ctx, E);
@@ -1158,7 +1565,7 @@ const play = {
     for (const s of state.streaks) {
       const t = s.life / s.max;
       ctx.lineCap = 'round';
-      ctx.globalAlpha = t * 0.6; ctx.strokeStyle = s.red ? '#ff4a3a' : '#9ff'; ctx.lineWidth = 22 * t;
+      ctx.globalAlpha = t * 0.6; ctx.strokeStyle = s.net ? '#e2e8f0' : s.red ? '#ff4a3a' : '#9ff'; ctx.lineWidth = 22 * t;
       ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke();
       ctx.globalAlpha = t; ctx.strokeStyle = '#fff'; ctx.lineWidth = 5 * t + 1;
       ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke();
@@ -1178,12 +1585,15 @@ const play = {
 
     // HUD, inside the safe area
     const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right, TS = TUNING.stamina, SHD = TUNING.shield;
-    const secs = Math.max(0, Math.ceil(state.t));
-    E.text(`0:${String(secs).padStart(2, '0')}`, l, top + 14, { size: 24, align: 'left', weight: '800', color: secs <= 5 ? '#ef4444' : '#e6e6e6' });
+    E.text(`BOUT ${state.rack + 1}/${state.gauntlet.length}`, l, top + 14, { size: 20, align: 'left', weight: '800', color: state.foe.champion ? '#ffd24a' : '#e6e6e6' });
     E.text(`${state.felled} felled`, l, top + 38, { size: 12, align: 'left', color: '#c4b99a' });
     E.text(`${state.gapHits}`, E.w / 2, top + 14, { size: 34, weight: '800', color: '#ffd24a' });
     E.text('gap hits', E.w / 2, top + 38, { size: 11, color: '#c4b99a' });
-    for (let i = 0; i < TUNING.hearts; i++) E.text('\u2665', E.w - r - 10 - i * 26, top + 14, { size: 26, color: i < state.hearts ? '#ef4444' : '#3b3f46' });
+    for (let i = 0; i < TUNING.hearts; i++) {
+      const hx = E.w - r - 10 - (TUNING.hearts - 1 - i) * 26, have = state.hp - i * 2;
+      E.text('\u2665', hx, top + 14, { size: 26, color: have >= 2 ? '#ef4444' : '#3b3f46' });
+      if (have === 1) { ctx.save(); ctx.beginPath(); ctx.rect(hx - 14, top - 4, 14, 36); ctx.clip(); E.text('\u2665', hx, top + 14, { size: 26, color: '#ef4444' }); ctx.restore(); }
+    }
     const bw = 110, bx = E.w - r - bw, sf = state.stamina / TS.max;
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(bx - 1, top + 29, bw + 2, 11);
     const flashOn = state.exhaust > 0 && Math.floor(state.m * 8) % 2 === 0;
@@ -1197,9 +1607,9 @@ const play = {
     E.text(state.sh.broken ? 'shield broken' : 'shield', bx - 6, top + 66, { size: 10, align: 'right', color: state.sh.broken ? '#ef4444' : '#c4b99a' });
     if (state.away) E.text(state.dg.down && state.dg.t > TUNING.dodge.dur ? 'backed off (burning stamina)' : 'dodge', bx + bw, top + 80, { size: 10, align: 'right', color: '#7de3ff' });
     if (state.riposte > 0) E.text('RIPOSTE x2', E.w / 2, top + 62, { size: 16, weight: '800', color: '#ffd24a' });
-    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(0, top + 50, E.w * 0.3, 3);
-    ctx.fillStyle = '#e6c866'; ctx.fillRect(0, top + 50, E.w * 0.3 * clamp(state.t / TUNING.roundTime, 0, 1), 3);
-    if (state.t > TUNING.roundTime - 8) E.text('left: High / Mid / Low = shield, Dodge  |  right thumb: sword (' + (relative() ? 'trackpad, push far to lunge' : 'push past reach to lunge') + ')', E.w / 2, E.h - 8 - E.safe.bottom, { size: 12, color: '#f0e6cc', alpha: clamp((state.t - (TUNING.roundTime - 8)) / 1.5 + 0.2, 0, 1) });
+    if (state.netT > 0) E.text('NETTED: slow hand, no lunge', bx + bw, top + 94, { size: 11, align: 'right', color: '#e2e8f0', weight: '700' });
+    if (state.rack === 0 && !state.intro && state.m < 10) E.text('left: High / Mid / Low = shield, Dodge  |  right thumb: sword (' + (relative() ? 'trackpad, push far to lunge' : 'push past reach to lunge') + ')', E.w / 2, E.h - 8 - E.safe.bottom, { size: 12, color: '#f0e6cc', alpha: clamp((10 - state.m) / 1.5, 0, 1) });
+    if (state.intro) drawIntro(ctx, E);
   },
   onPause() {},
 };
@@ -1207,19 +1617,26 @@ const play = {
 const over = {
   enter(E, params) {
     this.p = params; this.k = 0;
-    E.audio.play(params.isNew ? 'win' : 'lose');
+    E.audio.play(params.won ? 'win' : 'lose');
     E.tween(0.5, (t) => { this.k = t; });
   },
   render(ctx, E) {
-    const p = this.p, lx = E.w * 0.3, rx = E.w * 0.7, y = Math.max(E.safe.top + 40, E.h * 0.2);
-    E.text(p.hearts <= 0 ? 'Cut down' : 'Round over', lx, y, { size: 32, weight: '800', color: p.hearts <= 0 ? '#ef4444' : '#e6e6e6' });
-    E.text(`${Math.round(p.gapHits * this.k)}`, lx, y + 68, { size: 68, weight: '800', color: '#ffd24a' });
-    E.text('gap hits', lx, y + 112, { size: 15, color: '#9aa4b2' });
-    E.text(p.isNew ? 'New best!' : `Best ${p.best}`, lx, y + 138, { size: 18, color: '#fbbf24' });
-    const lines = [`${p.overheads} overheads | ${p.jabs} jabs | ${p.slashes} slashes`, `${p.slotHits} joint hits | ${p.lunges} lunges | ${p.clangs} clangs | ${p.broken} plates`, `${p.blocks} blocks (${p.perfects} perfect) | ${p.dodges} dodges`, `${p.staOuts} stamina-outs | ${p.counters} counters (${p.counterHits} hit)`, `${p.taken} hits taken | ${p.felled} foes felled`];
-    lines.forEach((s, i) => E.text(s, rx, y - 12 + i * 23, { size: 14, color: '#cbd5e1' }));
-    this.btnAgain = E.button('Again', rx - 72, E.h * 0.74, { w: 130, h: 52, size: 20 });
-    this.btnMenu = E.button('Menu', rx + 72, E.h * 0.74, { w: 130, h: 52, size: 20, fill: '#334155' });
+    const p = this.p, g = p.gauntlet, top = E.safe.top + 26;
+    if (portrait(E)) { rotateCard(ctx, E); return; }
+    const last = g[p.reached - 1];
+    E.text(p.won ? 'CHAMPION FELLED' : `Cut down by ${last.name}`, E.w / 2, top, { size: 26, weight: '800', color: p.won ? '#ffd24a' : '#ef4444' });
+    E.text(`Reached bout ${p.reached} of ${g.length}  \u00b7  ${p.felled} felled  \u00b7  ${Math.round(p.gapHits * this.k)} gap hits  \u00b7  ${p.isNew ? 'new best!' : `best ${p.best}`}`, E.w / 2, top + 26, { size: 14, color: '#fbbf24' });
+    const gap = 8, w = Math.min(150, (E.w - 32 - E.safe.left - E.safe.right - gap * (g.length - 1)) / g.length), h = 150, x0 = (E.w - (w * g.length + gap * (g.length - 1))) / 2, y0 = top + 44;
+    g.forEach((d, i) => miniCard(ctx, E, d, x0 + i * (w + gap), y0, w, h, p.results[i] || null));
+    const lines = [
+      `${p.jabs} jabs | ${p.slashes} slashes | ${p.overheads} overheads | ${p.slotHits} joint hits | ${p.lunges} lunges | ${p.clangs} clangs | ${p.broken} plates`,
+      `${p.blocks} blocks (${p.perfects} perfect) | ${p.dodges} dodges | ${p.taken} hits taken | ${p.staOuts} stamina-outs | ${p.counters} counters (${p.counterHits} hit)`,
+      `feints read ${p.feintsRead} of ${p.feints} | ${p.combos} combos | winded ${p.windeds}x, ${p.punishes} punishes | bashed ${p.bashHits}/${p.bashes} | netted ${p.netted}/${p.nets}`,
+    ];
+    lines.forEach((s, i) => E.text(s, E.w / 2, y0 + h + 16 + i * 18, { size: 12, color: '#cbd5e1' }));
+    const by = Math.min(E.h - 30 - E.safe.bottom, y0 + h + 94);
+    this.btnAgain = E.button('Again', E.w / 2 - 80, by, { w: 140, h: 46, size: 19 });
+    this.btnMenu = E.button('Menu', E.w / 2 + 80, by, { w: 140, h: 46, size: 19, fill: '#334155' });
   },
   onTap(p, E) {
     if (this.btnAgain && E.hit(this.btnAgain, p)) E.setScene('play', { seed: (Math.random() * 2 ** 32) >>> 0 });
