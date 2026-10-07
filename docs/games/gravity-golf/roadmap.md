@@ -15,26 +15,28 @@ A **zone** is about 20 holes: four sectors of five. Each zone has its own look, 
 | --- | --- | --- | --- | --- |
 | 1. The Galaxy | 1 to 30 | Sam and Lumen look for life; at the core, another probe ("we're not alone") | planets, moons, suns, comets, black holes | built (v0.1 to v0.12); its ending is the v0.11 cutscene |
 | 2. The Signal | 31 to 50 | Lumen follows the other probe outward. They pass strange structures someone built. | burst stars (Sector 7, v0.13), antigravity structures that push instead of pull, and a moving cup to dock with | Sector 7 being built |
-| 3. The Giant | 51 to 70 | The other probe leads Lumen down to a world so big it bends the light. Lumen lands, and it becomes real golf. | a surface (see below) | idea |
+| 3. The Giant | 51 to 70 | The other probe leads Lumen to a world so big it fills the sky; Lumen plays across its surface | giant planets bigger than the screen, crater cups on the surface, rocks as mounds, moons overhead (see below) | idea, rescoped to reuse |
 | 4. First Contact | 71 to 90 | Who sent the probe | alien mode's ideas: saucers, a tractor beam, a drifting cup | idea (the backlog's alien mode) |
 
 Each zone's closing cutscene is a Launch-style animated scene of about 15 s, skippable. It is the one place a zone spends art: a portrait or two plus a backdrop pack.
 
-## Zone 3, The Giant: real golf, but it is still Gravity Golf
+## Zone 3, The Giant: bigger rocks, not a new game (revised 2026-10-07)
 
-The idea: Lumen lands on a giant planet and plays on its surface, side-on, with the horizon curving away.
-- **The ground pulls down,** as uniform gravity, so it feels like golf: rolls, bounces, slopes, bunkers and a flag.
-- **The giant's moons hang huge in the sky and still pull the ball upward.** That keeps the game's soul: a lob that passes under a moon floats and curves.
-- **Inspiration for mechanics:**
-  - low-gravity bounces;
-  - thick-air drag, so a high shot slows;
-  - methane lakes, which slow the ball or make it skip;
-  - bouncy fungus pads;
-  - geysers, as in Launch;
-  - wind bands;
-  - a moon eclipse that switches a moon's pull on and off.
-- **Inspiration for art:** a dusk-coloured alien links course, crystal flora, rings across the sky, and the other probe watching from a ridge.
-- **Cost:** this is the biggest build on the list. It needs a new physics layer: terrain contact and rolling under uniform gravity, plus the point-mass pull Gravity Golf already has. Launch's terrain code is a reference, not a copy (ADR-0006: engines are not shared). The hole harness needs it too. Holes then follow the lean authoring method.
+The designer: "maybe the Giant as it currently stands is too big a build that doesn't reuse enough. I think we could definitely do bigger rocks though."
+
+So the Giant stays in space and keeps the point-mass physics. It reuses what exists:
+- **Giant planets** larger than the screen: only a curved limb shows, at the bottom or side of the field. A planet is still a circle, just a huge one.
+- **Landing,** which already exists (`landSpeed`): you come to rest on the surface.
+- **Cups on the surface.** A crater cup sits on the curve, so a shot lands, rests, then hops along the limb to the cup. That is the "real golf" feel: short hops over a curved ground.
+- **Small rocks** sitting on or above the limb (low-mass planets) act as mounds and ridges.
+- **The giant's moons** overhead pull the ball up and away.
+
+What's new, and small:
+- a crater cup (a cup whose mouth faces out from a planet's surface);
+- drawing for very large bodies: limb shading, surface texture and an atmosphere glow;
+- if wanted after a playtest, a little roll along the surface after landing.
+
+All of this fits the lean authoring method: holes start from the existing landing holes (2, 6 and 13).
 
 ## Modes alongside the zones (from the backlog)
 
