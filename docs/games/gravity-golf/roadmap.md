@@ -38,6 +38,17 @@ What's new, and small:
 
 All of this fits the lean authoring method: holes start from the existing landing holes (2, 6 and 13).
 
+### Bigger rooms: the designer's meaning (2026-10-07)
+
+"I meant bigger rooms, like bigger levels, but yeah maybe a combination: a huge level with a huge planet with its gravity and the cup near the end."
+
+- **A big room** is a hole two to four screens long, with the camera following the ball.
+- **The aim view zooms out** so the whole room fits before a shot, then the camera follows the flight and settles on the rest. A two-finger pinch, or a "Look" button of at least 48 px, pans freely between shots.
+- **The Giant hole:** the tee is at one end and the cup near the far end. A huge planet in the middle dominates the room, and its pull shapes every shot. Several shots across its gravity well, and its landings, make the route.
+- **The physics and the harness don't change.** `sim-golf` already works in world coordinates, so room size is only data (a field size per hole), plus walls at its bounds.
+- **What's new:** the camera, the zoom-out aim view, the Look pan, and very large bodies drawn with the limb shading and atmosphere glow above.
+- **One foundation for three things.** The same big-room camera is what Grand Tour (long slingshot chains) and Burst Run (a long one-way course) need, so building it once serves all three.
+
 ## Modes alongside the zones (from the backlog)
 
 Grand Tour first, then VS, then Architect, with Burst Run after. Modes reuse the holes of every zone, so each new zone also feeds them.
