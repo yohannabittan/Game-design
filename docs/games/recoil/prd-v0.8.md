@@ -52,6 +52,18 @@ Source: the designer's playtest export (2026-10-07, 101 entries) and note: "I ju
 - If, after B, a rung and gun pair still needs much more skill than the pistol (its 2-star bar above about 90 percent of its perfect run), the rung tile shows a small "tough with this gun" note in the Prop Room's tone.
 - This is information only. It does not block the rung.
 
+## D2. A simpler result card (designer, 2026-10-07: "We need to simplify the end screen in Recoil after a challenge")
+
+The v0.7 card carries about eleven text items: "That's a wrap!", rung and gun, score, stars, the critic's quote, hits and bullseyes, "New best · 3 stars saved", the star thresholds line, "Box office +$0", the director's note and three buttons. It becomes six, in this order:
+1. **The rung name**, small, at the top: "Accuracy 1". The gun shows as its picture beside the score, not as text.
+2. **The score**, large. When it is a new best, a "New best!" tag sits beside it.
+3. **The stars**, with one thin bar under them that shows the way to the next star: "200 to ★★★", or "All stars!" at three. This replaces the thresholds line and "3 stars saved".
+4. **Big Lou's portrait and his one line.** This replaces the critic's quote; the newspaper verdict goes.
+5. **One small stat line:** "8 of 8 hits · 4 bullseyes". Each rung shows the stat that matters for it, for example "Wave 5 · 22 down" for zombies. Box office appears in this line only when it is above zero ("+$120").
+6. **The buttons.** "Next" is the large primary button when the run earned at least one star; otherwise "Again" is. Menu stays small.
+
+Rank-up, poster and badge cards still follow the result card as before. Text counts per principle 11 go in the changelog.
+
 ## E. Out of scope
 
 New rungs, guns, prices or story.
