@@ -271,11 +271,11 @@ export class Engine {
     this._tuneTab = this._exportTab = null;
     if (this.sceneName === 'menu') {
       if (this._tune && this._tuneShown) {
-        this._tuneTab = { x: this.w - 74 - this.safe.right, y: this.safe.top + 10, w: 64, h: 32 };
-        this.roundRect(this._tuneTab.x, this._tuneTab.y, 64, 32, 10, '#1f2937', '#475569');
-        this.text('TUNE', this._tuneTab.x + 32, this._tuneTab.y + 16, { size: 13, color: '#9aa4b2' });
+        this._tuneTab = { x: this.w - 82 - this.safe.right, y: this.safe.top + 4, w: 72, h: 44 };
+        this.roundRect(this._tuneTab.x, this._tuneTab.y, 72, 44, 10, '#1f2937', '#475569');
+        this.text('TUNE', this._tuneTab.x + 36, this._tuneTab.y + 22, { size: 14, color: '#9aa4b2' });
       }
-      // Top-left mirror of the TUNE tab, in both channels: a 72 x 44 target.
+      // Top-left mirror of the TUNE tab, in both channels: both are 72 x 44 on one line (ADR-0019).
       this._exportTab = { x: 10 + this.safe.left, y: this.safe.top + 4, w: 72, h: 44 };
       this.roundRect(this._exportTab.x, this._exportTab.y, 72, 44, 10, '#1f2937', '#475569');
       this.text('EXPORT', this._exportTab.x + 36, this._exportTab.y + 22, { size: 14, color: '#9aa4b2' });

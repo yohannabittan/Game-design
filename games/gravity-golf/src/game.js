@@ -39,11 +39,12 @@ const TUNING = {
   bhFade: 1.5,           // Between reach and bhFade times reach the pull fades smoothly to zero; beyond, the black hole does nothing
   ghostSeconds: 3,       // PRD v0.4 B: the last shot's ghost keeps at most this much of the end of its flight
   ghostAlpha: 0.32,      // How strongly the ghost's dots show
-  // PRD v0.9: the blind fourth star. A blind try hides the preview and the ghost and draws only a short straight pointer; physics is untouched.
+  // PRD v0.9: the blind fourth star. A blind try hides the preview and the ghost and draws only a straight pointer, its length the power; physics is untouched.
   blind: {
     label: 'Expert',     // The player-facing name of the mode: the HUD tag, the end card's button and line (the save and the code keep 'blind')
-    pointerLen: 64,      // Design px from the ball's edge gap to the arrow tip: it shows direction, never power or curve
+    pointerLen: 96,      // Design px from the ball's edge gap to the arrow tip at full power (PRD v0.12: the arrow's length follows the drag's power, soft shot to this); never the curve
     gap: 6, pointerW: 4, backGrow: 1.5, headLen: 13, headHalf: 7, minLen: 20, alpha: 0.95, // Pointer: start gap from the ball, shaft width, dark backing, arrowhead, shortest length
+    scaleAlpha: 0.22, scaleCap: 6, // The faint full-power length marker behind the arrow: its alpha, and the half-width of the tick at its end
     hudClear: 38,        // Screen px below the HUD band: the tip is shortened to stay under it and the Blind tag
     col: '#67e8f9', edge: '#22d3ee', core: '#ecfeff', // The fourth star's cyan comet colours
     tag: { y: 16, w: 64, h: 24 }, // The HUD tag: centre below the HUD band, size (screen px)
@@ -205,7 +206,6 @@ const TUNING = {
     // Badges on the card
     badgeDelay: 0.25,      // After the last star
     badgePop: 0.35,
-    badgeHold: 2.2,        // Each new badge shows this long before the next one takes its place
   },
 
   // Art (layer 5). Cosmetic only; nothing here is read by the physics. Every colour in the game lives in art.palette.
@@ -386,8 +386,12 @@ const TUNING = {
     },
     tile: { number: 14, icon: 37, iconR: 10, sunR: 7, stars: 10, starR: 5.5, bhReach: 1.45 }, // Offsets from the tile top (stars from the bottom), design px; bhReach: a badge black hole's ring in icon radii
     menu: { titleGap: 26, tabBottom: 42, missionsW: 150, rowGap: 12 }, // Title sits titleGap below the engine's TUNE tab (safe top + 42)
-    missions: { top: 64, headH: 32, rowH: 58, rowGap: 6, medalR: 20, bottom: 156, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17, toastBand: 96 }, // rowH for a one-line condition; each extra line adds lineH. Back sits above toastBand: the engine's toast (24 px up, two lines) takes taps while it shows
+    missions: { top: 64, headH: 32, rowH: 92, rowGap: 6, medalR: 40, bottom: 156, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17, toastBand: 96 }, // rowH for a one-line condition; each extra line adds lineH. Back sits above toastBand: the engine's toast (24 px up, two lines) takes taps while it shows
     swatch: { size: 46, gap: 10, perRow: 6, headH: 26, rowGap: 10, ring: 3, ballR: 13 }, // The Skins block on the missions screen (swatches at least 44 px)
+    // PRD v0.12 B: the big medal (the Missions showcase and the end card's reveal). w is its width as a fraction of the screen's, y the showcase centre as a
+    // fraction of the screen's height; it turns by +-turnMax radians every turnPeriod s under a sheen (width in medal widths) sweeping every sheenPeriod s.
+    big: { w: 0.6, y: 0.34, turnMax: 0.9, turnPeriod: 6, sheenPeriod: 2.6, sheenW: 0.32, sheenAlpha: 0.6, silhouette: 'rgba(7,11,25,0.86)', dim: 0.93, pop: 0.3, gap: 30, nameMin: 24, textW: 32,
+      reveal: { dur: 1.2, settle: 0.3, scrim: 0.82, y: 0.34 } }, // reveal: seconds the medal shows (the last settle seconds it flies to its ticket), the scrim's alpha behind it, its centre as a fraction of the height
     ticket: { w: 320, h: 50, r: 14, medalR: 18 }, // The badge ticket that pops over the top edge of the hole card
     tierGlow: { rate: 0.4, min: 0.25, max: 0.85, r: 1.55, halo: 3 }, // Black Hole tier rim: glow pulses per second, its alpha range, its radius in medal radii, and the ticket's halo width (design px)
     secret: { name: '???', text: 'Secret badge', mark: 1.15 }, // A secret badge not yet earned: its name, its one line, and the '?' size in medal radii
@@ -433,7 +437,7 @@ const TUNING = {
   // emblem's own colour, used for the card's border, glow ring and sparks.
   rank: {
     starsPerRank: 10,
-    menu: { emblem: 72, cardH: 88, margin: 16, pad: 12, nameY: 26, lineY: 56, barY: 70, barH: 6, chevron: 6, nameMin: 24, lineMin: 14, titleW: 220, titleAspect: 467 / 1024, titleGap: 12, gridGap: 22 }, // The headline card under the title; nameY, lineY, barY are from the card's top
+    menu: { emblem: 72, cardH: 88, margin: 16, pad: 12, nameY: 26, lineY: 56, barY: 70, barH: 6, chevron: 6, nameMin: 24, lineMin: 14, titleW: 220, titleAspect: 467 / 1024, titleGap: 12, gridGap: 12, gridBottom: 10, padBottom: 16, stackGap: 14, fade: 24, dragSlop: 6 }, // The headline card under the title; nameY, lineY, barY are from the card's top. The hole grid scrolls between the card (gridGap) and Play (gridBottom); Play, Missions and Sound are pinned padBottom above the safe bottom, stackGap apart; fade is the soft edge height, dragSlop the finger travel before a press becomes a scroll
     ladder: { emblem: 44, rowH: 56, rowGap: 6, pad: 10, dividerH: 30, headGap: 6, lineGap: 4, tail: 6, silRes: 128, silhouette: '#1e293b', lockedMedal: 0.35 }, // Rows on the missions screen; silRes is the silhouette canvas size
     card: {
       w: 300, h: 280, top: 28, emblem: 150, oldScale: 0.7, dim: 0.82,
@@ -2399,15 +2403,19 @@ function ghostKeep() { // the flight ended: its recording becomes the ghost, old
   GHOST.n = GHOST.count; GHOST.count = 0; GHOST.head = 0;
 }
 function ghostClear() { GHOST.n = 0; GHOST.count = 0; GHOST.head = 0; }
-// The blind try's direction pointer (PRD v0.9): a straight arrow of fixed length from the ball along the aim, nothing more.
-// The tip is shortened, never moved, to stay below the HUD band and the Blind tag.
+// The Expert try's pointer (PRD v0.9, v0.12): a straight arrow from the ball along the aim whose length follows the drag's power, over a faint
+// full-power marker so the scale reads. No curve, dots or ghost. Both are shortened, never moved, to stay below the HUD band and the Expert tag.
 function drawPointer(ctx, E, v, b, l) {
   const B = T.blind, d = Math.hypot(l.vx, l.vy) || 1, ux = l.vx / d, uy = l.vy / d;
   const x0 = b.x + ux * (T.ballR + B.gap), y0 = b.y + uy * (T.ballR + B.gap);
-  let len = B.pointerLen;
-  if (uy < 0) len = Math.max(B.minLen, Math.min(len, (v.oy + y0 * v.s - (E.safe.top + T.hudH + B.hudClear)) / (-uy * v.s)));
-  const x1 = x0 + ux * len, y1 = y0 + uy * len, hx = x1 - ux * B.headLen, hy = y1 - uy * B.headLen;
+  let full = B.pointerLen;
+  if (uy < 0) full = Math.max(B.minLen, Math.min(full, (v.oy + y0 * v.s - (E.safe.top + T.hudH + B.hudClear)) / (-uy * v.s)));
+  const len = Math.max(B.minLen, Math.min(full, B.pointerLen * l.power));
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const fx = x0 + ux * full, fy = y0 + uy * full; // the full-power marker: a thin track and a tick across its end
+  ctx.globalAlpha = B.scaleAlpha; ctx.strokeStyle = B.col; ctx.lineWidth = B.pointerW / 2;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(fx, fy); ctx.moveTo(fx - uy * B.scaleCap, fy + ux * B.scaleCap); ctx.lineTo(fx + uy * B.scaleCap, fy - ux * B.scaleCap); ctx.stroke();
+  const x1 = x0 + ux * len, y1 = y0 + uy * len, hx = x1 - ux * B.headLen, hy = y1 - uy * B.headLen;
   ctx.globalAlpha = B.alpha * 0.45; ctx.strokeStyle = P.shadow; ctx.fillStyle = P.shadow; ctx.lineWidth = B.pointerW + 2 * B.backGrow;
   ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x1 + ux * B.backGrow, y1 + uy * B.backGrow); ctx.lineTo(hx - uy * (B.headHalf + B.backGrow), hy + ux * (B.headHalf + B.backGrow)); ctx.lineTo(hx + uy * (B.headHalf + B.backGrow), hy - ux * (B.headHalf + B.backGrow)); ctx.closePath(); ctx.fill();
@@ -2638,6 +2646,36 @@ function drawMedal(ctx, x, y, r, tier, got, id) {
   ctx.globalAlpha = 1;
 }
 
+// The big medal (PRD v0.12 B). Earned art turns slowly under a sheen that sweeps across it; an unearned one is the art in near-black (the shape and a trace of the picture); a secret one stays a '?'.
+// Where the art is not decoded yet, or there is no OffscreenCanvas, the drawn medal stands in.
+const BIG = { layer: null, sil: new Map() };
+function bigLayer(o, dark) {
+  if (typeof OffscreenCanvas === 'undefined') return null;
+  const n = o.img.naturalWidth || 256, c = dark ? new OffscreenCanvas(n, n) : BIG.layer || (BIG.layer = new OffscreenCanvas(n, n)), g = c.getContext('2d');
+  g.clearRect(0, 0, n, n); g.drawImage(o.img, 0, 0, n, n);
+  return { c, g, n };
+}
+function drawBigMedal(ctx, x, y, r, tier, got, id, t) {
+  const bd = badgeById(id), o = ART.medals.get(id), B = A.big;
+  if ((bd && bd.secret && !got) || !o || !o.ok) { drawMedal(ctx, x, y, r, tier, got, id); return; }
+  if (!got) {
+    let sil = BIG.sil.get(id);
+    if (!sil) { const L = bigLayer(o, true); if (L) { L.g.globalCompositeOperation = 'source-atop'; L.g.fillStyle = B.silhouette; L.g.fillRect(0, 0, L.n, L.n); sil = L.c; BIG.sil.set(id, sil); } }
+    if (sil) ctx.drawImage(sil, x - r, y - r, 2 * r, 2 * r); else drawMedal(ctx, x, y, r, tier, false, id);
+    return;
+  }
+  if (tier === 4) drawTierGlow(ctx, x, y, r);
+  const L = bigLayer(o, false), kx = Math.cos(B.turnMax * Math.sin(t * PI2 / B.turnPeriod));
+  ctx.save(); ctx.translate(x, y); ctx.scale(kx, 1);
+  if (L) {
+    const n = L.n, c = (-0.3 + 1.6 * ((t / B.sheenPeriod) % 1)) * 2 * n, w = B.sheenW * n, g = L.g.createLinearGradient((c - w) / 2, (c - w) / 2, (c + w) / 2, (c + w) / 2);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, `rgba(255,255,255,${B.sheenAlpha})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+    L.g.globalCompositeOperation = 'source-atop'; L.g.fillStyle = g; L.g.fillRect(0, 0, n, n); L.g.globalCompositeOperation = 'source-over';
+    ctx.drawImage(L.c, -r, -r, 2 * r, 2 * r);
+  } else ctx.drawImage(o.img, -r, -r, 2 * r, 2 * r);
+  ctx.restore();
+}
+
 // The ticket for a badge just earned: the medal, the tier and name, and the skins it unlocks drawn at the right end.
 function drawTicket(ctx, E, b, k, y, more) {
   const TK = A.ticket, w = Math.min(TK.w, E.w - 40), x = (E.w - w) / 2, cx = E.w / 2, skins = skinsOf(b.id);
@@ -2659,7 +2697,10 @@ const TIER_LABEL = BADGE_TIERS.map((n) => `${n.toUpperCase()} BADGE`);
 const menu = {
   titleBox: { x: 0, y: 0, w: 0, h: 0 },
   enter(E) {
-    this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnRank = null; this.tiles = []; this.pop = CHANGED; CHANGED = null; this.t = 0; applySkins(E);
+    this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnRank = null; this.tiles = []; this.pop = CHANGED;
+    this.scroll = 0; this.focus = true; this.drag = null; this.moved = false; this.grid = { top: 0, bot: 0, max: 0 };
+    // the grid opens on the next hole to play, on the first frame (it needs the layout)
+    CHANGED = null; this.t = 0; applySkins(E);
     RK.on = false;
     this.vet = rankFor(progress(E).total) > E.save.get('rankSeen', 1); // a rank whose card has not shown yet (a veteran's first boot): one card, never a cascade
   },
@@ -2685,10 +2726,17 @@ const menu = {
     this.drawRank(ctx, E, p, ty + titleH / 2 + MR.titleGap);
 
     const m = 16, gap = T.tileGap, cols = T.gridCols;
-    const tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = T.tileH, top = ty + titleH / 2 + MR.titleGap + MR.cardH + MR.gridGap;
+    const tw = (E.w - 2 * m - (cols - 1) * gap) / cols, th = T.tileH, step = th + gap, rows = Math.ceil(LEVELS.length / cols);
+    const half = BTN.half.h / 2, missY = E.h - E.safe.bottom - MR.padBottom - half, py = missY - half - MR.stackGap - BTN.primary.h / 2; // Play, Missions and Sound pinned at the bottom
+    const GR = this.grid, gTop = ty + titleH / 2 + MR.titleGap + MR.cardH + MR.gridGap, gBot = py - BTN.primary.h / 2 - MR.gridBottom;
+    GR.top = gTop; GR.bot = gBot; GR.max = Math.max(0, rows * step - gap - (gBot - gTop));
+    if (this.focus) { this.focus = false; this.scroll = (Math.floor(p.unlocked / cols) + 0.5) * step - gap / 2 - (gBot - gTop) / 2; }
+    this.scroll = clamp(this.scroll, 0, GR.max);
     this.tiles = [];
+    ctx.save(); ctx.beginPath(); ctx.rect(0, gTop, E.w, gBot - gTop); ctx.clip();
     LEVELS.forEach((lv, i) => {
-      const x = m + (i % cols) * (tw + gap), y = top + Math.floor(i / cols) * (th + gap), tcx = x + tw / 2;
+      const x = m + (i % cols) * (tw + gap), y = gTop - this.scroll + Math.floor(i / cols) * step, tcx = x + tw / 2;
+      if (y + th < gTop || y > gBot) return;
       const locked = i > p.unlocked, cleared = p.best[i] !== undefined;
       // Only the tile whose stars just went up pops.
       const pop = this.pop && this.pop.hole === i ? this.pop : null;
@@ -2717,12 +2765,19 @@ const menu = {
       if (ts !== 1) ctx.restore();
       this.tiles.push({ x, y, w: tw, h: th, hole: i, locked });
     });
+    ctx.restore();
+    const field = SKY.get('menu').pal.field, fade = MR.fade; // a soft edge where the grid runs on: the sky's own colour, clear to solid
+    for (const [on, y0, y1] of [[this.scroll > 0, gTop, gTop + fade], [this.scroll < GR.max, gBot, gBot - fade]]) {
+      if (!on) continue;
+      const g = ctx.createLinearGradient(0, y0, 0, y1);
+      g.addColorStop(0, field); g.addColorStop(1, rgba(field, 0));
+      ctx.fillStyle = g; ctx.fillRect(0, Math.min(y0, y1), E.w, fade);
+    }
 
-    const rows = Math.ceil(LEVELS.length / cols), py = Math.max(E.h * 0.58, top + rows * (th + gap) + 8 + BTN.primary.h / 2); // below the grid at any hole count
     this.btnPlay = pill(E, p.total > 0 || p.unlocked > 0 ? `Play hole ${p.unlocked + 1}` : 'Play', cx, py, BTN.primary);
     const hx = (M.missionsW + M.rowGap) / 2;
-    this.btnMissions = pill(E, 'Missions', cx - hx, py + 84, BTN.half);
-    this.btnMute = pill(E, E.audio.muted ? 'Sound: off' : 'Sound: on', cx + hx, py + 84, BTN.half);
+    this.btnMissions = pill(E, 'Missions', cx - hx, missY, BTN.half);
+    this.btnMute = pill(E, E.audio.muted ? 'Sound: off' : 'Sound: on', cx + hx, missY, BTN.half);
     if (RK.on) drawRankUp(ctx, E);
   },
   // The menu's one headline (principle 11): the rank's emblem and name, one progress line and a thin bar. Tapping it opens the ladder.
@@ -2747,17 +2802,26 @@ const menu = {
     if (E.hit(this.btnPlay, p)) { E.setScene('play', { hole: progress(E).unlocked }); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); return; }
+    if (this.moved || p.y < this.grid.top || p.y > this.grid.bot) return; // a drag scrolls the grid and picks nothing; a tile under the fade or a button is not a tile tap
     for (const t of this.tiles) if (!t.locked && E.hit(t, p)) { E.setScene('play', { hole: t.hole }); return; }
   },
+  onPointerDown(p) { this.moved = false; this.drag = p.y >= this.grid.top && p.y <= this.grid.bot ? { y: p.y, s: this.scroll } : null; },
+  onPointerMove(p) {
+    const d = this.drag, slop = RT.menu.dragSlop;
+    if (!d || (!this.moved && Math.abs(p.y - d.y) <= slop)) return;
+    this.moved = true;
+    this.scroll = clamp(d.s - (p.y - d.y) + Math.sign(p.y - d.y) * slop, 0, this.grid.max);
+  },
+  onPointerUp() { this.drag = null; },
 };
 
 // The missions screen: the Skins block (ball and trail swatches) and the badges by tier, lit when earned, with their
 // condition either way. The list scrolls between the heading and the Back button.
 const WRAP = new Map(); // badge condition lines per width, measured once
-function wrapText(ctx, key, text, width) {
+function wrapText(ctx, key, text, width, size = TY.sm) {
   let lines = WRAP.get(key);
   if (!lines) {
-    ctx.font = `600 ${TY.sm}px system-ui, sans-serif`;
+    ctx.font = `600 ${size}px system-ui, sans-serif`;
     lines = [];
     let line = '';
     for (const word of text.split(' ')) {
@@ -2774,7 +2838,7 @@ function wrapText(ctx, key, text, width) {
 
 const missions = {
   enter(E, params) {
-    this.drag = null; this.btnBack = null; this.swatches = []; this.listH = BADGES.length * (A.missions.rowH + A.missions.rowGap); applySkins(E);
+    this.drag = null; this.btnBack = null; this.swatches = []; this.rows = []; this.show = null; this.listH = BADGES.length * (A.missions.rowH + A.missions.rowGap); applySkins(E);
     const L = RT.ladder; this.ladderH = A.missions.headH + 2 * A.missions.lineH + L.headGap + RANKS.length * (L.rowH + L.rowGap) + L.dividerH + L.tail; // measured by the render
     this.scroll = 0; this.focus = params && params.ladder ? 'ladder' : 'badges'; // from the menu's rank card the ladder shows at your rank; from Missions it opens on the skins and badges, the ladder above
   },
@@ -2801,7 +2865,7 @@ const missions = {
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0, 0, E.time); ctx.restore();
     E.text('Missions', m, E.safe.top + 32, TX.bigL);
     E.text(`${BADGES.filter((b) => p.badges[b.id]).length} / ${BADGES.length}`, E.w - m, E.safe.top + 32, TX.valueGoalR);
-    this.scroll = clamp(this.scroll, 0, V.max);
+    this.scroll = clamp(this.scroll, 0, V.max); this.rows.length = 0;
     ctx.save(); ctx.beginPath(); ctx.rect(0, V.top, E.w, V.bot - V.top); ctx.clip();
     let y = this.drawSkins(ctx, E, p, this.drawLadder(ctx, E, p, info, lines, ex, rowTop, V.top - this.scroll, V, m), V, m), listH = 0;
     BADGE_TIERS.forEach((name, tier) => {
@@ -2818,9 +2882,11 @@ const missions = {
           if (got && tier === 4) { ctx.globalAlpha = tierPulse(); E.roundRect(m - 2, y - 2, w + 4, h + 4, A.line.radius + 2, null, P.tiers[tier]); ctx.globalAlpha = 1; }
           E.roundRect(m, y, w, h, A.line.radius, got ? P.tile : P.tileLocked, got || hidden ? P.tiers[tier] : P.tileLockedEdge);
           drawMedal(ctx, m + 12 + M.medalR, y + h / 2, M.medalR, tier, got, b.id);
-          E.text(hidden ? A.secret.name : b.name, tx0, y + 19, got ? TX.valueL : TX.offL);
-          for (let i = 0; i < lines.length; i++) E.text(lines[i], tx0, y + 39 + i * M.lineH, got ? TX.labelL : TX.dimL);
-          for (let i = 0; i < plines.length; i++) E.text(plines[i], tx0, y + 39 + (lines.length + i) * M.lineH, got ? TX.goalL : TX.progL);
+          const ty = y + (h - 20 - (lines.length + plines.length - 1) * M.lineH) / 2; // the name and its lines, centred beside the medal
+          E.text(hidden ? A.secret.name : b.name, tx0, ty, got ? TX.valueL : TX.offL);
+          for (let i = 0; i < lines.length; i++) E.text(lines[i], tx0, ty + 20 + i * M.lineH, got ? TX.labelL : TX.dimL);
+          for (let i = 0; i < plines.length; i++) E.text(plines[i], tx0, ty + 20 + (lines.length + i) * M.lineH, got ? TX.goalL : TX.progL);
+          this.rows.push({ x: m, y, w, h, b, got });
         }
         y += h + M.rowGap; listH += h + M.rowGap;
       }
@@ -2832,6 +2898,22 @@ const missions = {
       E.roundRect(E.w - 6, V.top + (tr - bh) * (this.scroll / V.max), M.scrollBar, bh, 1.5, P.slate);
     }
     this.btnBack = pill(E, 'Back', E.w / 2, E.h - E.safe.bottom - M.toastBand - M.backH / 2, BTN.back);
+    if (this.show) this.drawShow(ctx, E, p);
+  },
+  // The showcase (PRD v0.12 B): one badge full screen, earned or not. Medal, tier, name and the line that says how it is earned; a tap closes it.
+  drawShow(ctx, E, p) {
+    const B = A.big, b = badgeById(this.show.id), got = !!p.badges[b.id], hidden = !!b.secret && !got, cx = E.w / 2, w = E.w - 2 * B.textW;
+    const k = ease.outBack(clamp((E.time - this.show.t0) / B.pop, 0, 1)), r = E.w * B.w / 2, cy = Math.max(E.safe.top + r + 24, E.h * B.y);
+    ctx.globalAlpha = B.dim * clamp(k, 0, 1); ctx.fillStyle = P.space; ctx.fillRect(0, 0, E.w, E.h); ctx.globalAlpha = 1;
+    drawBigMedal(ctx, cx, cy, r * k, b.tier, got, b.id, E.time - this.show.t0);
+    const name = hidden ? A.secret.name : b.name, text = hidden ? A.secret.text : badgeText(b), a = clamp(k, 0, 1);
+    const lines = wrapText(ctx, `show:${b.id}:${w}:${hidden}`, text, w, TY.md);
+    let y = cy + r + B.gap;
+    E.text(TIER_LABEL[b.tier], cx, y, { ...TX.tier[b.tier], align: 'center', alpha: a });
+    y += B.gap + 4;
+    E.text(name, cx, y, { size: fitSize(ctx, name, TY.heavy, TY.lg, B.nameMin, w), color: got ? P.text : P.textDim, weight: TY.heavy, alpha: a });
+    y += B.gap + 10;
+    for (let i = 0; i < lines.length; i++) E.text(lines[i], cx, y + i * (TY.md + 8), { size: TY.md, color: got ? P.text : P.textDim, alpha: a });
   },
   // The rank ladder (PRD v0.6 B): a heading with the star total and the progress line, then a row per rank. Ranks reached show in full colour
   // with their name and star count (your own ringed in its colour), the next is tagged, the ones after are dark silhouettes with only their
@@ -2887,13 +2969,18 @@ const missions = {
     }
     return y + 6;
   },
-  onPointerDown(p) { this.drag = { y: p.y, scroll: this.scroll }; },
+  onPointerDown(p) { this.drag = this.show ? null : { y: p.y, scroll: this.scroll }; },
   onPointerMove(p, E) { if (this.drag) this.scroll = clamp(this.drag.scroll - (p.y - this.drag.y), 0, this.area(E).max); },
   onPointerUp() { this.drag = null; },
   onTap(p, E) {
+    if (this.show) { this.show = null; E.audio.play('tap'); return; }
     if (E.hit(this.btnBack, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
-    const V = this.area(E), sw = p.y >= V.top && p.y <= V.bot && this.swatches.find((s) => E.hit(s, p));
-    if (!sw) return;
+    const V = this.area(E), inList = p.y >= V.top && p.y <= V.bot, sw = inList && this.swatches.find((s) => E.hit(s, p));
+    if (!sw) {
+      const row = inList && this.rows.find((r) => E.hit(r, p));
+      if (row) { this.show = { id: row.b.id, t0: E.time }; E.audio.play('tap'); }
+      return;
+    }
     if (!sw.owned) { E.toast(`${sw.s.name} ${sw.kind}: earn the ${BADGES.find((b) => b.id === sw.s.badge).name} badge`); return; }
     if ((sw.kind === 'ball' ? SK.ball : SK.trail) !== sw.s) E.ledger.add('skin', { kind: sw.kind, id: sw.s.id });
     E.save.set('skin', { ...E.save.get('skin', {}), [sw.kind]: sw.s.id });
@@ -3113,7 +3200,7 @@ const over = {
     this.btnNext = null; this.btnMenu = null; this.btnRetry = null;
     this.badges = (p.badges || []).map(badgeById);
     this.badgeT = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starPop + J.badgeDelay; // the first badge pops after the stars
-    this.badgeOn = -1;
+    this.badgeOn = -1; this.skip = 0; // skip: seconds the badge clock is pushed on when a tap skips the reveal
     RK.on = false; this.rkAt = this.beat + RT.card.delay; // the rank-up card, if this hole crossed a rank, follows the usual card
     this.rkDone = !(p.rankUp && p.rankUp.to > E.save.get('rankSeen', 1));
     applySkins(E);
@@ -3129,11 +3216,21 @@ const over = {
         if (i === 3) E.haptic(T.blind.haptic);
       }
     }
-    const bi = Math.min(this.badges.length - 1, Math.floor((this.t - this.badgeT) / J.badgeHold));
+    const bi = this.badgeClock().bi;
     if (this.t >= this.badgeT && bi > this.badgeOn) { this.badgeOn = bi; badgeSound(E, this.badges[bi].tier, 0.5); E.haptic(J.sinkHaptic); }
     this.ready = this.t >= this.beat;
     if (!this.rkDone && this.t >= this.rkAt) { this.rkDone = true; rankUpStart(E, this.p.rankUp.from, this.p.rankUp.to, 'card'); }
     rankUpUpdate(dt, E);
+  },
+  // The badges reveal as one sequence, one reveal.dur slot each (the big medal, then it settles into its ticket); the last badge's ticket stays.
+  badgeClock() {
+    const slot = A.big.reveal.dur, tb = this.t - this.badgeT + this.skip, bi = Math.min(this.badges.length - 1, Math.floor(tb / slot));
+    return { bi, tb, local: tb - bi * slot };
+  },
+  // True until the last badge's medal has begun to settle: the sequence covers the screen, so a tap skips it and never reaches the buttons.
+  revealing() {
+    const R = A.big.reveal;
+    return this.badges.length > 0 && this.t >= this.badgeT && this.badgeClock().tb < (this.badges.length - 1) * R.dur + R.dur - R.settle;
   },
   render(ctx, E) {
     NOW = E.time;
@@ -3182,15 +3279,33 @@ const over = {
         ctx.restore();
       }
     }
-    if (this.badgeOn >= 0) { // the ticket straddles the card's top edge; each new badge takes the place of the one before
-      const k = ease.outBack(clamp((t - this.badgeT - this.badgeOn * J.badgeHold) / J.badgePop, 0, 1));
-      drawTicket(ctx, E, this.badges[this.badgeOn], k, tky, this.badges.length - 1 - this.badgeOn);
+    if (this.badgeOn >= 0) { // each badge shows big first, then settles into its ticket, which straddles the card's top edge; the next badge takes the ticket's place
+      const R = A.big.reveal, local = this.badgeClock().local, open = R.dur - R.settle, b = this.badges[this.badgeOn];
+      if (local >= open) drawTicket(ctx, E, b, ease.outBack(clamp((local - open) / J.badgePop, 0, 1)), tky, this.badges.length - 1 - this.badgeOn);
+      if (local < R.dur) this.drawReveal(ctx, E, b, local, tky);
     }
     ctx.restore();
     if (RK.on) drawRankUp(ctx, E);
   },
+  // The reveal (PRD v0.12 B): the badge's big medal turns under its sheen for reveal.dur, then flies to its slot in the ticket as the scrim clears.
+  drawReveal(ctx, E, b, local, tky) {
+    const B = A.big, R = B.reveal, open = R.dur - R.settle, u = ease.inOut(clamp((local - open) / R.settle, 0, 1)), a = 1 - u, cx = E.w / 2;
+    const TK = A.ticket, tx = (E.w - Math.min(TK.w, E.w - 40)) / 2 + 12 + TK.medalR, r0 = E.w * B.w / 2 * ease.outBack(clamp(local / B.pop, 0, 1)), cy0 = E.h * R.y;
+    ctx.globalAlpha = R.scrim * a * clamp(local / B.pop, 0, 1); ctx.fillStyle = P.space; ctx.fillRect(0, 0, E.w, E.h);
+    const x = lerp(cx, tx, u), y = lerp(cy0, tky, u), r = lerp(r0, TK.medalR, u);
+    ctx.globalAlpha = 1;
+    drawBigMedal(ctx, x, y, r, b.tier, true, b.id, local);
+    const w = E.w - 2 * B.textW, ty = cy0 + E.w * B.w / 2 + B.gap;
+    E.text(TIER_LABEL[b.tier], cx, ty, { ...TX.tier[b.tier], align: 'center', alpha: a });
+    E.text(b.name, cx, ty + B.gap + 4, { size: fitSize(ctx, b.name, TY.heavy, TY.lg, B.nameMin, w), color: P.text, weight: TY.heavy, alpha: a });
+  },
   onTap(p, E) {
     if (rankUpTap()) return;
+    if (this.revealing()) { // one tap skips every remaining reveal, on to the last badge's ticket
+      const R = A.big.reveal;
+      this.skip = (this.badges.length - 1) * R.dur + R.dur - R.settle + J.badgePop - (this.t - this.badgeT);
+      return;
+    }
     if (!this.ready || !this.btnNext || p.startT < this.t0 + this.beat) return;
     if (E.hit(this.btnNext, p)) { if (!this.p.hasNext) endRun(E, false); E.setScene(this.p.hasNext ? 'play' : 'menu', { hole: this.p.hole + 1, run: true }); }
     else if (this.btnMenu && E.hit(this.btnMenu, p)) { endRun(E, false); E.setScene('menu'); }
