@@ -298,3 +298,42 @@ The export, 8 gauntlets:
 
 ### Kept
 Everything else from proto 9.
+
+## Proto 11 (designer, 2026-10-07, after proto 10): skin the fighters so the gaps look like gaps
+
+Source: the designer's proto 10 playtest.
+- "Latest arena proto is quite fun... missing a bit of narrative to make the character fun, and a bit of skinning so the gaps look like gaps, not just black squares; overall we're getting somewhere good and fun."
+- The export: one gauntlet reached the champion (4 felled, 2.5 minutes, 17 plate saves). Feints read are still 0, with 3 bitten.
+
+The narrative is proposed separately, for the designer to pick, and is not part of this build.
+
+### Skin (procedural, canvas only)
+
+- **Plates look like armour.** Draw shaped pieces in place of flat shapes:
+  - a curved cuirass with a bevelled rim;
+  - segmented arm guards (manica), with overlapping bands;
+  - greaves with a knee boss;
+  - a helmet with a brim and a visor grille.
+
+  Every piece gets a highlight edge, a shadow edge, rivets and leather straps. Dents show as darker dimples with a scratch, and cracks as jagged lines.
+- **Gaps look like gaps.** A joint slot is the place where two plates don't meet. The plate edges frame it, and inside it you see what is underneath: padded linen or bare skin with a strap crossing, in shadow. It is no longer a black rectangle.
+  - To keep it readable at a glance, give it a faint warm rim light along the inner edges.
+  - When the sword tip is within range of it, add a subtle glint.
+  - It must still read at 375 px wide.
+- **Bare parts look like bodies.** Skin with soft shading and a few muscle lines; a tunic or loincloth with folds and a belt.
+- **The weapon sets the gladiator type** (flavour only, no new rules):
+
+  | Weapon | Type | Look |
+  | --- | --- | --- |
+  | gladius | murmillo | big helmet with a fish crest, rectangular shield |
+  | spear | hoplomachus | crested helmet, small round shield |
+  | axe or mace | brute | open helmet, heavy pauldron |
+  | dagger and net | retiarius | no helmet, a shoulder guard (galerus), the net hanging from the belt |
+
+  The player fighter gets its own look from its rolled armour set.
+- **Hit marks.** A bare-part hit leaves a small red cut line that fades over a few seconds, while plate hits spark as now. Nothing gory.
+- **Shading.** All of this is drawn once per fighter into an offscreen sprite per part, and redrawn only on a dent, a crack or a break, so the frame time stays as it is.
+
+### Kept
+
+Everything from proto 10. Hit areas do not change: the art is drawn over the existing part geometry.
