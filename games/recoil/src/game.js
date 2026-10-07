@@ -1,4 +1,4 @@
-// Recoil, v0.6 (Backlot 88): the mechanic plus six guns as movie props (Buddy-Cop 9mm, Pulse Rifle, Spin-Lever Shotgun, Assassin's Scope, One-Man Army SMG, Make-My-Day .44), barrel sway, moving targets, skeet with decoys, two bosses, zombies,
+// Recoil, v0.7 (the career story on top of v0.6, Backlot 88): the mechanic plus six guns as movie props (Buddy-Cop 9mm, Pulse Rifle, Spin-Lever Shotgun, Assassin's Scope, One-Man Army SMG, Make-My-Day .44), barrel sway, moving targets, skeet with decoys, two bosses, zombies,
 // and progression (guns bought in the Prop Room with box office, the .44 by a badge, twenty-three badges, skins, a montage). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
 // Instant shot lines scored by zone, a combo multiplier, five ladders (Accuracy and Speed have five rungs, Skeet three, Boss two, Zombies three) and an endless zombie mode,
 // stars per gun from noisy-bot bars, points, a menu that is a prop rack, and a wrap card. Procedural art (movie-prop guns, cut-outs, saucers, monsters, zombie extras, one soundstage set per mode)
@@ -123,6 +123,9 @@ const TUNING = {
   boxPerStar: 40,
   boxStart: 100,
   gunPrices: { carbine: 250, shotgun: 600, rifle: 1000, smg: 1500 },
+  // v0.7 (PRD v0.7 B, E, H): the player's career rank, from total stars across every gun and set (324 in all): rank names with the stars each needs; the Endless wave that releases its poster
+  // (Endless has no stars); the seconds a story card ignores a tap that is not Skip; the rank card's clapperboard (when its stick starts to close, how long it takes) and a card's fade-in.
+  career: { ranks: [['Extra', 0], ['Intern', 10], ['Stunt Double', 40], ['Action Star', 100]], endlessWave: 8, lock: 0.25, snapAt: 0.15, snap: 0.12, fade: 0.3 },
 
   // Additions, not in the PRDs.
   swayWindow: 0.05,      // Seconds over which the gun's speed is measured for sway
@@ -356,9 +359,12 @@ const TUNING = {
     clap: { life: 0.55, snap: 0.12, fade: 0.15, w: 150, h: 74, stick: 18, y: 0.45 }, // v0.6 A: the clapperboard, in screen px: seconds shown (under 0.6), the snap, the fade, its size, the striped stick, and its height as a share of the field
     saucer: { lights: 6, lightR: 0.13, band: 0.2, fall: 520, sparks: 7, sparkLen: 9, life: 0.7 }, // a saucer's rim lights and band (fractions of its radius), and its drop when hit: gravity, sparks, seconds
     squib: { drops: 9, speed: [60, 150], life: 0.5, r: [1.6, 3.2] }, // the make-up squib a headshot pops: droplets of stage blood
-    props: { side: 132, master: 1.45, masterX: 150, gap: 8, cardMin: 140, cardMax: 190, headH: 52, art: 34, artTall: 56, artMin: 22, line: 16, row: 11, bar: 5, stamp: 0.9, soldShow: 1.2, picScale: 0.26, picScaleTall: 0.15, picRow: 625 }, // v0.6 B and I, the Prop Room: the prop master's column, his scale and (portrait) his x, the gap between cards, a card's least and most height, the header, the gun art's most height (landscape, portrait) and least height, the name's line pitch, a stat row's pitch and bar height, the seconds a SOLD stamp shows, then the prop master's picture: the seconds his sold pose shows, his scale in game units per pixel of the 512 x 768 canvas (landscape, portrait) and the canvas row that sits on the counter's top
+    props: { side: 132, master: 1.45, masterX: 150, gap: 8, cardMin: 140, cardMax: 190, headH: 52, art: 34, artTall: 56, artMin: 22, line: 16, row: 11, bar: 5, stamp: 0.9, soldShow: 1.2, picScale: 0.26, picScaleTall: 0.15, picRow: 625, headRise: 562 }, // v0.6 B and I, the Prop Room: the prop master's column, his scale and (portrait) his x, the gap between cards, a card's least and most height, the header, the gun art's most height (landscape, portrait) and least height, the name's line pitch, a stat row's pitch and bar height, the seconds a SOLD stamp shows, then the prop master's picture: the seconds his sold pose shows, his scale in game units per pixel of the 512 x 768 canvas (landscape, portrait) and the canvas row that sits on the counter's top
     logo: { title: 28, beam: 0.16, word: [0.03, 0.29, 0.94, 0.5], top: 8, strip: 18 }, // the studio logo on the menu: the title size (the procedural fallback), and the searchlights' alpha; word is the card image's RECOIL lettering as fractions of the image (left, top, width, height), the part portrait shows; top is the margin above the portrait lettering, strip is the height kept under the landscape card for the tagline
     vhs: { pitch: 3, bandH: 14, bandSpeed: 22 }, // menu scan lines every `pitch` px; a faint tracking band `bandH` tall rolls down at `bandSpeed` px a second
+    // v0.7, the story: the career plate's widest width in menu tiles (it gives the logo the room its line needs) and its bar's height; a poster's colours per set (top, bottom, accent: the drawn fallback while the Artist's picture is missing); the
+    // director's fallback megaphone is drawn from these and the palette; `lines` caps a Prop Room speech strip.
+    story: { plateMax: 1.8, bar: 4, lines: 4, poster: { accuracy: ['#14323a', '#0b161b', '#22d3ee'], speed: ['#3a2218', '#170e0b', '#f97316'], skeet: ['#2b2140', '#100c1a', '#c4a6ff'], boss: ['#1b2e25', '#0b130f', '#7ddc9a'], zombie: ['#2d1f2a', '#120b10', '#e59ab0'], endless: ['#1a1a2e', '#07070d', '#ff4fa3'] } },
   },
 };
 const T = TUNING;
@@ -1408,7 +1414,7 @@ function unseenBadges(E) { const have = badgeMap(E), seen = seenMap(E); return B
 // Per gun, lifetime counters in the save: shots, hits, bulls (Accuracy and Skeet bullseyes and boss-core bullseyes), heads (zombie brain hits) and plates (boss plates destroyed).
 // Mastery is bulls plus heads; the tier and the bar come from it. The counters are the sums of the runs' own numbers, which the ledger's `result` lines carry.
 const MASTERY_KEYS = ['shots', 'hits', 'bulls', 'heads', 'plates'];
-const TIER_NAMES = ['Extra', 'Stunt Double', 'Leading Role', 'Walk of Fame']; // v0.6 C: Marksman, Expert and Master in the studio's trade; the numbers behind them are unchanged
+const TIER_NAMES = ['Rookie', 'Trained', 'Signature', 'Legendary']; // v0.7 B: the gun's own tiers (Marksman, Expert, Master) no longer share names with the player's career ranks; the numbers behind them are unchanged
 function masteryMap(E) { const m = E.save.get('mastery', {}); return m && typeof m === 'object' ? m : {}; }
 function masteryOf(E, gun) {
   const e = masteryMap(E)[gun] || {}, o = {};
@@ -1423,6 +1429,50 @@ function masteryInfo(m) {
   return { score, acc, tier, next, frac: next === null ? 1 : clamp((score - at[tier]) / (next - at[tier]), 0, 1), accShort: tier === 2 && score >= M.master };
 }
 const tierOf = (E, gun) => masteryInfo(masteryOf(E, gun)).tier;
+
+// ---------- Career (PRD v0.7 B, E): one rank for the player, and a premiere poster for every finished set ----------
+
+// The lines of the story, as in docs/games/recoil/world.md. Every line is one sentence of about 60 characters at most.
+const STORY = {
+  open: ['Backlot 88. A studio that makes action movies.', "You're an extra. Your only line so far was a scream.", "The director needs a new action star. Prove it's you."],
+  rank: [null, 'The director noticed you. Get coffee, then get on set.', "Your agent called: you're doubling the lead.", 'Your name is on the poster now.'],
+  note: [['Cut! Again, and this time with feeling.'], ['We can fix it in the edit. Maybe.'], ["Good take. Let's get one more."], ["Print it! That's the one."]], // the director's note by stars; a pool each (cosmetic: Math.random picks)
+  premiere: "Premiere night! It's on the wall now.",
+  coming: 'Coming soon',
+  // Gus, the prop master, one line per gun, shown in the Prop Room for the gun that is selected.
+  gus: {
+    pistol: 'Buddy-Cop 9mm. Never jams. Well, hardly ever.',
+    carbine: 'Pulse Rifle. Three sequels, two lawsuits. Careful.',
+    shotgun: "Spin-Lever. Flip it like you mean it, don't dent it.",
+    rifle: "Assassin's Scope. One shot, one very quiet set.",
+    smg: 'One-Man Army. Eats props for breakfast. Mind the bill.',
+    revolver: 'The .44. Big noise, bigger paperwork.',
+  },
+  posters: { accuracy: 'Screen Test: The Movie', speed: 'High Noon-ish', skeet: 'Saucers Over Burbank', boss: 'Rubber Suit Rampage', zombie: 'Night of the Extras', endless: 'The Overnight Shoot' },
+  hint: { endless: (n) => `Reach wave ${n} in Endless to release it` },
+};
+const POSTER_SETS = ['accuracy', 'speed', 'skeet', 'boss', 'zombie', 'endless'];
+const CAREER_MAX = CHALLENGES.length * GUN_IDS.length * 3;
+// The stars a saved best holds for a gun on a rung (a plain save's `best`, as migrate sees it): the stars saved, or what its score earns now if that is more.
+function starsInBest(best, ch, gun) { const e = best && best[ch.id] && best[ch.id][gun]; return e && typeof e === 'object' ? Math.max(e.stars || 0, starsFor(ch, e.score || 0, gun)) : 0; }
+function careerStars(best) { return CHALLENGES.reduce((n, ch) => n + GUN_IDS.reduce((m, g) => m + starsInBest(best, ch, g), 0), 0); }
+// The rank a star total reaches (an index into T.career.ranks).
+function rankFor(n) { const R = T.career.ranks; let i = 0; while (i + 1 < R.length && n >= R[i + 1][1]) i++; return i; }
+function careerInfo(E) {
+  const n = careerStars(bests(E)), i = rankFor(n), R = T.career.ranks, nx = R[i + 1];
+  return { n, rank: i, name: R[i][0], next: nx ? nx[0] : null, toNext: nx ? nx[1] - n : 0, frac: nx ? clamp((n - R[i][1]) / (nx[1] - R[i][1]), 0, 1) : 1 };
+}
+// Has any one gun three-starred every rung of the set? (Endless has no stars; it is a wave.)
+function threeStarred(best, set) { const list = CHALLENGES.filter((c) => c.ladder === set); return GUN_IDS.some((g) => list.every((c) => starsInBest(best, c, g) === 3)); }
+function postersMap(E) { const m = E.save.get('posters', {}); return m && typeof m === 'object' ? m : {}; }
+// After a run: the poster this run releases, if any (once per set). Returns the list of sets (zero or one).
+function releasePosters(E, ch, wave) {
+  const set = ch.endless ? (wave >= T.career.endlessWave ? 'endless' : null) : (threeStarred(bests(E), ch.ladder) ? ch.ladder : null);
+  if (!set || postersMap(E)[set]) return [];
+  E.save.update('posters', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [set]: 1 }), {});
+  E.ledger.add('poster', { set });
+  return [set];
+}
 
 // The first text drawn at each weight and size makes the browser find and shape the font, which costs milliseconds in the first frame; draw it once, off screen, at start.
 function warmText(ctx) {
@@ -1623,6 +1673,10 @@ GUN_IDS.forEach((id, gi) => {
     PICS[key] = { key, idx: gi * SKIN_SLOTS + si, s: g.s, gx: g.gx, ty, muzzle: (tx - g.gx) * g.s };
   });
 });
+// v0.7 E2: the director (shouting, approving) and the six premiere posters come from the Artist (Pack 9). A missing or blocked file leaves the drawn fallback (a megaphone for the director, a coloured
+// card for a poster). Null means no picture, so nothing is requested.
+const STORY_ART = { director: 'director.webp', directorApprove: 'director-approve.webp', 'poster-accuracy': 'poster-accuracy.webp', 'poster-speed': 'poster-speed.webp', 'poster-skeet': 'poster-skeet.webp', 'poster-boss': 'poster-boss.webp', 'poster-zombie': 'poster-zombies.webp', 'poster-endless': 'poster-endless.webp' };
+for (const [id, file] of Object.entries(STORY_ART)) if (file) ART_FILES[id] = file;
 function loadArtImages() {
   if (typeof Image === 'undefined') return;
   for (const [id, file] of Object.entries(ART_FILES)) {
@@ -2593,7 +2647,9 @@ function endRun(E) {
   const left = ch.wall && r.cleared ? r.targets.filter((t) => t.kind === 'part').length : 0;
   const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
   const zom = ch.ladder === 'zombie' ? { zdown: r.zdown, ztotal: ch.endless ? 0 : r.list.reduce((n, w) => n + w.length, 0), zwave: r.wave, zwaves: ch.endless ? 0 : r.list.length, breach: r.breach, day, bestWave } : {};
-  E.setScene('over', { id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, pay, box, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, tickets, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), ...zom });
+  const posters = releasePosters(E, ch, r.wave), rankNow = careerInfo(E).rank, rankUp = rankNow > E.save.get('careerSeen', 0) ? rankNow : -1; // v0.7: a poster this run released, and a rank reached and not yet shown (one card, never a cascade)
+  if (rankUp >= 0) E.ledger.add('rank', { rank: T.career.ranks[rankNow][0], stars: careerInfo(E).n });
+  E.setScene('over', { posters, rankUp, id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, pay, box, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, tickets, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), ...zom });
 }
 
 function meterText(r, ch) {
@@ -2643,6 +2699,13 @@ function menuLayout(E, playLabel) {
   const rs = L.rows[2], rz = L.rows[4], sx = (row, i) => row.x + row.labelW + i * (row.tw + row.gap);
   L.props = { x: sx(rz, 3), y: rz.y, w: 2 * rz.tw + rz.gap, h: rz.h };
   L.logo = land ? { x: L.props.x, y: rs.y, w: L.props.w, h: rz.y - rs.y - M.laneGap } : { x: E.w / 2 - 110, y: st + A.logo.top, w: 220, h: 50 };
+  // v0.7: the career plate sits in the Boss lane's empty third slot (a little wider than a tile, taking some of the logo's width); portrait puts it under the buttons.
+  if (land) {
+    const rb = L.rows[3], px = sx(rb, 2), span = 3 * rb.tw + 2 * rb.gap, E3 = E.ctx; E3.font = `${TY.normal} ${TY.small}px system-ui, sans-serif`;
+    const logoW = Math.max(E3.measureText('a Backlot 88 production').width + 10, span - rb.tw * A.story.plateMax - rb.gap), pw = clamp(span - rb.gap - logoW, rb.tw, rb.tw * A.story.plateMax), nx = px + pw + rb.gap;
+    L.career = { x: px, y: rb.y, w: pw, h: rb.h };
+    L.logo = { ...L.logo, w: L.logo.x + L.logo.w - nx, x: nx };
+  } else L.career = { x: L.missions.x, y: L.missions.y + L.missions.h + 8, w: 3 * L.missions.w + 16, h: 44 };
   L.titleArea = L.logo; // release: five taps on the logo show TUNE
   return L;
 }
@@ -2790,10 +2853,195 @@ function drawLogo(ctx, E, r, land) {
   E.text('RECOIL', cx, ty, { size: big, weight: TY.strong, color: P.brassText });
   E.text('a Backlot 88 production', cx, sy, { size: TY.small, color: P.textDim });
 }
+// The career plate on the menu (PRD v0.7 B): the player's rank, the stars to the next one, and a bar toward it. One tap opens the career screen (the poster wall).
+function drawCareerPlate(ctx, E, r, ci) {
+  plate(E, r.x, r.y, r.w, r.h, P.panelHi, P.brass);
+  E.text(fitText(ctx, ci.name, r.w - 14, TY.small, TY.strong), r.x + 8, r.y + r.h / 2 - 12, { size: TY.small, weight: TY.strong, align: 'left', color: P.brassText });
+  const one = ci.toNext === 1, forms = ci.next ? [`${ci.toNext} ${one ? 'star' : 'stars'} to ${ci.next}`, `${ci.toNext} to ${ci.next}`, `${ci.toNext} more ${one ? 'star' : 'stars'}`, `${ci.toNext} more`] : [`${ci.n} of ${CAREER_MAX} stars`, `${ci.n} stars`];
+  ctx.font = `${TY.normal} ${TY.small}px system-ui, sans-serif`; // the longest form that fits the plate
+  const line = forms.find((f) => ctx.measureText(f).width <= r.w - 14) || forms[forms.length - 1];
+  E.text(fitText(ctx, line, r.w - 14, TY.small, TY.normal), r.x + 8, r.y + r.h / 2 + 4, { size: TY.small, align: 'left', color: P.textDim });
+  const bh = A.story.bar;
+  E.roundRect(r.x + 8, r.y + r.h - 8, r.w - 16, bh, bh / 2, P.panelEdge);
+  E.roundRect(r.x + 8, r.y + r.h - 8, Math.max(bh, (r.w - 16) * ci.frac), bh, bh / 2, P.brass);
+}
+
+// ---------- Story cards, posters and the career screen (PRD v0.7) ----------
+
+// The director, Big Lou (PRD v0.7 C, E2): the Artist's picture for the pose once it is in STORY_ART and loaded, else a megaphone silhouette in neon pink (shouting: sound arcs; approving: a gold
+// star), drawn to fit a size x size box centred on cx, cy.
+function drawDirector(ctx, cx, cy, size, approve) {
+  if (drawArtImage(ctx, approve ? 'directorApprove' : 'director', cx, cy, size, size)) return;
+  const k = size / 190;
+  ctx.save(); ctx.translate(cx - 36 * k, cy); ctx.scale(k, k); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = 4;
+  ctx.fillStyle = P.steelDark; rrect(ctx, -26, 6, 14, 30, 5); ctx.fill(); ctx.stroke(); // the handle
+  ctx.fillStyle = P.steel; rrect(ctx, -52, -9, 16, 18, 5); ctx.fill(); ctx.stroke(); // the mouthpiece
+  ctx.fillStyle = P.neonPink; ctx.beginPath(); ctx.moveTo(-38, -11); ctx.lineTo(8, -11); ctx.lineTo(40, -38); ctx.lineTo(40, 38); ctx.lineTo(8, 11); ctx.lineTo(-38, 11); ctx.closePath(); ctx.fill(); ctx.stroke(); // the cone
+  ctx.fillStyle = P.paper; ctx.beginPath(); ctx.ellipse(40, 0, 8, 38, 0, 0, PI2); ctx.fill(); ctx.stroke(); // its rim
+  if (approve) drawStar(ctx, 74, -30, 17, P.brass);
+  else { ctx.strokeStyle = P.text; ctx.lineWidth = 5; for (const r of [52, 68, 84]) { ctx.beginPath(); ctx.arc(40, 0, r, -0.42, 0.42); ctx.stroke(); } }
+  ctx.restore();
+}
+
+// A premiere poster (PRD v0.7 E, E2) in the box x, y, w, h: the Artist's picture if loaded, else a coloured card with searchlights and a star; the title is always drawn here, on a dark band,
+// because generated text misspells. `size` is the title's font size.
+function drawPoster(ctx, E, x, y, w, h, set, size) {
+  const C = A.story.poster[set];
+  ctx.save(); rrect(ctx, x, y, w, h, 8); ctx.clip();
+  const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, C[0]); g.addColorStop(1, C[1]); ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  if (!drawArtImage(ctx, `poster-${set}`, x + w / 2, y + h / 2, w, h)) {
+    ctx.globalAlpha = 0.22; ctx.fillStyle = C[2];
+    ctx.beginPath(); ctx.moveTo(x + w * 0.12, y + h); ctx.lineTo(x + w * 0.4, y); ctx.lineTo(x + w * 0.6, y); ctx.lineTo(x + w * 0.34, y + h); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + w * 0.88, y + h); ctx.lineTo(x + w * 0.6, y); ctx.lineTo(x + w * 0.4, y); ctx.lineTo(x + w * 0.66, y + h); ctx.fill();
+    ctx.globalAlpha = 1;
+    drawStar(ctx, x + w / 2, y + h * 0.3, w * 0.24, C[2]);
+    for (let i = -2; i <= 2; i++) drawStar(ctx, x + w / 2 + i * w * 0.14, y + h * 0.46, i ? w * 0.04 : w * 0.055, P.brass);
+  }
+  const lines = wrapText(ctx, STORY.posters[set], w - 18, size), lh = size + 4, bh = lines.length * lh + 14;
+  ctx.fillStyle = 'rgba(8,6,10,0.84)'; ctx.fillRect(x, y + h - bh, w, bh);
+  lines.forEach((ln, i) => E.text(ln, x + w / 2, y + h - bh + 7 + lh / 2 + i * lh, { size, weight: TY.strong, color: P.brassText }));
+  ctx.restore();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 2; rrect(ctx, x, y, w, h, 8); ctx.stroke();
+}
+// A poster slot on the wall that has not been released: a dark card, a star outline, "Coming soon".
+function drawPosterSlot(ctx, E, x, y, w, h) {
+  plate(E, x, y, w, h, P.panel, P.panelEdge, 8);
+  drawStar(ctx, x + w / 2, y + h * 0.38, w * 0.22, null, P.panelEdge);
+  const lines = wrapText(ctx, STORY.coming, w - 10, TY.small); // two short lines in a narrow slot
+  lines.forEach((ln, i) => E.text(ln, x + w / 2, y + h - 14 - (lines.length - 1 - i) * 18, { size: TY.small, weight: TY.strong, color: P.textDim }));
+}
+
+// The soundstage behind a story card: near black, two searchlights from the rig, the floor.
+function drawStage(ctx, E) {
+  ctx.fillStyle = P.stageLow; ctx.fillRect(0, 0, E.w, E.h);
+  const fl = E.h * 0.8;
+  ctx.fillStyle = P.floor; ctx.fillRect(0, fl, E.w, E.h - fl); ctx.fillStyle = P.floorLine; ctx.fillRect(0, fl, E.w, 2);
+  ctx.globalAlpha = 0.13;
+  ctx.fillStyle = P.neonTeal; ctx.beginPath(); ctx.moveTo(E.w * 0.12, 0); ctx.lineTo(E.w * 0.26, 0); ctx.lineTo(E.w * 0.5, fl); ctx.lineTo(E.w * 0.2, fl); ctx.fill();
+  ctx.fillStyle = P.neonPink; ctx.beginPath(); ctx.moveTo(E.w * 0.88, 0); ctx.lineTo(E.w * 0.74, 0); ctx.lineTo(E.w * 0.5, fl); ctx.lineTo(E.w * 0.8, fl); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+// A clapperboard with the rank on it: the striped stick opens, then snaps shut at `snapAt`.
+function drawRankBoard(ctx, E, cx, cy, w, name, age) {
+  const K = T.career, h = 92, st = 20, x = cx - w / 2, y = cy - h / 2 + st, bh = h - st;
+  const stick = (sy) => {
+    ctx.fillStyle = P.stageLow; rrect(ctx, x, sy, w, st, 3); ctx.fill(); ctx.save(); rrect(ctx, x, sy, w, st, 3); ctx.clip();
+    ctx.fillStyle = P.text; for (let k = -1; k < w / 22 + 1; k++) { const bx = x + k * 22; ctx.beginPath(); ctx.moveTo(bx, sy + st); ctx.lineTo(bx + 11, sy); ctx.lineTo(bx + 22, sy); ctx.lineTo(bx + 11, sy + st); ctx.fill(); }
+    ctx.restore(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; rrect(ctx, x, sy, w, st, 3); ctx.stroke();
+  };
+  ctx.save(); ctx.lineJoin = 'round';
+  ctx.fillStyle = P.shadow; rrect(ctx, x + A.shadowX, y + A.shadowY, w, bh, 6); ctx.fill();
+  ctx.fillStyle = P.panel; ctx.strokeStyle = P.text; ctx.lineWidth = 2; rrect(ctx, x, y, w, bh, 6); ctx.fill(); ctx.stroke();
+  stick(y - st);
+  const ang = -0.5 * (1 - ease.outQuad(clamp((age - K.snapAt) / K.snap, 0, 1)));
+  ctx.save(); ctx.translate(x, y - st); ctx.rotate(ang); ctx.translate(-x, -(y - st)); stick(y - 2 * st - 1); ctx.restore();
+  ctx.restore();
+  E.text(fitText(ctx, name, w - 20, TY.big, TY.strong), cx, y + bh / 2 + 1, { size: TY.big, weight: TY.strong, color: P.brassText });
+}
+
+// The story card scene: the cold open, a rank-up card, a poster card. `cards` is a list of { kind: 'open', i } | { kind: 'rank', rank } | { kind: 'poster', set }; `then` is the [scene, params] to go
+// to after the last card or Skip. One tap goes on, Skip leaves at once, and nothing here waits on the player's input except the short lock after a card appears.
+const story = {
+  enter(E, params) {
+    const p = params && params.cards ? params : { cards: STORY.open.map((_, i) => ({ kind: 'open', i })), then: ['menu'], cold: true }; // no params: the cold open
+    this.cards = p.cards; this.then = p.then || ['menu']; this.cold = !!p.cold; this.i = 0; this.skip = null;
+    this.begin(E);
+  },
+  begin(E) {
+    this.t0 = E.time; this.snapped = false;
+    const c = this.cards[this.i];
+    if (c.kind === 'rank') E.save.set('careerSeen', Math.max(E.save.get('careerSeen', 0), c.rank)); // the card has been shown
+  },
+  finish(E) {
+    for (const c of this.cards) if (c.kind === 'rank') E.save.set('careerSeen', Math.max(E.save.get('careerSeen', 0), c.rank)); // skipped is seen
+    if (this.cold) E.save.set('openSeen', true);
+    E.setScene(this.then[0], this.then[1]);
+  },
+  update(dt, E) { // the rank card's clapperboard: a clack and a small shake when the stick shuts
+    const c = this.cards[this.i];
+    if (c.kind === 'rank' && !this.snapped && E.time - this.t0 >= T.career.snapAt + T.career.snap) { this.snapped = true; E.audio.beep({ freq: 1400, dur: 0.03, type: 'square', gain: 0.06 }); E.shake(3, 0.15); E.haptic(12); }
+  },
+  render(ctx, E) {
+    const c = this.cards[this.i], age = E.time - this.t0, a = clamp(age / T.career.fade, 0, 1), land = E.w >= E.h * 1.2, sf = E.safe, pad = 24 + Math.max(sf.left, sf.right), top = sf.top, bot = E.h - sf.bottom;
+    const text = c.kind === 'open' ? STORY.open[c.i] : c.kind === 'rank' ? STORY.rank[c.rank] : STORY.premiere;
+    drawStage(ctx, E);
+    this.skip = btn(E, 'Skip', E.w - sf.right - 16 - 42, top + 8 + 22, { w: 84, h: 44, size: TY.small, fill: P.panelHi });
+    let art = null, tb; // art: the picture box; tb: the text box (x, width, centre y of the block)
+    if (land) {
+      const aw = Math.min(250, E.w * 0.32), ax = pad + sf.left * 0, ay = top + 64;
+      if (c.kind === 'open' && c.i === 0) tb = { x: pad, w: E.w - 2 * pad, cy: bot - 110 };
+      else { art = { x: ax, y: ay, w: aw, h: bot - ay - 40 }; tb = { x: ax + aw + pad, w: E.w - pad - (ax + aw + pad), cy: (top + bot) / 2 }; }
+    } else if (c.kind === 'open' && c.i === 0) tb = { x: pad, w: E.w - 2 * pad, cy: E.h * 0.62 };
+    else { const ah = Math.min(E.h * 0.38, 320); art = { x: pad, y: top + 72, w: E.w - 2 * pad, h: ah }; tb = { x: pad, w: E.w - 2 * pad, cy: top + 72 + ah + (bot - top - 72 - ah) * 0.42 }; }
+    ctx.globalAlpha = a;
+    if (c.kind === 'open' && c.i === 0) drawLogo(ctx, E, { x: E.w / 2 - 150, y: Math.max(top + 64, tb.cy - 210), w: 300, h: 150 }, true);
+    else if (c.kind === 'poster') { const pw = Math.min(art.w, art.h / 1.5), ph = pw * 1.5; drawPoster(ctx, E, art.x + (art.w - pw) / 2, art.y + (art.h - ph) / 2, pw, ph, c.set, pw >= 170 ? TY.mid : TY.small); }
+    else drawDirector(ctx, art.x + art.w / 2, art.y + art.h / 2, Math.min(art.w, art.h), c.kind === 'rank');
+    ctx.globalAlpha = 1;
+    const tx = tb.x + tb.w / 2, lines = wrapText(ctx, text, Math.min(tb.w - 8, 520), TY.mid), lh = 24, boardH = c.kind === 'rank' ? 112 : 0, total = boardH + lines.length * lh;
+    let y = tb.cy - total / 2;
+    if (c.kind === 'rank') { ctx.globalAlpha = a; drawRankBoard(ctx, E, tx, y + 46, Math.min(tb.w - 8, 300), T.career.ranks[c.rank][0], age); ctx.globalAlpha = 1; y += boardH; }
+    lines.forEach((ln, i) => E.text(ln, tx, y + lh / 2 + i * lh, { size: TY.mid, color: P.text, alpha: a }));
+    const last = this.i === this.cards.length - 1;
+    E.text(this.cold && last ? 'Tap to start' : 'Tap to continue', E.w / 2, bot - 22, { size: TY.small, color: P.textDim, alpha: clamp((age - 0.4) / 0.4, 0, 1) });
+  },
+  onTap(p, E) {
+    if (this.skip && E.hit(this.skip, p)) { E.audio.play('tap'); this.finish(E); return; }
+    if (E.time - this.t0 < T.career.lock) return; // a tap meant for the card before it (the result card's button) does not skip this one
+    E.audio.play('tap', 0.6);
+    if (++this.i >= this.cards.length) this.finish(E); else this.begin(E);
+  },
+  onKey(key, E) { if (key === 'Escape') this.finish(E); else if (key === ' ' || key === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
+};
+
+// The career screen: the rank ladder, and the poster wall (one slot per set; a released one shows its poster, a tap replays its card, an unreleased one says in a line what releases it). Story replays the cold open.
+const career = {
+  enter() { this.back = this.btnStory = null; this.slots = []; },
+  layout(E) {
+    const land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, top = E.safe.top, gap = 8, py = top + 92;
+    const cols = land ? 6 : 3, rows = land ? 1 : 2, pw0 = (W - (cols - 1) * gap) / cols, room = E.h - E.safe.bottom - py - (land ? 92 : 100) - (rows - 1) * gap;
+    const ph = Math.min(pw0 * 1.5, room / rows), pw = ph / 1.5, slots = [];
+    POSTER_SETS.forEach((set, i) => { const cx = x0 + (W - (cols * pw + (cols - 1) * gap)) / 2 + (i % cols) * (pw + gap); slots.push({ set, x: cx, y: py + Math.floor(i / cols) * (ph + gap), w: pw, h: ph }); });
+    return { W, x0, top, slots, barY: py + rows * ph + (rows - 1) * gap + 34 };
+  },
+  render(ctx, E) {
+    const L = this.layout(E), ci = careerInfo(E), pm = postersMap(E), R = T.career.ranks;
+    this.back = btn(E, 'Back', L.x0 + 42, L.top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
+    this.btnStory = btn(E, 'Story', L.x0 + L.W - 42, L.top + 30, { w: 84, h: 44, size: TY.small, fill: P.panelHi });
+    E.text('Career', E.w / 2, L.top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
+    const cw = Math.min(E.w - 2 * (16 + Math.max(E.safe.left, E.safe.right)), L.W), sum = `${ci.name}  ·  ${ci.n} / ${CAREER_MAX} stars`, tail = ci.next ? `${ci.toNext} to ${ci.next}` : '';
+    ctx.font = `${TY.strong} ${TY.small}px system-ui, sans-serif`; // one line when the whole summary fits, else the rank and stars over the next rank
+    if (!tail || ctx.measureText(`${sum}  ·  ${tail}`).width <= cw) E.text(tail ? `${sum}  ·  ${tail}` : sum, E.w / 2, L.top + 66, { size: TY.small, weight: TY.strong, color: P.cyan });
+    else { E.text(fitText(ctx, sum, cw, TY.small, TY.strong), E.w / 2, L.top + 61, { size: TY.small, weight: TY.strong, color: P.cyan }); E.text(fitText(ctx, tail, cw, TY.small, TY.strong), E.w / 2, L.top + 79, { size: TY.small, weight: TY.strong, color: P.cyan }); }
+    this.slots = L.slots;
+    for (const s of L.slots) { if (pm[s.set]) drawPoster(ctx, E, s.x, s.y, s.w, s.h, s.set, TY.small); else drawPosterSlot(ctx, E, s.x, s.y, s.w, s.h); }
+    // the rank ladder: four pips on a bar, the names under them; the bar fills up to the player's place
+    const n = R.length, bx = L.x0 + 40, bw = L.W - 80, by = L.barY, seg = bw / (n - 1);
+    E.roundRect(bx, by - 3, bw, 6, 3, P.panelEdge);
+    E.roundRect(bx, by - 3, Math.max(6, seg * Math.min(n - 1, ci.rank + (ci.next ? ci.frac : 0))), 6, 3, P.brass);
+    R.forEach(([name], i) => {
+      const x = bx + i * seg, on = i <= ci.rank;
+      disc(ctx, x, by, 8, on ? P.brass : P.panelEdge); ctx.lineWidth = 2; ctx.strokeStyle = P.ink; ctx.beginPath(); ctx.arc(x, by, 8, 0, PI2); ctx.stroke();
+      E.text(name, x, by + 24 + (seg < 110 && i % 2 ? 20 : 0), { size: TY.small, weight: TY.strong, color: i === ci.rank ? P.brassText : on ? P.text : P.textDim }); // alternate rows when the names would touch
+    });
+  },
+  onTap(p, E) {
+    if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    if (E.hit(this.btnStory, p)) { E.audio.play('tap'); E.setScene('story', { cards: STORY.open.map((_, i) => ({ kind: 'open', i })), then: ['career'] }); return; }
+    const s = this.slots.find((q) => E.hit(q, p));
+    if (!s) return;
+    if (postersMap(E)[s.set]) { E.audio.play('tap'); E.setScene('story', { cards: [{ kind: 'poster', set: s.set }], then: ['career'] }); return; }
+    E.audio.play('tap', 0.3);
+    E.toast(s.set === 'endless' ? STORY.hint.endless(T.career.endlessWave) : `Three stars on every ${A.setName[s.set]} rung with one gun release it`);
+  },
+};
+
 const menu = {
   enter(E) {
     this.tiles = []; this.guns = []; this.btnEndless = null; this.btnMute = null; this.btnMissions = null; this.btnPlay = null; this.btnProps = null; this.play = null; this.dot = false;
     this.pop = popRung && popRung.gun === gunId(E) ? { id: popRung.id, t0: E.time } : null; popRung = null; // a rung whose stars rose swells once
+    this.btnCareer = null;
+    if (!E.save.get('openSeen', false)) E.setScene('story'); // v0.7: a first launch opens with the three story cards (Skip leaves at once)
   },
   render(ctx, E) {
     const gid = gunId(E), play = frontier(E, gid), L = menuLayout(E, `Play ${play.name}`);
@@ -2801,6 +3049,7 @@ const menu = {
     drawVHS(ctx, E); // the scan lines: the menu's background only, under everything
     E.titleArea = L.titleArea; // release: five taps on the logo show TUNE
     drawLogo(ctx, E, L.logo, L.land);
+    this.btnCareer = L.career; drawCareerPlate(ctx, E, L.career, careerInfo(E));
     if (L.land) drawPegboard(ctx, L.rack[0].x - 5, L.rack[0].y - 3, L.rack[L.rack.length - 1].x + L.rack[L.rack.length - 1].w - L.rack[0].x + 10, A.menu.rackH + 7); // the prop rack
     this.guns = [];
     if (L.panel) { drawRackSelected(ctx, E, L.panel, gid); this.guns.push(L.panel); }
@@ -2844,6 +3093,7 @@ const menu = {
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
     if (E.hit(this.btnEndless, p)) { E.audio.play('tap'); E.setScene('play', { id: ENDLESS.id }); return; }
     if (E.hit(this.btnProps, p)) { E.audio.play('tap'); E.setScene('props'); return; }
+    if (E.hit(this.btnCareer, p)) { E.audio.play('tap'); E.setScene('career'); return; }
     for (const b of this.guns) if (E.hit(b, p)) {
       if (!gunUnlocked(E, b.id)) { E.audio.play('tap'); E.setScene('props'); } // a gun not owned: the Prop Room, where it is bought or says what opens it
       else { E.audio.play('tap'); if (gunId(E) === b.id) E.setScene('gun', { id: b.id }); else pickGun(E, b.id); } // the selected gun's tile is the stats card's button
@@ -3079,23 +3329,34 @@ function propsLayout(E) {
   const L = { land, x0, W, back: { x: x0, y: top + 8, w: 84, h: 44 }, cards: [] };
   let bx, by, bw, bh, cols;
   if (land) { L.shop = { x: x0, y: top + K.headH + 4, w: K.side, h: bottom - top - K.headH - 4 }; bx = x0 + K.side + K.gap; by = L.shop.y; bw = W - K.side - K.gap; bh = L.shop.h; cols = 3; }
-  else { L.shop = { x: x0, y: top + K.headH + 4, w: W, h: 116 }; bx = x0; by = L.shop.y + L.shop.h + K.gap; bw = W; bh = bottom - by; cols = 2; }
+  else { L.shop = { x: x0, y: top + K.headH + 4, w: W, h: 146 }; bx = x0; by = L.shop.y + L.shop.h + K.gap; bw = W; bh = bottom - by; cols = 2; }
   const rows = Math.ceil(GUN_IDS.length / cols), cw = (bw - (cols - 1) * K.gap) / cols, ch = clamp((bh - (rows - 1) * K.gap) / rows, K.cardMin, K.cardMax);
   L.board = { x: bx - 4, y: by - 4, w: bw + 8, h: rows * ch + (rows - 1) * K.gap + 8 };
   GUN_IDS.forEach((id, i) => L.cards.push({ id, x: bx + (i % cols) * (cw + K.gap), y: by + Math.floor(i / cols) * (ch + K.gap), w: cw, h: ch }));
   return L;
 }
 const props = {
-  enter() { this.L = null; this.sold = null; },
+  enter() { this.L = null; this.sold = null; this.focus = null; },
   render(ctx, E) {
     const K = A.props, L = this.L = propsLayout(E), box = boxOf(E), sel = gunId(E), sh = L.shop;
     btn(E, 'Back', L.back.x + 42, L.back.y + 22, { w: 84, h: 44, size: TY.small, fill: P.slate });
     E.text('Prop Room', E.w / 2, L.back.y + 22, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     // the counter, the prop master behind it and the register with the box office
-    const ct = L.land ? sh.y + sh.h - 88 : sh.y + sh.h - 40, rx = L.land ? sh.x + 8 : sh.x + sh.w - 150, rw = L.land ? sh.w - 16 : 142, ry = L.land ? ct + 18 : sh.y + 12;
+    const ct = L.land ? sh.y + sh.h - 88 : sh.y + sh.h - 70, rx = L.land ? sh.x + 8 : sh.x + sh.w - 150, rw = L.land ? sh.w - 16 : 142, ry = L.land ? ct + 18 : sh.y + 12;
     const mx = L.land ? sh.x + sh.w / 2 : sh.x + K.masterX; // portrait: right of the Back button
-    if (!drawPropMasterPic(ctx, mx, ct, L.land ? K.picScale : K.picScaleTall, this.sold && E.time - this.sold.t0 < K.soldShow)) drawPropMaster(ctx, mx, ct, L.land ? K.master : 0.9);
+    // v0.7 D: Gus's one line for the gun that is selected (the last card tapped, else the gun in hand), in a paper speech strip: over his head in landscape, on the counter in portrait. On a short
+    // screen he is drawn a little smaller so that his head clears the strip (his head is `headRise` canvas rows above the counter).
+    const sw = L.land ? sh.w : sh.w - 16, sl = wrapText(ctx, STORY.gus[this.focus && T.guns[this.focus] ? this.focus : sel], sw - 16, TY.small).slice(0, L.land ? A.story.lines : 2), sbh = sl.length * 16 + 12;
+    const say = { lines: sl, bx: L.land ? sh.x : sh.x + 8, by: L.land ? sh.y + 2 : ct + 12 + (52 - sbh) / 2, bw: sw, bh: sbh };
+    const picK = L.land ? Math.min(K.picScale, (ct - say.by - sbh - 10) / K.headRise) : K.picScaleTall;
+    if (!drawPropMasterPic(ctx, mx, ct, picK, this.sold && E.time - this.sold.t0 < K.soldShow)) drawPropMaster(ctx, mx, ct, L.land ? K.master : 0.9);
     plate(E, sh.x, ct, sh.w, sh.y + sh.h - ct, P.counter, P.ink, 8); ctx.fillStyle = P.counterTop; rrect(ctx, sh.x + 2, ct + 2, sh.w - 4, 7, 3); ctx.fill();
+    { // v0.7 D: the speech strip, drawn over the counter
+      const { lines, bx, by, bw, bh } = say;
+      plate(E, bx, by, bw, bh, P.paper, P.ink, 8);
+      if (L.land) { ctx.fillStyle = P.paper; ctx.beginPath(); ctx.moveTo(bx + bw / 2 - 7, by + bh); ctx.lineTo(bx + bw / 2 + 7, by + bh); ctx.lineTo(bx + bw / 2, by + bh + 8); ctx.fill(); }
+      lines.forEach((ln, i) => E.text(ln, bx + bw / 2, by + 6 + 8 + i * 16, { size: TY.small, weight: TY.strong, color: P.ink }));
+    }
     plate(E, rx, ry, rw, 58, P.register, P.brass, 8);
     E.text('Box office', rx + rw / 2, ry + 15, { size: TY.small, color: P.textDim });
     E.text(money(box), rx + rw / 2, ry + 39, { size: TY.mid + 2, weight: TY.strong, color: P.brassText });
@@ -3137,6 +3398,7 @@ const props = {
     const b = this.btns.find((q) => E.hit(q, p));
     if (b) {
       const id = b.id, g = T.guns[id], price = T.gunPrices[id], bd = unlockBadge(id), box = boxOf(E);
+      this.focus = id; // Gus has a line for it
       if (gunUnlocked(E, id)) { if (gunId(E) !== id) pickGun(E, id); E.audio.play('tap'); }
       else if (bd) { E.audio.play('tap', 0.3); E.toast(`The ${g.short} opens with the ${bd.name} badge (${bd.cond})`); }
       else if (box >= price) { // bought: the box office is spent, the gun is owned for good and in hand
@@ -3348,6 +3610,8 @@ const over = {
   enter(E, params) {
     this.p = params; this.ch = chById(params.id); this.t0 = E.time; this.tick = -1;
     const pool = REVIEWS[clamp(params.stars, 0, 3)]; this.review = this.ch.endless ? null : pool[Math.floor(Math.random() * pool.length)];
+    const dn = STORY.note[clamp(params.stars, 0, 3)]; this.note = this.ch.endless ? null : dn[Math.floor(Math.random() * dn.length)]; // v0.7 D: the director's note, by stars
+    this.cards = (params.posters || []).map((set) => ({ kind: 'poster', set })).concat(params.rankUp >= 0 ? [{ kind: 'rank', rank: params.rankUp }] : []); // story cards that wait for the player's next tap
     const g = params.gaunt;
     if (g) { this.next = g.next ? CHALLENGES.find((c) => c.id === g.next) : null; this.canNext = !!this.next; }
     else {
@@ -3383,6 +3647,11 @@ const over = {
         else drawStar(ctx, sx, sy, 20, null, P.panelEdge);
       }
       E.text(this.review, cx, y0 + 128, { size: TY.small, weight: `italic ${TY.normal}`, color: P.text, alpha: clamp((age - 0.6) / 0.3, 0, 1) });
+    }
+    if (this.note && pw >= 480) { // v0.7 D: the director's note in the card's right corner, his pose by stars (approving on two and three), the line under it
+      const na = clamp((age - 0.4) / 0.3, 0, 1), nx = cx + pw / 2 - 12 - 66;
+      ctx.globalAlpha = na; drawDirector(ctx, nx, y0 + 46, 58, p.stars >= 2); ctx.globalAlpha = 1;
+      wrapText(ctx, this.note, 128, TY.small).slice(0, 3).forEach((ln, i) => E.text(ln, nx, y0 + 76 + i * 16, { size: TY.small, weight: TY.strong, color: P.text, alpha: na }));
     }
     const of = ch.ladder === 'accuracy' ? ` of ${ch.accTargets}` : '';
     if (ch.ladder === 'zombie') E.text(ch.endless ? `Wave ${p.zwave}   Down ${p.zdown}   Brain shots ${p.heads}` : `Down ${p.zdown} of ${p.ztotal}   Brain shots ${p.heads}`, cx, y0 + (ch.endless ? 104 : 150), { size: TY.mid, weight: ch.endless ? TY.strong : TY.normal, color: P.text });
@@ -3454,9 +3723,11 @@ const over = {
     const b = this.btns.find((b) => E.hit(b, p));
     if (!b) return;
     E.audio.play('tap');
-    if (b.act === 'again') { const g = this.p.gaunt; E.ledger.add('retry', { id: this.ch.id, gun: this.p.gunId, score: this.p.score, stars: this.p.stars }); E.setScene('play', g && g.ok && !g.done ? { id: this.ch.id, gauntlet: g.i } : { id: this.ch.id }); } // a passed stage replayed stays in the chain
-    else if (b.act === 'next') E.setScene('play', this.p.gaunt ? { id: this.next.id, gauntlet: this.p.gaunt.i + 1 } : { id: this.next.id });
-    else E.setScene('menu');
+    // v0.7: a poster or a rank card that this run earned shows once, between the card and wherever the button goes; one tap on it goes on, Skip leaves.
+    const go = (scene, params) => (this.cards.length ? E.setScene('story', { cards: this.cards, then: [scene, params] }) : E.setScene(scene, params));
+    if (b.act === 'again') { const g = this.p.gaunt; E.ledger.add('retry', { id: this.ch.id, gun: this.p.gunId, score: this.p.score, stars: this.p.stars }); go('play', g && g.ok && !g.done ? { id: this.ch.id, gauntlet: g.i } : { id: this.ch.id }); } // a passed stage replayed stays in the chain
+    else if (b.act === 'next') go('play', this.p.gaunt ? { id: this.next.id, gauntlet: this.p.gaunt.i + 1 } : { id: this.next.id });
+    else go('menu');
   },
 };
 
@@ -3573,11 +3844,13 @@ function migrateGuns(data) {
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 13,
+  saveVersion: 14,
   // Save shape: best { challengeId: { gunId: { score, stars, accuracy } } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, gunsHad { gunId: 1 } (guns a save from
   // before v7 already had), cold (Cold Barrel's runs in a row), zend (the endless mode's bests), mastery { gunId: { shots, hits, bulls, heads, plates } } and skinsHad { gunId: { skinId: 1 } } and skinsNew { gunId: [skinId] } (v10), starPreset (the star-bar preset's name), __tune, __muted.
   // controlsSeen (v11: the first-run controls line has been shown), seen { badgeId: 1 } (v12: the badges already shown on the missions screen; the dot on the menu's Missions button marks an earned one that is not in it).
   // v13 (PRD v0.6 B): box (box office in dollars) and owned { gunId: 1 } (the guns bought in the Prop Room; the migration puts every gun a save already had here, so none is taken away).
+  // v14 (PRD v0.7 F): careerSeen (the highest career rank, an index 0 to 3, whose card has been shown), openSeen (the cold open has been shown or skipped) and posters { set: 1 } (premiere posters released: accuracy,
+  // speed, skeet, boss, zombie, endless). The migration marks the cold open seen, gives a veteran one rank card for the rank they are at now (careerSeen one below it), and hangs the posters of sets already three-starred.
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
   // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default); v6 adds the star-bar preset's name. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
@@ -3611,6 +3884,15 @@ export const game = {
       for (const [cid, per] of Object.entries(data.best || {})) { const ch = CHALLENGES.find((c) => c.id === cid); if (ch && per && typeof per === 'object') for (const [g, e] of Object.entries(per)) if (T.guns[g] && e && typeof e === 'object') stars += Math.max(e.stars || 0, starsFor(ch, e.score || 0, g)); }
       data.box = T.boxStart + T.boxPerStar * stars;
     }
+    if (fromVersion < 14) { // v14: a veteran has seen the opening, gets one card for the rank they are at (never a cascade), and keeps the posters their finished sets earned
+      const best = data.best && typeof data.best === 'object' ? data.best : {}, zb = data.zend && data.zend.best ? data.zend.best : null;
+      data.openSeen = true;
+      data.careerSeen = Math.max(0, rankFor(careerStars(best)) - 1);
+      data.posters = Object.fromEntries(POSTER_SETS.filter((set) => (set === 'endless' ? !!zb && zb.wave >= T.career.endlessWave : threeStarred(best, set))).map((set) => [set, 1]));
+    }
+    if (typeof data.openSeen !== 'boolean') delete data.openSeen;
+    if (!Number.isInteger(data.careerSeen) || data.careerSeen < 0) delete data.careerSeen;
+    if (!data.posters || typeof data.posters !== 'object') data.posters = {};
     if (!data.owned || typeof data.owned !== 'object') data.owned = {};
     if (typeof data.box !== 'number' || !Number.isFinite(data.box)) data.box = T.boxStart;
     if (data.mastery !== undefined && (typeof data.mastery !== 'object' || data.mastery === null)) delete data.mastery;
@@ -3626,5 +3908,5 @@ export const game = {
   experiments: EXPERIMENTS,
   presets: PRESETS,
   start: 'menu',
-  scenes: { menu, play, over, missions, tune, gun: gunCard, props },
+  scenes: { menu, play, over, missions, tune, gun: gunCard, props, story, career },
 };
