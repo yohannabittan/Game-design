@@ -97,6 +97,32 @@ One of three:
 - **Pivot.** The kernel is wrong but something in the build is right. New concept card, note what carries over, reuse the folder or fork it.
 - **Shelve.** Move the row in `docs/game-ideas.md` to Shelved with one sentence. The code stays in the repo. No shame in it; this is what the mini-game step is for.
 
+## Cost before rigour (2026-10-07)
+
+The designer called out the Gravity Golf hole pipeline: "relying a bit too heavily on algorithms and simulation... there should be some heuristic ways to achieve the same goals way faster". The arena prototypes showed the other side: 11 rounds for about $16, judged by the designer's playtest.
+
+Before writing an acceptance list, a shard brief or a review focus, the orchestrator asks of every check:
+
+1. **What real failure has this check caught?** Name the bug, the hole or the playtest note. If nothing, it is a candidate to drop.
+2. **What is the cheapest check that would catch that failure?** Prefer, in order:
+   - **construction:** start from something proven;
+   - **a geometric or arithmetic rule:** seconds;
+   - **one scripted run:** seconds;
+   - **a small sample:** tens of runs;
+   - **a full search**, only when nothing above works.
+3. **Does it run per attempt, or once?** Heavy checks run once per batch (a sector, a release), in the background, never inside an authoring loop.
+4. **Is it judging a feeling?** Fun, difficulty and readability are judged by the designer's playtest and export. A simulation of a human is a guess, used only to set a starting point, as with the star bars in Recoil v0.8 B2.
+5. **Is the thing shipped or thrown away?** Prototypes get the smoke test and a few scripted facts. Shipped games get a review. Neither gets proving it does not need.
+
+**Red flags to raise with the designer before dispatching:**
+- a per-item time-box over about 20 minutes;
+- a check that takes longer than the change it checks;
+- more than about 5 must-pass gates on one item;
+- a search over thousands of shots or seeds inside a loop;
+- a "noisy human" model standing in for a playtest the designer could do in two minutes.
+
+Say the cost in one line, with the cheaper alternative, and let the designer choose.
+
 ## Always
 
 - **ADRs.** Any decision about how games are built, not what a game is, gets an ADR in `docs/adr/`. Changing the engine contract, adding a dependency, changing the deploy path, changing the save format policy. See `docs/adr/README.md`.
