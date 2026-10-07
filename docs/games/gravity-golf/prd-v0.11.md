@@ -1,6 +1,6 @@
-# Gravity Golf PRD v0.11: a probe looking for life
+# Gravity Golf PRD v0.11: Lumen and Sam
 
-Status: locked 2026-10-05 from the story plan the designer approved (`docs/story-plan.md`, Gravity Golf; "Yeah good plan but don't execute until usage refreshes"). Builds on v0.10. Cast: `docs/games/gravity-golf/world.md`. Drive: curiosity and discovery. Rules, physics, holes, badges and stars do not change.
+Status: locked 2026-10-07. Rewritten after the Launch lesson (designer: "it is time to have a bit of story telling, narrative and arc; it doesn't need to be complex but it does need to be a meaningful development"); the arc "Lumen and Sam" (loneliness to connection) approved with "Yes go for the GG backlog". Builds on v0.12. Sections A, B, D and E below are replaced by A2 to E2; C (the Probe Log facts) stands. Cast: `docs/games/gravity-golf/world.md`. Drive: curiosity and discovery. Rules, physics, holes, badges and stars do not change.
 
 ## A. The cold open (first launch only)
 
@@ -67,7 +67,55 @@ Status: locked 2026-10-05 from the story plan the designer approved (`docs/story
 
 - Clearing hole 30 (Sagittarius) for the first time, with any stars, shows a card after the end card: a slow pulsing waveform and "A signal. Not natural. It's coming from beyond the core." then, smaller, "To be continued." One tap closes it. It is shown once and replayable from the Story button.
 
-## F. Art
+## The arc (replaces A, B, D and E)
+
+Loneliness to connection. Dr Sam Ito builds Lumen and talks to it like a friend; every sector says "no life" and Sam grows quieter; the mission is about to be cut; at the core, the signal is another probe like Lumen, sent by someone else who was looking too.
+
+### A2. The cold open: three animated scenes
+
+The same scene style as Launch v0.6 A2: about 3 to 4 s each, from the portraits plus simple drawn props, squash-and-stretch tweens, the text fading in under; a tap jumps to the scene's end, the next tap advances, auto-advance a second after, Skip always visible and ending it all; replayable from a Story button on the menu.
+1. **The lab.** A night lab, screens glowing; Sam (`mission-control`) leans over a bench where Lumen (the ball, drawn larger) sits; Sam taps it and it blinks awake. "Dr Sam Ito built a little probe to answer one question."
+2. **The question.** Sam looks up at a window full of stars; one star twinkles. "'Are we alone, Lumen? Let's go and see.'"
+3. **The launch.** A rocket streaks up from a small Earth, a tiny light separates and curves past the Moon (the first gravity assist). "Ride the gravity. Send home everything you find."
+
+### B2. Sam's voice grows with the journey
+
+- Sam's portrait and one line on every end card, as before (cosmetic, `Math.random`), but the pool **changes by sector**, so the mood carries the arc:
+  - **Starfield (holes 1 to 5), excited:** 3 stars "Clean assist! Data received!"; 2 "Got there. Every bit counts."; 1 or less "Scenic route. I'll allow it."
+  - **Nebula (6 to 10), hopeful:** "Gas, dust... maybe something?", "Beautiful data, Lumen.", "Keep looking. I've got a feeling."
+  - **Meteor shower (11 to 15), joking:** "Rocks. Again. Very nice rocks.", "Mind the ice, little one.", "I named one of those rocks after you."
+  - **Deep space (16 to 20), quiet:** "No life. Still beautiful, though.", "It's very quiet out there, isn't it?", "When I was a kid, I waved at the sky every night." (the midpoint line: shown once, the first time hole 18 is finished, then in the pool)
+  - **Binary sunrise (21 to 25), stubborn:** "Two suns. Still nobody home.", "They keep asking what we've found.", "I'm not giving up on you."
+  - **Galactic Core (26 to 30), last chance:** "This is it, Lumen.", "Make every shot count.", "Whatever's there, we find it together."
+  - **An Expert fourth star (any sector):** "No guide lines? Show-off."
+- The sector arrival log lines and the facts (C) stay as they were.
+
+### C2. The turn
+
+- The first time hole 26 opens (entering the Galactic Core), an animated card before its first shot: Sam on a dim video call (`mission-control`, drawn with a worried brow and a dimmer screen; Pack 14 `mission-control-worried` when it lands): "They're cutting the mission, Lumen. The core is our last sector." Then, smaller: "So let's make it count." One tap per beat, Skip visible.
+
+### D2. Ranks keep their facts
+
+- Unchanged from D: the rank-up card shows the rank's fact.
+
+### E2. The ending: we are not alone
+
+- The first time hole 30 (Sagittarius) is cleared, an animated sequence before the end card:
+  1. A slow pulsing waveform on Sam's screen. "A signal. Not natural."
+  2. Out of the core's glow drifts **another probe**: small, a different shape (drawn: a hexagon with three thin antennae and a soft violet light), carrying a little disc like Lumen's. It blinks a short pattern of lights.
+  3. Lumen blinks back. Sam (`mission-control-wow`): "We're not alone." Then: "And they were looking for us too."
+  4. Sam, softly, waving at the screen: "Hi." The other probe's light flickers like a wave. "To be continued."
+- Replayable from Story. After it, Sam's pool everywhere gains a happy line: "Still can't believe it. Hi, friend."
+
+### F2. Art
+
+- Existing finals: `mission-control.png`, `mission-control-wow.png` (Pack 12). New, small: Pack 14 `mission-control-worried.png` for C2 (fallback: the normal portrait with a drawn brow and a dimmed screen). The other probe is drawn by the game.
+
+### G2. Saves
+
+- As G, plus `turnSeen` and `endSeen` (replacing `signalSeen`), and `midSeen` for the hole 18 line. `migrate`: a save past hole 26 marks `turnSeen`; a save with hole 30 cleared does **not** mark `endSeen`, so the designer sees the new ending once after their next finished hole (a single catch-up card, as Launch's proposal).
+
+## F. Art (superseded by F2)
 
 - Dr Sam Ito, Pack 12 (`mission-control.png` and `mission-control-wow.png`, the second for 3 stars and the signal). Wire whatever is in `docs/art/final/gravity-golf/` as webp in `games/gravity-golf/assets/`; until then draw a headset-and-screen glyph.
 

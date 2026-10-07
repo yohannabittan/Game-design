@@ -192,6 +192,11 @@ Anchor: the Pack 5 finals in `docs/art/final/launch/` (same chunky outline, same
 
 Two options each, about US$0.50 to 1. Into `docs/art/final/launch/`.
 
+### Pack 14: Gravity Golf, Sam worried (added 2026-10-07)
+
+Spec: `docs/games/gravity-golf/prd-v0.11.md` C2. Use `docs/art/final/gravity-golf/mission-control.png` as the reference image so Sam is the same person in the same frame.
+- `mission-control-worried.png`: Sam on the same video call, but the room dimmer and the screens behind showing a red "BUDGET REVIEW" glow (no readable text needed), Sam's brow worried, holding the mug with both hands, still kind. 512 x 512, same frame. Two options, about US$0.30.
+
 ## Handoffs from the orchestrator (2026-10-03)
 
 The designer pastes the orchestrator's one-line task into the art chat. (A Routine bound to the art chat was tried and does not reach it: each firing starts a new empty session.) The art session replies with a pushed `docs/art/HANDOFF-<topic>.md`, which the orchestrator reads when it pulls.
