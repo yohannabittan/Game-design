@@ -47,6 +47,7 @@ const TUNING = {
   },
   stamina: { max: 100, regen: 45, delay: 0.45, tired: 0.5, idleMul: 1.8, exhaust: 1.5 },  // tired: damage multiplier at zero; idleMul: regen when not swinging, blocking or dodging; exhaust: seconds with no swings at zero
   part: { hp: 3 },         // damage a gap part takes before it is disabled
+  skin: { glint: 0.16, cutFade: 3.5, maxDpr: 3 },  // art only: tip distance (H) at which a slot glints, seconds a cut line takes to fade, sprite pixel-ratio cap
   armour: { dents: 3, kick: 0.6 },
   stun: 1.2,               // seconds the foe is stunned when the head goes
   armSlow: 0.4,            // each disabled arm lengthens the wind-up by this fraction
@@ -192,8 +193,7 @@ const POSE_NAME = { chop: 'CHOP', slash: 'SLASH', sweep: 'SWEEP', thrust: 'THRUS
 const REST_TH = 0.9;
 
 const STRAW = ['#e6c866', '#d4b04a', '#f2dc90', '#b8923a'];
-const YOU = { skin: '#c58f5e', tunic: '#2f7d6d', hem: '#1d5448', crest: '#e6c866', cap: '#b08a3e' };
-const FOE = { skin: '#b9835a', tunic: '#9b2f2f', hem: '#6d1d1d', crest: '#2a2a2a', cap: '#6b6f78' };
+const YOU = { skin: '#c58f5e', tunic: '#2f7d6d', hem: '#1d5448', crest: '#e6c866' };
 const state = {};
 const now = () => performance.now() / 1000;
 const easeOut = (u) => 1 - (1 - u) * (1 - u);
@@ -711,7 +711,7 @@ function gapHit(E, p, at, ang, sp, delay, a, thrust) {
   p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; if (thrust) state.slotHits++; if (winded) state.punishes++;
   f.hp -= dealt;
   const gl = kind === 'jab' ? 0.03 : 0.06;
-  if (!slot) { p.hp -= dmg; p.gashes.push([[at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl]]); }
+  if (!slot) { p.hp -= dmg; p.gashes.push({ a: [at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], b: [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl], t: state.m }); }
   const big = dealt >= 3;
   const n = Math.min(60, J.strawPerDmg * dealt);
   straw(at.x, at.y, ang + Math.PI / 2, 2.6, 260 + dealt * 50, n >> 1);
@@ -1049,66 +1049,499 @@ function path(ctx, d, H, inset = 0) {
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
-function drawPart(ctx, p, H, st, fr) {
-  const d = p.d;
+// ----- the skin: plates, gaps and bodies over the hit shapes. Each part is painted once into a sprite and repainted only when it changes. -----
+const TAU = Math.PI * 2;
+const STEEL = { hi: '#f2f5f8', lite: '#c3cbd3', mid: '#8d97a1', dark: '#49515a', edge: '#1f242a' };
+const POLISH = { hi: '#ffffff', lite: '#dfe5eb', mid: '#a7b1bc', dark: '#56606b', edge: '#1c2127' };
+const IRON = { hi: '#dcdad4', lite: '#a6a39c', mid: '#77746d', dark: '#3d3a35', edge: '#1a1815' };
+const BRONZE = { hi: '#ffe7b0', lite: '#dcae62', mid: '#a9772f', dark: '#5e3e15', edge: '#2b1b08' };
+const LEATHER = { lite: '#9a6a3c', mid: '#6e4524', dark: '#3e2511' };
+const LINEN = { lite: '#e8dcbc', mid: '#b9aa86', dark: '#6d6248' };
+// The foe's weapon sets his type (flavour only). A helmet is drawn only on a plated head, so the art never hides a bare part.
+const GTYPE = {
+  gladius: { id: 'murmillo', helm: 'murmillo', bare: 'leather', metal: STEEL, trim: '#c9a43a', skin: '#b9835a', hair: '#2a1a10', tunic: '#9b2f2f', hem: '#5e1818', crest: '#c8372a', wrap: 'tunic' },
+  spear: { id: 'hoplomachus', helm: 'hoplo', bare: 'leather', metal: STEEL, trim: '#d6b04a', skin: '#c08a5c', hair: '#3a2414', tunic: '#38457a', hem: '#1f2748', crest: '#efe6cf', wrap: 'tunic' },
+  axe: { id: 'brute', helm: 'open', bare: 'hair', beard: true, pauldron: true, metal: IRON, trim: '#8a7a5a', skin: '#a8714a', hair: '#1a120c', tunic: '#5a3b22', hem: '#2e1d10', wrap: 'loin' },
+  dagger: { id: 'retiarius', helm: 'cap', bare: 'band', band: '#c9a43a', galerus: true, net: true, metal: STEEL, trim: '#d6b04a', skin: '#c99568', hair: '#4a2a14', tunic: '#b08c34', hem: '#6e561a', wrap: 'loin' },
+};
+// Your look follows your rolled armour set: bronze and leather, steel with bronze trim, polished steel with gold.
+const MINE = { helm: 'galea', bare: 'band', band: YOU.tunic, skin: YOU.skin, hair: '#3a2414', tunic: YOU.tunic, hem: YOU.hem, crest: YOU.crest, wrap: 'tunic' };
+const MYLOOK = {
+  light: { ...MINE, id: 'you-light', metal: BRONZE, trim: LEATHER.mid },
+  medium: { ...MINE, id: 'you-medium', metal: STEEL, trim: BRONZE.lite },
+  heavy: { ...MINE, id: 'you-heavy', metal: POLISH, trim: '#e6c866', crest: '#d8473a' },
+};
+const lookOf = (fm, isFoe) => (isFoe ? GTYPE[fm.weapon.id] : MYLOOK[state.me.set]);
+// What shows through each gap, and which sides the plate edges frame it from (top and bottom, or left and right).
+const SLOT_ART = { 'slot-neck': ['skin', 'tb'], 'slot-armpit': ['linen', 'lr'], 'slot-waist': ['linen', 'tb'], 'slot-elbow': ['skin', 'tb'], 'slot-knee': ['skin', 'tb'] };
+// Sprite bounds in body units (arms in their own frame): room for crests, straps, the fist and the shoulder guards.
+const BOX = { head: [-0.17, -1.05, 0.18, -0.66], chest: [-0.15, -0.74, 0.16, -0.5], belly: [-0.19, -0.54, 0.19, -0.24], armF: [-0.12, -0.2, 0.12, 0.37], armB: [-0.12, -0.2, 0.12, 0.37], legs: [-0.21, -0.43, 0.25, 0.02] };
+const LEGS = [[[-0.02, -0.37], [-0.07, -0.19], [-0.12, -0.02]], [[0.02, -0.37], [0.09, -0.2], [0.12, -0.02]]];
+const canSprite = typeof OffscreenCanvas === 'function';
+
+const rgbOf = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+function shade(h, f) { return '#' + rgbOf(h).map((v) => Math.round(f >= 1 ? v + (255 - v) * Math.min(1, f - 1) : v * f).toString(16).padStart(2, '0')).join(''); }
+const lw = (H, k) => Math.max(1, k * H);
+function line(c, x0, y0, x1, y1) { c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); }
+function metalGrad(c, x0, y0, x1, y1, M, dn = 0) {
+  const g = c.createLinearGradient(x0, y0, x1, y1), k = 1 - 0.3 * dn;
+  g.addColorStop(0, shade(M.lite, k)); g.addColorStop(0.3, shade(M.hi, k)); g.addColorStop(0.55, shade(M.mid, k)); g.addColorStop(1, shade(M.dark, k));
+  return g;
+}
+function skinGrad(c, x0, y0, x1, y1, col) {
+  const g = c.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, shade(col, 1.16)); g.addColorStop(0.45, col); g.addColorStop(1, shade(col, 0.64));
+  return g;
+}
+// a dark outer edge, and an inner rim lit from above and shadowed below
+function bevel(c, shape, M, H, y0, y1) {
+  shape(0); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.009); c.lineJoin = 'round'; c.stroke();
+  const g = c.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, 'rgba(255,255,255,0.75)'); g.addColorStop(0.5, 'rgba(255,255,255,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
+  shape(0.011 * H); c.strokeStyle = g; c.lineWidth = lw(H, 0.006); c.stroke();
+}
+function rivet(c, x, y, H, M) {
+  const s = lw(H, 0.0065);
+  c.fillStyle = M.edge; c.beginPath(); c.arc(x, y, s, 0, TAU); c.fill();
+  c.fillStyle = M.hi; c.beginPath(); c.arc(x - s * 0.3, y - s * 0.3, s * 0.45, 0, TAU); c.fill();
+}
+function strap(c, x0, y0, x1, y1, w, H, buckle) {
+  c.lineCap = 'butt';
+  c.strokeStyle = LEATHER.dark; c.lineWidth = w + lw(H, 0.005); line(c, x0, y0, x1, y1);
+  c.strokeStyle = LEATHER.mid; c.lineWidth = w; line(c, x0, y0, x1, y1);
+  c.strokeStyle = 'rgba(255,220,170,0.4)'; c.lineWidth = Math.max(0.6, w * 0.12); c.setLineDash([w * 0.45, w * 0.45]); line(c, x0, y0, x1, y1); c.setLineDash([]);
+  if (buckle) {
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    c.fillStyle = '#d6b04a'; c.fillRect(mx - w * 0.5, my - w * 0.4, w, w * 0.8);
+    c.strokeStyle = '#4a3410'; c.lineWidth = Math.max(0.6, w * 0.15); c.strokeRect(mx - w * 0.25, my - w * 0.2, w * 0.5, w * 0.4);
+  }
+}
+function dent(c, x, y, s, i) {
+  const g = c.createRadialGradient(x - s * 0.25, y - s * 0.25, 0, x, y, s);
+  g.addColorStop(0, 'rgba(8,10,14,0.8)'); g.addColorStop(0.6, 'rgba(8,10,14,0.42)'); g.addColorStop(1, 'rgba(8,10,14,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, s, 0, TAU); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,0.6)'; c.lineWidth = Math.max(0.8, s * 0.14); c.beginPath(); c.arc(x, y, s * 0.72, 0.1, 1.7); c.stroke();
+  const a = 0.5 + i * 1.9, dx = Math.cos(a) * s * 1.5, dy = Math.sin(a) * s * 1.5;
+  c.lineWidth = Math.max(0.7, s * 0.1); c.strokeStyle = 'rgba(15,17,21,0.8)'; line(c, x - dx, y - dy, x + dx, y + dy);
+  c.strokeStyle = 'rgba(255,255,255,0.6)'; line(c, x - dx + 0.8, y - dy + 0.8, x + dx + 0.8, y + dy + 0.8);
+}
+// dents as dark dimples with a scratch, cracks as jagged lines, both kept on the plate
+function wear(c, p, H, cx, cy, sz, clip) {
+  if (!p.dents && !p.cracks.length) return;
+  c.save(); clip(); c.clip();
+  for (let i = 0; i < p.dents; i++) { const a = i * 2.4 + 0.7; dent(c, cx + Math.cos(a) * sz * 0.45, cy + Math.sin(a) * sz * 0.4, sz * 0.32, i); }
+  c.lineJoin = 'round';
+  for (const k of p.cracks) {
+    const trace = (o) => { c.beginPath(); k.forEach((q, i) => (i ? c.lineTo((p.d.x + q[0]) * H + o, (p.d.y + q[1]) * H + o) : c.moveTo((p.d.x + q[0]) * H + o, (p.d.y + q[1]) * H + o))); c.stroke(); };
+    c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = lw(H, 0.004); trace(1);
+    c.strokeStyle = '#0e1114'; c.lineWidth = lw(H, 0.007); trace(0);
+  }
+  c.restore();
+}
+// a bare part darkens as it is hurt, and goes dark and limp when disabled (sprites only: it paints over what is already there)
+function tint(c, p, H) {
+  const k = p.cut ? 0.68 : (1 - clamp(p.hp / TUNING.part.hp, 0, 1)) * 0.3;
+  if (k <= 0 || !canSprite) return;
+  const b = BOX[p.d.id];
+  c.save(); c.globalCompositeOperation = 'source-atop'; c.fillStyle = `rgba(36,16,8,${k})`; c.fillRect(b[0] * H, b[1] * H, (b[2] - b[0]) * H, (b[3] - b[1]) * H); c.restore();
+}
+
+function plume(c, x, y, r, col, H, s) {
+  c.fillStyle = col; c.strokeStyle = '#2a1c10'; c.lineWidth = lw(H, 0.005);
+  c.beginPath(); c.moveTo(x + r * 0.6, y - r * 0.85); c.quadraticCurveTo(x + r * 0.1, y - r * (1 + s), x - r * 1.2, y - r * (0.9 + s * 0.4));
+  c.quadraticCurveTo(x - r * 1.65, y - r * 0.6, x - r * 1.5, y - r * 0.05); c.quadraticCurveTo(x - r * 1.1, y - r * 0.75, x - r * 0.5, y - r * 0.95);
+  c.quadraticCurveTo(x, y - r * 1.05, x + r * 0.6, y - r * 0.85); c.closePath(); c.fill(); c.stroke();
+  c.strokeStyle = shade(col, 0.72); c.lineWidth = lw(H, 0.003);
+  for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(x + r * (0.3 - i * 0.25), y - r * (1.0 + s * 0.3)); c.quadraticCurveTo(x - r * (0.6 + i * 0.15), y - r * (1.1 + s * 0.2), x - r * (1.2 + i * 0.07), y - r * (0.3 + i * 0.12)); c.stroke(); }
+}
+function face(c, x, y, r, lk, H, hair) {
+  c.fillStyle = (() => { const g = c.createRadialGradient(x + r * 0.35, y - r * 0.35, r * 0.1, x, y, r * 1.1); g.addColorStop(0, shade(lk.skin, 1.2)); g.addColorStop(0.55, lk.skin); g.addColorStop(1, shade(lk.skin, 0.6)); return g; })();
+  c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+  c.beginPath(); c.moveTo(x + r * 0.88, y - r * 0.22); c.lineTo(x + r * 1.13, y + r * 0.16); c.lineTo(x + r * 0.92, y + r * 0.24); c.closePath(); c.fill();
+  c.save(); c.beginPath(); c.arc(x, y, r * 1.02, 0, TAU); c.clip(); c.fillStyle = lk.hair;
+  if (hair) { c.beginPath(); c.ellipse(x - r * 0.45, y - r * 0.5, r * 0.95, r * 0.68, -0.2, 0, TAU); c.fill(); }
+  if (lk.beard) { c.beginPath(); c.ellipse(x + r * 0.45, y + r * 0.8, r * 0.75, r * 0.42, 0.3, 0, TAU); c.fill(); }
+  c.restore();
+  c.fillStyle = shade(lk.skin, 0.72); c.beginPath(); c.ellipse(x - r * 0.12, y + r * 0.08, r * 0.15, r * 0.23, 0, 0, TAU); c.fill();
+  c.strokeStyle = shade(lk.skin, 0.4); c.lineWidth = lw(H, 0.005); c.lineCap = 'round';
+  line(c, x + r * 0.32, y - r * 0.3, x + r * 0.78, y - r * 0.24);
+  if (!lk.beard) line(c, x + r * 0.58, y + r * 0.52, x + r * 0.84, y + r * 0.47);
+  c.fillStyle = '#1a1410'; c.beginPath(); c.ellipse(x + r * 0.56, y - r * 0.1, r * 0.1, r * 0.08, 0, 0, TAU); c.fill();
+  c.strokeStyle = '#2a1c10'; c.lineWidth = lw(H, 0.006); c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
+}
+function visor(c, x, y, r, M, H, dn) {
+  c.save(); c.beginPath(); c.arc(x, y, r * 1.03, 0, TAU); c.clip();
+  rrect(c, x + r * 0.08, y - r * 0.28, r * 1.05, r * 1.3, r * 0.22); c.fillStyle = metalGrad(c, x + r, y - r * 0.3, x, y + r, M, dn + 0.4); c.fill();
+  c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    const hx = x + r * (0.3 + i * 0.19), hy = y + r * (-0.05 + j * 0.22);
+    c.fillStyle = '#0b0d10'; c.beginPath(); c.arc(hx, hy, r * 0.065, 0, TAU); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.35)'; c.beginPath(); c.arc(hx + r * 0.02, hy + r * 0.05, r * 0.03, 0, TAU); c.fill();
+  }
+  c.restore();
+}
+function brim(c, x, y, rx, ry, M, H, dn) {
+  c.beginPath(); c.ellipse(x, y, rx, ry, -0.05, 0, TAU); c.fillStyle = metalGrad(c, x + rx, y - ry, x - rx, y + ry, M, dn); c.fill();
+  c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,0.6)'; c.lineWidth = lw(H, 0.003); c.beginPath(); c.ellipse(x, y - ry * 0.25, rx * 0.92, ry * 0.55, -0.05, Math.PI * 1.1, Math.PI * 1.9); c.stroke();
+}
+function paintHead(c, p, H, lk) {
+  const d = p.d, x = d.x * H, y = d.y * H, r = d.r * H, M = lk.metal, dn = p.dents / TUNING.armour.dents;
+  c.fillStyle = skinGrad(c, 0.035 * H, 0, -0.025 * H, 0, shade(lk.skin, 0.85)); c.fillRect(-0.025 * H, -0.745 * H, 0.06 * H, 0.07 * H);
+  const helm = p.armour ? lk.helm : null, closed = helm === 'murmillo' || helm === 'hoplo';
+  if (!closed) face(c, x, y, r, lk, H, !p.armour);
+  if (!p.armour) {
+    if (lk.bare === 'leather') {
+      c.beginPath(); c.arc(x, y, r * 1.05, Math.PI * 0.92, Math.PI * 2.04); c.closePath();
+      const g = c.createLinearGradient(0, y - r, 0, y); g.addColorStop(0, LEATHER.lite); g.addColorStop(1, LEATHER.dark);
+      c.fillStyle = g; c.fill(); c.strokeStyle = '#24160a'; c.lineWidth = lw(H, 0.005); c.stroke();
+      c.strokeStyle = 'rgba(255,220,170,0.35)'; c.setLineDash([2, 2]); c.beginPath(); c.arc(x, y, r * 0.7, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); c.setLineDash([]);
+      plume(c, x, y, r, lk.crest, H, 0.6);
+    } else if (lk.bare === 'band') {
+      c.save(); c.beginPath(); c.arc(x, y, r * 1.02, 0, TAU); c.clip(); c.fillStyle = lk.band; c.fillRect(x - r * 1.1, y - r * 0.5, r * 2.2, r * 0.2); c.restore();
+      c.strokeStyle = lk.band; c.lineWidth = lw(H, 0.008); c.lineCap = 'round';
+      line(c, x - r * 0.95, y - r * 0.38, x - r * 1.35, y - r * 0.05); line(c, x - r * 0.95, y - r * 0.38, x - r * 1.45, y - r * 0.3);
+    }
+    tint(c, p, H);
+    return;
+  }
+  const dome = (i) => { c.beginPath(); c.arc(x, y, r * 1.04 - i, 0, TAU); };
+  const cap = (i) => { c.beginPath(); c.arc(x, y, r * 1.06 - i, Math.PI * 0.9, Math.PI * 2.08); c.closePath(); };
+  if (closed) {
+    if (helm === 'hoplo') {
+      c.fillStyle = shade(lk.crest, 0.9); c.strokeStyle = '#2a1c10'; c.lineWidth = lw(H, 0.004);
+      c.beginPath(); c.ellipse(x - r * 0.25, y - r * 1.6, r * 0.09, r * 0.62, -0.18, 0, TAU); c.fill(); c.stroke();
+    }
+    dome(0); c.fillStyle = metalGrad(c, x + r, y - r, x - r, y + r, M, dn); c.fill();
+    bevel(c, dome, M, H, y - r, y + r);
+    visor(c, x, y, r, M, H, dn);
+    if (helm === 'murmillo') {
+      brim(c, x, y - r * 0.3, r * 1.55, r * 0.24, M, H, dn);
+      // the fish crest: a tall fin, ribbed, painted along its back
+      c.beginPath(); c.moveTo(x + r * 0.55, y - r * 0.85); c.quadraticCurveTo(x + r * 0.35, y - r * 2.3, x - r * 0.5, y - r * 2.05);
+      c.quadraticCurveTo(x - r * 1.3, y - r * 1.6, x - r * 1.35, y - r * 0.55); c.lineTo(x - r * 0.75, y - r * 0.75); c.quadraticCurveTo(x, y - r * 1.1, x + r * 0.55, y - r * 0.85); c.closePath();
+      c.fillStyle = metalGrad(c, x + r, y - r * 2, x - r, y - r * 0.6, M, dn); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke();
+      c.save(); c.clip(); c.strokeStyle = 'rgba(30,34,40,0.55)'; c.lineWidth = lw(H, 0.003);
+      for (let i = 0; i < 6; i++) { const a = -0.3 - i * 0.42; line(c, x - r * 0.1, y - r * 0.95, x - r * 0.1 + Math.cos(a) * r * 1.05, y - r * 1.05 + Math.sin(a) * r * 1.0); }
+      c.restore();
+      c.strokeStyle = lk.crest; c.lineWidth = lw(H, 0.012); c.beginPath(); c.moveTo(x + r * 0.45, y - r * 1.2); c.quadraticCurveTo(x + r * 0.3, y - r * 2.2, x - r * 0.5, y - r * 1.98); c.quadraticCurveTo(x - r * 1.2, y - r * 1.55, x - r * 1.28, y - r * 0.7); c.stroke();
+    } else {
+      brim(c, x, y - r * 0.28, r * 1.3, r * 0.16, M, H, dn);
+      c.strokeStyle = M.dark; c.lineWidth = lw(H, 0.01); c.beginPath(); c.arc(x, y, r * 1.08, Math.PI * 1.2, Math.PI * 1.8); c.stroke();
+      plume(c, x, y - r * 0.12, r * 1.1, lk.crest, H, 1.15);
+    }
+    for (const a of [2.6, 3.3, 5.9]) rivet(c, x + Math.cos(a) * r * 0.82, y + Math.sin(a) * r * 0.82 - r * 0.3, H, M);
+  } else {
+    if (helm !== 'cap') {
+      // neck guard flaring at the back, and a cheek guard over the jaw
+      c.beginPath(); c.moveTo(x - r * 0.9, y - r * 0.2); c.lineTo(x - r * 1.4, y + r * 0.6); c.lineTo(x - r * 0.55, y + r * 0.45); c.lineTo(x - r * 0.35, y); c.closePath();
+      c.fillStyle = metalGrad(c, x, y, x - r * 1.4, y + r * 0.6, M, dn + 0.3); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke();
+    }
+    cap(0); c.fillStyle = metalGrad(c, x + r, y - r, x - r, y, M, dn); c.fill();
+    bevel(c, cap, M, H, y - r, y);
+    c.strokeStyle = lk.trim; c.lineWidth = lw(H, 0.008); line(c, x - r * 1.0, y - r * 0.12, x + r * 1.02, y - r * 0.12);
+    if (helm !== 'cap') {
+      rrect(c, x + r * 0.02, y - r * 0.14, r * 0.42, r * 0.86, r * 0.16); c.fillStyle = metalGrad(c, x + r * 0.4, y, x, y + r * 0.7, M, dn); c.fill();
+      c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+      rivet(c, x + r * 0.23, y + r * 0.08, H, M); rivet(c, x + r * 0.23, y + r * 0.52, H, M);
+    }
+    if (helm === 'galea') {
+      c.beginPath(); c.moveTo(x + r * 0.7, y - r * 0.32); c.lineTo(x + r * 1.32, y - r * 0.12); c.lineTo(x + r * 0.85, y - r * 0.02); c.closePath();
+      c.fillStyle = M.mid; c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+      plume(c, x, y, r, lk.crest, H, 1);
+    } else if (helm === 'cap') {
+      c.fillStyle = M.dark; c.beginPath(); c.arc(x, y - r * 1.04, r * 0.12, 0, TAU); c.fill();
+    } else {
+      c.strokeStyle = 'rgba(255,255,255,0.45)'; c.lineWidth = lw(H, 0.006); c.beginPath(); c.arc(x, y, r * 0.95, Math.PI * 1.25, Math.PI * 1.75); c.stroke();
+    }
+    for (const a of [3.5, 4.7, 5.9]) rivet(c, x + Math.cos(a) * r * 0.75, y + Math.sin(a) * r * 0.75 - r * 0.05, H, M);
+  }
+  wear(c, p, H, x, y - r * 0.3, r, closed ? () => dome(0) : () => cap(0));
+}
+
+function cuirass(c, x0, y0, x1, y1) {
+  const w = x1 - x0, h = y1 - y0;
+  c.beginPath(); c.moveTo(x0 + w * 0.08, y0); c.lineTo(x0 + w * 0.32, y0); c.quadraticCurveTo(x0 + w * 0.5, y0 + h * 0.18, x0 + w * 0.68, y0);
+  c.lineTo(x1 - w * 0.08, y0); c.quadraticCurveTo(x1, y0, x1, y0 + h * 0.18); c.lineTo(x1 - w * 0.02, y1 - h * 0.22); c.quadraticCurveTo(x1 - w * 0.04, y1, x1 - w * 0.2, y1);
+  c.lineTo(x0 + w * 0.2, y1); c.quadraticCurveTo(x0 + w * 0.04, y1, x0 + w * 0.02, y1 - h * 0.22); c.lineTo(x0, y0 + h * 0.18); c.quadraticCurveTo(x0, y0, x0 + w * 0.08, y0); c.closePath();
+}
+function pecs(c, x0, y0, w, h) {
+  c.beginPath(); c.moveTo(x0 + w * 0.12, y0 + h * 0.48); c.quadraticCurveTo(x0 + w * 0.3, y0 + h * 0.74, x0 + w * 0.48, y0 + h * 0.5); c.stroke();
+  c.beginPath(); c.moveTo(x0 + w * 0.54, y0 + h * 0.5); c.quadraticCurveTo(x0 + w * 0.74, y0 + h * 0.76, x0 + w * 0.92, y0 + h * 0.46); c.stroke();
+  line(c, x0 + w * 0.51, y0 + h * 0.2, x0 + w * 0.51, y0 + h * 0.92);
+}
+function paintChest(c, p, H, lk) {
+  const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, x1 = x0 + w, y1 = y0 + h, M = lk.metal;
+  if (!p.armour) {
+    path(c, d, H); c.fillStyle = skinGrad(c, x1, y0, x0, y1, lk.skin); c.fill();
+    c.lineCap = 'round'; c.lineWidth = lw(H, 0.005); c.strokeStyle = shade(lk.skin, 0.55); pecs(c, x0, y0, w, h);
+    c.strokeStyle = 'rgba(255,240,220,0.3)'; c.lineWidth = lw(H, 0.004); line(c, x0 + w * 0.58, y0 + h * 0.28, x0 + w * 0.86, y0 + h * 0.24);
+    path(c, d, H); c.strokeStyle = '#3a2414'; c.lineWidth = lw(H, 0.007); c.stroke();
+    strap(c, -0.09 * H, -0.69 * H, 0.09 * H, -0.53 * H, 0.022 * H, H, true);
+    tint(c, p, H);
+    return;
+  }
+  const dn = p.dents / TUNING.armour.dents, shape = (i) => cuirass(c, x0 + i, y0 + i, x1 - i, y1 - i);
+  shape(0); c.fillStyle = metalGrad(c, x1, y0, x0, y1, M, dn); c.fill();
+  c.save(); shape(0); c.clip();
+  const g = c.createLinearGradient(x0, 0, x1, 0);
+  g.addColorStop(0, 'rgba(0,0,0,0.38)'); g.addColorStop(0.45, 'rgba(0,0,0,0)'); g.addColorStop(0.72, 'rgba(255,255,255,0.3)'); g.addColorStop(0.86, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,0.22)');
+  c.fillStyle = g; c.fillRect(x0, y0, w, h);
+  c.lineCap = 'round'; c.lineWidth = lw(H, 0.005);
+  c.strokeStyle = 'rgba(255,255,255,0.5)'; c.save(); c.translate(0, -1); pecs(c, x0, y0, w, h); c.restore();
+  c.strokeStyle = 'rgba(16,20,26,0.55)'; pecs(c, x0, y0, w, h);
+  c.restore();
+  bevel(c, shape, M, H, y0, y1);
+  c.strokeStyle = lk.trim; c.lineWidth = lw(H, 0.005); line(c, x0 + w * 0.2, y1 - 0.017 * H, x1 - w * 0.2, y1 - 0.017 * H);
+  for (const k of [0.12, 0.88]) rivet(c, x0 + w * k, y0 + h * 0.2, H, M);
+  for (const k of [0.25, 0.5, 0.75]) rivet(c, x0 + w * k, y1 - h * 0.12, H, M);
+  for (const k of [0.2, 0.8]) strap(c, x0 + w * k, y0 - 0.035 * H, x0 + w * k, y0 + h * 0.14, 0.02 * H, H, true);
+  wear(c, p, H, (x0 + x1) / 2, (y0 + y1) / 2, Math.min(w, h) / 2, () => shape(0));
+}
+
+// the tunic or loincloth, with folds and a hem, under the belly
+function paintWrap(c, H, lk) {
+  const top = -0.43 * H, loin = lk.wrap === 'loin';
+  c.beginPath(); c.moveTo(-0.11 * H, top); c.lineTo(0.11 * H, top);
+  if (loin) { c.lineTo(0.13 * H, -0.345 * H); c.lineTo(0.075 * H, -0.335 * H); c.lineTo(0.03 * H, -0.26 * H); c.lineTo(-0.015 * H, -0.335 * H); c.lineTo(-0.13 * H, -0.345 * H); }
+  else { c.lineTo(0.15 * H, -0.27 * H); c.quadraticCurveTo(0, -0.255 * H, -0.14 * H, -0.27 * H); }
+  c.closePath();
+  const g = c.createLinearGradient(0.12 * H, top, -0.12 * H, -0.27 * H); g.addColorStop(0, shade(lk.tunic, 1.12)); g.addColorStop(0.5, lk.tunic); g.addColorStop(1, shade(lk.tunic, 0.62));
+  c.fillStyle = g; c.fill(); c.strokeStyle = lk.hem; c.lineWidth = lw(H, 0.006); c.lineJoin = 'round'; c.stroke();
+  c.save(); c.clip(); c.lineCap = 'round';
+  for (const k of [-0.075, -0.03, 0.025, 0.075]) {
+    const bx = loin ? k * 0.6 + 0.02 : k * 1.2;
+    c.strokeStyle = shade(lk.tunic, 0.58); c.lineWidth = lw(H, 0.006); c.beginPath(); c.moveTo(k * H, top + 0.02 * H); c.quadraticCurveTo((k + 0.01) * H, -0.36 * H, bx * H, -0.26 * H); c.stroke();
+    c.strokeStyle = 'rgba(255,240,220,0.18)'; c.lineWidth = lw(H, 0.004); c.beginPath(); c.moveTo((k + 0.012) * H, top + 0.02 * H); c.quadraticCurveTo((k + 0.022) * H, -0.36 * H, (bx + 0.012) * H, -0.26 * H); c.stroke();
+  }
+  c.strokeStyle = lk.hem; c.lineWidth = lw(H, 0.014); c.stroke();
+  c.restore();
+}
+function belt(c, H) {
+  const x0 = -0.108 * H, y0 = -0.507 * H, w = 0.216 * H, h = 0.036 * H;
+  const g = c.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, LEATHER.lite); g.addColorStop(1, LEATHER.dark);
+  rrect(c, x0, y0, w, h, h * 0.2); c.fillStyle = g; c.fill(); c.strokeStyle = '#24160a'; c.lineWidth = lw(H, 0.004); c.stroke();
+  for (let i = 0; i < 6; i++) if (i !== 3) rivet(c, x0 + w * (0.08 + i * 0.17), y0 + h / 2, H, BRONZE);
+  const bg = c.createLinearGradient(0, y0, 0, y0 + h * 1.2); bg.addColorStop(0, '#f2d88a'); bg.addColorStop(1, '#8a6a20');
+  c.fillStyle = bg; c.fillRect(0, y0 - h * 0.1, 0.04 * H, h * 1.2); c.strokeStyle = '#4a3410'; c.lineWidth = lw(H, 0.004); c.strokeRect(0.008 * H, y0 + h * 0.15, 0.024 * H, h * 0.7);
+}
+function paintBelly(c, p, H, lk) {
+  paintWrap(c, H, lk);
+  const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, M = lk.metal;
+  if (!p.armour) {
+    path(c, d, H); c.fillStyle = skinGrad(c, x0 + w, y0, x0, y0 + h, lk.skin); c.fill();
+    c.strokeStyle = shade(lk.skin, 0.58); c.lineWidth = lw(H, 0.004); c.lineCap = 'round';
+    line(c, x0 + w * 0.52, y0 + h * 0.3, x0 + w * 0.52, y0 + h * 0.9);
+    for (const k of [0.45, 0.68]) { line(c, x0 + w * 0.3, y0 + h * k, x0 + w * 0.47, y0 + h * (k + 0.03)); line(c, x0 + w * 0.57, y0 + h * (k + 0.03), x0 + w * 0.76, y0 + h * k); }
+    c.fillStyle = shade(lk.skin, 0.5); c.beginPath(); c.arc(x0 + w * 0.53, y0 + h * 0.84, lw(H, 0.004), 0, TAU); c.fill();
+    path(c, d, H); c.strokeStyle = '#3a2414'; c.lineWidth = lw(H, 0.006); c.stroke();
+    tint(c, p, H);
+  } else {
+    // banded lames, the upper overlapping the lower
+    const dn = p.dents / TUNING.armour.dents, n = 3, bh = h / n;
+    for (let i = n - 1; i >= 0; i--) {
+      const by = y0 + i * bh, hh = i === n - 1 ? bh : bh * 1.2;
+      rrect(c, x0, by, w, hh, hh * 0.3); c.fillStyle = metalGrad(c, x0 + w, by, x0, by + hh, M, dn); c.fill();
+      c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,0.55)'; c.lineWidth = lw(H, 0.003); line(c, x0 + hh * 0.3, by + 1.5, x0 + w - hh * 0.3, by + 1.5);
+      rivet(c, x0 + w * 0.1, by + hh * 0.5, H, M); rivet(c, x0 + w * 0.9, by + hh * 0.5, H, M);
+    }
+    wear(c, p, H, x0 + w / 2, y0 + h / 2, Math.min(w, h) / 2, () => rrect(c, x0, y0, w, h, 2));
+  }
+  belt(c, H);
+}
+
+function paintArm(c, p, H, lk) {
+  const d = p.d, w = d.w * H, h = d.h * H, x0 = -w / 2, y0 = d.y * H - h / 2, M = lk.metal, front = d.id === 'armF', sk = front ? lk.skin : shade(lk.skin, 0.86);
+  if (!p.armour) {
+    rrect(c, x0, y0, w, h, w * 0.45); c.fillStyle = skinGrad(c, w / 2, 0, -w / 2, 0, sk); c.fill();
+    c.strokeStyle = shade(lk.skin, 0.55); c.lineWidth = lw(H, 0.004); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x0 + w * 0.72, y0 + h * 0.1); c.quadraticCurveTo(x0 + w * 1.0, y0 + h * 0.28, x0 + w * 0.7, y0 + h * 0.44); c.stroke();
+    c.beginPath(); c.moveTo(x0 + w * 0.3, y0 + h * 0.58); c.quadraticCurveTo(x0 + w * 0.15, y0 + h * 0.7, x0 + w * 0.35, y0 + h * 0.84); c.stroke();
+    line(c, x0 + w * 0.35, y0 + h * 0.5, x0 + w * 0.65, y0 + h * 0.52);
+    rrect(c, x0, y0, w, h, w * 0.45); c.strokeStyle = '#3a2414'; c.lineWidth = lw(H, 0.006); c.stroke();
+    c.fillStyle = LEATHER.mid; c.fillRect(x0 - 1, y0 + h * 0.82, w + 2, h * 0.09); c.strokeStyle = LEATHER.dark; c.lineWidth = 1; c.strokeRect(x0 - 1, y0 + h * 0.82, w + 2, h * 0.09);
+  } else {
+    // the manica: overlapping bands down the arm, a strap along the back
+    const dn = p.dents / TUNING.armour.dents, n = 6, bh = h / n;
+    for (let i = n - 1; i >= 0; i--) {
+      const by = y0 + i * bh, hh = i === n - 1 ? bh : bh * 1.3;
+      rrect(c, x0 - w * 0.06, by, w * 1.12, hh, hh * 0.35); c.fillStyle = metalGrad(c, w / 2, by, -w / 2, by + hh, M, dn); c.fill();
+      c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = lw(H, 0.003); line(c, x0, by + 1.4, x0 + w, by + 1.4);
+    }
+    strap(c, x0 + w * 0.22, y0, x0 + w * 0.22, y0 + h, w * 0.16, H, false);
+    for (let i = 0; i < n; i++) rivet(c, x0 + w * 0.22, y0 + (i + 0.5) * bh, H, M);
+    wear(c, p, H, 0, d.y * H, w / 2, () => rrect(c, x0 - w * 0.06, y0, w * 1.12, h, 3));
+  }
+  const fy = ARM_LEN * H, fr = 0.042 * H, fg = c.createRadialGradient(fr * 0.3, fy - fr * 0.3, fr * 0.1, 0, fy, fr);
+  fg.addColorStop(0, shade(sk, 1.15)); fg.addColorStop(1, shade(sk, 0.7));
+  c.fillStyle = fg; c.beginPath(); c.arc(0, fy, fr, 0, TAU); c.fill(); c.strokeStyle = '#2a1c10'; c.lineWidth = lw(H, 0.006); c.stroke();
+  c.strokeStyle = shade(lk.skin, 0.5); c.lineWidth = lw(H, 0.003); for (const k of [-0.4, 0, 0.4]) line(c, fr * k, fy + fr * 0.2, fr * k, fy + fr * 0.75);
+  if (!p.armour) tint(c, p, H);
+  if (front && lk.pauldron) {
+    // a heavy layered pauldron: iron on a plated arm, studded leather on a bare one
+    const P = p.armour ? M : null;
+    for (let i = 2; i >= 0; i--) {
+      const py = -0.01 * H + i * 0.032 * H;
+      c.beginPath(); c.ellipse(0, py, w * 0.9, 0.04 * H, 0, Math.PI, TAU); c.closePath();
+      c.fillStyle = P ? metalGrad(c, w, py - 0.04 * H, -w, py, P) : (i % 2 ? LEATHER.mid : LEATHER.lite); c.fill();
+      c.strokeStyle = P ? P.edge : LEATHER.dark; c.lineWidth = lw(H, 0.005); c.stroke();
+      for (const k of [-0.5, 0, 0.5]) rivet(c, w * 0.9 * k, py - 0.012 * H, H, P || IRON);
+    }
+  }
+  if (!front && lk.galerus) {
+    // the galerus: a flared shoulder guard rising beside the head
+    const g = (i) => { c.beginPath(); c.moveTo(-w * 0.2 + i, 0.04 * H - i); c.lineTo(-w * 1.0 + i, -0.02 * H); c.quadraticCurveTo(-w * 1.25 + i, -0.12 * H + i, -w * 0.9 + i, -0.16 * H + i); c.lineTo(w * 0.35 - i, -0.11 * H + i); c.lineTo(w * 0.6 - i, 0.03 * H - i); c.closePath(); };
+    g(0); c.fillStyle = metalGrad(c, w, -0.16 * H, -w, 0.04 * H, BRONZE); c.fill();
+    bevel(c, g, BRONZE, H, -0.16 * H, 0.04 * H);
+    c.strokeStyle = 'rgba(94,62,21,0.6)'; c.lineWidth = lw(H, 0.004); line(c, -w * 0.5, -0.12 * H, -w * 0.3, 0.02 * H);
+  }
+}
+
+// a leg as a tapered quad from a to b (widths in px), for plates and their clip
+function quad(c, a, b, wa, wb) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+  c.moveTo(a[0] + nx * wa / 2, a[1] + ny * wa / 2); c.lineTo(b[0] + nx * wb / 2, b[1] + ny * wb / 2); c.lineTo(b[0] - nx * wb / 2, b[1] - ny * wb / 2); c.lineTo(a[0] - nx * wa / 2, a[1] - ny * wa / 2); c.closePath();
+  return [nx, ny];
+}
+function paintLegs(c, p, H, lk) {
+  const M = lk.metal, dn = p.dents / TUNING.armour.dents, TH = 0.085 * H, SH = 0.068 * H;
+  const legs = LEGS.map((L) => L.map((q) => [q[0] * H, q[1] * H]));
+  legs.forEach(([hip, knee, ank], i) => {
+    const sk = i ? lk.skin : shade(lk.skin, 0.8);
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    c.strokeStyle = '#2a1c10'; c.lineWidth = TH + 2.5; line(c, hip[0], hip[1], knee[0], knee[1]); c.lineWidth = SH + 2.5; line(c, knee[0], knee[1], ank[0], ank[1]);
+    c.strokeStyle = sk; c.lineWidth = TH; line(c, hip[0], hip[1], knee[0], knee[1]); c.lineWidth = SH; line(c, knee[0], knee[1], ank[0], ank[1]);
+    c.strokeStyle = 'rgba(255,236,214,0.22)'; c.lineWidth = SH * 0.3;
+    line(c, hip[0] + 0.016 * H, hip[1], knee[0] + 0.016 * H, knee[1]); line(c, knee[0] + 0.014 * H, knee[1], ank[0] + 0.012 * H, ank[1]);
+    c.strokeStyle = 'rgba(0,0,0,0.2)'; c.lineWidth = SH * 0.28;
+    line(c, hip[0] - 0.024 * H, hip[1], knee[0] - 0.022 * H, knee[1]); line(c, knee[0] - 0.02 * H, knee[1], ank[0] - 0.018 * H, ank[1]);
+    c.strokeStyle = shade(lk.skin, 0.5); c.lineWidth = lw(H, 0.004);
+    c.beginPath(); c.moveTo(knee[0] - 0.02 * H, knee[1] + 0.03 * H); c.quadraticCurveTo(knee[0] - 0.04 * H, knee[1] + 0.07 * H, knee[0] - 0.03 * H, knee[1] + 0.11 * H); c.stroke();
+    // sandal: sole and laces up the ankle
+    rrect(c, ank[0] - 0.03 * H, -0.035 * H, 0.09 * H, 0.035 * H, 0.014 * H); c.fillStyle = sk; c.fill(); c.strokeStyle = '#2a1c10'; c.lineWidth = lw(H, 0.005); c.stroke();
+    c.fillStyle = LEATHER.dark; c.fillRect(ank[0] - 0.03 * H, -0.01 * H, 0.09 * H, 0.01 * H);
+    c.strokeStyle = LEATHER.mid; c.lineWidth = lw(H, 0.006);
+    for (let k = 0; k < 3; k++) { const yy = ank[1] - 0.012 * H - k * 0.02 * H; line(c, ank[0] - SH * 0.45, yy, ank[0] + SH * 0.45, yy - 0.012 * H); }
+    if (!p.armour) return;
+    // thigh plates and a greave with a knee boss
+    const thigh = () => { c.beginPath(); return quad(c, hip, knee, TH * 1.06, TH * 0.96); };
+    const greave = () => { c.beginPath(); return quad(c, [knee[0] + (ank[0] - knee[0]) * 0.05, knee[1] + (ank[1] - knee[1]) * 0.05], [ank[0] + (knee[0] - ank[0]) * 0.1, ank[1] + (knee[1] - ank[1]) * 0.1], SH * 1.35, SH * 1.1); };
+    for (const [seg, a, b, ww] of [[thigh, hip, knee, TH], [greave, knee, ank, SH * 1.3]]) {
+      const [nx, ny] = seg();
+      c.fillStyle = metalGrad(c, a[0] + nx * ww / 2, a[1] + ny * ww / 2, a[0] - nx * ww / 2, a[1] - ny * ww / 2, M, dn + (i ? 0 : 0.35)); c.fill();
+      c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,0.45)'; c.lineWidth = lw(H, 0.004); line(c, a[0] + nx * ww * 0.2, a[1] + ny * ww * 0.2, b[0] + nx * ww * 0.2, b[1] + ny * ww * 0.2);
+    }
+    c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.004);
+    for (const t of [0.35, 0.68]) { const x = hip[0] + (knee[0] - hip[0]) * t, y = hip[1] + (knee[1] - hip[1]) * t; line(c, x - TH * 0.5, y, x + TH * 0.5, y + 0.004 * H); }
+    for (const t of [0.35, 0.75]) { const x = knee[0] + (ank[0] - knee[0]) * t, y = knee[1] + (ank[1] - knee[1]) * t; strap(c, x - SH * 0.7, y, x + SH * 0.7, y + 0.006 * H, 0.012 * H, H, false); }
+    const kg = c.createRadialGradient(knee[0] + 0.01 * H, knee[1] - 0.012 * H, 0, knee[0], knee[1], 0.04 * H);
+    kg.addColorStop(0, M.hi); kg.addColorStop(0.5, M.mid); kg.addColorStop(1, M.dark);
+    c.fillStyle = kg; c.beginPath(); c.arc(knee[0], knee[1], 0.038 * H, 0, TAU); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke();
+    rivet(c, knee[0], knee[1], H, M);
+  });
+  if (p.armour) wear(c, p, H, 0.06 * H, -0.24 * H, 0.08 * H, () => { c.beginPath(); for (const [hip, knee, ank] of legs) { quad(c, hip, knee, TH, TH); quad(c, knee, ank, SH * 1.3, SH * 1.1); } });
+  else tint(c, p, H);
+}
+
+// A joint slot is where two plates don't meet: their edges frame it, padding or skin shows inside in shadow, with a warm rim.
+function paintSlot(c, p, H, lk) {
+  const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, [under, lips] = SLOT_ART[d.id], M = lk.metal, tb = lips === 'tb';
+  c.fillStyle = under === 'skin' ? shade(lk.skin, 0.85) : LINEN.mid; c.fillRect(x0, y0, w, h);
+  c.save(); c.beginPath(); c.rect(x0, y0, w, h); c.clip();
+  if (under === 'linen') {
+    c.strokeStyle = LINEN.dark; c.lineWidth = Math.max(0.7, 0.003 * H);
+    const st = Math.max(3, 0.014 * H);
+    if (tb) for (let x = x0 + st / 2; x < x0 + w; x += st) line(c, x, y0, x, y0 + h); else for (let y = y0 + st / 2; y < y0 + h; y += st) line(c, x0, y, x0 + w, y);
+  }
+  const sw = Math.min(w, h) * 0.45;
+  if (tb) strap(c, x0 + w * 0.3, y0 - 2, x0 + w * 0.55, y0 + h + 2, sw, H, false); else strap(c, x0 - 2, y0 + h * 0.3, x0 + w + 2, y0 + h * 0.62, sw, H, false);
+  const g = tb ? c.createLinearGradient(0, y0, 0, y0 + h) : c.createLinearGradient(x0, 0, x0 + w, 0);
+  g.addColorStop(0, 'rgba(6,3,2,0.95)'); g.addColorStop(0.5, 'rgba(6,3,2,0.5)'); g.addColorStop(1, 'rgba(6,3,2,0.95)');
+  c.fillStyle = g; c.fillRect(x0, y0, w, h);
+  const e = tb ? c.createLinearGradient(x0, 0, x0 + w, 0) : c.createLinearGradient(0, y0, 0, y0 + h);
+  e.addColorStop(0, 'rgba(6,3,2,0.8)'); e.addColorStop(0.25, 'rgba(6,3,2,0)'); e.addColorStop(0.75, 'rgba(6,3,2,0)'); e.addColorStop(1, 'rgba(6,3,2,0.8)');
+  c.fillStyle = e; c.fillRect(x0, y0, w, h);
+  c.restore();
+  const t = Math.max(2.5, 0.016 * H);
+  const lip = (x, y, lw2, lh) => { rrect(c, x, y, lw2, lh, Math.min(lw2, lh) * 0.4); c.fillStyle = metalGrad(c, x + lw2, y, x, y + lh, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = Math.max(1, 0.005 * H); c.stroke(); };
+  if (tb) { lip(x0 - t * 0.5, y0 - t + 1, w + t, t); lip(x0 - t * 0.5, y0 + h - 1, w + t, t); }
+  else { lip(x0 - t + 1, y0 - t * 0.5, t, h + t); lip(x0 + w - 1, y0 - t * 0.5, t, h + t); }
+  c.strokeStyle = 'rgba(255,170,90,0.9)'; c.lineWidth = Math.max(1, 0.005 * H);
+  if (tb) { line(c, x0 + 1, y0 + 1.6, x0 + w - 1, y0 + 1.6); line(c, x0 + 1, y0 + h - 1.6, x0 + w - 1, y0 + h - 1.6); }
+  else { line(c, x0 + 1.6, y0 + 1, x0 + 1.6, y0 + h - 1); line(c, x0 + w - 1.6, y0 + 1, x0 + w - 1.6, y0 + h - 1); }
+  c.strokeStyle = 'rgba(255,170,90,0.35)'; c.lineWidth = 1; c.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+}
+
+const PAINT = { head: paintHead, chest: paintChest, belly: paintBelly, armF: paintArm, armB: paintArm, legs: paintLegs };
+function paintPart(c, p, H, lk) { (p.slot ? paintSlot : PAINT[p.d.id])(c, p, H, lk); }
+// The part's sprite, repainted only when its look, scale, dents, cracks or damage change. Null without OffscreenCanvas (painted live).
+function spriteOf(E, p, H, lk) {
+  if (!canSprite) return null;
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), d = p.d;
+  const key = `${Math.round(H * k)}|${lk.id}|${p.armour ? 1 : 0}|${p.dents}|${p.cracks.length}|${p.cut ? 1 : 0}|${Math.ceil(p.hp / TUNING.part.hp * 4)}`;
+  if (p.spr && p.spr.key === key) return p.spr;
+  const m = 0.03, b = p.slot ? [d.x - d.w / 2 - m, d.y - d.h / 2 - m, d.x + d.w / 2 + m, d.y + d.h / 2 + m] : BOX[d.id];
+  const x = b[0] * H, y = b[1] * H, cw = Math.ceil((b[2] - b[0]) * H * k), ch = Math.ceil((b[3] - b[1]) * H * k);
+  const cv = new OffscreenCanvas(cw, ch), c = cv.getContext('2d');
+  c.scale(k, k); c.translate(-x, -y); paintPart(c, p, H, lk);
+  p.spr = { key, cv, x, y, w: cw / k, h: ch / k };
+  return p.spr;
+}
+// small red cut lines on bare hits, fading over a few seconds
+function cuts(ctx, p, H) {
+  if (!p.gashes.length) return;
+  const T = TUNING.skin.cutFade;
+  p.gashes = p.gashes.filter((g) => state.m - g.t < T);
+  ctx.lineCap = 'round';
+  for (const g of p.gashes) {
+    const k = 1 - (state.m - g.t) / T;
+    ctx.strokeStyle = `rgba(110,14,10,${0.55 * k})`; ctx.lineWidth = Math.max(2, 0.011 * H); line(ctx, g.a[0] * H, g.a[1] * H, g.b[0] * H, g.b[1] * H);
+    ctx.strokeStyle = `rgba(232,62,46,${k})`; ctx.lineWidth = Math.max(1, 0.005 * H); line(ctx, g.a[0] * H, g.a[1] * H, g.b[0] * H, g.b[1] * H);
+  }
+}
+// A part in its frame: the sprite, its cuts, a shake and a bright wash while a plate clangs, a flash when hit.
+function drawPart(ctx, E, p, H, lk, fr) {
   ctx.save();
   if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); }
-  if (d.id !== 'legs') {
-    path(ctx, d, H);
-    ctx.fillStyle = p.cut ? '#2b2217' : st.skin; ctx.fill();
-    ctx.save(); ctx.clip();
-    if (!p.cut && p.hp < TUNING.part.hp) { ctx.fillStyle = `rgba(60,20,10,${(1 - p.hp / TUNING.part.hp) * 0.5})`; ctx.fillRect(-H, -2 * H, 2 * H, 3 * H); }
-    for (const g of p.gashes) {
-      ctx.strokeStyle = '#0a0705'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(g[0][0] * H, g[0][1] * H); ctx.lineTo(g[1][0] * H, g[1][1] * H); ctx.stroke();
-      ctx.strokeStyle = '#a05a3c'; ctx.lineWidth = 1.1; ctx.stroke();
-    }
-    ctx.restore();
-    path(ctx, d, H);
-    ctx.strokeStyle = p.cut ? '#120d08' : '#5a3a22'; ctx.lineWidth = 2; ctx.stroke();
-    if (p.flash > 0) { path(ctx, d, H); ctx.fillStyle = `rgba(255,250,220,${p.flash / 0.16})`; ctx.fill(); }
-  }
-  if (p.armour) {
-    ctx.save();
-    const sh = p.clang > 0 ? p.clang / 0.25 : 0;
-    if (sh > 0) ctx.translate((Math.random() - 0.5) * 7 * sh, (Math.random() - 0.5) * 7 * sh);
-    const dn = p.dents / TUNING.armour.dents;
-    path(ctx, d, H, 0.008 + 0.004 * p.dents);
-    const top = (d.y - (d.r || d.h / 2)) * H, bot = (d.y + (d.r || d.h / 2)) * H;
-    const g = ctx.createLinearGradient(0, top, 0, bot);
-    const dk = (c) => `rgb(${Math.round(c[0] * (1 - dn * 0.35))},${Math.round(c[1] * (1 - dn * 0.35))},${Math.round(c[2] * (1 - dn * 0.3))})`;
-    g.addColorStop(0, sh > 0 ? '#e6ebf0' : dk([170, 179, 188])); g.addColorStop(1, sh > 0 ? '#b8c0c8' : dk([89, 97, 106]));
-    ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = '#2c3238'; ctx.lineWidth = 3; ctx.stroke();
-    path(ctx, d, H, 0.026); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.save(); path(ctx, d, H); ctx.clip();
-    for (const c of p.cracks) {
-      ctx.fillStyle = 'rgba(20,24,30,0.3)'; ctx.beginPath(); ctx.arc(d.x * H + c[0][0] * H, d.y * H + c[0][1] * H, 0.035 * H, 0, 6.28); ctx.fill();
-      ctx.strokeStyle = '#14181e'; ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
-      ctx.beginPath(); c.forEach((q, i) => (i ? ctx.lineTo((d.x + q[0]) * H, (d.y + q[1]) * H) : ctx.moveTo((d.x + q[0]) * H, (d.y + q[1]) * H))); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.8; ctx.stroke();
-    }
-    ctx.restore();
-    ctx.fillStyle = '#2c3238';
-    const rv = (x, y) => { ctx.beginPath(); ctx.arc(x * H, y * H, 2, 0, 6.28); ctx.fill(); };
-    if (d.shape === 'circle') ctx.fillRect((d.x - d.r * 0.2) * H, (d.y - 0.01) * H, d.r * 1.2 * H, 0.025 * H);
-    else { rv(d.x - d.w * 0.3, d.y - d.h * 0.3); rv(d.x + d.w * 0.3, d.y - d.h * 0.3); rv(d.x - d.w * 0.3, d.y + d.h * 0.3); rv(d.x + d.w * 0.3, d.y + d.h * 0.3); }
-    ctx.restore();
-  }
+  const sh = p.armour && p.clang > 0 ? p.clang / 0.25 : 0;
+  if (sh > 0) ctx.translate((Math.random() - 0.5) * 7 * sh, (Math.random() - 0.5) * 7 * sh);
+  const s = spriteOf(E, p, H, lk);
+  // sprites are painted at the screen's pixel ratio, so an unsmoothed blit stays crisp and costs far less than a smoothed one
+  ctx.imageSmoothingEnabled = false;
+  if (s) ctx.drawImage(s.cv, s.x, s.y, s.w, s.h); else paintPart(ctx, p, H, lk);
+  cuts(ctx, p, H);
+  const glow = Math.max(sh * 0.5, p.flash / 0.16 * 0.6);
+  if (s && glow > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= glow; ctx.drawImage(s.cv, s.x, s.y, s.w, s.h); }
   ctx.restore();
 }
 
-// A joint slot: a dark slit with a faint rim, riding on its limb.
-function drawSlot(ctx, p, H, fm) {
+// The joint slots riding on their limbs: all the sprites first, then the live light over them (the open window's gold, or a glint when your tip is near).
+function drawSlots(ctx, E, F, H, fm, lk) {
+  const slots = fm.parts.filter((q) => q.slot);
+  for (const p of slots) drawPart(ctx, E, p, H, lk, p.d.frame ? fm.fr[p.d.frame] : null);
+  for (const p of slots) slotLight(ctx, F, p, H, fm);
+}
+function slotLight(ctx, F, p, H, fm) {
   const d = p.d, fr = d.frame ? fm.fr[d.frame] : null;
   ctx.save();
   if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); }
   path(ctx, d, H);
-  ctx.fillStyle = '#0b0705'; ctx.fill();
   if (state.winded > 0 && fm === state.foe && p.flash <= 0) {
     const k = 0.6 + 0.4 * Math.sin(state.m * 12);
-    ctx.save(); ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 16; ctx.strokeStyle = `rgba(255,210,74,${k})`; ctx.lineWidth = 3.5; ctx.stroke(); ctx.restore();
-  } else { ctx.strokeStyle = p.flash > 0 ? '#fff0b8' : 'rgba(255,214,150,0.55)'; ctx.lineWidth = p.flash > 0 ? 3 : 1.5; ctx.stroke(); }
+    ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 16; ctx.strokeStyle = `rgba(255,210,74,${k})`; ctx.lineWidth = 3.5; ctx.stroke();
+  } else {
+    const h = state.hand, [sx, sy] = partCenter(F, fm, p), R = TUNING.skin.glint * H, dist = Math.hypot(h.ux - sx, h.uy - sy);
+    if (dist < R) {
+      const k = Math.min(1, (1 - dist / R) * 1.6) * (0.8 + 0.2 * Math.sin(state.m * 10)), gx = (d.x + d.w * 0.25) * H, gy = (d.y - d.h / 2) * H, s = 4 + 8 * k;
+      ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 10 * k;
+      ctx.strokeStyle = `rgba(255,200,120,${0.9 * k})`; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = `rgba(255,244,200,${k})`; ctx.beginPath(); ctx.moveTo(gx, gy - s);
+      ctx.quadraticCurveTo(gx, gy, gx + s, gy); ctx.quadraticCurveTo(gx, gy, gx, gy + s); ctx.quadraticCurveTo(gx, gy, gx - s, gy); ctx.quadraticCurveTo(gx, gy, gx, gy - s); ctx.fill();
+    }
+  }
   ctx.restore();
 }
 
@@ -1128,16 +1561,41 @@ function limb(ctx, pts, w, col) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = w + 3; ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
   ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,236,214,0.22)'; ctx.lineWidth = w * 0.3; ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1] - w * 0.2) : ctx.moveTo(q[0], q[1] - w * 0.2))); ctx.stroke();
 }
 
 // Something held in the off hand (far arm), drawn in that arm's frame at the fist.
 function offHand(ctx, fr, H, fn) { ctx.save(); ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); ctx.translate(0, 0.3 * H); fn(); ctx.restore(); }
 function drawScutum(ctx, H, k) {
-  const w = 0.17 * H * k, h = 0.32 * H * k;
-  rrect(ctx, -w / 2, -h / 2, w, h, 0.04 * H * k);
-  ctx.fillStyle = '#8f2a24'; ctx.fill(); ctx.strokeStyle = '#e6c866'; ctx.lineWidth = 3; ctx.stroke();
-  ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(0, 0, 0.03 * H * k, 0, 6.28); ctx.fill();
-  ctx.strokeStyle = 'rgba(230,200,102,0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -h / 2 + 6); ctx.lineTo(0, h / 2 - 6); ctx.stroke();
+  const w = 0.17 * H * k, h = 0.32 * H * k, g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  g.addColorStop(0, '#5a1814'); g.addColorStop(0.5, '#a8352c'); g.addColorStop(1, '#621b16');
+  rrect(ctx, -w / 2, -h / 2, w, h, 0.04 * H * k); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = '#e6c866'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.strokeStyle = 'rgba(230,200,102,0.7)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, -h / 2 + 6); ctx.lineTo(0, h / 2 - 6); ctx.stroke();
+  for (const sy of [-1, 1]) for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, sy * h * 0.1); ctx.quadraticCurveTo(sx * w * 0.32, sy * h * 0.16, sx * w * 0.34, sy * h * 0.38); ctx.stroke(); }
+  const bg = ctx.createRadialGradient(-0.01 * H * k, -0.01 * H * k, 0, 0, 0, 0.035 * H * k);
+  bg.addColorStop(0, '#fbe7a6'); bg.addColorStop(1, '#8a6a20');
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(0, 0, 0.035 * H * k, 0, 6.28); ctx.fill(); ctx.strokeStyle = '#4a3410'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+// the hoplomachus's small round bronze parma
+function drawParma(ctx, H, k) {
+  const r = 0.1 * H * k, g = ctx.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.1, 0, 0, r);
+  g.addColorStop(0, '#f0cf86'); g.addColorStop(0.6, '#b07a34'); g.addColorStop(1, '#5e3e15');
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.28); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = '#2b1b08'; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,231,176,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, r * 0.78, 0, 6.28); ctx.stroke();
+  ctx.fillStyle = '#e6c866'; ctx.beginPath(); ctx.arc(0, 0, r * 0.24, 0, 6.28); ctx.fill(); ctx.strokeStyle = '#4a3410'; ctx.stroke();
+}
+const drawFoeShield = (ctx, H, k, lk) => (lk.id === 'hoplomachus' ? drawParma : drawScutum)(ctx, H, k);
+// the retiarius's net, bundled and hanging from the belt at the back hip
+function drawBeltNet(ctx, H) {
+  const x = -0.12 * H, y = -0.49 * H, w = 0.07 * H, h = 0.19 * H;
+  ctx.save(); ctx.beginPath(); ctx.moveTo(x - w * 0.2, y); ctx.quadraticCurveTo(x - w * 0.9, y + h * 0.6, x - w * 0.3, y + h);
+  ctx.quadraticCurveTo(x + w * 0.3, y + h * 1.05, x + w * 0.6, y + h * 0.8); ctx.quadraticCurveTo(x + w * 0.5, y + h * 0.3, x + w * 0.3, y); ctx.closePath();
+  ctx.fillStyle = 'rgba(200,190,160,0.35)'; ctx.fill(); ctx.strokeStyle = '#6b5a3a'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.clip();
+  ctx.strokeStyle = 'rgba(230,220,190,0.8)'; ctx.lineWidth = 1;
+  for (let i = -3; i <= 3; i++) { line(ctx, x + i * w * 0.35 - w, y, x + i * w * 0.35 + w, y + h); line(ctx, x + i * w * 0.35 + w, y, x + i * w * 0.35 - w, y + h); }
+  ctx.restore();
+  ctx.fillStyle = '#4b5059'; for (const k of [-0.3, 0.1, 0.5]) { ctx.beginPath(); ctx.arc(x + w * k, y + h * (0.95 + k * 0.05), 2.2, 0, 6.28); ctx.fill(); }
 }
 function rrect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 function drawNet(ctx, x, y, r) {
@@ -1172,12 +1630,12 @@ function drawWeapon(ctx, f, H) {
 }
 
 // who: 'you' or 'foe'. The foe also draws his weapon arm and club; yours is drawn in screen space by drawSwordArm.
-function drawFighter(ctx, E, F, fm, st, who) {
-  const H = F.H, L = lay(E), isFoe = who === 'foe';
+function drawFighter(ctx, E, F, fm, who) {
+  const H = F.H, L = lay(E), isFoe = who === 'foe', lk = lookOf(fm, isFoe);
   const P = (id) => fm.parts.find((q) => q.d.id === id);
   const fall = isFoe && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.ellipse(F.x + (isFoe ? 0 : 0), L.floor + 3, H * 0.22, H * 0.035, 0, 0, 6.28); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(F.x, L.floor + 3, H * 0.22, H * 0.035, 0, 0, 6.28); ctx.fill();
   ctx.save();
   ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
   if (isFoe && (state.stagger > 0 || state.winded > 0)) {
@@ -1190,53 +1648,28 @@ function drawFighter(ctx, E, F, fm, st, who) {
   ctx.scale(sc, sc);
   ctx.globalAlpha = isFoe && state.pop < 1 ? 1 - state.pop * 0.7 : 1;
   if (fall > 0) ctx.globalAlpha = 1 - fall * 0.5;
-  // far arm
-  const armB = P('armB'), sw = isFoe ? state.sw : null, bashing = sw && sw.pose === 'bash';
-  drawPart(ctx, armB, H, st, fm.fr.armB);
-  if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawScutum(ctx, H, 0.75));
-  if (isFoe && fm.weapon.id === 'dagger' && !(sw && sw.pose === 'net' && sw.fin <= 0)) offHand(ctx, fm.fr.armB, H, () => drawNet(ctx, 0, 0.03 * H, 0.07 * H));
-  // legs, two segments each, a stance that shifts with the sway
-  const legs = P('legs'), lc = legs.cut ? '#2b2217' : st.skin, wob = Math.sin(state.m * 2.1) * 0.015;
-  limb(ctx, [[-0.02 * H, -0.37 * H], [-0.07 * H, -0.19 * H], [(-0.12 + wob) * H, -0.02 * H]], 0.075 * H, lc);
-  limb(ctx, [[0.02 * H, -0.37 * H], [0.09 * H, -0.2 * H], [(0.12 - wob) * H, -0.02 * H]], 0.075 * H, lc);
-  ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 0.055 * H; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo((-0.12 + wob) * H, -0.012 * H); ctx.lineTo((-0.07 + wob) * H, -0.012 * H); ctx.moveTo((0.12 - wob) * H, -0.012 * H); ctx.lineTo((0.17 - wob) * H, -0.012 * H); ctx.stroke();
-  if (legs.armour) drawPart(ctx, legs, H, st, null);
-  // tunic
-  ctx.fillStyle = st.tunic; ctx.strokeStyle = st.hem; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(-0.11 * H, -0.42 * H); ctx.lineTo(0.11 * H, -0.42 * H); ctx.lineTo(0.15 * H, -0.27 * H); ctx.lineTo(-0.14 * H, -0.27 * H); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle = st.hem; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-0.01 * H, -0.4 * H); ctx.lineTo(0.0 * H, -0.28 * H); ctx.stroke();
-  drawPart(ctx, P('belly'), H, st, null);
-  ctx.fillStyle = '#3a2a1a'; ctx.fillRect(-0.105 * H, -0.5 * H, 0.21 * H, 0.03 * H);
-  ctx.fillStyle = '#d6b04a'; ctx.fillRect(0.0 * H, -0.505 * H, 0.04 * H, 0.04 * H);
-  drawPart(ctx, P('chest'), H, st, null);
-  if (!P('chest').armour) { ctx.strokeStyle = '#4a2f1a'; ctx.lineWidth = 0.025 * H; ctx.beginPath(); ctx.moveTo(-0.09 * H, -0.68 * H); ctx.lineTo(0.09 * H, -0.54 * H); ctx.stroke(); }
-  // neck and head with a gladiator helm
-  ctx.fillStyle = P('head').cut ? '#2b2217' : st.skin; ctx.fillRect(-0.025 * H, -0.74 * H, 0.06 * H, 0.06 * H);
-  const head = P('head'), hx = head.d.x * H, hy = head.d.y * H, hr = head.d.r * H;
-  drawPart(ctx, head, H, st, null);
-  if (!head.armour) {
-    ctx.fillStyle = st.cap; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(hx, hy, hr * 1.06, Math.PI * 0.92, Math.PI * 2.04); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = head.cut ? '#6a6a6a' : '#1a1410'; ctx.beginPath(); ctx.arc(hx + hr * 0.45, hy - hr * 0.05, 0.012 * H + 1, 0, 6.28); ctx.fill();
-  }
-  ctx.fillStyle = st.crest; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(hx + hr * 0.7, hy - hr * 0.8); ctx.quadraticCurveTo(hx, hy - hr * 2.0, hx - hr * 1.5, hy - hr * 0.5); ctx.lineTo(hx - hr * 0.9, hy - hr * 0.55); ctx.quadraticCurveTo(hx, hy - hr * 1.45, hx + hr * 0.4, hy - hr * 0.95); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // far arm and its shield, legs, tunic and belly, chest, head
+  const sw = isFoe ? state.sw : null, bashing = sw && sw.pose === 'bash';
+  drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
+  if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk));
+  drawPart(ctx, E, P('legs'), H, lk, null);
+  drawPart(ctx, E, P('belly'), H, lk, null);
+  if (isFoe && lk.net && !(sw && sw.pose === 'net' && sw.fin <= 0)) drawBeltNet(ctx, H);
+  drawPart(ctx, E, P('chest'), H, lk, null);
+  drawPart(ctx, E, P('head'), H, lk, null);
   // the foe's weapon arm and club
   if (isFoe) {
-    const arm = P('armF'), fr = fm.fr.armF;
-    drawPart(ctx, arm, H, st, fr);
+    const fr = fm.fr.armF;
+    drawPart(ctx, E, P('armF'), H, lk, fr);
     ctx.save(); ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot);
-    ctx.fillStyle = st.skin; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, ARM_LEN * H, 0.042 * H, 0, 6.28); ctx.fill(); ctx.stroke();
     if (hesitating()) {
       ctx.save(); ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 24; ctx.strokeStyle = `rgba(167,139,250,${0.5 + 0.4 * Math.sin(state.m * 60)})`; ctx.lineWidth = 0.07 * H; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(0, ARM_LEN * H); ctx.lineTo(0, (ARM_LEN + fm.weapon.len) * H); ctx.stroke(); ctx.restore();
     }
     if (sw && sw.pose === 'net' && sw.fin <= 0) drawNet(ctx, 0, (ARM_LEN + 0.05) * H, 0.1 * H); else drawWeapon(ctx, fm, H);
     ctx.restore();
-    for (const q of fm.parts) if (q.slot) drawSlot(ctx, q, H, fm);
-    if (fm.shield && bashing) { ctx.save(); ctx.translate((0.2 + 0.1 * (sw.fin > 0 ? 1 : clamp(sw.t / sw.wind, 0, 1))) * H, -0.52 * H); drawScutum(ctx, H, 1); ctx.restore(); }
+    drawSlots(ctx, E, F, H, fm, lk);
+    if (fm.shield && bashing) { ctx.save(); ctx.translate((0.2 + 0.1 * (sw.fin > 0 ? 1 : clamp(sw.t / sw.wind, 0, 1))) * H, -0.52 * H); drawFoeShield(ctx, H, 1, lk); ctx.restore(); }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -1787,9 +2220,9 @@ const play = {
     if (portrait(E)) { rotateCard(ctx, E); return; }
     ctx.save();
     drawBackground(ctx, E);
-    drawFighter(ctx, E, youF(E), state.you, YOU, 'you');
+    drawFighter(ctx, E, youF(E), state.you, 'you');
     if (state.netT > 0) { const Fy = youF(E); drawNet(ctx, Fy.x, Fy.y - 0.55 * Fy.H, 0.32 * Fy.H * clamp(state.netT / 0.3, 0.6, 1)); }
-    drawFighter(ctx, E, foeF(E), state.foe, FOE, 'foe');
+    drawFighter(ctx, E, foeF(E), state.foe, 'foe');
     drawGuard(ctx, E);
     foeHealth(ctx, E);
     drawZone(ctx, E);
