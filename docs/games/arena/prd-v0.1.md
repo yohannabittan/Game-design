@@ -246,3 +246,55 @@ Each opponent is rolled at setup from seeded tables, and shown on a short intro 
 ### Kept
 
 Everything else from proto 8: the trackpad sword, slots and thrusts, one hit per swing, cover, shield buttons, dodge and exhaustion.
+
+## Proto 10 (designer, 2026-10-07, after proto 9): learn the feint, a fair first bout, and your own rolled fighter
+
+Source: the designer's proto 9 playtest. "This proto is better and more fun. I need to understand feinting better. It's still a little bit hard, but I do like this quite a bit. I'd like to have my own character also randomized."
+
+The export, 8 gauntlets:
+- **The first bout is the hardest wall.** No gauntlet was won. Five of the eight ended at bout 1, mostly to a small, light opponent.
+- **Feints are never read.** Feints read 0, feints bit 3.
+- **Punish windows go unused.** Punishes 0 across every gauntlet, winded 0 or 1 per run.
+- **Lunges get punished.** The foe reads them 2 to 4 times a run.
+
+### Teach the feint
+- **A distinct look.** A feint's tell starts like the real one, then the weapon *hesitates*: a short shimmer in a different colour (violet), and the glow jumps to the real zone. The real tell keeps its colour.
+- **The first feint is a lesson.**
+  - The first feint ever shown runs in slow motion (0.4 speed) with a caption: "FEINT! He faked HIGH. Wait for the glow to settle, then block where it lands."
+  - The second feint shows a shorter reminder.
+  - After that, feints play at normal speed.
+- **Reading a feint is rewarded.** Holding no shield and dodging nothing during the fake, then blocking the real strike, flashes "Feint read!". He loses a chunk of stamina, which often winds him. This counts as `feintsRead`.
+
+### A fair ramp through the gauntlet
+- **Bout 1 is a sparring partner.**
+  - No feints, no adapting.
+  - Long tells (+40%), low stats, and he never counters after a clang.
+  - His intro card says "Sparring: learn his tells."
+- **Bout 2** adds feints, with the lesson above. **Bout 3** adds his memory of your habits. **Bout 4 and the champion** get everything.
+- **The open window.** When he is winded, time slows briefly (0.15 s), "OPEN!" appears, and his open slots glow for the window. A slot hit in the window does 1.5 times damage and counts as a punish.
+
+### Your rolled fighter (the first birth wheel, pattern L8)
+- **The roll.** Before a gauntlet, your fighter is rolled on quick wheels shown with their odds and named tiers, as in the backlog's wheel-of-fate idea:
+  1. **Size:** S, M or L.
+  2. **Strength,** 1 to 5.
+  3. **Speed,** 1 to 5.
+  4. **Stamina,** 1 to 5.
+  5. **Armour set:** light, medium or heavy.
+
+  Each wheel spins about 0.8 s and can be tapped to stop early. A "Your fighter" card follows, with a tier letter (S to D) and "Fight!". The seeded RNG is used at setup only (ADR-0008).
+- **What the rolls change.**
+
+  | Roll | Effect |
+  | --- | --- |
+  | Size | reach and body scale (your gaps move with you), hearts (S 2.5, M 3, L 3.5) and swing speed (S fast, L slow) |
+  | Strength | sword damage |
+  | Speed | swing and recovery speed, and dodge length |
+  | Stamina | bar size and regen |
+  | Armour set | where you are plated. A hit on a plated part costs a quarter heart instead of a half. Heavier sets regen stamina more slowly. |
+
+- **The 90 to 95 percent rule.** The odds lean to playable fighters. A rare very weak roll gets an underdog bonus: +1 half heart and "Underdog!" on the card.
+- **Visible in play.** Your fighter is drawn at their size with their plates. The end card shows your fighter's card beside the opponents'.
+- Your weapon stays the sword this proto. A rolled weapon is next.
+
+### Kept
+Everything else from proto 9.
