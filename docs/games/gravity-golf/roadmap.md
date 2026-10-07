@@ -11,16 +11,19 @@ The other ideas from the same day are in `docs/game-ideas.md`: Grand Tour, VS, A
 
 A **zone** is about 20 holes: four sectors of five. Each zone has its own look, its own new bodies and a chapter of the story. It ends on an animated cutscene that carries Lumen to the next zone. The select screen groups holes by zone.
 
-| Zone | Holes | Story | What is new | Status |
+| Zone | Holes (about 20 each) | Story | What is new | Status |
 | --- | --- | --- | --- | --- |
-| 1. The Galaxy | 1 to 30 | Sam and Lumen look for life; at the core, another probe ("we're not alone") | planets, moons, suns, comets, black holes | built (v0.1 to v0.12); its ending is the v0.11 cutscene |
-| 2. The Signal | 31 to 50 | Lumen follows the other probe outward. They pass strange structures someone built. | burst stars (Sector 7, v0.13), antigravity structures that push instead of pull, and a moving cup to dock with | Sector 7 being built |
-| 3. The Giant | 51 to 70 | The other probe leads Lumen to a world so big it fills the sky; Lumen plays across its surface | giant planets bigger than the screen, crater cups on the surface, rocks as mounds, moons overhead (see below) | idea, rescoped to reuse |
-| 4. First Contact | 71 to 90 | Who sent the probe | alien mode's ideas: saucers, a tractor beam, a drifting cup | idea (the backlog's alien mode) |
+| 1. The Galaxy | 1 to 30 | Sam and Lumen look for life. At the core: another probe. "We're not alone." | planets, moons, suns, comets, black holes | built |
+| 2. The Signal | 31 to 50 | Lumen follows the other probe outward. It wants to take Lumen to meet its people. | burst stars (Sector 7, built); a moving cup to dock with (Docking); more to pick | Sector 7 built |
+| 3. The Wormholes | 51 to 70 | The probe leads Lumen through a network of tunnels its people built long ago. | wormholes: enter one, leave its partner at the same speed and direction | idea |
+| 4. The Giant | 71 to 90 | They cross the probe's home system: four giant worlds. | big rooms; Gas, Ringed, Ice and Lava giants (see below) | idea |
+| 5. The Builders | 91 to 110 | **The twist.** The probe brings Lumen home to meet its people, and finds only structures and ruins. They are long gone. The probe was alone too. | Sector 1, **the Dyson sphere**: their star is wrapped in a broken shell, so the field is dark except when light sweeps through the gaps as the shell turns. Then the ruins: antigravity structures that push instead of pull. | idea |
+| 6. Home | 111 to 130 | "Come with me." Lumen takes the probe home. Our Solar System, Mercury to Neptune, with real facts. At Earth, Sam waves at the sky, as Sam did as a child. | nothing new: every body we have, in the real planets' arrangement | idea |
+| Secret: First Contact | after Home | **The secret zone.** The probe's signal home reached someone after all. The aliens come. | alien mode's ideas: saucers, a tractor beam, a drifting cup | idea; unlocks after Home |
 
 Each zone's closing cutscene is a Launch-style animated scene of about 15 s, skippable. It is the one place a zone spends art: a portrait or two plus a backdrop pack.
 
-## Zone 3, The Giant: bigger rocks, not a new game (revised 2026-10-07)
+## Zone 4, The Giant: bigger rocks, not a new game (revised 2026-10-07)
 
 The designer: "maybe the Giant as it currently stands is too big a build that doesn't reuse enough. I think we could definitely do bigger rocks though."
 
@@ -73,6 +76,15 @@ Every sector is a set of big rooms around one giant world. Each world's twist re
   1. the big-room camera, built once and shared with Grand Tour and Burst Run;
   2. the Giant's small additions: the drag band, per-body friction and crater cups;
   3. four lean content passes of 5 holes each.
+
+### Zone 5, The Builders: the Dyson sphere (designer, 2026-10-07)
+
+"Light from a star that gets blocked out by a Dyson sphere, or some kind of thing around the star, but you can still get some light sometimes."
+- **The star sits inside a shell of segments, and the shell turns slowly.** Its gaps let beams of light sweep across the field, like a lighthouse.
+- **What a beam reveals.** Only the bodies a beam is lighting can be seen. Lumen's own small light shows a little circle around the ball.
+- **The skill is memory and timing.** Watch the sweep, remember where things are, then shoot. Or wait for the beam to light your path.
+- **It reuses what exists.** The turning shell segments are movers (rotating walls), and the darkness is drawing only. The physics does not change.
+- **Story.** The shell is the builders' greatest work, and it is broken. It is the first sign that nobody is home.
 
 ## Modes alongside the zones (from the backlog)
 
