@@ -37,6 +37,13 @@ const TUNING = {
   bhPenalty: 1,          // Strokes per swallow
   bhReach: 150,          // PRD v0.4 A: a black hole's influence ring (unless it sets `reach`); inside it the pull is the full law
   bhFade: 1.5,           // Between reach and bhFade times reach the pull fades smoothly to zero; beyond, the black hole does nothing
+  // PRD v0.13 A: the burst star, a sun (pull, touch penalty) that flares on the hole clock. Each flare sends a shock front out from its surface.
+  burstPenalty: 1,       // Strokes per catch: a moving ball caught by a front goes back to its last rest
+  burstPeriod: 3,        // Seconds between flares (unless the star's `burst` sets `period`)
+  burstSpeed: 160,       // The front's speed, units per second (unless it sets `speed`; PRD: about 120 to 220)
+  burstMaxR: 330,        // The front is gone past this distance from the star's centre (unless it sets `maxR`)
+  burstBand: 16,         // The band's depth behind the front's leading edge: a moving ball whose centre it passes over is caught
+  burstGuide: 0.5,       // The faint guide circle: where the leading edge will be this many seconds ahead
   ghostSeconds: 3,       // PRD v0.4 B: the last shot's ghost keeps at most this much of the end of its flight
   ghostAlpha: 0.32,      // How strongly the ghost's dots show
   // PRD v0.9: the blind fourth star. A blind try hides the preview and the ghost and draws only a straight pointer, its length the power; physics is untouched.
@@ -169,6 +176,11 @@ const TUNING = {
     swallowHaptic: 45,
     swallowVol: 0.6,
     bhFlareTime: 0.6,
+    // Burst catches (PRD v0.13 A)
+    fizzleTime: 0.5,       // Seconds the caught ball fizzles where it was caught before it returns to its last rest
+    fizzleShrink: 0.6,     // It shrinks by this share of its radius as it fades
+    fizzleCount: 16, fizzleSpeed: 150, fizzleLife: 0.45, fizzleSize: 2.6, // White-hot sparks blown outward from the star
+    fizzleHaptic: 40, fizzleVol: 0.5,
     returnFade: 0.35,      // The ball fades in at its last rest
     // Boss banner
     bannerTime: 1.5,
@@ -236,6 +248,7 @@ const TUNING = {
         { field: '#090e22', nebula: ['#1e2a5a', '#233a6b'], whale: '#04060f', whaleRim: '#94a3b8' },
         { field: '#0b0d24', nebula: ['#7a3560', '#5a3a7a'], suns: ['#f59e0b', '#e0527a'] },
         { field: '#120c22', nebula: ['#7a3560', '#5a3a7a', '#6b2f4f'], core: '#f2b94b' },
+        { field: '#04161b', nebula: ['#0e4a57', '#123f5c', '#0b3a46'], deep: '#010509' }, // deep teal; `deep` is the dark between galaxies the stars thin into
       ],
       // Three meanings: green is the goal, purple is gravity, orange is danger and full power.
       green: '#22c55e', greenLight: '#bbf7d0', ink: '#04110a', // ink is the text on green
@@ -259,6 +272,7 @@ const TUNING = {
       trail: '#e0ecff', shadow: '#02040c',
       cometCore: '#ecfeff', cometHead: '#67e8f9', cometTail: '#22d3ee', // comets are cyan: a fast body with no pull
       bhCore: '#000000', bhRim: '#c4b5fd', bhSwirl: '#8b5cf6', bhGlow: '#6d28d9', // black holes are gravity (purple) with no surface
+      burstCore: '#ffffff', burstMid: '#e0f2fe', burstEdge: '#7dd3fc', burstRim: '#0ea5e9', burstFront: '#f8fafc', burstHalo: '#bae6fd', // burst stars: white-hot, an ice-blue corona; the countdown warms to orange (danger) before the flare
       cupDeep: '#02060a', cupEdge: '#0b1f15',
       text: '#f1f5f9', textDim: '#a3aec2', textOff: '#64748b',
       card: '#0c1330', tile: '#16203d', tileLocked: '#0a1024', tileLockedEdge: '#1b2440', retryOff: '#141c33', starOff: '#475569',
@@ -288,6 +302,7 @@ const TUNING = {
       { name: 'Deep space', stars: 0.7, warmChance: 0.05, nebulae: [0, 1], nebAlpha: [0.12, 0.18], nebR: [60, 100], whale: true },
       { name: 'Binary sunrise', stars: 0.8, warmChance: 0.4, nebulae: [1, 2], nebAlpha: [0.12, 0.2], nebR: [60, 100], sunrise: true },
       { name: 'Galactic Core', stars: 1.6, warmChance: 0.45, nebulae: [1, 2], nebAlpha: [0.1, 0.16], nebR: [60, 100], core: true },
+      { name: 'Beyond the Core', stars: 0.55, warmChance: 0.05, nebulae: [0, 1], nebAlpha: [0.12, 0.2], nebR: [70, 120], deep: true },
     ],
     meteors: {
       period: 6,           // Seconds between showers
@@ -318,6 +333,7 @@ const TUNING = {
       alpha: 0.1,
     },
     core: { x: 0.5, dy: 50, r: 330, alpha: 0.1 }, // The galaxy's core: one wide golden glow rising from below the bottom edge (sector 6)
+    deep: { from: 0.75, to: 0.05, alpha: 0.7 }, // Sector 7: the dark between galaxies, a wash over the far stars from this share of the height (none) up to that one (full alpha), so the field thins toward the top
     planet: {
       lowMass: 0.75,       // Below this: plain with a few craters
       ringMass: 1.2,       // Above this: ring system (bands in between)
@@ -346,6 +362,16 @@ const TUNING = {
       tailW: 0.9,             // Tail half-width at the head, in comet radii
       glowR: 2.4,             // Head glow, in comet radii
       pathAlpha: 0.16,        // The faint dashed path from a to b
+    },
+    // PRD v0.13 A: the burst star's telegraph and shock front. Radii in star radii unless stated; the arc and band are in design units.
+    burst: {
+      swell: 0.6, coreSwell: 0.06, // Over a cycle the corona grows by `swell` star radii and the disc by `coreSwell` (the touch radius never changes)
+      corona: 1.7, coronaAlpha: [0.35, 0.85], // Corona radius at the cycle's start, and its alpha from start to flare
+      arcGap: 6, arcW: 3, arcTrack: 0.18, arcAlpha: 0.95, arcWarm: 0.7, // Countdown arc: gap past the surface, width, the full circle's faint track; it warms to orange over the cycle's last (1 - arcWarm)
+      flashTime: 0.28, flashR: 2.6, // At the flare: a white flash out to flashR radii, fading over flashTime seconds
+      bandAlpha: 0.32, edgeW: 2.4, edgeAlpha: 0.95, fadeFrom: 0.85, // The band (a wide soft stroke) and its bright leading edge; both fade out over the last part of the reach
+      guideAlpha: 0.3, guideW: 1.2, guideDash: [3, 6], // The 0.5 s guide circle
+      rayRate: 0.3, rays: 8, rayLen: 1.7, rayAlpha: 0.5, // Slow white rays, brighter as it swells
     },
     blackhole: {
       arms: 3, armTurns: 0.7, // Swirl arms: count, and turns from the influence ring in to the horizon
@@ -512,6 +538,11 @@ TUNING.bg = TUNING.art.palette.space; // the engine reads TUNING.bg for the lett
 //   suns: { x, y, r, mass?, reach? }: pull like a planet of mass `mass` (sunMass) with the distance floored at sunPullR, within
 //     `reach` (sunReach) of the surface, fading smoothly to nothing at sunFade times that ring's radius; a touch costs
 //     sunPenalty strokes and the ball bounces on (no landing).
+//     A sun with `burst: { period?, phase?, speed?, maxR? }` is a burst star (PRD v0.13 A): it flares once per `period` (burstPeriod)
+//     seconds on the hole clock, `phase` seconds into its cycle at clock 0 (so the first flare is at clock period - phase), and each
+//     flare sends a front from its surface at `speed` (burstSpeed) units per second out to `maxR` (burstMaxR) from its centre. A moving
+//     ball whose centre the front's band (burstBand deep) passes over is caught: burstPenalty strokes and back to where the shot
+//     started. A resting ball is safe. Planets shadow the front: no band and no catch inside a planet's shadow cone from the star.
 //   movers, all on the hole clock (restarts at 0 whenever the ball comes to rest):
 //     { type: 'slide', w, h, a: { x, y }, b: { x, y }, period? }: a wall easing from a to b and back (period defaults to moverPeriod).
 //     { type: 'bar', x, y, len, phase }: a bar of length len spinning about its centre at barAngularSpeed; phase is its angle (radians) at clock 0.
@@ -754,12 +785,20 @@ const LEVELS = [
     ball: {x: 205, y: 480}, hole: {x: 269, y: 273},
     walls: [{x: 0, y: 420, w: 30, h: 22}, {x: 110, y: 420, w: 250, h: 22}, {x: 212, y: 100, w: 14, h: 180}, {x: 212, y: 340, w: 14, h: 80}, {x: 226, y: 370, w: 134, h: 50}], planets: [{x: 90, y: 560, r: 26, mass: 0.5}, {x: 110, y: 288, r: 26, mass: 0.5}, {x: 90, y: 110, r: 24, mass: 0}], suns: [{x: 320, y: 340, r: 22, mass: 1.2, reach: 30}], blackholes: [{x: 265, y: 199}], movers: [{type: "comet", a: {x: 150, y: 660}, b: {x: 150, y: 470}, period: 1.5, r: 10}, {type: "moon", parent: 2, orbitR: 52, period: 4, r: 10, mass: 0.3, phase: 0}, {type: "slide", w: 14, h: 100, a: {x: 212, y: 250}, b: {x: 212, y: 340}, period: 4}],
   },
+  {
+    // Teaches the burst star naked (sector 7 opener): one burst star between the tee and the cup, flaring on a 2.3 s cycle, its front out at 140 units/s to 230. It flares at clock 0, its front sweeps over the resting ball (safe) about 1.05 s later, and the shot goes just after the front has passed, so the front is beyond the ball's path before the ball gets there. three: drag (-45, 117) released at clock 1.65, one shot, 0 bounces, whips round the star's upper left at 16.2 from its surface into the cup; it sinks for release clocks 1.175 to 2.100 of the 2.3 s cycle (38 of 92 tried, 41.3 percent, one unbroken run); earlier the front is still coming over the tee (caught at once, or on the way in: (-45, 117) at clock 0.48 is caught at (103.8, 395.6)), later the next flare's front meets the ball on its way in. Sinks over 4.40 degrees of aim (-2.10 / +2.30) and 111.4 to 139.4 px (neighbours at least 4.25 degrees and 25.5 px); noisy human 75 percent (a sun touch or a catch is a miss). Sweep at clocks 0, 1.2, 1.65 and 2.0: 0 straight sinks; the widest any-bounce cluster is the route's own lane at 1.65 (5.5 degrees at 115 px) and the mirror whip round the star's right side at 1.2 (5.5 degrees around (-84.9, 70.0), the same lesson); at clock 0 nothing sinks. Escape: 0 timeouts. two (2 strokes): (0, 70) at clock 1.65 rests up the left at (79.0, 200.0), then (-60, 5) at clock 1.4. --two-shot: PASS (untimed two-stroke routes exist, which is par; the one-stroke route stays timed).
+    // v0.13 A (hole 31, the burst star's tutorial, built with the mechanic layer on Opus, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot, noisy human).
+    name: "Afterglow", boss: false, stars: {three: 1, two: 2},
+    ball: {x: 79, y: 460}, hole: {x: 264, y: 186},
+    walls: [], planets: [], suns: [{x: 176, y: 323, r: 22, mass: 1.2, reach: 26, burst: {period: 2.3, phase: 0, speed: 140, maxR: 230}}], blackholes: [], movers: [],
+  },
 ];
 // Clamps a hole to the size and mass limits and fills the optional fields; also applied by tools/sim-golf.mjs to a shard's JSON.
 function prepareLevel(lv) {
   lv.blackholes = lv.blackholes || [];
   for (const p of lv.planets) p.r = Math.max(p.r, T.planetMinR);
   for (const h of lv.blackholes) { if (h.r === undefined) h.r = T.holeR2; if (h.mass === undefined) h.mass = T.bhMass; }
+  for (const s of lv.suns) if (s.burst) s.burst = { period: T.burstPeriod, phase: 0, speed: T.burstSpeed, maxR: T.burstMaxR, ...s.burst };
   for (const m of lv.movers) {
     if (m.type === 'moon') m.mass = Math.min(m.mass, T.moonMassMax);
     else if (m.type === 'comet' && m.r === undefined) m.r = T.cometR;
@@ -908,6 +947,40 @@ function sunRestR(s) {
   return lo;
 }
 
+// ----- Burst stars (PRD v0.13 A): pure functions of the hole clock -----
+
+// The newest front's age in seconds: the star flares each time clock + phase passes a whole period.
+function burstAge(f, clock) { return (((clock + f.phase) % f.period) + f.period) % f.period; }
+// The cycle's progress, 0 just after a flare to 1 at the next one.
+function burstCycle(f, clock) { return burstAge(f, clock) / f.period; }
+// The half-angle (radians, seen from the star's centre) of the shadow planet p casts on the circle of radius R round star s; 0 for none.
+// Inside the tangent distance only the arc that runs through the planet is shadowed; beyond it, the whole cone.
+function shadowHalf(s, p, R) {
+  const D = dist(s.x, s.y, p.x, p.y);
+  if (D <= p.r || R <= D - p.r) return 0;
+  if (R * R >= D * D - p.r * p.r) return Math.asin(p.r / D);
+  return Math.acos(clamp((R * R + D * D - p.r * p.r) / (2 * R * D), -1, 1));
+}
+function inShadow(lv, s, x, y) {
+  const dx = x - s.x, dy = y - s.y, d = Math.hypot(dx, dy);
+  for (const p of lv.planets) {
+    const g = shadowHalf(s, p, d);
+    if (g > 0 && (dx * (p.x - s.x) + dy * (p.y - s.y)) / (d * dist(s.x, s.y, p.x, p.y)) > Math.cos(g)) return true;
+  }
+  return false;
+}
+// True when a front of star s passed over the ball's centre during the step that took it from (x0, y0) to where it is now: the gap
+// from the centre to the leading edge went through [-burstBand, 0] (a swept test, so a fast ball cannot skip the band). Older fronts
+// are larger; each is gone past maxR.
+function burstCatch(lv, s, b, x0, y0, clock) {
+  const f = s.burst, d1 = dist(b.x, b.y, s.x, s.y), d0 = dist(x0, y0, s.x, s.y);
+  for (let age = burstAge(f, clock); s.r + f.speed * age <= f.maxR; age += f.period) {
+    const g1 = d1 - s.r - f.speed * age, g0 = d0 - s.r - f.speed * Math.max(0, age - STEP);
+    if (Math.min(g0, g1) <= 0 && Math.max(g0, g1) >= -T.burstBand && !inShadow(lv, s, b.x, b.y)) return true;
+  }
+  return false;
+}
+
 function pull(b, x, y, r, mass) {
   const dx = x - b.x, dy = y - b.y, d = Math.hypot(dx, dy) || 1e-6, dd = Math.max(d, r);
   const a = (T.planetGravity * mass) / (dd * dd);
@@ -943,15 +1016,16 @@ function carry(lv, b, clock) {
 }
 
 function newBall(x, y) {
-  return { x, y, vx: 0, vy: 0, hits: 0, sunHits: 0, sunLast: -1, sunIn: 0, cometHits: 0, cometLast: -1, cometIn: 0, bh: -1,
+  return { x, y, vx: 0, vy: 0, hits: 0, sunHits: 0, sunLast: -1, sunIn: 0, cometHits: 0, cometLast: -1, cometIn: 0, bh: -1, burst: -1,
     on: -1, onA: 0, nx: 0, ny: -1, touch: false, land: false, moon: -1 };
 }
 
 function restPull() { return T.stopSpeed * -Math.log(T.friction); }
 
-// Advances the ball one fixed step. Returns null while it is still rolling, otherwise 'sink' | 'rest' | 'swallow'.
+// Advances the ball one fixed step. Returns null while it is still rolling, otherwise 'sink' | 'rest' | 'swallow' | 'burst'.
 // `clock` is the hole clock in seconds at the end of the step.
 function stepBall(lv, b, clock) {
+  const x0 = b.x, y0 = b.y;
   b.touch = false; b.land = false; b.moon = -1;
   ACC.x = 0; ACC.y = 0;
   for (const p of lv.planets) if (p.mass > 0) pull(b, p.x, p.y, p.r, p.mass);
@@ -1003,6 +1077,7 @@ function stepBall(lv, b, clock) {
     const h = lv.blackholes[i];
     if (dist(b.x, b.y, h.x, h.y) < h.r) { b.bh = i; return 'swallow'; }
   }
+  for (let i = 0; i < lv.suns.length; i++) if (lv.suns[i].burst && burstCatch(lv, lv.suns[i], b, x0, y0, clock)) { b.burst = i; return 'burst'; }
   const speed = Math.hypot(b.vx, b.vy);
   if (speed < T.sinkSpeed && dist(b.x, b.y, lv.hole.x, lv.hole.y) < T.holeR) return 'sink';
   if (hd < T.captureR) return null; // inside the cup's pull the ball always runs on and drops
@@ -1141,7 +1216,7 @@ function previewPoints(lv, b, l, clock, seconds) {
   let n = 0;
   for (let i = 1; i <= steps && n < PV.length; i++) {
     const r = stepBall(lv, PB, clock + i * STEP);
-    if (r === 'sink' || r === 'swallow') { PV[n].x = PB.x; PV[n++].y = PB.y; break; }
+    if (r === 'sink' || r === 'swallow' || r === 'burst') { PV[n].x = PB.x; PV[n++].y = PB.y; break; }
     if (r === 'rest') break;
     if (i % every === 0) { PV[n].x = PB.x; PV[n++].y = PB.y; }
   }
@@ -1315,6 +1390,7 @@ function mixHex(a, b, t) {
   return `rgb(${c(16)},${c(8)},${c(0)})`;
 }
 const WARM = Array.from({ length: 17 }, (_, i) => mixHex(P.white, P.amber, i / 16)); // ball colour toward amber as power rises; orange is full power
+const HOT = Array.from({ length: 17 }, (_, i) => mixHex(P.burstFront, P.orange, i / 16)); // a burst star's countdown arc warming to orange before the flare
 
 // Text styles, shared objects so no call builds one. One weight rule: heavy on the large size only.
 const tx = (size, color, align, weight) => ({ size, color, align, weight });
@@ -1519,6 +1595,9 @@ function buildGradients(ctx) {
     cometTail: linear(ctx, 0, 0, -1, 0, [0, rgba(P.cometHead, 0.85), 0.35, rgba(P.cometTail, 0.4), 1, rgba(P.cometTail, 0)]),
     bhLens: radial(ctx, 0, 0, 0.95, 0, 0, A.blackhole.lens, [0, rgba(P.bhGlow, 0.9), 0.3, rgba(P.bhSwirl, 0.35), 1, rgba(P.bhGlow, 0)]),
     bhCore: radial(ctx, 0, 0, 0, 0, 0, 1, [0, P.bhCore, 0.75, P.bhCore, 1, rgba(P.bhGlow, 0.9)]),
+    burstCorona: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.burstHalo, 0.9), 0.5, rgba(P.burstEdge, 0.35), 1, rgba(P.burstEdge, 0)]),
+    burstDisc: radial(ctx, -0.2, -0.2, 0.05, 0, 0, 1, [0, P.burstCore, 0.55, P.burstMid, 0.9, P.burstEdge, 1, P.burstRim]),
+    burstRays: radial(ctx, 0, 0, 0.9, 0, 0, A.burst.rayLen, [0, rgba(P.white, 0.9), 1, rgba(P.burstHalo, 0)]),
     tierGlow: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(P.tiers[4], 0.6), 0.62, rgba(P.tiers[4], 0.6), 1, rgba(P.tiers[4], 0)]), // the Black Hole tier's glow, unit radius = the glow's outer edge
   };
 }
@@ -1623,7 +1702,7 @@ function buildSky(ctx, key, sector) {
       g: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.45, rgba(c, 0.45), 1, rgba(c, 0)]),
     };
   });
-  const s = { key, sec, pal, layers, flare, neb, streaks: null, shower: -1, streakG: null, whale: null, suns: null, core: null };
+  const s = { key, sec, pal, layers, flare, neb, streaks: null, shower: -1, streakG: null, whale: null, suns: null, core: null, deep: null };
   if (sec.meteors) {
     s.streaks = Array.from({ length: A.meteors.count }, () => ({ x: 0, y: 0, c: 0, s: 0, len: 0 }));
     s.streakG = linear(ctx, 0, 0, 1, 0, [0, rgba(pal.streak, 0), 1, rgba(pal.streak, 1)]);
@@ -1631,6 +1710,7 @@ function buildSky(ctx, key, sector) {
   if (sec.whale) s.whale = whalePath();
   if (sec.sunrise) s.suns = pal.suns.map((c) => radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.35, rgba(c, 0.5), 1, rgba(c, 0)]));
   if (sec.core) s.core = radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(pal.core, 1), 0.3, rgba(pal.core, 0.45), 1, rgba(pal.core, 0)]);
+  if (sec.deep) s.deep = linear(ctx, 0, T.designH * A.deep.from, 0, T.designH * A.deep.to, [0, rgba(pal.deep, 0), 1, rgba(pal.deep, A.deep.alpha)]);
   SKY.set(key, s);
   return s;
 }
@@ -1713,6 +1793,7 @@ function drawField(ctx, key, sector, ox, oy, t) {
     }
     ctx.restore();
   }
+  if (s.deep) { ctx.globalAlpha = 1; ctx.fillStyle = s.deep; ctx.fillRect(0, 0, T.designW, T.designH); }
   if (s.streaks) drawMeteors(ctx, s, t);
   ctx.globalAlpha = 1;
 }
@@ -1939,6 +2020,90 @@ function drawSun(ctx, x, y, r, flare, t, reach) {
   }
 }
 
+// ----- Burst stars (PRD v0.13 A): white-hot, the corona swelling and the countdown arc filling over each cycle, a white flash at the flare -----
+
+// `s` is the star (a sun with `burst`), `clock` the hole clock, `flare` 0 to 1 after a touch (as a sun's), reach the pull's ring (0 for a menu badge).
+function drawBurst(ctx, s, clock, flare, t, reach) {
+  const B = A.burst, f = s.burst, u = burstCycle(f, clock), age = burstAge(f, clock), k = u * u, hot = 1 - flare, r = s.r;
+  ctx.save(); ctx.translate(s.x, s.y);
+  const C = r * (B.corona + B.swell * k + J.flareGrow * hot);
+  ctx.save(); ctx.scale(C, C); ctx.globalAlpha = Math.min(1, lerp(B.coronaAlpha[0], B.coronaAlpha[1], k) + 0.4 * hot); ctx.fillStyle = G.burstCorona;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.scale(r, r); ctx.rotate(t * B.rayRate); ctx.globalAlpha = B.rayAlpha * (0.4 + 0.6 * k); ctx.fillStyle = G.burstRays;
+  ctx.beginPath();
+  for (let i = 0, hw = (PI2 / B.rays) * 0.22; i < B.rays; i++) {
+    const a = (i * PI2) / B.rays, len = B.rayLen * (i % 2 ? 0.8 : 1) * (1 + 0.25 * k);
+    ctx.moveTo(Math.cos(a - hw), Math.sin(a - hw)); ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len); ctx.lineTo(Math.cos(a + hw), Math.sin(a + hw));
+  }
+  ctx.fill(); ctx.restore();
+  const R = r * (1 + B.coreSwell * k);
+  ctx.save(); ctx.scale(R, R); ctx.globalAlpha = 1; ctx.fillStyle = G.burstDisc; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill();
+  ctx.strokeStyle = P.burstRim; ctx.lineWidth = A.line.edge / R; ctx.beginPath(); ctx.arc(0, 0, 1 - A.line.edge / R / 2, 0, PI2); ctx.stroke(); ctx.restore();
+  const ar = r + B.arcGap;
+  ctx.lineCap = 'round'; ctx.lineWidth = B.arcW; ctx.strokeStyle = P.burstFront;
+  ctx.globalAlpha = B.arcTrack; ctx.beginPath(); ctx.arc(0, 0, ar, 0, PI2); ctx.stroke();
+  ctx.globalAlpha = B.arcAlpha; ctx.strokeStyle = HOT[Math.round(clamp((u - B.arcWarm) / (1 - B.arcWarm), 0, 1) * (HOT.length - 1))];
+  ctx.beginPath(); ctx.arc(0, 0, ar, -Math.PI / 2, -Math.PI / 2 + u * PI2); ctx.stroke();
+  if (age < B.flashTime) {
+    const q = age / B.flashTime, F = r * (1 + (B.flashR - 1) * q);
+    ctx.save(); ctx.scale(F, F); ctx.globalAlpha = 1 - q; ctx.fillStyle = G.glow; ctx.beginPath(); ctx.arc(0, 0, 1, 0, PI2); ctx.fill(); ctx.restore();
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+  if (reach) {
+    const sa = A.sun;
+    ctx.setLineDash(sa.reachDash); ctx.lineWidth = sa.reachW; ctx.strokeStyle = P.sunRay; ctx.globalAlpha = sa.reachAlpha;
+    ctx.beginPath(); ctx.arc(s.x, s.y, reach, 0, PI2); ctx.stroke(); ctx.setLineDash(NO_DASH); ctx.globalAlpha = 1;
+  }
+}
+
+// Strokes the circle of radius R round star s, leaving out the arcs the planets shadow (the same cones the catch test uses).
+const GAPS = new Float64Array(64);
+function shadowedCircle(ctx, lv, s, R) {
+  let n = 0;
+  for (let i = 0; i < lv.planets.length && n < GAPS.length / 2; i++) {
+    const p = lv.planets[i], g = shadowHalf(s, p, R);
+    if (g <= 0) continue;
+    const a = ((Math.atan2(p.y - s.y, p.x - s.x) - g) % PI2 + PI2) % PI2;
+    let j = n++;
+    while (j > 0 && GAPS[2 * j - 2] > a) { GAPS[2 * j] = GAPS[2 * j - 2]; GAPS[2 * j + 1] = GAPS[2 * j - 1]; j--; } // kept sorted by start
+    GAPS[2 * j] = a; GAPS[2 * j + 1] = a + 2 * g;
+  }
+  ctx.beginPath();
+  if (!n) ctx.arc(s.x, s.y, R, 0, PI2);
+  else {
+    const first = GAPS[0];
+    let end = GAPS[1];
+    for (let i = 1; i < n; i++) {
+      if (GAPS[2 * i] > end) arcSeg(ctx, s, R, end, GAPS[2 * i]);
+      end = Math.max(end, GAPS[2 * i + 1]);
+    }
+    if (end < first + PI2) arcSeg(ctx, s, R, end, first + PI2);
+  }
+  ctx.stroke();
+}
+function arcSeg(ctx, s, R, a0, a1) { ctx.moveTo(s.x + Math.cos(a0) * R, s.y + Math.sin(a0) * R); ctx.arc(s.x, s.y, R, a0, a1); }
+
+// Star s's shock fronts: each a soft band burstBand deep behind a bright leading edge, fading over the last part of its reach, and the
+// faint guide circle where the edge will be burstGuide seconds on (the coming flare's too, in its last burstGuide seconds).
+function drawFronts(ctx, lv, s, clock) {
+  const B = A.burst, f = s.burst;
+  for (let age = burstAge(f, clock) - f.period; s.r + f.speed * age <= f.maxR; age += f.period) {
+    const R = s.r + f.speed * age, Rg = R + f.speed * T.burstGuide;
+    if (age >= 0) {
+      const a = lerp(0.35, 1, clamp((1 - R / f.maxR) / (1 - B.fadeFrom), 0, 1));
+      ctx.strokeStyle = P.burstHalo; ctx.lineWidth = T.burstBand; ctx.globalAlpha = B.bandAlpha * a;
+      shadowedCircle(ctx, lv, s, Math.max(s.r, R - T.burstBand / 2));
+      ctx.strokeStyle = P.burstFront; ctx.lineWidth = B.edgeW; ctx.globalAlpha = B.edgeAlpha * a;
+      shadowedCircle(ctx, lv, s, R);
+    }
+    if (Rg >= s.r && Rg <= f.maxR) {
+      ctx.setLineDash(B.guideDash); ctx.strokeStyle = P.burstFront; ctx.lineWidth = B.guideW; ctx.globalAlpha = B.guideAlpha;
+      shadowedCircle(ctx, lv, s, Rg); ctx.setLineDash(NO_DASH);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 // ----- Comets: a bright cyan head and a tail trailing its motion; the path is a faint dashed line -----
 
 function drawCometPath(ctx, m) {
@@ -2081,7 +2246,8 @@ function iconOf(lv) {
   let k = ICON.get(lv);
   if (!k) {
     k = { kind: 'slab', obj: null, moon: lv.movers.find((m) => m.type === 'moon') || null };
-    if (lv.blackholes.length) k.kind = 'bh';
+    if (lv.suns.some((s) => s.burst)) { k.kind = 'burst'; k.obj = lv.suns.find((s) => s.burst); }
+    else if (lv.blackholes.length) k.kind = 'bh';
     else if (lv.movers.some((m) => m.type === 'comet')) k.kind = 'comet';
     else if (lv.suns.length) { k.kind = 'sun'; k.obj = lv.suns[0]; }
     else if (lv.planets.length) { k.kind = 'planet'; k.obj = lv.planets.reduce((a, p) => (p.mass > a.mass ? p : a)); }
@@ -2093,7 +2259,11 @@ function iconOf(lv) {
 
 function drawBadge(ctx, lv, cx, cy, t) {
   const k = iconOf(lv), tl = A.tile, r = tl.iconR;
-  if (k.kind === 'bh') {
+  if (k.kind === 'burst') {
+    BADGE_BURST.x = cx; BADGE_BURST.y = cy; BADGE_BURST.r = tl.sunR;
+    drawBurst(ctx, BADGE_BURST, t, 1, t, 0);
+    if (lv.boss) drawBossHalo(ctx, cx, cy, r);
+  } else if (k.kind === 'bh') {
     BADGE_BH.x = cx; BADGE_BH.y = cy; BADGE_BH.r = r * 0.62; BADGE_BH.reach = r * tl.bhReach;
     drawBlackHole(ctx, BADGE_BH, t, 1);
     if (lv.boss) drawBossHalo(ctx, cx, cy, r);
@@ -2119,6 +2289,7 @@ function drawBadge(ctx, lv, cx, cy, t) {
   if (k.moon) drawPlanet(ctx, cx + r * 1.35, cy - r * 0.95, r * 0.36, k.moon, k.moon.mass, lv.boss);
 }
 
+const BADGE_BURST = { x: 0, y: 0, r: 0, burst: { period: 2, phase: 0 } }; // a tile's burst star: its countdown runs on the menu's clock
 const BADGE_BH = { x: 0, y: 0, r: 0, reach: 0 }, BADGE_COMET = { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, period: 1, r: 0 };
 
 function drawBossHalo(ctx, cx, cy, r) {
@@ -2135,7 +2306,7 @@ function loadHole(idx) {
   S.idx = idx; S.lv = lv;
   S.ball = newBall(lv.ball.x, lv.ball.y);
   S.strokes = 0;
-  S.phase = 'aim';       // aim | fly | sink | swallow
+  S.phase = 'aim';       // aim | fly | sink | swallow | fizzle (caught by a burst front)
   S.from = { x: lv.ball.x, y: lv.ball.y, on: -1, onA: 0, planet: false, pi: -1 }; // where the current shot started (the last rest); pi: the planet it sat on
   S.restPlanet = false;  // the ball rests on a planet or moon (for Touchdown and Never Landed)
   S.swT = 0; S.swX = 0; S.swY = 0; S.swBh = -1;
@@ -2145,14 +2316,14 @@ function loadHole(idx) {
   S.aim = null;          // active pointer aim: { id, sx, sy, x, y }
   S.key = { on: false, angle: Math.atan2(lv.hole.y - lv.ball.y, lv.hole.x - lv.ball.x), power: T.keyPowerStart };
   S.sinkT = 0; S.sinkFrom = null;
-  S.time = 0; S.swallows = 0; S.lands = 0; // for the ledger and the badge progress
+  S.time = 0; S.swallows = 0; S.caught = 0; S.lands = 0; // for the ledger and the badge progress
   S.stuck = 0; S.stuckSaid = false;       // shots from a planet or sun that ended back on it (the 'More power' toast)
   S.kz = new Uint8Array(lv.walls.length + 4); S.kzLeft = lv.walls.length + 4; // Kessler Cascade: the walls and four edges touched so far on this hole
   ghostClear();
 }
 
 // The clock the moving parts are drawn at: the flight's own clock while it runs (and on through a swallow), the aiming clock otherwise.
-function partClock() { return S.phase === 'aim' ? S.clock : S.clock0 + S.steps * STEP + (S.phase === 'swallow' ? S.swT : 0); }
+function partClock() { return S.phase === 'aim' ? S.clock : S.clock0 + S.steps * STEP + (S.phase === 'swallow' || S.phase === 'fizzle' ? S.swT : 0); }
 
 // Current aim as a launch, from the pointer drag or the keyboard fallback.
 function currentLaunch() {
@@ -2217,10 +2388,10 @@ function onPlanet(lv, b) {
   return false;
 }
 
-// After a swallow the ball is back where the shot started, as a rest (a moon rider is back on its moon).
+// After a swallow or a burst catch the ball is back where the shot started, as a rest (a moon rider is back on its moon).
 function returnToLastRest() {
   const b = S.ball, f = S.from;
-  b.x = f.x; b.y = f.y; b.on = f.on; b.onA = f.onA; b.bh = -1;
+  b.x = f.x; b.y = f.y; b.on = f.on; b.onA = f.onA; b.bh = -1; b.burst = -1;
   comeToRest();
 }
 
@@ -2250,7 +2421,7 @@ function finishHole(E) {
   const ev = { touchdown: S.from.planet, untouched: lv.suns.length > 0 && S.ball.sunHits === 0,
     runDone: inRun && !hasNext, runStrokes: RUN.strokes, runLanded: RUN.landed,
     strokes, three: lv.stars.three, dark: SINK.dark, great: SINK.great, slow: SINK.slow, long: S.time >= T.badges.heatMinutes * 60, kessler: S.kzLeft === 0 };
-  E.ledger.add('hole', { hole: S.idx + 1, blind: S.blind, strokes, stars, swallows: S.swallows, sun: S.ball.sunHits, landed: S.lands > 0, time: S.time, run: inRun });
+  E.ledger.add('hole', { hole: S.idx + 1, blind: S.blind, strokes, stars, swallows: S.swallows, caught: S.caught, sun: S.ball.sunHits, landed: S.lands > 0, time: S.time, run: inRun });
   E.save.update('prog', (g) => {
     const o = { ...g, lands: (g.lands || 0) + S.lands };
     if (lv.suns.length) o.sunBest = Math.min(g.sunBest === undefined ? Infinity : g.sunBest, S.ball.sunHits);
@@ -2533,7 +2704,17 @@ function swallowFx(E, i) {
   E.tween(J.bhFlareTime, (k) => { flare[i] = k; }, ease.outCubic);
 }
 
-// Back at the last rest after a swallow: the ball fades in there, with no trail leading to it.
+// A burst front catches the ball: the penalty stroke pops, a crackle and a buzz, and white-hot sparks blow outward from the star.
+function fizzleFx(E, i) {
+  const b = S.ball, s = S.lv.suns[i], a = Math.atan2(b.y - s.y, b.x - s.x);
+  E.audio.play('miss'); E.audio.noise({ dur: J.fizzleTime, gain: 0.25 * J.fizzleVol });
+  E.haptic(J.fizzleHaptic);
+  popShots(E);
+  burst(E, b.x, b.y, { count: J.fizzleCount, color: P.burstFront, speed: J.fizzleSpeed, life: J.fizzleLife, size: J.fizzleSize, angle: a, spread: 2.2 });
+  burst(E, b.x, b.y, { count: J.fizzleCount / 2, color: P.burstEdge, speed: J.fizzleSpeed * 0.6, life: J.fizzleLife, size: J.fizzleSize * 0.8, angle: a, spread: 3 });
+}
+
+// Back at the last rest after a swallow or a catch: the ball fades in there, with no trail leading to it.
 function returnFx(E) {
   TRAIL.n = 0;
   FX.ghost = false; FX.retry = 0;
@@ -3049,9 +3230,9 @@ const play = {
       if (S.sinkT >= T.sinkTime) finishHole(E);
       return;
     }
-    if (S.phase === 'swallow') {
+    if (S.phase === 'swallow' || S.phase === 'fizzle') {
       S.swT += dt;
-      if (S.swT >= J.swallowTime) { returnToLastRest(); returnFx(E); }
+      if (S.swT >= (S.phase === 'swallow' ? J.swallowTime : J.fizzleTime)) { returnToLastRest(); returnFx(E); }
       return;
     }
     // Fixed-step accumulator: outcomes depend on the drag and the release clock, never on the frame rate.
@@ -3077,6 +3258,9 @@ const play = {
       else if (r === 'swallow') {
         S.phase = 'swallow'; S.swT = 0; S.swX = b.x; S.swY = b.y; S.swBh = b.bh;
         S.strokes += T.bhPenalty; S.swallows++; swallowFx(E, b.bh);
+      } else if (r === 'burst') {
+        S.phase = 'fizzle'; S.swT = 0; S.swX = b.x; S.swY = b.y;
+        S.strokes += T.burstPenalty; S.caught++; fizzleFx(E, b.burst);
       } else if (r === 'rest') {
         const lag = !b.touch && !b.land && b.moon < 0 && b.on < 0 && Math.hypot(b.vx, b.vy) < T.stopSpeed && lagrangeAt(S.lv, b, clk);
         const broke = !RUN.landed; comeToRest(); restFx(E); restNotes(E, broke && RUN.landed);
@@ -3101,7 +3285,11 @@ const play = {
       else if (m.type === 'comet') drawCometPath(ctx, m);
     }
     for (let i = 0; i < lv.blackholes.length; i++) drawBlackHole(ctx, lv.blackholes[i], t, FX.bhFlare[i]);
-    for (let i = 0; i < lv.suns.length; i++) { const s = lv.suns[i]; drawSun(ctx, s.x, s.y, s.r, FX.flare[i], t, sunReach(s)); }
+    for (let i = 0; i < lv.suns.length; i++) if (lv.suns[i].burst) drawFronts(ctx, lv, lv.suns[i], clock);
+    for (let i = 0; i < lv.suns.length; i++) {
+      const s = lv.suns[i];
+      if (s.burst) drawBurst(ctx, s, clock, FX.flare[i], t, sunReach(s)); else drawSun(ctx, s.x, s.y, s.r, FX.flare[i], t, sunReach(s));
+    }
     for (let i = 0; i < lv.planets.length; i++) { const p = lv.planets[i]; drawPlanet(ctx, p.x, p.y, p.r, p, p.mass, lv.boss, FX.ring[i]); }
     for (let i = 0; i < lv.walls.length; i++) drawWall(ctx, lv.walls[i]);
     for (let i = 0; i < mv.length; i++) {
@@ -3138,6 +3326,10 @@ const play = {
       const h = lv.blackholes[S.swBh], k = clamp(S.swT / J.swallowTime, 0, 1), d = dist(S.swX, S.swY, h.x, h.y) * (1 - ease.inQuad(k));
       const a = Math.atan2(S.swY - h.y, S.swX - h.x) + J.swallowTurns * PI2 * k;
       bx = h.x + Math.cos(a) * d; by = h.y + Math.sin(a) * d; br = T.ballR * (1 - k); ba = 1 - 0.4 * k;
+    } else if (S.phase === 'fizzle') { // flickers, shrinks and fades where the front caught it
+      const k = clamp(S.swT / J.fizzleTime, 0, 1);
+      bx = S.swX; by = S.swY; br = T.ballR * (1 - J.fizzleShrink * k); ba = (1 - k) * (0.6 + 0.4 * Math.abs(Math.sin(S.swT * 40)));
+      drawGlow(ctx, bx, by, T.ballR * (1.6 + k), 0.7 * (1 - k));
     } else {
       br = T.ballR * FX.pop; ba = FX.retry;
       if (FX.glow > 0.01) drawGlow(ctx, bx, by, T.ballR + J.glowR + J.glowRPower * FX.power, FX.glow * J.glowAlpha);
@@ -3391,6 +3583,7 @@ const SAM = {
     ['No life. Still beautiful, though.', "It's very quiet out there, isn't it?"], // and SAM.mid once hole 18 has been finished
     ['Two suns. Still nobody home.', "They keep asking what we've found.", "I'm not giving up on you."],
     ['This is it, Lumen.', 'Make every shot count.', "Whatever's there, we find it together."],
+    ['Stay close to it, Lumen.', 'Bursts! Time it, time it...', 'Our new friend is fast.'], // PRD v0.13 C: holes 31 to 35
   ],
   mid: 'When I was a kid, I waved at the sky every night.',
   show: 'No guide lines? Show-off.',
@@ -3399,8 +3592,9 @@ const SAM = {
 const SECTOR_LOG = [
   'Log: rocks and starlight. No life.', 'Log: gas and dust. No life. Yet.', 'Log: ice and rock at speed. No life.',
   'Log: dark and quiet. No life.', 'Log: two suns, warm planets. Still no life.', 'Log: crowded, bright, loud. Listening...',
+  'Log: following the signal. It went this way.',
 ];
-// The Probe Log: every fact is true (checked against a general reference). Keys: first, the body kinds, s1 to s5 (sectors), r2 to r16 (ranks).
+// The Probe Log: every fact is true (checked against a general reference). Keys: first, the body kinds, s1 to s6 (sectors), r2 to r16 (ranks).
 const FACTS = [
   { k: 'first', t: 'Voyager 2 used gravity assists to visit all four giant planets.' },
   { k: 'planet', t: "Planets don't shine; they reflect their star's light." },
@@ -3409,11 +3603,13 @@ const FACTS = [
   { k: 'binary', t: 'Many stars come in pairs, circling a shared centre.' },
   { k: 'blackhole', t: 'Not even light escapes past the edge, the event horizon.' },
   { k: 'comet', t: "A comet's tail points away from the Sun, pushed by sunlight and solar wind." },
+  { k: 'burst', t: 'Gamma-ray bursts are the brightest explosions known in the universe.' },
   { k: 's1', t: 'Many nebulae are clouds of gas and dust where stars are born.' },
   { k: 's2', t: "A meteor shower is Earth crossing a comet's dust trail." },
   { k: 's3', t: 'Light from far galaxies left them millions to billions of years ago.' },
   { k: 's4', t: 'Real planets circle two suns; Kepler-16b was found in 2011.' },
   { k: 's5', t: "Our galaxy's centre holds a black hole of four million Suns." },
+  { k: 's6', t: 'The space between galaxies is emptier than any vacuum we can make.' },
   { k: 'r2', t: 'Ganymede, a moon of Jupiter, is wider than Mercury.' },
   { k: 'r3', t: 'Earth is the only planet known to have life. So far.' },
   { k: 'r4', t: 'All the other planets could fit inside Jupiter.' },
@@ -3433,13 +3629,14 @@ const FACTS = [
 const FACT_TEXT = Object.fromEntries(FACTS.map((f) => [f.k, f.t]));
 const CATCH_UP = 'Probe Log updated';
 
-// The kinds of body on a hole (a mass-0 bumper is not a planet; two suns are a binary).
+// The kinds of body on a hole (a mass-0 bumper is not a planet; two plain suns are a binary; a burst star is its own kind).
 function bodiesOf(lv) {
-  const o = [];
+  const o = [], suns = lv.suns.filter((s) => !s.burst).length;
   if (lv.planets.some((p) => p.mass > 0)) o.push('planet');
   if (lv.movers.some((m) => m.type === 'moon')) o.push('moon');
-  if (lv.suns.length) o.push('sun');
-  if (lv.suns.length > 1) o.push('binary');
+  if (suns) o.push('sun');
+  if (suns > 1) o.push('binary');
+  if (suns < lv.suns.length) o.push('burst');
   if (lv.blackholes.length) o.push('blackhole');
   if (lv.movers.some((m) => m.type === 'comet')) o.push('comet');
   return o;

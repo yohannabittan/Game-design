@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // sim-golf: run shots through Gravity Golf's real physics (games/gravity-golf/src/game.js, via game.sim).
 //
-//   node tools/sim-golf.mjs <hole.json> --drag DX,DY [--clock T] [--fps 60]   one shot from the tee (swallows and comet hits too)
+//   node tools/sim-golf.mjs <hole.json> --drag DX,DY [--clock T] [--fps 60]   one shot from the tee (swallows, burst catches and comet hits too)
 //   node tools/sim-golf.mjs <hole.json> --sweep [--drag DX,DY] [--clock T]     no-straight-ace sweep (PRD v0.2 C), aim window,
 //                                                                              any-bounce sinks and the widest aim cluster
 //   node tools/sim-golf.mjs <hole.json> --escape                               escape sweep and 1500 chained random shots (PRD v0.2 D);
@@ -16,7 +16,9 @@
 //
 // hole.json is exactly one entry of the LEVELS array in game.js (see docs/games/gravity-golf/README.md).
 // Drags are screen px as the finger moves (dx right, dy down); the ball flies the opposite way. Clocks are hole-clock
-// seconds at release. Exit code 0 when every check run passes, 1 when one fails, 2 on a usage error.
+// seconds at release. Burst stars (PRD v0.13 A) are in every command: a shot caught by a front costs burstPenalty and goes back to its
+// last rest, exactly like a swallow, and their cycles count as moving parts for release clocks. Exit code 0 when every check run
+// passes, 1 when one fails, 2 on a usage error.
 
 import { readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -56,6 +58,7 @@ if (flag('--index')) {
   for (const m of lv.movers) if (m.type === 'moon' && !lv.planets[m.parent]) die(`moon parent ${m.parent} is not a planet index`);
   for (const m of lv.movers) if (m.type === 'comet' && !(m.a && m.b && Number.isFinite(m.a.x + m.a.y + m.b.x + m.b.y) && m.period > 0)) die('a comet needs a: {x, y}, b: {x, y} and period > 0');
   for (const h of lv.blackholes) if (!Number.isFinite(h.x + h.y)) die('a black hole needs x and y');
+  for (const s of lv.suns) if (s.burst && !(typeof s.burst === 'object' && (s.burst.period ?? 1) > 0 && (s.burst.speed ?? 1) > 0)) die('a burst star needs burst: { period > 0, phase, speed > 0, maxR }');
   sim.prepareLevel(lv);
 }
 
@@ -72,6 +75,7 @@ const bodies = [
 
 // dts(i) gives the i-th frame's dt (null: one physics step per frame). Returns the outcome; the ball is left where it rests,
 // or, after a swallow, back where the shot started (its last rest), as the game does.
+// A burst catch (res 'burst') returns the ball the same way, with burstPenalty.
 function flight(b, l, clock0, dts) {
   const v = sim.launchVel(lv, b, l, clock0), from = { x: b.x, y: b.y, on: b.on, onA: b.onA };
   b.vx = v.vx; b.vy = v.vy; b.on = -1; b.sunIn = 0; b.cometIn = 0;
@@ -87,12 +91,12 @@ function flight(b, l, clock0, dts) {
       if (!res && steps * STEP >= T.maxFlightSeconds) res = 'timeout';
     }
   }
-  const swallowed = res === 'swallow' ? 1 : 0, bh = b.bh, sx = b.x, sy = b.y;
-  if (swallowed) { b.x = from.x; b.y = from.y; b.on = from.on; b.onA = from.onA; b.bh = -1; }
+  const swallowed = res === 'swallow' ? 1 : 0, caught = res === 'burst' ? 1 : 0, bh = b.bh, star = b.burst, sx = b.x, sy = b.y;
+  if (swallowed || caught) { b.x = from.x; b.y = from.y; b.on = from.on; b.onA = from.onA; b.bh = -1; b.burst = -1; }
   if (res !== 'sink') { b.vx = b.vy = 0; sim.carry(lv, b, 0); }
   const sunPen = (b.sunHits - sun0) * T.sunPenalty;
-  return { res, steps, seconds: steps * STEP, hits: b.hits - hits0, comets: b.cometHits - comet0, swallowed, bh, sx, sy, sunPen,
-    penalties: sunPen + swallowed * T.bhPenalty, minSurf, x: b.x, y: b.y };
+  return { res, steps, seconds: steps * STEP, hits: b.hits - hits0, comets: b.cometHits - comet0, swallowed, caught, bh, star, sx, sy, sunPen,
+    penalties: sunPen + swallowed * T.bhPenalty + caught * T.burstPenalty, back: swallowed || caught, minSurf, x: b.x, y: b.y };
 }
 
 function teeShot(dx, dy, clock0 = 0, dts = null) {
@@ -142,9 +146,10 @@ const fpsModes = () => { const rng = makeRng(hashString(lv.name) + 1); return [[
 const clockArg = Number(value('--clock') ?? 0);
 if (!Number.isFinite(clockArg) || clockArg < 0) die('--clock must be a number of seconds, 0 or more');
 
-const nComets = lv.movers.filter((m) => m.type === 'comet').length;
+const nComets = lv.movers.filter((m) => m.type === 'comet').length, nBursts = lv.suns.filter((s) => s.burst).length;
+const timed = lv.movers.length > 0 || nBursts > 0; // release clocks matter: moving parts or burst cycles
 console.log(`${lv.name}: tee (${lv.ball.x},${lv.ball.y}), cup (${lv.hole.x},${lv.hole.y}), three ${lv.stars.three} / two ${lv.stars.two}${lv.boss ? ', boss' : ''}; ` +
-  `${lv.walls.length} walls, ${lv.planets.length} planets, ${lv.suns.length} suns, ${lv.movers.length} movers` +
+  `${lv.walls.length} walls, ${lv.planets.length} planets, ${lv.suns.length} suns${nBursts ? ` (${nBursts} burst)` : ''}, ${lv.movers.length} movers` +
   `${nComets || lv.blackholes.length ? ` (${nComets} comets), ${lv.blackholes.length} black holes` : ''}`);
 const teeBad = overlap(lv.ball.x, lv.ball.y) || (sim.inSweep(lv, sim.newBall(lv.ball.x, lv.ball.y)) && 'a mover sweep zone');
 if (teeBad) fail(`the tee overlaps ${teeBad}`);
@@ -171,10 +176,11 @@ if (drag && !flag('--sweep')) {
   const r = teeShot(drag[0], drag[1], clockArg, fps ? () => 1 / fps : null);
   if (!r) die('the drag is inside the dead zone (shorter than dragDead)');
   const where = r.res === 'sink' ? 'SINK' : r.swallowed ? `SWALLOWED by black hole ${r.bh} at (${f1(r.sx)}, ${f1(r.sy)}), back at its last rest (${f1(r.x)}, ${f1(r.y)})`
+    : r.caught ? `CAUGHT by sun ${r.star}'s burst front at (${f1(r.sx)}, ${f1(r.sy)}) after ${r.seconds.toFixed(3)} s (clock ${(clockArg + r.seconds).toFixed(3)}), back at its last rest (${f1(r.x)}, ${f1(r.y)})`
     : `${r.res === 'timeout' ? 'TIMEOUT (forced rest)' : 'rests'} at (${f1(r.x)}, ${f1(r.y)})`;
   const pass = bodies.map((o, k) => `${o.label} ${f1(r.minSurf[k])}`).join(', ') || 'no pulling bodies';
   console.log(`shot drag (${drag}) at clock ${clockArg}${fps ? ` at ${fps} fps` : ''}: ${where}; strokes charged ${1 + r.penalties} (sun penalties ${r.sunPen}` +
-    `${lv.blackholes.length ? `, swallows ${r.swallowed}` : ''}); bounces ${r.hits}${nComets ? `, comet hits ${r.comets}` : ''}; closest pass to a surface: ${pass}; flight ${r.seconds.toFixed(2)} s`);
+    `${lv.blackholes.length ? `, swallows ${r.swallowed}` : ''}${nBursts ? `, burst catches ${r.caught}` : ''}); bounces ${r.hits}${nComets ? `, comet hits ${r.comets}` : ''}; closest pass to a surface: ${pass}; flight ${r.seconds.toFixed(2)} s`);
   if (r.res === 'timeout') fail('the flight timed out');
 }
 
@@ -232,7 +238,7 @@ if (flag('--escape')) {
       if (o.mover !== undefined) { b0.on = o.mover; b0.onA = ang; }
       const bad = overlap(b0.x, b0.y, 0, o.planet ?? -1, o.mover ?? -1);
       if (bad) { row.push(`${k * 45}: blocked (${bad})`); continue; }
-      let best = 0, n = 0, clear = 0;
+      let best = 0, n = 0, clear = 0, caught = 0;
       for (let deg = 0; deg < 360; deg++) {
         const b = { ...b0 }, rad = (deg * Math.PI) / 180;
         const l = { vx: Math.cos(rad) * T.powerMax, vy: Math.sin(rad) * T.powerMax, power: 1 };
@@ -242,25 +248,26 @@ if (flag('--escape')) {
           res = sim.stepBall(lv, b, s * STEP);
           const c = o.at(s * STEP); far = Math.max(far, Math.hypot(b.x - c.x, b.y - c.y));
         }
+        if (res === 'burst') caught++; // a front ended the flight: its reach so far counts
         best = Math.max(best, far); if (far >= 250) n++; if (o.sun !== undefined && far >= restR) clear++;
       }
       worst = Math.min(worst, best);
-      row.push(`${k * 45}: ${best.toFixed(0)} (${n} of 360 directions reach 250${o.sun !== undefined ? `, ${clear} reach the rest radius` : ''})`);
+      row.push(`${k * 45}: ${best.toFixed(0)} (${n} of 360 directions reach 250${o.sun !== undefined ? `, ${clear} reach the rest radius` : ''}${caught ? `, ${caught} caught by a front` : ''})`);
       if (o.sun !== undefined && clear < 30) fail(`${o.label}: from ${k * 45} degrees only ${clear} of 360 directions reach its rest radius (${restR.toFixed(1)}); 30 needed`);
     }
     console.log(`escape from ${o.label}, best full-power reach from each surface point (degrees clockwise from east): ${row.join('; ')}`);
     if (worst < 250) fail(`${o.label}: a surface point cannot reach 250 units`);
   }
   const rng = makeRng(hashString(lv.name));
-  let b = sim.newBall(lv.ball.x, lv.ball.y), sunk = 0, timeouts = 0, stuck = 0, swept = 0, hit = 0, landed = 0, riding = 0, longest = 0, swallowed = 0, cometHits = 0;
+  let b = sim.newBall(lv.ball.x, lv.ball.y), sunk = 0, timeouts = 0, stuck = 0, swept = 0, hit = 0, landed = 0, riding = 0, longest = 0, swallowed = 0, caught = 0, cometHits = 0;
   for (let s = 0; s < 1500; s++) {
-    const ang = rng() * Math.PI * 2, len = T.dragDead + rng() * (T.dragMax - T.dragDead), clock = lv.movers.length ? rng() * 6 : 0;
+    const ang = rng() * Math.PI * 2, len = T.dragDead + rng() * (T.dragMax - T.dragDead), clock = timed ? rng() * 6 : 0;
     sim.carry(lv, b, clock);
     const r = flight(b, sim.launchFromDrag(Math.cos(ang) * len, Math.sin(ang) * len), clock, null);
     longest = Math.max(longest, r.seconds); cometHits += r.comets;
     if (r.res === 'timeout') timeouts++;
     if (r.res === 'sink') { sunk++; b = sim.newBall(lv.ball.x, lv.ball.y); continue; }
-    if (r.swallowed) { swallowed++; continue; } // back at its last rest, which was already checked
+    if (r.back) { swallowed += r.swallowed; caught += r.caught; continue; } // back at its last rest, which was already checked
     if (b.on >= 0) { riding++; continue; }
     const onPlanet = lv.planets.findIndex((p) => Math.hypot(b.x - p.x, b.y - p.y) < p.r + T.ballR + 0.5);
     if (onPlanet >= 0) landed++;
@@ -268,9 +275,9 @@ if (flag('--escape')) {
     if (sim.inSweep(lv, b)) swept++;
     if (lv.movers.length && hitWhileAiming(b.x, b.y)) hit++;
   }
-  console.log(`1500 chained random shots${lv.movers.length ? ' at random release clocks' : ''}: sinks ${sunk}, timeouts ${timeouts}, rests overlapping something ${stuck}, ` +
+  console.log(`1500 chained random shots${timed ? ' at random release clocks' : ''}: sinks ${sunk}, timeouts ${timeouts}, rests overlapping something ${stuck}, ` +
     `rests in a mover sweep zone ${swept}, rests a mover touches within 10 s of aiming ${hit}, landed on a planet ${landed}, riding a moon ${riding}` +
-    `${lv.blackholes.length ? `, swallowed by a black hole ${swallowed}` : ''}${nComets ? `, comet hits ${cometHits}` : ''}, longest flight ${longest.toFixed(2)} s`);
+    `${lv.blackholes.length ? `, swallowed by a black hole ${swallowed}` : ''}${nBursts ? `, caught by a burst front ${caught}` : ''}${nComets ? `, comet hits ${cometHits}` : ''}, longest flight ${longest.toFixed(2)} s`);
   if (timeouts || stuck || swept || hit) fail('random shots found a timeout or a stuck ball');
 }
 
@@ -286,7 +293,7 @@ if (flag('--three')) {
       if (!l) return { res: 'dead zone', strokes };
       sim.carry(lv, b, sh.c);
       last = flight(b, l, sh.c, dts); strokes += 1 + last.penalties;
-      if (last.res === 'sink' || last.res === 'timeout') break; // a swallowed shot plays on from its last rest
+      if (last.res === 'sink' || last.res === 'timeout') break; // a swallowed or caught shot plays on from its last rest
     }
     return { res: last.res, strokes, last, ball: b };
   };
@@ -306,7 +313,7 @@ if (flag('--three')) {
   for (let n = 0; n < route.length - 1; n++) {
     let fin = 0; const r0 = play(route.slice(0, n + 1), null);
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) if (good(play(nudged(n, i, j), null))) fin++;
-    console.log(`  shot ${n + 1} ${r0.last && r0.last.swallowed ? 'is swallowed and returns to' : 'rests at'} (${f1(r0.ball.x)}, ${f1(r0.ball.y)})${r0.ball.on >= 0 ? ' riding a moon' : ''}; ` +
+    console.log(`  shot ${n + 1} ${r0.last && r0.last.swallowed ? 'is swallowed and returns to' : r0.last && r0.last.caught ? 'is caught by a burst front and returns to' : 'rests at'} (${f1(r0.ball.x)}, ${f1(r0.ball.y)})${r0.ball.on >= 0 ? ' riding a moon' : ''}; ` +
       `with this shot nudged by a pixel, ${fin} of 9 routes still finish within ${lv.stars.three} (information)`);
   }
   for (const m of misses) console.log(`  miss ${m}`);
@@ -319,12 +326,12 @@ if (flag('--two-shot')) {
   // one per `--cell` square (and per moon ridden); each keeps how many clocks its best first drag reaches it on. From each
   // rest, every second drag on the same grid is tried at every clock: one that sinks on more than half of them is an
   // untimed second shot, and a rest also reached on more than half the clocks makes a fully untimed route. Clocks are
-  // spread over the longest mover cycle. Both phases are split across `--workers` threads (default: one per core).
+  // spread over the longest mover or burst cycle. Both phases are split across `--workers` threads (default: one per core).
   const deg = Number(value('--step-deg') ?? 2), px = Number(value('--step-px') ?? 6), cellU = Number(value('--cell') ?? 10);
   if (!(deg > 0 && px > 0 && cellU > 0)) die('--step-deg, --step-px and --cell must be positive');
   const cycle = (m) => (m.type === 'bar' ? (2 * Math.PI) / T.barAngularSpeed : m.period || T.moverPeriod);
-  const nClk = lv.movers.length ? Math.max(1, Math.round(Number(value('--clocks') ?? 8))) : 1;
-  const span = lv.movers.length ? Math.max(...lv.movers.map(cycle)) : 0;
+  const nClk = timed ? Math.max(1, Math.round(Number(value('--clocks') ?? 8))) : 1;
+  const span = timed ? Math.max(...lv.movers.map(cycle), ...lv.suns.filter((s) => s.burst).map((s) => s.burst.period)) : 0;
   const clocks = Array.from({ length: nClk }, (_, k) => +((k * span) / nClk).toFixed(4)), need = Math.floor(nClk / 2) + 1;
   const drags = [];
   for (let a = 0; a < 360; a += deg) for (let L = 15; L <= 150; L += px) { const r = (a * Math.PI) / 180; drags.push({ a, L, dx: L * Math.cos(r), dy: L * Math.sin(r), l: sim.launchFromDrag(L * Math.cos(r), L * Math.sin(r)) }); }
@@ -335,7 +342,7 @@ if (flag('--two-shot')) {
       const d = drags[i], seen = new Map();
       for (const c of clocks) {
         const b = sim.newBall(lv.ball.x, lv.ball.y), r = flight(b, d.l, c, null);
-        if (r.res !== 'rest' || r.swallowed) continue;
+        if (r.res !== 'rest') continue; // a swallowed or caught shot is back on the tee
         const key = `${Math.round(b.x / cellU)},${Math.round(b.y / cellU)},${b.on}`;
         if (!seen.has(key)) seen.set(key, { i, key, n: 0, b: { ...b }, c, pen: r.penalties });
         seen.get(key).n++;
@@ -398,7 +405,7 @@ if (flag('--two-shot')) {
   if (found.length > 8) console.log(`  ... and ${found.length - 8} more rests`);
   const fewest = found.length ? Math.min(...found.map((f) => f.strokes)) : Infinity;
   if (fewest < lv.stars.three) fail(`an untimed two-shot route (${fewest} strokes) beats the three-star count (${lv.stars.three})`);
-  else if (fewest === lv.stars.three && lv.movers.length) console.log(`NOTE an untimed two-shot route matches the three-star count (${fewest}) on a hole with movers: check the timing lesson still holds`);
+  else if (fewest === lv.stars.three && timed) console.log(`NOTE an untimed two-shot route matches the three-star count (${fewest}) on a hole with movers: check the timing lesson still holds`);
 }
 
 if (flag('--windows')) {
@@ -407,8 +414,8 @@ if (flag('--windows')) {
   // least 20 px of drag and 4 degrees of aim at the same time (boss holes: 15 px and 3 degrees). Both windows are measured
   // through the drag, as --sweep --drag does: the aim window at its drag length (0.05 degree steps) and the drag-length window
   // along its aim (0.5 px steps, up to full power at dragMax: a longer drag is the same shot). So that a lucky line through a
-  // ragged sink region does not pass, the drag's 8 whole-pixel neighbours must meet the rule too. Sun and swallow penalties
-  // count as a miss.
+  // ragged sink region does not pass, the drag's 8 whole-pixel neighbours must meet the rule too. Sun, swallow and burst
+  // penalties count as a miss.
   const route = String(value('--windows')).split('/').map((sh) => { const [dx, dy, c = 0] = nums(sh, '--windows shot', 2); return { dx, dy, c }; });
   const needPx = lv.boss ? 15 : 20, needDeg = lv.boss ? 3 : 4;
   const b0 = sim.newBall(lv.ball.x, lv.ball.y);
