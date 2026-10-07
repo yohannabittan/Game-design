@@ -423,3 +423,16 @@ Build this after proto 11 lands, on top of it.
   
   The lunge stays as the long reach on the sword thumb.
 - **The foe uses the same footwork rules.** He can be pushed to the wall: a shield bash or a strong block pushes him back half a pace.
+
+## Proto 12.1 (designer, 2026-10-07): bigger left-thumb buttons
+
+The designer asked: "Can we get bigger back and forward buttons? Right now it's too hard to hit. Maybe you can also make the shield buttons bigger."
+
+- **The left thumb column grows to about 22% of the screen width,** and never less than 96 px wide. The fighters' framing shifts right to keep the gap between them.
+- **High, Mid and Low** each take an equal share of the column's height above the step row, with 6 px between them. They are about 72 px tall at 390 px of height.
+- **The step row sits at the bottom, where the thumb rests.** It has two separate buttons side by side, ◀ back and in ▶, each half the column width, at least 64 px tall and 96 px wide in total.
+  - Each button's tap area extends 8 px beyond its drawn edge, but never into its neighbour.
+  - A press that slides from one step button to the other switches to the other.
+- **Labels and warning glows** scale with the buttons.
+- **Size checks** are at 667x375, 844x390 and 932x430.
+- Nothing else changes.
