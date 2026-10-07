@@ -34,6 +34,22 @@ Status: locked 2026-10-07 ("Yes go for the GG backlog"; the backlog row "gamma-r
 
 Every hole meets v0.8 B and the v0.10 ceiling: a noisy-human rate of 60 to about 80 percent on the last shot, and the boss may go lower. Each hole's three-star route has a release window of 30 to 50 percent of the cycle. Shards follow `README.md`, "What a shard delivers per hole". The orchestrator merges them through the merge gate.
 
+### B-lean. Faster hole authoring (designer, 2026-10-07: "you're relying a bit too heavily on algorithms and simulation... there should be some heuristic ways to achieve the same goals way faster")
+
+This replaces the per-hole proving of v0.8 B for holes 32 to 35, and for future sectors unless a playtest shows a problem.
+- **Start from a proven hole, not a blank field.**
+  - Each new hole is a variation of a hole that already passed: Afterglow (31), or an older hole with the same lesson. The shard moves bodies a little and swaps in the new body type.
+  - Most rules then hold by construction.
+- **Heuristic checks in place of searches, each a few seconds:**
+  - **No straight ace:** a body or a wall blocks the straight line from the tee to the cup, checked as geometry, plus a 60-shot sweep around that line instead of 20,160.
+  - **No stuck ball:** rests stay out of mover sweeps and out of burst bands at the route clocks, checked as geometry from the hole data.
+  - **The route works:** `--three`, at one frame rate plus the jitter case.
+  - **A fair target:** `--windows` on the last shot.
+- **Not run per hole any more:** `--two-shot`, the full `--sweep`, the 1500-shot `--escape`, and the 200-trial noisy-human model.
+  - The orchestrator runs `--escape` and `--two-shot` once, in the background, across the finished sector at merge. Only a timeout, a stuck ball or a shortcut that beats three stars sends a hole back.
+  - The designer's playtest is the difficulty check, as it was for holes 26 to 29.
+- **Time-box:** about 15 minutes per hole and 30 for the boss.
+
 ## C. Sector 7 dressing
 
 - **Sector name:** "Beyond the Core". A new palette of deep teal and white-hot flares, never green or orange, and a starfield thinning into the dark between galaxies.
