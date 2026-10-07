@@ -1,4 +1,4 @@
-// Recoil, v0.7 (the career story on top of v0.6, Backlot 88): the mechanic plus six guns as movie props (Buddy-Cop 9mm, Pulse Rifle, Spin-Lever Shotgun, Assassin's Scope, One-Man Army SMG, Make-My-Day .44), barrel sway, moving targets, skeet with decoys, two bosses, zombies,
+// Recoil, v0.9 (the career story, "The Last Picture at Backlot 88", on top of v0.8): the mechanic plus six guns as movie props (Buddy-Cop 9mm, Pulse Rifle, Spin-Lever Shotgun, Assassin's Scope, One-Man Army SMG, Make-My-Day .44), barrel sway, moving targets, skeet with decoys, two bosses, zombies,
 // and progression (guns bought in the Prop Room with box office, the .44 by a badge, twenty-three badges, skins, a montage). One thumb drags the gun up and down, the other fires, and every shot kicks the barrel up.
 // Instant shot lines scored by zone, a combo multiplier, five ladders (Accuracy and Speed have five rungs, Skeet three, Boss two, Zombies three) and an endless zombie mode,
 // stars per gun from noisy-bot bars, points, a menu that is a prop rack, and a wrap card. Procedural art (movie-prop guns, cut-outs, saucers, monsters, zombie extras, one soundstage set per mode)
@@ -127,6 +127,9 @@ const TUNING = {
   // v0.7 (PRD v0.7 B, E, H): the player's career rank, from total stars across every gun and set (324 in all): rank names with the stars each needs; the Endless wave that releases its poster
   // (Endless has no stars); the seconds a story card ignores a tap that is not Skip; the rank card's clapperboard (when its stick starts to close, how long it takes) and a card's fade-in.
   career: { ranks: [['Extra', 0], ['Intern', 10], ['Stunt Double', 40], ['Action Star', 100]], endlessWave: 8, lock: 0.25, snapAt: 0.15, snap: 0.12, fade: 0.3 },
+  // v0.9 (PRD v0.9 A, B): the story's animated scenes. Seconds each scene runs (a tap jumps to its end, and it goes on by itself `autoGap` seconds after), the Skip button, the story version the
+  // cold open is shown for (a save that has seen a lower one sees it once) and the stars from which the director's note takes its second line.
+  scenes: { lot: 3.4, extras: 3.6, gus: 3.4, intern: 4.6, turn: 5.4, ending: 6, autoGap: 1, skipW: 96, skipH: 48, version: 2, noteHigh: 2 },
 
   // Additions, not in the PRDs.
   swayWindow: 0.05,      // Seconds over which the gun's speed is measured for sway
@@ -1496,11 +1499,19 @@ const tierOf = (E, gun) => masteryInfo(masteryOf(E, gun)).tier;
 
 // ---------- Career (PRD v0.7 B, E): one rank for the player, and a premiere poster for every finished set ----------
 
-// The lines of the story, as in docs/games/recoil/world.md. Every line is one sentence of about 60 characters at most.
+// The lines of the story, as in docs/games/recoil/prd-v0.9.md. Every line is one sentence of about 60 characters at most.
 const STORY = {
-  open: ['Backlot 88. A studio that makes action movies.', "You're an extra. Your only line so far was a scream.", "The director needs a new action star. Prove it's you."],
-  rank: [null, 'The director noticed you. Get coffee, then get on set.', "Your agent called: you're doubling the lead.", 'Your name is on the poster now.'],
-  note: [['Cut! Again, and this time with feeling.'], ['We can fix it in the edit. Maybe.'], ["Good take. Let's get one more."], ["Print it! That's the one."]], // the director's note by stars; a pool each (cosmetic: Math.random picks)
+  open: ['Backlot 88 is broke. This film is its last chance.', "You're an extra. Your only line so far was a scream.", "'Kid. Take this one. It shoots straight.'"], // the three scenes of the cold open: the lot, the extras, Gus
+  intern: ["You! Coffee, then set. Don't trip on the cables.", 'Told you it shoots straight.'], // Big Lou, then Gus
+  turn: ['He walked. No star, no film, no studio.', '...Kid. Can you fall off a roof?'], // Stunt Double: both Big Lou
+  ending: ["We're saved. You saved us.", 'Always said it shoots straight.'], // Action Star: Big Lou, then Gus
+  note: [ // the director's note by career rank, then by the take's stars (the second line from TUNING.scenes.noteHigh)
+    ["Cut! We can't afford many more takes.", 'The bank called. Again. Go again.'],
+    ['Not bad. Not bad at all.', 'Keep that up and we might make payroll.'],
+    ["The whole studio's riding on you, kid.", 'Print it! The bank can wait.'],
+    ["That's my star.", "They're lining up round the block!"],
+  ],
+  gusStep: "Got you something special. Don't tell Lou.", // said once in the Prop Room after each career step
   premiere: "Premiere night! It's on the wall now.",
   coming: 'Coming soon',
   // Gus, the prop master, one line per gun, shown in the Prop Room for the gun that is selected.
@@ -1528,6 +1539,16 @@ function careerInfo(E) {
   const n = careerStars(bests(E)), i = rankFor(n), R = T.career.ranks, nx = R[i + 1];
   return { n, rank: i, name: R[i][0], next: nx ? nx[0] : null, toNext: nx ? nx[1] - n : 0, frac: nx ? clamp((n - R[i][1]) / (nx[1] - R[i][1]), 0, 1) : 1 };
 }
+// The career step whose story scene is owed (1 Intern, 2 the turn, 3 the ending), else -1. One at a time, lowest first, so a save that is behind (a veteran, or a jump of two ranks) is caught up
+// by one scene per result card and never a cascade. Each scene is marked seen as it shows (careerSeen is the Intern scene's, turnSeen and endSeen the others').
+function pendingStory(E) {
+  const r = careerInfo(E).rank;
+  if (r >= 1 && E.save.get('careerSeen', 0) < 1) return 1;
+  if (r >= 2 && !E.save.get('turnSeen', false)) return 2;
+  if (r >= 3 && !E.save.get('endSeen', false)) return 3;
+  return -1;
+}
+const STORY_SCENE = ['', 'intern', 'turn', 'ending']; // a career step's scene
 // Has any one gun three-starred every rung of the set? (Endless has no stars; it is a wave.)
 function threeStarred(best, set) { const list = CHALLENGES.filter((c) => c.ladder === set); return GUN_IDS.some((g) => list.every((c) => starsInBest(best, c, g) === 3)); }
 function postersMap(E) { const m = E.save.get('posters', {}); return m && typeof m === 'object' ? m : {}; }
@@ -2715,8 +2736,8 @@ function endRun(E) {
   const left = ch.wall && r.cleared ? r.targets.filter((t) => t.kind === 'part').length : 0;
   const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
   const zom = ch.ladder === 'zombie' ? { zdown: r.zdown, ztotal: ch.endless ? 0 : r.list.reduce((n, w) => n + w.length, 0), zwave: r.wave, zwaves: ch.endless ? 0 : r.list.length, breach: r.breach, day, bestWave } : {};
-  const posters = releasePosters(E, ch, r.wave), rankNow = careerInfo(E).rank, rankUp = rankNow > E.save.get('careerSeen', 0) ? rankNow : -1; // v0.7: a poster this run released, and a rank reached and not yet shown (one card, never a cascade)
-  if (rankUp >= 0) E.ledger.add('rank', { rank: T.career.ranks[rankNow][0], stars: careerInfo(E).n });
+  const posters = releasePosters(E, ch, r.wave), rankUp = pendingStory(E); // v0.7: a poster this run released; v0.9: the career step whose story scene is owed (one scene, never a cascade)
+  if (rankUp >= 0) E.ledger.add('rank', { rank: T.career.ranks[rankUp][0], stars: careerInfo(E).n });
   E.setScene('over', { posters, rankUp, id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, pay, box, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, tickets, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), ...zom });
 }
 
@@ -3022,57 +3043,345 @@ function drawRankBoard(ctx, E, cx, cy, w, name, age) {
   E.text(fitText(ctx, name, w - 20, TY.big, TY.strong), cx, y + bh / 2 + 1, { size: TY.big, weight: TY.strong, color: P.brassText });
 }
 
-// The story card scene: the cold open, a rank-up card, a poster card. `cards` is a list of { kind: 'open', i } | { kind: 'rank', rank } | { kind: 'poster', set }; `then` is the [scene, params] to go
-// to after the last card or Skip. One tap goes on, Skip leaves at once, and nothing here waits on the player's input except the short lock after a card appears.
+// ---------- The animated story (PRD v0.9 A, B): the cold open, the Intern scene, the turn and the ending ----------
+// Every scene is a pure function of its time t in seconds, drawn in a SW x SH box scaled to fit under the Skip row, so a tap can jump to the scene's end (t = its length) and what that draws
+// is the resting picture. The props (sign, trailer, sunglasses, marquee, flashbulbs) are drawn here; Big Lou and Gus are the Artist's portraits with the drawn ones as fallback.
+const SW = 560, SH = 300, GY = 238; // the box and the ground line inside it
+let sceneK = 1; // the box's scale this frame, so that scene text can stay 14 px or more on the screen
+const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const mix = (a, b, k) => a + (b - a) * k;
+
+// A story portrait standing at (x, bottom), h tall, squashed about its feet (sx, sy), tilted and turned (flip faces him the other way).
+function storyPic(ctx, who, x, bottom, h, o = {}) {
+  ctx.save(); ctx.globalAlpha *= o.alpha === undefined ? 1 : o.alpha;
+  ctx.translate(x, bottom); if (o.rot) ctx.rotate(o.rot); ctx.scale((o.flip ? -1 : 1) * (o.sx === undefined ? 1 : o.sx), o.sy === undefined ? 1 : o.sy);
+  if (who === 'gus') { if (!drawArtImage(ctx, o.sold && ART_IMG.masterSold ? 'masterSold' : 'master', 0, -h / 2, h * 2 / 3, h)) drawPropMaster(ctx, 0, 0, h / 105); }
+  else drawDirector(ctx, 0, -h / 2, h, who === 'louOk');
+  ctx.restore();
+}
+// A pop-in over [a, b]: an overshoot as squash and stretch about the feet.
+function popOf(t, a, b) { const k = ease.outBack(seg(t, a, b)); return { sx: Math.max(0.01, k), sy: Math.max(0.01, mix(0.5, 1, k)), alpha: seg(t, a, a + 0.12) }; }
+// Text inside a scene, never smaller than 14 px on the screen whatever the scale.
+function sText(ctx, str, x, y, size, color, rot = 0) {
+  ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
+  ctx.font = `${TY.strong} ${Math.max(size, 14 / sceneK)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.fillText(str, 0, 0);
+  ctx.restore();
+}
+// The newcomer: a faceless figure in the player's orange (never shown, so the player can be them). `hand` is where the reaching hand is, in the figure's own units; `sweat` runs 0 to 1.
+function drawPlayer(ctx, x, bottom, s, o = {}) {
+  ctx.save(); ctx.translate(x, bottom); ctx.scale((o.flip ? -1 : 1) * s * (o.sx === undefined ? 1 : o.sx), s * (o.sy === undefined ? 1 : o.sy)); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = 2.4;
+  ctx.fillStyle = P.villain; rrect(ctx, -10, -26, 9, 26, 3); ctx.fill(); ctx.stroke(); rrect(ctx, 1, -26, 9, 26, 3); ctx.fill(); ctx.stroke();
+  const [hx, hy] = o.hand || [15, -34];
+  ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(9, -54); ctx.lineTo(hx, hy); ctx.stroke(); ctx.strokeStyle = P.orange; ctx.lineWidth = 5.4; ctx.beginPath(); ctx.moveTo(9, -54); ctx.lineTo(hx, hy); ctx.stroke(); ctx.strokeStyle = P.ink; ctx.lineWidth = 2.4;
+  ctx.fillStyle = P.orange; rrect(ctx, -13, -64, 26, 42, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.kraft; ctx.beginPath(); ctx.arc(0, -75, 10.5, 0, PI2); ctx.fill(); ctx.stroke(); disc(ctx, hx, hy, 4.2, P.kraft); ctx.beginPath(); ctx.arc(hx, hy, 4.2, 0, PI2); ctx.stroke();
+  if (o.sweat) { const k = o.sweat; ctx.globalAlpha = 1 - k * 0.6; ctx.fillStyle = P.cyan; ctx.beginPath(); ctx.arc(14, -84 + 14 * k, 2.8, 0, PI2); ctx.moveTo(14, -91 + 14 * k); ctx.lineTo(11.4, -85 + 14 * k); ctx.lineTo(16.6, -85 + 14 * k); ctx.fill(); }
+  ctx.restore();
+}
+// A small starburst (a flash, a glint).
+function glint(ctx, x, y, r, a, color = P.flashCore) {
+  if (a <= 0 || r <= 0) return;
+  ctx.save(); ctx.globalAlpha *= clamp(a, 0, 1); ctx.fillStyle = color; ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const an = i * Math.PI / 4, rr = i % 2 ? r * 0.28 : r; ctx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); }
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+// A dust puff that grows and fades over half a second from t0.
+function puff(ctx, x, y, t, t0, r) {
+  const k = seg(t, t0, t0 + 0.5);
+  if (k <= 0 || k >= 1) return;
+  ctx.save(); ctx.globalAlpha = 0.5 * (1 - k); ctx.fillStyle = P.paperShade;
+  for (const d of [-1, 0, 1]) { ctx.beginPath(); ctx.arc(x + d * r * (0.5 + k), y - k * r * 0.6 - (d === 0 ? r * 0.3 : 0), r * (0.35 + 0.5 * k), 0, PI2); ctx.fill(); }
+  ctx.restore();
+}
+
+// The sky and the ground behind a scene: dusk (or night) over the lot with the studio's stages on the skyline and two searchlights sweeping, the ground filled across the whole screen.
+function drawDusk(ctx, E, k, bx, by, t, night) {
+  const gy = by + GY * k, g = ctx.createLinearGradient(0, 0, 0, gy);
+  g.addColorStop(0, night ? '#0a0614' : '#150d28'); g.addColorStop(0.6, night ? '#24123a' : '#3b1a52'); g.addColorStop(1, night ? '#5a1f55' : '#a8346a');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, E.w, gy);
+  ctx.fillStyle = P.floor; ctx.fillRect(0, gy, E.w, E.h - gy); ctx.fillStyle = P.floorLine; ctx.fillRect(0, gy, E.w, 2);
+  ctx.save(); ctx.translate(bx, by); ctx.scale(k, k);
+  const tbl = [60, 92, 44, 110, 70, 52, 98, 66];
+  ctx.globalAlpha = 0.11;
+  for (const [x0, col, ph, base] of [[40, P.neonTeal, 0, 0.25], [SW - 40, P.neonPink, 2, -0.25]]) {
+    const dx = Math.sin(Math.sin(t * 0.8 + ph) * 0.22 + base) * 300;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x0 - 12, GY); ctx.lineTo(x0 + 12, GY); ctx.lineTo(x0 + dx + 34, GY - 300); ctx.lineTo(x0 + dx - 34, GY - 300); ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.fillStyle = P.stage;
+  for (let i = 0, x = -640; x < 1200; i++, x += 64) { const h = tbl[i % 8]; ctx.fillRect(x, GY - 8 - h, 58, h + 8); }
+  ctx.fillStyle = P.orangeLight; ctx.globalAlpha = 0.55;
+  for (let i = 0, x = -640; x < 1200; i++, x += 64) for (let j = 0; j < 3; j++) if ((i * 7 + j * 3) % 5 === 0) ctx.fillRect(x + 8 + j * 16, GY - 8 - tbl[i % 8] + 10 + j * 12, 6, 5);
+  ctx.restore();
+}
+
+// A wooden FOR SALE board centred on (cx, cy), turned by rot, `w` wide.
+function forSale(ctx, cx, cy, rot, w) {
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.lineJoin = 'round';
+  ctx.fillStyle = P.paper; ctx.strokeStyle = P.ink; ctx.lineWidth = 3; rrect(ctx, -w / 2, -20, w, 40, 5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.paperShade; ctx.fillRect(-w / 2 + 4, 14, w - 8, 2);
+  sText(ctx, 'FOR SALE', 0, -1, 21, P.red);
+  ctx.restore();
+}
+
+// ---- 1. The lot: the gate, and a FOR SALE sign half nailed on ----
+function sceneLot(ctx, E, t) {
+  const gl = 132, gr = 392; // the gate's pillars
+  ctx.fillStyle = P.stageHi; ctx.strokeStyle = P.ink; ctx.lineWidth = 3;
+  rrect(ctx, gl, 92, 36, GY - 92, 3); ctx.fill(); ctx.stroke(); rrect(ctx, gr, 92, 36, GY - 92, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.woodDark; ctx.fillRect(gl + 36, 128, gr - gl - 36, GY - 128); ctx.fillStyle = P.wood; // the gate's two leaves
+  for (let x = gl + 40; x < gr - 6; x += 22) ctx.fillRect(x, 132, 18, GY - 134);
+  ctx.fillStyle = P.ink; ctx.fillRect(278.5, 128, 3, GY - 128);
+  ctx.fillStyle = P.truss; rrect(ctx, gl - 8, 72, gr - gl + 52, 30, 4); ctx.fill(); ctx.stroke(); // the arch
+  for (let i = 0; i < 7; i++) { // its bulbs light one by one, the fifth stays dead
+    const x = gl + 6 + i * 41, on = t > 0.3 + i * 0.12 && i !== 4;
+    if (on) { ctx.globalAlpha = 0.25; disc(ctx, x, 87, 9, P.orange); ctx.globalAlpha = 1; }
+    disc(ctx, x, 87, 4, on ? P.flashCore : P.lamp);
+  }
+  ctx.globalAlpha = 0.28 * seg(t, 0.4, 1); disc(ctx, 280, 58, 34, P.neonPink); ctx.globalAlpha = 1; // the neon 88 over it
+  sText(ctx, '88', 280, 52, 32, P.neonPink);
+  const drop = ease.outBack(seg(t, 0.35, 1)), u = Math.max(0, t - 0.9), th = 0.2 + 0.45 * Math.exp(-2.4 * u) * Math.cos(9 * u); // the sign drops on and swings from its one nail
+  const nx = 188, ny = 156 - 150 * (1 - drop), c = Math.cos(th), s = Math.sin(th);
+  ctx.globalAlpha = seg(t, 0.3, 0.5); forSale(ctx, nx + c * 60 - s * 14, ny + s * 60 + c * 14, th, 132);
+  disc(ctx, nx, ny, 3.4, P.steelLight); ctx.strokeStyle = P.ink; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(nx, ny, 3.4, 0, PI2); ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.fillStyle = P.steelLight; ctx.fillRect(338, GY + 6, 10, 2.4); ctx.fillRect(336, GY + 4.4, 3, 5.6); // the second nail on the ground, and the hammer waiting by the gate
+  ctx.save(); ctx.translate(358, GY + 10); ctx.rotate(-0.5); ctx.fillStyle = P.wood; ctx.fillRect(-2.5, -34, 5, 34); ctx.fillStyle = P.steelDark; ctx.fillRect(-9, -42, 18, 10); ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4; ctx.strokeRect(-9, -42, 18, 10); ctx.restore();
+  puff(ctx, nx + 40, GY, t, 1.0, 10);
+}
+
+// ---- 2. The extras: a line of them, Big Lou shouting, and the newcomer at the end fumbling a prop gun ----
+const EXTRA_COLORS = ['#6e5b7b', '#4f6fb0', '#7a5a3c', '#58705e', '#8a4b4b', '#5f5a73'];
+function sceneExtras(ctx, E, t) {
+  ctx.fillStyle = '#2a2233'; ctx.fillRect(-640, 40, 1840, GY - 40); // a painted flat
+  ctx.fillStyle = '#3b2e4f'; ctx.beginPath(); ctx.moveTo(-640, GY - 30);
+  for (let x = -640; x <= 1160; x += 120) { ctx.lineTo(x + 40, GY - 90 - (Math.round(x / 120) % 2 ? 30 : 0)); ctx.lineTo(x + 100, GY - 36); }
+  ctx.lineTo(1200, GY); ctx.lineTo(-640, GY); ctx.fill();
+  ctx.fillStyle = P.brass; ctx.globalAlpha = 0.5; for (let i = 0; i < 7; i++) ctx.fillRect(164 + i * 52 - 6, GY + 6, 12, 3); ctx.globalAlpha = 1; // the tape marks they stand on
+  for (let i = 0; i < 6; i++) { // the extras, one after another, swaying a little
+    const x = 164 + i * 52, a = seg(t, 0.4 + i * 0.09, 0.8 + i * 0.09);
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(x, GY + 4); ctx.rotate(Math.sin(t * 3 + i) * 0.015 * a); ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = 2.4;
+    ctx.fillStyle = P.villain; rrect(ctx, -7, -26, 6, 26, 2); ctx.fill(); ctx.stroke(); rrect(ctx, 1, -26, 6, 26, 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = EXTRA_COLORS[i]; rrect(ctx, -11, -62, 22, 40, 6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = P.kraft; ctx.beginPath(); ctx.arc(0, -72, 9.5, 0, PI2); ctx.fill(); ctx.stroke();
+    if (i % 3 === 1) { ctx.fillStyle = P.cowboy; ctx.beginPath(); ctx.ellipse(0, -79, 15, 4, 0, 0, PI2); ctx.fill(); ctx.stroke(); ctx.fillRect(-7, -88, 14, 9); }
+    ctx.restore();
+  }
+  storyPic(ctx, 'lou', 74, GY + 12, 172, { flip: true, ...popOf(t, 0.2, 0.75) }); // Big Lou, facing his extras
+  for (let i = 0; i < 3; i++) { // the shout, in rings from the megaphone
+    const ph = ((t - 0.8) * 1.8 + i / 3) % 1, a = seg(t, 0.8, 1) * (1 - ph);
+    if (a <= 0) continue;
+    ctx.globalAlpha = a; ctx.strokeStyle = P.text; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(126, GY - 112, 14 + 64 * ph, -0.5, 0.5); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  const p = seg(t, 1.2, 2.9), px = 492; // the newcomer at the end of the line, juggling the gun and finally holding it
+  const gx = px - 20 + 14 * Math.sin(p * 9), gyy = GY - 40 - 52 * Math.abs(Math.sin(p * 3 * Math.PI)) * (1 - p * 0.3);
+  ctx.globalAlpha = seg(t, 0.9, 1.2); drawPlayer(ctx, px, GY + 6, 0.92, { hand: [(gx - px) / 0.92, (gyy - GY - 6) / 0.92] }); ctx.globalAlpha = 1;
+  ctx.save(); ctx.translate(gx, gyy); ctx.rotate(0.3 + 6 * Math.PI * p); drawGunTile(ctx, 'pistol', 0, 0, 40, 18, 'std'); ctx.restore();
+}
+
+// ---- 3. Gus: the Prop Room, a wink, and a pistol slid across the counter ----
+function sceneGus(ctx, E, t) {
+  for (const [id, x, y, w, rot] of [['carbine', 60, 84, 130, -0.12], ['shotgun', 470, 70, 150, 0.1], ['rifle', 90, 168, 120, 0.06], ['revolver', 500, 150, 60, -0.2]]) { // the pegboard's props
+    ctx.save(); ctx.globalAlpha = 0.85; ctx.translate(x, y); ctx.rotate(rot); drawGunTile(ctx, id, 0, 0, w, w * 0.4, 'std'); ctx.restore();
+  }
+  ctx.fillStyle = P.ink; ctx.fillRect(278, 0, 4, 52); ctx.fillStyle = P.steelDark; ctx.beginPath(); ctx.moveTo(262, 66); ctx.lineTo(298, 66); ctx.lineTo(288, 50); ctx.lineTo(272, 50); ctx.fill(); // the lamp
+  ctx.globalAlpha = 0.16; disc(ctx, 280, 80, 110, P.orangeLight); ctx.globalAlpha = 1; disc(ctx, 280, 68, 6, P.flashCore);
+  const rise = ease.outBack(seg(t, 0.2, 1)), lean = 0.07 * ease.outQuad(seg(t, 1, 1.5)); // Gus leans out over the counter
+  storyPic(ctx, 'gus', 196, GY - 16 + 110 * (1 - rise), 236, { rot: lean, alpha: seg(t, 0.15, 0.3) });
+  glint(ctx, 214, GY - 196, 11 * ease.outBack(seg(t, 1.45, 1.8)), 1 - seg(t, 1.95, 2.3)); // the wink
+  const ea = ease.outQuad(seg(t, 1.2, 1.9)), reach = seg(t, 2.3, 2.9), nx = mix(660, 486, ea); // the newcomer steps up behind the counter and reaches for it
+  drawPlayer(ctx, nx, GY - 6, 1.25, { hand: [mix(-30, -66, reach), mix(-72, -26, reach)] });
+  ctx.fillStyle = P.counter; ctx.fillRect(-640, GY - 18, 1840, 1200); ctx.fillStyle = P.counterTop; ctx.fillRect(-640, GY - 18, 1840, 8);
+  const pa = seg(t, 1.7, 2.5), x = mix(236, 394, ease.outQuad(pa)); // the pistol slides to the newcomer's hand
+  if (pa > 0 && pa < 1) { ctx.fillStyle = P.text; ctx.globalAlpha = 0.35 * (1 - pa); for (let i = 0; i < 3; i++) ctx.fillRect(x - 70 - i * 6, GY - 36 + i * 6, 50, 2); ctx.globalAlpha = 1; }
+  if (t > 1.7) drawGunTile(ctx, 'pistol', x, GY - 30, 70, 30, 'std');
+}
+
+// ---- 4. The Intern scene: the clapperboard, Big Lou's order and Gus's grin ----
+function sceneIntern(ctx, E, t) {
+  ctx.save(); ctx.globalAlpha = seg(t, 0.1, 0.3); drawRankBoard(ctx, E, 280, 88 - 80 * (1 - ease.outBack(seg(t, 0.1, 0.6))), 200, T.career.ranks[1][0], t - 0.45); ctx.restore();
+  storyPic(ctx, 'lou', 116, GY + 12, 168, { flip: true, ...popOf(t, 0.8, 1.35) });
+  storyPic(ctx, 'gus', 440, GY - 16 + 120 * (1 - ease.outBack(seg(t, 2.4, 3.1))), 200, { sold: t > 2.9, alpha: seg(t, 2.35, 2.5) });
+  glint(ctx, 458, GY - 168, 10 * ease.outBack(seg(t, 3.2, 3.5)), 1 - seg(t, 3.7, 4));
+  ctx.fillStyle = P.counter; ctx.fillRect(330, GY - 18, 900, 1200); ctx.fillStyle = P.counterTop; ctx.fillRect(330, GY - 18, 900, 8);
+}
+
+// ---- 5. The turn: the star's trailer door slams, his sunglasses are tossed out, Big Lou turns to the newcomer ----
+function drawShades(ctx, x, y, rot, s) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s); ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = 2;
+  ctx.fillStyle = '#15120f'; ctx.beginPath(); ctx.ellipse(-11, 0, 10, 7, 0.1, 0, PI2); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.ellipse(11, 0, 10, 7, -0.1, 0, PI2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-1, -1); ctx.quadraticCurveTo(0, -4, 1, -1); ctx.stroke();
+  ctx.fillStyle = P.steelLight; ctx.globalAlpha = 0.7; ctx.fillRect(-16, -4, 5, 2); ctx.fillRect(7, -4, 5, 2);
+  ctx.restore();
+}
+function sceneTurn(ctx, E, t) {
+  const open = 1.3 * (1 - ease.inQuad(seg(t, 0.4, 0.8))), thump = t > 0.8 && t < 1.3 ? Math.sin((t - 0.8) * 60) * 2.4 * (1 - seg(t, 0.8, 1.3)) : 0; // the door swings shut and the trailer shudders
+  ctx.save(); ctx.translate(thump, 0); ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = P.ink;
+  ctx.fillStyle = P.steelLight; rrect(ctx, 16, GY - 128, 236, 118, 16); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.neonPink; ctx.fillRect(18, GY - 54, 232, 12);
+  for (const wx of [70, 202]) { disc(ctx, wx, GY - 6, 15, P.steelDark); ctx.beginPath(); ctx.arc(wx, GY - 6, 15, 0, PI2); ctx.stroke(); disc(ctx, wx, GY - 6, 5, P.steelLight); }
+  const dark = t > 1.05; // the window is dark once the shades have gone through it
+  ctx.fillStyle = dark ? P.stage : P.cyan; ctx.globalAlpha = dark ? 1 : 0.55; rrect(ctx, 50, GY - 104, 62, 40, 5); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
+  ctx.fillStyle = P.stage; ctx.fillRect(166, GY - 100, 46, 90); // the doorway
+  const dw = 46 * Math.cos(open); ctx.fillStyle = P.steel; ctx.fillRect(166, GY - 100, dw, 90); ctx.strokeRect(166, GY - 100, dw, 90);
+  if (dw > 18) drawStar(ctx, 166 + dw / 2, GY - 56, 9, P.brass, P.ink);
+  ctx.restore();
+  puff(ctx, 190, GY - 2, t, 0.8, 14); puff(ctx, 160, GY - 2, t, 0.85, 10);
+  const pa = seg(t, 1.1, 1.85), bk = seg(t, 1.85, 2.2), bounce = Math.sin(bk * Math.PI) * 9 * (1 - bk * 0.5); // the sunglasses, tossed out of the window and bouncing once
+  const sx = mix(90, 290, pa), sy = mix(GY - 84, GY - 5, ease.inQuad(pa)) - 80 * Math.sin(Math.PI * pa) * (1 - pa * 0.2) - bounce;
+  if (t > 1.1) drawShades(ctx, sx, sy, 0.25 + 8 * (1 - pa), 1.25);
+  const la = ease.outQuad(seg(t, 1.9, 2.5)), lean = -0.09 * ease.outQuad(seg(t, 3.5, 4)); // Big Lou walks on, then leans toward the newcomer
+  if (la > 0) storyPic(ctx, 'lou', mix(660, 480, la), GY + 12, 186, { rot: lean, alpha: seg(t, 1.9, 2.1) });
+  const ea = ease.outQuad(seg(t, 3.1, 3.8)), hop = Math.abs(Math.sin(ea * Math.PI * 2)) * 6 * (1 - ea); // the newcomer comes in from the left with a small hop, and sweats
+  if (ea > 0) drawPlayer(ctx, mix(-40, 356, ea), GY + 4 - hop, 1.1, { sweat: seg(t, 4.1, 4.5) });
+}
+
+// ---- 6. The ending: the premiere, the sign torn down, flashbulbs, Big Lou's thanks and Gus clapping in the front row ----
+const FLASHES = [[0.9, 256, 204], [1.2, 322, 208], [1.55, 290, 212], [2.0, 256, 204], [2.45, 322, 208], [2.75, 290, 212], [3.3, 256, 204], [3.7, 322, 208], [4.3, 290, 212], [4.8, 256, 204]]; // [time, x, y]
+function sceneEnding(ctx, E, t) {
+  const bl = 250, bw = 290; // the picture palace
+  ctx.fillStyle = P.stageHi; ctx.strokeStyle = P.ink; ctx.lineWidth = 3; rrect(ctx, bl, 40, bw, GY - 40, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1b1626'; rrect(ctx, bl + 6, 46, bw - 12, 76, 4); ctx.fill(); ctx.stroke(); // the marquee
+  const chase = Math.floor(t * 5) % 2;
+  for (let i = 0; i < 14; i++) for (const y of [51, 117]) disc(ctx, bl + 14 + i * ((bw - 28) / 13), y, 2.6, (i + chase) % 2 === 0 && t > 0.3 ? P.flashCore : P.lamp);
+  sText(ctx, 'RECOIL', bl + bw / 2, 86, 34, P.brassText);
+  const fx = bl + bw / 2 - 42, fy = 132, fw = 84, fh = 100, mx = fx + fw / 2; // the poster in its frame: the newcomer's silhouette
+  ctx.fillStyle = P.ink; ctx.fillRect(fx - 4, fy - 4, fw + 8, fh + 8);
+  ctx.save(); ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.clip(); ctx.translate(0, -120 * (1 - ease.outBack(seg(t, 0.3, 1))));
+  const pg = ctx.createLinearGradient(0, fy, 0, fy + fh); pg.addColorStop(0, '#ff4fa3'); pg.addColorStop(1, '#f97316'); ctx.fillStyle = pg; ctx.fillRect(fx, fy, fw, fh);
+  ctx.globalAlpha = 0.3; ctx.fillStyle = P.flashCore; ctx.beginPath(); ctx.moveTo(fx + 10, fy + fh); ctx.lineTo(fx + 36, fy); ctx.lineTo(fx + 48, fy); ctx.lineTo(fx + 30, fy + fh); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(mx, fy + 40, 8, 0, PI2); ctx.fill(); ctx.fillRect(mx - 9, fy + 49, 18, 24); ctx.fillRect(mx - 9, fy + 72, 7, 28); ctx.fillRect(mx + 2, fy + 72, 7, 28);
+  ctx.lineWidth = 6; ctx.strokeStyle = P.ink; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(mx + 8, fy + 53); ctx.lineTo(mx + 22, fy + 38); ctx.lineTo(mx + 34, fy + 36); ctx.stroke(); ctx.lineCap = 'butt'; // an arm up, a pistol in the hand
+  ctx.fillRect(mx + 30, fy + 31, 12, 5);
+  for (let i = -1; i <= 1; i++) drawStar(ctx, mx + i * 18, fy + 12, i ? 4.5 : 6, P.brass);
+  ctx.restore();
+  ctx.fillStyle = P.stageHi; ctx.strokeStyle = P.ink; ctx.lineWidth = 3; rrect(ctx, 6, 100, 24, GY - 100, 3); ctx.fill(); ctx.stroke(); // the gate's pillar and the sign: swinging, jerked up, torn down, left lying
+  const th0 = 0.2 + 0.4 * Math.exp(-2 * Math.max(0, t - 0.3)) * Math.cos(8 * Math.max(0, t - 0.3)), th = mix(th0, -0.35, ease.outQuad(seg(t, 1.45, 1.7)));
+  const hx = 18 + Math.cos(th) * 60 - Math.sin(th) * 14, hy = 150 + Math.sin(th) * 60 + Math.cos(th) * 14;
+  if (t < 1.7) { forSale(ctx, hx, hy, th, 132); disc(ctx, 18, 150, 3.4, P.steelLight); }
+  else {
+    const fall = t - 1.7, fr = seg(t, 1.7, 2.1), bk = seg(t, 2.1, 2.45);
+    forSale(ctx, mix(hx, 66, fr), Math.min(GY - 14, hy + 550 * fall * fall) - Math.sin(bk * Math.PI) * 6 * (1 - bk), mix(th, 0.08, ease.outQuad(fr)), 132);
+  }
+  puff(ctx, 62, GY - 4, t, 2.1, 14);
+  for (const [ft, px, py] of FLASHES) { // the photographers' flashbulbs, one small flash at a time
+    ctx.fillStyle = P.ink; ctx.fillRect(px - 8, py + 4, 16, 22); disc(ctx, px, py - 2, 7, P.ink); ctx.fillRect(px + 4, py - 6, 12, 9);
+    glint(ctx, px + 12, py - 2, 26 * ease.outQuad(seg(t, ft, ft + 0.06)), 1 - seg(t, ft + 0.06, ft + 0.26));
+  }
+  storyPic(ctx, 'louOk', 170, GY + 14, 178, popOf(t, 2.3, 2.85));
+  for (let i = 0; i < 4; i++) glint(ctx, 128 + i * 22, GY - 190 - (i % 2) * 14, 7 * seg(t, 2.8 + i * 0.1, 3.1 + i * 0.1), 1 - seg(t, 3.5, 3.9), P.brassText); // the stars he is seeing
+  for (const [hx2, hh] of [[556, 112]]) { // the front row's heads
+    ctx.fillStyle = '#241c2c'; ctx.strokeStyle = P.ink; ctx.lineWidth = 2.4; rrect(ctx, hx2 - 20, GY - hh + 24, 40, hh, 12); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(hx2, GY - hh + 14, 12, 0, PI2); ctx.fill(); ctx.stroke();
+  }
+  const gp = ease.outBack(seg(t, 3.3, 3.9)), clap = t > 3.9 ? Math.abs(Math.sin((t - 3.9) * 12)) : 0; // Gus, clapping
+  storyPic(ctx, 'gus', 497, GY + 12 + 90 * (1 - gp), 168, { sy: 1 + 0.03 * clap, alpha: seg(t, 3.3, 3.45) });
+  if (clap > 0.85) for (let i = -1; i <= 1; i++) { ctx.strokeStyle = P.flashCore; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(462 + i * 7, GY - 52 - Math.abs(i) * 4); ctx.lineTo(456 + i * 13, GY - 62 - Math.abs(i) * 4); ctx.stroke(); }
+  ctx.fillStyle = '#2a1f2b'; ctx.fillRect(404, GY - 4, 1200, 1200); ctx.fillStyle = P.brass; ctx.fillRect(404, GY - 4, 1200, 5); // the barrier in front of the front row, with its rope
+  for (const x of [410, 596]) { ctx.fillStyle = P.brass; ctx.fillRect(x - 2, GY - 34, 4, 32); disc(ctx, x, GY - 36, 5, P.brass); }
+  ctx.strokeStyle = '#9d1f3a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(410, GY - 36); ctx.quadraticCurveTo(503, GY - 14, 596, GY - 36); ctx.stroke();
+}
+
+// Each scene: its drawing, whether it is the Prop Room (a pegboard wall) or the premiere night, its lines (when each fades in, and Gus's in brass) and its sounds as [time, kind].
+const SCENES = {
+  lot: { draw: sceneLot, beats: [{ at: 1.0, text: STORY.open[0] }], cues: [[1.0, 'thud'], [1.4, 'ting']] },
+  extras: { draw: sceneExtras, beats: [{ at: 1.0, text: STORY.open[1] }], cues: [[0.5, 'shout'], [2.9, 'ting']] },
+  gus: { draw: sceneGus, room: true, beats: [{ at: 1.2, text: STORY.open[2], tone: 'gus' }], cues: [[1.55, 'ting'], [1.75, 'slide']] },
+  intern: { draw: sceneIntern, beats: [{ at: 1.2, text: STORY.intern[0] }, { at: 2.9, text: STORY.intern[1], tone: 'gus' }], cues: [[0.72, 'clack'], [0.95, 'shout'], [3.2, 'ting']] },
+  turn: { draw: sceneTurn, beats: [{ at: 2.4, text: STORY.turn[0] }, { at: 4.0, text: STORY.turn[1] }], cues: [[0.8, 'thud'], [1.8, 'clack'], [2.1, 'shout']] },
+  ending: { draw: sceneEnding, night: true, beats: [{ at: 2.9, text: STORY.ending[0] }, { at: 3.9, text: STORY.ending[1], tone: 'gus' }], cues: [[0.9, 'flash'], [1.55, 'flash'], [1.75, 'thud'], [2.45, 'flash'], [2.6, 'fanfare'], [3.3, 'flash'], [4.1, 'clap'], [4.3, 'clap'], [4.5, 'clap'], [4.8, 'flash']] },
+};
+const sceneLen = (id) => T.scenes[id];
+// Sounds and a shake only (no haptics: the cold open plays before the first tap, and the browser refuses a vibration then).
+const CUES = {
+  thud: (E) => { E.audio.beep({ freq: 90, dur: 0.14, type: 'square', gain: 0.1, slide: 0.6 }); E.shake(4, 0.2); },
+  clack: (E) => { E.audio.beep({ freq: 1400, dur: 0.03, type: 'square', gain: 0.06 }); E.shake(2, 0.12); },
+  ting: (E) => { E.audio.beep({ freq: 1320, dur: 0.12, type: 'sine', gain: 0.05 }); E.audio.beep({ freq: 1760, dur: 0.16, type: 'sine', gain: 0.04, delay: 0.07 }); },
+  shout: (E) => { E.audio.beep({ freq: 220, dur: 0.18, type: 'sawtooth', gain: 0.05, slide: 1.4 }); },
+  slide: (E) => { E.audio.beep({ freq: 500, dur: 0.3, type: 'triangle', gain: 0.04, slide: 0.4 }); },
+  flash: (E) => { E.audio.beep({ freq: 2400, dur: 0.02, type: 'square', gain: 0.03 }); },
+  fanfare: (E) => { E.audio.beep({ freq: 523, dur: 0.16, type: 'triangle', gain: 0.07 }); E.audio.beep({ freq: 659, dur: 0.16, type: 'triangle', gain: 0.07, delay: 0.14 }); E.audio.beep({ freq: 784, dur: 0.34, type: 'triangle', gain: 0.07, delay: 0.28 }); },
+  clap: (E) => { E.audio.beep({ freq: 1800, dur: 0.025, type: 'square', gain: 0.03 }); },
+};
+// What a scene marks as seen when it shows: the Intern scene is careerSeen 1, the turn and the ending have their own flags.
+const SCENE_MARK = { intern: ['careerSeen', 1], turn: ['turnSeen', true], ending: ['endSeen', true] };
+function markScene(E, id) { const m = SCENE_MARK[id]; if (m) E.save.set(m[0], typeof m[1] === 'number' ? Math.max(E.save.get(m[0], 0), m[1]) : m[1]); }
+
+// The story player: the cold open (three scenes), the Intern scene, the turn and the ending, and a poster's card. `cards` is a list of { kind: 'scene', id } | { kind: 'poster', set }; `then` is the
+// [scene, params] to go to after the last card or Skip. A scene jumps to its end on a tap, goes on at the next one and by itself `autoGap` seconds after it ends; a poster card goes on at a tap. Skip
+// leaves at once and is always there, and nothing here waits on the player's input beyond the short lock after a card appears.
+const OPEN_CARDS = ['lot', 'extras', 'gus'].map((id) => ({ kind: 'scene', id }));
 const story = {
   enter(E, params) {
-    const p = params && params.cards ? params : { cards: STORY.open.map((_, i) => ({ kind: 'open', i })), then: ['menu'], cold: true }; // no params: the cold open
+    const p = params && params.cards ? params : { cards: OPEN_CARDS, then: ['menu'], cold: true }; // no params: the cold open
     this.cards = p.cards; this.then = p.then || ['menu']; this.cold = !!p.cold; this.i = 0; this.skip = null;
+    if (this.cold) E.save.set('openSeen', T.scenes.version); // marked as it opens, so closing the app half way never repeats it
     this.begin(E);
   },
   begin(E) {
-    this.t0 = E.time; this.snapped = false;
     const c = this.cards[this.i];
-    if (c.kind === 'rank') E.save.set('careerSeen', Math.max(E.save.get('careerSeen', 0), c.rank)); // the card has been shown
+    this.t0 = E.time; this.tapT = E.time; this.heard = 0;
+    if (c.kind === 'scene') markScene(E, c.id); // the card has been shown
   },
   finish(E) {
-    for (const c of this.cards) if (c.kind === 'rank') E.save.set('careerSeen', Math.max(E.save.get('careerSeen', 0), c.rank)); // skipped is seen
-    if (this.cold) E.save.set('openSeen', true);
+    for (const c of this.cards) if (c.kind === 'scene') markScene(E, c.id); // skipped is seen
     E.setScene(this.then[0], this.then[1]);
   },
-  update(dt, E) { // the rank card's clapperboard: a clack and a small shake when the stick shuts
+  advance(E) { if (++this.i >= this.cards.length) this.finish(E); else this.begin(E); },
+  update(dt, E) {
     const c = this.cards[this.i];
-    if (c.kind === 'rank' && !this.snapped && E.time - this.t0 >= T.career.snapAt + T.career.snap) { this.snapped = true; E.audio.beep({ freq: 1400, dur: 0.03, type: 'square', gain: 0.06 }); E.shake(3, 0.15); E.haptic(12); }
+    if (c.kind !== 'scene') return;
+    const d = sceneLen(c.id), t = Math.min(E.time - this.t0, d);
+    for (const [at, kind] of SCENES[c.id].cues) if (at > this.heard && at <= t) CUES[kind](E);
+    this.heard = Math.max(this.heard, t);
+    if (E.time - this.t0 >= d + T.scenes.autoGap) this.advance(E);
   },
   render(ctx, E) {
-    const c = this.cards[this.i], age = E.time - this.t0, a = clamp(age / T.career.fade, 0, 1), land = E.w >= E.h * 1.2, sf = E.safe, pad = 24 + Math.max(sf.left, sf.right), top = sf.top, bot = E.h - sf.bottom;
-    const text = c.kind === 'open' ? STORY.open[c.i] : c.kind === 'rank' ? STORY.rank[c.rank] : STORY.premiere;
+    const c = this.cards[this.i], age = E.time - this.t0, K = T.scenes, sf = E.safe;
+    ctx.fillStyle = P.stageLow; ctx.fillRect(0, 0, E.w, E.h);
+    if (c.kind === 'scene') this.renderScene(ctx, E, c, Math.min(age, sceneLen(c.id)));
+    else this.renderPoster(ctx, E, c, age, E.w >= E.h * 1.2);
+    this.skip = btn(E, 'Skip', E.w - sf.right - 16 - K.skipW / 2, sf.top + 8 + K.skipH / 2, { w: K.skipW, h: K.skipH, size: TY.small, fill: P.panelHi });
+  },
+  // A scene: the art box under the Skip row, the lines on a plate at the bottom (each fades in at its beat; the plate is sized for all of them, so nothing moves) and a triangle when a tap goes on.
+  renderScene(ctx, E, c, t) {
+    const sc = SCENES[c.id], K = T.scenes, sf = E.safe, aw = E.w - sf.left - sf.right, cx = sf.left + aw / 2, capW = Math.min(aw - 96, 520), lh = 24;
+    const all = sc.beats.flatMap((b) => wrapText(ctx, b.text, capW - 28, TY.mid).map((ln) => ({ ln, at: b.at, tone: b.tone })));
+    const capH = all.length * lh + 16, capTop = E.h - sf.bottom - 12 - capH, artTop = sf.top + 8 + K.skipH + 6, artH = capTop - 8 - artTop;
+    const k = Math.min((aw - 16) / SW, artH / SH), bx = cx - SW * k / 2, by = artTop + (artH - SH * k) / 2;
+    if (sc.room) { // Gus's Prop Room: the pegboard wall behind
+      const gy = by + (GY - 18) * k;
+      ctx.fillStyle = MPAT.peg || P.pegboard; ctx.fillRect(0, 0, E.w, gy); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 0, E.w, gy);
+    } else drawDusk(ctx, E, k, bx, by, t, !!sc.night);
+    sceneK = k;
+    ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); sc.draw(ctx, E, t); ctx.restore();
+    if (t < 0.3) { ctx.globalAlpha = 1 - seg(t, 0, 0.3); ctx.fillStyle = P.stageLow; ctx.fillRect(0, 0, E.w, E.h); ctx.globalAlpha = 1; } // the scene fades in from black
+    ctx.fillStyle = P.stageLow; ctx.fillRect(0, capTop - 8, E.w, E.h - capTop + 8); // the ground under the lines
+    if (all.some((l) => t >= l.at)) plate(E, cx - capW / 2, capTop, capW, capH, P.panel, P.panelEdge, 12);
+    all.forEach((l, i) => { const a = seg(t, l.at, l.at + 0.5); if (a > 0) E.text(l.ln, cx, capTop + 8 + lh / 2 + i * lh - (1 - a) * 5, { size: TY.mid, color: l.tone === 'gus' ? P.brassText : P.text, alpha: a }); });
+    if (t >= sceneLen(c.id)) { // the triangle that says a tap goes on
+      const m = 1 + 0.15 * Math.sin(E.time * 6), tx = E.w - sf.right - 26, ty = E.h - sf.bottom - 26;
+      ctx.fillStyle = P.textDim; ctx.beginPath(); ctx.moveTo(tx - 7 * m, ty - 9 * m); ctx.lineTo(tx + 9 * m, ty); ctx.lineTo(tx - 7 * m, ty + 9 * m); ctx.closePath(); ctx.fill();
+    }
+  },
+  // A premiere poster's card: the stage, the poster and its line, as in v0.7.
+  renderPoster(ctx, E, c, age, land) {
+    const sf = E.safe, pad = 24 + Math.max(sf.left, sf.right), top = sf.top, bot = E.h - sf.bottom, a = clamp(age / T.career.fade, 0, 1);
     drawStage(ctx, E);
-    this.skip = btn(E, 'Skip', E.w - sf.right - 16 - 42, top + 8 + 22, { w: 84, h: 44, size: TY.small, fill: P.panelHi });
-    let art = null, tb; // art: the picture box; tb: the text box (x, width, centre y of the block)
-    if (land) {
-      const aw = Math.min(250, E.w * 0.32), ax = pad + sf.left * 0, ay = top + 64;
-      if (c.kind === 'open' && c.i === 0) tb = { x: pad, w: E.w - 2 * pad, cy: bot - 110 };
-      else { art = { x: ax, y: ay, w: aw, h: bot - ay - 40 }; tb = { x: ax + aw + pad, w: E.w - pad - (ax + aw + pad), cy: (top + bot) / 2 }; }
-    } else if (c.kind === 'open' && c.i === 0) tb = { x: pad, w: E.w - 2 * pad, cy: E.h * 0.62 };
+    let art, tb;
+    if (land) { const aw = Math.min(250, E.w * 0.32), ay = top + 64; art = { x: pad, y: ay, w: aw, h: bot - ay - 40 }; tb = { x: pad + aw + pad, w: E.w - pad - (pad + aw + pad), cy: (top + bot) / 2 }; }
     else { const ah = Math.min(E.h * 0.38, 320); art = { x: pad, y: top + 72, w: E.w - 2 * pad, h: ah }; tb = { x: pad, w: E.w - 2 * pad, cy: top + 72 + ah + (bot - top - 72 - ah) * 0.42 }; }
     ctx.globalAlpha = a;
-    if (c.kind === 'open' && c.i === 0) drawLogo(ctx, E, { x: E.w / 2 - 150, y: Math.max(top + 64, tb.cy - 210), w: 300, h: 150 }, true);
-    else if (c.kind === 'poster') { const pw = Math.min(art.w, art.h / 1.5), ph = pw * 1.5; drawPoster(ctx, E, art.x + (art.w - pw) / 2, art.y + (art.h - ph) / 2, pw, ph, c.set, pw >= 170 ? TY.mid : TY.small); }
-    else drawDirector(ctx, art.x + art.w / 2, art.y + art.h / 2, Math.min(art.w, art.h), c.kind === 'rank');
+    const pw = Math.min(art.w, art.h / 1.5), ph = pw * 1.5; drawPoster(ctx, E, art.x + (art.w - pw) / 2, art.y + (art.h - ph) / 2, pw, ph, c.set, pw >= 170 ? TY.mid : TY.small);
     ctx.globalAlpha = 1;
-    const tx = tb.x + tb.w / 2, lines = wrapText(ctx, text, Math.min(tb.w - 8, 520), TY.mid), lh = 24, boardH = c.kind === 'rank' ? 112 : 0, total = boardH + lines.length * lh;
-    let y = tb.cy - total / 2;
-    if (c.kind === 'rank') { ctx.globalAlpha = a; drawRankBoard(ctx, E, tx, y + 46, Math.min(tb.w - 8, 300), T.career.ranks[c.rank][0], age); ctx.globalAlpha = 1; y += boardH; }
+    const tx = tb.x + tb.w / 2, lines = wrapText(ctx, STORY.premiere, Math.min(tb.w - 8, 520), TY.mid), lh = 24, y = tb.cy - lines.length * lh / 2;
     lines.forEach((ln, i) => E.text(ln, tx, y + lh / 2 + i * lh, { size: TY.mid, color: P.text, alpha: a }));
-    const last = this.i === this.cards.length - 1;
-    E.text(this.cold && last ? 'Tap to start' : 'Tap to continue', E.w / 2, bot - 22, { size: TY.small, color: P.textDim, alpha: clamp((age - 0.4) / 0.4, 0, 1) });
+    E.text('Tap to continue', E.w / 2, bot - 22, { size: TY.small, color: P.textDim, alpha: clamp((age - 0.4) / 0.4, 0, 1) });
   },
   onTap(p, E) {
     if (this.skip && E.hit(this.skip, p)) { E.audio.play('tap'); this.finish(E); return; }
-    if (E.time - this.t0 < T.career.lock) return; // a tap meant for the card before it (the result card's button) does not skip this one
+    if (E.time - this.tapT < T.career.lock) return; // a tap meant for the card before it (the result card's button), or a double tap, does not count
+    const c = this.cards[this.i];
     E.audio.play('tap', 0.6);
-    if (++this.i >= this.cards.length) this.finish(E); else this.begin(E);
+    if (c.kind === 'scene' && E.time - this.t0 < sceneLen(c.id)) { this.t0 = E.time - sceneLen(c.id); this.heard = sceneLen(c.id); this.tapT = E.time; return; } // jump to the scene's end
+    this.advance(E);
   },
   onKey(key, E) { if (key === 'Escape') this.finish(E); else if (key === ' ' || key === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
 };
@@ -3082,21 +3391,23 @@ const career = {
   enter() { this.back = this.btnStory = null; this.slots = []; },
   layout(E) {
     const land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, top = E.safe.top, gap = 8, py = top + 92;
-    const cols = land ? 6 : 3, rows = land ? 1 : 2, pw0 = (W - (cols - 1) * gap) / cols, room = E.h - E.safe.bottom - py - (land ? 92 : 100) - (rows - 1) * gap;
+    const cols = land ? 6 : 3, rows = land ? 1 : 2, pw0 = (W - (cols - 1) * gap) / cols, room = E.h - E.safe.bottom - py - (land ? 132 : 140) - (rows - 1) * gap;
     const ph = Math.min(pw0 * 1.5, room / rows), pw = ph / 1.5, slots = [];
     POSTER_SETS.forEach((set, i) => { const cx = x0 + (W - (cols * pw + (cols - 1) * gap)) / 2 + (i % cols) * (pw + gap); slots.push({ set, x: cx, y: py + Math.floor(i / cols) * (ph + gap), w: pw, h: ph }); });
-    return { W, x0, top, slots, barY: py + rows * ph + (rows - 1) * gap + 34 };
+    const end = py + rows * ph + (rows - 1) * gap; // the poster wall's bottom edge: the studio-funds row (v0.9 C) under it, then the rank ladder
+    return { W, x0, top, slots, fundsY: end + 22, barY: end + 66 };
   },
   render(ctx, E) {
     const L = this.layout(E), ci = careerInfo(E), pm = postersMap(E), R = T.career.ranks;
-    this.back = btn(E, 'Back', L.x0 + 42, L.top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
-    this.btnStory = btn(E, 'Story', L.x0 + L.W - 42, L.top + 30, { w: 84, h: 44, size: TY.small, fill: P.panelHi });
+    this.back = btn(E, 'Back', L.x0 + 42, L.top + 30, { w: 84, h: 48, size: TY.small, fill: P.slate });
+    this.btnStory = btn(E, 'Story', L.x0 + L.W - 42, L.top + 30, { w: 84, h: 48, size: TY.small, fill: P.panelHi });
     E.text('Career', E.w / 2, L.top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     const cw = Math.min(E.w - 2 * (16 + Math.max(E.safe.left, E.safe.right)), L.W), sum = `${ci.name}  ·  ${ci.n} / ${CAREER_MAX} stars`, tail = ci.next ? `${ci.toNext} to ${ci.next}` : '';
     ctx.font = `${TY.strong} ${TY.small}px system-ui, sans-serif`; // one line when the whole summary fits, else the rank and stars over the next rank
     if (!tail || ctx.measureText(`${sum}  ·  ${tail}`).width <= cw) E.text(tail ? `${sum}  ·  ${tail}` : sum, E.w / 2, L.top + 66, { size: TY.small, weight: TY.strong, color: P.cyan });
     else { E.text(fitText(ctx, sum, cw, TY.small, TY.strong), E.w / 2, L.top + 61, { size: TY.small, weight: TY.strong, color: P.cyan }); E.text(fitText(ctx, tail, cw, TY.small, TY.strong), E.w / 2, L.top + 79, { size: TY.small, weight: TY.strong, color: P.cyan }); }
     this.slots = L.slots;
+    this.drawFunds(ctx, E, L, pm);
     for (const s of L.slots) { if (pm[s.set]) drawPoster(ctx, E, s.x, s.y, s.w, s.h, s.set, TY.small); else drawPosterSlot(ctx, E, s.x, s.y, s.w, s.h); }
     // the rank ladder: four pips on a bar, the names under them; the bar fills up to the player's place
     const n = R.length, bx = L.x0 + 40, bw = L.W - 80, by = L.barY, seg = bw / (n - 1);
@@ -3108,9 +3419,19 @@ const career = {
       E.text(name, x, by + 24 + (seg < 110 && i % 2 ? 20 : 0), { size: TY.small, weight: TY.strong, color: i === ci.rank ? P.brassText : on ? P.text : P.textDim }); // alternate rows when the names would touch
     });
   },
+  // The studio-funds bar (v0.9 C): the gate's sign (FOR SALE, and NOT FOR SALE once all six films are out), a bar of six segments and the box office the posters have added, one each.
+  drawFunds(ctx, E, L, pm) {
+    const n = POSTER_SETS.filter((set) => pm[set]).length, full = n >= POSTER_SETS.length, y = L.fundsY, label = `box office +${n}`, sign = full ? 'NOT FOR SALE' : 'FOR SALE';
+    ctx.font = `${TY.strong} ${TY.small}px system-ui, sans-serif`;
+    const sw = Math.ceil(ctx.measureText(sign).width) + 18, lw = Math.ceil(ctx.measureText(label).width), bx = L.x0 + sw + 12, bw = L.x0 + L.W - lw - 12 - bx, seg6 = (bw - 5 * 3) / POSTER_SETS.length;
+    plate(E, L.x0, y - 13, sw, 26, full ? P.brass : P.paper, P.ink, 5);
+    E.text(sign, L.x0 + sw / 2, y, { size: TY.small, weight: TY.strong, color: full ? P.ink : P.red });
+    POSTER_SETS.forEach((_, i) => E.roundRect(bx + i * (seg6 + 3), y - 5, seg6, 10, 3, i < n ? P.brass : P.panelEdge));
+    E.text(label, L.x0 + L.W, y, { size: TY.small, weight: TY.strong, align: 'right', color: n ? P.brassText : P.textDim });
+  },
   onTap(p, E) {
     if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
-    if (E.hit(this.btnStory, p)) { E.audio.play('tap'); E.setScene('story', { cards: STORY.open.map((_, i) => ({ kind: 'open', i })), then: ['career'] }); return; }
+    if (E.hit(this.btnStory, p)) { E.audio.play('tap'); E.setScene('story', { cards: OPEN_CARDS, then: ['career'] }); return; }
     const s = this.slots.find((q) => E.hit(q, p));
     if (!s) return;
     if (postersMap(E)[s.set]) { E.audio.play('tap'); E.setScene('story', { cards: [{ kind: 'poster', set: s.set }], then: ['career'] }); return; }
@@ -3124,7 +3445,7 @@ const menu = {
     this.tiles = []; this.guns = []; this.btnEndless = null; this.btnMute = null; this.btnMissions = null; this.btnPlay = null; this.btnProps = null; this.play = null; this.dot = false;
     this.pop = popRung && popRung.gun === gunId(E) ? { id: popRung.id, t0: E.time } : null; popRung = null; // a rung whose stars rose swells once
     this.btnCareer = null;
-    if (!E.save.get('openSeen', false)) E.setScene('story'); // v0.7: a first launch opens with the three story cards (Skip leaves at once)
+    if ((Number(E.save.get('openSeen', 0)) || 0) < T.scenes.version) E.setScene('story'); // v0.9: the three scenes of the cold open show once to every save below the story version (Skip leaves at once)
   },
   render(ctx, E) {
     const gid = gunId(E), play = frontier(E, gid), L = menuLayout(E, `Play ${play.name}`);
@@ -3419,7 +3740,11 @@ function propsLayout(E) {
   return L;
 }
 const props = {
-  enter() { this.L = null; this.sold = null; this.focus = null; },
+  enter(E) { // v0.9 C: Gus says one new line the first time the Prop Room opens after a career step (gusSeen is the highest step he has said it for)
+    this.L = null; this.sold = null; this.focus = null;
+    const r = careerInfo(E).rank; this.step = r >= 1 && r > Number(E.save.get('gusSeen', 0));
+    if (this.step) E.save.set('gusSeen', r);
+  },
   render(ctx, E) {
     const K = A.props, L = this.L = propsLayout(E), box = boxOf(E), sel = gunId(E), sh = L.shop;
     btn(E, 'Back', L.back.x + 42, L.back.y + 22, { w: 84, h: 44, size: TY.small, fill: P.slate });
@@ -3429,7 +3754,7 @@ const props = {
     const mx = L.land ? sh.x + sh.w / 2 : sh.x + K.masterX; // portrait: right of the Back button
     // v0.7 D: Gus's one line for the gun that is selected (the last card tapped, else the gun in hand), in a paper speech strip: over his head in landscape, on the counter in portrait. On a short
     // screen he is drawn a little smaller so that his head clears the strip (his head is `headRise` canvas rows above the counter).
-    const sw = L.land ? sh.w : sh.w - 16, sl = wrapText(ctx, STORY.gus[this.focus && T.guns[this.focus] ? this.focus : sel], sw - 16, TY.small).slice(0, L.land ? A.story.lines : 2), sbh = sl.length * 16 + 12;
+    const sw = L.land ? sh.w : sh.w - 16, sl = wrapText(ctx, this.step && !this.focus ? STORY.gusStep : STORY.gus[this.focus && T.guns[this.focus] ? this.focus : sel], sw - 16, TY.small).slice(0, L.land ? A.story.lines : 2), sbh = sl.length * 16 + 12;
     const say = { lines: sl, bx: L.land ? sh.x : sh.x + 8, by: L.land ? sh.y + 2 : ct + 12 + (52 - sbh) / 2, bw: sw, bh: sbh };
     const picK = L.land ? Math.min(K.picScale, (ct - say.by - sbh - 10) / K.headRise) : K.picScaleTall;
     if (!drawPropMasterPic(ctx, mx, ct, picK, this.sold && E.time - this.sold.t0 < K.soldShow)) drawPropMaster(ctx, mx, ct, L.land ? K.master : 0.9);
@@ -3685,8 +4010,8 @@ const play = {
 const over = {
   enter(E, params) {
     this.p = params; this.ch = chById(params.id); this.t0 = E.time; this.tick = -1;
-    const dn = STORY.note[clamp(params.stars, 0, 3)]; this.note = this.ch.endless ? null : dn[Math.floor(Math.random() * dn.length)]; // v0.7 D: the director's note, by stars
-    this.cards = (params.posters || []).map((set) => ({ kind: 'poster', set })).concat(params.rankUp >= 0 ? [{ kind: 'rank', rank: params.rankUp }] : []); // story cards that wait for the player's next tap
+    this.note = this.ch.endless ? null : STORY.note[careerInfo(E).rank][params.stars >= T.scenes.noteHigh ? 1 : 0]; // v0.9 C: the director's note, by career and then by stars (the worried line for the low takes)
+    this.cards = (params.posters || []).map((set) => ({ kind: 'poster', set })).concat(params.rankUp >= 0 ? [{ kind: 'scene', id: STORY_SCENE[params.rankUp] }] : []); // story cards and scenes that wait for the player's next tap
     const g = params.gaunt;
     if (g) { this.next = g.next ? CHALLENGES.find((c) => c.id === g.next) : null; this.canNext = !!this.next; }
     else {
@@ -3917,13 +4242,16 @@ function migrateGuns(data) {
 export const game = {
   slug: 'recoil',
   title: 'Recoil',
-  saveVersion: 14,
+  saveVersion: 15,
   // Save shape: best { challengeId: { gunId: { score, stars, accuracy } } }, gun (id), skins { gunId: skinId }, badges { badgeId: 1 }, gunsHad { gunId: 1 } (guns a save from
   // before v7 already had), cold (Cold Barrel's runs in a row), zend (the endless mode's bests), mastery { gunId: { shots, hits, bulls, heads, plates } } and skinsHad { gunId: { skinId: 1 } } and skinsNew { gunId: [skinId] } (v10), starPreset (the star-bar preset's name), __tune, __muted.
   // controlsSeen (v11: the first-run controls line has been shown), seen { badgeId: 1 } (v12: the badges already shown on the missions screen; the dot on the menu's Missions button marks an earned one that is not in it).
   // v13 (PRD v0.6 B): box (box office in dollars) and owned { gunId: 1 } (the guns bought in the Prop Room; the migration puts every gun a save already had here, so none is taken away).
   // v14 (PRD v0.7 F): careerSeen (the highest career rank, an index 0 to 3, whose card has been shown), openSeen (the cold open has been shown or skipped) and posters { set: 1 } (premiere posters released: accuracy,
   // speed, skeet, boss, zombie, endless). The migration marks the cold open seen, gives a veteran one rank card for the rank they are at now (careerSeen one below it), and hangs the posters of sets already three-starred.
+  // v15 (PRD v0.9 D): openSeen is now the story version shown (a number; the v14 true is 1, so the new cold open shows once to everyone), turnSeen and endSeen (booleans: the Stunt Double turn and the Action Star ending
+  // have shown) and gusSeen (the career step, 0 to 3, whose Prop Room line Gus has said). careerSeen is now only the Intern scene's (1 once it has shown). The migration adds the defaults; a save at a rank the
+  // scenes belong to is owed them, one per result card, lowest first (pendingStory).
   // v2 added the chosen gun; v3 pruned saved tune values (ADR-0014); v4 adds badges and bossGuns and awards the star-only badges
   // that the existing bests already earn; v5 adds the worn skin per gun (a skin whose badge is not earned plays as the default); v6 adds the star-bar preset's name. Nothing else changes, and the whole save stays under a kilobyte or two.
   migrate(data, fromVersion) {
@@ -3963,7 +4291,10 @@ export const game = {
       data.careerSeen = Math.max(0, rankFor(careerStars(best)) - 1);
       data.posters = Object.fromEntries(POSTER_SETS.filter((set) => (set === 'endless' ? !!zb && zb.wave >= T.career.endlessWave : threeStarred(best, set))).map((set) => [set, 1]));
     }
-    if (typeof data.openSeen !== 'boolean') delete data.openSeen;
+    if (fromVersion < 15) data.openSeen = data.openSeen ? 1 : 0; // v15: openSeen is the story version shown (1 is the old cold open), so the new open shows once to everyone
+    if (!Number.isInteger(data.openSeen) || data.openSeen < 0) delete data.openSeen;
+    data.turnSeen = data.turnSeen === true; data.endSeen = data.endSeen === true; // v15: the turn (Stunt Double) and the ending (Action Star); a veteran at or above those ranks sees each once, one per result
+    if (!Number.isInteger(data.gusSeen) || data.gusSeen < 0) data.gusSeen = 0; // v15: the career step Gus has said his new line for
     if (!Number.isInteger(data.careerSeen) || data.careerSeen < 0) delete data.careerSeen;
     if (!data.posters || typeof data.posters !== 'object') data.posters = {};
     if (!data.owned || typeof data.owned !== 'object') data.owned = {};
