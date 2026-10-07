@@ -96,6 +96,12 @@ const TUNING = {
     },
     outerShare: 0.25,    // v0.5 P (0.5 in the PRD; the orchestrator moved it to 0.25 because 0.5 left the shotgun's Speed 4 aim-free): a horde member or a zombie part hit only by an outer pellet scores this share of its points (the centre pellet's hit scores in full); damage is unchanged
     hitFlash: 0.14,      // seconds a part shows it was hit
+    rear: { period: 2, up: 0.7, tell: 0.3, ease: 0.08, expose: 0.6, lift: 28 }, // v0.10 A: the Hunched zombie rears up every `period` seconds (its own seeded phase) for `up` seconds, brain out; it shows a tell (groan, shoulder lift) `tell` seconds before; the lift eases over `ease`, and the brain is a target once the rise passes `expose` (a share high enough that a line through its centre clears the body); `lift` is how far the head rises (units at size 1)
+    vary: { size: 0.15, speed: 0.12, headTop: 52 }, // v0.10 B: each zombie's size and speed differ by up to this share (seeded at setup, never in play); no head rises above `headTop` (the HUD)
+    costumeShare: 0.6,   // v0.10 B: the share of zombies in a costume (cosmetic, drawn from the seeded wave RNG); one in `featureShare` more has a feature
+    featureShare: 0.4,
+    costumes: ['cowboy', 'hardhat', 'toque', 'nurse', 'tie', 'surfer', 'bandana', 'curlers', 'skate'],
+    features: ['eyepatch', 'sleeve', 'shoe'],
     endless: { speedStep: 0.04, speedCap: 2.5, hpEvery: 3, mixFrom: 2, mixEvery: 2, sizeFrom: 2, sizeEvery: 2, sizeCap: 6, forceFrom: 24, forceMin: 9 }, // each wave raises speed by speedStep; every hpEvery waves every part gains 1 hp; the mix opens a type every mixEvery waves; a wave holds sizeFrom zombies and one more every sizeEvery waves up to sizeCap; the next wave is forced forceFrom seconds after one enters, one second sooner per wave, but never under forceMin
   },
 
@@ -106,18 +112,18 @@ const TUNING = {
   // Guns (v0.2 section A): data, so a later layer adds more. kickPerShot and kickRecovery are per gun now.
   // v0.5 M: magSize rounds fire before a reload of reloadSeconds (the shotgun loads shell by shell, reloadSeconds / magSize each, and a fire tap interrupts it). Accuracy keeps its own round count on top, and v0.8 A scales it per gun by `accAmmo` (an automatic gun spends rounds in bursts).
   guns: {
-    pistol: { id: 'pistol', job: 'The all-rounder: clean bullseyes and long combos.', name: 'Buddy-Cop 9mm', short: 'Buddy-Cop', damage: 1, fireRate: 9, accuracy: 1.0, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, accAmmo: 1, auto: false },
-    carbine: { id: 'carbine', job: 'Hold to fire: fast targets, hordes and clays.', name: 'Pulse Rifle', short: 'Pulse Rifle', damage: 1, fireRate: 8, accuracy: 0.55, kickPerShot: 5, kickRecovery: 24, magSize: 30, reloadSeconds: 1.6, accAmmo: 2.5, auto: true },
+    pistol: { id: 'pistol', job: 'The all-rounder: clean bullseyes and long combos.', name: 'Buddy-Cop 9mm', short: 'Buddy-Cop', damage: 1, fireRate: 9, accuracy: 1.0, finder: 0.5, kickPerShot: 8, kickRecovery: 32, magSize: 12, reloadSeconds: 1.0, accAmmo: 1, auto: false },
+    carbine: { id: 'carbine', job: 'Hold to fire: fast targets, hordes and clays.', name: 'Pulse Rifle', short: 'Pulse Rifle', damage: 1, fireRate: 8, accuracy: 0.55, finder: 0.45, kickPerShot: 5, kickRecovery: 24, magSize: 30, reloadSeconds: 1.6, accAmmo: 2.5, auto: true },
     // v0.3. `pellets` lines leave the barrel in a fixed fan of shotSpread degrees; each pellet deals `damage` on its own. Only the centre
     // pellet scores zone points on ring targets; on hordes every member any pellet hits scores.
-    shotgun: { id: 'shotgun', job: 'Five pellets: boss plates and hordes; hopeless at far bullseyes.', name: 'Spin-Lever Shotgun', short: 'Spin-Lever', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.2, shell: true, accAmmo: 1, auto: false },
-    rifle: { id: 'rifle', job: 'One-shots plates; long waits and sway matter most.', name: "Assassin's Scope", short: 'Scope', damage: 3, fireRate: 1.5, accuracy: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 1.8, accAmmo: 1, auto: false },
+    shotgun: { id: 'shotgun', job: 'Five pellets: boss plates and hordes; hopeless at far bullseyes.', name: 'Spin-Lever Shotgun', short: 'Spin-Lever', damage: 1, pellets: 5, fireRate: 2.3, accuracy: 0.4, finder: 0.35, kickPerShot: 14, kickRecovery: 30, magSize: 6, reloadSeconds: 2.2, shell: true, accAmmo: 1, auto: false },
+    rifle: { id: 'rifle', job: 'One-shots plates; long waits and sway matter most.', name: "Assassin's Scope", short: 'Scope', damage: 3, fireRate: 1.5, accuracy: 1.0, finder: 1.0, kickPerShot: 16, kickRecovery: 20, magSize: 5, reloadSeconds: 1.8, accAmmo: 1, auto: false },
     // v0.5 section H. Both fire faster than the barrel settles, so a held SMG and a quick revolver climb off the target: the interval is under the recovery time on both.
-    smg: { id: 'smg', job: 'Hold to spray: the fastest fire, and the hardest climb to hold.', name: 'One-Man Army SMG', short: 'One-Man Army', damage: 1, fireRate: 14, accuracy: 0.5, kickPerShot: 6, kickRecovery: 40, magSize: 24, reloadSeconds: 1.4, accAmmo: 2.5, auto: true },
-    revolver: { id: 'revolver', job: 'Six heavy shots: one-shots plates and brains, then waits for the barrel.', name: 'Make-My-Day .44', short: 'Make-My-Day', damage: 3, fireRate: 1.2, accuracy: 1.0, kickPerShot: 20, kickRecovery: 18, magSize: 6, reloadSeconds: 2.4, accAmmo: 1, auto: false },
+    smg: { id: 'smg', job: 'Hold to spray: the fastest fire, and the hardest climb to hold.', name: 'One-Man Army SMG', short: 'One-Man Army', damage: 1, fireRate: 14, accuracy: 0.5, finder: 0.4, kickPerShot: 6, kickRecovery: 40, magSize: 24, reloadSeconds: 1.4, accAmmo: 2.5, auto: true },
+    revolver: { id: 'revolver', job: 'Six heavy shots: one-shots plates and brains, then waits for the barrel.', name: 'Make-My-Day .44', short: 'Make-My-Day', damage: 3, fireRate: 1.2, accuracy: 1.0, finder: 0.6, kickPerShot: 20, kickRecovery: 18, magSize: 6, reloadSeconds: 2.4, accAmmo: 1, auto: false },
   },
   shotSpread: 10,        // v0.3: total fan angle of the shotgun's five pellets, degrees
-  unlockBadges: { revolver: 'gauntlet' }, // v0.6 B: the guns a badge opens (the .44 by the Blockbuster badge a good player earns first); the pistol is free and the rest are bought (gunPrices)
+  gunStars: { revolver: 40 }, // v0.10 D: the guns that open at a total of stars (the .44 at the Stunt Double step of the career); the pistol is free and the rest are bought (gunPrices)
   // v0.6 B, the Prop Room: box office is dollars. A run pays boxPerPoint per point it scored and boxPerStar per star it earned; a new save starts with boxStart, and a save from before
   // v0.6 is credited boxPerStar for every star it already had. Prices rise in the order the PRD lists the guns.
   boxPerPoint: 0.02,
@@ -129,7 +135,7 @@ const TUNING = {
   career: { ranks: [['Extra', 0], ['Intern', 10], ['Stunt Double', 40], ['Action Star', 100]], endlessWave: 8, lock: 0.25, snapAt: 0.15, snap: 0.12, fade: 0.3 },
   // v0.9 (PRD v0.9 A, B): the story's animated scenes. Seconds each scene runs (a tap jumps to its end, and it goes on by itself `autoGap` seconds after), the Skip button, the story version the
   // cold open is shown for (a save that has seen a lower one sees it once) and the stars from which the director's note takes its second line.
-  scenes: { lot: 3.4, extras: 3.6, gus: 3.4, intern: 4.6, turn: 5.4, ending: 6, autoGap: 1, skipW: 96, skipH: 48, version: 2, noteHigh: 2 },
+  scenes: { lot: 3.4, extras: 3.6, gus: 3.4, intern: 4.6, turn: 6.8, ending: 6, autoGap: 1, skipW: 96, skipH: 48, version: 2, noteHigh: 2 },
 
   // Additions, not in the PRDs.
   swayWindow: 0.05,      // Seconds over which the gun's speed is measured for sway
@@ -740,10 +746,10 @@ const BARS = {
   z1: {
     pistol: { m: [3362, 3353, 3040, 2641, 2371, 2265, 2174, 2068, 2017, 1994, 1967, 1952, 1926, 1944, 1948, 1949, 1951, 1954, 1953, 1953, 1947],
       q: [3362, 3362, 2547, 2235, 2055, 2034, 1947, 1931, 1876, 1857, 1861, 1844, 1839, 1844, 1849, 1849, 1852, 1859, 1843, 1849, 1853],
-      h: [3362, 3362, 3362, 2542, 2310, 2179, 2146, 2059, 2009, 2019, 2013, 1992, 1992, 2015, 2011, 2019, 2012, 1996, 1975, 1961, 1955] },
+      h: [3362, 3362, 3362, 2445, 2246, 2107, 2088, 2037, 2030, 1999, 2006, 1966, 1989, 1988, 1970, 1956, 1961, 1938, 1913, 1925, 1936] },
     carbine: { m: [3362, 3353, 3042, 2642, 2403, 2257, 2186, 2060, 2032, 1995, 1970, 1967, 1965, 1961, 1943, 1932, 1925, 1921, 1937, 1939, 1940],
       q: [3362, 3362, 2547, 2242, 2124, 2027, 1962, 1910, 1897, 1883, 1878, 1879, 1880, 1884, 1860, 1854, 1844, 1841, 1863, 1863, 1858],
-      h: [3362, 3362, 3362, 2542, 2250, 2177, 2175, 2065, 2033, 2029, 2043, 1997, 1976, 1992, 1998, 2046, 1998, 1995, 2001, 2017, 2017] },
+      h: [3362, 3362, 3362, 2445, 2261, 2124, 2084, 2050, 2028, 1964, 2001, 1986, 1975, 1972, 1983, 1979, 1983, 1974, 1968, 1984, 1962] },
     shotgun: { m: [3409, 3400, 3099, 2712, 2437, 2217, 2012, 1790, 1609, 1547, 1504, 1395, 1364, 1319, 1302, 1293, 1256, 1235, 1207, 1159, 1195],
       q: [3409, 3409, 2619, 2298, 2098, 1886, 1675, 1501, 1366, 1325, 1300, 1189, 1120, 1043, 1059, 1055, 978, 981, 958, 926, 966],
       h: [3409, 3409, 3409, 2619, 2322, 2025, 1938, 1869, 1595, 1562, 1488, 1310, 1391, 1351, 1258, 1188, 1195, 1244, 1143, 1054, 1146], cal: 1592 },
@@ -752,22 +758,25 @@ const BARS = {
       h: [3502, 3502, 3502, 2711, 2557, 2316, 2293, 2291, 2262, 2261, 2251, 2226, 2220, 2196, 2185, 2246, 2208, 2205, 2195, 2194, 2209] },
     smg: { m: [3362, 3353, 3044, 2637, 2409, 2248, 2177, 2051, 2026, 2009, 1978, 1954, 1951, 1935, 1944, 1953, 1955, 1936, 1945, 1933, 1941],
       q: [3362, 3362, 2547, 2237, 2124, 2031, 1944, 1911, 1881, 1884, 1862, 1857, 1844, 1834, 1836, 1841, 1847, 1854, 1848, 1857, 1849],
-      h: [3362, 3362, 3362, 2542, 2266, 2177, 2175, 2069, 2039, 2023, 2045, 2006, 1998, 2027, 2022, 2029, 2000, 2006, 2008, 2003, 2006] },
+      h: [3362, 3362, 3362, 2445, 2261, 2124, 2084, 2051, 2042, 1974, 2020, 2002, 1997, 2010, 2026, 1987, 1983, 2007, 1983, 1972, 1987] },
     revolver: { m: [3502, 3493, 3166, 2777, 2569, 2399, 2301, 2264, 2245, 2193, 2170, 2166, 2161, 2128, 2122, 2134, 2141, 2152, 2102, 2067, 2099],
-      q: [3502, 3502, 2737, 2402, 2259, 2157, 2113, 2102, 2101, 2045, 2062, 2064, 2059, 2061, 2059, 2031, 2041, 2054, 2024, 2024, 2041] },
+      q: [3502, 3502, 2737, 2402, 2259, 2157, 2113, 2102, 2101, 2045, 2062, 2064, 2059, 2061, 2059, 2031, 2041, 2054, 2024, 2024, 2041],
+      h: [3502, 3502, 3502, 2630, 2405, 2297, 2266, 2248, 2172, 2205, 2225, 2185, 2176, 2208, 2200, 2194, 2137, 2115, 2126, 2126, 2102] },
   },
   z2: {
     pistol: { m: [7002, 6993, 6355, 5532, 5067, 4832, 4511, 4436, 4374, 4256, 4218, 4222, 4158, 4165, 4179, 4166, 4139, 4194, 4177, 4095, 4163],
       q: [7002, 7002, 6079, 4988, 4665, 4502, 4244, 4166, 4179, 4089, 4063, 4093, 4020, 4039, 4003, 4044, 4005, 4078, 4040, 3997, 4044] },
     carbine: { m: [7002, 6994, 6481, 5510, 4964, 4731, 4538, 4415, 4356, 4330, 4310, 4290, 4264, 4180, 4199, 4158, 4153, 4224, 4130, 4116, 4051],
-      q: [7002, 7002, 6177, 5072, 4672, 4532, 4304, 4188, 4153, 4093, 4100, 4135, 4097, 4084, 4071, 4051, 4021, 4108, 4050, 4018, 4029] },
+      q: [7002, 7002, 6177, 5072, 4672, 4532, 4304, 4188, 4153, 4093, 4100, 4135, 4097, 4084, 4071, 4051, 4021, 4108, 4050, 4018, 4029],
+      h: [6947, 6947, 6337, 5416, 4946, 4669, 4535, 4409, 4381, 4412, 4354, 4287, 4300, 4326, 4327, 4360, 4311, 4320, 4308, 4309, 4296] },
     shotgun: { m: [7141, 7119, 6612, 5575, 4987, 4532, 4069, 3778, 3559, 3384, 3224, 3036, 2950, 2899, 2799, 2716, 2674, 2614, 2574, 2554, 2494],
       q: [7141, 7117, 6344, 5162, 4487, 4052, 3655, 3423, 3101, 2971, 2791, 2673, 2552, 2557, 2440, 2351, 2407, 2278, 2241, 2212, 2164],
       h: [6226, 6233, 5953, 5290, 4616, 4224, 4062, 3700, 3500, 3314, 3191, 2935, 2945, 2880, 2894, 2801, 2713, 2631, 2650, 2652, 2463] },
     rifle: { m: [7347, 7335, 6675, 5815, 5454, 5264, 5168, 5038, 5060, 4934, 4999, 5039, 4919, 4827, 4675, 4702, 4589, 4456, 4287, 4358, 4219],
       q: [7347, 7347, 6242, 5380, 5111, 4968, 4921, 4807, 4785, 4714, 4789, 4856, 4773, 4688, 4696, 4695, 4655, 4619, 4403, 4403, 4267] },
     smg: { m: [7002, 6999, 6467, 5418, 5059, 4771, 4528, 4430, 4328, 4297, 4260, 4195, 4181, 4174, 4208, 4205, 4198, 4175, 4158, 4139, 4156],
-      q: [7002, 7002, 6177, 4954, 4647, 4457, 4229, 4214, 4117, 4094, 4088, 4019, 4041, 4030, 4038, 4080, 4038, 4043, 4032, 4000, 4015] },
+      q: [7002, 7002, 6177, 4954, 4647, 4457, 4229, 4214, 4117, 4094, 4088, 4019, 4041, 4030, 4038, 4080, 4038, 4043, 4032, 4000, 4015],
+      h: [6947, 6947, 6284, 5391, 4944, 4603, 4479, 4417, 4414, 4337, 4334, 4322, 4337, 4357, 4320, 4334, 4287, 4256, 4299, 4282, 4275] },
     revolver: { m: [7347, 7340, 6870, 6151, 5523, 5256, 5093, 5015, 4674, 4545, 4303, 4115, 3987, 3735, 3447, 3157, 3074, 2870, 2691, 2511, 2379],
       q: [7347, 7347, 6472, 5727, 5072, 4887, 4794, 4799, 4697, 4646, 4517, 4183, 3306, 2156, 1384, 1323, 1331, 1273, 1221, 1068, 1043],
       h: [7347, 7347, 6844, 5925, 5606, 5226, 5053, 4984, 5022, 4950, 4924, 4904, 4820, 4418, 4330, 3668, 3647, 2638, 2201, 1805, 1685] },
@@ -836,9 +845,15 @@ function endlessWave(k) { // what wave index k (0 first) is made of, apart from 
   const E2 = T.zombie.endless;
   return { n: Math.min(E2.sizeCap, E2.sizeFrom + Math.floor(k / E2.sizeEvery)), mul: Math.min(E2.speedCap, 1 + E2.speedStep * k), hp: Math.floor(k / E2.hpEvery), types: ENDLESS_MIX.slice(0, Math.min(ENDLESS_MIX.length, E2.mixFrom + Math.floor(k / E2.mixEvery))) };
 }
+// v0.10 B: what makes one zombie different from the next, drawn from a seeded stream of its own (so the types, lanes and gaps of a wave never move): a size and a speed as shares of
+// the tuned variation (-1 to 1), the phase of the Hunched zombie's rearing, and a costume and a feature (or none). The same five draws every time, whatever the tuning.
+function zombieLook(rng) {
+  const Z = T.zombie, us = rng.range(-1, 1), uv = rng.range(-1, 1), ph = rng.range(0, Z.rear.period), rc = rng(), rcn = rng(), rf = rng(), rfn = rng();
+  return { us, uv, ph, cos: rc < Z.costumeShare ? Z.costumes[Math.floor(rcn * Z.costumes.length)] : null, feat: rf < Z.featureShare ? Z.features[Math.floor(rfn * Z.features.length)] : null };
+}
 function zombieWave(ch, k) {
-  const rng = makeRng((ch.seed ^ Math.imul(k + 1, 2654435761)) >>> 0), Z = T.zombie, w = endlessWave(k), out = [];
-  for (let i = 0; i < w.n; i++) out.push({ type: w.types[Math.floor(rng() * w.types.length)], mul: w.mul, hp: w.hp, feet: rng.range(Z.lanes[0], Z.lanes[1]), gap: rng.range(ch.gap[0], ch.gap[1]) });
+  const rng = makeRng((ch.seed ^ Math.imul(k + 1, 2654435761)) >>> 0), look = makeRng((ch.seed ^ Math.imul(k + 7, 2246822519) ^ 0x5bd1e995) >>> 0), Z = T.zombie, w = endlessWave(k), out = [];
+  for (let i = 0; i < w.n; i++) out.push({ type: w.types[Math.floor(rng() * w.types.length)], mul: w.mul, hp: w.hp, feet: rng.range(Z.lanes[0], Z.lanes[1]), gap: rng.range(ch.gap[0], ch.gap[1]), ...zombieLook(look) });
   return out;
 }
 
@@ -909,8 +924,8 @@ function build(ch) {
       } else b.push({ at, a: rng.range(lo, hi), x0: lg.x1 - rng.range(0, ch.launchSpread) });
     }
   } else if (ch.ladder === 'zombie') { // waves of zombies: class, the lane the feet keep (nearer is bigger), and the seconds since the one before
-    const Z = T.zombie;
-    b = ch.waves.map((w) => [...w].map((type) => ({ type, mul: ch.mul, hp: 0, feet: rng.range(Z.lanes[0], Z.lanes[1]), gap: rng.range(ch.gap[0], ch.gap[1]) })));
+    const Z = T.zombie, look = makeRng((ch.seed ^ 0x5bd1e995) >>> 0);
+    b = ch.waves.map((w) => [...w].map((type) => ({ type, mul: ch.mul, hp: 0, feet: rng.range(Z.lanes[0], Z.lanes[1]), gap: rng.range(ch.gap[0], ch.gap[1]), ...zombieLook(look) })));
   } else if (ch.wall) { // the Bunker: plates in the order they are revealed, and a core behind them
     b = {
       parts: rng.shuffle(ch.wall.map((_, i) => i)).map((k) => ({ x: ch.wall[k][0], y: ch.wall[k][1] })),
@@ -952,8 +967,8 @@ function moveGun(run, du) { run.gunY = clamp(run.gunY + du, T.gunMinY, T.gunMaxY
 // The true barrel angle in degrees: kick plus sway.
 function angleOf(run) { return run.kick + run.sway; }
 
-// Length along the barrel line of the range finder: it reaches `accuracy` of the way to the right edge.
-function rangeLen(run) { return run.gun.accuracy * (T.designW - T.gunX) / Math.cos(angleOf(run) * DEG); }
+// Length along the barrel line of the range finder: it reaches the gun's `finder` share of the way to the right edge (v0.10 C: only the Scope reaches it).
+function rangeLen(run) { return run.gun.finder * (T.designW - T.gunX) / Math.cos(angleOf(run) * DEG); }
 
 // Queue an input at sim time `at` (seconds). kind: 'move' (design units), 'fire', or 'trigger' (value: held or not).
 function queueInput(run, at, kind, value) { run.q.push({ at, kind, value }); }
@@ -1088,17 +1103,25 @@ function zReach(z) { return T.zombie.reach * z.ty.size * z.sc; }
 // Where each part that is left sits: the pose follows what is left of the zombie, and the parts are the targets (circles) the shot lines cross. A Runner's head bobs with time.
 function layoutZombie(z, t) {
   const Z = T.zombie, P2 = z.ty.pose, sc = z.sc, pl = z.legsDown ? (z.bodyDown ? P2.drag : P2.crawl) : z.bodyDown ? P2.hunch : P2.stand;
-  const put = (p, o, up) => { p.x0 = p.x = z.x + o[0] * sc; p.y0 = p.y = z.y - (o[1] + up) * sc; };
+  const put = (p, o, up, dx = 0) => { p.x0 = p.x = z.x + (o[0] + dx) * sc; p.y0 = p.y = z.y - (o[1] + up) * sc; };
+  const R = Z.rear; z.rise = 0; z.tell = 0; // v0.10 A: the Hunched zombie's rhythm, a pure function of time and its seeded phase
+  if (z.ty.shield && z.parts.body) {
+    const c = t - z.born + z.ph, el = (c % R.period) - (R.period - R.up);
+    z.cyc = Math.floor(c / R.period);
+    if (el >= 0) z.rise = clamp(Math.min(el, R.up - el) / R.ease, 0, 1); else if (el >= -R.tell) z.tell = (el + R.tell) / R.tell;
+  }
   if (z.parts.legs) put(z.parts.legs, P2.stand.legs, 0);
   if (z.parts.body) put(z.parts.body, pl.body || P2.stand.body, 0);
   if (z.parts.brain) {
-    put(z.parts.brain, pl.brain, z.ty.bob && !z.legsDown ? (z.ty.bob / 2) * Math.sin((PI2 * (t - z.born)) / Z.bobPeriod) : 0);
-    z.parts.brain.hidden = !!z.ty.shield && !!z.parts.body;
+    put(z.parts.brain, pl.brain, (z.ty.bob && !z.legsDown ? (z.ty.bob / 2) * Math.sin((PI2 * (t - z.born)) / Z.bobPeriod) : 0) + z.rise * R.lift * z.ty.size, -pl.brain[0] * z.rise);
+    z.parts.brain.hidden = !!z.ty.shield && !!z.parts.body && z.rise < R.expose;
   }
 }
 function spawnZombie(run, spec, wave, n, t) {
-  const Z = T.zombie, ty = ZTYPES[spec.type], k = clamp((spec.feet - Z.lanes[0]) / (Z.lanes[1] - Z.lanes[0]), 0, 1), sc = Z.scale[0] + (Z.scale[1] - Z.scale[0]) * k;
-  const z = { id: run.zN++, wave, n, ty, cls: spec.type, x: Z.spawnX, y: spec.feet, sc, v: Z.base * ty.speed * (spec.mul || 1), legsDown: !!ty.ground, bodyDown: false, parts: {}, born: t };
+  const Z = T.zombie, V = Z.vary, ty = ZTYPES[spec.type], k = clamp((spec.feet - Z.lanes[0]) / (Z.lanes[1] - Z.lanes[0]), 0, 1);
+  const top = ty.pose.stand.brain[1] + ty.brain.r * ty.size + (ty.bob || 0) / 2 + (ty.shield ? Z.rear.lift * ty.size : 0); // the highest the head goes, at scale 1
+  const sc = Math.min((Z.scale[0] + (Z.scale[1] - Z.scale[0]) * k) * (1 + (spec.us || 0) * V.size), (spec.feet - V.headTop) / top); // v0.10 B: a seeded size, never so tall that a head goes under the HUD
+  const z = { id: run.zN++, wave, n, ty, cls: spec.type, x: Z.spawnX, y: spec.feet, sc, v: Z.base * ty.speed * (1 + (spec.uv || 0) * V.speed) * (spec.mul || 1), legsDown: !!ty.ground, bodyDown: false, parts: {}, born: t, ph: spec.ph || 0, cos: spec.cos || null, feat: spec.feat || null, rise: 0, tell: 0, cyc: 0 };
   for (const name of ['legs', 'body', 'brain']) {
     const d = ty[name]; if (!d) continue;
     const hp = d.hp + (spec.hp || 0);
@@ -1120,7 +1143,7 @@ function killZombie(run, z, now) {
   for (const p of Object.values(z.parts)) if (p) { const i = run.targets.indexOf(p); if (i >= 0) run.targets.splice(i, 1); }
   z.parts = {}; z.dead = true; run.zs.splice(run.zs.indexOf(z), 1); run.zdown++;
   if (!run.zs.length && !run.pending.length) run.calmAt = now + T.zombie.waveGap;
-  run.events.push({ type: 'fall', x: z.x, y: z.y, sc: z.sc, crawl: z.legsDown, ty: z.cls });
+  run.events.push({ type: 'fall', x: z.x, y: z.y, sc: z.sc, crawl: z.legsDown, ty: z.cls, cos: z.cos, feat: z.feat });
 }
 // The score of one shot's hits on zombie parts (called with the parts the pellets hurt, after damage): a point value per hit and per part destroyed, the brain bonus, all times
 // the multiplier. A part at zero hit points is destroyed: legs down make the zombie crawl, body down slow it, and the brain ends it. `brain` says the shot hit a brain: only a brain hit steps
@@ -1148,6 +1171,7 @@ function stepZombie(run, t) {
   let touched = null;
   for (const z of run.zs) {
     z.x -= zSpeed(z) * STEP; layoutZombie(z, t);
+    if (z.tell > 0 && z.groanCyc !== z.cyc) { z.groanCyc = z.cyc; run.events.push({ type: 'groan', x: z.x, y: z.y }); } // the tell, once per rearing
     if (!touched && z.x - zReach(z) <= Z.fenceX) touched = z;
   }
   if (touched) { // the fence: the run ends the moment one touches it
@@ -1403,13 +1427,21 @@ function frontier(E, gun) {
 }
 // Rungs where a gun has two stars or better.
 function rungsDone(E, gun) { return CHALLENGES.filter((ch) => starsOf(E, ch, gun) >= 2).length; }
-// ---------- Guns: bought in the Prop Room (v0.6 B), the .44 by a badge ----------
+// ---------- Guns: bought in the Prop Room (v0.6 B), the .44 by the career's stars (v0.10 D) ----------
 
 function hadMap(E) { const m = E.save.get('gunsHad', {}); return m && typeof m === 'object' ? m : {}; }
 function ownedMap(E) { const m = E.save.get('owned', {}); return m && typeof m === 'object' ? m : {}; }
-// A gun is open when it is the free pistol, was bought (or owned before v0.6, which the migration put in `owned`), or its badge is earned; a save from before v7 also keeps what the old
-// points table opened (gunsHad). A gun is never taken away.
-function gunUnlocked(E, id) { return id === 'pistol' || !!ownedMap(E)[id] || !!hadMap(E)[id] || (!!T.unlockBadges[id] && !!badgeMap(E)[T.unlockBadges[id]]); }
+// A gun is open when it is the free pistol or was bought or opened (`owned`: the Prop Room's purchases, what a save had before v0.6, and the .44 once the stars open it); a save from before v7
+// also keeps what the old points table opened (gunsHad). A gun is never taken away.
+function gunUnlocked(E, id) { return id === 'pistol' || !!ownedMap(E)[id] || !!hadMap(E)[id]; }
+// v0.10 D: the guns the career's stars open (T.gunStars) and the save does not own yet are put in `owned` now; returns their ids. Idempotent, so it runs at load (a save already past the stars)
+// and after every result.
+function openByStars(E) {
+  const n = careerInfo(E).n, ids = Object.keys(T.gunStars).filter((id) => !gunUnlocked(E, id) && n >= T.gunStars[id]);
+  if (ids.length) E.save.update('owned', (m) => ({ ...(m && typeof m === 'object' ? m : {}), ...Object.fromEntries(ids.map((id) => [id, 1])) }), {});
+  return ids;
+}
+const starsLine = (E, id) => { const left = T.gunStars[id] - careerInfo(E).n; return `Opens at ${T.gunStars[id]} stars${left > 0 ? ` (${left} to go)` : ''}`; };
 // Box office, in dollars: what a run pays (its score and its stars), the save's balance, and how it is written ("$1,240").
 function boxFor(score, stars) { return Math.round(T.boxPerPoint * Math.max(0, score) + T.boxPerStar * stars); }
 function boxOf(E) { const b = E.save.get('box', T.boxStart); return Number.isFinite(b) ? b : T.boxStart; }
@@ -1417,7 +1449,6 @@ const money = (n) => `$${String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, 
 // v0.5 K's unlock badges: before v0.6 a gun opened with its badge, so a save with the badge had the gun (the migration keeps it owned).
 const OLD_UNLOCK_BADGES = { carbine: 'marksman1', shotgun: 'quickdraw1', rifle: 'clay1', smg: 'quickdraw2', revolver: 'marksman2' };
 function gunId(E) { const id = E.save.get('gun', 'pistol'); return T.guns[id] && gunUnlocked(E, id) ? id : 'pistol'; }
-function unlockBadge(id) { return T.unlockBadges[id] ? BADGES.find((b) => b.id === T.unlockBadges[id]) : null; }
 
 // ---------- Badges (v0.3 section B): skill acts, tiered ----------
 
@@ -1458,10 +1489,10 @@ const BADGE_TIERS = [{ key: 'Bronze', name: 'B-Movie' }, { key: 'Silver', name: 
 // A badge's card line: the short form if it has one. A counter { have, need } only where an unearned badge counts something, else null.
 const badgeLine = (b) => b.short || b.cond;
 const badgeCount = (E, b) => (b.count ? b.count(E) : null);
-// What a badge opens, in words: a gun, or a skin. Null when it opens nothing but itself.
+// What a badge opens, in words: a skin. Null when it opens nothing but itself.
 function badgeOpens(b) {
-  const gun = GUN_IDS.find((g) => T.unlockBadges[g] === b.id), skin = skinOfBadge(b.id);
-  return gun ? `the ${T.guns[gun].name}` : skin ? `the ${T.guns[skin.gun].short} ${skin.skin.name} skin` : null;
+  const skin = skinOfBadge(b.id);
+  return skin ? `the ${T.guns[skin.gun].short} ${skin.skin.name} skin` : null;
 }
 
 // Badges a finished run earns that are not already `have`.
@@ -1503,7 +1534,7 @@ const tierOf = (E, gun) => masteryInfo(masteryOf(E, gun)).tier;
 const STORY = {
   open: ['Backlot 88 is broke. This film is its last chance.', "You're an extra. Your only line so far was a scream.", "'Kid. Take this one. It shoots straight.'"], // the three scenes of the cold open: the lot, the extras, Gus
   intern: ["You! Coffee, then set. Don't trip on the cables.", 'Told you it shoots straight.'], // Big Lou, then Gus
-  turn: ['He walked. No star, no film, no studio.', '...Kid. Can you fall off a roof?'], // Stunt Double: both Big Lou
+  turn: ['He walked. No star, no film, no studio.', '...Kid. Can you fall off a roof?', "And take the .44. You've earned it."], // Stunt Double: all Big Lou; the last line opens the .44 (v0.10 D)
   ending: ["We're saved. You saved us.", 'Always said it shoots straight.'], // Action Star: Big Lou, then Gus
   note: [ // the director's note by career rank, then by the take's stars (the second line from TUNING.scenes.noteHigh)
     ["Cut! We can't afford many more takes.", 'The bank called. Again. Go again.'],
@@ -2088,16 +2119,41 @@ function drawTargetHp(ctx, tg, alpha) {
 // needs no state. The types differ in size, colour and shape: the Runner leans hard, the Crawler is on its hands from the start, the Brute is broad and tall, the Hunched one stoops over its head.
 function zPose(z) { const P2 = z.ty.pose; return z.legsDown ? (z.bodyDown ? P2.drag : P2.crawl) : z.bodyDown ? P2.hunch : P2.stand; }
 function limb(g, x0, y0, x1, y1, w, col) { g.strokeStyle = P.ink; g.lineWidth = w + 3; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+// v0.10 B: costumes and features, cosmetic only. Headwear is knocked back off the head (its band at the back of the skull, tipped over), so nothing is ever drawn over the brain or the head's
+// front; a tie, a flower shirt, a bandana at the neck, curlers behind the ear, a roller skate and an eyepatch sit clear of the brain's top. Drawn in the zombie's own units.
+const HATS = {
+  cowboy: (g) => { g.fillStyle = P.cowboy; g.beginPath(); g.ellipse(0, 0, 8, 2.8, 0, 0, PI2); g.fill(); g.stroke(); rrect(g, -4.5, -8, 9, 8, 2.5); g.fill(); g.stroke(); g.fillStyle = P.cowboyBand; g.fillRect(-4.5, -3, 9, 2); },
+  hardhat: (g) => { g.fillStyle = '#f2c230'; g.beginPath(); g.arc(0, 0, 6.5, Math.PI, PI2); g.closePath(); g.fill(); g.stroke(); g.fillRect(-8, -1.5, 16, 3); g.strokeRect(-8, -1.5, 16, 3); },
+  toque: (g) => { g.fillStyle = P.paper; for (const [x, y] of [[-3.6, -8], [0, -9.5], [3.6, -8]]) { g.beginPath(); g.arc(x, y, 3.6, 0, PI2); g.fill(); g.stroke(); } rrect(g, -5.5, -6, 11, 6, 1.5); g.fill(); g.stroke(); },
+  nurse: (g) => { g.fillStyle = P.paper; g.beginPath(); g.moveTo(-7, 0); g.lineTo(-5, -8); g.lineTo(5, -8); g.lineTo(7, 0); g.closePath(); g.fill(); g.stroke(); g.fillStyle = P.red; g.fillRect(-1, -7, 2, 5); g.fillRect(-2.5, -5.5, 5, 2); },
+};
+function skate(g, x, y) { g.fillStyle = P.paper; rrect(g, x - 6, y - 10, 12, 7, 2); g.fill(); g.strokeStyle = P.ink; g.lineWidth = 1.6; g.stroke(); g.fillStyle = P.red; g.fillRect(x - 6, y - 5, 12, 2); g.fillStyle = P.ink; for (const dx of [-4, 4]) { g.beginPath(); g.arc(x + dx, y - 1.5, 2, 0, PI2); g.fill(); } }
+// The head's costume and feature, then the body's. (hx, hy) is the head, `by` the standing torso's centre; `stoop` takes the Hunched torso (centre (-2, by), tipped by the lean left to the caller).
+function dress(g, z, hx, hy, by, sy, stoop) {
+  const cos = z.cos, feat = z.feat;
+  if (!cos && !feat) return;
+  g.save(); g.lineJoin = 'round'; g.strokeStyle = P.ink; g.lineWidth = 1.8;
+  if (HATS[cos]) { g.save(); g.translate(hx + 12.5, hy + 3.5); g.rotate(1.2); HATS[cos](g); g.restore(); }
+  else if (cos === 'bandana') { g.fillStyle = P.bandana; g.beginPath(); g.moveTo(hx - 7, hy + 7.5); g.lineTo(hx + 7, hy + 7.5); g.lineTo(hx + 1, hy + 15); g.closePath(); g.fill(); g.stroke(); }
+  else if (cos === 'curlers') { g.fillStyle = P.neonPink; for (const [x, y] of [[9.6, -2], [10.4, 2.6], [8.8, 7]]) { g.beginPath(); g.arc(hx + x, hy + y, 2.5, 0, PI2); g.fill(); g.stroke(); } }
+  else if (cos === 'tie' && !z.legsDown) { const ty0 = stoop ? sy - 12 : by - 13; g.fillStyle = P.red; g.beginPath(); g.moveTo(-3, ty0); g.lineTo(1, ty0); g.lineTo(2.4, ty0 + 14); g.lineTo(-0.6, ty0 + 17); g.lineTo(-3.6, ty0 + 14); g.closePath(); g.fill(); g.stroke(); }
+  else if (cos === 'surfer' && !z.legsDown) { const cy0 = stoop ? sy : by; g.fillStyle = P.neonPink; for (const [x, y] of [[-6, -8], [2, -4], [-4, 4], [5, 6]]) { g.beginPath(); g.arc(x, cy0 + y, 2.6, 0, PI2); g.fill(); } g.fillStyle = P.flashCore; for (const [x, y] of [[1, -9], [-7, 0], [3, 10]]) { g.beginPath(); g.arc(x, cy0 + y, 1.9, 0, PI2); g.fill(); } }
+  if (feat === 'eyepatch') { g.strokeStyle = P.ink; g.lineWidth = 1.2; g.beginPath(); g.moveTo(hx - 7.6, hy - 1.4); g.lineTo(hx + 7.6, hy + 1); g.stroke(); g.fillStyle = P.ink; g.beginPath(); g.arc(hx - 3.2, hy - 0.5, 3, 0, PI2); g.fill(); }
+  else if (feat === 'sleeve' && !stoop && !z.legsDown && !z.bodyDown) { g.strokeStyle = P.inkSoft; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-10, by - 4); g.lineTo(-7, by - 8); g.lineTo(-5, by - 4); g.lineTo(-2, by - 8); g.stroke(); g.fillStyle = z.ty.id === 'h' ? P.zShirtH : P.zWound; g.globalAlpha = 0.9; g.fillRect(-8, by - 1.5, 5, 3); }
+  g.restore();
+}
 const ZCOL = { s: ['zSkin', 'zShirt', 'zPants'], r: ['zSkinR', 'zShirtR', 'zPants'], c: ['zSkinC', 'zShirtC', 'zPants'], b: ['zSkinB', 'zShirtB', 'zPantsB'], h: ['zSkinH', 'zShirtH', 'zPants'] };
 function paintZombie(g, z, flash, phase, lean, bob) {
   const Z = T.zombie, ty = z.ty, k = ty.size, pl = zPose(z), legs = !z.legsDown, body = !z.bodyDown, [skinK, shirtK, pantsK] = ZCOL[ty.id], skin = P[skinK], shirt = P[shirtK], pants = P[pantsK];
-  const stoop = !!ty.shield && legs && body, u = (v) => v / k, hx = u(pl.brain[0]), hy = -u(pl.brain[1]) - (bob || 0) / k;
+  const stoop = !!ty.shield && legs && body, u = (v) => v / k, rise = z.rise || 0, tell = z.tell || 0, hx = u(pl.brain[0]) * (1 - rise), hy = -u(pl.brain[1]) - (bob || 0) / k - rise * Z.rear.lift;
   const sw = Math.sin(phase) * 7, bobY = legs ? Math.abs(Math.sin(phase)) * 1.5 : 0;
   g.save(); g.scale(k, k); g.lineCap = 'round'; g.lineJoin = 'round';
   g.fillStyle = P.shadow; g.beginPath(); g.ellipse(2, 1, legs ? 15 : 24, 3.5, 0, 0, PI2); g.fill();
   if (legs) { // two legs, the far one darker; the front one swings toward the fence
     limb(g, 2, -34, 2 - sw, 0, 9, pants); limb(g, -2, -34, -2 + sw, 0, 9, pants);
     g.fillStyle = P.ink; g.fillRect(-2 - sw - 5, -3, 9, 3); g.fillRect(-2 + sw - 5, -3, 9, 3);
+    if (z.feat === 'shoe') { g.fillStyle = skin; g.fillRect(-2 + sw - 5, -3, 9, 3); } // one shoe missing: a bare foot
+    if (z.cos === 'skate') skate(g, -2 - sw, 0);
   } else { // the stumps behind a crawler
     limb(g, 14, -9, 26, -6, 9, pants); g.fillStyle = P.zWound; g.beginPath(); g.arc(27, -6, 4, 0, PI2); g.fill();
   }
@@ -2108,13 +2164,15 @@ function paintZombie(g, z, flash, phase, lean, bob) {
   };
   const ring = (dim) => { g.strokeStyle = P.cyan; g.globalAlpha = dim ? 0.3 : 0.6; g.lineWidth = 1.4; g.beginPath(); g.arc(hx, hy, ty.brain.r + (ty.id === 'b' ? 0.8 : 2.6), 0, PI2); g.stroke(); g.globalAlpha = 1; };
   g.save(); if (legs) { g.translate(0, -bobY); g.rotate(lean); }
-  if (stoop) { // stooped over its head: long arms hanging forward, the head behind the shoulder, out of the shot lines
-    head(); ring(true);
-    limb(g, -6, -44, -27, -34 + Math.sin(phase) * 2, 6, skin);
-    g.fillStyle = shirt; g.save(); g.translate(-2, -44); g.rotate(-0.42); rrect(g, -15, -20, 30, 38, 9); g.restore(); g.fill(); g.strokeStyle = P.ink; g.lineWidth = 2.2; g.stroke();
-    g.strokeStyle = P.inkSoft; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-8, -40); g.lineTo(-3, -30); g.lineTo(2, -37); g.stroke();
-    limb(g, -6, -50, -27, -42 + Math.sin(phase + 1) * 2, 6, skin);
-    g.save(); g.translate(hx, hy); g.scale(0.55, 0.55); drawLock(g, 0, 0, P.text); g.restore();
+  if (stoop) { // stooped over its head: long arms hanging forward, the head behind the shoulder, out of the shot lines; v0.10 A: it straightens to rear up, the shoulders lifting first (the tell)
+    const lift = 4 * Math.sin(tell * Math.PI / 2) * (1 - rise);
+    head(); ring(rise < Z.rear.expose);
+    limb(g, -6, -44 - lift, -27, -34 - lift + Math.sin(phase) * 2, 6, skin);
+    g.fillStyle = shirt; g.save(); g.translate(-2, -44 - lift); g.rotate(-0.42 * (1 - rise)); rrect(g, -15, -20, 30, 38, 9); g.restore(); g.fill(); g.strokeStyle = P.ink; g.lineWidth = 2.2; g.stroke();
+    g.strokeStyle = P.inkSoft; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-8, -40 - lift); g.lineTo(-3, -30 - lift); g.lineTo(2, -37 - lift); g.stroke();
+    limb(g, -6, -50 - lift, -27, -42 - lift + Math.sin(phase + 1) * 2, 6, skin);
+    if (rise < 1) { g.save(); g.globalAlpha = 1 - rise; g.translate(hx, hy); g.scale(0.55, 0.55); drawLock(g, 0, 0, P.text); g.restore(); }
+    dress(g, z, hx, hy, 0, -44 - lift, true);
   } else {
     if (body) {
       const bx = pl.body[0] / k, by = -pl.body[1] / k;
@@ -2133,6 +2191,7 @@ function paintZombie(g, z, flash, phase, lean, bob) {
       limb(g, -2, -50, -25, -46 + Math.sin(phase) * 2, 6, skin);
     } else limb(g, hx - 4, hy + 3, hx - 22, hy + 6, 6, skin); // head only: a hand still reaching
     head(); ring(false);
+    dress(g, z, hx, hy, body && !z.legsDown ? -pl.body[1] / k : 0, 0, false);
   }
   g.restore(); g.restore();
   if (flash) for (const p of Object.values(z.parts)) if (p && z.now - p.hitAt < Z.hitFlash) { // a part just hit: a white flash over its circle
@@ -2149,7 +2208,7 @@ function drawZombie(ctx, z, now) {
 }
 // A zombie that has gone down: it topples about its feet and fades (cosmetic; the sim removed it at the brain shot).
 function drawCorpse(ctx, f) {
-  const k = 1 - f.t / f.max, z = { ty: ZTYPES[f.ty || 's'], legsDown: f.crawl, bodyDown: false, parts: {}, sc: f.sc };
+  const k = 1 - f.t / f.max, z = { ty: ZTYPES[f.ty || 's'], legsDown: f.crawl, bodyDown: false, parts: {}, sc: f.sc, cos: f.cos, feat: f.feat };
   ctx.save(); ctx.translate(f.x, f.y); ctx.scale(f.sc, f.sc); ctx.globalAlpha = 1 - k; ctx.rotate(-Math.min(1.45, k * 2.6) * (f.crawl ? 0.25 : 1));
   paintZombie(ctx, z, 0, 0, 0, 0);
   ctx.restore(); ctx.globalAlpha = 1;
@@ -2197,7 +2256,7 @@ function drawMult(ctx, run) {
 
 // ---- Range finder and hit feedback ----
 
-// Dots along the true barrel line, scaled and faded with distance, orange near the muzzle. It ends `accuracy` of the way to the right
+// Dots along the true barrel line, scaled and faded with distance, orange near the muzzle. It ends `finder` of the way to the right
 // edge; a short one gets a soft cap so the end reads as deliberate.
 function drawRangeFinder(ctx, run, flash) {
   const F = A.finder, a = angleOf(run) * DEG, cs = Math.cos(a), sn = Math.sin(a), gx = T.gunX, gy = run.gunY;
@@ -2215,7 +2274,7 @@ function drawRangeFinder(ctx, run, flash) {
     }
     ctx.fillStyle = RAMP[b]; ctx.globalAlpha = al; ctx.fill();
   }
-  if (run.gun.accuracy < 0.999) {
+  if (run.gun.finder < 0.999) {
     const ex = gx + cs * d1, ey = gy - sn * d1;
     ctx.globalAlpha = F.capAlpha; ctx.strokeStyle = P.white; ctx.lineWidth = F.capWidth; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(ex + sn * F.capHalf, ey + cs * F.capHalf); ctx.lineTo(ex - sn * F.capHalf, ey - cs * F.capHalf); ctx.stroke(); ctx.lineCap = 'butt';
@@ -2668,8 +2727,10 @@ function cosmetics(E, ev) {
   } else if (ev.type === 'wave') { // a wave enters
     S.fx.push({ k: 'callout', x: T.designW / 2, y: 120, text: `Wave ${ev.n}`, t: T.calloutLife * 1.4, max: T.calloutLife * 1.4, big: true });
     E.audio.play('tap', 0.4);
+  } else if (ev.type === 'groan') { // v0.10 A: a Hunched zombie is about to rear up, a low groan the tell
+    E.audio.beep({ freq: 120, dur: 0.3, type: 'sawtooth', gain: 0.05, slide: 0.7 });
   } else if (ev.type === 'fall') { // a zombie goes down: it topples and fades
-    S.fx.push({ k: 'corpse', x: ev.x, y: ev.y, sc: ev.sc, crawl: ev.crawl, t: 0.6, max: 0.6 });
+    S.fx.push({ k: 'corpse', x: ev.x, y: ev.y, sc: ev.sc, crawl: ev.crawl, ty: ev.ty, cos: ev.cos, feat: ev.feat, t: 0.6, max: 0.6 });
     E.audio.play('coin', 0.6);
   } else if (ev.type === 'fence') { // one touched the fence: the run is over
     S.fx.push({ k: 'edge', t: T.edgeLife * 2, max: T.edgeLife * 2 });
@@ -2717,15 +2778,14 @@ function endRun(E) {
   E.ledger.add('result', { id: ch.id, gun: gid, score: r.score, accuracy: acc, stars, best: bestStars, time: r.steps * STEP, hits: r.hits, hitShots: r.hitShots, shots: r.shots, ...(r.baits ? { baits: r.baits } : {}), bulls: r.cBull, heads: r.cHead, plates: r.cPlate, ...(r.ammo === Infinity ? {} : { ammo: r.ammo }), reloads: r.reloads, box: pay, ...(ch.ladder === 'zombie' ? { wave: r.wave, down: r.zdown, fence: !!r.breach } : {}), ...(S.gauntlet === null ? {} : { gauntlet: S.gauntlet }) });
   for (const id of fresh) E.ledger.add('badge', { id, gun: gid, on: ch.id });
   for (let t = t0 + 1; t <= t1; t++) E.ledger.add('mastery', { gun: gid, tier: TIER_NAMES[t], score: m1.bulls + m1.heads }); // after the result that earned it
-  const newGuns = GUN_IDS.filter((g) => fresh.includes(T.unlockBadges[g]) && !gunUnlocked(E, g)); // guns these badges open, before the badges are saved
+  const opened = openByStars(E); // v0.10 D: the guns this run's stars open
+  for (const g of opened) E.ledger.add('unlock', { gun: g, stars: careerInfo(E).n });
   if (fresh.length) E.save.update('badges', (b) => ({ ...(b && typeof b === 'object' ? b : {}), ...Object.fromEntries(fresh.map((id) => [id, 1])) }), {});
   const badgeSkins = fresh.map(skinOfBadge).filter(Boolean);
-  // Everything earned on the run becomes a ticket on its card (v0.5 Q), highest first. A badge that opens a gun is one ticket ("Quick Draw I: Shotgun", the gun's icon) and ranks above
+  // Everything earned on the run becomes a ticket on its card (v0.5 Q), highest first. A gun the stars open is one ticket ("Make-My-Day: yours", the gun's icon) and ranks above
   // everything, so a gun opening is never pushed behind "+n"; a mastery tier and a skin name only themselves, and their icon shows the gun.
-  const K = A.tickets, tickets = fresh.map((id) => {
-    const b = BADGES.find((k) => k.id === id), gun = newGuns.find((g) => T.unlockBadges[g] === id);
-    return gun ? { kind: 'badge', tier: b.tier, gun, name: `${b.name}: ${T.guns[gun].short}`, rank: K.rank.gun } : { kind: 'badge', tier: b.tier, name: b.name, rank: K.rank[b.tier] };
-  });
+  const K = A.tickets, tickets = fresh.map((id) => { const b = BADGES.find((k) => k.id === id); return { kind: 'badge', tier: b.tier, name: b.name, rank: K.rank[b.tier] }; });
+  for (const g of opened) tickets.push({ kind: 'gun', gun: g, name: `${T.guns[g].short}: yours`, rank: K.rank.gun });
   for (let t = t0 + 1; t <= t1; t++) tickets.push({ kind: 'tier', gun: gid, tier: t, name: TIER_NAMES[t], rank: K.rank.tier[t] });
   for (const [g, sk] of badgeSkins.map((k) => [k.gun, k.skin]).concat(tierSkins.map((k) => [gid, k]))) tickets.push({ kind: 'skin', gun: g, skin: sk, name: sk.name, rank: K.rank.skin });
   tickets.sort((a, b) => b.rank - a.rank);
@@ -2737,7 +2797,7 @@ function endRun(E) {
   const perPlate = Math.ceil((ch.plateHp || 0) / (r.gun.damage * (r.gun.pellets > 1 ? 3 : 1)));
   const zom = ch.ladder === 'zombie' ? { zdown: r.zdown, ztotal: ch.endless ? 0 : r.list.reduce((n, w) => n + w.length, 0), zwave: r.wave, zwaves: ch.endless ? 0 : r.list.length, breach: r.breach, day, bestWave } : {};
   const posters = releasePosters(E, ch, r.wave), rankUp = pendingStory(E); // v0.7: a poster this run released; v0.9: the career step whose story scene is owed (one scene, never a cascade)
-  if (rankUp >= 0) E.ledger.add('rank', { rank: T.career.ranks[rankUp][0], stars: careerInfo(E).n });
+  if (rankUp >= 0 && !E.ledger.entries.some((e) => e.k === 'rank' && e.d && e.d.rank === T.career.ranks[rankUp][0])) E.ledger.add('rank', { rank: T.career.ranks[rankUp][0], stars: careerInfo(E).n }); // once per rank, not on every result while its scene is owed
   E.setScene('over', { posters, rankUp, id: ch.id, gun: r.gun.name, gunId: r.gun.id, skin: S.skin, pay, box, platesLeft: left, platesValue: left * perPlate * T.zonePoints[0] * T.comboCap, score: r.score, stars, best: bestScore, isNew, bestStars, hits: r.hits, bulls: r.bulls, heads: r.cHead, shots: r.shots, tickets, gaunt, thr: ch.endless ? null : thresholds(ch, r.gun.id), preset: presetName(), ...zom });
 }
 
@@ -2871,12 +2931,12 @@ function drawRackSelected(ctx, E, b, id) {
   if (fresh) drawStar(ctx, b.x + b.w - 12, b.y + 12, 7, P.cyan);
 }
 // A gun on the rack that is not selected: the silhouette, and three pips for its tier; one not owned shows a padlock and, beside it, a price tag (bought in the Prop Room) or the
-// star of the badge that opens it.
+// star of the career stars that open it.
 function drawRackSmall(ctx, E, b, open) {
-  const cx = b.x + b.w / 2, worn = open ? skinId(E, b.id) : 'std', tier = open ? tierOf(E, b.id) : 0, bd = unlockBadge(b.id);
+  const cx = b.x + b.w / 2, worn = open ? skinId(E, b.id) : 'std', tier = open ? tierOf(E, b.id) : 0;
   plate(E, b.x, b.y, b.w, b.h, P.panel, P.panelEdge);
   ctx.globalAlpha = open ? 1 : 0.25; drawGunTile(ctx, b.id, cx, b.y + b.h / 2 - (b.small ? 0 : 5), b.w - 10, b.small ? b.h - 14 : b.h - 26, worn); ctx.globalAlpha = 1;
-  if (!open) { drawLock(ctx, cx - 9, b.y + b.h / 2 - 2, P.text); if (bd) drawStar(ctx, cx + 9, b.y + b.h / 2 + 3, 6, P.tier[bd.tier]); else drawTag(ctx, cx + 10, b.y + b.h / 2 + 3); return; }
+  if (!open) { drawLock(ctx, cx - 9, b.y + b.h / 2 - 2, P.text); if (T.gunStars[b.id]) drawStar(ctx, cx + 9, b.y + b.h / 2 + 3, 6, P.brass); else drawTag(ctx, cx + 10, b.y + b.h / 2 + 3); return; }
   if (!b.small) for (let i = 0; i < 3; i++) disc(ctx, cx + (i - 1) * 9, b.y + b.h - 8, 2.6, i < tier ? P.cyan : P.panelEdge);
 }
 // The one hint line: the next thing this gun opens and how, else the next mastery tier.
@@ -3048,6 +3108,7 @@ function drawRankBoard(ctx, E, cx, cy, w, name, age) {
 // is the resting picture. The props (sign, trailer, sunglasses, marquee, flashbulbs) are drawn here; Big Lou and Gus are the Artist's portraits with the drawn ones as fallback.
 const SW = 560, SH = 300, GY = 238; // the box and the ground line inside it
 let sceneK = 1; // the box's scale this frame, so that scene text can stay 14 px or more on the screen
+const sceneEdge = { x0: 0, x1: SW, y0: 0, y1: SH }; // the screen's edges in the box's own units this frame (v0.10: a backdrop panel runs to them, so no scene looks boxed at any size)
 const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
 const mix = (a, b, k) => a + (b - a) * k;
 
@@ -3151,10 +3212,11 @@ function sceneLot(ctx, E, t) {
 // ---- 2. The extras: a line of them, Big Lou shouting, and the newcomer at the end fumbling a prop gun ----
 const EXTRA_COLORS = ['#6e5b7b', '#4f6fb0', '#7a5a3c', '#58705e', '#8a4b4b', '#5f5a73'];
 function sceneExtras(ctx, E, t) {
-  ctx.fillStyle = '#2a2233'; ctx.fillRect(-640, 40, 1840, GY - 40); // a painted flat
-  ctx.fillStyle = '#3b2e4f'; ctx.beginPath(); ctx.moveTo(-640, GY - 30);
-  for (let x = -640; x <= 1160; x += 120) { ctx.lineTo(x + 40, GY - 90 - (Math.round(x / 120) % 2 ? 30 : 0)); ctx.lineTo(x + 100, GY - 36); }
-  ctx.lineTo(1200, GY); ctx.lineTo(-640, GY); ctx.fill();
+  const X = sceneEdge, xs = Math.floor(X.x0 / 120) * 120 - 120;
+  ctx.fillStyle = '#2a2233'; ctx.fillRect(X.x0, X.y0, X.x1 - X.x0, GY - X.y0); // a painted flat, top of the screen to the ground
+  ctx.fillStyle = '#3b2e4f'; ctx.beginPath(); ctx.moveTo(xs, GY - 30);
+  let xe = xs; for (let x = xs; x <= X.x1 + 120; x += 120) { ctx.lineTo(x + 40, GY - 90 - (Math.round(x / 120) % 2 ? 30 : 0)); ctx.lineTo(x + 100, GY - 36); xe = x + 100; }
+  ctx.lineTo(xe, GY); ctx.lineTo(xs, GY); ctx.fill();
   ctx.fillStyle = P.brass; ctx.globalAlpha = 0.5; for (let i = 0; i < 7; i++) ctx.fillRect(164 + i * 52 - 6, GY + 6, 12, 3); ctx.globalAlpha = 1; // the tape marks they stand on
   for (let i = 0; i < 6; i++) { // the extras, one after another, swaying a little
     const x = 164 + i * 52, a = seg(t, 0.4 + i * 0.09, 0.8 + i * 0.09);
@@ -3201,7 +3263,7 @@ function sceneIntern(ctx, E, t) {
   storyPic(ctx, 'lou', 116, GY + 12, 168, { flip: true, ...popOf(t, 0.8, 1.35) });
   storyPic(ctx, 'gus', 440, GY - 16 + 120 * (1 - ease.outBack(seg(t, 2.4, 3.1))), 200, { sold: t > 2.9, alpha: seg(t, 2.35, 2.5) });
   glint(ctx, 458, GY - 168, 10 * ease.outBack(seg(t, 3.2, 3.5)), 1 - seg(t, 3.7, 4));
-  ctx.fillStyle = P.counter; ctx.fillRect(330, GY - 18, 900, 1200); ctx.fillStyle = P.counterTop; ctx.fillRect(330, GY - 18, 900, 8);
+  const X = sceneEdge; ctx.fillStyle = P.counter; ctx.fillRect(330, GY - 18, X.x1 - 330, X.y1 - GY + 18); ctx.fillStyle = P.counterTop; ctx.fillRect(330, GY - 18, X.x1 - 330, 8);
 }
 
 // ---- 5. The turn: the star's trailer door slams, his sunglasses are tossed out, Big Lou turns to the newcomer ----
@@ -3232,6 +3294,11 @@ function sceneTurn(ctx, E, t) {
   if (la > 0) storyPic(ctx, 'lou', mix(660, 480, la), GY + 12, 186, { rot: lean, alpha: seg(t, 1.9, 2.1) });
   const ea = ease.outQuad(seg(t, 3.1, 3.8)), hop = Math.abs(Math.sin(ea * Math.PI * 2)) * 6 * (1 - ea); // the newcomer comes in from the left with a small hop, and sweats
   if (ea > 0) drawPlayer(ctx, mix(-40, 356, ea), GY + 4 - hop, 1.1, { sweat: seg(t, 4.1, 4.5) });
+  if (t > 5.2) { // v0.10 D: the .44, held out
+    const k = ease.outBack(seg(t, 5.2, 5.7));
+    ctx.save(); ctx.translate(424, GY - 84 - 16 * (1 - k)); ctx.scale(Math.max(0.01, k), Math.max(0.01, k)); ctx.rotate(-0.12); drawGunTile(ctx, 'revolver', 0, 0, 84, 36, 'std'); ctx.restore();
+    glint(ctx, 458, GY - 106, 10 * ease.outBack(seg(t, 5.5, 5.8)), 1 - seg(t, 6.0, 6.4), P.brassText);
+  }
 }
 
 // ---- 6. The ending: the premiere, the sign torn down, flashbulbs, Big Lou's thanks and Gus clapping in the front row ----
@@ -3285,7 +3352,7 @@ const SCENES = {
   extras: { draw: sceneExtras, beats: [{ at: 1.0, text: STORY.open[1] }], cues: [[0.5, 'shout'], [2.9, 'ting']] },
   gus: { draw: sceneGus, room: true, beats: [{ at: 1.2, text: STORY.open[2], tone: 'gus' }], cues: [[1.55, 'ting'], [1.75, 'slide']] },
   intern: { draw: sceneIntern, beats: [{ at: 1.2, text: STORY.intern[0] }, { at: 2.9, text: STORY.intern[1], tone: 'gus' }], cues: [[0.72, 'clack'], [0.95, 'shout'], [3.2, 'ting']] },
-  turn: { draw: sceneTurn, beats: [{ at: 2.4, text: STORY.turn[0] }, { at: 4.0, text: STORY.turn[1] }], cues: [[0.8, 'thud'], [1.8, 'clack'], [2.1, 'shout']] },
+  turn: { draw: sceneTurn, beats: [{ at: 2.4, text: STORY.turn[0] }, { at: 4.0, text: STORY.turn[1] }, { at: 5.3, text: STORY.turn[2] }], cues: [[0.8, 'thud'], [1.8, 'clack'], [2.1, 'shout'], [5.3, 'ting']] },
   ending: { draw: sceneEnding, night: true, beats: [{ at: 2.9, text: STORY.ending[0] }, { at: 3.9, text: STORY.ending[1], tone: 'gus' }], cues: [[0.9, 'flash'], [1.55, 'flash'], [1.75, 'thud'], [2.45, 'flash'], [2.6, 'fanfare'], [3.3, 'flash'], [4.1, 'clap'], [4.3, 'clap'], [4.5, 'clap'], [4.8, 'flash']] },
 };
 const sceneLen = (id) => T.scenes[id];
@@ -3345,7 +3412,8 @@ const story = {
     const sc = SCENES[c.id], K = T.scenes, sf = E.safe, aw = E.w - sf.left - sf.right, cx = sf.left + aw / 2, capW = Math.min(aw - 96, 520), lh = 24;
     const all = sc.beats.flatMap((b) => wrapText(ctx, b.text, capW - 28, TY.mid).map((ln) => ({ ln, at: b.at, tone: b.tone })));
     const capH = all.length * lh + 16, capTop = E.h - sf.bottom - 12 - capH, artTop = sf.top + 8 + K.skipH + 6, artH = capTop - 8 - artTop;
-    const k = Math.min((aw - 16) / SW, artH / SH), bx = cx - SW * k / 2, by = artTop + (artH - SH * k) / 2;
+    const k = Math.min((aw - 16) / SW, artH / SH), bx = cx - SW * k / 2, by = artTop + artH - SH * k; // the box sits on the lines' plate, so the ground is never a band of empty floor under it
+    sceneEdge.x0 = -bx / k; sceneEdge.x1 = (E.w - bx) / k; sceneEdge.y0 = -by / k; sceneEdge.y1 = (artTop + artH - by) / k;
     if (sc.room) { // Gus's Prop Room: the pegboard wall behind
       const gy = by + (GY - 18) * k;
       ctx.fillStyle = MPAT.peg || P.pegboard; ctx.fillRect(0, 0, E.w, gy); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 0, E.w, gy);
@@ -3533,7 +3601,7 @@ const missions = {
     for (const tier of BADGE_TIERS) {
       const list = BADGES.filter((b) => b.tier === tier.key);
       out.push({ tier, list, y, h: M.headH }); y += M.headH;
-      for (const b of list) { const lines = wrapText(ctx, badgeLine(b), textW, TY.small), h = M.cardH + (lines.length - 1) * M.lineH; out.push({ b, lines, y, h, gun: GUN_IDS.find((g) => T.unlockBadges[g] === b.id) }); y += h + M.gap; }
+      for (const b of list) { const lines = wrapText(ctx, badgeLine(b), textW, TY.small), h = M.cardH + (lines.length - 1) * M.lineH; out.push({ b, lines, y, h }); y += h + M.gap; }
     }
     return { out, h: y - M.gap };
   },
@@ -3542,12 +3610,12 @@ const missions = {
     const W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2, earned = BADGES.filter((b) => have[b.id]).length;
     const open = GAUNTLET.every((id) => isUnlocked(E, CHALLENGES.find((c) => c.id === id), gunId(E)));
     this.reason = open ? '' : gauntletReason(E);
-    this.back = btn(E, 'Back', x0 + 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
+    this.back = btn(E, 'Back', x0 + 42, top + 30, { w: 84, h: 48, size: TY.small, fill: P.slate });
     E.text(land ? `Missions  ${earned}/${BADGES.length}   ·   Points ${pointsTotal(E)}` : `Missions  ${earned}/${BADGES.length}`, E.w / 2, top + 30, { size: land ? TY.mid + 2 : TY.mid, weight: TY.strong, color: P.text });
     if (!land) E.text(`Points ${pointsTotal(E)}`, E.w / 2, top + 66, { size: TY.small, weight: TY.strong, color: P.cyan });
     // The Gauntlet button: a padlock and its label placed by measure when locked, so they never touch.
     const gw = land ? 120 : 110, gx = x0 + W - gw / 2, gy = top + 30;
-    this.btnGauntlet = btn(E, open ? 'Montage' : '', gx, gy, { w: gw, h: 44, size: TY.small, fill: open ? P.orange : P.panelHi, color: P.ink }); // v0.6: the gauntlet is the training montage
+    this.btnGauntlet = btn(E, open ? 'Montage' : '', gx, gy, { w: gw, h: 48, size: TY.small, fill: open ? P.orange : P.panelHi, color: P.ink }); // v0.6: the gauntlet is the training montage
     if (!open) {
       ctx.font = `${TY.strong} ${TY.small}px system-ui, sans-serif`;
       const tw = ctx.measureText('Montage').width, all = M.lock + M.lockGap + tw, x = gx - all / 2;
@@ -3579,8 +3647,7 @@ const missions = {
       drawMedal(ctx, x0 + M.pad + M.medalR, cy, M.medalR, b.tier, on);
       E.text(fitText(ctx, b.name, textW, TY.mid, TY.strong), tx, y + M.cardH * 0.34, { size: TY.mid, weight: TY.strong, align: 'left', color: on ? P.text : P.textDim });
       r.lines.forEach((ln, k) => E.text(ln, tx, y + M.cardH * 0.71 + k * M.lineH, { size: TY.small, align: 'left', color: P.textDim }));
-      if (r.gun) { ctx.globalAlpha = on ? 1 : 0.45; drawGunTile(ctx, r.gun, right - M.gunW / 2, cy, M.gunW, M.gunH, 'std'); ctx.globalAlpha = 1; } // the gun this badge opens
-      else if (cnt) E.text(`${cnt.have}/${cnt.need}`, right, cy, { size: TY.small, weight: TY.strong, align: 'right', color: P.textDim });
+      if (cnt) E.text(`${cnt.have}/${cnt.need}`, right, cy, { size: TY.small, weight: TY.strong, align: 'right', color: P.textDim });
       if (on && this.fresh.has(b.id)) { ctx.lineWidth = 2; ctx.strokeStyle = P.ink; disc(ctx, x0 + listW - M.pad + 2, y + M.pad - 2, M.newR, P.orange); ctx.stroke(); } // new since the last visit
       this.cards.push({ x: x0, y, w: listW, h: r.h, id: b.id, b });
     }
@@ -3626,7 +3693,7 @@ const missions = {
 const STAT_ROWS = [
   ['Damage', (g) => g.damage * (g.pellets || 1), (g) => `${g.damage}${g.pellets > 1 ? ` x${g.pellets}` : ''}`],
   ['Fire rate', (g) => g.fireRate, (g) => `${g.fireRate}/s`],
-  ['Range', (g) => g.accuracy, (g) => `${Math.round(g.accuracy * 100)}%`],
+  ['Range', (g) => g.finder, (g) => `${Math.round(g.finder * 100)}%`],
   ['Kick', (g) => g.kickPerShot, (g) => `${g.kickPerShot}°`],
   ['Recovery', (g) => g.kickRecovery, (g) => `${g.kickRecovery}°/s`],
   ['Magazine', (g) => g.magSize, (g) => `${g.magSize}`],
@@ -3640,12 +3707,12 @@ const gunCard = {
   },
   render(ctx, E) {
     const id = this.id, g = T.guns[id], land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, land ? 780 : 560), x0 = (E.w - W) / 2;
-    const open = gunUnlocked(E, id), worn = skinId(E, id), top = E.safe.top, bd = unlockBadge(id), done = rungsDone(E, id), m = masteryOf(E, id), info = masteryInfo(m);
-    this.back = btn(E, 'Back', x0 + 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.slate });
+    const open = gunUnlocked(E, id), worn = skinId(E, id), top = E.safe.top, need = T.gunStars[id], done = rungsDone(E, id), m = masteryOf(E, id), info = masteryInfo(m);
+    this.back = btn(E, 'Back', x0 + 42, top + 30, { w: 84, h: 48, size: TY.small, fill: P.slate });
     E.text(g.name, E.w / 2, top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     this.use = null;
-    if (open && gunId(E) !== id) this.use = btn(E, 'Use', x0 + W - 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.orange, color: P.ink });
-    else if (!open) this.use = btn(E, bd ? 'Locked' : 'Buy', x0 + W - 42, top + 30, { w: 84, h: 44, size: TY.small, fill: P.panelHi, color: bd ? P.textDim : P.text }); // a bought gun's card leads to the Prop Room
+    if (open && gunId(E) !== id) this.use = btn(E, 'Use', x0 + W - 42, top + 30, { w: 84, h: 48, size: TY.small, fill: P.orange, color: P.ink });
+    else if (!open) this.use = btn(E, need ? 'Locked' : 'Buy', x0 + W - 42, top + 30, { w: 84, h: 48, size: TY.small, fill: P.panelHi, color: need ? P.textDim : P.text }); // a bought gun's card leads to the Prop Room
     const lw = land ? 236 : W, y0 = top + 62, ph = land ? 76 : 92;
     plate(E, x0, y0, lw, ph, P.panel, P.panelEdge, 12);
     ctx.globalAlpha = open ? 1 : 0.3; drawGunTile(ctx, id, x0 + lw / 2, y0 + ph / 2, lw - 32, ph - 22, worn); ctx.globalAlpha = 1;
@@ -3654,7 +3721,7 @@ const gunCard = {
     const lines = wrapText(ctx, g.job, lw - 8, TY.small);
     lines.forEach((ln, k) => E.text(ln, x0 + 4, y + k * 18, { size: TY.small, align: 'left', color: P.textDim }));
     y += lines.length * 18;
-    if (!open) wrapText(ctx, bd ? `Opens with the ${bd.name} badge` : `In the Prop Room for ${money(T.gunPrices[id])}`, lw - 8, TY.small).forEach((ln) => { E.text(ln, x0 + 4, y, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange }); y += 18; }); // wrapped inside the left column, clear of the stat rows
+    if (!open) wrapText(ctx, need ? starsLine(E, id) : `In the Prop Room for ${money(T.gunPrices[id])}`, lw - 8, TY.small).forEach((ln) => { E.text(ln, x0 + 4, y, { size: TY.small, weight: TY.strong, align: 'left', color: P.orange }); y += 18; }); // wrapped inside the left column, clear of the stat rows
     // mastery: the tier, the bar toward the next, the lifetime counters
     y += 12;
     drawFameStar(ctx, x0 + 14, y, info.tier === 3); // the Walk of Fame: a gold star on the pavement once the gun is there
@@ -3689,9 +3756,9 @@ const gunCard = {
   onTap(p, E) {
     const id = this.id, g = T.guns[id];
     if (E.hit(this.back, p)) { E.audio.play('tap'); E.setScene(this.from); return; }
-    if (this.use && E.hit(this.use, p)) { if (gunUnlocked(E, id) && gunId(E) !== id) { pickGun(E, id); E.audio.play('tap'); } else if (!gunUnlocked(E, id) && !unlockBadge(id)) { E.audio.play('tap'); E.setScene('props'); } else E.audio.play('tap', 0.3); return; }
+    if (this.use && E.hit(this.use, p)) { if (gunUnlocked(E, id) && gunId(E) !== id) { pickGun(E, id); E.audio.play('tap'); } else if (!gunUnlocked(E, id) && !T.gunStars[id]) { E.audio.play('tap'); E.setScene('props'); } else E.audio.play('tap', 0.3); return; }
     for (const c of this.chips) if (E.hit(c, p)) {
-      if (!gunUnlocked(E, id)) { E.audio.play('tap', 0.3); const bd = unlockBadge(id); E.toast(bd ? `The ${g.short} opens with the ${bd.name} badge` : `The ${g.short} is in the Prop Room for ${money(T.gunPrices[id])}`); }
+      if (!gunUnlocked(E, id)) { E.audio.play('tap', 0.3); E.toast(T.gunStars[id] ? `The ${g.short}: ${starsLine(E, id)}` : `The ${g.short} is in the Prop Room for ${money(T.gunPrices[id])}`); }
       else if (skinOpen(E, id, c.skin)) { wearSkin(E, id, c.skin); E.audio.play('tap'); }
       else { E.audio.play('tap', 0.3); E.toast(`${c.skin.name}: ${skinNeed(id, c.skin)}`); }
       return;
@@ -3702,7 +3769,7 @@ const gunCard = {
 // The Prop Room (v0.6 B): the prop master behind the counter, the box office on the register, and the six guns on a pegboard. A card is the gun, its movie name, four stats as bars
 // (damage, fire rate, range, kick, each marked by a small drawn icon; the stats card has them all with their labels, one tap on the card) and one button: "Buy $400" (orange when
 // the box office covers it), "Use", "In hand", or, for the .44, the mission that opens it. Buying spends the box office, owns the gun for good and puts it in hand.
-const PROP_STATS = [(g) => g.damage * (g.pellets || 1), (g) => g.fireRate, (g) => g.accuracy, (g) => g.kickPerShot];
+const PROP_STATS = [(g) => g.damage * (g.pellets || 1), (g) => g.fireRate, (g) => g.finder, (g) => g.kickPerShot];
 function statIcon(ctx, i, x, y) { // bullet, double chevron, range line with a cap, up arrow
   ctx.fillStyle = ctx.strokeStyle = P.textDim; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath();
   if (i === 0) { rrPath(ctx, x - 4, y - 2.5, 6, 5, 1.2); ctx.moveTo(x + 2, y - 2.5); ctx.arc(x + 2, y, 2.5, -Math.PI / 2, Math.PI / 2); ctx.fill(); }
@@ -3730,7 +3797,7 @@ function drawPropMasterPic(ctx, cx, y, s, sold) {
 }
 function propsLayout(E) {
   const K = A.props, land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, 840), x0 = (E.w - W) / 2, top = E.safe.top, bottom = E.h - E.safe.bottom - 8;
-  const L = { land, x0, W, back: { x: x0, y: top + 8, w: 84, h: 44 }, cards: [] };
+  const L = { land, x0, W, back: { x: x0, y: top + 8, w: 84, h: 48 }, cards: [] };
   let bx, by, bw, bh, cols;
   if (land) { L.shop = { x: x0, y: top + K.headH + 4, w: K.side, h: bottom - top - K.headH - 4 }; bx = x0 + K.side + K.gap; by = L.shop.y; bw = W - K.side - K.gap; bh = L.shop.h; cols = 3; }
   else { L.shop = { x: x0, y: top + K.headH + 4, w: W, h: 146 }; bx = x0; by = L.shop.y + L.shop.h + K.gap; bw = W; bh = bottom - by; cols = 2; }
@@ -3747,7 +3814,7 @@ const props = {
   },
   render(ctx, E) {
     const K = A.props, L = this.L = propsLayout(E), box = boxOf(E), sel = gunId(E), sh = L.shop;
-    btn(E, 'Back', L.back.x + 42, L.back.y + 22, { w: 84, h: 44, size: TY.small, fill: P.slate });
+    btn(E, 'Back', L.back.x + 42, L.back.y + 24, { w: 84, h: 48, size: TY.small, fill: P.slate });
     E.text('Prop Room', E.w / 2, L.back.y + 22, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     // the counter, the prop master behind it and the register with the box office
     const ct = L.land ? sh.y + sh.h - 88 : sh.y + sh.h - 70, rx = L.land ? sh.x + 8 : sh.x + sh.w - 150, rw = L.land ? sh.w - 16 : 142, ry = L.land ? ct + 18 : sh.y + 12;
@@ -3772,10 +3839,10 @@ const props = {
     drawPegboard(ctx, L.board.x, L.board.y, L.board.w, L.board.h);
     this.btns = [];
     for (const c of L.cards) {
-      const g = T.guns[c.id], own = gunUnlocked(E, c.id), price = T.gunPrices[c.id], bd = unlockBadge(c.id), can = !own && price !== undefined && box >= price;
+      const g = T.guns[c.id], own = gunUnlocked(E, c.id), price = T.gunPrices[c.id], need = T.gunStars[c.id], can = !own && price !== undefined && box >= price;
       plate(E, c.x, c.y, c.w, c.h, own ? P.panelHi : P.panel, c.id === sel ? P.orange : P.panelEdge, 10);
       disc(ctx, c.x + 12, c.y + 8, 3, P.steel); disc(ctx, c.x + c.w - 12, c.y + 8, 3, P.steel); // the pegs it hangs from
-      const lines = wrapText(ctx, g.name, c.w - 16, TY.small).slice(0, 2), bot = c.y + c.h - 48, art = clamp(bot - c.y - 8 - lines.length * K.line - 2 * K.row - 16, K.artMin, L.land ? K.art : K.artTall); // the art gives way to a two-line name
+      const lines = wrapText(ctx, g.name, c.w - 16, TY.small).slice(0, 2), bot = c.y + c.h - 52, art = clamp(bot - c.y - 8 - lines.length * K.line - 2 * K.row - 16, K.artMin, L.land ? K.art : K.artTall); // the art gives way to a two-line name
       drawGunTile(ctx, c.id, c.x + c.w / 2, c.y + 6 + art / 2, c.w - 28, art, own ? skinId(E, c.id) : 'std');
       const sy = bot - 6 - 1.5 * K.row, ny = sy - 6 - K.row / 2 - (lines.length - 0.5) * K.line, half = (c.w - 24) / 2; // two rows of two bars just above the button, the name above them
       lines.forEach((ln, k) => E.text(ln, c.x + c.w / 2, ny + k * K.line, { size: TY.small, weight: TY.strong, color: P.text }));
@@ -3783,11 +3850,14 @@ const props = {
         const bx2 = c.x + 10 + (i % 2) * (half + 4), by2 = sy + Math.floor(i / 2) * K.row, max = Math.max(...GUN_IDS.map((k) => f(T.guns[k]))), tw = half - 14;
         statIcon(ctx, i, bx2 + 5, by2); E.roundRect(bx2 + 12, by2 - K.bar / 2, tw, K.bar, K.bar / 2, P.panelEdge); E.roundRect(bx2 + 12, by2 - K.bar / 2, Math.max(K.bar, tw * f(g) / max), K.bar, K.bar / 2, P.cyan);
       });
-      const b = { x: c.x + 6, y: bot, w: c.w - 12, h: 44, id: c.id };
+      const b = { x: c.x + 6, y: bot, w: c.w - 12, h: 48, id: c.id };
       if (own) { const inHand = c.id === sel; plate(E, b.x, b.y, b.w, b.h, inHand ? P.panel : P.slate, inHand ? P.orange : P.ink); E.text(inHand ? 'In hand' : 'Use', b.x + b.w / 2, b.y + b.h / 2, { size: TY.small, weight: TY.strong, color: inHand ? P.textDim : P.text }); }
-      else if (bd) { // the mission that opens it, on two lines if it needs them
-        plate(E, b.x, b.y, b.w, b.h, P.panel, P.panelEdge); drawMedal(ctx, b.x + 18, b.y + b.h / 2, 11, bd.tier, false);
-        const ml = wrapText(ctx, bd.name, b.w - 42, TY.small).slice(0, 2); ml.forEach((ln, k) => E.text(ln, b.x + 34, b.y + b.h / 2 + (k - (ml.length - 1) / 2) * 16, { size: TY.small, weight: TY.strong, align: 'left', color: P.textDim }));
+      else if (need) { // the stars that open it, on two lines, centred; the padlock only where it fits beside them
+        plate(E, b.x, b.y, b.w, b.h, P.panel, P.panelEdge);
+        const ml = starsLine(E, c.id).split(' ('); ctx.font = `${TY.strong} ${TY.small}px system-ui, sans-serif`;
+        const tw = Math.max(...ml.map((ln) => ctx.measureText(ln).width)), lock = tw + 34 <= b.w - 8, tx = b.x + b.w / 2 + (lock ? 13 : 0);
+        if (lock) drawLock(ctx, tx - tw / 2 - 17, b.y + b.h / 2, P.textDim);
+        ml.forEach((ln, k) => E.text(k ? `(${ln}` : ln, tx, b.y + b.h / 2 + (k - (ml.length - 1) / 2) * 17, { size: TY.small, weight: TY.strong, color: P.textDim }));
       }
       else { plate(E, b.x, b.y, b.w, b.h, can ? P.orange : P.panel, can ? P.ink : P.panelEdge); E.text(`Buy ${money(price)}`, b.x + b.w / 2, b.y + b.h / 2, { size: TY.small, weight: TY.strong, color: can ? P.ink : P.textDim }); }
       this.btns.push(b);
@@ -3805,10 +3875,10 @@ const props = {
     if (E.hit(L.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
     const b = this.btns.find((q) => E.hit(q, p));
     if (b) {
-      const id = b.id, g = T.guns[id], price = T.gunPrices[id], bd = unlockBadge(id), box = boxOf(E);
+      const id = b.id, g = T.guns[id], price = T.gunPrices[id], need = T.gunStars[id], box = boxOf(E);
       this.focus = id; // Gus has a line for it
       if (gunUnlocked(E, id)) { if (gunId(E) !== id) pickGun(E, id); E.audio.play('tap'); }
-      else if (bd) { E.audio.play('tap', 0.3); E.toast(`The ${g.short} opens with the ${bd.name} badge (${bd.cond})`); }
+      else if (need) { E.audio.play('tap', 0.3); E.toast(`The ${g.short}: ${starsLine(E, id)}`); }
       else if (box >= price) { // bought: the box office is spent, the gun is owned for good and in hand
         E.save.set('box', box - price); E.save.update('owned', (m) => ({ ...(m && typeof m === 'object' ? m : {}), [id]: 1 }), {});
         E.ledger.add('buy', { gun: id, price, box: box - price }); pickGun(E, id);
@@ -4137,6 +4207,8 @@ const EXPERIMENTS = [
   { group: 'stars', key: 'starNoise.one', label: 'One star: aim noise (deg)', min: 0.25, max: 5, step: 0.25 },
   { group: 'handling', key: 'guns.pistol.kickPerShot', label: 'Pistol kick per shot (deg)', min: 2, max: 15, step: 0.5 },
   { group: 'handling', key: 'swayPerSpeed', label: 'Sway per speed', min: 0, max: 0.06, step: 0.005 },
+  { group: 'handling', key: 'zombie.vary.size', label: 'Zombie size variety (share)', min: 0, max: 0.3, step: 0.01 },
+  { group: 'handling', key: 'zombie.vary.speed', label: 'Zombie speed variety (share)', min: 0, max: 0.3, step: 0.01 },
 ];
 const PRESETS = [
   { group: 'stars', label: 'Pro', values: { 'starNoise.three': 0.5, 'starNoise.two': 1, 'starNoise.one': 2 } },
@@ -4155,12 +4227,12 @@ const TUNE_DEFAULTS = Object.fromEntries([...TUNE_KEYS].map((k) => [k, getPath(k
 // way the engine's do, in __tune, which the engine restores at boot for the declared keys.
 function tuneLayout(E) {
   const land = E.w >= E.h * 1.2, side = 16 + Math.max(E.safe.left, E.safe.right), W = Math.min(E.w - 2 * side, 780), x0 = (E.w - W) / 2, top = E.safe.top + 56, gap = 16;
-  const pw = land ? (W - gap) / 2 : W, out = { land, x0, W, back: { x: x0, y: E.safe.top + 8, w: 84, h: 44 }, reset: { x: x0 + W - 84, y: E.safe.top + 8, w: 84, h: 44 }, panels: [] };
+  const pw = land ? (W - gap) / 2 : W, out = { land, x0, W, back: { x: x0, y: E.safe.top + 8, w: 84, h: 48 }, reset: { x: x0 + W - 84, y: E.safe.top + 8, w: 84, h: 48 }, panels: [] };
   let y = top;
-  [['stars', 'Star bars'], ['handling', 'Handling']].forEach(([group, title], i) => {
+  [['stars', 'Star bars'], ['handling', 'Handling and zombies']].forEach(([group, title], i) => {
     const x = land ? x0 + i * (pw + gap) : x0, py = land ? top : y, ps = PRESETS.filter((p) => p.group === group), ss = EXPERIMENTS.filter((e) => e.group === group);
     const bw = (pw - (ps.length - 1) * 8) / ps.length;
-    const panel = { group, title, x, y: py, w: pw, presets: ps.map((p, k) => ({ p, x: x + k * (bw + 8), y: py + 24, w: bw, h: 44 })), sliders: ss.map((e, k) => ({ e, x, y: py + 76 + k * 56, w: pw, h: 56 })) };
+    const panel = { group, title, x, y: py, w: pw, presets: ps.map((p, k) => ({ p, x: x + k * (bw + 8), y: py + 24, w: bw, h: 48 })), sliders: ss.map((e, k) => ({ e, x, y: py + 76 + k * 56, w: pw, h: 56 })) };
     panel.h = 76 + ss.length * 56;
     out.panels.push(panel); y = py + panel.h + 12;
   });
@@ -4170,8 +4242,8 @@ const tune = {
   enter() { this.drag = null; },
   render(ctx, E) {
     const L = tuneLayout(E); this.L = L;
-    btn(E, 'Back', L.back.x + L.back.w / 2, L.back.y + 22, { w: L.back.w, h: 44, size: TY.small, fill: P.slate });
-    btn(E, 'Reset', L.reset.x + L.reset.w / 2, L.reset.y + 22, { w: L.reset.w, h: 44, size: TY.small, fill: P.slate });
+    btn(E, 'Back', L.back.x + L.back.w / 2, L.back.y + 24, { w: L.back.w, h: 48, size: TY.small, fill: P.slate });
+    btn(E, 'Reset', L.reset.x + L.reset.w / 2, L.reset.y + 24, { w: L.reset.w, h: 48, size: TY.small, fill: P.slate });
     E.text('Tune', E.w / 2, E.safe.top + 30, { size: TY.mid + 2, weight: TY.strong, color: P.text });
     for (const pn of L.panels) {
       E.text(pn.title.toUpperCase(), pn.x + 4, pn.y + 8, { size: TY.small, weight: TY.strong, align: 'left', color: P.textDim });
@@ -4308,6 +4380,8 @@ export const game = {
   init(E) {
     buildArt(); loadArtImages(); prepMenu(E.dpr, E.ctx); menuPatterns(E.ctx, E.dpr); warmText(E.ctx);
     if (!E.save.get('mastery', null)) E.save.set('mastery', deriveMastery(E)); // a save from before v10: the counters the ledger still has, else zero
+    if (badgeMap(E).gauntlet && !gunUnlocked(E, 'revolver')) E.save.update('owned', (m) => ({ ...(m && typeof m === 'object' ? m : {}), revolver: 1 }), {}); // v0.10 D: the Training Montage badge opened the .44 before; a save with it keeps the gun, quietly
+    if (openByStars(E).length) E.toast('The .44 is yours.'); // v0.10 D: a save already at the stars gets the gun at load, once (the grant is idempotent)
   }, // the art and the menu's sprites are built before the first frame
   experiments: EXPERIMENTS,
   presets: PRESETS,

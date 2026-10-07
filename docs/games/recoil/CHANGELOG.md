@@ -587,3 +587,49 @@
   - D. Save shape, `saveVersion` 14 to 15: `openSeen` is now the story version shown (a number; the v14 `true` migrates to 1, the new open is version 2 and shows once to everyone, marked as it opens), `turnSeen` and `endSeen` (booleans, default false), and `gusSeen` (0 to 3, the career step Gus has said his line for; not in the PRD, added because "said once" needs a place to live). `careerSeen` now means only the Intern scene (1 once shown). `migrate`: adds the defaults. A save owes the scenes by rank: one scene per result card, lowest first, never a cascade (`pendingStory`: Intern if `careerSeen` < 1, then the turn at Stunt Double, then the ending at Action Star). A veteran at Stunt Double or above sees the turn once at the next result, one at Action Star sees the turn, then the ending at the result after. Open question taken the simplest way: the poster card still comes first when a run also releases a poster, and the catch-up scene follows it.
   - Text counts (principle 11), items drawn per card: lot 1 line (plus the sign "FOR SALE" and the neon "88"), extras 1, Gus 1, Intern 2 (plus the board "Intern"), turn 2, ending 2 (plus the marquee "RECOIL" and the sign), every one with Skip; the result card is unchanged at one note line (v0.8: 9 items on a 3-star run with a new best and box office); the poster wall gains 2 (sign, "box office +n"). Career Back and Story are now 84x48.
   - Checks: `node tools/smoke.mjs` passes; `tools/codemap-check.mjs` finds every recoil anchor; no `//` comment sits in front of code; play frame at 4x throttle 27.5 ms against 28.8 ms for the commit before (untouched code); the story scenes cost 45 to 60 ms at 4x, the menu 97. Driven with `tools/drive.mjs`: the three open scenes mid-animation (`recoil9-lot-*`, `-extras-*`, `-gus-*`), all six scenes at their end at 667x375, 844x390, 932x430 and 390x844, Big Lou's note in each career, the turn once at 40 stars and the ending once at 100, a v15 save at 50 stars and a v14 save at 50 (the turn once), a v14 save at 100 (turn, then ending, one per result), the studio-funds row at 2 of 6 and 6 of 6, Gus's line once after a step. Screenshots: `recoil9-*.png`.
+
+
+## v0.10 (unreleased)
+
+- v0.10, lively zombies, honest range finders, a simple .44 (PRD v0.10 A to F; built by sonnet, review passed first time); `game.js`, `sw.js` `recoil-v33`, this file and the CODEMAP.
+  - A. The Hunched zombie rears up. `TUNING.zombie.rear` (`period` 2 s, `up` 0.7 s, `tell` 0.3 s, `ease` 0.08 s, `expose` 0.6, `lift` 28): in `layoutZombie` the rhythm is a pure function of time and the zombie's seeded phase (`z.rise` 0 to 1, `z.tell` 0 to 1). The head lifts and slides over the body, and its brain is a target once the rise passes `expose` (the shield `hidden` flag drops), so a brain hit is the normal headshot (Brain shot, combo kept); body hits are as before. The tell: a low groan (one `groan` event per rearing, sawtooth 120 Hz) and the shoulders lifting 4 units over the 0.3 s before. Scripted run (z2 rewritten to Hunched waves, pistol, seed 77): fired at a brain at rise 1.00 with the line through the brain clearing the body (brain y 177, body y 212): Brain shot, 205 points, zombie down, no miss. A Hunched brain is exposed 21 percent of the frames a Hunched stands with body and brain.
+  - B. Every zombie a little different, seeded at setup. `zombieLook(rng)` draws, from a look stream of its own (so a wave's types, lanes and gaps are the ones v0.9 had), a size and a speed share, the rear phase, a costume and a feature. Size varies by up to 15 percent (`vary.size`) and speed by up to 12 percent (`vary.speed`); a head is never taller than the HUD (`vary.headTop`). Costumes (60 percent of zombies, `costumeShare`): cowboy hat, hard hat, toque, nurse's cap (knocked back off the head so the brain is never covered), office tie, flower shirt, bandana, hair curlers, one roller skate; features (40 percent of them, `featureShare`): eyepatch, torn sleeve, one shoe missing. All cosmetic, drawn in `dress`, carried to the corpse. TUNE gains "Zombie size variety" and "Zombie speed variety" sliders (0 to 0.3). Scripted run over 3 seeds of Zombies 3 (`z3` with seeds 11, 22, 33): wave order and types `rbch|srhbc|rrbhcs|brhcsr|hrbrcs` identical, lanes and gaps identical to v0.9's `build` for the same seeds, sizes (-0.59 / 0.83 / 0.36 for the first zombie), speeds and costumes differ on all three; the endless waves keep v0.9's types and lanes for the same seed. Zombies 3 frame time at 4x throttle, 8 rounds alternating: v0.9 33.9 ms, v0.10 33.8 ms (play window only).
+  - C. Honest range finders. `guns.<gun>.finder` (share of the field), separate from `accuracy`; `rangeLen` and the cap at the finder's end read it, and the gun card and Prop Room "Range" bars show it. Lengths (field 570 units): Assassin's Scope 1.0 (570, reaches the edge), Make-My-Day .44 0.6 (342), Buddy-Cop 9mm 0.5 (285), Pulse Rifle 0.45 (257), One-Man Army SMG 0.4 (228), Spin-Lever 0.35 (200). Only the Scope's reaches the edge. The fade at the far end is as before. `accuracy` is unchanged and still the aim-help number.
+  - D. The .44 opens at 40 total stars. `unlockBadges` is gone, `TUNING.gunStars = { revolver: 40 }` replaces it; `gunUnlocked` is only free / owned / had, and `openByStars` (idempotent) puts the .44 in `owned` at load (toast "The .44 is yours.") and after every result (a ticket "Make-My-Day: yours" on the result card, a ledger `unlock` line). A save with the Training Montage badge (the old key) keeps the .44, quietly. Big Lou's third line on the Stunt Double scene, "And take the .44. You've earned it.", with the .44 held out (the scene runs 6.8 s, was 5.4). The locked card in the Prop Room reads "Opens at 40 stars" over "(13 to go)", centred, the padlock only where it fits (the first two-line version overflowed at 390 wide); the gun card and the rack's lock use the same words, and the Missions screen no longer shows a gun for the Montage badge. Scripted check: a v15 save at 45 stars without the .44 boots with the .44 in `owned` and the toast up; at 27 stars it does not. No save shape change (`saveVersion` stays 15).
+  - E. Bars re-checked with the v0.8 B2 human-pace bot (0.45 s reaction, 0.2 s settle, 1.5 degrees, 50 seeds, SMG on Accuracy in holds of 2 and 3), every rung for every gun (the bot ignores the finder, so on rungs the zombie changes did not touch the medians are the v0.8 ones to the seed: nothing there is above its median). Median score now, Skilled:
+
+    | Rung | pistol | carbine | shotgun | rifle | SMG | .44 |
+    | --- | --- | --- | --- | --- | --- | --- |
+    | z1 | 2088 | 2084 | 1860 | 2306 | 2084 | 2266 |
+    | z2 | 4583 | 4535 | 4155 | 5205 | 4479 | 5160 |
+    | z3 | 7597 | 7646 | 6350 | 9276 | 7574 | 6601 |
+    | a1 | 1700 | 1700 | 1700 | 1700 | 1700 | 1700 |
+    | a2 | 2040 | 2040 | 2040 | 2040 | 2090 | 2040 |
+    | a3 | 1615 | 1615 | 1615 | 1615 | 1905 | 1542 |
+    | a4 | 987 | 995 | 1635 | 952 | 950 | 985 |
+    | a5 | 875 | 1087 | 1332 | 755 | 1127 | 577 |
+    | s1 | 2385 | 2385 | 2385 | 2385 | 2385 | 2405 |
+    | s2 | 3937 | 3937 | 3937 | 3967 | 3937 | 3975 |
+    | s3 | 6162 | 6162 | 6162 | 6552 | 6262 | 7285 |
+    | s4 | 2170 | 2235 | 1625 | 2445 | 2285 | 1760 |
+    | s5 | 1685 | 1672 | 1467 | 1920 | 1825 | 1422 |
+    | k1 | 1850 | 1850 | 1850 | 1812 | 1850 | 1875 |
+    | k2 | 2462 | 2437 | 2550 | 1437 | 2437 | 1837 |
+    | k3 | 975 | 1025 | 900 | 825 | 1025 | 762 |
+    | b1 | 2005 | 1997 | 687 | 555 | 1997 | 547 |
+    | b2 | 5395 | 5402 | 1725 | 1372 | 5462 | 1375 |
+
+    Six two-star bars sat above the median, all on Zombies (B made targets smaller or faster); `BARS` `h` is regenerated for them on the 0 to 5 degree grid and `thresholds` caps the bar at it, as in v0.8. Old against new, one / two / three, Skilled (the one-star and three-star bars did not move):
+
+    | Rung and gun | Old | New | Median |
+    | --- | --- | --- | --- |
+    | z1 pistol | 1840 / 2140 / 2640 | 1840 / **2080** / 2640 | 2088 |
+    | z1 carbine | 1880 / 2170 / 2640 | 1880 / **2080** / 2640 | 2084 |
+    | z1 SMG | 1840 / 2170 / 2640 | 1840 / **2080** / 2640 | 2084 |
+    | z1 .44 | 2060 / 2300 / 2780 | 2060 / **2260** / 2780 | 2266 |
+    | z2 Pulse Rifle | 4100 / 4540 / 5510 | 4100 / **4530** / 5510 | 4535 |
+    | z2 SMG | 4040 / 4530 / 5420 | 4040 / **4470** / 5420 | 4479 |
+
+    Every other pair is unchanged (the run of the generator on the new bars finds no pair with a two-star bar above its median); 108 of 108 pairs keep one < two < three. The B2 table from the designer's export, `starsFor` on the new bars: shotgun Zombies 1 1841 and 1592 both 2 stars (bars 1590 / 2710), shotgun Speed 1 2335 2 (2330 / 3520), shotgun Speed 2 5075 2 (3600 / 5750), carbine Accuracy 3 1725 2 and pistol Accuracy 3 2475 2 (1610 / 2830), pistol Zombies 1 2847 3 (2080 / 2640), pistol Accuracy 2 2825 3 (1970 / 2590): all hold.
+  - Fixes. The v0.9 scene backdrops no longer look boxed: the Extras flat and its zigzag run to the screen's edges (`sceneEdge`, the screen in the box's own units), the Intern counter fills to the bottom and the right, and the box sits on the caption plate's top so there is no band of floor under it; checked at 390x844 and 844x390 (`recoil10-extras-backdrop-*.png`, all six scenes `recoil10-scene-*`). The `rank` ledger line is written once per rank, not on every result while its scene is owed (three results in a row at 40 stars: one `rank` line). Every button on the Back, Use, Buy, Montage, TUNE and Prop Room cards is 48 px high or more.
+  - Checks: `node tools/smoke.mjs` passes; `tools/codemap-check.mjs` finds every recoil anchor; no `//` comment sits in front of code. Screenshots: `recoil10-costumes.png`, `recoil10-hunched-up.png`, `recoil10-finder-pistol.png`, `recoil10-finder-rifle.png`, `recoil10-props-locked44-*.png`, `recoil10-gunCard-locked44-390x844.png`, `recoil10-extras-backdrop-390x844.png` and `-844x390.png`.
