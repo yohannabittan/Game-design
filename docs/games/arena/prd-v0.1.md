@@ -189,3 +189,60 @@ Source: the designer's proto 7 playtest. "A number of things are better, but I t
 - **A faint ring** shows where the thumb anchored, and a line runs from it to the current thumb position, so the player can see the offset.
 - **TUNE switch "Sword control":** Relative (default) or Absolute (proto 7), so the designer can compare in one session.
 - Everything else from proto 7 stays.
+
+## Proto 9 (designer, 2026-10-07, after proto 8): an opponent who really fights, and fighters who differ
+
+Source: the designer's proto 8 playtest.
+- "Proto 8 was good, it's getting better; stabbing the gaps is rewarding."
+- "I wish it lasted longer and had a bit more variability; it's getting closer to being a really fun game."
+- "The way the enemy fights back is kind of the lamest, most repetitive thing right now."
+- "Stats and different sizes and weapons and different armour will provide some good variations."
+
+Note: the phone was sideways. The export only reads portrait because the phone is turned to tap Export.
+
+### The opponent fights with intent (the heart of this proto)
+
+- **A move set per weapon, not one swing.** Each weapon has 4 or 5 moves, each with its own readable tell:
+  - an overhead chop;
+  - a straight thrust;
+  - a low sweep at the legs;
+  - a 2 or 3 hit combo, with the zones changing within the chain;
+  - a **feint**: a tell that cancels into a different attack.
+
+  The shield styles add a shield bash, which pushes you back and drains your stamina.
+- **He has stamina too,** shown as a thin bar under his health. Attacks and blocks cost it. When it runs out he is winded for about 1.5 s: guard down, slow, a big opening. After a combo he must recover, so a combo you survive is your turn to punish.
+- **He moves.** He steps in to attack and steps back to recover. He circles a little, keeping the distance his weapon wants: a spear stays long, a dagger rushes in. He sometimes retreats when hurt.
+- **He reads you a little.** He keeps a short memory of what you do:
+  - if you block one zone three times running, he aims elsewhere;
+  - if you lunge often, he sidesteps and punishes the lunge;
+  - if you turtle behind the shield, he feints or bashes;
+  - if your stamina is low, he presses.
+- **Rhythm varies.** His pace mixes quick flurries, pauses and a slower probing phase, so no two exchanges feel the same. All of this is decided by the seeded fight RNG at the start of each exchange, never mid-swing, so the tells stay honest.
+
+### Fighters differ
+
+Each opponent is rolled at setup from seeded tables, and shown on a short intro card before the bout: a name, the size, the weapon, armour icons and three stat bars.
+- **Size:** Small (quick, short reach, less health), Medium, or Large (slow, long reach, more health, hits harder). He is drawn at that scale, so the gaps move with him.
+- **Weapon:** pick from the following.
+
+  | Weapon | Reach | Speed | Damage | What it does well |
+  | --- | --- | --- | --- | --- |
+  | gladius | short | fast | | combos |
+  | spear | long | | | thrusts; keeps you at range |
+  | axe or mace | | slow | big | overheads that break shields |
+  | dagger and net | very short | | | the net throw slows you for a moment |
+
+- **Armour sets:** light (1 plate), medium (2 or 3), heavy (4 plates plus a helmet). The joint slots and bare parts follow the set.
+- **Stats:** Strength (his damage), Speed (tell length and step speed) and Stamina (bar size), each on a 1 to 5 bar, rolled with the size's bias.
+
+### Longer: a gauntlet
+
+- A run is a gauntlet of 5 opponents rising in tier: the first is small and light, the fifth is a named champion with the best rolls.
+- Your 3 hearts carry across the gauntlet. Felling an opponent restores half a heart.
+- The round timer goes.
+- The end card shows how far you got, with each opponent's card.
+- Your weapon stays the sword for this proto.
+
+### Kept
+
+Everything else from proto 8: the trackpad sword, slots and thrusts, one hit per swing, cover, shield buttons, dodge and exhaustion.
