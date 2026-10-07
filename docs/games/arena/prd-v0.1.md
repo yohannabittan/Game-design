@@ -337,3 +337,89 @@ The narrative is proposed separately, for the designer to pick, and is not part 
 ### Kept
 
 Everything from proto 10. Hit areas do not change: the art is drawn over the existing part geometry.
+
+## Proto 12 (designer, 2026-10-07): a story for your fighter, upgrades between bouts, and footwork
+
+Source: the designer, on the narrative proposal:
+- "This direction does feel good, but one thing that's missing is being able to choose upgrades between rounds."
+- "How would you feel about making the characters able to move side to side?"
+
+Build this after proto 11 lands, on top of it.
+
+### Your fighter's story (flavour wheels, pattern L8: flavour wheels vs function wheels)
+
+- **Two more wheels after the stat wheels, flavour only:**
+  - **Origin:** "a farmer from Gaul", "a Thracian soldier", "a Numidian horseman", "a baker from Capua", "a sailor from Ostia" or "a scribe from Alexandria".
+  - **Reason to fight:** Freedom, Debt, Revenge or Glory.
+- **Your name.** It is rolled from a short list (Gaius, Lucia, Decimus, Aurelia, Brennus, Tullia, Nikandros, Iuba). It shows on the fighter card as "Gaius, a baker from Capua. Fights for: Freedom."
+- **Old Brutus, the lanista, speaks on each intro and result card.** One line per reason and moment. A few per reason, each 60 characters or fewer:
+  - **Freedom:**
+    - "Win the wooden sword and you walk out free."
+    - "Free men don't lose to farmers. Get up."
+    - "One more, and the gate opens."
+  - **Debt:**
+    - "Your family owes me. Every win pays."
+    - "That one's worth a month of bread."
+    - "Lose, and the debt grows."
+  - **Revenge:**
+    - "He burned your village. He's waiting at the end."
+    - "Keep your anger for the champion."
+    - "Not yet. Him last."
+  - **Glory:**
+    - "Rome wants a name. Make it yours."
+    - "Hear them? They're chanting for you."
+    - "Glory is loud. Be louder."
+- **A rival who remembers.** The champion who beats you is saved (name, look, weapon). The next run's champion is the same man, with a taunt on his intro card:
+  - "You again, little baker?" (the origin's noun);
+  - Revenge runs: "I remember your village."
+  
+  Beating him clears the rival and flashes "Rival defeated!"
+- **The ending pays off the reason.**
+  - **Beating the champion:** an epilogue card in two lines:
+    - Freedom: "Gaius walked out a free man, the wooden sword in hand."
+    - Debt: "The debt was paid. Lucia went home to her family."
+    - Revenge: "The village was avenged. Brennus finally slept."
+    - Glory: "Rome sang the name Aurelia for a generation."
+  - **Falling earlier:** "Gaius fell in bout 3. Old Brutus chalked his name on the wall of the pit." The end card shows a small wall of past fighters' names (the last 8).
+
+### Upgrades between bouts (a pick of three)
+
+- **The draft.** After each felled opponent, before the next intro card, three upgrade cards are dealt from the seeded deck. Pick one. Each card has a name, an icon and one line.
+- **Fight quality sets the odds**, which are shown, as the wheel-of-fate rule wants.
+  - **The bout's grade** comes from slot hits, feints read, punishes and hits taken:
+    - **S:** no hits taken and at least 2 reads or punishes.
+    - **A**, **B** and **C** for progressively weaker bouts.
+  - **The grade sets the rarity odds** for the three cards: C is mostly common; S guarantees one epic.
+- **The deck, about 12 cards:**
+
+  | Tier | Card | Effect |
+  | --- | --- | --- |
+  | Common | Thick Hide | +½ heart |
+  | Common | Second Wind | +20% stamina |
+  | Common | Quick Wrist | jab recovery −20% |
+  | Common | Steady Shield | blocking costs 25% less |
+  | Common | Sandal Grip | steps 20% faster |
+  | Rare | Iron Greaves | your legs are plated |
+  | Rare | Bronze Helm | your head is plated |
+  | Rare | Heavy Arm | overheads dent twice |
+  | Rare | Keen Eye | feint shimmer shows 0.3 s longer |
+  | Rare | Riposte | a perfect block gives a free counter jab |
+  | Epic | Champion's Blade | slot hits do 3.5x |
+  | Epic | Crowd's Favourite | +1 heart after each fell |
+  | Epic | Unbreakable | the first hit each bout is ignored |
+
+- **Visible and remembered.** Chosen upgrades show as small icons under your hearts. They last for the run, and the end card lists them.
+
+### Footwork: stepping in and out (orchestrator's recommendation, see below)
+
+- **The Dodge button becomes a step rocker,** the same size, split in two:
+  - **◀ Back:** a tap is the quick backstep, which is the old dodge. Holding it keeps backing off, burning stamina as before.
+  - **▶ In:** a tap steps in one pace; holding it keeps walking forward slowly.
+- **The arena has edges.** With your back to the wall you cannot retreat, and it flashes "Back to the wall!"
+- **Range becomes the skill:**
+  - stay outside a spear's reach, then step in after his thrust;
+  - keep a dagger fighter at bay;
+  - step in to reach a winded opponent's open slots.
+  
+  The lunge stays as the long reach on the sword thumb.
+- **The foe uses the same footwork rules.** He can be pushed to the wall: a shield bash or a strong block pushes him back half a pace.
