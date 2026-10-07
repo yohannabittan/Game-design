@@ -49,6 +49,31 @@ All of this fits the lean authoring method: holes start from the existing landin
 - **What's new:** the camera, the zoom-out aim view, the Look pan, and very large bodies drawn with the limb shading and atmosphere glow above.
 - **One foundation for three things.** The same big-room camera is what Grand Tour (long slingshot chains) and Burst Run (a long one-way course) need, so building it once serves all three.
 
+### The Giant: four sectors, one giant planet each (designer, 2026-10-07: "a sector per type of planet and the zone has 4 different types of giant planets")
+
+Every sector is a set of big rooms around one giant world. Each world's twist reuses an existing system or adds a single data field, with no new physics engine:
+
+| Sector | Giant | The twist | Reuses |
+| --- | --- | --- | --- |
+| 1 | **The Gas Giant** (banded, with a great storm) | you cannot land on it, because it is gas; its upper atmosphere is a drag band that slows any ball skimming through; a family of moons orbits it | moons and orbits (existing); a drag band (one new zone type: a ring where speed decays) |
+| 2 | **The Ringed Giant** | its rings are arcs of small rocks with gaps, so you thread a ring gap to reach the far side | small low-mass planets laid along an arc (existing bodies, many of them) |
+| 3 | **The Ice Giant** | it is slippery: a landing skids along the curve before it stops, so you land early and slide to the cup | landing (existing), with per-body surface friction (one field) |
+| 4 | **The Lava World** (a hot super-Earth) | glowing vents on its surface are hazards with the sun touch penalty, and quiet crust lies between them | landing and crater cups (bigger rooms), and the sun penalty as surface spots |
+
+- **Each sector's arrival log and Probe Log fact is real and checked.** Candidates:
+  - Jupiter's Great Red Spot is a storm wider than Earth.
+  - Saturn's rings are mostly ice and in places only tens of metres thick.
+  - Neptune has the fastest winds measured in the Solar System.
+  - Planets larger than Earth but smaller than Neptune, called super-Earths, are common around other stars.
+- **The zone's cutscenes:**
+  - at the start, the other probe leads Lumen to a world that fills the sky;
+  - at the end, past the four giants, the probes find the first structure (the antigravity sector), which leads on to First Contact.
+- **Art:** one big-planet render per sector, drawn by the game (bands, rings, ice sheen, lava glow), and optionally a generated backdrop per sector. That is about 4 images, around $1.
+- **Order of builds:**
+  1. the big-room camera, built once and shared with Grand Tour and Burst Run;
+  2. the Giant's small additions: the drag band, per-body friction and crater cups;
+  3. four lean content passes of 5 holes each.
+
 ## Modes alongside the zones (from the backlog)
 
 Grand Tour first, then VS, then Architect, with Burst Run after. Modes reuse the holes of every zone, so each new zone also feeds them.
