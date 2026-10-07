@@ -38,6 +38,29 @@ Source: the designer's playtest export (2026-10-07, 101 entries) and note: "I ju
   - shotgun on Accuracy 5;
   - carbine on Skeet 2.
 
+## B2. Calibrated to the human, not to a perfect bot (orchestrator, after the first build)
+
+The first build defined a clean run as a bot with no aim noise, a thumb's pace and a 0.25 s reaction. That bot clears every pair, so it found almost nothing. The designer's real 100-percent runs still sit under 2 stars: shotgun on Zombies 1 scored 1841, 1592 and 1125 against a 2-star bar of about 2010. So the bars are measured against a **human-pace clean run**:
+- every target hit, with about 0.45 s reaction per target;
+- the aim settles over about 0.2 s before firing;
+- reload when empty;
+- the aim noise of the existing two-star sigma.
+
+**The rule:** the 2-star bar is no higher than the median score of that run over 50 seeds, and the 3-star bar is reachable by the zero-noise bot. The designer's export is the calibration set. With the new bars these runs must earn at least the stars shown:
+
+| Run | Score | Accuracy | Stars at least |
+| --- | --- | --- | --- |
+| shotgun Zombies 1 | 1841 | 100% | 2 |
+| shotgun Zombies 1 | 1592 | 100% | 2 |
+| shotgun Speed 1 | 2335 | 100% | 2 |
+| shotgun Speed 2 | 5075 | 100% | 2 |
+| carbine Accuracy 3 | 1725 | 92% | 2 |
+| pistol Accuracy 3 | 2475 | 86% | 2 |
+
+Pairs that the data says are fair stay as they are: pistol Zombies 1 at 2847 earns 3 stars, and pistol Accuracy 2 at 2825 earns 3.
+
+**Automatic guns.** On accuracy rungs, one trigger hold (a burst) counts as one shot for accuracy and the combo, and it is a hit if any of its rounds hits. The SMG's extra rounds then stop wrecking its score, and an SMG burst run must reach 2 stars on Accuracy 1 at human pace.
+
 ## C. Bait shots are not misses
 
 - On dodger rungs (Accuracy 4 and 5), a shot that makes a dodger jump is a **bait**, not a miss:
