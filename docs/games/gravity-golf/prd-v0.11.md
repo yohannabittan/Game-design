@@ -37,13 +37,13 @@ Status: locked 2026-10-07. Rewritten after the Launch lesson (designer: "it is t
 | sun | "The Sun holds over 99% of the mass in our solar system." |
 | binary | "Many stars come in pairs, circling a shared centre." |
 | black hole | "Not even light escapes past the edge, the event horizon." |
-| comet | "A comet's tail points away from the Sun, blown by sunlight." |
-| Nebula sector | "Nebulae are clouds of gas and dust where stars are born." |
+| comet | "A comet's tail points away from the Sun, pushed by sunlight and solar wind." |
+| Nebula sector | "Many nebulae are clouds of gas and dust where stars are born." |
 | Meteor shower sector | "A meteor shower is Earth crossing a comet's dust trail." |
-| Deep space sector | "Light from far galaxies left them millions of years ago." |
+| Deep space sector | "Light from far galaxies left them millions to billions of years ago." |
 | Binary sunrise sector | "Real planets circle two suns; Kepler-16b was found in 2011." |
 | Galactic Core sector | "Our galaxy's centre holds a black hole of four million Suns." |
-| Moon rank | "Ganymede, a moon of Jupiter, is bigger than Mercury." |
+| Moon rank | "Ganymede, a moon of Jupiter, is wider than Mercury." |
 | Planet rank | "Earth is the only planet known to have life. So far." |
 | Giant Planet rank | "All the other planets could fit inside Jupiter." |
 | Brown Dwarf rank | "Too big to be a planet, too small to shine like a star." |
