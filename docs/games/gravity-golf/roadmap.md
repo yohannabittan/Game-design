@@ -77,6 +77,13 @@ Every sector is a set of big rooms around one giant world. Each world's twist re
   2. the Giant's small additions: the drag band, per-body friction and crater cups;
   3. four lean content passes of 5 holes each.
 
+### The rescue (designer, 2026-10-07: "maybe our probe was running out of battery when it was saved by the other probe")
+
+- **Zone 1's ending gains stakes.** Through the Galactic Core sector (holes 26 to 30), Lumen's power runs down. A small battery icon on the HUD drops with each hole, from about 40% to 5%; it is cosmetic and never limits play. Sam's lines turn worried: "Power's dropping, Lumen." and "Save your strength."
+- **At hole 30's ending, Lumen's light flickers out.** The other probe drifts in, links a thin beam of light to Lumen, and the light comes back. Then: "We're not alone." The meeting becomes a rescue.
+- **It sets up the symmetry of the arc.** The probe saves Lumen at the core. Lumen then finds that the probe is alone (the Builders' ruins) and saves it in turn by taking it home.
+- **Cost.** A small story build on top of v0.11: the HUD battery icon in sector 6, a few new lines for Sam, and three beats added to the ending scene. No new art; it is drawn by the game.
+
 ### Zone 5, The Builders: the Dyson sphere (designer, 2026-10-07)
 
 "Light from a star that gets blocked out by a Dyson sphere, or some kind of thing around the star, but you can still get some light sometimes."
