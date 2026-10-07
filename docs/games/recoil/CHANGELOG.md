@@ -471,3 +471,110 @@
   - Departures and simple options: the career line is a plate in the Boss lane (the selected gun's panel has no room under the stars), and in portrait a bar under the buttons; Endless poster rule above; each star count has the one director line from `world.md` (the pool is an array, more can be added); the Prop Room on a short screen draws Gus a little smaller so his head clears a four-line strip; the portrait Prop Room's counter is 30 px taller. The harness run for "how many runs a good player takes to reach each rank" was not made.
   - Checks: `node tools/smoke.mjs` passes; with `tools/drive.mjs` at 844x390, no console errors: fresh save opens on the cold open and Skip leaves in one tap; career plate at 0, 9, 10, 40 and 100 stars reads Extra "10 stars to Intern", Extra "1 star to Intern", Intern "30 stars to Stunt Double", Stunt Double "60 stars to Action Star", Action Star "100 of 324 stars"; a v13 save with 54 stars migrates to `careerSeen` 1, `openSeen` true, all six posters, and its first run queues exactly one rank card; a poster fired once (the second run in the set queued nothing); the director's note shows on the result card. Play frame time at 4x throttle, 4 rounds each, HEAD against this build: 23.0 / 24.9 ms against 23.8 / 25.8 ms (frame mean / work mean), the play scene is untouched.
 
+
+## v0.8 (unreleased)
+
+- v0.8, fair for every gun (PRD v0.8 A to D2 and B2; built by sonnet, round 2 (B2) by opus, review passed with fixes, fix round 1 (sonnet): every result button at least 48 px high (Again and Menu 92x48, the large one 52), Next always shown when the next rung is open (large after a star, otherwise small beside Menu with Again large), the gun picture shrinks to the room left of the score (a 6-digit score never touches it), the carbine gets `accAmmo` 2.5 (30, 33, 35, 60 and 55 rounds on Accuracy 1 to 5; same burst bot as the SMG, 100 seeds, bursts of 2 and 3: never dry at 0.75 degrees (rounds left 12 / 10 / 7 / 12 / 7), dry at 1.5 degrees on 0 / 0 / 4 / 0 / 24 of 100 against the pistol's 0 / 0 / 15 / 0 / 27, at 2.5 degrees 0 / 0 / 51 / 11 / 84 against 0 / 7 / 85 / 22 / 99; 2.0 ran dry on a5 in 100 of 100 at 0.75 degrees and on 44 / 21 / 100 of a3 / a4 / a5 at 1.5, so 2.5 is the smallest step with at least the pistol's slack on every rung; at the old 1.0 it ran dry on 100 of 100), and a tough tile writes "tough with this gun" on itself, sized to the free space (the orange "!" is gone, the hint line stays); `game.js`, `sw.js` `recoil-v31`, this file and the CODEMAP).
+  - A. Ammo scales with the gun: `TUNING.guns.<gun>.accAmmo` multiplies a rung's `accAmmo` (`Math.round(ch.accAmmo * gun.accAmmo)` in `makeRun`); pistol, carbine, shotgun, rifle and revolver 1.0, **SMG 2.5**, so Accuracy 1 to 5 give the SMG 30, 33, 35, 60 and 55 rounds (the HUD's "Rounds" reads the run's rounds). Bot evidence (100 seeds, bot aim noise sigma 0.75 / 1.5 / 2.5 degrees, tap-fire pistol against an SMG that fires bursts of 2 and 3 rounds a target alternately, the extra rounds fired blind at the card's spot and lost): at the old caps the SMG ran dry on 100 of 100 runs on every rung. At 2.5 it never ran dry at 0.75 degrees (mean rounds left 12 / 10 / 8 / 13 / 10 on a1 to a5, the pistol 4 / 3 / 2 / 4 / 2) and at 1.5 degrees ran dry on 0 / 0 / 2 / 0 / 6 of 100 against the pistol's 0 / 0 / 15 / 0 / 27; at 2.5 degrees 0 / 0 / 42 / 8 / 67 against 0 / 7 / 85 / 22 / 99. At 2.0 a5 ran dry on 95 of 100 at 0.75 degrees, so 2.5 is the smallest of 2, 2.5 and 3 whose burst run has at least the pistol's slack on every rung. Check run: an SMG a1 burst run at 0, 0.75 and 1.5 degrees finishes all 8 targets on 100 of 100 seeds with 12 rounds left.
+  - B. Bars. The clean-run check (`Clean run`: sigma 0, every shot a centred hit with no wasted round, the gun moving at 600 units a second and 0.25 s of reaction to every new target and after every probe, the best of the five reload policies; Skilled bars): on the v0.7 bars **107 of 108 pairs earned 2 stars or more; Speed 5 with the .44 earned 1** (its bars came from a bot with an instant gun and no reaction). Its row was regenerated with the same bot and noise process (100 seeds a sigma, 0 to 5 in 0.25 steps) at that pace. The five SMG Accuracy rows were regenerated because the ammo changed the sim (the old bot ran dry at high noise). The named pairs, rechecked and not changed because they already earn at least 2: shotgun Zombies 1, Speed 1 and 2 (3 stars each; the shotgun's Zombies 1 and Speed 1, 2 bars sit at or under the pistol's), SMG Accuracy 1 to 5 (3, 3, 3, 2, 3), shotgun Accuracy 5 (3), carbine Skeet 2 (3). The designer's 1-star shotgun runs at 100 percent accuracy could not be reproduced by a bot at any pace; if they hold up in the next playtest the next step is a human-play capture, not the bars. Old (v0.7) against new, only the cells that moved, one / two / three:
+
+    | Preset | Rung and gun | Old | New |
+    | --- | --- | --- | --- |
+    | Skilled | Accuracy 2 SMG | 820 / 1970 / 2590 | 850 / 1970 / 2590 |
+    | Skilled | Accuracy 3 SMG | 460 / 1710 / 2830 | 730 / 1740 / 2830 |
+    | Skilled | Accuracy 4 SMG | 520 / 1750 / 2480 | 670 / 1750 / 2480 |
+    | Skilled | Accuracy 5 SMG | 260 / 1440 / 2590 | 640 / 1490 / 2590 |
+    | Skilled | Speed 5 .44 | 820 / 1190 / 2060 | 490 / 920 / 930 |
+    | Pro | Accuracy 3 SMG | 850 / 2420 / 3250 | 1030 / 2420 / 3250 |
+    | Pro | Accuracy 5 SMG | 640 / 2160 / 3090 | 900 / 2160 / 3090 |
+    | Pro | Speed 5 .44 | 910 / 1700 / 2080 | 620 / 920 / 930 |
+    | Casual | Accuracy 2 SMG | 520 / 1600 / 2370 | 680 / 1600 / 2370 |
+    | Casual | Accuracy 3 SMG | 300 / 1190 / 2420 | 610 / 1300 / 2420 |
+    | Casual | Accuracy 4 SMG | 310 / 1300 / 2240 | 520 / 1310 / 2240 |
+    | Casual | Accuracy 5 SMG | 110 / 920 / 2160 | 480 / 1120 / 2160 |
+    | Casual | Speed 5 .44 | 640 / 1000 / 1700 | 420 / 830 / 930 |
+
+    The SMG's one-star bars rose (it keeps its rounds now, so a 3 degree SMG bot finishes the rung as the pistol's does). The .44's Speed 5 bars are flat (two 920, three 930): at that pace its perfect run is only 980, so the rung is a narrow one for the .44. Printed check after the merge (`check.mjs`, Skilled): `pairs 108, lowest stars 2, below 2: none`. On Casual it is also 2; on Pro, which no bar was tuned for, 11 pairs read 1 star (the dodger rung Accuracy 4 for every gun, among them).
+  - **Round 2 (opus), PRD B2: bars calibrated to a human-pace clean run.** Round 1's clean run (no noise, 0.25 s reaction, 600 units a second) cleared every pair, so it found almost nothing.
+    - The human-pace bot: every target engaged until it is hit; 0.45 s of reaction when a target becomes the one to shoot (a horde counts as one, a zombie as one, and a dodger that jumps is a new one); 0.2 s of aim settle before every shot, follow-ups included; reload only when empty (the magazine's own reload, the shotgun's shell by shell); every shot's barrel angle off by a Gaussian of the two-star sigma (1.5 degrees, Skilled). The SMG on Accuracy fires holds of 2 and 3 rounds alternately (b) through `queueInput` and `advance`, the real input path; every other gun taps single rounds. Median score over 50 seeds (floored):
+
+    | Rung | pistol | carbine | shotgun | rifle | SMG | .44 |
+    | --- | --- | --- | --- | --- | --- | --- |
+    | a1 | 1700 | 1700 | 1700 | 1700 | 1700 (b) | 1700 |
+    | a2 | 2040 | 2040 | 2040 | 2040 | 2090 (b) | 2040 |
+    | a3 | 1615 | 1615 | 1615 | 1615 | 1905 (b) | 1542 |
+    | a4 | 987 | 987 | 1635 | 952 | 950 (b) | 985 |
+    | a5 | 875 | 915 | 1332 | 755 | 1127 (b) | 577 |
+    | s1 | 2385 | 2385 | 2385 | 2385 | 2385 | 2405 |
+    | s2 | 3937 | 3937 | 3937 | 3967 | 3937 | 3975 |
+    | s3 | 6162 | 6162 | 6162 | 6552 | 6262 | 7285 |
+    | s4 | 2170 | 2235 | 1625 | 2445 | 2285 | 1760 |
+    | s5 | 1685 | 1672 | 1467 | 1920 | 1825 | 1422 |
+    | k1 | 1850 | 1850 | 1850 | 1812 | 1850 | 1875 |
+    | k2 | 2462 | 2437 | 2550 | 1437 | 2437 | 1837 |
+    | k3 | 975 | 1025 | 900 | 825 | 1025 | 762 |
+    | b1 | 2005 | 1997 | 687 | 555 | 1997 | 547 |
+    | b2 | 5395 | 5402 | 1725 | 1372 | 5462 | 1375 |
+    | z1 | 2146 | 2175 | 1938 | 2293 | 2175 | 2313 |
+    | z2 | 4558 | 4594 | 4062 | 5108 | 4550 | 5053 |
+    | z3 | 7668 | 7516 | 6278 | 8712 | 7606 | 5646 |
+
+      Most pairs hit every target on 50 of 50 seeds. At this pace some do not, and their median is of the run as played: a5 (pistol 6, carbine 6, rifle 1, .44 0 of 50 clean), k3 (2 to 21), k2 rifle and .44 (0), s4 .44 (0), z3 .44 (3), a4 rifle (24) and .44 (17). The SMG tapping single rounds on a1 to a5: 1700, 2040, 1615, 990, 1087.
+    - The bars. `BARS` gains, only for the 41 pairs whose two-star bar sat above that median, `h`: the human-pace median on the same noise grid (0 to 5 degrees, 50 seeds a point), so a TUNE preset reads its own. `thresholds` caps the two-star bar at `h` at the active two-star noise, and at `cal` where the designer's export binds, floored to 10; the one-star bar drops only to stay under the two. Three-star bars, and every other pair, are unchanged; three stays at most 0.95 of the zero-noise bot's perfect run, so it is reachable. Ordered one < two < three on Pro, Skilled and Casual for all 108 pairs; round 1's clean-run check still reads `pairs 108, lowest stars 2`. Two pairs needed the calibration below the median (the bot is a little quicker than the designer on them): shotgun Zombies 1 (median 1938, designer 1592) and shotgun Speed 1 (median 2385, designer 2335). Old against new, one / two / three, Skilled:
+
+    | Rung and gun | Old | New | Median |
+    | --- | --- | --- | --- |
+    | a3 pistol, carbine, shotgun | 420, 480, 410 / 1700, 1710, 1690 / 2830, 2830, 2860 | two 1610 | 1615 |
+    | a4 pistol, carbine | 490, 530 / 1750 / 2480 | two 980 | 987 |
+    | a4 shotgun | 650 / 1740 / 2480 | 650 / 1630 / 2480 | 1635 |
+    | a4 rifle | 320 / 1730 / 2480 | 320 / 950 / 2480 | 952 |
+    | a4 SMG | 670 / 1750 / 2480 | 670 / 950 / 2480 | 950 (b) |
+    | a4 .44 | 300 / 1640 / 2470 | 300 / 980 / 2470 | 985 |
+    | a5 pistol | 220 / 1510 / 2650 | 220 / 870 / 2650 | 875 |
+    | a5 carbine | 330 / 1410 / 2580 | 330 / 910 / 2580 | 915 |
+    | a5 shotgun | 290 / 1360 / 2580 | 290 / 1330 / 2580 | 1332 |
+    | a5 rifle | 170 / 930 / 2460 | 170 / 750 / 2460 | 755 |
+    | a5 SMG | 640 / 1490 / 2590 | 640 / 1120 / 2590 | 1127 (b) |
+    | a5 .44 | 120 / 960 / 2470 | 120 / 570 / 2470 | 577 |
+    | s1 pistol, carbine, rifle, SMG | 1000, 1010, 940, 1010 / 2440 / 3520 | two 2380 | 2385 |
+    | s1 shotgun | 1010 / 2440 / 3520 | 1010 / **2330** / 3520 | 2385 (calibration: 2335) |
+    | s5 rifle | 1130 / 1960 / 2650 | 1130 / 1920 / 2650 | 1920 |
+    | k2 rifle | 600 / 1730 / 3010 | 600 / 1430 / 3010 | 1437 |
+    | k3 pistol | 700 / 1190 / 2040 | 700 / 970 / 2040 | 975 |
+    | k3 carbine, SMG | 730, 750 / 1210, 1190 / 2040 | two 1020 | 1025 |
+    | k3 shotgun | 600 / 1170 / 2040 | 600 / 900 / 2040 | 900 |
+    | k3 rifle | 350 / 1020 / 1950 | 350 / 820 / 1950 | 825 |
+    | k3 .44 | 330 / 1060 / 2070 | 330 / 760 / 2070 | 762 |
+    | b1 shotgun | 220 / 690 / 950 | 220 / 680 / 950 | 687 |
+    | b1 rifle | 310 / 590 / 760 | 310 / 550 / 760 | 555 |
+    | b1 .44 | 270 / 570 / 770 | 270 / 540 / 770 | 547 |
+    | b2 shotgun | 640 / 1770 / 2560 | 640 / 1720 / 2560 | 1725 |
+    | z1 pistol | 1840 / 2170 / 2640 | 1840 / 2140 / 2640 | 2146 |
+    | z1 carbine, SMG | 1880, 1840 / 2190, 2180 / 2640 | two 2170 | 2175 |
+    | z1 shotgun | 1120 / 2010 / 2710 | 1120 / **1590** / 2710 | 1938 (calibration: 1592) |
+    | z1 rifle | 2110 / 2390 / 2790 | 2110 / 2290 / 2790 | 2293 |
+    | z2 shotgun | 2550 / 4070 / 5580 | 2550 / 4060 / 5580 | 4062 |
+    | z2 .44 | 3310 / 5090 / 6150 | 3310 / 5050 / 6150 | 5053 |
+    | z3 shotgun | 4250 / 6470 / 8600 | 4250 / 6270 / 8600 | 6278 |
+    | z3 rifle | 2630 / 8800 / 9870 | 2630 / 8710 / 9870 | 8712 |
+
+      Tough pairings (D) are unchanged: only the .44 on Speed 5 (its bar was not above the median).
+    - SMG bursts (B2, automatic guns). On an Accuracy rung a trigger hold of an automatic gun (SMG and Pulse Rifle) is one shot for accuracy and the combo: `run.burst` opens on the hold's first round, `run.shots` counts the hold once, the combo steps and `hitShots` counts on its first hit, and a round that hits nothing books nothing until the hold ends (`closeBurst`, on release, on a tap, and at the end of the run), when a hold with no hit is one miss, or one bait if a round made a dodger jump. A tap is a hold of one round, so single-round play and every bar generated from it are unchanged. The play scene now queues the trigger before the fire, so the hold's first round is inside it. Evidence (human-pace SMG, holds of 2 and 3 rounds, 50 seeds, median / accuracy / runs at 2 stars or more), one hold one shot against every round a shot: a1 1700 / 100% / 28 against 645 / 44% / 0; a2 2090 / 99% / 35 against 720 / 43% / 0; a3 1905 / 96% / 35 against 710 / 42% / 0; a4 950 / 84% / 26 against 500 / 32% / 0; a5 1127 / 79% / 25 against 660 / 28% / 0. On Accuracy 1 the median burst run, 1700, earns 2 stars (bar 1690).
+    - Calibration (B2), `starsFor` on the new Skilled bars with the export's scores:
+
+      | Run | Score | Stars at least | v0.7 and round 1 | Round 2 | Bars two / three |
+      | --- | --- | --- | --- | --- | --- |
+      | shotgun Zombies 1 | 1841 | 2 | 1 | 2 | 1590 / 2710 |
+      | shotgun Zombies 1 | 1592 | 2 | 1 | 2 | 1590 / 2710 |
+      | shotgun Speed 1 | 2335 | 2 | 1 | 2 | 2330 / 3520 |
+      | shotgun Speed 2 | 5075 | 2 | 2 | 2 | 3600 / 5750 |
+      | carbine Accuracy 3 | 1725 | 2 | 2 | 2 | 1610 / 2830 |
+      | pistol Accuracy 3 | 2475 | 2 | 2 | 2 | 1610 / 2830 |
+      | pistol Zombies 1 (fair) | 2847 | 3 | 3 | 3 | 2140 / 2640 |
+      | pistol Accuracy 2 (fair) | 2825 | 3 | 3 | 3 | 1970 / 2590 |
+
+    - Checks (round 2): `node tools/smoke.mjs` passes; `tools/codemap-check.mjs` finds every recoil anchor; no `//` comment sits in front of code.
+  - C. Bait shots. A shot that makes a dodger jump and hits nothing is a bait: `run.baits` counts it, the event carries `bait`, a small orange "bait" tag shows where the dodger was, accuracy is hits over shots minus baits (the saved best's accuracy and the over card read it), the combo and misses are untouched (they already were), and the gun's mastery shots skip it (`baits` is on the ledger's result line and `deriveMastery` subtracts it). A shot that hits nothing and moves nothing is still a miss. The "Dodged" call-out went (the tag replaces it). The a4 and a5 intro is "Shoot near a ringed target to make it jump, then hit it where it lands."; the first dodger's dashed ring pulses (lighter and wider) until the first shot. Check (bot, sigma 0.75, 100 seeds, probe then shot): Accuracy 4 pistol and shotgun read 100 percent (v0.7 counting: 50), Accuracy 5 mean 100 and lowest 92 (v0.7: 60); the perfect a4 run is 20 shots, 10 baits, 10 hits, 0 misses, 100 percent. Screenshots: `recoil8-a4-intro.png`, `recoil8-a4-bait.png`.
+  - D. Tough pairings: a rung tile shows a small orange "!" and the menu's hint line, when that rung is the one Play opens, reads "Speed 5: Tough with this gun, kid. Steady hands, or bring the pistol." (Gus's tone, `STORY.tough`). The rule is `toughPair`: the gun's two-star bar is at least 0.9 of its perfect run and at least 0.1 above the pistol's share (`TUNING.tough`). With the Skilled bars exactly one pair qualifies, the .44 on Speed 5 (0.94 against the pistol's 0.44). Screenshot: `recoil8-tough-menu-844x390.png`. It never blocks a rung.
+  - D2. The result card: rung name, the gun's picture beside the score, "New best!", stars with a thin bar and "590 to ★★" or "All stars!", Big Lou's portrait and line (the critic's quote and `REVIEWS` are gone), one stat line (box office only above zero), and the buttons (Next large when the run earned a star and the next rung is open, otherwise Again large; Menu small). The call sheets for badges, tiers and skins stay as a row under the stat line, only when the run earned any; the box-office stub is gone. Text drawn per frame (fillText hook), v0.7 to v0.8: 13 to 9 on a 3-star run with a new best and box office, 13 to 8 on a 0-star run, at 844x390 and 667x375 alike (that is 6 items plus the button labels and the wrapped line). Screenshots: `recoil8-card-3star-*.png`, `recoil8-card-0star-*.png` (844x390, 667x375, 390x844) and `recoil8-card-1star-badge-*.png`.
+  - Checks: `node tools/smoke.mjs` passes; `tools/codemap-check.mjs` finds every recoil anchor. The play loop is untouched apart from the pulse on the first dodger's ring and the bait tag. No save shape change (`saveVersion` stays 14); earned stars never go down and `starsOf` takes the higher of saved and recomputed.
