@@ -62,7 +62,7 @@ const TUNING = {
   },
   counter: { windup: 0.55 },  // only an overhead clang (or any clang on a shield-bearer) brings a counter
   open: { dur: 1.1 },      // seconds the foe is open after each of his moves
-  shield: { dur: 0.6, perfect: 0.25, hits: 6, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2, drain: 3, slow: 0.45, btnW: 64, btnH: 56, gap: 6 },  // drain: stamina per second of hold
+  shield: { dur: 0.6, perfect: 0.25, hits: 6, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2, drain: 3, slow: 0.45 },  // drain: stamina per second of hold
   juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, strawPerDmg: 14 },
   foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, hp: 22, tierHp: 0.1, champHp: 1.15, slotMul: 3, dmgCap: 3, coverShield: 0.2, coverGuard: 0.1 },  // hp scaled by size and tier; dmgCap: most half hearts one blow takes; cover radii (H) with and without a shield
   cover: { dur: 3.2, slide: 0.07, jabTol: 0.8 },  // seconds the foe's guard stays on the part you hit; seconds to slide there; radians a jab may stray from the slit's axis
@@ -147,7 +147,9 @@ const TUNING = {
   // (x your Speed's dodge length), holding keeps backing off at walkBack. Speeds are H per second. close: nearest clear gap between the bodies.
   // room: the most each fighter can give ground before the wall (yours, his), trimmed to the screen; margin: px kept clear at the screen edge.
   // His: walk speed (x Speed and size), commit = speed share while winding up, reach = how far past his striking distance a blow still lands, push = a pace share.
-  foot: { pace: 0.14, tapDur: 0.16, walkIn: 0.32, back: 0.2, walkBack: 0.42, hold: 0.22, close: 0.1, room: [0.6, 0.7], margin: 86, foeV: 0.75, commit: 0.3, reach: 0.12, push: 0.5, wallMsg: 0.9 },
+  // proto 12.1 left column: width as a fraction of screen width (never under minW), gap between buttons, top of the column below the safe top, step row height (fraction of screen height, never under stepMinH), touch reach past a drawn edge, and how much of the way the fighters' frame slides toward the middle of the space the column leaves
+  col: { frac: 0.22, minW: 96, gap: 6, top: 70, stepFrac: 0.17, stepMinH: 64, reach: 8, frame: 0.75 },
+  foot: { pace: 0.14, tapDur: 0.16, walkIn: 0.32, back: 0.2, walkBack: 0.42, hold: 0.22, close: 0.1, room: [0.6, 0.7], margin: 22, foeV: 0.75, commit: 0.3, reach: 0.12, push: 0.5, wallMsg: 0.9 },
   // the bout's grade: S needs no hits taken and reads + punishes of at least S.skill; A and B allow up to taken hits with slot hits + reads + punishes of at least skill
   grade: { S: { taken: 0, skill: 2 }, A: { taken: 1, skill: 3 }, B: { taken: 3, skill: 1 } },
   // the draft: cards dealt, rarity weights per grade (common, rare, epic), an S grade's first card is always epic; delay before a pick counts (s)
@@ -366,7 +368,7 @@ function newRound(E, seed, me0) {
     picks: [], grades: [], draft: null, stepsIn: 0, stepsOut: 0, wallHits: 0, foeWall: 0, outReach: 0, shrugs: 0, rivalBeaten: 0,
     foot: { pos: 0, tgt: 0, v: 1, inDown: false, inId: -1, inT: 0, wallT: -9, foeWallT: -9 },
     seed, rng: makeRng(seed ^ 0x9e3779b9), gauntlet: rollGauntlet(seed, rival), results: [], rack: 0, m: 0, stop: 0, kickA: 0, kickV: 0,
-    hp: me.halves, endT: 0, dodgeT: 0, dodgeMax: TUNING.dodge.dur, dodgeCool: 0, away: false, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, slotHits: 0, dg: { down: false, id: -1, t: 0 },
+    hp: me.halves, endT: 0, dodgeT: 0, dodgeMax: TUNING.dodge.dur, dodgeCool: 0, away: false, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, slotHits: 0, dg: { down: false, id: -1, t: 0 }, stepHold: null,
     stamina: M.staMax[me.sta - 1], lastAtk: -9, riposte: 0, open: 0, netT: 0, pushT: 0,
     gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
     feints: 0, feintsRead: 0, feintsBit: 0, feintsNone: 0, feintLive: false, plateSaves: 0, combos: 0, windeds: 0, punishes: 0, bashes: 0, bashHits: 0, nets: 0, netted: 0, zoneReads: 0, lungeReads: 0, turtleReads: 0, presses: 0, retreats: 0, moveCount: {},
@@ -385,14 +387,16 @@ function newRound(E, seed, me0) {
 // ----- layout and frames -----
 function lay(E) {
   const F = TUNING.fighter, H = E.h * F.height, half = (E.w * F.gap + 2 * F.body * H) / 2;
-  return { H, floor: E.h * F.floor, x0: E.w / 2 - half, x1: E.w / 2 + half };
+  // the frame is centred on the space right of the left column (partly, so the foe keeps room too)
+  const R = colRect(E), cx = E.w / 2 + TUNING.col.frame * ((R.x + R.w + (E.w - E.safe.right)) / 2 - E.w / 2);
+  return { H, floor: E.h * F.floor, x0: cx - half, x1: cx + half };
 }
 // you are drawn at your rolled size the same way: your near edge stays put
 function youF(E) { const L = lay(E), y = state.you, k = meSize().scale; return { x: L.x0 + state.foot.pos * L.H + y.lunge - y.push * L.H - (k - 1) * TUNING.fighter.body * L.H, y: L.floor + y.hopY, a: y.a, dir: 1, H: L.H * k }; }
 // The arena's edges, in H from each fighter's mark: how far you can give ground (negative) and how far he can, trimmed so both stay on screen.
 function walls(E) {
   const L = lay(E), T = TUNING.foot, k = state.foe.size ? state.foe.size.scale : 1;
-  const back = Math.min(T.room[0], Math.max(0.1, (L.x0 - 0.2 * L.H * meSize().scale - E.safe.left - T.margin) / L.H));
+  const back = Math.min(T.room[0], Math.max(0.1, (L.x0 - 0.2 * L.H * meSize().scale - colRect(E).x - colRect(E).w - T.margin) / L.H));
   const fore = Math.min(T.room[1], Math.max(0.1, (E.w - E.safe.right - 24 - L.x1 - 0.3 * L.H * k) / L.H));
   return { back: -back, fore };
 }
@@ -919,7 +923,7 @@ function dealDraft(grade) {
 function openDraft(E) {
   const grade = state.grades[state.grades.length - 1] || 'C';
   state.draft = { grade, tally: boutTally(), cards: dealDraft(grade), t: 0, btns: [] };
-  const h = state.hand; h.down = false; h.id = -1; h.atk = null; state.sh.held = false; state.sh.hid = -1; state.dg.down = false; state.foot.inDown = false;
+  const h = state.hand; h.down = false; h.id = -1; h.atk = null; state.sh.held = false; state.sh.hid = -1; state.dg.down = false; state.foot.inDown = false; state.stepHold = null;
   E.audio.play('coin');
 }
 function pickCard(E, c) {
@@ -1104,21 +1108,35 @@ function updateFoe(dt, E) {
 }
 
 // ----- the left hand: three shield buttons and the step rocker (Back: tap = the quick backstep, hold = keep backing off; In: tap = a pace in, hold = walk in) -----
+function colRect(E) {
+  const C = TUNING.col, x = 10 + E.safe.left, w = Math.max(C.minW, Math.round(E.w * C.frac));
+  const bottom = E.h - 10 - E.safe.bottom, stepH = Math.max(C.stepMinH, Math.round(E.h * C.stepFrac)), top = E.safe.top + C.top;
+  return { x, w, top, bottom, stepH, h: (bottom - top - stepH - 3 * C.gap) / 3 };
+}
 function shieldBtns(E) {
-  const S = TUNING.shield, w = S.btnW, h = S.btnH, tot = 4 * h + 3 * S.gap;
-  const y0 = Math.max(E.safe.top + 70, (E.h - tot) / 2 + 20), x = 10 + E.safe.left;
-  const out = ZONES.map((z, i) => ({ z, x, y: y0 + i * (h + S.gap), w, h }));
-  out.push({ z: null, rocker: true, x, y: y0 + 3 * (h + S.gap), w, h });
+  const C = TUNING.col, R = colRect(E), h = R.h;
+  const out = ZONES.map((z, i) => ({ z, x: R.x, y: R.top + i * (h + C.gap), w: R.w, h }));
+  const sy = R.bottom - R.stepH;
+  out.push({ z: null, rocker: true, back: true, x: R.x, y: sy, w: R.w / 2, h: R.stepH }, { z: null, rocker: true, back: false, x: R.x + R.w / 2, y: sy, w: R.w / 2, h: R.stepH });
   return out;
 }
 
-// The rocker keeps the old button's size; its halves' touch areas reach out past the edges so each stays 44 px wide.
-function rockerSide(E, p) {
-  const b = shieldBtns(E).find((q) => q.rocker), mid = b.x + b.w / 2;
-  if (p.y < b.y - 4 || p.y > b.y + b.h + 4) return null;
-  if (p.x <= mid + 2) return 'back';
-  if (p.x <= b.x + b.w + 26) return 'in';
-  return null;
+// A button's touch area: 8 px past each drawn edge, but only half the gap toward a neighbour, and the two step buttons meet at their shared edge.
+function hitRect(E, b) {
+  const C = TUNING.col, first = b.z === ZONES[0], last = b.rocker;
+  const x0 = b.rocker && !b.back ? b.x : b.x - C.reach, x1 = b.rocker && b.back ? b.x + b.w : b.x + b.w + C.reach;
+  return { x0, x1, y0: b.y - (first ? C.reach : C.gap / 2), y1: b.y + b.h + (last ? C.reach : C.gap / 2) };
+}
+function buttonAt(E, p) {
+  return shieldBtns(E).find((b) => { const r = hitRect(E, b); return p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1; }) || null;
+}
+const stepSide = (b) => (b && b.rocker ? (b.back ? 'back' : 'in') : null);
+
+function pressStep(E, side, pid) { if (side === 'back') dodge(E, pid); else stepIn(E, pid); }
+function releaseStep(pid) {
+  const dg = state.dg, ft = state.foot;
+  if (ft.inDown && ft.inId === pid) { ft.inDown = false; ft.inId = -1; }
+  if (dg.down && dg.id === pid) { dg.down = false; dg.id = -1; }
 }
 
 function raiseShield(E, zone, pid) {
@@ -1978,29 +1996,24 @@ function drawShieldBtns(ctx, E) {
   const sh = state.sh, sw = state.sw, tell = sw && sw.fin <= 0 && !hesitating() ? sw.zone : null, fakeBtn = hesitating() ? sw.zone : null;
   const pulse = 0.5 + 0.5 * Math.sin(state.m * 14);
   for (const b of shieldBtns(E)) {
-    if (b.rocker) { drawRocker(ctx, E, b); continue; }
+    if (b.rocker) { drawStepBtn(ctx, E, b); continue; }
     const on = raised() && sh.zone === b.z, hot = tell === b.z, perfect = hot && sw.wind - sw.t <= TUNING.shield.perfect;
     const fill = on ? 'rgba(214,162,74,0.85)' : hot ? `rgba(255,${perfect ? 220 : 120},60,${0.45 + 0.4 * pulse})` : sh.arm > 0 && sh.zone === b.z ? 'rgba(214,162,74,0.35)' : 'rgba(20,16,26,0.55)';
     E.roundRect(b.x, b.y, b.w, b.h, 12, sh.broken ? 'rgba(40,40,46,0.6)' : fill, hot ? '#ffd24a' : on ? '#fff0b8' : 'rgba(240,230,204,0.45)');
     if (hot) { ctx.save(); ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 18; E.roundRect(b.x, b.y, b.w, b.h, 12, null, '#ffb347'); ctx.restore(); }
     if (fakeBtn === b.z) E.roundRect(b.x, b.y, b.w, b.h, 12, `rgba(167,139,250,${0.2 + 0.25 * pulse})`, '#c4b5fd');
-    E.text(b.z.label, b.x + b.w / 2, b.y + b.h / 2, { size: 15, weight: '800', color: on ? '#2a1c10' : '#f0e6cc' });
+    E.text(b.z.label, b.x + b.w / 2, b.y + b.h / 2, { size: Math.round(clamp(b.h * 0.26, 15, 22)), weight: '800', color: on ? '#2a1c10' : '#f0e6cc' });
   }
 }
 
-function drawRocker(ctx, E, b) {
-  const ft = state.foot, back = state.away, fwd = ft.inDown || ft.tgt > ft.pos + 0.005, wall = ft.pos <= walls(E).back + 0.01, hw = b.w / 2, cd = state.dodgeCool > 0 && !back;
-  E.roundRect(b.x, b.y, b.w, b.h, 12, 'rgba(20,40,52,0.6)', 'rgba(125,227,255,0.6)');
-  if (back || wall || cd) { ctx.save(); ctx.beginPath(); ctx.rect(b.x, b.y, hw, b.h); ctx.clip(); E.roundRect(b.x, b.y, b.w, b.h, 12, back ? 'rgba(125,227,255,0.8)' : wall ? 'rgba(239,68,68,0.45)' : 'rgba(20,16,26,0.45)', null); ctx.restore(); }
-  if (fwd) { ctx.save(); ctx.beginPath(); ctx.rect(b.x + hw, b.y, hw, b.h); ctx.clip(); E.roundRect(b.x, b.y, b.w, b.h, 12, 'rgba(125,227,255,0.8)', null); ctx.restore(); }
-  ctx.strokeStyle = 'rgba(125,227,255,0.6)'; ctx.lineWidth = 1.5; line(ctx, b.x + hw, b.y + 8, b.x + hw, b.y + b.h - 8);
-  const tri = (cx, dir, on) => {
-    const cy = b.y + b.h / 2 - 6, s = 9;
-    ctx.fillStyle = on ? '#0b2530' : '#bff0ff'; ctx.beginPath(); ctx.moveTo(cx - dir * s * 0.7, cy - s); ctx.lineTo(cx + dir * s * 0.9, cy); ctx.lineTo(cx - dir * s * 0.7, cy + s); ctx.closePath(); ctx.fill();
-  };
-  tri(b.x + hw / 2, -1, back); tri(b.x + hw * 1.5, 1, fwd);
-  E.text(state.dg.down ? 'hold' : 'back', b.x + hw / 2, b.y + b.h - 11, { size: 10, weight: '800', color: back ? '#0b2530' : '#bff0ff' });
-  E.text(ft.inDown && ft.inT > TUNING.foot.hold ? 'walk' : 'in', b.x + hw * 1.5, b.y + b.h - 11, { size: 10, weight: '800', color: fwd ? '#0b2530' : '#bff0ff' });
+function drawStepBtn(ctx, E, b) {
+  const ft = state.foot, back = state.away, fwd = ft.inDown || ft.tgt > ft.pos + 0.005, wall = ft.pos <= walls(E).back + 0.01, cd = state.dodgeCool > 0 && !back;
+  const on = b.back ? back : fwd, cx = b.x + b.w / 2, cy = b.y + b.h / 2 - b.h * 0.1, s = clamp(b.h * 0.2, 12, 18), dir = b.back ? -1 : 1;
+  const fill = on ? 'rgba(125,227,255,0.8)' : b.back && wall ? 'rgba(239,68,68,0.45)' : b.back && cd ? 'rgba(20,16,26,0.55)' : 'rgba(20,40,52,0.6)';
+  E.roundRect(b.x + 2, b.y, b.w - 4, b.h, 12, fill, 'rgba(125,227,255,0.6)');
+  ctx.fillStyle = on ? '#0b2530' : '#bff0ff'; ctx.beginPath(); ctx.moveTo(cx - dir * s * 0.7, cy - s); ctx.lineTo(cx + dir * s * 0.9, cy); ctx.lineTo(cx - dir * s * 0.7, cy + s); ctx.closePath(); ctx.fill();
+  const lbl = b.back ? (state.dg.down ? 'hold' : 'back') : (ft.inDown && ft.inT > TUNING.foot.hold ? 'walk' : 'in');
+  E.text(lbl, cx, b.y + b.h - clamp(b.h * 0.2, 11, 15), { size: Math.round(clamp(b.h * 0.2, 12, 16)), weight: '800', color: on ? '#0b2530' : '#bff0ff' });
 }
 // The arena's edges: a low timber barrier behind each fighter, where he can give no more ground.
 function drawWalls(ctx, E) {
@@ -2515,9 +2528,8 @@ const play = {
   onPointerDown(p, E) {
     if (state.endT > 0 || portrait(E) || state.intro || state.draft) return;
     if (p.startX < E.w / 3) {
-      const b = rockerSide(E, p) || shieldBtns(E).find((q) => !q.rocker && p.x >= q.x - 6 && p.x <= q.x + q.w + 6 && p.y >= q.y - 4 && p.y <= q.y + q.h + 4);
-      if (b === 'back') dodge(E, p.id);
-      else if (b === 'in') stepIn(E, p.id);
+      const b = buttonAt(E, p), side = stepSide(b);
+      if (side) { state.stepHold = { id: p.id, side }; pressStep(E, side, p.id); }
       else if (b) raiseShield(E, b.z, p.id);
       return;
     }
@@ -2532,7 +2544,12 @@ const play = {
     }
   },
   onPointerMove(p, E) {
-    const h = state.hand;
+    const h = state.hand, sp = state.stepHold;
+    if (sp && sp.id === p.id) {
+      const side = stepSide(buttonAt(E, p));
+      if (side && side !== sp.side) { releaseStep(p.id); sp.side = side; pressStep(E, side, p.id); }
+      return;
+    }
     if (h.down && h.id === p.id) { h.fx = p.x; h.fy = p.y; }
   },
   onTap(p, E) {
@@ -2542,6 +2559,7 @@ const play = {
   },
   onPointerUp(p) {
     const s = state.sh, h = state.hand, dg = state.dg, ft = state.foot;
+    if (state.stepHold && state.stepHold.id === p.id) state.stepHold = null;
     if (ft.inDown && ft.inId === p.id) { ft.inDown = false; ft.inId = -1; }
     else if (dg.down && dg.id === p.id) { dg.down = false; dg.id = -1; }
     else if (s.hid === p.id) { s.held = false; s.hid = -1; }
