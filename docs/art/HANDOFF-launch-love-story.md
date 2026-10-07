@@ -29,6 +29,6 @@ Candidates: `docs/art/candidates/launch/daifuku-window-{A,B}.png` and `mochi-rin
 
 ## Prompts and cost
 
-Prompts are in `docs/assets-ledger.md`. Two rounds: the first showed an opaque window with no teacup and a starry sky, and a ring beside Mochi, and was discarded. Cost for Pack 13: about $0.49 in total, ledger now $33.95 of the $40 budget.
+Prompts are in `docs/assets-ledger.md`. Two rounds: the first showed an opaque window with no teacup and a starry sky, and a ring beside Mochi, and was discarded. Cost for Pack 13: about $0.48 in total, ledger now $33.94 of the $40 budget.
 
 Line for the designer to paste into the art chat once he has picked: "Finalise Pack 13: daifuku window A, mochi ring B."
