@@ -50,9 +50,20 @@ const TUNING = {
     tag: { y: 16, w: 64, h: 24 }, // The HUD tag: centre below the HUD band, size (screen px)
     starR: 4.5, tileStep: 14, tail: 1.8, tailW: 1.3, tailDx: -0.6, tailDy: 0.8, // Tile: comet star radius, star spacing on a three-star tile, comet tail length in radii and its direction
     cardStarR: 17, cardStarsX: [-76, -20, 36], cardCometX: 94, // End card: the fourth star's radius and x offsets of the four slots (the three-star layout otherwise)
-    cardBtnW: 312, cardBtnGap: 64, cardBtnY: 148, cardExtra: 64, // End card Blind button: width, extra card height and the row's offset below the Next button
+    cardBtnW: 312, // End card Blind button width (its row and the card's extra height are in `story.card`)
     burstCount: 70, burstSpeedK: 1.6, flash: 0.18, haptic: 40, // A blind three-star sink: a bigger cyan burst, and a stronger flash
     chime: [{ f: 659.25, d: 0.12 }, { f: 880, d: 0.12 }, { f: 1318.5, d: 0.32 }], chimeGap: 0.09, chimeGain: 0.16, // The brighter three-star sound: a rising chime over the usual coin and win
+  },
+  // PRD v0.11 (Lumen and Sam): the animated scenes and Mission Control on the end card. Seconds, and screen px for sizes.
+  story: {
+    tapGap: 0.25,        // Seconds before a story card takes a tap, so a stray double tap does not skip one
+    autoGap: 1,          // A scene goes on by itself this long after it ends
+    captionAt: 0.5, captionIn: 0.6, text2At: 1.9, captionMin: 64, stageTop: 64, // The caption's fade, the second line's start, the room kept for it, and the stage's offset below the safe top (clear of Skip)
+    openDur: [3.6, 3.4, 3.8], turnDur: [3.4, 2.8], endDur: [3.4, 3.8, 4.2, 4.4], // Scene lengths: the cold open, the turn, the ending
+    turnHole: 25, midHole: 17, endHole: 29, // Hole indices: the turn opens before hole 26, hole 18 has the midpoint line, hole 30 ends it
+    // The end card's Mission Control block. Each [short, tall] pair is the value at a 667 px and an 844 px tall screen (linear between), so the block fits
+    // at 375 x 667: the offsets are those of the card's rows from the shot count, and the portrait's width.
+    card: { k: [667, 844], par: [30, 40], rules: [52, 68], stars: [94, 120], line: [136, 178], best: [164, 214], second: [68, 80], blind: [128, 148], portrait: [44, 68], pad: 14, gap: 10, factGap: 6, lineH: 18, below: 6, bestGap: 14 },
   },
   previewFullHoles: 3,   // Holes 1 to this show the full preview
   previewFullSeconds: 2.0,   // Length of the full preview in simulated seconds
@@ -392,6 +403,7 @@ const TUNING = {
     // fraction of the screen's height; it turns by +-turnMax radians every turnPeriod s under a sheen (width in medal widths) sweeping every sheenPeriod s.
     big: { w: 0.6, y: 0.34, turnMax: 0.9, turnPeriod: 6, sheenPeriod: 2.6, sheenW: 0.32, sheenAlpha: 0.6, silhouette: 'rgba(7,11,25,0.86)', dim: 0.93, pop: 0.3, gap: 30, nameMin: 24, textW: 32,
       reveal: { dur: 1.2, settle: 0.3, scrim: 0.82, y: 0.34 } }, // reveal: seconds the medal shows (the last settle seconds it flies to its ticket), the scrim's alpha behind it, its centre as a fraction of the height
+    log: { margin: 16, numW: 32, pad: 12, rowH: 52, lineH: 18, gap: 6, bottom: 84, backY: 16 }, // The Probe Log page: rows are at least 52 px, Back sits backY above the bottom inset
     ticket: { w: 320, h: 50, r: 14, medalR: 18 }, // The badge ticket that pops over the top edge of the hole card
     tierGlow: { rate: 0.4, min: 0.25, max: 0.85, r: 1.55, halo: 3 }, // Black Hole tier rim: glow pulses per second, its alpha range, its radius in medal radii, and the ticket's halo width (design px)
     secret: { name: '???', text: 'Secret badge', mark: 1.15 }, // A secret badge not yet earned: its name, its one line, and the '?' size in medal radii
@@ -440,7 +452,8 @@ const TUNING = {
     menu: { emblem: 72, cardH: 88, margin: 16, pad: 12, nameY: 26, lineY: 56, barY: 70, barH: 6, chevron: 6, nameMin: 24, lineMin: 14, titleW: 220, titleAspect: 467 / 1024, titleGap: 12, gridGap: 12, gridBottom: 10, padBottom: 16, stackGap: 14, fade: 24, dragSlop: 6 }, // The headline card under the title; nameY, lineY, barY are from the card's top. The hole grid scrolls between the card (gridGap) and Play (gridBottom); Play, Missions and Sound are pinned padBottom above the safe bottom, stackGap apart; fade is the soft edge height, dragSlop the finger travel before a press becomes a scroll
     ladder: { emblem: 44, rowH: 56, rowGap: 6, pad: 10, dividerH: 30, headGap: 6, lineGap: 4, tail: 6, silRes: 128, silhouette: '#1e293b', lockedMedal: 0.35 }, // Rows on the missions screen; silRes is the silhouette canvas size
     card: {
-      w: 300, h: 280, top: 28, emblem: 150, oldScale: 0.7, dim: 0.82,
+      w: 300, h: 322, top: 28, factY: 276, factLineH: 18, factPad: 22, // h holds the rank's fact (two lines) under the progress line
+ emblem: 150, oldScale: 0.7, dim: 0.82,
       delay: 0.2,          // After the hole's end card shows its buttons
       menuDelay: 0.5,      // After the menu opens, for a veteran's one card
       total: 1.8, fadeIn: 0.2, fadeOut: 0.22,
@@ -1313,7 +1326,7 @@ const TX = {
   label: tx(TY.sm, P.textDim, 'left'), labelC: tx(TY.sm, P.textDim, 'center'), labelBoss: tx(TY.sm, P.bossAccent, 'center'), labelR: tx(TY.sm, P.textDim, 'right'),
   valueL: tx(TY.md, P.text, 'left'), valueC: tx(TY.md, P.text, 'center'), valueGoalR: tx(TY.md, P.green, 'right'),
   goalL: tx(TY.sm, P.green, 'left'), btnL: tx(TY.sm, P.text, 'left'), btnOffL: tx(TY.sm, P.textOff, 'left'), runClean: tx(TY.sm, P.green, 'left'), progL: tx(TY.sm, P.amber, 'left'),
-  goalMdL: tx(TY.md, P.green, 'left'), amberR: tx(TY.sm, P.amber, 'right'), cardTitle: tx(TY.md, P.text, 'center', TY.heavy),
+  goalMdL: tx(TY.md, P.green, 'left'), amberR: tx(TY.sm, P.amber, 'right'), goalR: tx(TY.sm, P.green, 'right'), cardTitle: tx(TY.md, P.text, 'center', TY.heavy),
   tier: P.tiers.map((c) => tx(TY.sm, c, 'left')), bigL: tx(TY.lg, P.text, 'left', TY.heavy), labelL: tx(TY.sm, P.text, 'left'), dimL: tx(TY.sm, P.textDim, 'left'), offL: tx(TY.md, P.textOff, 'left'),
 };
 // Button styles (engine buttons take these), and their outline colour.
@@ -1323,6 +1336,8 @@ const BTN = {
   back: { fill: P.slateDark, color: P.text, w: A.missions.backW, h: A.missions.backH, size: TY.md, edge: P.slate },
   secondCard: { fill: P.slateDark, color: P.text, w: 150, h: 48, size: TY.sm, edge: P.slate },
   blind: { fill: P.slateDark, color: T.blind.col, w: T.blind.cardBtnW, h: 48, size: TY.sm, edge: T.blind.col },
+  skip: { fill: P.slateDark, color: P.text, w: 96, h: 44, size: TY.sm, edge: P.slate },
+  log: { fill: P.slateDark, color: P.text, w: 96, h: 44, size: TY.sm, edge: P.slate },
   retryOn: { w: T.retryW, h: T.retryH, fill: P.slate, color: P.text, edge: P.slateLight },
   retryOff: { w: T.retryW, h: T.retryH, fill: P.retryOff, color: P.textOff, edge: P.slateDeep },
 };
@@ -1376,7 +1391,7 @@ function ladderLine(i) {
 }
 
 // Images (ADR-0015): looking at, never in play. Each is drawn once it has decoded; until then, or if it fails, the shapes draw.
-const ART = { title: null, ranks: [], medals: new Map() };
+const ART = { title: null, ranks: [], medals: new Map(), mc: null };
 function loadImage(file) {
   const o = { img: new Image(), ok: false, sil: null };
   o.img.src = `assets/${file}.webp`;
@@ -1387,6 +1402,7 @@ function loadArt() {
   ART.title = loadImage('title-gravity-golf');
   ART.ranks = RANKS.map((r) => loadImage(r.file));
   for (const b of BADGES) ART.medals.set(b.id, loadImage(b.file || `medal-${b.id}`));
+  ART.mc = { calm: loadImage('mission-control'), wow: loadImage('mission-control-wow') }; // Pack 12; the worried portrait (Pack 14) is drawn with brows until it lands
 }
 // A rank's silhouette for the ladder: the emblem's own shape in one dark colour, built once. Null without OffscreenCanvas (the disc is drawn live).
 function silhouette(o) {
@@ -1415,10 +1431,11 @@ function drawEmblem(ctx, rank, cx, cy, size, dark) {
 }
 
 // The rank-up card: an overlay on the hole's end card (or on the menu, for a veteran's one card). Tap skips it.
-const RK = { on: false, t: 0, from: 1, to: 1, burst: false, skipped: false, line: '' };
+const RK = { on: false, t: 0, from: 1, to: 1, burst: false, skipped: false, line: '', fact: '' };
 function rankUpStart(E, from, to, where) {
   const C = RT.card, p = progress(E);
-  RK.on = true; RK.t = 0; RK.from = from; RK.to = to; RK.burst = false; RK.skipped = false; RK.line = menuLine(rankInfo(p));
+  RK.on = true; RK.t = 0; RK.from = from; RK.to = to; RK.burst = false; RK.skipped = false; RK.line = menuLine(rankInfo(p)); RK.fact = FACT_TEXT[`r${to}`] || '';
+  for (let r = Math.max(2, from + 1); r <= to; r++) logAdd(E, `r${r}`);
   E.save.set('rankSeen', Math.max(E.save.get('rankSeen', 1), to));
   E.ledger.add('rank', { rank: to, name: RANKS[to - 1].name, stars: p.total, at: where });
   for (let i = 0; i < C.chime.length; i++) E.audio.beep({ freq: C.chime[i].f, dur: C.chime[i].d, type: 'triangle', gain: C.chimeGain, delay: C.chimeAt + i * C.chimeGap });
@@ -1472,6 +1489,8 @@ function drawRankUp(ctx, E) {
   const ta = a * clamp((t - C.textAt) / C.textIn, 0, 1);
   E.text(`Rank up: ${r.name}`, g.cx, g.py + C.titleY, { ...TX.cardTitle, alpha: ta });
   E.text(RK.line, g.cx, g.py + C.lineY, { ...TX.sm, alpha: ta });
+  const fl = RK.fact ? wrapText(ctx, `rk:${g.pw}:${RK.fact}`, RK.fact, g.pw - 2 * C.factPad) : [];
+  fl.forEach((l, i) => E.text(l, g.cx, g.py + C.factY + i * C.factLineH, { ...TX.smLight, alpha: ta }));
   ctx.restore();
 }
 
@@ -2246,8 +2265,10 @@ function finishHole(E) {
   const fresh = [...PENDING.splice(0), ...now].sort((a, b) => badgeById(b).tier - badgeById(a).tier); // earned in flight, then on this hole; the rarest ticket first
   const rankAfter = rankFor(starTotal(E.save.get('stars', {}), E.save.get('blind', {})));
   const owned = !!E.save.get('blind', {})[id], has3 = E.save.get('stars', {})[id] >= 3;
-  E.setScene('over', { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh,
-    blind: S.blind, fourth: owned, fourthNew, has3, rankUp: rankAfter > rankBefore ? { from: rankBefore, to: rankAfter } : null });
+  const card = { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh,
+    blind: S.blind, fourth: owned, fourthNew, has3, rankUp: rankAfter > rankBefore ? { from: rankBefore, to: rankAfter } : null };
+  // The ending plays once, before the card, after the first finished hole once hole 30 is cleared (a veteran who cleared it earlier sees it after their next finish).
+  E.setScene(!E.save.get('endSeen', false) && E.save.get('best', {})[T.story.endHole] !== undefined ? 'ending' : 'over', card);
 }
 
 // A full run ends: finished (done) or left (a hole played out of order, Menu or Retry from the card, or hole 1 again).
@@ -2697,7 +2718,7 @@ const TIER_LABEL = BADGE_TIERS.map((n) => `${n.toUpperCase()} BADGE`);
 const menu = {
   titleBox: { x: 0, y: 0, w: 0, h: 0 },
   enter(E) {
-    this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnRank = null; this.tiles = []; this.pop = CHANGED;
+    this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnStory = null; this.btnRank = null; this.tiles = []; this.pop = CHANGED;
     this.scroll = 0; this.focus = true; this.drag = null; this.moved = false; this.grid = { top: 0, bot: 0, max: 0 };
     // the grid opens on the next hole to play, on the first frame (it needs the layout)
     CHANGED = null; this.t = 0; applySkins(E);
@@ -2775,9 +2796,11 @@ const menu = {
     }
 
     this.btnPlay = pill(E, p.total > 0 || p.unlocked > 0 ? `Play hole ${p.unlocked + 1}` : 'Play', cx, py, BTN.primary);
-    const hx = (M.missionsW + M.rowGap) / 2;
-    this.btnMissions = pill(E, 'Missions', cx - hx, missY, BTN.half);
-    this.btnMute = pill(E, E.audio.muted ? 'Sound: off' : 'Sound: on', cx + hx, missY, BTN.half);
+    const hw = Math.min(M.missionsW, Math.floor((E.w - 2 * MR.margin - 2 * M.rowGap) / 3)), hx = hw + M.rowGap; // Missions, Story and Sound share the row
+    const hb = this.hb && this.hb.w === hw ? this.hb : (this.hb = { ...BTN.half, w: hw });
+    this.btnMissions = pill(E, 'Missions', cx - hx, missY, hb);
+    this.btnStory = pill(E, 'Story', cx, missY, hb);
+    this.btnMute = pill(E, E.audio.muted ? 'Sound: off' : 'Sound: on', cx + hx, missY, hb);
     if (RK.on) drawRankUp(ctx, E);
   },
   // The menu's one headline (principle 11): the rank's emblem and name, one progress line and a thin bar. Tapping it opens the ladder.
@@ -2799,11 +2822,12 @@ const menu = {
   onTap(p, E) {
     if (rankUpTap()) return;
     if (this.btnRank && E.hit(this.btnRank, p)) { E.audio.play('tap'); E.setScene('missions', { ladder: true }); return; }
-    if (E.hit(this.btnPlay, p)) { E.setScene('play', { hole: progress(E).unlocked }); return; }
+    if (E.hit(this.btnPlay, p)) { toPlay(E, { hole: progress(E).unlocked }); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
+    if (E.hit(this.btnStory, p)) { E.audio.play('tap'); E.setScene('story', { replay: true }); return; }
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); return; }
     if (this.moved || p.y < this.grid.top || p.y > this.grid.bot) return; // a drag scrolls the grid and picks nothing; a tile under the fade or a button is not a tile tap
-    for (const t of this.tiles) if (!t.locked && E.hit(t, p)) { E.setScene('play', { hole: t.hole }); return; }
+    for (const t of this.tiles) if (!t.locked && E.hit(t, p)) { toPlay(E, { hole: t.hole }); return; }
   },
   onPointerDown(p) { this.moved = false; this.drag = p.y >= this.grid.top && p.y <= this.grid.bot ? { y: p.y, s: this.scroll } : null; },
   onPointerMove(p) {
@@ -2838,7 +2862,7 @@ function wrapText(ctx, key, text, width, size = TY.sm) {
 
 const missions = {
   enter(E, params) {
-    this.drag = null; this.btnBack = null; this.swatches = []; this.rows = []; this.show = null; this.listH = BADGES.length * (A.missions.rowH + A.missions.rowGap); applySkins(E);
+    this.drag = null; this.btnBack = null; this.btnLog = null; this.swatches = []; this.rows = []; this.show = null; this.listH = BADGES.length * (A.missions.rowH + A.missions.rowGap); applySkins(E);
     const L = RT.ladder; this.ladderH = A.missions.headH + 2 * A.missions.lineH + L.headGap + RANKS.length * (L.rowH + L.rowGap) + L.dividerH + L.tail; // measured by the render
     this.scroll = 0; this.focus = params && params.ladder ? 'ladder' : 'badges'; // from the menu's rank card the ladder shows at your rank; from Missions it opens on the skins and badges, the ladder above
   },
@@ -2864,7 +2888,8 @@ const missions = {
     }
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0, 0, E.time); ctx.restore();
     E.text('Missions', m, E.safe.top + 32, TX.bigL);
-    E.text(`${BADGES.filter((b) => p.badges[b.id]).length} / ${BADGES.length}`, E.w - m, E.safe.top + 32, TX.valueGoalR);
+    this.btnLog = pill(E, 'Probe Log', E.w - m - BTN.log.w / 2, E.safe.top + 32, BTN.log);
+    E.text(`${BADGES.filter((b) => p.badges[b.id]).length} / ${BADGES.length}`, this.btnLog.x - 10, E.safe.top + 32, TX.goalR);
     this.scroll = clamp(this.scroll, 0, V.max); this.rows.length = 0;
     ctx.save(); ctx.beginPath(); ctx.rect(0, V.top, E.w, V.bot - V.top); ctx.clip();
     let y = this.drawSkins(ctx, E, p, this.drawLadder(ctx, E, p, info, lines, ex, rowTop, V.top - this.scroll, V, m), V, m), listH = 0;
@@ -2975,6 +3000,7 @@ const missions = {
   onTap(p, E) {
     if (this.show) { this.show = null; E.audio.play('tap'); return; }
     if (E.hit(this.btnBack, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    if (this.btnLog && E.hit(this.btnLog, p)) { E.audio.play('tap'); E.setScene('log'); return; }
     const V = this.area(E), inList = p.y >= V.top && p.y <= V.bot, sw = inList && this.swatches.find((s) => E.hit(s, p));
     if (!sw) {
       const row = inList && this.rows.find((r) => E.hit(r, p));
@@ -3198,6 +3224,7 @@ const over = {
     this.beat = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starPop * 0.6 + J.buttonGap;
     this.btnBlind = null; this.offer = p.has3 && !p.fourth; // the Expert button follows any finish (normal or Expert) of a three-starred hole, until its fourth star is won
     this.btnNext = null; this.btnMenu = null; this.btnRetry = null;
+    this.mc = samPick(E, p); this.mcT = null; this.Lkey = ''; // Mission Control's line and fact for this card, chosen once
     this.badges = (p.badges || []).map(badgeById);
     this.badgeT = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starPop + J.badgeDelay; // the first badge pops after the stars
     this.badgeOn = -1; this.skip = 0; // skip: seconds the badge clock is pushed on when a tap skips the reveal
@@ -3222,6 +3249,24 @@ const over = {
     if (!this.rkDone && this.t >= this.rkAt) { this.rkDone = true; rankUpStart(E, this.p.rankUp.from, this.p.rankUp.to, 'card'); }
     rankUpUpdate(dt, E);
   },
+  // The card's rows (PRD v0.11): the old fixed offsets from the shot count, eased up on a short screen so Mission Control's block fits above the buttons;
+  // the buttons drop only when a fact needs more room. Cached per screen size.
+  lay(ctx, E, pw) {
+    const key = `${E.w}:${E.h}`;
+    if (this.Lkey === key) return this.L;
+    const C = T.story.card, k = clamp((E.h - C.k[0]) / (C.k[1] - C.k[0]), 0, 1), f = (r) => lerp(r[0], r[1], k), y0 = E.h * 0.24, mc = this.mc;
+    const size = Math.round(f(C.portrait)), iw = pw - 2 * C.pad, tw = iw - size - C.gap;
+    const ll = wrapText(ctx, `mc:${tw}:${mc.line}`, mc.line, tw), fs = [TY.sm, TY.sm - 1, TY.sm - 2].find((z, n, a) => !mc.fact || n === a.length - 1 || wrapText(ctx, `mcf:${iw}:${z}:${mc.fact}`, mc.fact, iw, z).length <= 2), // the fact steps down in size until it fits two lines
+      fl = mc.fact ? wrapText(ctx, `mcf:${iw}:${fs}:${mc.fact}`, mc.fact, iw, fs) : [];
+    const rowH = Math.max(size, ll.length * C.lineH), L = this.L || (this.L = {});
+    L.par = y0 + f(C.par); L.rules = y0 + f(C.rules); L.stars = y0 + f(C.stars); L.line = y0 + f(C.line); L.best = y0 + f(C.best);
+    L.second = f(C.second); L.blind = f(C.blind);
+    L.size = size; L.ll = ll; L.fl = fl; L.fs = fs; L.rowH = rowH; L.mcTop = L.best + C.bestGap;
+    L.by = Math.max(E.h * 0.68, L.mcTop + rowH + (fl.length ? C.factGap + fl.length * C.lineH : 0) + C.below + BTN.primary.h / 2);
+    L.bottom = this.offer ? L.by + L.blind + 40 : L.by + L.second + 44;
+    this.Lkey = key;
+    return L;
+  },
   // The badges reveal as one sequence, one reveal.dur slot each (the big medal, then it settles into its ticket); the last badge's ticket stays.
   badgeClock() {
     const slot = A.big.reveal.dur, tb = this.t - this.badgeT + this.skip, bi = Math.min(this.badges.length - 1, Math.floor(tb / slot));
@@ -3237,8 +3282,8 @@ const over = {
     const p = this.p, cx = E.w / 2, t = this.t, v = coverView(E);
     ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, this.sky, sectorOf(p.hole), 0, 0, E.time); ctx.restore();
     ctx.save(); ctx.translate(0, (1 - this.slide) * E.h * J.cardSlideFrac);
-    const pw = Math.min(E.w - 32, 340), py = E.h * 0.085;
-    E.roundRect(cx - pw / 2, py, pw, E.h * 0.68 + 80 + 44 - py + (this.offer ? T.blind.cardExtra : 0), A.line.card, P.card, p.boss ? P.bossAccent : P.slate);
+    const pw = Math.min(E.w - 32, 340), py = E.h * 0.085, L = this.lay(ctx, E, pw);
+    E.roundRect(cx - pw / 2, py, pw, L.bottom - py, A.line.card, P.card, p.boss ? P.bossAccent : P.slate);
     const tky = Math.max(py, E.safe.top + A.ticket.h / 2 + 4), ly = Math.max(E.h * 0.12, tky + A.ticket.h / 2 + 14), ny = Math.max(E.h * 0.16, ly + 28);
     if (p.boss) E.text('Boss', cx, ly, TX.bossMd); // the label and the name sit below the badge ticket's slot
     E.text(p.name, cx, ny, TX.dim);
@@ -3247,33 +3292,45 @@ const over = {
     ctx.save(); ctx.translate(cx, E.h * 0.24); ctx.scale(nk, nk);
     E.text(shots(p.strokes), 0, 0, TX.big);
     ctx.restore();
-    E.text(`Par ${p.par}`, cx, E.h * 0.24 + 40, TX.dim);
-    E.text(`3 stars: ${shots(p.three)}   2 stars: ${shots(p.par)}`, cx, E.h * 0.24 + 68, TX.sm);
+    E.text(`Par ${p.par}`, cx, L.par, TX.dim);
+    E.text(`3 stars: ${shots(p.three)}   2 stars: ${shots(p.par)}`, cx, L.rules, TX.sm);
     const BL = T.blind, four = p.has3 || p.blind; // a three-starred hole shows the fourth star's slot beside the three
     for (let i = 0; i < 3; i++) {
-      const sx = cx + (four ? BL.cardStarsX[i] : (i - 1) * 64), sy = E.h * 0.24 + 120;
+      const sx = cx + (four ? BL.cardStarsX[i] : (i - 1) * 64), sy = L.stars;
       drawStar(ctx, sx, sy, 26, null, P.starOff);
       if (i < p.stars && this.starDone[i]) drawStar(ctx, sx, sy, 26 * this.starK[i], P.green);
     }
     if (four) {
       const got = p.fourth && (!p.fourthNew || this.starDone[3]);
-      drawCometStar(ctx, cx + BL.cardCometX, E.h * 0.24 + 120, BL.cardStarR * (p.fourthNew && got ? this.starK[3] : 1), got);
+      drawCometStar(ctx, cx + BL.cardCometX, L.stars, BL.cardStarR * (p.fourthNew && got ? this.starK[3] : 1), got);
     }
     const line = p.fourthNew ? (p.strokes === 1 ? 'Hole in one' : T.blind.label) : p.stars === 3 ? (p.strokes === 1 ? 'Hole in one' : 'Under par') : '';
-    if (line) E.text(line, cx, E.h * 0.24 + 178, { size: TY.md, color: P.green, alpha: clamp((t - J.starDelay - (p.stars - 1 + (p.fourthNew ? 1 : 0)) * J.starStagger) / J.lineFade, 0, 1) });
-    E.text(`Best ${p.best}`, cx, E.h * 0.24 + 214, TX.dim);
+    if (line) E.text(line, cx, L.line, { size: TY.md, color: P.green, alpha: clamp((t - J.starDelay - (p.stars - 1 + (p.fourthNew ? 1 : 0)) * J.starStagger) / J.lineFade, 0, 1) });
+    E.text(`Best ${p.best}`, cx, L.best, TX.dim);
+    const hold = t < this.beat - 0.4 || (this.badges.length > 0 && (t < this.badgeT || this.badgeClock().tb < this.badges.length * A.big.reveal.dur)); // Mission Control waits until the last medal has landed in its ticket
+    if (hold) this.mcT = null; else if (this.mcT == null) this.mcT = E.time;
+    const mA = this.mcT == null ? 0 : clamp((E.time - this.mcT) / 0.4, 0, 1), mc = this.mc, C = T.story.card;
+    if (mA > 0) { // Mission Control: Sam's portrait with one line, and under them the fact, if one is due
+      const x0 = cx - pw / 2 + C.pad;
+      ctx.globalAlpha = mA;
+      drawSam(ctx, x0, L.mcTop + (L.rowH - samH(L.size, mc.wow)) / 2, L.size, mc.wow);
+      L.ll.forEach((l, i) => E.text(l, x0 + L.size + C.gap, L.mcTop + L.rowH / 2 + (i - (L.ll.length - 1) / 2) * C.lineH, { ...TX.labelL, alpha: mA }));
+      L.fl.forEach((l, i) => E.text(l, x0, L.mcTop + L.rowH + C.factGap + (i + 0.5) * C.lineH, { ...TX.dimL, size: L.fs, alpha: mA }));
+      ctx.globalAlpha = 1;
+    }
     if (this.ready) {
-      const bk = ease.outBack(clamp((t - this.beat) / J.buttonPop, 0, 1)), by = E.h * 0.68;
+      const bk = ease.outBack(clamp((t - this.beat) / J.buttonPop, 0, 1)), by = L.by;
       ctx.save(); ctx.translate(cx, by); ctx.scale(bk, bk); ctx.translate(-cx, -by);
       this.btnNext = pill(E, p.hasNext ? 'Next' : 'Menu', cx, by, BTN.primary);
       ctx.restore();
       const hx = p.hasNext ? (BTN.secondCard.w + A.menu.rowGap) / 2 : 0; // Retry beside Menu (Retry alone when Menu is the main button)
-      ctx.save(); ctx.translate(cx, by + 80); ctx.scale(bk, bk); ctx.translate(-cx, -(by + 80));
-      this.btnRetry = pill(E, 'Retry', cx - hx, by + 80, BTN.secondCard);
-      if (p.hasNext) this.btnMenu = pill(E, 'Menu', cx + hx, by + 80, BTN.secondCard);
+      const sy2 = by + L.second;
+      ctx.save(); ctx.translate(cx, sy2); ctx.scale(bk, bk); ctx.translate(-cx, -sy2);
+      this.btnRetry = pill(E, 'Retry', cx - hx, sy2, BTN.secondCard);
+      if (p.hasNext) this.btnMenu = pill(E, 'Menu', cx + hx, sy2, BTN.secondCard);
       ctx.restore();
       if (this.offer) {
-        const yb = by + BL.cardBtnY;
+        const yb = by + L.blind;
         ctx.save(); ctx.translate(cx, yb); ctx.scale(bk, bk); ctx.translate(-cx, -yb);
         this.btnBlind = pill(E, T.blind.label, cx, yb, BTN.blind);
         ctx.restore();
@@ -3307,7 +3364,7 @@ const over = {
       return;
     }
     if (!this.ready || !this.btnNext || p.startT < this.t0 + this.beat) return;
-    if (E.hit(this.btnNext, p)) { if (!this.p.hasNext) endRun(E, false); E.setScene(this.p.hasNext ? 'play' : 'menu', { hole: this.p.hole + 1, run: true }); }
+    if (E.hit(this.btnNext, p)) { if (this.p.hasNext) toPlay(E, { hole: this.p.hole + 1, run: true }); else { endRun(E, false); E.setScene('menu'); } }
     else if (this.btnMenu && E.hit(this.btnMenu, p)) { endRun(E, false); E.setScene('menu'); }
     else if (this.btnRetry && E.hit(this.btnRetry, p)) this.again(E, this.p.blind, 'card'); // the hole again, blind if it was blind
     else if (this.btnBlind && E.hit(this.btnBlind, p)) this.again(E, true, 'blind');
@@ -3321,13 +3378,628 @@ const over = {
   },
 };
 
+// ---------- The story (PRD v0.11: Lumen and Sam) ----------
+// Dr Sam Ito builds Lumen and talks to it like a friend; every sector says "no life" and Sam grows quieter; the mission is about to be
+// cut; at the core the signal is another probe, sent by someone else who was looking too. All text is here; the scenes below are pure
+// functions of their time, so a tap can jump to the end of one. Math.random is used only to pick a line (cosmetic).
+const SAM = {
+  star: ['Clean assist! Data received!', 'Got there. Every bit counts.', "Scenic route. I'll allow it."], // the Starfield, by stars: 3, 2, 1 or fewer
+  pool: [ // by sector, Nebula on (the Starfield is SAM.star)
+    null,
+    ['Gas, dust... maybe something?', 'Beautiful data, Lumen.', "Keep looking. I've got a feeling."],
+    ['Rocks. Again. Very nice rocks.', 'Mind the ice, little one.', 'I named one of those rocks after you.'],
+    ['No life. Still beautiful, though.', "It's very quiet out there, isn't it?"], // and SAM.mid once hole 18 has been finished
+    ['Two suns. Still nobody home.', "They keep asking what we've found.", "I'm not giving up on you."],
+    ['This is it, Lumen.', 'Make every shot count.', "Whatever's there, we find it together."],
+  ],
+  mid: 'When I was a kid, I waved at the sky every night.',
+  show: 'No guide lines? Show-off.',
+  happy: "Still can't believe it. Hi, friend.", // in every pool once the ending has shown
+};
+const SECTOR_LOG = [
+  'Log: rocks and starlight. No life.', 'Log: gas and dust. No life. Yet.', 'Log: ice and rock at speed. No life.',
+  'Log: dark and quiet. No life.', 'Log: two suns, warm planets. Still no life.', 'Log: crowded, bright, loud. Listening...',
+];
+// The Probe Log: every fact is true (checked against a general reference). Keys: first, the body kinds, s1 to s5 (sectors), r2 to r16 (ranks).
+const FACTS = [
+  { k: 'first', t: 'Voyager 2 used gravity assists to visit all four giant planets.' },
+  { k: 'planet', t: "Planets don't shine; they reflect their star's light." },
+  { k: 'moon', t: 'Our Moon shows Earth one face: it spins once per orbit.' },
+  { k: 'sun', t: 'The Sun holds over 99% of the mass in our solar system.' },
+  { k: 'binary', t: 'Many stars come in pairs, circling a shared centre.' },
+  { k: 'blackhole', t: 'Not even light escapes past the edge, the event horizon.' },
+  { k: 'comet', t: "A comet's tail points away from the Sun, pushed by sunlight and solar wind." },
+  { k: 's1', t: 'Many nebulae are clouds of gas and dust where stars are born.' },
+  { k: 's2', t: "A meteor shower is Earth crossing a comet's dust trail." },
+  { k: 's3', t: 'Light from far galaxies left them millions to billions of years ago.' },
+  { k: 's4', t: 'Real planets circle two suns; Kepler-16b was found in 2011.' },
+  { k: 's5', t: "Our galaxy's centre holds a black hole of four million Suns." },
+  { k: 'r2', t: 'Ganymede, a moon of Jupiter, is wider than Mercury.' },
+  { k: 'r3', t: 'Earth is the only planet known to have life. So far.' },
+  { k: 'r4', t: 'All the other planets could fit inside Jupiter.' },
+  { k: 'r5', t: 'Too big to be a planet, too small to shine like a star.' },
+  { k: 'r6', t: 'Red dwarfs are the most common stars in our galaxy.' },
+  { k: 'r7', t: 'Our Sun is a yellow dwarf, about 4.6 billion years old.' },
+  { k: 'r8', t: 'Blue stars are the hottest; red ones are the coolest.' },
+  { k: 'r9', t: 'In about 5 billion years, our Sun will swell into a red giant.' },
+  { k: 'r10', t: 'Blue giants burn out in millions of years, not billions.' },
+  { k: 'r11', t: "A white dwarf packs a Sun's mass into an Earth-sized ball." },
+  { k: 'r12', t: 'Exploding stars made much of the iron in your blood.' },
+  { k: 'r13', t: 'The Crab Nebula is left from a star seen exploding in 1054.' },
+  { k: 'r14', t: 'A teaspoon of neutron star weighs billions of tonnes.' },
+  { k: 'r15', t: 'A quasar can outshine every star in its galaxy combined.' },
+  { k: 'r16', t: "In 2019 we saw our first picture of a black hole's shadow." },
+];
+const FACT_TEXT = Object.fromEntries(FACTS.map((f) => [f.k, f.t]));
+const CATCH_UP = 'Probe Log updated';
+
+// The kinds of body on a hole (a mass-0 bumper is not a planet; two suns are a binary).
+function bodiesOf(lv) {
+  const o = [];
+  if (lv.planets.some((p) => p.mass > 0)) o.push('planet');
+  if (lv.movers.some((m) => m.type === 'moon')) o.push('moon');
+  if (lv.suns.length) o.push('sun');
+  if (lv.suns.length > 1) o.push('binary');
+  if (lv.blackholes.length) o.push('blackhole');
+  if (lv.movers.some((m) => m.type === 'comet')) o.push('comet');
+  return o;
+}
+// The facts the cleared holes have earned, in the order Mission Control hands them out: the first hole, each sector reached, then body kinds.
+function earnedKeys(best) {
+  const cleared = Object.keys(best || {}).map(Number).filter((i) => i >= 0 && i < LEVELS.length);
+  if (!cleared.length) return [];
+  const out = ['first'], top = sectorOf(Math.max(...cleared)), kinds = new Set();
+  for (let s = 1; s <= top; s++) out.push(`s${s}`);
+  for (const i of cleared) for (const k of bodiesOf(LEVELS[i])) kinds.add(k);
+  for (const f of FACTS) if (kinds.has(f.k)) out.push(f.k);
+  return out;
+}
+function logAdd(E, key) { E.save.update('log', (l) => (l.includes(key) ? l : [...l, key]), []); }
+
+// Mission Control on an end card: Sam's portrait and one line (a sector's first log, hole 18's midpoint line, the Expert star, then the
+// sector's pool), and under it at most one due fact, or the one-off catch-up line after a migration. Writes the story flags it uses up.
+function samPick(E, p) {
+  const sec = sectorOf(p.hole), S = E.save, ended = !!S.get('endSeen', false);
+  let line;
+  if (S.get('sectorsSeen', 0) < sec + 1) { line = SECTOR_LOG[sec]; S.set('sectorsSeen', sec + 1); }
+  else if (p.hole === T.story.midHole && !S.get('midSeen', false)) { line = SAM.mid; S.set('midSeen', true); }
+  else if (p.fourthNew) line = SAM.show;
+  else {
+    const pool = sec === 0 ? [SAM.star[p.stars >= 3 ? 0 : p.stars === 2 ? 1 : 2]] : SAM.pool[sec].slice();
+    if (sec === 3 && S.get('midSeen', false)) pool.push(SAM.mid);
+    if (ended) pool.push(SAM.happy);
+    line = pool[Math.floor(Math.random() * pool.length)];
+  }
+  let fact = '';
+  if (S.get('catchUp', false)) { fact = CATCH_UP; S.set('catchUp', false); }
+  else {
+    const have = S.get('log', []), key = earnedKeys(S.get('best', {})).find((k) => !have.includes(k));
+    if (key) { logAdd(E, key); fact = FACT_TEXT[key]; }
+  }
+  return { wow: p.stars >= 3 || !!p.fourthNew, line, fact };
+}
+
+// Pack 12 portraits (webp in assets/), cropped to the window's own bounds. A headset glyph stands in until one has decoded, so the story never waits on a file.
+const MC_CROP = { calm: [24, 19, 208, 210], wow: [23, 22, 209, 191] }; // x, y, w, h in the 256 px file
+const samH = (w, wow) => { const c = MC_CROP[wow ? 'wow' : 'calm']; return (w * c[3]) / c[2]; };
+function drawSam(ctx, x, y, w, wow) {
+  const k = wow ? 'wow' : 'calm', c = MC_CROP[k], h = samH(w, wow), o = ART.mc && ART.mc[k];
+  if (o && o.ok) {
+    const f = o.img.naturalWidth / 256;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(o.img, c[0] * f, c[1] * f, c[2] * f, c[3] * f, x, y, w, h);
+    return h;
+  }
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.fillStyle = '#1e3a8a'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#e8b48a'; ctx.beginPath(); ctx.arc(x + w / 2, y + h * 0.45, w * 0.2, 0, PI2); ctx.fill();
+  ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(x + w / 2, y + h * 0.4, w * 0.21, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 1.02, w * 0.36, h * 0.3, 0, 0, PI2); ctx.fill();
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = Math.max(2, w * 0.03); ctx.beginPath(); ctx.arc(x + w / 2, y + h * 0.43, w * 0.25, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+  ctx.restore();
+  rrPath(ctx, x, y, w, h, w * 0.08); ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 3; ctx.stroke();
+  return h;
+}
+function rrPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+// Sam standing on `bottom`, centred at cx, `w` wide; squashed or stretched about the feet (sx, sy), tilted (rot), faded (alpha). Returns the portrait's rect.
+const SAMR = { x: 0, y: 0, w: 0, h: 0 };
+function samAt(ctx, cx, bottom, w, wow, o = {}) {
+  const c = MC_CROP[wow ? 'wow' : 'calm'], h = (w * c[3]) / c[2];
+  ctx.save(); ctx.globalAlpha *= o.alpha ?? 1;
+  ctx.translate(cx, bottom); if (o.rot) ctx.rotate(o.rot); ctx.scale(o.sx ?? 1, o.sy ?? 1);
+  drawSam(ctx, -w / 2, -h, w, wow);
+  if (o.draw) o.draw(ctx, -w / 2, -h, w, h);
+  ctx.restore();
+  SAMR.x = cx - w / 2; SAMR.y = bottom - h; SAMR.w = w; SAMR.h = h;
+  return SAMR;
+}
+
+// ---- Scene toolkit ----
+const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const mix = (a, b, k) => a + (b - a) * k;
+// One hop, p from 0 to 1: the arc (0 to 1) and the squash before take-off and on landing, stretch in the air.
+function hopOf(p) {
+  const a = Math.sin(Math.PI * p), c = Math.max(0, 1 - p * 6) + Math.max(0, p * 6 - 5);
+  return { y: a, sx: 1 - 0.1 * a + 0.22 * c, sy: 1 + 0.16 * a - 0.24 * c };
+}
+// A hop between times a and b, settling over the next 0.2 s (hopOf's landing squash would otherwise stay).
+function hopTime(t, a, b) {
+  const h = hopOf(seg(t, a, b)), d = 1 - seg(t, b, b + 0.2);
+  return { y: h.y, sx: 1 + (h.sx - 1) * d, sy: 1 + (h.sy - 1) * d };
+}
+function glowDot(ctx, x, y, r, col, a) {
+  if (a <= 0) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, PI2); ctx.fill();
+}
+function sparkle(ctx, x, y, r, a = 1) {
+  if (a <= 0 || r <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = P.starWarm; ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const an = (i * Math.PI) / 4 - Math.PI / 2, rr = i % 2 ? r * 0.3 : r; ctx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); }
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+// Lumen, the player's ball drawn large, with its one lens light (lit 0 to 1); sx, sy squash about the ball's foot.
+function drawLumen(ctx, x, y, r, lit, o = {}) {
+  const foot = y + r;
+  ctx.save(); ctx.translate(x, foot); ctx.scale(o.sx ?? 1, o.sy ?? 1); ctx.translate(-x, -foot);
+  glowDot(ctx, x, y, r * 2.2, P.starWarm, 0.3 * lit);
+  drawBall(ctx, x, y, r, 1, o.spin ?? 0.4);
+  const lx = x + r * 0.32, ly = y - r * 0.22, lr = r * 0.17;
+  ctx.fillStyle = mixHex('#334155', '#fef08a', lit); ctx.beginPath(); ctx.arc(lx, ly, lr, 0, PI2); ctx.fill();
+  glowDot(ctx, lx, ly, lr * 3.4, '#fef08a', 0.7 * lit);
+  ctx.restore();
+}
+// The stage every scene draws in: a rounded panel (lit from `c1` at the top to `c0`), clipped, with its edge drawn at the end.
+function roomBegin(ctx, E, g, c0, c1, alpha = 1) {
+  ctx.save();
+  E.roundRect(g.x, g.y, g.w, g.h, A.line.card);
+  ctx.clip();
+  const gr = ctx.createLinearGradient(0, g.y, 0, g.y + g.h);
+  gr.addColorStop(0, c0); gr.addColorStop(1, c1);
+  ctx.globalAlpha = alpha; ctx.fillStyle = gr; ctx.fillRect(g.x, g.y, g.w, g.h); ctx.globalAlpha = 1;
+}
+function roomEnd(ctx, E, g) {
+  ctx.restore();
+  E.roundRect(g.x, g.y, g.w, g.h, A.line.card, null, P.slate);
+}
+const CHART = [[0.1, 0.72], [0.28, 0.38], [0.5, 0.62], [0.7, 0.24], [0.9, 0.5]];
+// A wall screen showing a constellation, flickering a little.
+function screenPanel(ctx, x, y, w, h, t, i) {
+  ctx.globalAlpha = 0.82 + 0.18 * Math.sin(t * 3 + i * 2);
+  ctx.fillStyle = '#0b2e55'; ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+  ctx.lineWidth = 1; ctx.beginPath();
+  CHART.forEach(([u, v], n) => ctx[n ? 'lineTo' : 'moveTo'](x + w * u, y + h * (i % 2 ? 1 - v : v)));
+  ctx.stroke();
+  ctx.fillStyle = '#bae6fd';
+  CHART.forEach(([u, v]) => { ctx.beginPath(); ctx.arc(x + w * u, y + h * (i % 2 ? 1 - v : v), 2.2, 0, PI2); ctx.fill(); });
+  ctx.globalAlpha = 1;
+}
+const WIN_STARS = (() => { const r = makeRng(hashString('story-window')); return Array.from({ length: 70 }, () => [r(), r(), 0.6 + r() * 1.4, r() * 6.28]); })();
+
+// ---- The cold open: the lab, the question, the launch ----
+function sceneLab(c) {
+  const { ctx, E, t, g } = c, cx = g.x + g.w / 2;
+  roomBegin(ctx, E, g, '#08102b', '#16224a');
+  ctx.globalAlpha = ease.outQuad(seg(t, 0, 0.35));
+  const sw = g.w * 0.27, sh = g.h * 0.16, gap = (g.w - 3 * sw) / 4;
+  for (let i = 0; i < 3; i++) screenPanel(ctx, g.x + gap + i * (sw + gap), g.y + g.h * 0.06, sw, sh, t + i * 1.7, i);
+  const benchY = g.y + g.h * 0.8, s = Math.min(g.w * 0.7, g.h * 0.52), r = g.w * 0.1, lx = cx + g.w * 0.22;
+  const lean = ease.outQuad(seg(t, 0.2, 1.0)), nod = Math.sin(Math.PI * seg(t, 1.05, 1.4));
+  samAt(ctx, cx - g.w * 0.07, benchY + s * 0.12 + mix(-10, 8, lean) + nod * 9, s, false, { rot: 0.05 * lean });
+  ctx.fillStyle = '#243356'; ctx.fillRect(g.x, benchY, g.w, g.y + g.h - benchY);
+  ctx.fillStyle = '#3b4b78'; ctx.fillRect(g.x, benchY, g.w, 5);
+  const hop = hopTime(t, 2.1, 2.75), lit = t < 1.5 ? 0 : t < 1.64 ? 1 : t < 1.8 ? 0 : 1, ly = benchY - r - hop.y * r * 1.1;
+  const rp = seg(t, 1.2, 1.75);
+  if (rp > 0 && rp < 1) { ctx.globalAlpha = 0.8 * (1 - rp); ctx.strokeStyle = P.white; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(lx, benchY - r, r * (1.1 + 0.9 * rp), 0, PI2); ctx.stroke(); ctx.globalAlpha = 1; }
+  drawLumen(ctx, lx, ly, r, lit, { sx: hop.sx, sy: hop.sy, spin: 0.4 + hop.y });
+  const sp = seg(t, 2.35, 2.95);
+  sparkle(ctx, lx - r * 1.5, benchY - r * 2.1, r * 0.3 * ease.outBack(sp), 1 - seg(t, 2.9, 3.3));
+  sparkle(ctx, lx + r * 1.5, benchY - r * 2.4, r * 0.24 * ease.outBack(seg(t, 2.45, 3.0)), 1 - seg(t, 3.0, 3.4));
+  ctx.globalAlpha = 1;
+  roomEnd(ctx, E, g);
+}
+
+function sceneQuestion(c) {
+  const { ctx, E, t, g } = c;
+  roomBegin(ctx, E, g, '#070d26', '#101a3d');
+  const wx = g.x + g.w * 0.1, wy = g.y + g.h * 0.05, ww = g.w * 0.8, wh = g.h * 0.52;
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip();
+  ctx.fillStyle = '#030720'; ctx.fillRect(wx, wy, ww, wh);
+  ctx.fillStyle = P.starCool;
+  for (const [u, v, r, ph] of WIN_STARS) { ctx.globalAlpha = 0.45 + 0.4 * Math.sin(t * 1.6 + ph); ctx.beginPath(); ctx.arc(wx + ww * u, wy + wh * v, r, 0, PI2); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  const sx = wx + ww * 0.68, sy = wy + wh * 0.3, k = ease.outBack(seg(t, 1.0, 1.8)), tw = 0.8 + 0.2 * Math.sin(t * 10), R = (6 + 14 * k) * tw;
+  glowDot(ctx, sx, sy, R * 3, P.starWarm, 0.55 * k);
+  ctx.strokeStyle = P.white; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath();
+  ctx.moveTo(sx - R * 1.6, sy); ctx.lineTo(sx + R * 1.6, sy); ctx.moveTo(sx, sy - R * 1.6); ctx.lineTo(sx, sy + R * 1.6); ctx.stroke();
+  ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(sx, sy, 2.4 + 2 * k, 0, PI2); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = '#3b4b78'; ctx.lineWidth = 8; ctx.strokeRect(wx, wy, ww, wh);
+  ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh); ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2); ctx.stroke();
+  ctx.fillStyle = '#3b4b78'; ctx.fillRect(wx - 10, wy + wh + 2, ww + 20, 12);
+  const s = Math.min(g.w * 0.62, g.h * 0.4), r = s * 0.2, look = ease.inOut(seg(t, 0.4, 1.4));
+  samAt(ctx, g.x + g.w * 0.38, g.y + g.h - 6 + mix(14, 0, ease.outQuad(seg(t, 0, 0.6))), s, false, { rot: -0.09 * look });
+  const lit = (t > 1.7 && t < 1.85) || t > 2.2 ? 1 : 0;
+  drawLumen(ctx, g.x + g.w * 0.8, wy + wh + 2 - r, r, lit, { spin: 0.2 });
+  roomEnd(ctx, E, g);
+}
+
+function sceneLaunch(c) {
+  const { ctx, E, t, g } = c;
+  roomBegin(ctx, E, g, '#040818', '#0a1432', 0.6);
+  const ex = g.x + g.w * 0.36, eR = g.h * 0.32, ey = g.y + g.h * 1.18, top = ey - eR;
+  const M = { x: g.x + g.w * 0.74, y: g.y + g.h * 0.3, r: g.w * 0.085 };
+  const mg = ctx.createRadialGradient(M.x - M.r * 0.4, M.y - M.r * 0.4, M.r * 0.1, M.x, M.y, M.r);
+  mg.addColorStop(0, P.moon.light); mg.addColorStop(0.55, P.moon.mid); mg.addColorStop(1, P.moon.dark);
+  ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(M.x, M.y, M.r, 0, PI2); ctx.fill();
+  ctx.fillStyle = P.moonCrater;
+  for (const [u, v, q] of [[-0.35, -0.2, 0.2], [0.3, 0.25, 0.16], [0.1, -0.5, 0.12]]) { ctx.beginPath(); ctx.arc(M.x + M.r * u, M.y + M.r * v, M.r * q, 0, PI2); ctx.fill(); }
+  glowDot(ctx, ex, ey, eR * 1.25, '#60a5fa', 0.35);
+  const eg = ctx.createRadialGradient(ex - eR * 0.3, ey - eR * 0.4, eR * 0.1, ex, ey, eR);
+  eg.addColorStop(0, '#60a5fa'); eg.addColorStop(0.6, '#1d4ed8'); eg.addColorStop(1, '#0b1b57');
+  ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(ex, ey, eR, 0, PI2); ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(ex, ey, eR, 0, PI2); ctx.clip(); ctx.fillStyle = '#22c55e'; ctx.globalAlpha = 0.8;
+  for (const [u, v, a, b] of [[-0.35, -0.7, 0.3, 0.14], [0.25, -0.8, 0.22, 0.1], [0.05, -0.5, 0.15, 0.08]]) { ctx.beginPath(); ctx.ellipse(ex + eR * u, ey + eR * v, eR * a, eR * b, 0.3, 0, PI2); ctx.fill(); }
+  ctx.restore();
+  const rocket = (u) => ({ x: ex - eR * 0.05 + g.w * 0.03 * u, y: top - u * g.h * 1.0 });
+  const u = ease.inQuad(seg(t, 0.15, 2.6)), L = g.w * 0.13;
+  if (u > 0 && u < 0.92) {
+    for (let k = 1; k <= 8; k++) { const q = u - k * 0.025; if (q < 0) break; const p = rocket(q); ctx.globalAlpha = 0.35 * (1 - k / 8); ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(p.x, p.y + L * 0.5, 3 + k * 1.6, 0, PI2); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    const p = rocket(u);
+    ctx.save(); ctx.translate(p.x, p.y);
+    const fl = L * (0.5 + 0.25 * Math.sin(t * 40));
+    ctx.fillStyle = P.orange; ctx.beginPath(); ctx.moveTo(-L * 0.12, L * 0.5); ctx.lineTo(0, L * 0.5 + fl); ctx.lineTo(L * 0.12, L * 0.5); ctx.fill();
+    ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(-L * 0.17, L * 0.2); ctx.lineTo(-L * 0.3, L * 0.55); ctx.lineTo(-L * 0.12, L * 0.45); ctx.moveTo(L * 0.17, L * 0.2); ctx.lineTo(L * 0.3, L * 0.55); ctx.lineTo(L * 0.12, L * 0.45); ctx.fill();
+    E.roundRect(-L * 0.17, -L * 0.45, L * 0.34, L * 0.95, L * 0.15, '#e2e8f0');
+    ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(-L * 0.17, -L * 0.3); ctx.quadraticCurveTo(0, -L * 0.9, L * 0.17, -L * 0.3); ctx.fill();
+    ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.arc(0, -L * 0.05, L * 0.09, 0, PI2); ctx.fill();
+    ctx.restore();
+  }
+  const P0 = rocket(ease.inQuad(seg(1.3, 0.15, 2.6))), P1 = { x: M.x - M.r * 2.2, y: M.y + g.h * 0.12 }, P2 = { x: g.x + g.w * 0.84, y: g.y + g.h * 0.5 }, P3 = { x: g.x + g.w * 0.88, y: g.y + g.h * 0.14 };
+  const bez = (q) => { const a = (1 - q) ** 3, b = 3 * (1 - q) ** 2 * q, cc = 3 * (1 - q) * q * q, d = q ** 3; return { x: a * P0.x + b * P1.x + cc * P2.x + d * P3.x, y: a * P0.y + b * P1.y + cc * P2.y + d * P3.y }; };
+  const u2 = seg(t, 1.3, 3.2);
+  if (u2 > 0 && u2 < 1) {
+    const q = u2 ** 1.25;
+    for (let j = 10; j >= 1; j--) { const p = bez(Math.max(0, q - j * 0.03)); ctx.globalAlpha = 0.5 * (1 - j / 10); ctx.fillStyle = P.trail; ctx.beginPath(); ctx.arc(p.x, p.y, 3.2 * (1 - j / 12), 0, PI2); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    const p = bez(q);
+    glowDot(ctx, p.x, p.y, 16, P.starWarm, 0.8);
+    ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, PI2); ctx.fill();
+  }
+  if (u2 >= 1) { // at rest past the Moon, lit
+    const k = ease.outQuad(seg(t, 3.2, 3.5));
+    glowDot(ctx, P3.x, P3.y, 16 + 14 * k, P.starWarm, 0.8);
+    drawLumen(ctx, P3.x, P3.y, mix(4, g.w * 0.045, k), k, { spin: 0.4 });
+  }
+  const near = seg(t, 2.2, 2.6);
+  sparkle(ctx, M.x + M.r * 0.9, M.y + M.r * 1.1, M.r * 0.35 * ease.outBack(near), 1 - seg(t, 2.6, 3.2));
+  roomEnd(ctx, E, g);
+}
+
+// ---- The turn: a dim video call ----
+function drawBrows(ctx, x, y, w, h, m, a) {
+  const c = MC_CROP.calm, kx = w / c[2], ky = h / c[3];
+  const W = [[92, 81, 114, 72], [126, 70, 148, 79]], D = [[92, 73, 114, 80], [126, 78, 148, 71]];
+  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = '#141a3a'; ctx.lineWidth = Math.max(2, w * 0.03); ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < 2; i++) {
+    const p = W[i], q = D[i], v = [0, 1, 2, 3].map((n) => mix(p[n], q[n], m));
+    ctx.moveTo(x + (v[0] - c[0]) * kx, y + (v[1] - c[1]) * ky); ctx.lineTo(x + (v[2] - c[0]) * kx, y + (v[3] - c[1]) * ky);
+  }
+  ctx.stroke(); ctx.restore();
+}
+function sceneTurn(c) {
+  const { ctx, E, t, g, beat } = c, cx = g.x + g.w / 2;
+  roomBegin(ctx, E, g, '#070b1d', '#0e1630');
+  ctx.globalAlpha = 0.3;
+  const sw = g.w * 0.27, sh = g.h * 0.12, gap = (g.w - 3 * sw) / 4;
+  for (let i = 0; i < 3; i++) screenPanel(ctx, g.x + gap + i * (sw + gap), g.y + g.h * 0.03, sw, sh, t * 0.5 + i * 1.7, i);
+  ctx.globalAlpha = 1;
+  const w = Math.min(g.w * 0.84, g.h * 0.58), x = cx - w / 2, cc = MC_CROP.calm, ph = (w * cc[3]) / cc[2];
+  const dy = mix(30, 0, ease.outQuad(seg(t, 0, 0.5))), top = g.y + g.h * 0.2 + 34 + dy;
+  E.roundRect(x - 10, top - 34, w + 20, ph + 34 + 10, 12, '#0c1330', P.slate);
+  for (let i = 0; i < 3; i++) { ctx.fillStyle = ['#ef4444', '#fbbf24', '#22c55e'][i]; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(x + 6 + i * 14, top - 17, 4, 0, PI2); ctx.fill(); }
+  const flick = beat === 0 ? 0.35 + 0.5 * (Math.sin(t * 5) > 0.2 ? 1 : 0) : 1;
+  for (let i = 0; i < 3; i++) { ctx.globalAlpha = i === 2 ? flick : 1; ctx.fillStyle = P.textDim; ctx.fillRect(x + w - 30 + i * 9, top - 11 - (6 + i * 4), 5, 6 + i * 4); }
+  ctx.globalAlpha = 1;
+  drawSam(ctx, x, top, w, false);
+  const dim = beat === 0 ? 0.55 + 0.06 * Math.sin(t * 7) : mix(0.5, 0.3, seg(t, 0, 1.2));
+  E.roundRect(x, top, w, ph, w * 0.08, rgba('#020617', dim));
+  drawBrows(ctx, x, top, w, ph, beat === 0 ? 0 : ease.inOut(seg(t, 0, 0.8)), beat === 0 ? seg(t, 0.7, 1.2) : 1);
+  const mw = w * 0.4, mh = mw * 0.85, mx = x + w - mw, my = top + ph + 18, r = mw * 0.22;
+  if (my + mh < g.y + g.h - 6) {
+    E.roundRect(mx, my, mw, mh, 10, '#0c1330', P.slate);
+    const lit = beat === 0 ? 0.15 : t > 0.9 && t < 1.05 ? 1 : t > 1.4 ? 1 : 0.2;
+    drawLumen(ctx, mx + mw / 2, my + mh / 2, r, lit, { spin: 0.3 });
+  }
+  roomEnd(ctx, E, g);
+}
+
+// ---- The ending: we are not alone ----
+function blinkPat(t) { return (t > 0 && t < 0.15) || (t > 0.35 && t < 0.5) || (t > 0.7 && t < 1.15) ? 1 : 0; } // short, short, long
+// The other probe: a hexagon with three thin antennae and a soft violet light, carrying a little disc like Lumen's. `lit` is the body light; `wave` runs it up the antennae.
+function drawProbe(ctx, x, y, S, t, lit, wave) {
+  ctx.save(); ctx.translate(x, y);
+  glowDot(ctx, 0, 0, S * 2.6, P.violet, 0.2 + 0.35 * lit);
+  ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = Math.max(1.2, S * 0.04); ctx.lineCap = 'round';
+  const base = [-0.4, 0, 0.4], tip = [[-0.95, -1.9], [0, -2.1], [0.95, -1.9]];
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(base[i] * S, -0.87 * S); ctx.lineTo(tip[i][0] * S, tip[i][1] * S); ctx.stroke();
+    const tl = wave ? 0.5 + 0.5 * Math.sin(t * 8 - i * 1.4) : lit;
+    glowDot(ctx, tip[i][0] * S, tip[i][1] * S, S * 0.45, '#e9d5ff', 0.8 * tl);
+    ctx.fillStyle = mixHex('#4c1d95', '#f5f3ff', tl); ctx.beginPath(); ctx.arc(tip[i][0] * S, tip[i][1] * S, S * 0.09, 0, PI2); ctx.fill();
+  }
+  ctx.beginPath(); ctx.moveTo(0, 0.87 * S); ctx.lineTo(0, 1.35 * S); ctx.stroke();
+  const hex = (k) => { ctx.beginPath(); for (let i = 0; i < 6; i++) ctx[i ? 'lineTo' : 'moveTo'](Math.cos((i * Math.PI) / 3) * S * k, Math.sin((i * Math.PI) / 3) * S * k); ctx.closePath(); };
+  const bg = ctx.createLinearGradient(0, -S, 0, S); bg.addColorStop(0, '#3a2f78'); bg.addColorStop(1, '#171236');
+  hex(1); ctx.fillStyle = bg; ctx.fill(); ctx.stroke();
+  hex(0.62); ctx.lineWidth = Math.max(1, S * 0.025); ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1;
+  const lensLit = wave ? 0.6 + 0.4 * Math.sin(t * 8) : lit;
+  ctx.fillStyle = mixHex('#2e1065', '#f5f3ff', lensLit); ctx.beginPath(); ctx.arc(0, 0, S * 0.26, 0, PI2); ctx.fill();
+  glowDot(ctx, 0, 0, S * 0.9, '#c4b5fd', 0.65 * lensLit);
+  drawBall(ctx, 0, 1.35 * S + S * 0.42, S * 0.42, 1, 0.6);
+  ctx.restore();
+}
+// The stage of the last four beats: the core's glow over the sky, the other probe, Lumen below left; Sam's window comes in at bottom right (sam: 0 none, 1 popping, 2 there).
+function spaceStage(c, o) {
+  const { ctx, E, t, g } = c, cx = g.x + g.w / 2, S = g.w * 0.17;
+  roomBegin(ctx, E, g, '#0b0d24', '#120c22', 0.55);
+  staticLayer(ctx, E, `space:${g.x}:${g.y}:${g.w}:${g.h}`, (k) => { glowDot(k, cx, g.y, g.w * 0.95, '#f2b94b', 0.4); glowDot(k, cx + g.w * 0.2, g.y + g.h * 0.02, g.w * 0.6, '#e0527a', 0.22); });
+  const k = o.arrive === undefined ? 1 : ease.outQuad(seg(t, 0.2, 2.4)), py = mix(g.y + g.h * 0.08, g.y + g.h * 0.36, k);
+  drawProbe(ctx, cx + Math.sin(t * 0.9) * 4 * k, py + Math.sin(t * 1.3) * 4, S * mix(0.35, 1, k), t, o.probeLit, o.wave);
+  const r = g.w * 0.085, lx = g.x + g.w * 0.28, ly = g.y + g.h * 0.8;
+  drawLumen(ctx, lx, ly, r, o.lumenLit, { spin: 0.3 });
+  if (o.sam) {
+    const pop = o.sam === 2 ? 1 : ease.outBack(seg(t, o.samAt, o.samAt + 0.5)), h = o.sam === 2 ? { y: 0, sx: 1, sy: 1 } : hopTime(t, o.samAt + 0.1, o.samAt + 0.7), w = Math.min(g.w * 0.5, g.h * 0.3) * pop;
+    if (w > 1) samAt(ctx, g.x + g.w - 16 - g.w * 0.25, g.y + g.h - 12 - h.y * 12, w, true, { sx: h.sx, sy: h.sy, rot: o.rot ?? 0, alpha: clamp(pop, 0, 1) });
+  }
+  return { cx, lx, ly, r, S };
+}
+function sceneSignal(c) {
+  const { ctx, E, t, g } = c, cx = g.x + g.w / 2;
+  roomBegin(ctx, E, g, '#070b1d', '#0e1630');
+  const mx = g.x + g.w * 0.07, my = g.y + g.h * 0.06, mw = g.w * 0.86, mh = g.h * 0.5, cy = my + mh / 2;
+  E.roundRect(mx - 6, my - 6, mw + 12, mh + 12, 14, '#05091a', '#475569');
+  ctx.save(); ctx.beginPath(); ctx.rect(mx, my, mw, mh); ctx.clip();
+  ctx.fillStyle = '#060d22'; ctx.fillRect(mx, my, mw, mh);
+  ctx.strokeStyle = '#1e3a5f'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 1; i < 6; i++) { ctx.moveTo(mx, my + (mh * i) / 6); ctx.lineTo(mx + mw, my + (mh * i) / 6); }
+  for (let i = 1; i < 8; i++) { ctx.moveTo(mx + (mw * i) / 8, my); ctx.lineTo(mx + (mw * i) / 8, my + mh); }
+  ctx.stroke();
+  const A0 = mh * 0.32 * (0.3 + 0.7 * (0.5 - 0.5 * Math.cos(t * 2.4))), n = 90, fade = seg(t, 0, 0.6);
+  const wave = (i) => { const u = i / n, e = Math.sin(Math.PI * u); return cy + A0 * e * (0.6 * Math.sin(u * 28 + t * 4) + 0.4 * Math.sin(u * 61 - t * 2.5)); };
+  for (const [lw, a] of [[9, 0.16], [3, 0.95]]) {
+    ctx.globalAlpha = a * fade; ctx.strokeStyle = '#c4b5fd'; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.beginPath();
+    for (let i = 0; i <= n; i++) ctx[i ? 'lineTo' : 'moveTo'](mx + (mw * i) / n, wave(i));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.restore();
+  const s = Math.min(g.w * 0.4, g.h * 0.26), r = s * 0.2;
+  ctx.fillStyle = '#243356'; ctx.fillRect(g.x, g.y + g.h * 0.86, g.w, g.h * 0.14);
+  samAt(ctx, g.x + g.w * 0.3, g.y + g.h * 0.86 + s * 0.14, s, false, { rot: -0.04 });
+  ctx.fillStyle = '#3b4b78'; ctx.fillRect(g.x, g.y + g.h * 0.86, g.w, 5);
+  drawLumen(ctx, g.x + g.w * 0.74, g.y + g.h * 0.86 - r, r, 0.35 + 0.35 * Math.sin(t * 2.4), { spin: 0.3 });
+  roomEnd(ctx, E, g);
+}
+function sceneArrive(c) {
+  const { t } = c;
+  const rest = seg(t, T.story.endDur[1] - 0.4, T.story.endDur[1]); // both lights on at the end
+  spaceStage(c, { arrive: true, probeLit: Math.max(blinkPat(t - 2.5), rest), lumenLit: mix(0.3 + 0.2 * Math.sin(t * 2), 1, rest), wave: false });
+  roomEnd(c.ctx, c.E, c.g);
+}
+
+function sceneReply(c) {
+  const { t } = c;
+  const rest = seg(t, T.story.endDur[2] - 0.4, T.story.endDur[2]); // both lights on at the end
+  spaceStage(c, { probeLit: Math.max(blinkPat(t - 1.1), rest), lumenLit: Math.max(blinkPat(t - 0.3), rest), wave: false, sam: 1, samAt: 1.3 });
+  roomEnd(c.ctx, c.E, c.g);
+}
+function sceneWave(c) {
+  const { ctx, t, g } = c, rot = 0.1 * Math.sin(t * 7);
+  spaceStage(c, { probeLit: 0.5, lumenLit: 0.55 + 0.4 * Math.sin(t * 6), wave: t > 1.0, sam: 2, rot });
+  const w = Math.min(g.w * 0.5, g.h * 0.3), ax = g.x + g.w - 16 - g.w * 0.25 + w * 0.5, ay = g.y + g.h - 12 - w * 0.8;
+  ctx.strokeStyle = P.white; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) { ctx.globalAlpha = clamp(Math.sin(t * 7 - i * 0.9), 0, 1) * 0.7; ctx.beginPath(); ctx.arc(ax, ay, 10 + i * 8, -1.1, 0.5); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  roomEnd(ctx, c.E, g);
+}
+
+const OPEN = [
+  { text: 'Dr Sam Ito built a little probe to answer one question.', draw: sceneLab, sky: 0, dur: T.story.openDur[0] },
+  { text: "'Are we alone, Lumen? Let's go and see.'", draw: sceneQuestion, sky: 0, dur: T.story.openDur[1] },
+  { text: 'Ride the gravity. Send home everything you find.', draw: sceneLaunch, sky: 0, dur: T.story.openDur[2] },
+];
+const TURN = [
+  { text: "They're cutting the mission, Lumen. The core is our last sector.", draw: sceneTurn, beat: 0, sky: 5, dur: T.story.turnDur[0] },
+  { text: "So let's make it count.", small: true, draw: sceneTurn, beat: 1, sky: 5, dur: T.story.turnDur[1] },
+];
+const END = [
+  { text: 'A signal. Not natural.', draw: sceneSignal, sky: 5, dur: T.story.endDur[0] },
+  { text: '', draw: sceneArrive, sky: 5, dur: T.story.endDur[1] },
+  { text: "We're not alone.", text2: 'And they were looking for us too.', draw: sceneReply, sky: 5, dur: T.story.endDur[2] },
+  { text: 'Hi.', text2: 'To be continued.', draw: sceneWave, sky: 5, dur: T.story.endDur[3] },
+];
+
+// Wrapped caption lines; with two lines the width is trimmed until a third would appear, so they balance.
+function capLines(ctx, text, width, size, weight) {
+  const wrap = (wd) => {
+    ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+    const out = []; let line = '';
+    for (const word of text.split(' ')) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(next).width > wd) { out.push(line); line = word; } else line = next;
+    }
+    if (line) out.push(line);
+    return out;
+  };
+  let lines = wrap(width);
+  if (lines.length === 2) for (let wd = width - 12; wd > 100; wd -= 12) { const l2 = wrap(wd); if (l2.length > 2) break; lines = l2; }
+  return lines;
+}
+
+// The scene player shared by the cold open, the turn and the ending: one animated card at a time over the sector's sky, its caption fading in
+// under it. A tap during a scene jumps to its end, the next tap goes on, and a card goes on by itself TUNING.story.autoGap seconds after its scene
+// ends (a `holdLast` scene waits for the tap on its last card); Skip, top right and always there, ends the lot.
+// A scene's fixed picture drawn once per screen size into a screen-sized offscreen canvas, then blitted; `draw` gets the offscreen context in screen units.
+const STORY_BG = new Map();
+function staticLayer(ctx, E, name, draw) {
+  const key = `${name}:${E.w}:${E.h}:${E.dpr}`;
+  let o = STORY_BG.get(key);
+  if (!o && typeof OffscreenCanvas !== 'undefined') {
+    const c = new OffscreenCanvas(Math.round(E.w * E.dpr), Math.round(E.h * E.dpr)), k = c.getContext('2d');
+    k.scale(E.dpr, E.dpr); draw(k);
+    if (STORY_BG.size > 12) STORY_BG.clear();
+    STORY_BG.set(key, o = c);
+  }
+  if (o) ctx.drawImage(o, 0, 0, E.w, E.h); else draw(ctx);
+}
+// The scenes' sky never moves (sectors 0 and 5 have no whale or meteors).
+function storyField(ctx, E, sky) {
+  const v = coverView(E);
+  staticLayer(ctx, E, `sky${sky}`, (k) => { k.translate(v.ox, v.oy); k.scale(v.s, v.s); drawField(k, `story${sky}`, sky, 0, 0, 0); });
+}
+function cardsScene(def) {
+  return {
+    enter(E, p = {}) {
+      this.p = p; this.cards = def.cards(E, p); this.i = 0; this.t0 = E.time; this.btnSkip = null; this.tapT = -Infinity; this.capKey = '';
+      applySkins(E);
+      def.enter(E, p, this);
+    },
+    advance(E) {
+      if (this.i + 1 >= this.cards.length) { def.finish(E, this); return; }
+      this.i++; this.t0 = E.time; this.capKey = '';
+      E.audio.beep({ freq: 880, dur: 0.18, type: 'sine', gain: 0.05 });
+    },
+    update(dt, E) {
+      if (def.holdLast && this.i === this.cards.length - 1) return;
+      if (E.time - this.t0 >= this.cards[this.i].dur + T.story.autoGap) this.advance(E);
+    },
+    layout(ctx, c, capW) {
+      const sizes = c.small ? [TY.md] : [TY.lg, TY.md], K = this.cap || (this.cap = {});
+      K.lines = []; K.lines2 = []; K.h = 0;
+      if (c.text) {
+        for (const s of sizes) { K.size = s; K.lines = capLines(ctx, c.text, capW - 28, s, s === TY.lg ? TY.heavy : '600'); if (K.lines.length <= (s === TY.lg ? 2 : 3)) break; }
+        K.lh = K.size + 8;
+        if (c.text2) K.lines2 = capLines(ctx, c.text2, capW - 28, TY.sm, '600');
+        K.h = 24 + K.lines.length * K.lh + (K.lines2.length ? 6 + K.lines2.length * 20 : 0);
+      }
+    },
+    render(ctx, E) {
+      const sf = E.safe, Y = T.story, c = this.cards[this.i], d = c.dur, t = Math.min(E.time - this.t0, d);
+      storyField(ctx, E, c.sky);
+      const aw = E.w - sf.left - sf.right, cx = sf.left + aw / 2, capW = Math.min(aw - 24, 420), key = `${this.i}:${E.w}`;
+      if (this.capKey !== key) { this.capKey = key; this.layout(ctx, c, capW); }
+      const K = this.cap, capH = K.h, capTop = E.h - sf.bottom - 12 - capH, floor = E.h - sf.bottom - 12 - Math.max(capH, Y.captionMin) - 12, top = sf.top + Y.stageTop;
+      c.draw({ ctx, E, t, beat: c.beat || 0, g: { x: sf.left + 12, y: top, w: aw - 24, h: floor - top } });
+      if (capH) {
+        const fade = seg(t, Y.captionAt, Y.captionAt + Y.captionIn), f2 = seg(t, c.text2At ?? Y.text2At, (c.text2At ?? Y.text2At) + 0.5);
+        if (fade > 0) {
+          const dy = (1 - fade) * 6;
+          ctx.globalAlpha = fade; E.roundRect(cx - capW / 2, capTop + dy, capW, capH, 14, P.card, P.slate);
+          K.lines.forEach((l, n) => E.text(l, cx, capTop + dy + 12 + (n + 0.5) * K.lh, { size: K.size, weight: K.size === TY.lg ? TY.heavy : '600', color: P.text }));
+          if (K.lines2.length) { ctx.globalAlpha = fade * f2; K.lines2.forEach((l, n) => E.text(l, cx, capTop + dy + 12 + K.lines.length * K.lh + 6 + (n + 0.5) * 20, { size: TY.sm, color: P.textDim })); }
+          ctx.globalAlpha = 1;
+        }
+      }
+      this.cards.forEach((_, k) => { ctx.globalAlpha = k === this.i ? 1 : 0.35; ctx.fillStyle = P.text; ctx.beginPath(); ctx.arc(E.w / 2 + (k - (this.cards.length - 1) / 2) * 14, sf.top + 10, k === this.i ? 4 : 3, 0, PI2); ctx.fill(); });
+      ctx.globalAlpha = 1;
+      if (E.time - this.t0 >= d) { // a pulsing triangle: a tap goes on
+        const m = 1 + 0.15 * Math.sin(E.time * 6), mx = E.w - sf.right - 28, my = (capH ? capTop : floor + 40) - 12;
+        ctx.fillStyle = P.text; ctx.beginPath(); ctx.moveTo(mx - 7 * m, my - 9 * m); ctx.lineTo(mx + 9 * m, my); ctx.lineTo(mx - 7 * m, my + 9 * m); ctx.closePath(); ctx.fill();
+      }
+      this.btnSkip = pill(E, 'Skip', E.w - sf.right - 16 - BTN.skip.w / 2, sf.top + 16 + BTN.skip.h / 2, BTN.skip);
+    },
+    onTap(p, E) {
+      if (this.btnSkip && E.hit(this.btnSkip, p)) { E.audio.play('tap'); def.finish(E, this); return; }
+      if (E.time - this.tapT < T.story.tapGap) return;
+      this.tapT = E.time;
+      const d = this.cards[this.i].dur;
+      if (E.time - this.t0 < d) { this.t0 = E.time - d; return; } // jump to the end of the scene
+      this.advance(E);
+    },
+    onKey(k, E) { if (k === ' ' || k === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
+  };
+}
+
+// The cold open: shown once on a save without `openSeen` (set as it opens, so closing the app mid-way never repeats it) and again from the
+// menu's Story button, which also replays the turn and the ending once they have been seen.
+const story = cardsScene({
+  cards: (E, p) => (p.replay ? [...OPEN, ...(E.save.get('turnSeen', false) ? TURN : []), ...(E.save.get('endSeen', false) ? END : [])] : OPEN),
+  enter(E, p) { if (!p.replay) E.save.set('openSeen', true); E.ledger.add('story', { part: p.replay ? 'replay' : 'open' }); },
+  finish(E) { E.setScene('menu'); },
+});
+// The turn: the first time hole 26 opens, before its first shot (params are the play scene's).
+const turn = cardsScene({
+  cards: () => TURN,
+  enter(E) { E.save.set('turnSeen', true); E.ledger.add('story', { part: 'turn' }); },
+  finish(E, self) { E.setScene('play', self.p); },
+});
+// The ending: the first finished hole 30, before its end card (params are the end card's).
+const ending = cardsScene({
+  cards: () => END, holdLast: true,
+  enter(E) { E.save.set('endSeen', true); E.ledger.add('story', { part: 'ending' }); },
+  finish(E, self) { E.setScene('over', self.p); },
+});
+// Opening a hole: hole 26's first opening plays the turn first.
+function toPlay(E, params) {
+  E.setScene(params.hole === T.story.turnHole && !E.save.get('turnSeen', false) ? 'turn' : 'play', params);
+}
+
+// The Probe Log page (from the missions screen): every fact collected, in the order collected, then "???" for the rest. It scrolls.
+const probeLog = {
+  enter(E) { this.scroll = 0; this.drag = null; this.btnBack = null; applySkins(E); },
+  area(E) { const top = E.safe.top + A.missions.top, bot = E.h - E.safe.bottom - A.log.bottom; return { top, bot }; },
+  rows(ctx, E) {
+    const L = A.log, w = E.w - 2 * L.margin, tw = w - L.numW - L.pad, have = E.save.get('log', []).filter((k) => FACT_TEXT[k]);
+    const keys = [...have, ...FACTS.map((f) => f.k).filter((k) => !have.includes(k))], rows = [];
+    let y = 0;
+    keys.forEach((k, i) => {
+      const got = i < have.length, lines = got ? wrapText(ctx, `log:${tw}:${k}`, FACT_TEXT[k], tw) : [], h = Math.max(L.rowH, 2 * L.pad + lines.length * L.lineH);
+      rows.push({ y, h, n: i + 1, got, lines }); y += h + L.gap;
+    });
+    this.total = y; this.got = have.length;
+    return rows;
+  },
+  render(ctx, E) {
+    const L = A.log, m = L.margin, w = E.w - 2 * m, v = coverView(E), V = this.area(E), rows = this.rows(ctx, E);
+    ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s); drawField(ctx, 'menu', 0, 0, 0, E.time); ctx.restore();
+    E.text('Probe Log', m, E.safe.top + 32, TX.bigL);
+    E.text(`${this.got} / ${FACTS.length}`, E.w - m, E.safe.top + 32, TX.valueGoalR);
+    const max = Math.max(0, this.total - L.gap - (V.bot - V.top));
+    this.scroll = clamp(this.scroll, 0, max); this.max = max;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, V.top, E.w, V.bot - V.top); ctx.clip();
+    for (const r of rows) {
+      const y = V.top - this.scroll + r.y;
+      if (y + r.h < V.top || y > V.bot) continue;
+      E.roundRect(m, y, w, r.h, A.line.radius, r.got ? P.tile : P.tileLocked, r.got ? P.slate : P.tileLockedEdge);
+      E.text(`${r.n}`, m + L.numW / 2 + 2, y + r.h / 2, r.got ? TX.dim : TX.tileNumOff);
+      if (r.got) r.lines.forEach((l, i) => E.text(l, m + L.numW + L.pad, y + r.h / 2 + (i - (r.lines.length - 1) / 2) * L.lineH, TX.labelL));
+      else E.text('???', m + L.numW + L.pad, y + r.h / 2, TX.offL);
+    }
+    ctx.restore();
+    if (max > 0) { const tr = V.bot - V.top, bh = Math.max(24, (tr * tr) / (tr + max)); E.roundRect(E.w - 6, V.top + (tr - bh) * (this.scroll / max), A.missions.scrollBar, bh, 1.5, P.slate); }
+    this.btnBack = pill(E, 'Back', E.w / 2, E.h - E.safe.bottom - L.backY - A.missions.backH / 2, BTN.back);
+  },
+  onPointerDown(p) { this.drag = { y: p.y, scroll: this.scroll }; },
+  onPointerMove(p) { if (this.drag) this.scroll = clamp(this.drag.scroll - (p.y - this.drag.y), 0, this.max || 0); },
+  onPointerUp() { this.drag = null; },
+  onTap(p, E) { if (this.btnBack && E.hit(this.btnBack, p)) { E.audio.play('tap'); E.setScene('missions'); } },
+};
+
 // v0.1 pars, used once to carry stars earned under the v0.1 rule into the v0.2 save.
 const V01_PAR = [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
 
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 10,
+  saveVersion: 11,
   // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map;
   // v3 adds `unlocked`, rebuilt from the holes already cleared; v4 stores stars per hole, because v0.2 judges stars
   // by per-hole thresholds on re-authored holes: stars won under v0.1 pars are kept as they were; v5 adds badges and the skin choice;
@@ -3337,7 +4009,12 @@ export const game = {
   // v8 adds `rankSeen`, the highest rank whose card has been shown (the rank itself is computed from the stars, never stored): a save
   // with stars gets one below its current rank, so a veteran sees one card on the menu, and a save still on Asteroid gets 1 (no card);
   // v9 is the 30-hole ladder (sector 6): the same `unlocked` and run-record clean-up as v7, so a veteran lands on the first new hole;
-  // v10 adds `blind`, a map from hole index to true once its fourth (blind) star is won: an empty map, nothing else changes.
+  // v10 adds `blind`, a map from hole index to true once its fourth (blind) star is won: an empty map, nothing else changes;
+  // v11 is the story (PRD v0.11): `openSeen` (the cold open has shown), `turnSeen` (hole 26's card), `endSeen` (the ending), `midSeen` (hole 18's
+  // line), `sectorsSeen` (how many sectors' first logs have shown: the highest sector number, from 1), `log` (collected Probe Log keys, in order) and
+  // `catchUp` (the one "Probe Log updated" line still owed). A save with a cleared hole has seen the open and the sectors up to its highest
+  // cleared hole, and has its log filled at once with what those holes and its rank have earned (owing one catch-up line); a save with a hole past
+  // hole 26 cleared has seen the turn; `endSeen` stays false, even with hole 30 cleared, so the ending plays once after the next finished hole.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (data.unlocked === undefined) {
@@ -3362,11 +4039,18 @@ export const game = {
       if (data.prog) { delete data.prog.runBest; delete data.prog.lastRun; }
     }
     if (fromVersion < 10) data.blind = typeof data.blind === 'object' && data.blind !== null ? data.blind : {};
+    if (fromVersion < 11) {
+      const best = data.best || {}, cleared = Object.keys(best).map(Number).filter((i) => i >= 0 && i < LEVELS.length), earned = new Set(earnedKeys(best));
+      for (let r = 2; r <= rankFor(starTotal(data.stars, data.blind)); r++) earned.add(`r${r}`);
+      data.log = FACTS.map((f) => f.k).filter((k) => earned.has(k));
+      data.openSeen = cleared.length > 0; data.turnSeen = cleared.some((i) => i >= T.story.turnHole); data.endSeen = false; data.midSeen = false;
+      data.sectorsSeen = cleared.length ? sectorOf(Math.max(...cleared)) + 1 : 0; data.catchUp = data.log.length > 0;
+    }
     if (fromVersion < 8) data.rankSeen = Math.max(1, rankFor(starTotal(data.stars)) - 1);
     return data;
   },
   TUNING,
-  init(E) { loadArt(); warmUp(E.ctx); },
+  init(E) { loadArt(); warmUp(E.ctx); game.start = E.save.get('openSeen', false) ? 'menu' : 'story'; }, // a fresh save opens on the cold open
   // Playtest ranges for the engine's tune panel; physics reads them every step, so a change applies from the next shot.
   // PRD v0.3 D: gravity presets. The routes are proven at Heavy (the defaults) only.
   presets: [
@@ -3392,5 +4076,5 @@ export const game = {
   sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt, sunRestR,
     FW, watchStart, watchPre, watchPost, sinkFlags, kesslerMark, lagrangeAt, restPull },
   start: 'menu',
-  scenes: { menu, play, over, missions },
+  scenes: { menu, play, over, missions, story, turn, ending, log: probeLog },
 };
