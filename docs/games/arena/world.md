@@ -33,3 +33,31 @@ All in `prd-v0.1.md`, proto 12: Brutus's lines by reason, the rival's taunts and
 
 - Gritty but never gory, and never cruel.
 - Every name is invented or a generic Roman name. No real historical gladiator's biography is used.
+
+## Designer note (2026-10-08): richer reasons and backgrounds
+
+"The backgrounds and motives have been okay so far, a bit thin but sometimes cool. I just faced a champion with the revenge drive and I extra wanted to beat him."
+
+Revenge works because it ties the reason to a person you meet. For the graduation PRD:
+
+- **Every reason gets a face and a thread through the gauntlet,** not just a line on the cards.
+
+  | Reason | The champion is... | Brutus's lines | The epilogue |
+  | --- | --- | --- | --- |
+  | Revenge (already working) | the man who burned your village | escalate bout by bout | pays it off |
+  | Debt | in the moneylender's pay | each fell knocks a sum off the debt, shown as a number | the family paid off |
+  | Freedom | a freed man who came back for the money | each fell is a notch on the wooden sword | the sword in hand |
+  | Glory | the crowd's darling | the crowd's chant for your name grows louder each bout (sound and a banner) | the name sung |
+
+- **Every background gives one small, visible perk** (a function tag on a flavour wheel, pattern L8). Shown on the fighter card in one line:
+
+  | Background | Perk |
+  | --- | --- |
+  | Farmer | +½ heart: work-hardened |
+  | Soldier | +1 shield hit: drilled |
+  | Horseman | steps 20% faster |
+  | Baker | Second Wind once per run: up before dawn |
+  | Sailor | no push-back from a bash: sea legs |
+  | Scribe | feint shimmer lasts 0.2 s longer: reads people |
+
+- **One line per background woven into Brutus's pool,** for example "Knead him like dough, baker!" or "Read him like a scroll."
