@@ -436,3 +436,89 @@ The designer asked: "Can we get bigger back and forward buttons? Right now it's 
 - **Labels and warning glows** scale with the buttons.
 - **Size checks** are at 667x375, 844x390 and 932x430.
 - Nothing else changes.
+
+## Proto 13 (designer, 2026-10-08): fairer feint switches, more upgrades, your own rolled weapon, a respin, and a clean screen
+
+Source: the designer.
+- "Arena's gotten quite good. How much time do we have to switch block during a feint? Still feels a bit hard."
+- "We're getting close to finishing prototype mode."
+- "We need a bit more upgrade content. I haven't reached anything more than rare yet, but it's been fun."
+- "There should be a randomly assigned weapon to the character."
+- "We should be able to get maybe one reroll or respin."
+- "We will also need a bit of cleanup to hide all the information that would be superfluous to a true new player."
+
+The export: 5 gauntlets on proto 12, about 15 feints, **0 read** and 13 bitten. Grades were mostly C and B with one A. Picks never included an epic.
+
+### The feint switch window (orchestrator's diagnosis)
+
+**What it is now:** after the glow jumps to the real zone, the real tell lasts 0.55 s (`TUNING.moves.feint.after`), shortened further by the foe's speed and by flurry pacing.
+
+**Why reads fail:** a player who tapped the fake zone also waits out the shield cooldown (`shield.cool` 0.25 s). That leaves roughly 0.3 s to see the jump and tap the right button.
+
+**Fix:**
+- **Switching zones is instant.** Tapping another zone while the shield is up moves it at once, with no cooldown. The cooldown applies only after a block ends.
+- **A longer real tell.** It becomes 0.85 s at base, and never shorter than 0.6 s at the foe's top speed. Keen Eye adds 0.3 s.
+- **A clearer jump.** It gets a crisp "snap" sound and a quick flash on the real zone's button, so the jump is heard and seen at the thumb, not only on the foe.
+
+### More upgrades, and epics you can reach
+
+- **Odds that reward good fights, not only flawless ones:**
+
+  | Grade | Common | Rare | Epic |
+  | --- | --- | --- | --- |
+  | C | 60% | 35% | 5% |
+  | B | 40% | 45% | 15% |
+  | A | 20% | 50% | 30% |
+  | S | — | — | one epic guaranteed |
+
+  The odds stay visible on the draft screen.
+- **The deck doubles,** from 13 cards to about 26. Same tiers, each a single line of effect, all in `TUNING`. Examples:
+  - **Common:**
+    - Quick Feet: steps 25% faster.
+    - Deep Breath: stamina regenerates 20% faster.
+    - Sharp Edge: bare hits +1.
+    - Tough Shield: 2 more shield hits.
+    - Wide Stance: no push-back from a bash.
+  - **Rare:**
+    - Counter Stance: a block within 0.15 s of the strike staggers him.
+    - Second Wind: once per bout, at zero stamina, refill half the bar.
+    - Hunter's Eye: his open slots glow 0.5 s longer.
+    - Net Cutter: never netted.
+    - Lunge Master: lunges cost half the stamina.
+    - Iron Gut: the first body hit each bout costs nothing.
+  - **Epic:**
+    - Executioner: below a quarter health, slot hits fell him.
+    - Lion's Heart: +1 heart now and +½ per fell.
+    - Mirror Shield: perfect blocks reflect a half-heart.
+    - Blur: a dodge leaves a ghost he attacks instead.
+
+### Your rolled weapon
+
+- **A sixth wheel** after Armour, before the flavour wheels: **Weapon**, with visible odds.
+  - Gladius 35%;
+  - Spear 25%;
+  - Axe or mace 20%;
+  - Dagger 20%.
+- **What each does** (`TUNING`):
+
+  | Weapon | Reach | Speed | Damage | Stamina cost | Special |
+  | --- | --- | --- | --- | --- | --- |
+  | Gladius | baseline | baseline | baseline | baseline | the current sword |
+  | Spear | +35% | 0.85x | — | — | jabs stay strong; slashes do less |
+  | Axe or mace | −10% | 0.75x | 1.7x | +40% | overheads crack plates in 2 dents |
+  | Dagger | −35% | 1.4x | 0.75x | — | slot hits do 4x instead of 3x |
+
+- **Its look** comes from the gladiator types already drawn for the foes.
+- **The fighter card** shows the weapon with its one-line job.
+
+### One respin per run
+
+- **On the fighter card,** before "Fight!", a single **Respin** button (at least 48 px) rerolls one wheel of the player's choice: tap a wheel, then Respin. It is greyed out once used.
+- **Or, once per run instead,** a **Reroll** on the upgrade draft deals 3 new cards. The respin and the reroll share one token: the player spends it where they want. Both show "1 left".
+
+### A clean screen for a new player
+
+- **Hide by default:** the raw stat lines on the end card (jabs, slashes, overheads, joint hits and so on, and the feint counts), the debug-like labels, and any number a player does not act on. They move behind a small "Details" toggle on the end card.
+- **Keep:** the opponent cards, how far you got, the picked upgrades, the grades, Brutus's line, the epilogue or the wall, and Again and Menu.
+- **The in-play hint line** shows only during a player's first two bouts ever. It must sit clear of the step buttons, since it currently overlaps them.
+- **Leave the export ledger and the dev-channel EXPORT and TUNE tabs as they are.** The release channel already hides them.
