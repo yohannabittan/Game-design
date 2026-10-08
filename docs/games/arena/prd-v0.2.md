@@ -6,7 +6,7 @@
 | Version | 0.2 (the first real version, v1) |
 | Pattern | a two-thumb duel, with L8 (wheel of fate) for the fighter and the draft |
 | Date | 2026-10-08 |
-| Status | draft: the designer approves the summary, then it is locked |
+| Status | locked 2026-10-08 by the designer ("Go") |
 
 **Basis:** proto 13 (arena-v15), which the designer won twice; the 13 prototype sections of `prd-v0.1.md`; the playtests in `playtests/`; `concept.md` and `world.md`.
 
