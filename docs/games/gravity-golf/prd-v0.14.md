@@ -174,3 +174,13 @@ No new field, so there is no `saveVersion` bump. Bests on 31 to 35 are kept, eve
    - second push: 37 to 40.
 
 Rough cost: about $20 to $25 in all.
+
+## A2. The magnetar pushes harder than it pulls (designer, 2026-10-11)
+
+The designer, after playing: "Right now the magnets, at least the first one, deflect, because the gravity of the star is stronger than the gravity of the burst." And: "maybe magnetars have a weak pull, but they definitely need a stronger push"; "if you built the levels for them to be linear, then stay on linear" (the push stays constant, the same at every distance and every time).
+
+- **A weak pull.** A magnetar pulls at `T.magnetPull` (about 0.25) times a sun of its mass. The touch penalty and the rest radius do not change.
+- **A strong push.** `T.magnetKick` goes from 200 to about 375, once per ring per flight as before, and is the same at every distance.
+- **The look of the kick** scales with it, so a shove reads as a shove.
+- **Holes 31 to 35 and 39 are re-authored** with the lean method. Each route must use the push (`--nokick` misses). The chase holes 36 to 38 and 40 have no magnetar and do not change.
+- **Considered, not built:** a push that fades as the ring spreads, so where you meet it matters as well as when. It stays a later idea.
