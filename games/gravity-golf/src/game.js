@@ -39,7 +39,8 @@ const TUNING = {
   bhFade: 1.5,           // Between reach and bhFade times reach the pull fades smoothly to zero; beyond, the black hole does nothing
   // PRD v0.14 A: the magnetar (hole data: a sun's `burst`), a sun (pull, touch penalty) whose field pulses on the hole clock. Each pulse
   // sends a ring out from its surface; the ring's leading edge kicks a moving ball once, straight away from the star's centre.
-  magnetKick: 200,       // Units per second added to a moving ball, directly away from the star, as the ring's leading edge passes its centre
+  magnetKick: 375,       // PRD v0.14 A2: units per second added to a moving ball, directly away from the star, as the ring's leading edge passes its centre (constant at any distance)
+  magnetPull: 0.25,      // PRD v0.14 A2: a magnetar pulls at this times a sun of its mass (the touch penalty and the rest radius rule are a sun's)
   magnetPeriod: 3,       // Seconds between pulses (unless the star's `burst` sets `period`)
   magnetSpeed: 160,      // The ring's speed, units per second (unless it sets `speed`; PRD: about 120 to 220)
   magnetMaxR: 330,       // The ring is gone past this distance from the star's centre (unless it sets `maxR`)
@@ -180,11 +181,11 @@ const TUNING = {
     swallowVol: 0.6,
     bhFlareTime: 0.6,
     // Magnetar kicks (PRD v0.14 A): the ball flashes violet and a short spark trail streams away from the star
-    kickFlash: 0.35,       // Seconds the violet flash round the ball takes to fade
-    kickFlashR: 2.4,       // Its glow radius at the start, in ball radii
-    kickCount: 14, kickSpeed: 240, kickLife: 0.35, kickSize: 2.4, kickSpread: 0.5, // The sparks: a narrow fan along the push
+    kickFlash: 0.45,       // Seconds the violet flash round the ball takes to fade
+    kickFlashR: 3.2,       // Its glow radius at the start, in ball radii
+    kickCount: 26, kickSpeed: 450, kickLife: 0.45, kickSize: 3.2, kickSpread: 0.5, // The sparks: a narrow fan along the push
     kickCoreCount: 0.5, kickCoreSpeed: 0.7, kickCoreSize: 0.8, // The brighter inner fan: its share of the count, speed and size
-    kickHaptic: 15, kickVol: 0.5, kickGain: 0.2, kickFreq: 330, kickSlide: 2.2, kickDur: 0.16, // A light buzz and a rising zap
+    kickHaptic: 30, kickVol: 0.75, kickGain: 0.2, kickFreq: 330, kickSlide: 2.2, kickDur: 0.16, // A light buzz and a rising zap
     // The gamma chase (PRD v0.14 B)
     caughtTime: 0.8,       // Seconds of the white flash (fading) and 'Caught by the burst!' before the hole restarts
     caughtText: 'Caught by the burst!', caughtVol: 0.6, caughtHaptic: 50,
@@ -563,7 +564,7 @@ TUNING.bg = TUNING.art.palette.space; // the engine reads TUNING.bg for the lett
 //     pulses once per `period` (magnetPeriod) seconds on the hole clock, `phase` seconds into its cycle at clock 0 (so the first pulse
 //     is at clock period - phase), and each pulse sends a ring from its surface at `speed` (magnetSpeed) units per second out to `maxR`
 //     (magnetMaxR) from its centre. When a ring's leading edge passes a moving ball's centre it kicks the ball once, magnetKick units
-//     per second straight away from the star's centre. A resting ball is never pushed. Planets shadow the ring: no ring and no kick
+//     per second straight away from the star's centre. A resting ball is never pushed. Its pull is magnetPull (0.25, A2) times a sun's of the same mass. Planets shadow the ring: no ring and no kick
 //     inside a planet's shadow cone from the star.
 //   chase: { dir?, speed? }: the gamma chase (PRD v0.14 B). A straight front across the whole field, at right angles to `dir` (degrees:
 //     0 right, 90 down, 270 up; chaseDir), starts at the field corner furthest behind and sweeps at `speed` (chaseSpeed) units per second
@@ -812,43 +813,41 @@ const LEVELS = [
     walls: [{x: 0, y: 420, w: 30, h: 22}, {x: 110, y: 420, w: 250, h: 22}, {x: 212, y: 100, w: 14, h: 180}, {x: 212, y: 340, w: 14, h: 80}, {x: 226, y: 370, w: 134, h: 50}], planets: [{x: 90, y: 560, r: 26, mass: 0.5}, {x: 110, y: 288, r: 26, mass: 0.5}, {x: 90, y: 110, r: 24, mass: 0}], suns: [{x: 320, y: 340, r: 22, mass: 1.2, reach: 30}], blackholes: [{x: 265, y: 199}], movers: [{type: "comet", a: {x: 150, y: 660}, b: {x: 150, y: 470}, period: 1.5, r: 10}, {type: "moon", parent: 2, orbitR: 52, period: 4, r: 10, mass: 0.3, phase: 0}, {type: "slide", w: 14, h: 100, a: {x: 212, y: 250}, b: {x: 212, y: 340}, period: 4}],
   },
   {
-    // Teaches the magnetar's push (sector 7 opener): release near the pulse and the ring kicks the ball sideways past the wall's end onto the cup's line. three: drag (2, 139) at clock 0, kicked at (177.0, 350.6); with --nokick it rests at (172.1, 9.0). Sinks on 40% of release clocks (two runs of the 2.3 s cycle); aim window 10.3 deg, 30 px; 0 sinks in 60-aim lines at 6 clocks with or without the kick. two: hop (0, 30), then (-22, 105).
-    // v0.14 A (hole 31 re-authored from Afterglow with the mechanic layer on Opus: lean checks --three, --windows, --nokick, 60-shot line sweep; review fix round 1 on Sonnet 5.5 retuned the layout: period 2.3 with the star's phase and a longer-reaching drag, wall at x 222, cup at (297, 125)).
+    // Teaches the magnetar's push (sector 7 opener): shoot up the left of the wall and the ring kicks the ball right, over to the cup. three: drag (-3, 72) at clock 1.25 (kicked at (189.8, 298.1) after 1.13 s); with --nokick it rests at (191.2, 264.3). Sinks on 42.5% of release clocks (0.90 to 1.58 s of the 1.6 s cycle), aim window 34.7 deg, 22.5 px; 0 sinks within 3 deg of the straight line (60-shot sweep at 6 clocks). two: hop (40, 40), then (0, 80).
+    // PRD v0.14 A2 (hole 31 re-authored for the stronger push and weaker pull: star (63, 414) with a 1.6 s cycle, tee (180, 533), cup (302, 131), wall (219, 350)).
     name: "Repulse", boss: false, stars: {three: 1, two: 2},
-    ball: {x: 180, y: 560}, hole: {x: 297, y: 125},
-    walls: [{x: 222, y: 300, w: 138, h: 22}], planets: [], suns: [{x: 80, y: 300, r: 22, mass: 1.2, reach: 26, burst: {period: 2.3, phase: 0.3, speed: 140, maxR: 300}}], blackholes: [], movers: [],
+    ball: {x: 180, y: 533}, hole: {x: 302, y: 131},
+    walls: [{x: 219, y: 350, w: 141, h: 22}], planets: [], suns: [{x: 63, y: 414, r: 22, mass: 1.2, reach: 26, burst: {period: 1.6, phase: 0, speed: 192, maxR: 330}}], blackholes: [], movers: [],
   },
   {
-    // Teaches riding the push: the magnetar sits behind the tee, a soft shot is too slow for the cup, and the ring catches it near the top and kicks it in. three: drag (74, 86) at clock 0.6; with --nokick it falls back onto the planet.
-    // v0.14 C (hole 32 re-authored from Outrun, content shard: lean checks --three, --windows, --nokick, 60-shot line sweep).
+    // Teaches riding the push: the magnetar behind the tee shoves a soft shot up the field. three: drag (74, 86) at clock 0.5; with --nokick it rests at (52.9, 301.0).
+    // PRD v0.14 A2 (hole 32 re-authored for the stronger push: ring period 4.0, a fin at (104, 244) closing the planet bank; content shard).
     name: "Tailwind", boss: false, stars: {three: 1, two: 2},
     ball: {x: 159, y: 511}, hole: {x: 79, y: 148},
-    comment: "Teaches riding the push: the magnetar (226, 574) sits 92 behind the tee, and a soft shot up the planet's left side runs out of speed under the cup. Release 0.2 to 1.0 s into the 2.2 s cycle and the ring catches the ball near (87, 197) and kicks it up and in; sooner or later and the kick comes at the wrong place. three: drag (74, 86) at clock 0.6, one shot, 0 bounces, planet passed at 18.9 from its surface, KICK at (87.4, 196.7) after 1.34 s (hole clock 1.94); the same release with --nokick rests on the planet at (112, 302). Sinks on 36.4 percent of release clocks (one run, clocks 0.2 to 1.0); --windows aim 5.70 degrees (-3.00 / +2.70), drag 108.5 px to full power (neighbours at least 5.60 degrees and 39 px); --three 36 of 36. Line: the planet's surface is 5.6 from the tee-to-cup line; 60 aims within 7 degrees x 5 drags x 6 clocks: 0 straight sinks (bank shots off the planet at 130 and 150 px remain, as in Outrun). Rests: the tee is 92 from the star and the ring has passed it by clock 0.6. two (2 strokes): hop (-4, 22) at clock 0 rests on the planet at (120.6, 332.8), then (-138, 38) at any clock (--three 36 of 36 at clock 0.6).",
-    walls: [{x: 168, y: 236, w: 22, h: 120}], planets: [{x: 82, y: 327, r: 30, mass: 0.87}], suns: [{x: 226, y: 574, r: 22, mass: 1.18, reach: 26, burst: {period: 2.2, phase: 0.6, speed: 150, maxR: 460}}], blackholes: [], movers: [],
+    comment: "Soft shot up the planet's left, released 0 to 1.2 s into the 4.0 s cycle: the ring catches it near (99, 210) and kicks it in. three: drag (74, 86) at clock 0.5, KICK after 1.63 s, --nokick rests at (52.9, 301.0), 45.5 percent of clocks, windows 5.95 deg and 41 px. two: hop (20, 0) at clock 0.9, then (139, 56).",
+    walls: [{x: 168, y: 236, w: 22, h: 120}, {x: 104, y: 244, w: 36, h: 40}], planets: [{x: 82, y: 327, r: 30, mass: 0.87}], suns: [{x: 226, y: 574, r: 22, mass: 1.18, reach: 26, burst: {period: 4.0, phase: 0.3, speed: 150, maxR: 460}}], blackholes: [], movers: [],
   },
   {
-    // Teaches the gate: a bumper and a low ceiling guard the cup, and only a soft shot that the ring kicks west under the ceiling gets in. three: drag (54, 64) at clock 1.6; with --nokick it rests under the ceiling at (86.7, 145.9).
-    // v0.14 C (hole 33 re-authored from Eclipse Gate, renamed Undercut by the orchestrator, content shard: lean checks --three, --windows, --nokick, 60-shot line sweep).
+    // Teaches the gate: the push knocks a soft shot in under the ceiling and past the bumper. three: drag (37, 114) at clock 1.5; with --nokick it rests at (146.7, 90.5).
+    // PRD v0.14 A2 (hole 33 re-authored for the stronger push: slow ring from (320, 40), so the kick comes 130+ units from the cup and the ball arrives under sink speed; content shard).
     name: "Undercut", boss: false, stars: {three: 1, two: 2},
     ball: {x: 286, y: 356}, hole: {x: 38, y: 137},
-    comment: "Teaches using the push on purpose: the planet is now a no-pull bumper (mass 0) and the magnetar sits top right at (320, 100), so a straight shot flies past the cup's lane and a ceiling over the cup closes the steep approach. Release just before the pulse (clocks 1.3 to 2.08 of the 2.0 s cycle) and the ring overtakes the ball above the bumper at about (104, 140) and kicks it west, under the ceiling and into the cup. three: drag (54, 64) at clock 1.6, one shot, 0 bounces, KICK at (103.8, 140.1) after 1.225 s (hole clock 2.825); the same release with --nokick rests at (86.7, 145.9). Sinks on 38.8 percent of release clocks; --windows aim 8.10 degrees (-3.05 / +5.05), drag 71.2 to 134.2 px (63 px), neighbours at least 7.10 degrees and 26 px; --three 36 of 36. Line: the bumper blocks the tee-to-cup line (17.2 from its centre, radius 32); 1500 shots within 7 degrees: 0 straight sinks, and no unkicked one-shot sink without a bounce anywhere on the drag grid (banks off the field edges remain). The cup is not in the bumper's shadow: the shadow only hides the ball from the ring on the far side of the bumper, which the route does not use. Rests: the tee is 258 from the star, and the ring has passed it by clock 1.3. two (2 strokes): hop (40, 20) at clock 0 rests at (51, 372), then (-2, 58) at any clock (--three 36 of 36 at clocks 0.6, 0.8, 1.8).",
-    walls: [{x: 60, y: 104, w: 62, h: 20}], planets: [{x: 123, y: 235, r: 32, mass: 0}], suns: [{x: 320, y: 100, r: 22, mass: 1.2, reach: 26, burst: {period: 2.0, phase: 0, speed: 240, maxR: 500}}], blackholes: [], movers: [],
+    comment: "Release 1.0 to 2.0 s into the 2.4 s cycle: the slow ring catches the ball at (236, 201) and kicks it west past the bumper and under the ceiling. three: drag (37, 114) at clock 1.5, KICK after 0.3 s, --nokick rests at (146.7, 90.5), 41.5 percent of clocks, windows 20.5 deg and 31.5 px. two: hop (60, 0), then (97, 87).",
+    walls: [{x: 60, y: 104, w: 62, h: 20}], planets: [{x: 123, y: 235, r: 32, mass: 0}], suns: [{x: 320, y: 40, r: 22, mass: 1.2, reach: 26, burst: {period: 2.4, phase: 0, speed: 90, maxR: 420}}], blackholes: [], movers: [],
   },
   {
-    // Teaches the pair: two magnetars out of phase, one kick then the other. Release in the window and the lane star kicks the ball first, the one up the field second, and the pair carries it past the wall's end into the cup. three: drag (36.3, 145.5) at clock 0.75; with --nokick it rests at (166.5, 19.9).
-    // v0.14 C (hole 34 re-authored from Twin Pulse, content shard on Sonnet: lean checks --three, --windows, --nokick, 60-shot line sweep).
+    // v0.14 A2 (hole 34 re-authored, content shard on Sonnet): two magnetars out of phase, one shove then the other.
     name: "Twin Pulse", boss: false, stars: {three: 1, two: 2},
     ball: {x: 310, y: 573}, hole: {x: 129, y: 299},
-    comment: "Teaches two magnetars out of phase: star B (328, 348), by the lane, kicks the ball first, star A (329, 180) second, and only the pair puts it in the cup; no kick, or one, misses. three: drag (36.3, 145.5) at clock 0.75, one shot, 0 bounces. KICK by B at (287.2, 481.6) after 0.125 s, then by A at (220.8, 339.6) after 0.49 s; the same release with --nokick rests at (166.5, 19.9). It sinks for release clocks about 0.55 to 1.5 of the 2.5 s cycle (39 of 100 tried 0.025 s apart, one unbroken run). --three 36 of 36; --windows aim 12.0 degrees (-6.25 / +5.75), drag 126.5 to full power (23.5 px), neighbours at least 11.95 degrees and 23.3 px. Straight line: the wall (113 to 231, y 429 to 451) blocks the tee-to-cup line at x 217 to 227, and the fin at the right edge closes the bank off that wall; 60 aims within 7 degrees of the line x 3 drags at 7 clocks: 0 sinks. Rests: the tee is 226 from B (its ring is at 123 at the route clock) and 394 from A (beyond maxR). two (2 strokes): hop (0, 50) at clock 0 rests at (299.4, 478.0), then (59.1, 67.9) at clock 0 (aim 15.4 degrees, drag 57 to 117 px; it sinks only within about 0.4 s of the rest or after 2.2 s, since a ring kicks it off the line otherwise).",
-    walls: [{x: 113, y: 429, w: 118, h: 22}, {x: 338, y: 430, w: 22, h: 110}], planets: [], suns: [{x: 329, y: 180, r: 22, mass: 1.3, reach: 26, burst: {period: 2.5, phase: 0.2, speed: 120, maxR: 360}}, {x: 328, y: 348, r: 22, mass: 1.3, reach: 26, burst: {period: 2.5, phase: 0, speed: 135, maxR: 360}}], blackholes: [], movers: [],
+    comment: "Two magnetars out of phase: B (324, 377) shoves the ball left-up, then A (110, 111) shoves it down-right into the cup; no kick or one kick misses. three: drag (41, 102) at clock 1.04, one shot, 0 bounces. KICK by A at (201.6, 303.2) after 0.76 s, by B at (215.9, 327.0) after 0.98 s; --nokick rests at (149.3, 173.3), B alone rests at (241, 368). Sinks for release clocks 0.71 to 1.37 of the 1.81 s cycle (36.5 percent, one run; it opens just after B's ring passes the tee). --three 36 of 36; --windows aim 6.05 degrees, drag 95.9 to full power, neighbours at least 4.4 degrees and 26 px. The wall blocks the straight line at x 215 to 229; 57 aims within 7 degrees x 4 drags x 6 clocks: 0 sinks without a bounce (16 two-bounce banks remain). The tee is outside both rings at the release clock. two (2 strokes): hop (30, 0) at clock 0 rests at (91.5, 490.9), then (93, 93) at clocks 0.3 to 0.9.",
+    walls: [{x: 113, y: 429, w: 118, h: 22}, {x: 338, y: 430, w: 22, h: 110}], planets: [], suns: [{x: 110, y: 111, r: 22, mass: 1.3, reach: 26, burst: {period: 1.81, phase: 0.93, speed: 208, maxR: 289}}, {x: 324, y: 377, r: 22, mass: 1.3, reach: 26, burst: {period: 1.81, phase: 0.43, speed: 154, maxR: 246}}], blackholes: [], movers: [],
   },
   {
-    // Boss: a quick magnetar beside a black hole; the black hole swallows the soft shot, and the kick is what carries the ball past its pull into the cup. three: drag (-20, -88) at clock 1.4; with --nokick it is swallowed.
-    // v0.14 C (hole 35 re-authored from Pulsar, content shard on Sonnet: lean checks --three, --windows, --nokick, 60-shot line sweep).
+    // v0.14 A2 (hole 35 re-authored, content shard on Sonnet): a quick magnetar beside a black hole; the shove carries the ball past the pull.
     name: "Magnetar", boss: true, stars: {three: 1, two: 2},
     ball: {x: 310, y: 154}, hole: {x: 181, y: 488},
-    comment: "Teaches the push past the pull: the black hole swallows the ball on its own line, and the quick magnetar's ring kicks it clear of the pull and into the cup. three: drag (-20, -88) at clock 1.4, one shot, 0 bounces, closest pass black hole 78.2. KICK by the magnetar at (271.0, 462.5) after 1.2 s of flight (clock 2.6); the same release with --nokick is SWALLOWED at (191.7, 401.4). It sinks for release clocks 1.125 to 1.74 of the 1.5 s cycle (41 of 100 tried 0.015 s apart, one unbroken run). --three 36 of 36; --windows aim 5.95 degrees (-3.10 / +2.85), drag 72.7 to 111.7 px (39.0 px), neighbours at least 5.90 degrees and 36.5 px. Straight line: the wall (0 to 320, y 277 to 299) blocks the tee-to-cup line at x 254 to 262; 60 aims within 7 degrees of it x 3 drags at 5 clocks: 0 sinks (59 of 900 swallowed going round). The obvious shot at the cup, (36, -93.4), bounces off the wall and rests; it is not swallowed. Rests: the tee is 150 from the magnetar and the hop rest 138, both outside the ring at the release clocks. Known: a black hole bend near aim -101 degrees sinks without the push, but over about 2 degrees. two (2 strokes): hop (16.1, -19.2) at clock 0 rests at (326.9, 185.2), then (-8.4, -79.6) at clock 0, bent by the black hole (aim 10.35 degrees, drag 64.5 to 111.5 px).",
-    walls: [{x: 0, y: 277, w: 320, h: 22}], planets: [], suns: [{x: 189, y: 234, r: 20, mass: 1.2, reach: 24, burst: {period: 1.5, phase: 0.2, speed: 172, maxR: 330}}], blackholes: [{x: 206, y: 381, r: 26, mass: 1.4, reach: 177}], movers: [],
+    comment: "The push past the pull: through the wall's narrow gap the black hole swallows the ball, and the slow magnetar ring kicks it clear and into the cup. three: drag (-23, -66) at clock 0.6, one shot, 0 bounces, closest pass black hole 72.9. KICK by the magnetar at (235.8, 413.1) after 2.05 s (clock 2.65); --nokick is SWALLOWED at (167.0, 376.0). Sinks for release clocks 0.15 to 1.35 of the 3.6 s cycle (34.7 percent, one run). --three 36 of 36; --windows aim 4.80 degrees, drag 22 px, neighbours at least 4.1 degrees and 19.0 px. The wall blocks the straight line; 1368 shots within 7 degrees of it at 6 clocks: 0 sinks. The long period (3.6 s) and slow ring (30 units/s) keep a slow ball from being re-kicked round the black hole well for 12 s (--escape 0 timeouts, also on 7 other seeds). two (2 strokes): hop (-20, 0) at clock 0 rests at (350.4, 156.5), then (0, -111) down the gap at clocks 0 to 3.2 (36 of 36 at 8 clocks)",
+    walls: [{x: 0, y: 277, w: 332, h: 22}], planets: [], suns: [{x: 180, y: 194, r: 20, mass: 1.2, reach: 24, burst: {period: 3.6, phase: 0.65, speed: 30, maxR: 243}}], blackholes: [{x: 155, y: 356, r: 26, mass: 1.4, reach: 201}], movers: [],
   },
   {
     // Teaches the gamma chase (sector 8 opener): land on the planet's top, then go straight up before the front arrives. three: (-30, 60) then (-0.7, 82); margin 3.4 s with 3 s of aim; the two-star route via the planet's foot keeps 0.7 s.
@@ -872,11 +871,12 @@ const LEVELS = [
     walls: [{x: 0, y: 270, w: 245, h: 22}], planets: [], suns: [{x: 156, y: 430, r: 18, mass: 1.1, reach: 64}], blackholes: [], movers: [], chase: {dir: 90, speed: 44},
   },
   {
-    // Teaches the push as the way to stay ahead of the front: the magnetar sits at the right, where the front starts, and its ring kicks the ball left, the way the front is going. Straight up from the tee, the ring catches the ball at (183, 351) and throws it past the wall's end into the cup; without the kick the ball runs on to the top edge (rests at (187.9, 9.0)) and the front reaches it 4.3 s after the release, while you are still aiming. three: drag (-2, 139) at clock 0, kicked after 0.34 s; margin 4.1 s (the tee is 4.5 s from the front); sinks over 10.3 degrees and 120 px to full power (neighbours at least 9.9 degrees and 28.5 px), --three 36 of 36. Straight line: the wall crosses it with 25 to spare; 60 aims within 7 degrees of it at 8 clocks, with and without the kick: 0 sinks. two (2 strokes): hop (0, 30) rests at (180, 470.9), then (22, 105); margin 0.6 s with 3 s of aim (0.1 s with 3.5 s).
-    // v0.14 C (hole 39, content shard on Sonnet, Repulse mirrored with the chase: lean checks line sweep, --three, --windows, --nokick, the margin rule).
+    // Teaches the push as the way to stay ahead of the front: Repulse mirrored, the magnetar on the right where the front starts, its ring kicking the ball left, the way the front runs. three: drag (3, 72) at clock 1.15, kicked at (169.7, 285.5) after 1.28 s; the same release with --nokick rests at (168.8, 264.3), caught 4.8 s after the release. Margin 3.5 s with 3 s of aim (the tee is 4.5 s from the front); aim window 13.7 deg, 23.5 px (neighbours at least 12.1 deg, 22.5 px), --three 36 of 36. Straight line blocked by the wall: 60 aims within 7 deg of it at 8 clocks, with and without the kick: 0 sinks. two (2 strokes): hop (0, 30) at clock 0.9 rests at (180, 443.9), then (9, 54) at clock 0.2; margin 0.5 s with 3 s of aim.
+    // PRD v0.14 A2 (hole 39 re-authored for the stronger push and weaker pull from the new Repulse mirrored: star (297, 414), tee (180, 533), cup (58, 131), wall (0, 350, 155 wide); lean checks line sweep, --three, --windows, --nokick, the margin rule; content shard on Sonnet).
     name: "Push Ahead", boss: false, stars: {three: 1, two: 2},
-    ball: {x: 180, y: 560}, hole: {x: 63, y: 125},
-    walls: [{x: 0, y: 300, w: 138, h: 22}], planets: [], suns: [{x: 280, y: 300, r: 22, mass: 1.2, reach: 26, burst: {period: 2.3, phase: 0.3, speed: 140, maxR: 300}}], blackholes: [], movers: [], chase: {dir: 180, speed: 40},
+    ball: {x: 180, y: 533}, hole: {x: 58, y: 131},
+    comment: "The push puts you ahead of the front: release at clock 1.15 and the ring kicks the ball left, past the wall's end and into the cup; no kick, no sink.",
+    walls: [{x: 0, y: 350, w: 155, h: 22}], planets: [], suns: [{x: 297, y: 414, r: 22, mass: 1.2, reach: 26, burst: {period: 1.6, phase: 0, speed: 192, maxR: 330}}], blackholes: [], movers: [], chase: {dir: 180, speed: 40},
   },
   {
     // Boss: the Singularity slingshot (moved up the field) under a fast diagonal front. Land on the planet's top, then whip round the black hole's left side into the cup before the front, 50 units/s sweeping up and left from the bottom right corner, reaches the planet. three: (68, -15) lands at (139.9, 342.0), then (95, 86) passes the black hole's horizon at 36 and sinks with 0 bounces; margin 2.5 s with 3 s of aim (speed set to 50 by the orchestrator; the par route (68, -15), (0, -30), (95, 86) is caught with 3 s of aim and safe with about 2 s: the boss is tighter); last shot sinks over 14.8 degrees and 117.6 px to full power (neighbours at least 13.6 degrees and 32.3 px), --three 36 of 36, shot 1 nudged by a pixel 9 of 9. Straight line: the sun and the black hole's pull make the lazy line a penalty, 840 shots within 7 degrees of it sink 0 times, and the obvious shot at the cup (104, 150) is not swallowed (it hits the sun, +1, and rests at (88.9, 416.7)). two (3 strokes): (68, -15), the shuffle (0, -30), then (95, 86); caught with 3 s of aim (the planet rest falls to the front at 6.5 s), margin 0.2 s with 2 s of aim and 1.2 s with 1.5 s.
@@ -1024,6 +1024,8 @@ function bhFall(R, d) { return fall(R, T.bhFade, d); }
 function bhInfluence(h, x, y) { return bhFall(h.reach || T.bhReach, dist(x, y, h.x, h.y)); }
 function sunReach(s) { return s.r + (s.reach || T.sunReach); } // the ring's radius from the sun's centre
 function sunMassOf(s) { return s.mass === undefined ? T.sunMass : s.mass; }
+// The mass a sun pulls with: a magnetar's is a share of its mass (A2).
+function sunPullMass(s) { return sunMassOf(s) * (s.burst ? T.magnetPull : 1); }
 
 // The rest radius: beyond it the pull is under restPull(), so a slow ball can stop; inside it, it crawls in and is swallowed.
 // This is the line drawn as the black hole's outer ring (the "you will be pulled in" line).
@@ -1037,7 +1039,7 @@ function bhRestR(h) {
 
 // A sun's rest radius: inside it a slow ball is pulled back onto the sun; beyond it, it can stop.
 function sunRestR(s) {
-  const R = sunReach(s), need = restPull(), gm = T.planetGravity * sunMassOf(s), g = (d) => gm / (Math.max(d, T.sunPullR) ** 2);
+  const R = sunReach(s), need = restPull(), gm = T.planetGravity * sunPullMass(s), g = (d) => gm / (Math.max(d, T.sunPullR) ** 2);
   if (g(R) < need) return Math.max(s.r, Math.sqrt(gm / need));
   let lo = R, hi = R * T.sunFade;
   for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (g(m) * fall(R, T.sunFade, m) >= need) lo = m; else hi = m; }
@@ -1136,7 +1138,7 @@ function stepBall(lv, b, clock) {
   b.touch = false; b.land = false; b.moon = -1; b.kick = -1;
   ACC.x = 0; ACC.y = 0;
   for (const p of lv.planets) if (p.mass > 0) pull(b, p.x, p.y, p.r, p.mass);
-  for (const s of lv.suns) { const k = fall(sunReach(s), T.sunFade, dist(b.x, b.y, s.x, s.y)); if (k > 0) pull(b, s.x, s.y, T.sunPullR, sunMassOf(s) * k); }
+  for (const s of lv.suns) { const k = fall(sunReach(s), T.sunFade, dist(b.x, b.y, s.x, s.y)); if (k > 0) pull(b, s.x, s.y, T.sunPullR, sunPullMass(s) * k); }
   for (const m of lv.movers) if (m.type === 'moon') { const c = moonAt(lv, m, clock); pull(b, c.x, c.y, m.r, m.mass); }
   for (const h of lv.blackholes) { const k = bhInfluence(h, b.x, b.y); if (k > 0) pull(b, h.x, h.y, T.bhPullR, h.mass * k); }
   const gx = ACC.x, gy = ACC.y;
@@ -1217,7 +1219,7 @@ function put(b, x, y, r, mass) {
 function pulls(lv, b, clock) {
   PK = 0;
   for (const p of lv.planets) if (p.mass > 0) put(b, p.x, p.y, p.r, p.mass);
-  for (const s of lv.suns) if (sunMassOf(s) > 0) put(b, s.x, s.y, T.sunPullR, sunMassOf(s) * fall(sunReach(s), T.sunFade, dist(b.x, b.y, s.x, s.y)));
+  for (const s of lv.suns) if (sunMassOf(s) > 0) put(b, s.x, s.y, T.sunPullR, sunPullMass(s) * fall(sunReach(s), T.sunFade, dist(b.x, b.y, s.x, s.y)));
   for (const m of lv.movers) if (m.type === 'moon') { const c = moonAt(lv, m, clock); put(b, c.x, c.y, m.r, m.mass); }
   for (const h of lv.blackholes) if (h.mass > 0) put(b, h.x, h.y, T.bhPullR, h.mass * bhInfluence(h, b.x, b.y));
   return PK;
