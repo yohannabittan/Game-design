@@ -36,7 +36,8 @@
 // (TUNING.timerMultEarly / Mid / Boss / Final) as a multiple of the time this path takes to reach 99 percent.
 
 import { readFileSync } from 'node:fs';
-import { game } from '../games/ink/src/game.js';
+globalThis.Image ??= class { set src(v) {} }; // game.js builds its portrait and title images at load; a stub is enough headless
+const { game } = await import('../games/ink/src/game.js');
 
 const T = game.TUNING, sim = game.sim, play = game.scenes.play;
 const args = process.argv.slice(2);
@@ -92,8 +93,8 @@ const E = {
   audio: { muted: false, play(n) { E.sounds.push(n); }, beep() {}, toggleMute() {} },
   setScene(n, p) { E.scene = n; },
 };
-// At 360x640 the view scale is 1 with no offset, so a design point is a screen point; the finger sits needleOffset below the needle.
-const finger = (x, y) => ({ id: 1, x, y: y + T.needleOffset });
+// A design point goes to the screen through the game's own view (scale, offset and the client plate's shift), so paths stay in design units; the finger sits needleOffset below the needle.
+const finger = (x, y) => { const [sx, sy] = sim.toScreen(E, x, y); return { id: 1, x: sx, y: sy + T.needleOffset }; };
 
 play.enter(E, { stencil: idx });
 

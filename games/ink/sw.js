@@ -1,8 +1,14 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'ink-v29';
+const CACHE_VERSION = 'ink-v30';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'ink-v';
+// PACK16: the art chat's second batch (PRD v0.8). Only list a file that exists in games/ink/assets (one missing file fails the whole install). When the webps land, add:
+//   './assets/client-ines-happy.webp', './assets/client-ines-neutral.webp', './assets/client-ines-sad.webp',
+//   './assets/client-arlo-happy.webp', './assets/client-arlo-neutral.webp', './assets/client-arlo-sad.webp',
+//   './assets/rita-proud.webp', './assets/rita-kind.webp',
+// and set the matching flags in PACK16 in src/game.js.
+const PACK16 = [];
 const ASSETS = [
   './',
   './index.html',
@@ -33,6 +39,7 @@ const ASSETS = [
   './assets/client-theo-neutral.webp',
   './assets/client-theo-sad.webp',
   './assets/rita.webp',
+  ...PACK16,
 ];
 
 self.addEventListener('install', (event) => {
