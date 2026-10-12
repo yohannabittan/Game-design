@@ -1,6 +1,6 @@
 # Ink code map
 
-Line ranges are as of the v0.7 build on `cb6193e` (2747 lines) and drift as `games/ink/src/game.js` changes. The anchors are the stable part: run `node tools/codemap-check.mjs` to warn when one disappears. Find a section by its anchor with `grep -n "NAME" games/ink/src/game.js`.
+Line ranges are as of the v0.7 build on `cb6193e` (2747 lines; the C2 round brings it to 2796) and drift as `games/ink/src/game.js` changes. The anchors are the stable part: run `node tools/codemap-check.mjs` to warn when one disappears. Find a section by its anchor with `grep -n "NAME" games/ink/src/game.js`.
 
 | Lines | Section | What lives there | Anchors |
 | --- | --- | --- | --- |
@@ -23,16 +23,16 @@ Line ranges are as of the v0.7 build on `cb6193e` (2747 lines) and drift as `gam
 | 1744-1948 | Menu scene | Stencil select, daily, hint toggle, rank name under the star count, Story button; plus drawPen, soundButton, hintButton, drawMedal. | `menu` `drawPen` `soundButton` `hintButton` |
 | 1949-2045 | Missions scene | Portfolio button, badges and skins screen. | `missions` |
 | 2046-2108 | Play HUD pieces | drawHud, drawIntro, drawCallout. | `drawHud` `drawIntro` `drawCallout` |
-| 2109-2191 | Play scene | Pointer input to needle, fixed update, render order; `toCard` sends a client's piece to the reveal first. | `play` |
-| 2192-2359 | Card helpers and over scene | Card box and view fitting, prepareCard; the tattoo card (stars, badge reveal, retry and next; `go` shows the rank card first when a rank was earned). | `CV` `cardBoxFor` `prepareCard` `over` |
-| 2360-2747 | The cast on screen (v0.7) | Portrait loading with drawn fallbacks (`artImg`, `drawFace`, `drawPortrait`), `patchIn` and `stencilInPatch`, the intro plate (`drawCast`), and the scenes `story` (cold open), `reveal`, `rank` (Rita), `folio` (Portfolio). Then the game object: slug, saveVersion 10, migrate (including the stencil remap and v10 `openSeen` / `rankSeen`), init (a fresh save starts on `story`), TUNING, TUNE experiments, `sim`, scenes. | `artImg` `drawPortrait` `patchIn` `stencilInPatch` `drawCast` `story` `reveal` `rank` `folio` `game` `migrate` |
+| 2120-2202 | Play scene | Pointer input to needle, fixed update, render order; `toCard` records the result and opens the `over` card. | `play` |
+| 2203-2478 | Card helpers and over scene | Card box and view fitting, `clientLayout` (the client's card: portrait, tickets, tray, buttons), `ticketFit`, prepareCard; the result card `over`: the paper card (the daily, no client: stars, badge reveal, retry and next) and, for a client's stencil, `renderClient` (`drawZoom` the portrait zoom that stays as the hero, `drawTray` line, percent, stars, best, stamp, then the buttons); `go` shows the rank card first when a rank was earned. | `CV` `cardBoxFor` `clientLayout` `ticketFit` `prepareCard` `over` `renderClient` `drawZoom` `drawTray` |
+| 2479-2796 | The cast on screen (v0.7) | Portrait loading with drawn fallbacks (`artImg`, `drawFace`, `drawPortrait`), `patchIn` and `stencilInPatch`, the intro plate (`drawCast`), and the scenes `story` (cold open), `rank` (Rita), `folio` (Portfolio). Then the game object: slug, saveVersion 10, migrate (including the stencil remap and v10 `openSeen` / `rankSeen`), init (a fresh save starts on `story`), TUNING, TUNE experiments, `sim`, scenes. | `artImg` `drawPortrait` `patchIn` `stencilInPatch` `drawCast` `story` `rank` `folio` `game` `migrate` |
 
 ## To change X, read Y
 
 1. **Retune needle or ink feel.** Read the needle keys in `TUNING`, then `moveNeedle`, `holdStep`, `radiusFor`, `stepRadius` in the Mechanic section.
 2. **Add or edit a stencil.** Read `STENCILS`, `prepStencil`, `timerFor` (timers use the perfect-path time measured by `node tools/sim-ink.mjs`). Reordering stencils needs a REMAP table and `migrate`.
 3. **Change slip rules or penalties.** Read `landing`, `checkSlip`, `fxSlip`, and the slip keys in `TUNING`.
-4. **Change stars, the end card or results.** Read `starsFor`, `finish`, `recordResult`, `prepareCard`, then the `over` scene.
+4. **Change stars, the end card or results.** Read `starsFor`, `finish`, `recordResult`, `prepareCard`, then the `over` scene (a client's stencil takes `renderClient`, the daily the paper card).
 5. **Change the daily, badges or a saved field.** Read `buildDaily`, `recordDaily`, `BADGES`, `earnedBadges`, `progress`, and `game` at the end (`saveVersion`, `migrate`).
-6. **Change a client, a line or a skin patch.** Read `CLIENTS`, `CAST`, `PATCH` (shares of the portrait; the last number tilts the piece with the limb), then `patchIn` and `reveal`. After editing a patch, redraw the 18-portrait screenshot sheet (`tools/drive.mjs`) and check the tattoo sits on skin.
-7. **Change the reveal, the rank card or the Portfolio.** Read `art.reveal`, `art.rank`, `art.folio` in `TUNING`, then the scenes `reveal`, `rank` and `folio` at the end of the file. The Portfolio redraws a perfect fill (the game keeps stars, not ink).
+6. **Change a client, a line or a skin patch.** Read `CLIENTS`, `CAST`, `PATCH` (shares of the portrait; the last number tilts the piece with the limb), then `patchIn` and `drawZoom`. After editing a patch, redraw the 18-portrait screenshot sheet (`tools/drive.mjs`) and check the tattoo sits on skin.
+7. **Change the client's result card (the zoom and what stays), the rank card or the Portfolio.** Read `art.reveal` (the client card's numbers), `art.rank`, `art.folio` in `TUNING`, then `clientLayout` and `over` (`renderClient`, `drawZoom`, `drawTray`), and the scenes `rank` and `folio` at the end of the file. The Portfolio redraws a perfect fill (the game keeps stars, not ink).

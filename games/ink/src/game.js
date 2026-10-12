@@ -167,7 +167,7 @@ const TUNING = {
     callout: { sec: 2.6, fade: 0.5, gap: 8, pad: 8, h: 28, text: 'Blot: landed on skin' }, // The call-out above the first blot of a piece
     blot: { rim: 2, specks: 3, speckAngle: 0.9, speckStep: 2.1, speckDist: 5, speckR: 2.2, core: 0.35 }, // The blot mark (radius is TUNING.blotRadius): dark rim beyond the disc, the specks around it (count, first angle, angle step, distance beyond the disc, size), the dark core as a share of the radius
     cast: { sec: 4, fade: 0.5, top: 8, face: 36, pad: 6, gap: 10, maxW: 340, lineH: 18, clear: 8, bottomGap: 8 }, // The client of the day on the play intro (PRD v0.7 B): a plate under the HUD (at most two lines, so a fixed height) with the client's face and line; it is gone at the first touch. `clear` is the gap kept between the plate and a stencil's tip, `bottomGap` the least left under the piece: on a short screen the piece is moved down (never scaled) to clear the plate
-    reveal: { zoomSec: 1.2, holdSec: 1.1, tapGuard: 0.2, cueVol: 0.3, cue: { happy: 'coin', neutral: 'tap', sad: 'tap' }, crossFrom: 0.1, crossTo: 0.7, lineFrom: 0.9, lineFade: 0.25, inkAlpha: 0.92, portraitMaxW: 300, top: 12, bottom: 14, frame: 8, gap: 10, stripPad: 12, lineH: 26 }, // The reveal (PRD v0.7 C): the zoom from the skin to the client (seconds), how long the end holds, the tap guard, when the skin gives way to the portrait (share of the zoom), when the line shows and how fast it fades in (seconds), the multiply strength of the ink, and the portrait card
+    reveal: { zoomSec: 1.2, tapGuard: 0.2, cueVol: 0.3, cue: { happy: 'coin', neutral: 'tap', sad: 'tap' }, crossFrom: 0.1, crossTo: 0.7, lineFrom: 0.9, lineFade: 0.25, inkAlpha: 0.92, portraitMaxW: 400, minW: 150, top: 12, bottom: 14, frame: 8, gap: 8, trayMaxW: 360, trayPad: 10, sidePad: 20, capH: 18, lineH: 24, statH: 44, metaH: 38, metaLineH: 16, starR: 15, starGap: 34, stampScale: 0.85, btnH: 52, btnPair: 10, btnGap: 10 }, // The client's result card (PRD v0.7 C and C2): the zoom from the skin to the client (seconds), the tap guard, when the skin gives way to the portrait (share of the zoom), when the line shows and how fast it fades in (seconds), the multiply strength of the ink. The portrait stays as large as fits (at most portraitMaxW wide; tickets are dropped before it shrinks below minW) with a paper tray under it (caption, the client's line, percent and stars, best and stamp; sidePad keeps the text clear of its ruled border) and the buttons below that (layout numbers in px)
     open: { anchorFit: 0.9, guard: 0.25, fade: 0.4, skipW: 96, skipH: 44, cardW: 320, pad: 22, art: 128, gap: 14, lineH: 28, face: 60, faceGap: 8 }, // The cold open (PRD v0.7 A): two cards, Skip always top right
     rank: { w: 320, h: 470, pad: 18, portH: 250, btnH: 52, guard: 0.5, gap: 12, nameGap: 10, lineH: 26, btnGap: 14, margin: 24, popSec: 0.35, medalR: 14, medalDx: 78, nameDx: 12, cueVol: 0.6 }, // The rank-up card with Rita (PRD v0.7 D): its layout (px), the pop-in (seconds) and the volume of its one sound
     folio: { cols: 3, gap: 10, pad: 6, starH: 22, headH: 8, lockedAlpha: 0.3, openAlpha: 0.55, inkAlpha: 0.92, outlineAlpha: 0.9, starScale: 0.4, starPad: 5, headY: 30, headGap: 12, countGap: 14, scrollMinH: 24 }, // The Portfolio page (PRD v0.7 E): the heading row (Back, heading, count) keeps `headGap` and `countGap` between its parts
@@ -2155,10 +2155,10 @@ const play = {
     recordResult(E, S.idx, { pct, stars, ruined, clean, landings, cleanLand, steady, done });
     const now = { ...earnedBadges(progress(E)), ...trickBadges(a) }, fresh = BADGES.filter((b) => now[b.id] && !had[b.id]);
     if (fresh.length) E.save.set('badges', { ...had, ...now });
-    S.tickets = ticketFit(E, fresh.length);
+    S.tickets = ticketFit(E, fresh.length, !!castOf(S.st));
     for (const b of fresh) ledger(E, 'badge', { badge: b.name, tier: BADGE_TIERS[b.tier], stencil: S.st.name });
     const rk = rankOf(progress(E).total), over = { idx: S.idx, pct, stars, failed, clean, ruined, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp, newBadges: byTier(fresh), landings, cleanLand, rankUp: rk > E.save.get('rankSeen', 0) ? rk : 0 };
-    E.setScene(castOf(S.st) ? 'reveal' : 'over', castOf(S.st) ? { over } : over); // the reveal comes first, and hands the same params to the card
+    E.setScene('over', over);
   },
   // Leaving a piece that was started and not finished (the app going to the background, or any scene change) is a quit, logged once.
   quit(E) {
@@ -2200,6 +2200,7 @@ const play = {
 
 // The card. Timeline (seconds from enter): the piece eases into a large showcase position and the paper card slides up; stars pop in one by one with a coin each;
 // then "Clean" is stamped; the buttons appear only after the beat and only then take taps, so a tap during the animation is never swallowed by a button.
+const IDV = { s: 1, ox: 0, oy: 0 }; // the identity view, for effects drawn in design space inside an already-placed piece
 const CV = { s: 1, ox: 0, oy: 0 }, LV = { s: 1, ox: 0, oy: 0 }; // the card's piece view, and the view eased between the play view and it
 const cardBoxFor = (E, b) => {
   const C = A.card;
@@ -2208,12 +2209,24 @@ const cardBoxFor = (E, b) => {
 };
 // Where the finished piece sits on the card: as large as fits above the paper card, never larger than it was in play.
 const CB = { x: 0, y: 0, w: 0, h: 0 };
+// The client's result card (PRD v0.7 C2), top to bottom: the portrait as large as fits, the badge tickets (n of them, stacked upward from the tray), the paper tray (caption, the
+// client's line, percent and stars, best and stamp), the buttons. The tray and the buttons take what they need and the portrait takes the rest, so nothing sits over the face.
+const CL = { px: 0, py: 0, pw: 0, ph: 0, tx: 0, ty: 0, tw: 0, th: 0, by: 0, lines: null };
+function clientLayout(E, n, str, o = CL) {
+  const R = A.reveal, B = A.badge, F = R.frame, m = A.menu.margin;
+  const tw = Math.min(R.trayMaxW, E.w - 2 * m), lines = wrapText(str, tw - 2 * R.sidePad, FONT.mid), th = 2 * R.trayPad + R.capH + lines.length * R.lineH + R.statH + R.metaH;
+  const slot = n ? R.gap + n * (B.h + B.gap) - B.gap : 0, availH = E.h - E.safe.top - E.safe.bottom - R.top - R.bottom, rest = 2 * F + R.gap + slot + th + R.btnGap + R.btnH;
+  const pw = Math.min(R.portraitMaxW, E.w - 2 * m - 2 * F, ((availH - rest) * 3) / 4), ph = (pw * 4) / 3, y0 = E.safe.top + R.top + Math.max(0, (availH - ph - rest) / 2);
+  o.pw = pw; o.ph = ph; o.px = (E.w - pw) / 2; o.py = y0 + F; o.tw = tw; o.tx = (E.w - tw) / 2; o.th = th; o.ty = o.py + ph + F + R.gap + slot; o.by = o.ty + th + R.btnGap + R.btnH / 2; o.lines = lines;
+  return o;
+}
 // How many badge tickets can stack over the card and still leave the piece its minimum scale (never covering it): as many as were earned, up to badge.max, fewer where the
 // screen is short.
-function ticketFit(E, want) {
+function ticketFit(E, want, client) {
   const C = A.card, B = A.badge, b = cardBoxFor(E, CB), bb = bboxOf(S.idx), top = E.safe.top + C.topPad;
   let n = Math.min(want, B.max);
-  while (n > 1 && (b.y - C.pieceGap - (n - 1) * (B.h + B.gap) - top) / bb.h < C.minScale) n--;
+  if (client) { while (n > 1 && clientLayout(E, n, '').pw < A.reveal.minW) n--; } // a client's portrait keeps its width; the tickets give way first
+  else while (n > 1 && (b.y - C.pieceGap - (n - 1) * (B.h + B.gap) - top) / bb.h < C.minScale) n--;
   return n;
 }
 function cardViewFor(E, out) {
@@ -2222,10 +2235,11 @@ function cardViewFor(E, out) {
   out.ox = E.w / 2 - bb.cx * out.s; out.oy = (top + bot) / 2 - bb.cy * out.s;
   return out;
 }
-// While the finished piece holds on screen, build what the card will need, one thing per frame, so opening the card costs nothing.
+// While the finished piece holds on screen, build what the card will need, one thing per frame, so opening the card costs nothing. A client's card never moves the piece
+// (it is drawn into the portrait), so it needs only the blush.
 function prepareCard(E) {
   if (S.prep >= 2) return;
-  if (S.prep === 0) { if (S.ended !== 'ruined') blushLayer(S.idx); } else fieldComp(E, cardViewFor(E, CV), 1);
+  if (S.prep === 0) { if (S.ended !== 'ruined') blushLayer(S.idx); } else if (!castOf(S.st) || S.daily) fieldComp(E, cardViewFor(E, CV), 1);
   S.prep++;
 }
 const SLIPWORD = { 2: 'two', 3: 'three', 4: 'four', 5: 'five' };
@@ -2241,6 +2255,14 @@ const over = {
     this.starsEnd = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starSec;
     this.buttonsAt = Math.max(J.cardSlideSec, n ? this.starsEnd : 0) + J.buttonGap; // about 0.75 s with five stars
     this.sweepAt = params.clean ? this.starsEnd + J.cleanDelay : Infinity;
+    this.client = params.daily ? null : castOf(S.st); // a client's card keeps the client on screen; the daily keeps the paper card
+    this.z = 0; this.zoomEnd = this.client ? A.reveal.zoomSec : 0; this.cued = false; // the zoom to the client runs first; the card's own clock (t) starts when it ends
+    if (this.client) {
+      this.mood = moodOf(params.stars, params.failed);
+      const pool = REACT[this.mood];
+      this.line = pool[Math.floor(Math.random() * pool.length)]; // which of the pool is cosmetic
+      loadClient(this.client.id);
+    }
   },
   starsEndFor(n) { return J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starSec; },
   cardBox(E) { return cardBoxFor(E, this.box); },
@@ -2250,19 +2272,28 @@ const over = {
     return (1 - k) * (E.h * J.cardFrom + b.h);
   },
   update(dt, E) {
+    const R = A.reveal;
+    if (this.client && !this.cued && this.z >= R.zoomSec * R.crossTo) { this.cued = true; E.audio.play(R.cue[this.mood], R.cueVol); } // one soft cue as the face shows
+    if (this.z < this.zoomEnd) { this.z = Math.min(this.z + dt, this.zoomEnd); return; }
     this.t += dt;
-    const n = this.p.stars, C = A.card;
+    const n = this.p.stars, C = A.card, lay = this.client && this.layout(E);
     while (this.coins < n && this.t >= J.starDelay + this.coins * J.starStagger) {
       const i = this.coins++, b = this.cardBox(E);
       E.audio.play('coin');
-      emit(E, E.w / 2 + (i - 2) * C.starGap, b.y + 134 + this.slideOffset(E), J.starBurst, P.inkGloss, 90, 0.4, 2.6);
+      if (lay) emit(E, this.starX(lay, i), this.statY(lay), J.starBurst, P.inkGloss, 90, 0.4, 2.6);
+      else emit(E, E.w / 2 + (i - 2) * C.starGap, b.y + 134 + this.slideOffset(E), J.starBurst, P.inkGloss, 90, 0.4, 2.6);
     }
     if (!this.badgeDone && this.p.newBadges.length && this.t >= this.badgeAt) { // a badge was earned: a beat of its own
       this.badgeDone = true; E.audio.play('win', 0.6); E.haptic(J.finishHaptic);
-      emit(E, E.w / 2, this.cardBox(E).y - 8 - A.badge.h / 2, J.starBurst * 2, P.medal[this.p.newBadges[0].tier], 110, 0.5, 3);
+      emit(E, E.w / 2, this.ticketBottom(E, lay) - A.badge.h / 2, J.starBurst * 2, P.medal[this.p.newBadges[0].tier], 110, 0.5, 3);
     }
   },
+  layout(E) { return clientLayout(E, S.tickets, this.line, CL); },
+  ticketBottom(E, lay) { return lay ? lay.ty - A.reveal.gap : this.cardBox(E).y - 8; }, // the lowest ticket sits just above the card (the paper card, or the client's tray)
+  starX(lay, i) { return lay.tx + lay.tw - A.reveal.sidePad - A.reveal.starR - (4 - i) * A.reveal.starGap; },
+  statY(lay) { return lay.ty + A.reveal.trayPad + A.reveal.capH + lay.lines.length * A.reveal.lineH + A.reveal.statH / 2; },
   render(ctx, E) {
+    if (this.client) { this.renderClient(ctx, E); return; }
     const p = this.p, cx = E.w / 2, t = this.t, b = this.cardBox(E), { w, h, x, y } = b, C = A.card, L = A.line;
     const ld = S.st.parts ? C.landH : 0, pv = view(E), cv = this.cardView(E), ek = ease.outCubic(clamp(t / J.cardSlideSec, 0, 1));
     if (ek >= 1) { LV.s = cv.s; LV.ox = cv.ox; LV.oy = cv.oy; }
@@ -2294,7 +2325,7 @@ const over = {
     }
     if (p.daily && p.ruined && t >= this.starsEnd) label(ctx, `${p.wasFirst ? 'First attempt stands' : 'Best unchanged'}`, cx, y + 178, FONT.small, P.textMute);
     ctx.restore();
-    if (this.badgeDone) this.drawBadge(ctx, E, y, t - this.badgeAt);
+    if (this.badgeDone) this.drawBadge(ctx, E, y - 8, t - this.badgeAt);
 
     this.btnMain = this.btnMenu = null;
     if (t < this.buttonsAt) return;
@@ -2308,12 +2339,88 @@ const over = {
     if (!menuIsPrimary || p.daily) { ctx.save(); zoom(y + 286 + ld); this.btnMenu = inkButton(ctx, menuIsPrimary ? 'Again' : 'Menu', cx, y + 286 + ld, w - 56, 44, false, FONT.mid); ctx.restore(); }
     ctx.restore();
   },
-  // The badge tickets over the card: a paper strip per new badge (up to max, the highest tier nearest the card) with the tier's medal and the badge's name; "+n" counts the ones
+  // The client's card. The zoom (z) takes the view from the skin to the portrait, whose skin patch wears the piece; the face and the line show at its end and stay. Then the
+  // card's own clock (t) runs the stars, the badge and the buttons, as on the paper card.
+  renderClient(ctx, E) {
+    const R = A.reveal, p = this.p, L = this.layout(E), t = this.t, cx = E.w / 2, done = this.z >= this.zoomEnd;
+    ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
+    const la = clamp((this.z - R.lineFrom) / R.lineFade, 0, 1);
+    if (la > 0) this.drawTray(ctx, L, la);
+    this.drawZoom(ctx, E, L);
+    if (this.badgeDone) this.drawBadge(ctx, E, this.ticketBottom(E, L), t - this.badgeAt);
+    this.btnMain = this.btnMenu = null;
+    if (!done || t < this.buttonsAt) return;
+    // Primary: Again on a fail, Next on a pass, Menu on a pass of the last stencil. Secondary (left of it): Menu.
+    const menuIsPrimary = !p.failed && p.last, bk = pop(t - this.buttonsAt, J.buttonPopSec, 0.85), pair = !menuIsPrimary, bw = pair ? (L.tw - R.btnPair) / 2 : L.tw;
+    const draw = (str, x, primary) => { ctx.save(); ctx.translate(x, L.by); ctx.scale(bk, bk); ctx.translate(-x, -L.by); const r = inkButton(ctx, str, x, L.by, bw, R.btnH, primary, FONT.mid); ctx.restore(); return r; };
+    this.btnMain = draw(p.failed ? 'Again' : menuIsPrimary ? 'Menu' : 'Next', pair ? cx + (bw + R.btnPair) / 2 : cx, true);
+    if (pair) this.btnMenu = draw('Menu', cx - (bw + R.btnPair) / 2, false);
+  },
+  drawZoom(ctx, E, L) {
+    const R = A.reveal, F = R.frame, lk = A.line, id = this.client.id, mood = this.mood, k = clamp(this.z / R.zoomSec, 0, 1), e = ease.inOut(k);
+    const bb = bboxOf(S.idx), pv = view(E), pt = patchIn(id, mood, L.px, L.py, L.pw, L.ph);
+    const sf = Math.min(pt.w / bb.w, pt.h / bb.h), zm = Math.pow(pv.s / sf, 1 - e); // zoom: the piece is as big as it was in play at the start, as big as the patch at the end
+    const ppx = pv.ox + bb.cx * pv.s, ppy = pv.oy + bb.cy * pv.s; // where the piece's centre sat in play
+    const cross = ease.inOut(clamp((k - R.crossFrom) / (R.crossTo - R.crossFrom), 0, 1)); // the skin gives way to the portrait
+    ctx.save();
+    ctx.translate(ppx + (pt.cx - ppx) * e, ppy + (pt.cy - ppy) * e); ctx.rotate(-pt.r * (1 - e)); ctx.scale(zm, zm); ctx.translate(-pt.cx, -pt.cy);
+    ctx.globalAlpha = lk.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, L.px - F + lk.shadowDx, L.py - F + lk.shadowDy + 2, L.pw + 2 * F, L.ph + 2 * F, lk.radius); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.fillStyle = P.paper; ctx.beginPath(); rr(ctx, L.px - F, L.py - F, L.pw + 2 * F, L.ph + 2 * F, lk.radius); ctx.fill();
+    ctx.save();
+    ctx.beginPath(); ctx.rect(L.px, L.py, L.pw, L.ph); ctx.clip();
+    if (cross < 1) { // the piece as it was on the skin, turned with the limb, shrinking into the patch
+      PV.s = sf; PV.ox = pt.cx - sf * bb.cx; PV.oy = pt.cy - sf * bb.cy;
+      ctx.save(); ctx.translate(pt.cx, pt.cy); ctx.rotate(pt.r); ctx.translate(-pt.cx, -pt.cy);
+      drawPiece(ctx, E, PV, J.cardSlideSec * 0.99);
+      ctx.restore();
+    }
+    if (cross > 0) { // the client, with your ink on the skin (multiply, so the skin shows through) and the slips over it
+      ctx.globalAlpha = cross;
+      drawPortrait(ctx, id, mood, L.px, L.py, L.pw, L.ph);
+      syncInk(E, view(E).s);
+      const bx = Math.max(0, bb.x0 - A.ink.blitMargin), by = Math.max(0, bb.y0 - A.ink.blitMargin), bw = Math.min(T.designW, bb.x1 + A.ink.blitMargin) - bx, bh = Math.min(T.designH, bb.y1 + A.ink.blitMargin) - by, ik = S.layer.width / T.designW;
+      ctx.save();
+      ctx.translate(pt.cx, pt.cy); ctx.rotate(pt.r); ctx.scale(sf, sf); ctx.translate(-bb.cx, -bb.cy);
+      ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = cross * R.inkAlpha;
+      ctx.drawImage(S.layer, bx * ik, by * ik, bw * ik, bh * ik, bx, by, bw, bh);
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = cross;
+      drawMarks(ctx);
+      ctx.globalAlpha = 1;
+      if (this.p.clean && this.t >= this.sweepAt) this.drawSweep(ctx, IDV, (this.t - this.sweepAt) / J.cleanSweepSec);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    ctx.strokeStyle = P.ink; ctx.lineWidth = lk.weight; ctx.beginPath(); rr(ctx, L.px - F + 3, L.py - F + 3, L.pw + 2 * F - 6, L.ph + 2 * F - 6, lk.radius - 3); ctx.globalAlpha = 0.8; ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.restore();
+  },
+  // The paper tray under the portrait: the stencil's caption and the client's line (faded in as the zoom ends), then the percent and stars, the best and the Clean stamp.
+  drawTray(ctx, L, la) {
+    const R = A.reveal, lk = A.line, p = this.p, t = this.t, x = L.tx, y = L.ty, w = L.tw, h = L.th, pad = R.trayPad, sp = R.sidePad, cx = x + w / 2, done = this.z >= this.zoomEnd;
+    ctx.globalAlpha = la * lk.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, x + lk.shadowDx, y + lk.shadowDy + 2, w, h, lk.radius + 4); ctx.fill();
+    ctx.globalAlpha = la; ctx.fillStyle = P.paper; ctx.beginPath(); rr(ctx, x, y, w, h, lk.radius + 4); ctx.fill();
+    ctx.strokeStyle = P.ink; ctx.lineWidth = lk.weight; ctx.beginPath(); rr(ctx, x + 7, y + 7, w - 14, h - 14, lk.radius); ctx.globalAlpha = la * 0.8; ctx.stroke(); ctx.globalAlpha = la;
+    label(ctx, this.head, cx, y + pad + R.capH / 2, FONT.small, P.textMute);
+    L.lines.forEach((ln, i) => label(ctx, ln, cx, y + pad + R.capH + R.lineH * (i + 0.5), FONT.mid, P.textDark));
+    ctx.globalAlpha = 1;
+    if (!done) return;
+    const sy = this.statY(L), my = sy + R.statH / 2 + R.metaH / 2, k = pop(t, J.cardSlideSec, 0.7);
+    plabel(ctx, PCT[p.pct], x + sp, sy, k, FONT.big, P.textDark, 'left');
+    for (let i = 0; i < 5; i++) {
+      const sx = this.starX(L, i), sk = i < p.stars ? clamp((t - (J.starDelay + i * J.starStagger)) / J.starSec, 0, 1) : 0;
+      if (sk > 0) drawStar(ctx, sx, sy, R.starR * ease.outBack(sk), true); else drawStar(ctx, sx, sy, R.starR * k, false);
+    }
+    const extra = p.ruined ? `Ruined: ${SLIPWORD[T.maxSlips] || T.maxSlips} slips` : S.st.parts ? `Landings ${p.cleanLand} / ${p.landings} clean` : null; // a blot counts as a slip
+    label(ctx, this.bestStr, x + sp, my - (extra ? R.metaLineH / 2 : 0), FONT.small, P.textMute, 'left');
+    if (extra) label(ctx, extra, x + sp, my + R.metaLineH / 2, FONT.small, p.ruined ? P.textDark : p.landings > 0 && p.cleanLand === p.landings ? P.stamp : P.textMute, 'left');
+    if (p.clean && t >= this.sweepAt) this.drawStamp(ctx, x + w - sp - A.card.stampW * R.stampScale / 2, my, pop(t - this.sweepAt, J.cleanPopSec, 0) * R.stampScale);
+  },
+  // The badge tickets over the card, the lowest one ending at `bottom`: a paper strip per new badge (up to max, the highest tier nearest the card) with the tier's medal and the badge's name; "+n" counts the ones
   // that did not fit. Each pops in a beat after the one below it.
-  drawBadge(ctx, E, panelY, age) {
+  drawBadge(ctx, E, bottom, age) {
     const B = A.badge, L = A.line, bg = this.p.newBadges, n = Math.min(bg.length, S.tickets), w = Math.min(B.w, E.w - 2 * A.card.pad), h = B.h, cx = E.w / 2;
     for (let i = 0; i < n; i++) {
-      const cy = panelY - 8 - h / 2 - i * (h + B.gap), k = pop(age - i * B.stagger, B.popSec, 0.5);
+      const cy = bottom - h / 2 - i * (h + B.gap), k = pop(age - i * B.stagger, B.popSec, 0.5);
       if (age - i * B.stagger < 0) continue;
       ctx.save(); ctx.translate(cx, cy); ctx.scale(k, k);
       ctx.globalAlpha = L.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, -w / 2 + L.shadowDx, -h / 2 + L.shadowDy, w, h, 8); ctx.fill(); ctx.globalAlpha = 1;
@@ -2352,6 +2459,7 @@ const over = {
   // A rank earned on this piece shows Rita's card first (once per rank), then goes where the player was going.
   go(E, scene, params) { const r = this.p.rankUp; if (r) E.setScene('rank', { rank: r, next: scene, params }); else E.setScene(scene, params); },
   onTap(p, E) {
+    if (this.z < this.zoomEnd) { if (this.z >= A.reveal.tapGuard) this.z = this.zoomEnd; return; } // the first tap jumps to the end of the zoom
     if (this.t < this.buttonsAt || !this.btnMain) return;
     if (E.hit(this.btnMain, p)) {
       E.audio.play('tap');
@@ -2506,87 +2614,7 @@ const story = {
   },
 };
 
-// The reveal (PRD v0.7 C): after the finish, the view zooms out from the skin to the client. Your piece (ink, slips) shrinks into the skin patch of the client's portrait, the
-// portrait fills the card, the face reacts to the result, one line under it. The first tap jumps to the end frame (face and line showing), the next leaves for the result card.
-const PV = { s: 1, ox: 0, oy: 0 }; // the piece's view in the portrait's frame
-const reveal = {
-  enter(E, p) {
-    this.p = p; this.t = 0; this.cued = false; this.guardT = 0; this.c = castOf(S.st); this.mood = moodOf(p.over.stars, p.over.failed);
-    const pool = REACT[this.mood];
-    this.line = pool[Math.floor(Math.random() * pool.length)]; // which of the pool is cosmetic
-    this.L = { px: 0, py: 0, pw: 0, ph: 0, sy: 0, sh: 0, lines: null };
-    loadClient(this.c.id);
-  },
-  // The portrait card, as big as fits above the line strip; the card and the strip are centred together.
-  layout(E) {
-    const R = A.reveal, L = this.L, m = A.menu.margin, F = R.frame, availH = E.h - E.safe.top - E.safe.bottom - R.top - R.bottom;
-    const w0 = Math.min(R.portraitMaxW, E.w - 2 * m - 2 * F), lines = wrapText(this.line, w0 + 2 * F - 2 * R.stripPad, FONT.mid), sh = lines.length * R.lineH + 2 * R.stripPad;
-    const pw = Math.min(w0, ((availH - 2 * F - R.gap - sh) * 3) / 4), ph = (pw * 4) / 3, total = ph + 2 * F + R.gap + sh;
-    L.pw = pw; L.ph = ph; L.px = (E.w - pw) / 2; L.py = E.safe.top + R.top + Math.max(0, (availH - total) / 2) + F; L.sy = L.py + ph + F + R.gap; L.sh = sh; L.lines = lines;
-    return L;
-  },
-  update(dt, E) {
-    const R = A.reveal;
-    this.t += dt;
-    if (!this.cued && this.t >= R.zoomSec * R.crossTo) { this.cued = true; E.audio.play(R.cue[this.mood], R.cueVol); } // one soft cue as the face shows
-    if (this.t >= R.zoomSec + R.holdSec) this.leave(E);
-  },
-  leave(E) { E.setScene('over', this.p.over); },
-  onTap(p, E) {
-    const R = A.reveal;
-    if (E.time < this.guardT || this.t < R.tapGuard) return;
-    if (this.t < R.zoomSec) { this.t = R.zoomSec; this.guardT = E.time + R.tapGuard; } // the end frame: the face and the line are showing
-    else this.leave(E);
-  },
-  render(ctx, E) {
-    const R = A.reveal, L = this.layout(E), F = R.frame, k = clamp(this.t / R.zoomSec, 0, 1), e = ease.inOut(k), id = this.c.id, mood = this.mood;
-    ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
-    prepareCard(E);
-    const bb = bboxOf(S.idx), pv = view(E), pt = patchIn(id, mood, L.px, L.py, L.pw, L.ph);
-    const sf = Math.min(pt.w / bb.w, pt.h / bb.h), z = Math.pow(pv.s / sf, 1 - e); // zoom: the piece is as big as it was in play at the start, as big as the patch at the end
-    const ppx = pv.ox + bb.cx * pv.s, ppy = pv.oy + bb.cy * pv.s; // where the piece's centre sat in play
-    const cross = ease.inOut(clamp((k - R.crossFrom) / (R.crossTo - R.crossFrom), 0, 1)); // the skin gives way to the portrait
-    ctx.save();
-    ctx.translate(ppx + (pt.cx - ppx) * e, ppy + (pt.cy - ppy) * e); ctx.rotate(-pt.r * (1 - e)); ctx.scale(z, z); ctx.translate(-pt.cx, -pt.cy);
-    const lk = A.line;
-    ctx.globalAlpha = lk.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, L.px - F + lk.shadowDx, L.py - F + lk.shadowDy + 2, L.pw + 2 * F, L.ph + 2 * F, lk.radius); ctx.fill(); ctx.globalAlpha = 1;
-    ctx.fillStyle = P.paper; ctx.beginPath(); rr(ctx, L.px - F, L.py - F, L.pw + 2 * F, L.ph + 2 * F, lk.radius); ctx.fill();
-    ctx.save();
-    ctx.beginPath(); ctx.rect(L.px, L.py, L.pw, L.ph); ctx.clip();
-    if (cross < 1) { // the piece as it was on the skin, turned with the limb, shrinking into the patch
-      PV.s = sf; PV.ox = pt.cx - sf * bb.cx; PV.oy = pt.cy - sf * bb.cy;
-      ctx.save(); ctx.translate(pt.cx, pt.cy); ctx.rotate(pt.r); ctx.translate(-pt.cx, -pt.cy);
-      drawPiece(ctx, E, PV, J.cardSlideSec * 0.99);
-      ctx.restore();
-    }
-    if (cross > 0) { // the client, with your ink on the skin (multiply, so the skin shows through) and the slips over it
-      ctx.globalAlpha = cross;
-      drawPortrait(ctx, id, mood, L.px, L.py, L.pw, L.ph);
-      syncInk(E, view(E).s);
-      const bx = Math.max(0, bb.x0 - A.ink.blitMargin), by = Math.max(0, bb.y0 - A.ink.blitMargin), bw = Math.min(T.designW, bb.x1 + A.ink.blitMargin) - bx, bh = Math.min(T.designH, bb.y1 + A.ink.blitMargin) - by, ik = S.layer.width / T.designW;
-      ctx.save();
-      ctx.translate(pt.cx, pt.cy); ctx.rotate(pt.r); ctx.scale(sf, sf); ctx.translate(-bb.cx, -bb.cy);
-      ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = cross * R.inkAlpha;
-      ctx.drawImage(S.layer, bx * ik, by * ik, bw * ik, bh * ik, bx, by, bw, bh);
-      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = cross;
-      drawMarks(ctx);
-      ctx.restore();
-      ctx.globalAlpha = 1;
-    }
-    ctx.restore();
-    ctx.strokeStyle = P.ink; ctx.lineWidth = lk.weight; ctx.beginPath(); rr(ctx, L.px - F + 3, L.py - F + 3, L.pw + 2 * F - 6, L.ph + 2 * F - 6, lk.radius - 3); ctx.globalAlpha = 0.8; ctx.stroke(); ctx.globalAlpha = 1;
-    ctx.restore();
-    const la = clamp((this.t - R.lineFrom) / R.lineFade, 0, 1);
-    if (la > 0) { // the client's line, on a paper strip under the card
-      const sw = L.pw + 2 * F, sx = L.px - F;
-      ctx.globalAlpha = la;
-      ctx.fillStyle = P.paper; ctx.beginPath(); rr(ctx, sx, L.sy, sw, L.sh, lk.radius); ctx.fill();
-      ctx.strokeStyle = P.ink; ctx.lineWidth = lk.weight; ctx.globalAlpha = la * 0.8; ctx.stroke(); ctx.globalAlpha = la;
-      L.lines.forEach((ln, i) => label(ctx, ln, E.w / 2, L.sy + R.stripPad + R.lineH * (i + 0.5), FONT.mid, P.textDark));
-      ctx.globalAlpha = 1;
-    }
-  },
-};
+const PV = { s: 1, ox: 0, oy: 0 }; // the piece's view in the portrait's frame (the zoom in the client's result card)
 
 // The rank-up card (PRD v0.7 D): Rita, once per rank, between the result card and wherever the player was going.
 const rank = {
@@ -2762,7 +2790,7 @@ export const game = {
     { label: 'Tight', values: { timerMultEarly: 1.6, timerMultMid: 1.6, timerMultBoss: 1.6, timerMultFinal: 1.6, timerMultSkull: 1.35, timerGlobalMult: 1 } }, // the skull's standard 1.35 is already tighter than 1.6
   ],
   start: 'menu',
-  scenes: { menu, play, reveal, over, rank, missions, folio, story },
+  scenes: { menu, play, over, rank, missions, folio, story },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
   sim: { stencils: STENCILS, prep: prepStencil, landings: () => S.landings, cleanLand: () => S.cleanLand, parts: () => (S.g.part ? S.partDone.slice() : null), partPct: () => S.partN.map((n, i) => (100 * n) / S.g.partTotal[i]), timerFor, dailyTimer: () => dailyTimer(DAILY_ST), skins: () => ({ machine: SK.m.id, ink: SK.i.id }), percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, time: () => S.time, total: () => S.total, grid: () => S.g, radius: () => S.r, tickets: () => S.tickets, maxR: () => S.maxR, lifts99: () => S.lifts99, hint: () => S.hint, computeHint },
 };
