@@ -66,5 +66,4 @@ The designer, after playing: "It's too bad that we see the person we tattooed fo
 - **The reveal no longer hands over to a separate result card.** Its end frame becomes the result card: the client's portrait, wearing your piece, stays as the card's main picture for as long as the card is up. It is sized as large as fits beside or above the stars.
 - **The rest of the card** fits around the portrait: the stars, the badge reveal, the client's line and the buttons (Retry, Next, Menu), all clear of the face and the piece.
 - **Taps.** The first tap jumps to the end of the zoom, as before. After that, the card waits for a button and never moves on by itself.
-- **The face changes with a better result.** A retry that beats the stars swaps to the better face, with the soft cue.
 - **Layouts** must fit at 360x640, 390x844 and 430x932 without overlap.
