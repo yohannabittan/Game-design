@@ -5,7 +5,7 @@
 | Slug | `arena` |
 | Version | 0.3 (v2) |
 | Date | 2026-10-12 |
-| Status | **draft 3**, for the designer |
+| Status | **draft 3**; **step 1 locked 2026-10-12** ("Go for it"), the rest stays a draft |
 
 **Basis:**
 - v1 (`prd-v0.2.md`, released as v1.5) and its playtest (`playtests/2026-10-12-v1.md`);
@@ -263,3 +263,31 @@ Rough cost: about $40 to $50 for builds 1 to 3 (K adds about $10), plus $6 to $1
 1. **The City arena:** pairs.
 2. **Beasts:** both the lion and the bear, rolled per Colosseum beast bout, with men in the other bouts and a bestiarius as champion.
 3. **The veteran:** kept, capped as in E.
+
+## Step 1 (locked 2026-10-12): one arena, the new deck and the armourer's tent
+
+The designer asked: "How long to start with just one arena, with the armourer's tent and cards?" Then: "Go for it." Step 1 is one Opus build, reviewed. It plays in the Pit as now: no new arenas, no tight ring, no beasts, no crowd meter, no fame or ludus, and no art.
+
+- **K, the deck, with four families:** the Wall, Blood, the Dancer and the Brute, about 6 cards each.
+  - Momentum and Bleed (K1), the four finishers (K3) and 4 duos (K4), one per meeting of these families. The Trickster and the Showman, and their duos, wait for a later step.
+  - **Dealing (K5):** five picks a run, the pull toward held families, at most two from one family, and one priced card per pick.
+  - **The start card:** a soldier gets the Wall, a horseman the Dancer, a farmer the Brute and a sailor Blood. A baker and a scribe keep their v1 perk until their families arrive. All four families are open from the first run, since there is no ludus yet.
+  - The card lab (dev channel only).
+  - The guard rails (K6).
+  - Kept cards (Riposte, Blur, Heavy Arm) move into their families. Kept rares that fit no family stay in the deck as plain rares: Executioner becomes the Execute finisher, and Unbreakable stays.
+- **B, crippling him.**
+- **Gold without the crowd meter:**
+  - a fixed sum per fell;
+  - a bonus for each feint read, perfect block and slot hit;
+  - a bigger bonus for a bout with no hits taken.
+  
+  It is shown as "+34 gold" on the grade card, and all the numbers are in TUNING. Gold resets each run. With no fame yet, leftover gold only shows on the end card.
+- **D, the priced card and the armourer's tent** (once a run, after bout 3), including the old "+20%" cards as cheap wares.
+- **G, saves:** `saveVersion` bump. `migrate` keeps the rival, the pit wall, the feint lesson and the bouts seen. A run saved mid-gauntlet on v1 restarts at bout 1 of a new run (simplest option: its picks were made from the old deck).
+- **Acceptance, step 1:**
+  - every card does what its line says (checked with the card lab);
+  - the naked run still holds;
+  - the draft, the priced card, the tent, the Momentum pips and the bleed drops do not overlap at 667x375, 844x390 or 932x430;
+  - `npm run smoke` passes;
+  - frame time is no worse than arena-v17;
+  - the designer's runs judge the rest.
