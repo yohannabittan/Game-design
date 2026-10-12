@@ -108,7 +108,7 @@ One tap per beat, with Skip visible. Replayable from Story once seen.
   - a book.
 
   Clear it and Pat smiles: "'Look at every bag. Even mine.'" Flagging it is a false alarm, as for any clean bag, and Pat laughs: "'Good. Never trust a supervisor.'" Only existing items and rules are used. The bubble is the only new thing.
-- **Grandma Rose and Mr Abernathy** keep their v0.3 lines. On day 10 each adds one goodbye line for Pat when cleared: "Give the little ones a hug, Pat!" and "Safe travels, Supervisor!"
+- **Grandma Rose and Mr Abernathy** keep their v0.3 lines. On day 10 each adds one goodbye line for Pat: Rose's when cleared, "Give the little ones a hug, Pat!". Abernathy carries the contraband snow globe from day 5 and stays as he is, so his line fires when he is caught: "Safe travels, Supervisor! Sorry about the globe."
 
 ## E. The ending (day 10 cleared, the first time; animated, before the board)
 

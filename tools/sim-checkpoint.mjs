@@ -14,7 +14,7 @@
 // 5. Human models (expert, good, average, novice) with a split-attention lane model: a first-timer (average reader) clears day 1 (H3),
 //    and days 2 to 10 stay clearable.
 // 6. Render: no red before a strike, materials alone decide a part's colour, text 14 px and up on every screen (H6).
-// 7. Determinism at 30, 60 and 120 fps with lever pulls, body taps and SWAT (H1); save migration v1, v2 and v3 to v4 (H5); misc.
+// 7. Determinism at 30, 60 and 120 fps with lever pulls, body taps and SWAT (H1); save migration v1 to v4 to v5 (H5); misc.
 // 8. Amendment J: whom the arch beeps for (share by day, mostly harmless metal), sound plus light on every beep and no scan without one (J4),
 //    bests only on cleared days, the SWAT cap, a missed body critical ending the day at the arch, the lighter, the banner clear of the belt.
 //    The human table also prints each day's clear and breach rates for the average and novice readers against v0.2 on the same seeds.
@@ -507,12 +507,15 @@ console.log('\nDeterminism: same seed and tap times at 30, 60 and 120 fps (lever
   const sh = sim.readShifts(e);
   const kept = sh[1].best === 4200 && sh[1].stars === 3 && sh[2].best === 1500 && sh[2].stars === 2 && m3.unlocked === 3 && m3.career.swats === 2 && m3.career.breaches === 3;
   const cleaned = m3.shifts[4].best === 0 && m3.shifts[4].stars === 0 && m2.shifts[3].best === 0 && m2.shifts[1].best === 4200 && m2.shifts[2].best === 900;
-  const ok = game.saveVersion === 4 && kept && cleaned && m2.unlocked === 3 && m2.career && m2.career.swats === 0 && m1.unlocked === 5 && m1.shifts[4].best === 77 && m1.career.vic === 0;
+  const v4 = { shifts: { 1: { best: 4200, stars: 3 } }, unlocked: 2, career: { swats: 0, vic: 0, breaches: 0 } }, v4b = { shifts: { 1: { best: 100, stars: 3 }, 8: { best: 900, stars: 2 } }, unlocked: 9, career: { swats: 0, vic: 0, breaches: 0 } }, v4c = { shifts: { 10: { best: 900, stars: 1 } }, unlocked: 10, career: { swats: 0, vic: 0, breaches: 0 } }, v4n = {};
+  const n4 = game.migrate(JSON.parse(JSON.stringify(v4)), 4), n4b = game.migrate(JSON.parse(JSON.stringify(v4b)), 4), n4c = game.migrate(JSON.parse(JSON.stringify(v4c)), 4), n4n = game.migrate(v4n, 4);
+  const story5 = n4.openSeen === true && n4.turnSeen === false && n4.endSeen === false && n4b.turnSeen === true && n4c.turnSeen === true && n4c.endSeen === false && n4n.openSeen === false && n4n.turnSeen === false;
+  const ok = story5 && game.saveVersion === 5 && kept && cleaned && m2.unlocked === 3 && m2.career && m2.career.swats === 0 && m1.unlocked === 5 && m1.shifts[4].best === 77 && m1.career.vic === 0;
   const menu = game.scenes.menu; menu.enter(e); recordRender(e, menu);
   const open = menu.cells.filter((c) => c.open).map((c) => c.shift).join(',');
   const bad = [null, 'x', 7, [], { a: 1 }, { 1: null }, { 2: { best: 'a', stars: 9 } }];
   const hardened = bad.every((v) => { try { const c = sim.cleanShifts(v); return Object.values(c).every((r) => Number.isFinite(r.best) && r.stars >= 0 && r.stars <= 3); } catch { return false; } }) && sim.cleanCareer('x').swats === 0;
-  gate('H5', 'Saves migrate (stars, best scores, unlocked kept)', `saveVersion 4; a v3 save keeps day 1 4200/3 stars, day 2 1500/2 stars, unlocked 3 (menu opens days ${open}) and its career, and loses only the best of a day never cleared (day 4: 6100 with no stars becomes none); a v2 save likewise gains a career record; a v1 save unlocks one past its highest starred day; malformed saves read as empty`, ok && open === '1,2,3' && hardened);
+  gate('H5', 'Saves migrate (stars, best scores, unlocked kept)', `saveVersion 5; a v4 save migrates with openSeen true if played, turnSeen true once day 8 is cleared, endSeen false even with day 10 cleared (a fresh save has none seen); a v3 save keeps day 1 4200/3 stars, day 2 1500/2 stars, unlocked 3 (menu opens days ${open}) and its career, and loses only the best of a day never cleared (day 4: 6100 with no stars becomes none); a v2 save likewise gains a career record; a v1 save unlocks one past its highest starred day; malformed saves read as empty`, ok && open === '1,2,3' && hardened);
   // Recording a result keeps the best, unlocks the next day and counts SWAT calls in the career.
   const e3 = makeE(); e3.save.d = game.migrate(JSON.parse(JSON.stringify(v2)), 2);
   const r = run(3, seedOf('save', 3, 0), 60, fastBot(false), null, e3);
