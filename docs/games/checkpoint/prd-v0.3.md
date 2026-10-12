@@ -1,6 +1,6 @@
 # Checkpoint PRD v0.3: get the flight home safe
 
-Status: locked 2026-10-05 from the story plan the designer approved (`docs/story-plan.md`, Checkpoint; "the flight didn't take off"). Builds on v0.2 with K-lean. Cast: `docs/games/checkpoint/world.md`. Drive: protection. Rules, scoring, items, timings and ranks do not change. **Build after Pack 10 lands, or with the fallbacks.**
+Status: superseded by prd-v0.4.md (2026-10-12); was locked 2026-10-05 from the story plan the designer approved (`docs/story-plan.md`, Checkpoint; "the flight didn't take off"). Builds on v0.2 with K-lean. Cast: `docs/games/checkpoint/world.md`. Drive: protection. Rules, scoring, items, timings and ranks do not change. **Build after Pack 10 lands, or with the fallbacks.**
 
 ## A. The cold open (first launch only)
 

@@ -1,6 +1,6 @@
 # Checkpoint PRD v0.4: Pat's Last Week
 
-Status: **draft 2**, for the designer (2026-10-12). Draft 1 was asked to "make the emotional momentum in the narrative a bit better".
+Status: locked 2026-10-12 by the designer ("Go"). Draft 1 was asked to "make the emotional momentum in the narrative a bit better", and draft 2 is this one.
 
 **Where it comes from:** the arc pitched with Lumen and Sam, Backlot 88 and Rita's Swallow (protection, and passing the torch), in the Launch v0.6 style.
 
