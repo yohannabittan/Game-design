@@ -2,7 +2,7 @@
   {
     "slug": "gravity-golf",
     "title": "Gravity Golf",
-    "status": "v0.5: fifteen holes with planets, suns, comets and black holes; missions, ball skins, gravity presets; influence ring and ghost",
+    "status": "v0.14: forty holes in eight sectors, with magnetars that push and a gamma chase; the Lumen and Sam story, the Probe Log, badges and Expert",
     "release": true
   },
   {
@@ -34,7 +34,8 @@
   {
     "slug": "arena",
     "title": "Arena",
-    "status": "v0.1 in progress",
-    "release": false
+    "status": "v1: roll a gladiator on the wheels of fate, then fight a gauntlet of five; read tells and feints, slip the blade into armour gaps, draft upgrades between bouts",
+    "release": true,
+    "orientation": "landscape"
   }
 ]

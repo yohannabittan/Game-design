@@ -1,12 +1,18 @@
-// Launch: an apricot mochi flung from a bakery counter toward his love, the daifuku, at 5000 m (PRD v0.2 E): a needle launch,
-// then tap to boost, bounce off jellies and birds, ride geysers and wafers, pass clouds, stop or stick in caramel; a card with
-// goals that pay. The code keeps the v0.1 names for the physics objects: a `spring` is a mint jelly, `mud` is a caramel pit,
-// a `ramp` is a wafer, coins are sugar (cubes), and the slingshot is the chopsticks with a licorice band.
-// Before launch a needle sweeps a wedge at the launcher; a tap stops it and launches at its angle, with the power of the zone
-// it stopped in (PRD v0.2 A). World units: x to the right from the slingshot fork, y is height above the ground (10 units =
-// 1 m). The critter's y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight time, and the
-// needle's angle is a function of the time since the launcher was ready, so the same seed, tap time and boost times give the
-// same flight at any frame rate (ADR-0008). tools/sim-launch.mjs drives game.sim.
+// Launch: an apricot mochi fired from the Mochi Maker 3000, a steampunk machine at the bakery, toward his love, the daifuku,
+// at 5000 m (PRD v0.3, v0.4). Two beats launch him: the barrel sweeps and a tap locks its angle, then a pressure gauge
+// swings and a tap fires with the power of the zone it stopped in. In flight one thumb has three actions, decided by the
+// first gestureWindow of a press: hold to boost (cola thrust along the flight, drains fizz), swipe up and hold to glide (the
+// mochi's own dough stretched flat into a wing, turning fall into forward speed, spending height for distance), swipe down
+// to slam (drop fast; the impact relaunches by what it meets: a jelly's centre pays, plain ground and marshmallow cost, a
+// hill's downhill face rockets, its uphill face crashes). Jellies, geysers and birds in a row make a combo that kicks the
+// speed. Thermals lift a glider and freezer vents push it down. The mochi bounces and skims off plain ground; jellies,
+// birds, geysers, wafers and clouds as in v0.2; caramel stops him. The code keeps the v0.1 names for the
+// physics objects: a `spring` is a mint jelly, `mud` is a caramel pit, a `ramp` is a wafer, coins are sugar, `chute` is the
+// glider and `ball` the condensed slam. World units: x to the right from the machine's pivot, y is height above the ground
+// (10 units = 1 m); the critter's y is the bottom of its body. Physics runs in fixed steps with inputs stamped in flight
+// time; the barrel's angle is a function of the time from ready to the first tap, the gauge's reading of the time from the
+// lock to the second tap and the flight's seed, so the same seed, tap times and gestures give the same flight at any frame
+// rate (ADR-0008). tools/sim-launch.mjs drives game.sim.
 
 import { makeRng, clamp, ease } from './engine.js';
 
@@ -17,183 +23,293 @@ const TUNING = {
   groundY: 300,            // design y of the ground line
   physicsStep: 1 / 120,
 
-  // The needle launch (PRD v0.2 A): a triangle wave from needleMin up to needleMax and back in needlePeriod, starting at
-  // the bottom. Zones are graded around sweetAngle; each zone launches at its share of launchSpeedMax (Band applied).
-  needleMin: 10,           // degrees
-  needleMax: 80,
-  needlePeriod: 1.6,       // seconds for one sweep up and back, base Steady
-  sweetAngle: 38,          // the gold, set on the real field (tools/sim-launch.mjs --rank): the ranking and the first-timer targets hold here
-  zonePerfect: 3,          // degrees either side of sweetAngle
-  zoneGreat: 8,
-  zoneGood: 15,
-  zoneScale: 1,            // every zone's width x this (the TUNE panel's one zone slider)
-  zonePower: [1.2, 1.05, 0.8, 0.8], // Perfect, Great, Good, Weak at the Good edge (x launchSpeedMax, Band applied): above 1 launches
-                           // past full power, so the launch carries the ranking (decision after Build 1 round 2)
-  weakPowerMin: 0.55,      // Weak's power at the wedge's ends (it ramps up to zonePower Weak at the Good edge)
-  perfectFuel: 2,          // free boost pulses for the flight after a Perfect launch (PRD 1: its payoff with boosts, amendment 1)
-  readyGrace: 0.3,         // seconds after the launcher is ready when taps are ignored (a double tap on Launch Again)
+  // The Mochi Maker 3000 (PRD v0.3 A). Beat 1: the barrel sweeps from aimMin up to aimMax and back at a constant angular
+  // speed (period aimPeriod), from aimMin when the machine is ready; a tap locks it. Beat 2: the gauge swings 0 to 1 and back
+  // in gaugePeriod; its start phase and a small change of speed (gaugeJitter) are seeded per flight, so the fire tap is read,
+  // never a memorised rhythm. Zones are half-widths around gaugeSweet in gauge units: Perfect, Great, Good; Weak elsewhere.
+  aimMin: 12,              // degrees
+  aimMax: 70,
+  aimPeriod: 2.4,          // seconds for one sweep up and back
+  gaugePeriod: 0.9,
+  gaugeJitter: 0.12,       // the gauge's period x (1 +- this), seeded per flight
+  gaugeSweet: 0.78,
+  zoneHalf: [0.03, 0.09, 0.19],
+  zoneScale: 1,
+  zonePower: [1.2, 1.05, 0.88, 0.78], // Perfect, Great, Good, Weak at the Good edge (x launchSpeedMax, Spring Coil applied)
+  weakPowerMin: 0.55,      // Weak's power at the gauge's ends (it ramps up to zonePower Weak at the Good edge)
+  perfectFuel: 1,          // a Perfect launch tops the tank up by this many pips
+  streakSpeedup: 0.08,     // each Perfect in a row: the gauge this much faster ...
+  streakPower: 0.04,       // ... and a Perfect launch this much stronger,
+  streakCap: 5,            // up to this many steps; any other zone resets the streak
+  readyGrace: 0.3,         // seconds after the machine is ready when taps are ignored (a double tap on Launch Again)
+  gaugeGrace: 0.15,        // ... and after the barrel locks (a double tap must not fire at once)
+  steadySlow: 0.12,        // Steady Gauge: gauge period / (1 - 0.12 per level) ...
+  steadyWiden: 0.012,      // ... and every zone this much wider each side per level
+  pivotH: 78,              // the barrel's pivot above the ground (units) ...
+  barrelLen: 44,           // ... and its length: the mochi leaves from its mouth
   goalSlots: 3,            // goals active at a time (PRD v0.2 B)
   ticketCap: 3,            // reward tickets on the card before "+n more" (principle 11, rule 6)
-  steadySlow: 0.12,        // Steady: needle speed x (1 - 0.12 per level)
-  steadyWiden: 1,          // ... and every zone 1 degree wider each side per level
 
-  // PRD section 16
-  launchSpeedMax: 700,     // launch speed of a Perfect launch, base Band (units/s)
-  gravity: 520,            // units/s²
-  airDrag: 0.025,          // fraction of speed lost per second in air, base Aero (PRD 0.035: see the changelog)
-  groundFriction: 0.35,    // fraction of horizontal speed lost per ground touch
-  groundBounce: 0.35,      // vertical speed kept on a plain ground touch
-  springBounce: 1.25,      // vertical speed multiplier on a spring
-  springMin: 380,          // a spring always launches at least this fast
-  birdLift: 320,           // upward speed given by a bird bounce
-  boostPulse: 110,         // speed added per tap along the flight direction
-  fuelMax: 5,              // pulses in a full tank, base Fuel
-  stopSpeed: 25,           // below this for stopTime ends the flight
+  launchSpeedMax: 720,     // launch speed of a Perfect launch at base (units/s)
+  gravity: 440,            // units/s²
+  airDrag: 0.015,           // fraction of speed lost per second in air, base Glaze
+
+  // Bounce (PRD v0.3 C): a plain-ground touch keeps groundBounce of the fall speed and, of the horizontal speed, skimKeep for
+  // a grazing touch down to groundKeep for a straight-down one; a grazing touch also hops on skimLift of its horizontal
+  // speed, so a fast flat mochi skips like a stone. Under settleSpeed it slides.
+  groundBounce: 0.66,
+  groundKeep: 0.82,
+  skimKeep: 0.95,
+  skimLift: 0.12,
+  settleSpeed: 45,
+  slideFriction: 0.8,      // sliding speed decays as exp(-slideFriction x seconds)
+  springBounce: 1,         // a jelly touched without a slam gives this times the fall speed back ...
+  springMin: 300,          // ... and always at least this
+  maxBounce: 1000,         // no bounce leaves faster than this
+  birdLift: 340,           // upward speed given by a bird bounce
+  stopSpeed: 25,           // horizontal speed under this for stopTime ends the flight (on the ground, or at the next touch)
   stopTime: 0.5,
-  unitsPerMetre: 10,
-  coinPer10m: 1,
-  chainSteps: [1, 1.5, 2, 3], // coin multiplier by consecutive springs or birds
-  birdCoins: 5,
-  milestones: [500, 1000, 2000, 3500, 5000], // metres
-  milestoneBonus: [25, 50, 100, 200, 400],   // one-time sugar, first time each milestone is passed (coins are sugar since v0.2)
+  maxFlight: 240,          // seconds: a safety stop only (tools/sim-launch.mjs --stuck: no flight reaches it)
 
-  // The shop (PRD section 8, v0.2 D): five upgrades, three levels each, bought with sugar between flights. The play scene flies
-  // at the saved levels; `upgrades` is the harness's default set (tools/sim-launch.mjs flies every set through the real physics).
-  upgradePrices: {         // sugar for levels 1, 2, 3 of each upgrade (PRD 50, 150, 400 for all: see the changelog)
-    band: [450, 700, 1000],   // v0.2: half as much again, so the good profile clears the shop no sooner than flight 40 (amendment 5)
-    fuel: [1650, 1950, 2250], // Fuel is the strongest buy per level: priced so it is not always the first one
+  // Three flight actions (PRD v0.3 B). A press is decided by its first gestureWindow: a swipe up or down of swipeMin CSS px
+  // glides (held) or slams, otherwise it boosts (held: until release; a quick tap: tapBurst seconds).
+  gestureWindow: 0.1,
+  swipeMin: 22,
+  tapBurst: 0.2,
+  boostThrust: 1000,       // units/s² along the flight while boosting (never pointing below boostFloor degrees), fading
+  boostTop: 1100,          // to nothing at this speed: fizz bends a slow arc hard and adds little to a fast one
+  boostFloor: 0,
+  boostDrain: 2.5,         // pips of fizz per second of boost
+  fuelMax: 5,              // pips in a full tank, base Fizz Tank
+  // The dough glider (PRD v0.4 A, I1: the mochi himself stretched flat into a wing): above stallSpeed, fall faster than glideSink turns into forward speed (speed kept, only
+  // its direction turns, at glideGrip per second) and the wing's drag is gravity / glideRatio along the flight, so a steady
+  // glide covers glideRatio metres per metre of height. Slower, it stalls: it floats down at glideSink and drifts, bleeding
+  // chuteBleed of its horizontal speed a second down to stallDrift. Opening it while falling faster than flareMin flares:
+  // the fall above glideSink becomes an upward pop of flare x it.
+  glideRatio: 4.5,
+  glideSink: 70,
+  glideGrip: 14,
+  stallSpeed: 240,
+  stallDrift: 60,
+  chuteGrip: 6,
+  chuteBleed: 0.5,
+  flare: 0.4,
+  flareMin: 300,
+  // The slam (PRD v0.4 A): a condense drops at least condenseDrop at once and falls under gravity x condenseGrav. Its impact
+  // is the energy it had when it condensed (the speed it would meet the ground with: higher hits harder), plus a boost held
+  // while condensed. It relaunches at slamAngle with that x the surface's factor x slamPower, capped at maxSpeed: plain
+  // ground slamGround (the miss), a jelly slamJelly in its centre band (jellySweet of its width, refilling slamFizz pips)
+  // falling to slamGround at its edge, a hill's downhill face slamDown at the flat slamDownAngle (the rocket), its uphill
+  // face slamUp (the crash), marshmallow slamMarsh (it swallows the bounce).
+  condenseDrop: 620,
+  condenseGrav: 1.4,
+  slamAngle: 40,
+  slamPower: 1,
+  slamGround: 0.72,
+  slamJelly: 1.08,
+  jellySweet: 0.4,
+  slamFizz: 1,
+  slamDown: 1.18,
+  slamDownAngle: 24,
+  slamUp: 0.3,
+  slamUpAngle: 62,         // the crash pops it up steeply, its forward speed gone
+  slamMarsh: 0.22,
+  slamBoost: 0.5,          // a boost held while condensed adds this x its thrust to the impact
+  maxSpeed: 1500,
+  // The combo (PRD v0.4 I3): jellies, geysers and birds in a row, with no plain ground, caramel or marshmallow between (any
+  // mix), build x2, x3, x4 ... Each step from x2 kicks the forward speed by comboKick (+ comboKickStep per further step, at
+  // most comboKickMax), fading to nothing as the speed nears maxSpeed (so a long chain levels off, like the boost), and refills
+  // comboFizz pips (+ comboFizzStep, at most comboFizzMax).
+  comboKick: 80,
+  comboKickStep: 25,
+  comboKickMax: 240,
+  comboFizz: 0.3,
+  comboFizzStep: 0.15,
+  comboFizzMax: 0.75,
+  // Never the wrong way (PRD v0.4 I5): no contact leaves the mochi moving backwards. A crash on an uphill face, a wafer or a
+  // hill keeps at least crashKeep of forward speed.
+  crashKeep: 60,
+  // Marshmallow (a light touch): rolls off slow, keeping marshKeep of the horizontal speed and marshBounce of the fall.
+  marshKeep: 0.55,
+  marshBounce: 0.15,
+  // Oven-vent thermals and freezer vents (PRD v0.4 B): a column ventH tall over the vent. Gliding inside a thermal lifts at
+  // thermalLift (more than gravity: a rise); inside a freezer column the wing ices (no glide) and it is pushed down at
+  // freezerPush. Not gliding, ventLoose of either.
+  ventH: 520,              // columns reach about the height of a good lob (PRD v0.4 I7), so gliding over them is no answer
+  thermalLift: 1000,
+  freezerPush: 700,
+  ventLoose: 0.15,
+  groundBoostAngle: 35,    // a boost on the ground hops at this angle
+
+  // The range finder (PRD v0.3 D): a dotted arc of the real physics with the current action, rangeLook seconds ahead.
+  rangeLook: 1.5,
+  rangeDot: 5,             // physics steps between dots
+
+  // The shop (PRD v0.3 A, D): six upgrades, three levels each, bought with sugar between flights; each bolts a part onto
+  // the machine. `upgrades` is the harness's default set.
+  upgradePrices: {
+    band: [450, 700, 1000],
+    fuel: [1650, 1950, 2250],
     aero: [450, 750, 1050],
     rocket: [550, 850, 1100],
     steady: [400, 600, 900],
+    scope: [400, 650, 950],
   },
   upgradeMax: 3,
-  upgrades: { band: 0, fuel: 0, aero: 0, rocket: 0, steady: 0 },
-  bandStep: 0.12,          // launchSpeedMax x (1 + 0.12 per level)
-  fuelStep: 2,             // pulses per level
-  aeroStep: 0.2,           // airDrag x (1 - 0.2 per level)
-  rocketThrust: 330,       // hold-to-boost acceleration at Rocket 1 (units/s²)
-  rocketStep: 0.25,        // thrust x (1 + 0.25 per level above 1)
-  holdFuelRate: 1.5,       // pulses of fuel burned per second of hold: 330 / 1.5 = 220 of push per fuel, twice a tap's 110
-  holdDelay: 0.15,         // a press held this long becomes a hold (the press itself already fired a pulse)
+  upgrades: { band: 0, fuel: 0, aero: 0, rocket: 0, steady: 0, scope: 0 },
+  bandStep: 0.12,          // Spring Coil: launchSpeedMax x (1 + 0.12 per level)
+  fuelStep: 2,             // Fizz Tank: pips per level
+  aeroStep: 0.2,           // Sugar Glaze: airDrag x (1 - 0.2 per level)
+  rocketStep: 0.25,        // Cola Rocket: boost thrust x (1 + 0.25 per level)
+  scopeStep: 0.6,          // Brass Telescope: rangeLook + 0.6 s per level
 
-  // Flight rules the PRD states in words
-  slingH: 36,              // launch height of the critter's bottom
   critterR: 12,
-  settleSpeed: 60,         // a ground bounce slower than this becomes a slide
-  slideFriction: 1.4,      // sliding speed decays as exp(-slideFriction x seconds)
-  groundBoostAngle: 35,    // a pulse fired on the ground hops at this angle
   rampKeep: 1,             // speed kept when a ramp redirects the critter along its slope
   birdR: 15,
   birdSwing: 50,           // birds glide back and forth this far either side of their spot
   birdPeriod: 3.2,         // seconds for one glide there and back
-  maxFlight: 150,          // seconds: a safety stop only
+  // Birds (PRD v0.4 I6): up to three a gap, one in each third of it, each in a height band: low (within a glide's reach),
+  // middle (a lob or a jelly bounce), high (only a launch or a big bounce). `chance` is per slot, `slots` where in the gap
+  // (a share of it, jittered by `jitter`), `bands` the heights in metres of a bird's centre and the weight of each. `first`
+  // puts a bird of a band in the middle slot of an early gap (gap number: band index), so every flight meets all three by
+  // about 300 m (a pity rule, principle 6).
+  birds: {
+    first: { 1: 0, 2: 1, 3: 2 },
+    chance: [0.3, 0.25, 0.2],
+    slots: [0.22, 0.5, 0.78],
+    jitter: 0.08,
+    bands: [{ y: [8, 14], w: 0.4 }, { y: [16, 26], w: 0.35 }, { y: [30, 44], w: 0.25 }],
+  },
+  unitsPerMetre: 10,
+  coinPer10m: 1,
+  chainSteps: [1, 1.5, 2, 3], // coin multiplier by consecutive springs or birds
+  birdCoins: 5,
+  milestones: [500, 1000, 1500, 2200, 5000], // metres: where each place after the Bakery starts (PRD v0.4 B: Soda Springs and Gingerbread Town earlier)
+  milestoneBonus: [25, 50, 100, 200, 400],
 
-  // New objects (PRD v0.2 F). A soda geyser (Soda Springs on) is a vent on the ground that erupts for geyserOn every
-  // geyserPeriod on the flight clock (each vent's phase is seeded at setup); touching its column while it erupts sends the
-  // critter up at geyserLift with its horizontal speed kept, once per vent per flight; the dormant vent is plain ground.
-  // A cotton-candy cloud (Gingerbread Town on) takes cloudDrag of the speed and refills cloudFuel pulses, once per cloud.
-  geyserOn: 0.8,
+  // A soda geyser (Soda Springs on) erupts for geyserOn every geyserPeriod on the flight clock (phase seeded at setup);
+  // its column lifts at geyserLift keeping vx, once per vent per flight. A cotton-candy cloud (Gingerbread Town on) takes
+  // cloudDrag of the speed and refills cloudFuel pips, once per cloud.
+  geyserOn: 1.6,           // PRD v0.4 I2: a long eruption, something to aim for (was 0.8)
   geyserPeriod: 2.4,
   geyserLift: 520,
-  geyserH: 200,            // the erupting column's height (units)
+  geyserH: 320,
   cloudDrag: 0.15,
   cloudFuel: 1,
-  cloudRX: 50,             // a cloud's half-width and half-height (units); the critter touches it within these plus its radius
+  cloudRX: 50,
   cloudRY: 28,
-
-  // Field
-  chunkLen: 3000,          // 300 m
-  chunkJitter: 60,         // each object's x moves up to this far (seeded); templates keep 2 x jitter clear
-  birdJitterY: 20,
-  tierFrom: [0, 1000, 2000, 3500], // metres where chunk tiers 0 to 3 start; past 2000 m more mud, fewer springs, more ramps
   lookahead: 4000,         // field generated this far ahead of the critter
 
   // Presentation
   placeBlend: 400,         // units over which the sky and hills of one place blend into the next (the ground changes at the line)
   homeAhead: 120,          // the daifuku waits this far past the Home line (units)
-  jellyCube: 34,
-  menuTitleMinH: 344,      // CSS px of safe height the menu needs to show its title above the strip, the best and three goals           // design px per jelly cube along a jelly (a long jelly is a row of cubes, never a rail)
-  wedgeR: 104,             // the needle wedge's radius from the critter's centre (design px), and its hole
-  wedgeHole: 22,
-  wedgeFade: 0.3,          // seconds the wedge fades after the launch
-  markEvery: 0.1,          // the landing marker is recomputed at most this often (seconds)
-  slingScreen: 0.2,        // slingshot at this fraction of the view width before launch
+  jellyCube: 34,           // design px per jelly cube along a jelly (a long jelly is a row of cubes, never a rail)
+  marshPuff: 44,           // design px per marshmallow pillow along a pad
+  menuTitleMinH: 344,      // CSS px of safe height the menu needs to show its title above the strip, the best and three goals
+  slingScreen: 0.26,       // the machine's pivot at this fraction of the view width before launch
   followX: 0.3,            // the camera keeps the critter at this fraction of the view width
   followXMin: 0.1,         // ... or as far left as this when the arc's landing is too far ahead for zoomMin
-  zoomMin: 0.45,           // the camera zooms out to this at most (PRD amendment after layer 1)
+  zoomMin: 0.3,
   zoomLook: 1.0,           // seconds of horizontal travel kept in view ahead of the critter
-  zoomOutTime: 0.35,       // smoothing time constants (s): zooming out is quicker than zooming back in
+  zoomOutTime: 0.35,
   zoomInTime: 0.9,
-  landMargin: 30,          // design px kept between the predicted landing and the right edge
-  skyTop: 50,              // design px at the top kept clear for the HUD
-  skyFill: 0.8,            // share of the sky (ground line to skyTop) the critter climbs into before the view zooms or pans
-  spriteMin: 0.65,         // the critter and birds never draw smaller than this zoom
-  endDelay: 0.9,           // seconds from the stop to the card
-  endDelayTaught: 2.4,     // ... when the stop shows the mud call-out, so it can be read
-  cardGrace: 0.4,          // seconds the card ignores taps after it appears (the card has slid in by then)
+  landMargin: 30,
+  skyTop: 50,
+  skyFill: 0.8,
+  trueShare: 0.5,          // above the height zoomMin fits, the lowest trueShare of the sky stays true to scale (PRD v0.4 C)
+  spriteMin: 0.65,
+  endDelay: 0.9,
+  endDelayTaught: 2.4,
+  cardGrace: 0.4,
 
-  // Art (layer 5; docs/games/launch/style.md): "flat round shapes, warm sky, soft shadows, one orange hero".
-  // The mochi is the only orange; teal is good (jellies, geyser vents, birds in pastel); dark amber is danger (caramel).
-  // Every play object has an ink outline so it reads on the light day sky, and a fill that reads on the night sky.
-  // Each place's sky by day, hills and ground are in PLACES; dusk and night (by altitude) are shared.
+  // The speedometer (PRD v0.4 I4): a brass dial at the top centre, inside the safe area. It reads the real speed in km/h-like
+  // units (10 units a second is a metre a second: kmh = 0.36 per unit a second); the needle eases over `ease` seconds, the
+  // number is exact. The dial runs from `start` degrees (canvas, clockwise from the right) round `sweep` degrees to `max`
+  // units a second; the last `red` share of it is the red zone.
+  speedo: { kmh: 0.36, max: 1500, r: 27, top: 8, start: 150, sweep: 240, red: 0.85, ease: 0.05 },
+
   palette: {
-    skyDusk: ['#f3a9b8', '#8f6fb0'],   // horizon (at the ground band), top of the view
+    skyDusk: ['#f3a9b8', '#8f6fb0'],
     skyNight: ['#4a3a78', '#1d1a3a'],
-    ink: '#2d2238',                    // outlines, ticks, text on light ground
-    critter: '#ff8a1a', critterLight: '#ffb366', eye: '#ffffff', powder: '#fff6ec', // the apricot mochi
-    teal: '#1ea896', tealLight: '#7fe0d2', tealSpent: '#8fb3ad', // good: mint jellies, geysers' vents; birds in sugared pastel
+    ink: '#2d2238',
+    critter: '#ff8a1a', critterLight: '#ffb366', eye: '#ffffff', powder: '#fff6ec',
+    teal: '#1ea896', tealLight: '#7fe0d2', tealSpent: '#8fb3ad',
     bird: '#5fcbb8', birdWing: '#a9eadf', birdRim: '#ffffff',
-    mud: '#341b08', mudDeep: '#1f0f04', mudRim: '#f6d7a4', mudBubble: '#6b3d12', mudSheen: '#9a5c16', // caramel: a sunk pit, dark amber, glossy
-    zones: ['#ffd84d', '#f59bc2', '#4a7fd4', '#584a70'], // Perfect gold, Great light rose, Good blue, Weak dark slate: never orange; a lightness ramp, so any two stay apart (CIE76 22 or more) under protan, deutan and tritan simulation
-    ramp: '#efdcb4', rampPlank: '#c9a774', // wafers
-    chop: ['#e6d2ae', '#9b2747', '#9b2747', '#f2c94c'], chopHi: ['#f6ead2', '#d65a7a', '#f2c94c', '#fff1b0'], // Steady 0 to 3: plain, lacquered, gold-tipped, gold
-    licorice: ['#d23a6e', '#a3214f', '#5e1836', '#231a24'], licoriceW: [2.5, 3.4, 4.3, 5.2], // Band 0 to 3: thicker and darker
-    glass: '#cfeaf8', soda: '#6aa8e0', cap: '#e8476a', // the Fizz Tank's bottle
-    nozzle: '#9aa0b8', cola: '#6e3626', colaRim: '#f3dcc4', fizz: '#ffffff', // the Cola Rocket; boosts fizz
-    vent: '#e6eef8', ventHole: '#3b4a6b', column: '#f2fbff', columnSpent: '#c9dad8', // soda geysers
-    cloud: '#f8bfdc', cloudBlue: '#cfe2fb', cloudUsed: '#f3dbe8', // cotton candy
-    dough: '#fff0f4', berry: '#e8476a', seed: '#ffe9a8', leaf: '#6fae5a', blush: '#f7a8bf', heart: '#ef5b8a', // the daifuku
+    mud: '#341b08', mudDeep: '#1f0f04', mudRim: '#f6d7a4', mudBubble: '#6b3d12', mudSheen: '#9a5c16',
+    zones: ['#ffd84d', '#f59bc2', '#4a7fd4', '#584a70'], // gauge zones: Perfect gold, Great rose, Good blue, Weak slate (never orange)
+    // The Mochi Maker 3000: brass and plum iron, never orange; bulbs by zone (green, amber, red; every bulb on a Perfect).
+    brass: '#c9a24a', brassLight: '#f2d98a', brassDark: '#8a6a2a', iron: '#5a4a6e', ironDark: '#3a3048', dial: '#fff8e6',
+    bulbOff: '#6e6278', bulb: ['#ffe680', '#5fd36e', '#ffcf3d', '#ff5a5a'], steam: '#ffffff', spring: '#b9c0d4',
+    ramp: '#efdcb4', rampPlank: '#c9a774',
+    glass: '#cfeaf8', soda: '#6aa8e0', cap: '#e8476a',
+    nozzle: '#9aa0b8', cola: '#6e3626', colaRim: '#f3dcc4', fizz: '#ffffff', glaze: '#f7a8c8',
+    vent: '#e6eef8', ventHole: '#3b4a6b', column: '#f2fbff', columnSpent: '#c9dad8',
+    cloud: '#f8bfdc', cloudBlue: '#cfe2fb', cloudUsed: '#f3dbe8',
+    dough: '#fff0f4', berry: '#e8476a', seed: '#ffe9a8', leaf: '#6fae5a', blush: '#f7a8bf', heart: '#ef5b8a',
     shopWall: '#fbe9d3', awning: '#f29bb5', post: '#ffffff',
-    gumdrops: ['#f7a8c8', '#aed9f0', '#c9e79f', '#f4e394'], house: ['#dcb595', '#c99c7a'], river: ['#cfa48a', '#ecd2c0'], // backdrops
-    sugar: '#fffaf0',                  // sugar cubes
-    star: '#fff6e0', coin: '#ffd84d',  // accent one: sugar text, stars, beaks
-    button: '#6b5aa6', buttonOff: '#4a3f5e', // accent two: buttons
+    gumdrops: ['#f7a8c8', '#aed9f0', '#c9e79f', '#f4e394'], house: ['#dcb595', '#c99c7a'], river: ['#cfa48a', '#ecd2c0'],
+    sugar: '#fffaf0',
+    star: '#fff6e0', coin: '#ffd84d',
+    button: '#6b5aa6', buttonOff: '#4a3f5e',
     panel: 'rgba(45,34,56,0.84)', panelSolid: '#2d2238', panelEdge: '#5a4a72',
     text: '#fff6ec', textDim: '#cbbfdc', textOff: '#8f84a3',
     shadow: 'rgba(45,34,56,0.28)', dust: '#efe2cf', white: '#ffffff', halo: '#fff6ec',
+    arc: ['#ffffff', '#bfe6ff', '#fff0d6', '#ffd2a8'], // range finder dots: plain, boosting, gliding, condensed
+    // PRD v0.4 B: oven vents warm (rose brick, sugar-yellow slots, a cream column with rose heat lines), freezer vents icy;
+    // candy-cane hills berry and white with the uphill face in shade; marshmallow white with a lilac shade (never teal).
+    ovenBrick: '#c9726b', thermal: '#ffd84d', thermalAir: '#fff0c8', thermalLine: '#f29bb5',
+    freezerBody: '#e2f2ff', freezer: '#bfe6ff', freezerAir: '#d6f0ff', freezerLine: '#6f8fb8',
+    hillShade: 'rgba(45,34,56,0.18)', marsh: '#fffaf6', marshShade: '#e9dcf0',
+    rocket: '#7fe0a8', crash: '#e8476a', miss: '#9a8fb0',
   },
-  duskAt: 120,             // metres of altitude at the top of the view where the sky is dusk ...
-  nightAt: 300,            // ... and night, with stars
-  hillFadeLift: 40,        // metres the sky has panned up by when the hills are gone
-  style: { line: 2, radius: 14 }, // outline width (design px at zoom 1) and panel corner radius (CSS px)
-  type: { sm: 14, md: 18, lg: 28, xl: 44 }, // one weight rule: numbers and titles '800', words '600'
+  duskAt: 120,
+  nightAt: 300,
+  style: { line: 2, radius: 14 },
+  type: { sm: 14, md: 18, lg: 28, xl: 44 },
 
-  // Juice (layer 3): all cosmetic, never read by the physics.
+  // Juice: all cosmetic, never read by the physics.
   juice: {
-    particleCap: 160,
-    snapTime: 0.22, kick: 3, kickTime: 0.12, dust: 10,
-    fizz: 7, fizzLife: 0.35, gaugePop: 0.25,
-    landSquash: 0.35, squashTime: 0.28,
-    springPop: 0.3, speedLines: 0.45, boingLife: 0.8,
+    particleCap: 220,
+    kick: 3, kickTime: 0.12, dust: 10,
+    fizz: 10, fizzLife: 0.45, fizzTrail: 0.75, gaugePop: 0.25,
+    landSquash: 0.35, squashTime: 0.3, bounceSquash: 0.0006, // squash per unit/s of impact
+    springPop: 0.3, speedLines: 0.45, speedLineMin: 900, boingLife: 0.8,
     feathers: 12, tumbleTime: 1.3,
-    chainPop: 0.35, chainLife: 1.0, coins: [0, 3, 5, 8],
+    coins: [0, 3, 5, 8],
     splat: 16, mudShake: 6, mudShakeTime: 0.25,
+    bigBounce: 500,        // an impact this fast shakes the screen ...
+    bounceShake: 5, bounceShakeTime: 0.2,
     bannerTime: 1.8, countUp: 0.6, cardSlide: 0.35,
-    geyserWarn: 0.5,       // seconds before an eruption the vent bubbles hard
-    hearts: 14,            // the Home moment
-    homeTime: 2.4,
-    holdHint: 3,           // seconds "Hold to boost" shows on the first flight after buying Rocket 1
-    tapHint: 2.5,          // seconds "Tap to boost" shows from the top of a fresh save's first arc
-    pipPulse: 0.6,         // the fuel pips pulse once with it
-    zonePop: 1.1,          // seconds the zone's name shows by the launcher
-    zoneFreq: [1320, 990, 740, 330], // the launch chime's pitch per zone
-    zoneHaptic: [24, 16, 10, 6],
-    sparks: 18,            // the Perfect launch's spark ring
-    callout: 2.6,          // seconds a first-time call-out (bird, mud) shows
-    springWobble: 0.3,     // an unspent spring's idle bob, as a share of its height (3 design px: visible at arm's length)
+    geyserWarn: 0.5,
+    hearts: 14, homeTime: 2.4,
+    zonePop: 1.1,
+    zoneFreq: [1320, 990, 740, 330],
+    zoneHaptic: [30, 16, 10, 6],
+    perfectShake: 7, perfectShakeTime: 0.3,
+    slowMo: 0.2, slowMoRate: 0.3, // a Perfect launch's slow-motion beat: real seconds, and flight seconds per real second
+    sparks: 18,
+    steam: [22, 12, 7, 3], // steam puffs on fire by zone
+    pump: 0.35,            // seconds the pistons pump after a fire
+    callout: 2.6,
+    actionHint: 3.6,       // seconds the three-action hint shows from the top of the first arc
+    springWobble: 0.3,
+    ventGlow: 0.6,         // seconds a column glows after the mochi enters it
     stars: 90,
-    haptic: { launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, home: [30, 60, 30, 60, 60] },
+    whoosh: 0.16,          // seconds between whoosh puffs while boosting
+    // The dough glider (I1): a spring (stiffness k, damping c) opens the mochi's dough into a wing (stretch wider, flat thinner)
+    // and, underdamped, springs it back round past rest on release (back: how much of the overshoot shows); tilt banks it
+    // along the flight; tips lifts its tips.
+    wing: { k: 700, c: 22, stretch: 1.5, flat: 0.3, back: 0.5, tilt: 0.5, tips: 0.5 },
+    // The combo (I3): the counter pops for pop seconds; a ring of sparks, a shake, a dial glow; the sound rises semis
+    // semitones a step from freq, up to maxSteps steps.
+    combo: { pop: 0.35, ring: 16, shake: 2.5, shakeTime: 0.1, dial: 0.4, freq: 523, semis: 2, maxSteps: 12, size: 2, sizeMax: 8, life: 1.1 },
+    haptic: { combo: 14, launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, lock: 10, chute: 6, drop: 8, home: [30, 60, 30, 60, 60] },
   },
+  // The story (PRD v0.6): animated cards, every one skippable. tapGap is the seconds before a card takes a tap (so a stray double
+  // tap cannot skip it); autoGap the seconds a card waits after its scene before going on; dur and proposalDur each scene's length;
+  // version the story version `openSeen` records; arrivalTime the seconds a gift line shows; portrait the largest result-card
+  // portrait in px; windowChance: Daifuku's window inset shows one new best in this many.
+  story: { skipW: 96, skipH: 44, tapGap: 0.25, autoGap: 1, dur: [2.8, 3.2, 3.2, 3.6], proposalDur: [2.6, 3, 2.6, 3], version: 2, arrivalTime: 2.4, portrait: 84, windowChance: 3 },
 };
 const T = TUNING;
 const STEP = T.physicsStep;
@@ -202,7 +318,7 @@ const DEG = Math.PI / 180;
 // ---------- Places (PRD v0.2 E) ----------
 // The mochi flies from the bakery counter home to the daifuku; each milestone opens a place with its own sky by day, rolling
 // hills (two sines each: frequencies f, weights w, amplitude amp and base in design px, a seed), ground (top strip and soil)
-// and backdrop motif. Places start at 0 and at each TUNING.milestones distance; Home flies on the tier 3 field.
+// and backdrop motif. Places start at 0 and at each TUNING.milestones distance; Tea Party (called Home before v0.6) flies on the tier 3 field.
 // Style sentences: docs/games/launch/style.md.
 const PLACES = [
   { name: 'The Bakery', sky: ['#fff1dc', '#f5c1c6'], top: '#7fae6a', soil: '#5f8a58', motif: 'bakery',
@@ -215,282 +331,162 @@ const PLACES = [
     hills: { far: '#d3dbf3', near: '#bcc8ec', f: [0.008, 0.019], w: [0.45, 0.45], amp: [58, 36], base: [64, 40], seed: [3.3, 5.0] } },
   { name: 'Gingerbread Town', sky: ['#fbf1d8', '#e8c3cb'], top: '#bf9a78', soil: '#937260', motif: 'houses',
     hills: { far: '#ead3be', near: '#dcbda2', f: [0.0035, 0.008], w: [0.4, 0.3], amp: [34, 24], base: [74, 42], seed: [4.6, 1.7] } },
-  { name: 'Home', sky: ['#fff1f2', '#f4bfd3'], top: '#86b86f', soil: '#5c8a58', motif: 'strawberries',
+  { name: 'Tea Party', sky: ['#fff1f2', '#f4bfd3'], top: '#86b86f', soil: '#5c8a58', motif: 'strawberries',
     hills: { far: '#f4c8d6', near: '#cfe6bf', f: [0.007, 0.016], w: [0.5, 0.35], amp: [44, 32], base: [66, 38], seed: [5.9, 3.4] } },
 ];
 const placeFrom = (i) => (i ? T.milestones[i - 1] : 0) * T.unitsPerMetre; // units
 function placeIndex(x) { let i = 0; while (i + 1 < PLACES.length && x >= placeFrom(i + 1)) i++; return i; }
 
-// ---------- Field ----------
-// A chunk is 300 m of objects: { kind, x, y, w?, h? } with x from the chunk start. Ground objects (spring, mud, ramp, geyser)
-// have y 0; a spring, mud or geyser is w wide, a ramp rises h over w toward the right. A bird or a cloud is a spot in the air.
-// Fairness rules every template keeps (tools/sim-launch.mjs --check proves them over many seeds): a spring comes before
-// the first mud of a chunk, no two mud patches without a spring between, and no stretch of 150 m without a spring.
 
-// The first chunk teaches, and it is laid out for this flight's launch range (Band and Aero change it), so no purchase can
-// make the same needle stop worse (PRD v0.2 C and D; amendment 1 after the v4 release gate). It is a run of springs that
-// pays the better stop more (amendment 1 after the Build 1 review), then the first mud:
-//   spring A catches the first landing of every Good or better needle stop at every Steady level (a stop Steady lifts into
-//   Good is caught too), and of the Weak stops next to Good;
-//   a bird sits on the Perfect stop's way down after the last spring, where the critter is `birdHeight` up (its bounce
-//   carries the gold on);
-//   each spring catches the next landing, past the last spring, of the stops whose quality is within its `tier` (quality:
-//   Perfect 0, Great 1, Good 2, Weak from 2 up by a tenth of the Good half-width per 1; the tiers tighten spring by spring,
-//   so the better the stop, the longer the ride, and Weak next to Good rides a little: no cliff), never wider than `wMax`
-//   (no stop lands twice on one spring), until `until`, then for Perfect stops only until `goldUntil`;
-//   the first mud comes past `mudFrom`, where no unboosted Perfect stop touches the ground.
-// The layout is found by flying the real physics (setup only: the same levels always give the same chunk).
-// tools/sim-launch.mjs --clean proves it at every Band, Aero and Steady level, --rank ranks the zones on it.
-const FIRST_CHUNK = {
-  name: 'First flight',
-  angleStep: 0.5,          // the needle stops (degrees apart) the layout is flown for
-  tiers: [8, 4, 2],        // by spring (A first; the last repeats): the worst stop quality laid out for (2: every Good or better stop)
-  taps: [],                // boost times (seconds): every stop is also flown with each of these sets of boosts ...
-  tapExtra: 0,             // ... laid out as if this much better in quality (a boost carries a stop further)
-  padA: [30, 40],          // units of spring A before the shortest and after the longest first landing
-  pad: [30, 40],           // units of every later spring before and after the landings it catches
-  gap: 60,                 // units of plain ground between springs, at least ...
-  maxGap: 200,             // ... and at most (a longer stretch mid-run catches boosted flights short of the first place)
-  wMax: 550,               // the widest a spring after A may be (units)
-  until: 4500,             // springs are laid until one ends past this (units, scaled by the gold's throw): short of the first place ...
-  goldUntil: 4500,         // ... then Perfect-only springs until one ends past this: the gold's longer ride
-  birdHeight: 180,         // the critter's height on the way down where the bird meets it (units)
-  mudW: 120,               // the first mud patch ...
-  mudFrom: 7000,           // ... never before this (units): past where most good flights end, so it does not decide their distance
-  exitW: 60,               // small springs (units wide): every `fillEvery` from the run's end to the mud, and one just past the mud
-  fillEvery: 1200,
-  mudClear: 60,            // ... and this far from any ground touch of an unboosted Perfect stop (units)
-  tail: 250,               // units after the mud to the chunk's end (at least chunkLen in all)
-};
-
-// ---------- The needle ----------
+// ---------- The Mochi Maker 3000 (PRD v0.3 A) ----------
 // Zones by index: 0 Perfect, 1 Great, 2 Good, 3 Weak.
 const ZONES = ['Perfect!', 'Great', 'Good', 'Weak'];
+const tri = (t, period) => { const ph = (((t / period) % 1) + 1) % 1; return ph < 0.5 ? ph * 2 : 2 - ph * 2; };
+// The barrel's angle `t` seconds after the machine was ready.
+const aimAngle = (t) => T.aimMin + (T.aimMax - T.aimMin) * tri(t, T.aimPeriod);
+// A flight's gauge: its period (Steady Gauge slows it, a Perfect streak speeds it up, the seed nudges it), its seeded start
+// phase, and its zone half-widths.
+function gaugeOf(seed, streak = 0, up = T.upgrades) {
+  const rng = makeRng((seed ^ 0x5bd1e995) >>> 0), k = up.steady || 0, w = T.steadyWiden * k, s = Math.min(streak, T.streakCap);
+  const nudge = 1 + rng.range(-T.gaugeJitter, T.gaugeJitter);
+  return { period: (T.gaugePeriod * nudge) / Math.max(0.05, 1 - T.steadySlow * k) / (1 + T.streakSpeedup * s), phase: rng(), half: T.zoneHalf.map((h) => (h + w) * T.zoneScale) };
+}
+// The gauge's reading (0 to 1) `t` seconds after the barrel locked.
+const gaugeAt = (t, g) => tri(t + g.phase * g.period, g.period);
+function zoneOf(v, g) { const d = Math.abs(v - T.gaugeSweet); return d <= g.half[0] ? 0 : d <= g.half[1] ? 1 : d <= g.half[2] ? 2 : 3; }
+// Weak's power ramps from zonePower Weak at the Good edge down to weakPowerMin at the gauge's end (no cliff).
+function powerOf(v, g, streak = 0) {
+  const z = zoneOf(v, g);
+  if (z === 0) return T.zonePower[0] * (1 + T.streakPower * Math.min(streak, T.streakCap));
+  if (z < 3) return T.zonePower[z];
+  const edge = g.half[2], end = v < T.gaugeSweet ? T.gaugeSweet : 1 - T.gaugeSweet;
+  const k = clamp((Math.abs(v - T.gaugeSweet) - edge) / Math.max(1e-6, end - edge), 0, 1);
+  return T.zonePower[3] + (T.weakPowerMin - T.zonePower[3]) * k;
+}
+// The launch from the two taps: `t1` seconds from ready to the lock, `t2` from the lock to the fire; `streak` Perfect
+// launches in a row before this one.
+function launchOf(seed, t1, t2, streak = 0, up = T.upgrades) {
+  const g = gaugeOf(seed, streak, up), v = gaugeAt(t2, g), zone = zoneOf(v, g);
+  return { angle: aimAngle(t1), gauge: v, zone, power: powerOf(v, g, streak), streak, t1, t2 };
+}
+// The barrel's mouth at an angle: where the mochi sits and leaves from (world units, y the critter's bottom).
+const mouth = (deg) => [Math.cos(deg * DEG) * T.barrelLen, T.pivotH + Math.sin(deg * DEG) * T.barrelLen - T.critterR];
 
-// The needle's speed factor and zone half-widths at a Steady level.
-function needleOf(up = T.upgrades) {
-  const k = up.steady || 0, w = T.steadyWiden * k, z = T.zoneScale;
-  return { period: T.needlePeriod / Math.max(0.05, 1 - T.steadySlow * k), half: [(T.zonePerfect + w) * z, (T.zoneGreat + w) * z, (T.zoneGood + w) * z] };
-}
-// The needle's angle `t` seconds after the launcher was ready: a triangle wave, bottom at t = 0.
-function needleAngle(t, up = T.upgrades) {
-  const ph = (((t / needleOf(up).period) % 1) + 1) % 1, tri = ph < 0.5 ? ph * 2 : 2 - ph * 2;
-  return T.needleMin + (T.needleMax - T.needleMin) * tri;
-}
-function zoneAt(angle, up = T.upgrades) {
-  const d = Math.abs(angle - T.sweetAngle), h = needleOf(up).half;
-  return d <= h[0] ? 0 : d <= h[1] ? 1 : d <= h[2] ? 2 : 3;
-}
-// A stop's launch. Weak's power ramps from zonePower Weak at the Good edge down to weakPowerMin at the wedge's end, so a stop
-// just outside Good is only a little weaker (no cliff).
-function launchAt(angle, up = T.upgrades) {
-  const zone = zoneAt(angle, up);
-  if (zone < 3) return { angle, zone, power: T.zonePower[zone] };
-  const edge = needleOf(up).half[2], end = angle < T.sweetAngle ? T.sweetAngle - T.needleMin : T.needleMax - T.sweetAngle;
-  const k = clamp((Math.abs(angle - T.sweetAngle) - edge) / Math.max(1e-6, end - edge), 0, 1);
-  return { angle, zone, power: T.zonePower[3] + (T.weakPowerMin - T.zonePower[3]) * k };
-}
-// A tap `t` seconds after the launcher was ready.
-const needleLaunch = (t, up = T.upgrades) => ({ ...launchAt(needleAngle(t, up), up), t });
+// ---------- Field (PRD v0.3 C, v0.4 B) ----------
+// One consistent field, laid out gap by gap from a seeded stream: a jelly, then plain ground to the next jelly that grows
+// gently with distance (no free early carpet, no cliff). Each gap's objects are laid left to right from a cursor, each
+// only where it fits, in this order: a wafer or geyser, an oven-vent thermal or freezer vent, a candy-cane hill, a
+// marshmallow pad, a caramel pit; and in the air a cloud (Gingerbread Town on) and up to three birds, one in each third of
+// the gap (TUNING.birds, with a bird of each band in the first three gaps; their own seeded stream, so adding them moved
+// nothing on the ground). Every gap draws the same
+// count of numbers, so a seed always gives the same field. The first thermal and freezer, and the first hill and marshmallow, are placed in fixed gaps
+// so a normal flight meets them early (PRD v0.4 B). Kept by construction (and flown by tools/sim-launch.mjs --check): a
+// jelly before the first caramel and between any two, no stretch longer than gapMax without a jelly, at most one cloud per
+// gap and no bird on a cloud. Metres.
+const FIELD = {
+  first: 75,               // the first jelly starts here
+  gap: 42,                 // plain ground between jellies: gap + gapGrow x distance, +- gapJitter of it, at most gapMax
+  gapGrow: 0.011,
+  gapJitter: 0.25,
+  gapMax: 120,
+  jellyW: 11,              // a jelly's width, shrinking by jellyShrink per metre to jellyWMin
+  jellyShrink: 0.0008,
+  jellyWMin: 6,
+  mudFrom: 400,            // caramel from here, with this chance per gap rising to mudMax by mudFull
+  mudChance: 0.2,
+  mudMax: 0.5,
+  mudFull: 3000,
+  mudW: [9, 15],
+  rampFrom: 400,           // a wafer from here, with this chance per gap
+  rampChance: 0.15,
+  rampW: [20, 28], rampH: [6, 8],
+  geyserFrom: 1500,        // Soda Springs on: a ground object is a geyser this often
+  geyserShare: 0.65,
+  extraFrom: 1500,         // ... and ground objects come this often from here
+  extraChance: 0.4,
+  cloudFrom: 2200,         // Gingerbread Town on: the air object is a cloud this often
+  cloudChance: 0.45,
+  cloudY: [20, 30],
+  ventFrom: 100,           // thermals and freezer vents (the Bakery on): one in a gap with this chance, rising to ventMax
+  ventChance: 0.3,         // by ventFull; a thermal ventShare of the time
+  ventMax: 0.5,
+  ventFull: 2000,
+  ventShare: 0.55,
+  ventW: [14, 22],
+  firstThermal: 1,         // the gap (counting from 0) that always holds a thermal, and the one that holds a freezer vent
+  firstFreezer: 3,
+  hillFrom: 500,           // candy-cane hills (Candy Meadow on): one in a gap with this chance, rising to hillMax by hillFull
+  hillChance: 0.3,
+  hillMax: 0.5,
+  hillFull: 2500,
+  hillW: [22, 34], hillH: [5, 8],
+  marshFrom: 500,          // marshmallow pads (Candy Meadow on), the same way
+  marshChance: 0.2,
+  marshMax: 0.4,
+  marshFull: 2500,
+  marshW: [7, 12],
+  room: 3,                 // ground objects keep this far from each other and from the jellies
+};
 
-// Every Good or better needle stop at every Steady level, with the Band and Aero of `up` (the teaching chunk's launches).
-function goodStops(up) {
-  const out = new Map();
-  for (let k = 0; k <= T.upgradeMax; k++) {
-    const F = FIRST_CHUNK, u = { ...up, steady: k }, g = needleOf(u).half[2], h = g * (1 + Math.max(0, Math.max(...F.tiers) + F.tapExtra - 2) / 10);
-    for (let a = T.sweetAngle - h; a <= T.sweetAngle + h + 1e-9; a += F.angleStep) {
-      const ang = +clamp(a, T.needleMin, T.needleMax).toFixed(2), l = launchAt(ang, u), key = `${ang},${l.power}`;
-      const q = l.zone < 3 ? l.zone : 2 + (Math.abs(ang - T.sweetAngle) / g - 1) * 10;
-      if (!out.has(key) || out.get(key).q > q) out.set(key, { angle: ang, power: l.power, zone: l.zone, q });
-    }
-  }
-  return [...out.values()];
+function makeField(seed) {
+  return { seed, rng: makeRng(seed), rngB: makeRng((seed ^ 0x9e3779b9) >>> 0), ground: [], birds: [], clouds: [], end: 0, n: 0, hill: false, marsh: false, next: FIELD.first * T.unitsPerMetre };
 }
 
-// A probe flight of `launch` over `field` with no input, to its first contact after `after` contacts (or, with `past`, its
-// first contact beyond x = past).
-function probe(up, launch, field, after = 0, past = null) {
-  const r = newRun(0, launch, up, field);
-  for (const t of launch.taps || []) queueInput(r, t, 'pulse');
-  let n = 0, path = [];
-  while (!r.ended && r.steps < 20000) {
-    const mode = r.mode;
-    stepRun(r);
-    const hit = r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone') || (mode === 'air' && r.mode === 'ground');
-    r.ev.length = 0;
-    if (n === after && r.mode === 'air') path.push([r.x, r.y, r.vy, flightTime(r)]);
-    if (hit && (past === null ? n++ === after : r.x > past)) return { x: r.x, path, ok: true };
-  }
-  return { x: r.x, path, ok: false };
-}
-
-const TEACH = new Map(); // layouts by the numbers that change the unboosted paths (the TUNE panel can change some)
-function teachingChunk(up) {
-  const key = JSON.stringify([up.band || 0, up.aero || 0, T.sweetAngle, T.zonePerfect, T.zoneGreat, T.zoneGood, T.zoneScale, T.zonePower, T.steadyWiden, T.launchSpeedMax, T.airDrag, T.gravity, T.needleMin, T.needleMax, FIRST_CHUNK]);
-  if (TEACH.has(key)) return TEACH.get(key);
-  const F = FIRST_CHUNK, plain = goodStops(up), perfect = { angle: T.sweetAngle, power: T.zonePower[0], zone: 0 };
-  const spring = (x0, x1) => ({ kind: 'spring', x0: Math.round(x0), x1: Math.round(x1), w: Math.round(x1) - Math.round(x0), h: 0, spent: false });
-  // A spring over landings `xs` (from x = `from` when that is given), never wider than `wMax` (spring A takes every first landing).
-  const cover = (xs, from, pad, cap = F.wMax) => {
-    const x0 = from > 0 ? clamp(Math.min(...xs) - pad[0], from, from + F.maxGap - F.gap) : Math.min(...xs) - pad[0]; // no long plain stretch mid-run
-    return spring(x0, Math.min(x0 + cap, Math.max(...xs) + pad[1]));
+function addGap(f) {
+  const F = FIELD, U = T.unitsPerMetre, rng = f.rng, x0 = f.next, m = x0 / U, lerp = (a, k) => a[0] + (a[1] - a[0]) * k;
+  const ramp = (from, p0, p1, full) => (m < from ? 0 : p0 + (p1 - p0) * clamp((m - from) / (full - from), 0, 1));
+  const r = Array.from({ length: 24 }, () => rng());
+  const w = Math.round(Math.max(F.jellyWMin, F.jellyW - F.jellyShrink * m) * U);
+  f.ground.push({ kind: 'spring', x0, x1: x0 + w, w, h: 0, spent: false });
+  const L = Math.round(Math.min(F.gapMax, (F.gap + F.gapGrow * m) * (1 + (r[0] * 2 - 1) * F.gapJitter)) * U), a = x0 + w, b = a + L, room = F.room * U;
+  let free = a + room;
+  // Lays an object `ow` wide at the cursor plus a seeded share `k` of the slack, if it fits before the next jelly.
+  const lay = (ow, k, o) => {
+    const slack = b - room - ow - free;
+    if (slack < 0) return false;
+    const ox = Math.round(free + slack * k * 0.35);
+    f.ground.push({ x0: ox, x1: ox + ow, w: ow, h: 0, spent: false, ...o }); free = ox + ow + room;
+    return true;
   };
-  const tier = (k) => F.tiers[Math.min(k, F.tiers.length - 1)] + 1e-9;
-  const stops = plain.concat(...F.taps.map((t) => plain.map((l) => ({ ...l, taps: t, q: l.q - F.tapExtra }))));
-  const ground = [];
-  let bird = null;
-  const field = () => ({ seed: 0, rng: null, ground: ground.map((g) => ({ ...g })), birds: bird ? [{ ...bird }] : [], clouds: [], end: 1e12, chunks: 1 });
-  // A: the first landings.
-  const first = stops.filter((l) => l.q <= tier(0)).map((l) => probe(up, l, field()).x);
-  ground.push(cover(first, 0, F.padA, Infinity));
-  // The run of springs.
-  // A stronger Band or Aero gets a longer run, never a shorter one: `until` scales with the Perfect stop's open-ground throw.
-  const open = () => ({ seed: 0, rng: null, ground: [], birds: [], clouds: [], end: 1e12, chunks: 1 });
-  const until = F.until * (probe(up, perfect, open()).x / probe({ band: 0, aero: 0 }, perfect, open()).x);
-  while (ground[ground.length - 1].x1 < Math.max(until, F.goldUntil)) {
-    const last = ground[ground.length - 1].x1, tk = last < until ? tier(ground.length) : 1e-9;
-    const xs = stops.filter((l) => l.q <= tk).map((l) => probe(up, l, field(), 0, last + F.gap)).filter((p) => p.ok).map((p) => p.x);
-    if (!xs.length) break;
-    ground.push(cover(xs, last + F.gap, F.pad));
+  const extraP = m >= F.extraFrom ? F.extraChance : m >= F.rampFrom ? F.rampChance : 0;
+  if (r[1] < extraP && !(m >= F.hillFrom && !f.hill)) {
+    if (m >= F.geyserFrom && r[2] < F.geyserShare) lay(40, r[3], { kind: 'geyser', phase: Math.round(r[4] * T.geyserPeriod * 100) / 100 });
+    else { const rw = Math.round(Math.min(lerp(F.rampW, r[4]) * U, L * 0.3)), rh = Math.round(lerp(F.rampH, r[4]) * U); lay(rw, r[3], { kind: 'ramp', h: rh, a: Math.atan2(rh, rw) }); }
   }
-  // The bird: on the Perfect stop's way down after the last spring, so its bounce carries the gold on past the run.
-  {
-    const r = newRun(0, perfect, up, field()), end = ground[ground.length - 1].x1;
-    while (!r.ended && r.steps < 40000) {
-      stepRun(r); r.ev.length = 0;
-      if (r.x > end && r.mode === 'air' && r.vy < 0 && r.y <= F.birdHeight) { bird = { x0: Math.round(r.x - T.birdSwing * Math.sin((flightTime(r) / T.birdPeriod) * Math.PI * 2)), y: Math.round(F.birdHeight + T.critterR), phase: 0, hit: false }; break; }
-    }
+  const forced = f.n === F.firstThermal ? 'thermal' : f.n === F.firstFreezer ? 'freezer' : null, firstHill = m >= F.hillFrom && !f.hill;
+  const hill = () => { if (lay(Math.round((firstHill ? F.hillW[0] : lerp(F.hillW, r[17])) * U), firstHill ? 0 : r[18], { kind: 'hill', h: Math.round(lerp(F.hillH, r[17]) * U) })) f.hill = true; };
+  const marsh = (first) => { if (lay(Math.round((first ? F.marshW[0] : lerp(F.marshW, r[20])) * U), first ? 0 : r[21], { kind: 'marsh' })) f.marsh = true; };
+  if (firstHill) hill(); // the first hill, and then the first marshmallow, come before anything else in their gaps
+  if (m >= F.marshFrom && !f.marsh && f.hill) marsh(true);
+  if (forced || r[12] < ramp(F.ventFrom, F.ventChance, F.ventMax, F.ventFull)) lay(Math.round(lerp(F.ventW, r[14]) * U), r[15], { kind: forced || (r[13] < F.ventShare ? 'thermal' : 'freezer') });
+  if (!firstHill && m >= F.hillFrom && r[16] < ramp(F.hillFrom, F.hillChance, F.hillMax, F.hillFull)) hill();
+  if (m >= F.marshFrom && !f.marsh && f.hill) marsh(true);
+  else if (m >= F.marshFrom && r[19] < ramp(F.marshFrom, F.marshChance, F.marshMax, F.marshFull)) marsh(false);
+  const mudP = ramp(F.mudFrom, F.mudChance, F.mudMax, F.mudFull);
+  if (r[5] < mudP) {
+    const mw = Math.round(lerp(F.mudW, r[6]) * U), c0 = Math.max(free + mw / 2, a + L * 0.4), c1 = b - room - mw / 2;
+    if (c1 >= c0) { const mx = Math.round(c0 + (c1 - c0) * r[7] - mw / 2); f.ground.push({ kind: 'mud', x0: mx, x1: mx + mw, w: mw, h: 0, spent: false }); }
   }
-  // Small springs every `fillEvery` from the run's end up to the mud (no stretch of 150 m without a spring), and the mud past
-  // mudFrom, clear of every ground touch of the unboosted Perfect stops; filling moves the touches, so the two are settled
-  // together (filler springs added after a spring change nothing before it, so this ends).
-  let m0 = F.mudFrom;
-  for (let round = 0; round < 6; round++) {
-    for (let x = ground[ground.length - 1].x1 + F.fillEvery; x + F.exitW + F.gap < m0; x += F.fillEvery) ground.push(spring(x, x + F.exitW));
-    const touches = [];
-    for (const l of plain.filter((q) => q.zone === 0)) {
-      const r = newRun(0, l, up, field());
-      while (!r.ended && r.x < m0 + 4000 && r.steps < 40000) { stepRun(r); r.ev.length = 0; if (r.mode !== 'air' || r.y <= 1) touches.push(r.x); }
-    }
-    let next = Math.max(m0, ground[ground.length - 1].x1 + F.gap);
-    for (let moved = true; moved;) { moved = false; for (const x of touches) if (x > next - F.mudClear && x < next + F.mudW + F.mudClear) { next = Math.ceil(x + F.mudClear); moved = true; } }
-    const settled = next - ground[ground.length - 1].x1 <= F.fillEvery + F.gap;
-    m0 = next;
-    if (settled) break;
-  }
-  ground.push({ kind: 'mud', x0: m0, x1: m0 + F.mudW, w: F.mudW, h: 0, spent: false });
-  ground.push(spring(m0 + F.mudW + F.gap, m0 + F.mudW + F.gap + F.exitW)); // no stretch of 150 m without a spring
-  const out = { ground, bird, len: Math.max(T.chunkLen, Math.ceil((m0 + F.mudW + F.gap + F.exitW + F.tail) / 100) * 100) };
-  TEACH.set(key, out);
-  return out;
+  const ax = Math.round(a + L * (0.3 + 0.4 * r[9]));
+  const cloud = m >= F.cloudFrom && r[8] < F.cloudChance ? { x: ax, y: Math.round(lerp(F.cloudY, r[10]) * U), used: false } : null;
+  if (cloud) f.clouds.push(cloud);
+  // Birds: five numbers per slot from the bird stream, always drawn (presence, band, jitter, height, phase).
+  const B = T.birds, bq = Array.from({ length: 5 * B.slots.length }, () => f.rngB()), wsum = B.bands.reduce((t, b) => t + b.w, 0);
+  B.slots.forEach((share, i) => {
+    const [pr, pb, pj, ph, pp] = bq.slice(5 * i, 5 * i + 5), forced = i === 1 ? B.first[f.n] : undefined;
+    if (pr >= B.chance[i] && forced === undefined) return;
+    let acc = 0, band = B.bands[B.bands.length - 1];
+    for (const b of B.bands) { acc += b.w; if (pb * wsum < acc) { band = b; break; } }
+    if (forced !== undefined) band = B.bands[forced];
+    const bx = Math.round(a + L * (share + (pj * 2 - 1) * B.jitter)), by = Math.round(lerp(band.y, ph) * U);
+    if (cloud && Math.abs(bx - cloud.x) < T.birdSwing + T.cloudRX + T.birdR + 3 * T.critterR && Math.abs(by - cloud.y) < T.cloudRY + T.birdR + 3 * T.critterR) return;
+    f.birds.push({ x0: bx, y: by, phase: pp * Math.PI * 2, hit: false, band: B.bands.indexOf(band) });
+  });
+  f.ground.sort((p, q) => p.x0 - q.x0);
+  f.next = b; f.end = b; f.n++;
 }
 
-// tiers: which distance tiers (TUNING.tierFrom) may draw the template. Tier 0 is the Bakery and Candy Meadow (the teaching
-// chunk covers the Bakery), tier 1 Chocolate River, tier 2 Soda Springs (every template has a geyser), tier 3 Gingerbread
-// Town and Home (every template has a geyser and clouds). Past 2000 m: more caramel, fewer jellies (the v0.1 tier rule).
-// A geyser is w wide on the ground; a cloud is a spot in the air (y its centre). Objects keep 2 x chunkJitter clear.
-const CHUNKS = [
-  { name: 'Meadow', tiers: [0], objects: [
-    { kind: 'spring', x: 300, y: 0, w: 80 }, { kind: 'bird', x: 700, y: 140 }, { kind: 'spring', x: 1000, y: 0, w: 80 },
-    { kind: 'mud', x: 1350, y: 0, w: 120 }, { kind: 'spring', x: 1700, y: 0, w: 80 }, { kind: 'bird', x: 2100, y: 170 },
-    { kind: 'spring', x: 2450, y: 0, w: 80 },
-  ] },
-  { name: 'Hop line', tiers: [0, 1], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 70 }, { kind: 'spring', x: 1050, y: 0, w: 70 }, { kind: 'ramp', x: 1450, y: 0, w: 240, h: 65 },
-    { kind: 'spring', x: 1950, y: 0, w: 70 }, { kind: 'mud', x: 2200, y: 0, w: 110 }, { kind: 'spring', x: 2550, y: 0, w: 70 },
-  ] },
-  { name: 'Ramp run', tiers: [0, 1], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 70 }, { kind: 'spring', x: 1100, y: 0, w: 70 }, { kind: 'ramp', x: 1500, y: 0, w: 240, h: 65 },
-    { kind: 'bird', x: 2000, y: 200 }, { kind: 'spring', x: 2250, y: 0, w: 70 }, { kind: 'mud', x: 2500, y: 0, w: 140 },
-  ] },
-  { name: 'Launch pad', tiers: [1], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 70 }, { kind: 'ramp', x: 800, y: 0, w: 300, h: 80 }, { kind: 'spring', x: 1350, y: 0, w: 70 },
-    { kind: 'ramp', x: 1700, y: 0, w: 300, h: 80 }, { kind: 'bird', x: 2150, y: 180 }, { kind: 'spring', x: 2400, y: 0, w: 70 },
-    { kind: 'ramp', x: 2650, y: 0, w: 240, h: 65 },
-  ] },
-  { name: 'Flock', tiers: [1], objects: [
-    { kind: 'spring', x: 450, y: 0, w: 70 }, { kind: 'bird', x: 900, y: 110 }, { kind: 'bird', x: 1350, y: 190 },
-    { kind: 'mud', x: 1530, y: 0, w: 150 }, { kind: 'spring', x: 1850, y: 0, w: 70 }, { kind: 'bird', x: 2300, y: 150 },
-    { kind: 'spring', x: 2500, y: 0, w: 70 }, { kind: 'mud', x: 2720, y: 0, w: 120 },
-  ] },
-  // Soda Springs: a geyser where Build 1 had a ramp or a plain stretch, so the old tier's mud and jellies stand.
-  { name: 'Fizz bog', tiers: [2], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'mud', x: 650, y: 0, w: 200 }, { kind: 'ramp', x: 1000, y: 0, w: 320, h: 85 },
-    { kind: 'spring', x: 1520, y: 0, w: 60 }, { kind: 'mud', x: 1750, y: 0, w: 200 }, { kind: 'geyser', x: 2180, y: 0, w: 40 },
-    { kind: 'spring', x: 2600, y: 0, w: 60 },
-  ] },
-  { name: 'Soda jump', tiers: [2], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'mud', x: 1150, y: 0, w: 180 },
-    { kind: 'spring', x: 1500, y: 0, w: 60 }, { kind: 'geyser', x: 1860, y: 0, w: 40 }, { kind: 'bird', x: 2250, y: 160 },
-    { kind: 'spring', x: 2450, y: 0, w: 60 }, { kind: 'mud', x: 2700, y: 0, w: 160 },
-  ] },
-  { name: 'Geyser run', tiers: [2], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1115, y: 0, w: 40 },
-    { kind: 'spring', x: 1300, y: 0, w: 60 }, { kind: 'mud', x: 1530, y: 0, w: 170 }, { kind: 'ramp', x: 1850, y: 0, w: 320, h: 85 },
-    { kind: 'spring', x: 2400, y: 0, w: 60 }, { kind: 'mud', x: 2650, y: 0, w: 150 },
-  ] },
-  { name: 'Pop field', tiers: [2], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 600, y: 0, w: 320, h: 85 }, { kind: 'mud', x: 1100, y: 0, w: 200 },
-    { kind: 'spring', x: 1450, y: 0, w: 60 }, { kind: 'ramp', x: 1700, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 2300, y: 0, w: 40 },
-    { kind: 'spring', x: 2700, y: 0, w: 60 },
-  ] },
-  // Gingerbread Town and Home: the Soda Springs geysers stay, and clouds hang where arcs pass, clear of birds.
-  { name: 'Icing lane', tiers: [3], objects: [
-    { kind: 'spring', x: 400, y: 0, w: 60 }, { kind: 'ramp', x: 650, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1115, y: 0, w: 40 },
-    { kind: 'spring', x: 1300, y: 0, w: 60 }, { kind: 'mud', x: 1530, y: 0, w: 170 }, { kind: 'cloud', x: 1700, y: 260 },
-    { kind: 'ramp', x: 1850, y: 0, w: 320, h: 85 }, { kind: 'spring', x: 2400, y: 0, w: 60 }, { kind: 'cloud', x: 2550, y: 220 },
-    { kind: 'mud', x: 2650, y: 0, w: 150 },
-  ] },
-  { name: 'Cookie field', tiers: [3], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 600, y: 0, w: 320, h: 85 }, { kind: 'cloud', x: 1000, y: 250 },
-    { kind: 'mud', x: 1100, y: 0, w: 200 }, { kind: 'spring', x: 1450, y: 0, w: 60 }, { kind: 'ramp', x: 1700, y: 0, w: 320, h: 85 },
-    { kind: 'geyser', x: 2300, y: 0, w: 40 }, { kind: 'cloud', x: 2450, y: 300 }, { kind: 'spring', x: 2700, y: 0, w: 60 },
-  ] },
-  { name: 'Gumdrop slope', tiers: [3], objects: [
-    { kind: 'spring', x: 350, y: 0, w: 60 }, { kind: 'ramp', x: 580, y: 0, w: 320, h: 85 }, { kind: 'geyser', x: 1180, y: 0, w: 40 },
-    { kind: 'cloud', x: 1450, y: 300 }, { kind: 'spring', x: 1530, y: 0, w: 60 }, { kind: 'mud', x: 1760, y: 0, w: 160 },
-    { kind: 'ramp', x: 2080, y: 0, w: 320, h: 85 }, { kind: 'cloud', x: 2300, y: 240 }, { kind: 'spring', x: 2550, y: 0, w: 60 },
-    { kind: 'mud', x: 2780, y: 0, w: 120 },
-  ] },
-];
-
-function tierAt(metres) { let t = 0; T.tierFrom.forEach((m, i) => { if (metres >= m) t = i; }); return t; }
-
-function makeField(seed, up = T.upgrades) {
-  const f = { seed, rng: makeRng(seed), ground: [], birds: [], clouds: [], end: 0, chunks: 0 };
-  const t = teachingChunk(up);
-  for (const g of t.ground) f.ground.push({ ...g });
-  if (t.bird) f.birds.push({ ...t.bird });
-  f.end = t.len; f.chunks = 1;
-  return f;
-}
-
-function addChunk(f, tpl, jitter) {
-  const x0 = f.end, rng = f.rng;
-  for (const o of tpl.objects) {
-    const x = x0 + o.x + (jitter ? Math.round(rng.range(-T.chunkJitter, T.chunkJitter)) : 0);
-    if (o.kind === 'bird') {
-      f.birds.push({ x0: x, y: o.y + (jitter ? Math.round(rng.range(-T.birdJitterY, T.birdJitterY)) : 0), phase: jitter ? rng.range(0, Math.PI * 2) : 0, hit: false });
-    } else if (o.kind === 'cloud') {
-      f.clouds.push({ x, y: o.y + (jitter ? Math.round(rng.range(-T.birdJitterY, T.birdJitterY)) : 0), used: false });
-    } else {
-      const g = { kind: o.kind, x0: x, x1: x + o.w, w: o.w, h: o.h || 0, spent: false };
-      if (o.kind === 'ramp') g.a = Math.atan2(o.h, o.w);
-      if (o.kind === 'geyser') g.phase = jitter ? Math.round(rng.range(0, T.geyserPeriod) * 100) / 100 : 0; // seconds into its cycle at launch
-      f.ground.push(g);
-    }
-  }
-  f.ground.sort((a, b) => a.x0 - b.x0);
-  f.clouds.sort((a, b) => a.x - b.x);
-  f.end += T.chunkLen; f.chunks++;
-}
-
-function ensureField(f, x) {
-  while (f.end < x + T.lookahead) {
-    const tier = tierAt(f.end / T.unitsPerMetre);
-    addChunk(f, f.rng.pick(CHUNKS.filter((c) => c.tiers.includes(tier))), true);
-  }
-}
+function ensureField(f, x) { while (f.end < x + T.lookahead) addGap(f); }
 
 // The ground object under x, or null for plain ground.
 function groundAt(f, x) {
@@ -502,114 +498,225 @@ function groundAt(f, x) {
   }
   return null;
 }
-const surfaceH = (g, x) => (g && g.kind === 'ramp' ? (g.h * (x - g.x0)) / g.w : 0);
-// A geyser erupts for geyserOn of every geyserPeriod of flight time `t`, from its own phase.
+// A candy-cane hill is one smooth bump, h tall: its uphill face rises from x0 to the crest at its middle, the downhill face
+// falls to x1. Height, slope and curvature at x.
+const HILL = (g, x) => (2 * Math.PI * (x - g.x0)) / g.w;
+const surfaceH = (g, x) => (!g ? 0 : g.kind === 'ramp' ? (g.h * (x - g.x0)) / g.w : g.kind === 'hill' ? (g.h * (1 - Math.cos(HILL(g, x)))) / 2 : 0);
+const slopeAt = (g, x) => (!g ? 0 : g.kind === 'ramp' ? g.h / g.w : g.kind === 'hill' ? ((g.h * Math.PI) / g.w) * Math.sin(HILL(g, x)) : 0);
+const bendAt = (g, x) => (g && g.kind === 'hill' ? (g.h / 2) * ((2 * Math.PI) / g.w) ** 2 * Math.cos(HILL(g, x)) : 0);
 const geyserOn = (g, t) => (t + g.phase) % T.geyserPeriod < T.geyserOn;
 const inCloud = (c, x, cy) => { const dx = (c.x - x) / (T.cloudRX + T.critterR), dy = (c.y - cy) / (T.cloudRY + T.critterR); return dx * dx + dy * dy < 1; };
 const birdX = (b, t) => b.x0 + T.birdSwing * Math.sin((t / T.birdPeriod) * Math.PI * 2 + b.phase);
 
 // ---------- Flight ----------
 
-// A flight's numbers at a set of upgrade levels (the layer 4 shop's model, see TUNING.upgrades).
+// A flight's numbers at a set of upgrade levels.
 function stats(up = T.upgrades) {
-  const band = up.band || 0, fuel = up.fuel || 0, aero = up.aero || 0, rocket = up.rocket || 0;
-  const airDrag = T.airDrag * Math.max(0, 1 - T.aeroStep * aero);
+  const airDrag = T.airDrag * Math.max(0, 1 - T.aeroStep * (up.aero || 0));
   return {
-    launchSpeed: T.launchSpeedMax * (1 + T.bandStep * band),
-    fuelMax: T.fuelMax + T.fuelStep * fuel,
+    launchSpeed: T.launchSpeedMax * (1 + T.bandStep * (up.band || 0)),
+    fuelMax: T.fuelMax + T.fuelStep * (up.fuel || 0),
     airDrag,
     dragK: Math.pow(1 - airDrag, STEP),
+    chuteK: Math.exp(-T.chuteBleed * STEP),
     slideK: Math.exp(-T.slideFriction * STEP),
-    hold: rocket >= 1,
-    thrust: rocket >= 1 ? T.rocketThrust * (1 + T.rocketStep * (rocket - 1)) : 0,
+    thrust: T.boostThrust * (1 + T.rocketStep * (up.rocket || 0)),
+    look: T.rangeLook + T.scopeStep * (up.scope || 0),
   };
 }
 
-// A launch is { angle, power } and, from the needle, its `zone` (a Perfect launch carries perfectFuel extra pulses).
+// A launch is { angle, power, zone } (launchOf gives one from two tap times).
 function newRun(seed, launch, up = T.upgrades, field = null) {
-  const st = stats(up), sp = launch.power * st.launchSpeed, a = launch.angle * DEG;
-  if (!field) { field = makeField(seed, up); ensureField(field, 0); }
+  const st = stats(up), sp = launch.power * st.launchSpeed, a = launch.angle * DEG, [x, y] = mouth(launch.angle);
+  if (!field) { field = makeField(seed); ensureField(field, 0); }
   const fuel = st.fuelMax + (launch.zone === 0 ? T.perfectFuel : 0);
   return {
     seed, launch, up: { ...up }, st, field,
-    x: 0, y: T.slingH, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, u: 0,
-    fuel, fuelCap: fuel, holding: false, steps: 0, acc: 0, q: [], ev: [],
-    chain: 0, chainMax: 0, birds: 0, springs: 0, geysers: 0, clouds: 0, pulses: 0, coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: 0,
-    msIdx: 0, stars: [], slowT: 0, ended: null, boosted: false, boostSprings: 0,
+    x, y, vx: sp * Math.cos(a), vy: sp * Math.sin(a), mode: 'air', ramp: null, hill: null, u: 0, e: 0,
+    fuel, fuelCap: fuel, boost: false, burstEnd: -1, chute: false, ball: false, steps: 0, acc: 0, q: [], ev: [],
+    chain: 0, chainMax: 0, birds: 0, springs: 0, geysers: 0, clouds: 0, bounces: 0, kicks: 0, kickSum: 0, topSq: 0,
+    boosts: 0, boostT: 0, chutes: 0, drops: 0, slams: 0, centred: 0, rockets: 0, crashes: 0, marshes: 0, thermals: 0, freezers: 0, glideT: 0, vent: null, topSpeed: 0, topY: 0,
+    coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: x,
+    msIdx: 0, stars: [], slowT: 0, ended: null, timeout: false, boosted: false, boostSprings: 0,
   };
 }
 
 const flightTime = (r) => r.steps * STEP;
 const mult = (r) => T.chainSteps[Math.min(r.chain, T.chainSteps.length - 1)];
+// The speed a fall from here meets the ground with (no drag): a slam's impact, so dropping from higher hits harder.
+const impactOf = (s) => Math.sqrt(s.vx * s.vx + s.vy * s.vy + 2 * T.gravity * Math.max(0, s.y));
 
-// Queue an input at flight time `at` (seconds); it applies on the step that contains that time.
+// Queue an input at flight time `at` (seconds); it applies on the step that contains that time. Kinds: boostOn, boostOff,
+// burst (a quick tap: boost for tapBurst), chuteOn, chuteOff, condense.
 function queueInput(r, at, kind) {
-  if (kind === 'holdOff') { // a release before the hold began cancels the pending hold
-    const i = r.q.findIndex((e) => e.kind === 'holdOn' && e.at >= at);
-    if (i >= 0) { r.q.splice(i, 1); return; }
-  }
   r.q.push({ at, kind });
   r.q.sort((a, b) => a.at - b.at);
 }
 
-function boostDir(r) {
-  if (r.mode === 'air') { const s = Math.hypot(r.vx, r.vy); if (s > 1) return [r.vx / s, r.vy / s]; }
-  return [Math.cos(T.groundBoostAngle * DEG), Math.sin(T.groundBoostAngle * DEG)];
+// Opening the wing while falling fast flares: the fall above glideSink becomes a short upward pop (PRD v0.4 A).
+function openChute(s) {
+  if (-s.vy > T.flareMin) { s.vy = T.flare * (-s.vy - T.glideSink); return true; }
+  return false;
 }
-
-function push(r, dv) {
-  if (r.mode === 'ramp') { r.u += dv; return; }
-  const [ux, uy] = boostDir(r);
-  r.vx += ux * dv; r.vy += uy * dv;
-  if (r.mode === 'ground' && r.vy > 0) r.mode = 'air';
-}
+// A condense: the slam's impact is fixed now (its energy), then it drops fast.
+function condense(s) { s.e = impactOf(s); s.ball = true; s.chute = false; s.vy = Math.min(s.vy, -T.condenseDrop); }
 
 function applyInput(r, e) {
-  if (e.kind === 'pulse') {
-    if (r.fuel <= 0) return;
-    const k = Math.min(1, r.fuel);
-    r.fuel -= k; r.pulses++; r.boosted = true;
-    push(r, T.boostPulse * k);
-    r.ev.push({ k: 'boost' });
-  } else if (e.kind === 'holdOn') r.holding = r.st.hold;
-  else if (e.kind === 'holdOff') r.holding = false;
+  const k = e.kind;
+  if (k === 'boostOn' || k === 'burst') {
+    if (!r.boost) { r.boosts++; r.ev.push({ k: 'boost' }); }
+    r.boost = true; r.burstEnd = k === 'burst' ? e.at + T.tapBurst : -1;
+  } else if (k === 'boostOff') { r.boost = false; r.burstEnd = -1; }
+  else if (k === 'chuteOn') {
+    if (!r.chute) { r.chutes++; const fl = r.mode === 'air' && openChute(r); r.ev.push({ k: 'chute', flare: fl }); }
+    r.chute = true; r.ball = false;
+  } else if (k === 'chuteOff') { if (r.chute) r.ev.push({ k: 'chuteOff' }); r.chute = false; }
+  else if (k === 'condense' && r.mode === 'air' && !r.ball) { condense(r); r.drops++; r.ev.push({ k: 'drop' }); }
 }
 
-function end(r, why) { r.ended = why; r.vx = r.vy = 0; r.ev.push({ k: why }); }
+// The vent column over x at height y, or null: 'thermal' or 'freezer'.
+function ventAt(f, x, y) {
+  if (!f || y >= T.ventH) return null;
+  const g = groundAt(f, x);
+  return g && (g.kind === 'thermal' || g.kind === 'freezer') ? g.kind : null;
+}
 
-// `boosted`: a boost was fired since the last contact (a spring hit after one counts for the goals).
+// One air step of `dt` for a state { x, y, vx, vy, boost, chute, ball, fuel, e } over field `f`: thrust while boosting (along
+// the flight, never pointing below boostFloor, fading to nothing at boostTop; condensed, it adds slamBoost of itself to the
+// slam's impact instead), gravity (heavier while condensed), drag, a vent's column, then the glider (PRD v0.4 A). `kd` and
+// `kc` are the drag and bleed factors for `dt`. The flight, the range finder and the camera all step with this.
+function airStep(s, st, dt, kd, kc, f = null) {
+  if (s.boost && s.fuel > 0) {
+    const sp = Math.hypot(s.vx, s.vy), have = Math.min(1, s.fuel / (T.boostDrain * dt)), floor = Math.sin(T.boostFloor * DEG);
+    s.fuel = Math.max(0, s.fuel - T.boostDrain * dt);
+    if (s.ball) s.e += st.thrust * dt * have * T.slamBoost;
+    else {
+      const part = have * Math.max(0, 1 - sp / T.boostTop);
+      let ux = sp > 1 ? s.vx / sp : Math.cos(T.groundBoostAngle * DEG), uy = sp > 1 ? s.vy / sp : Math.sin(T.groundBoostAngle * DEG);
+      if (uy < floor) { uy = floor; ux = Math.sqrt(1 - floor * floor); }
+      if (ux < 0) ux = -ux; // moving backwards: the boost pushes forward, toward more distance (PRD v0.4 I5)
+      s.vx += ux * st.thrust * dt * part; s.vy += uy * st.thrust * dt * part;
+    }
+  }
+  s.vy -= T.gravity * (s.ball ? T.condenseGrav : 1) * dt;
+  s.vx *= kd; s.vy *= kd;
+  const vent = ventAt(f, s.x, s.y);
+  if (vent) s.vy += (vent === 'thermal' ? T.thermalLift : -T.freezerPush) * dt * (s.chute ? 1 : T.ventLoose);
+  if (s.chute) {
+    const sp = Math.hypot(s.vx, s.vy);
+    if (sp > T.stallSpeed && vent !== 'freezer') { // gliding: fall turns into forward speed; the wing's drag is weight / glideRatio
+      const fall = -s.vy;
+      if (fall > T.glideSink) { const vy = s.vy + (fall - T.glideSink) * Math.min(1, T.glideGrip * dt); s.vx = Math.sqrt(Math.max(0, s.vx * s.vx + s.vy * s.vy - vy * vy)); s.vy = vy; }
+      const k = Math.max(0, 1 - ((T.gravity / T.glideRatio) * dt) / sp); s.vx *= k; s.vy *= k;
+    } else { // stalled (or iced in a freezer column): floats down at glideSink, drifting
+      if (s.vy < -T.glideSink) s.vy += (-T.glideSink - s.vy) * Math.min(1, T.chuteGrip * dt);
+      if (s.vx > T.stallDrift) s.vx = Math.max(T.stallDrift, s.vx * kc);
+    }
+  }
+  s.x += s.vx * dt; s.y += s.vy * dt;
+  return vent;
+}
+
+// Whether a state at (x, y) moving (vx, vy) meets the surface of `g` (plain ground when null): below it and moving into it.
+function touching(g, s) {
+  if (s.y > surfaceH(g, s.x)) return false;
+  if (g && g.kind === 'ramp') return true;
+  return s.vy - slopeAt(g, s.x) * s.vx <= 0;
+}
+
+function end(r, why) { r.ended = why; r.vx = r.vy = 0; r.boost = r.chute = r.ball = false; r.ev.push({ k: why }); }
+// A jelly, geyser or bird: the chain (the combo) grows. From x2 each step kicks the forward speed and refills fizz, rising with
+// the step and capped (PRD v0.4 I3); the speed never passes maxSpeed.
+function bump(r) {
+  r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
+  if (r.chain < 2) return;
+  const k = r.chain - 2, pips = Math.min(T.comboFizzMax, T.comboFizz + T.comboFizzStep * k);
+  const vx = r.vx, sp = Math.hypot(r.vx, r.vy), kick = Math.min(T.comboKickMax, T.comboKick + T.comboKickStep * k) * Math.max(0, 1 - sp / T.maxSpeed);
+  const room = Math.sqrt(Math.max(0, T.maxSpeed * T.maxSpeed - r.vy * r.vy)), fuel = r.fuel;
+  r.vx = Math.max(vx, Math.min(Math.max(vx, 0) + kick, room));
+  r.fuel = Math.min(r.fuelCap, r.fuel + pips);
+  r.kicks++; r.kickSum += r.vx - vx;
+  r.ev.push({ k: 'combo', n: r.chain, kick: r.vx - vx, fizz: r.fuel - fuel });
+}
+
+// What a slam meeting `g` at x gives back (PRD v0.4 A, B): the factor of its impact, the launch angle, and what it met.
+function slamOf(g, x) {
+  if (g && g.kind === 'spring' && !g.spent) {
+    const off = Math.abs(x - (g.x0 + g.x1) / 2) / (g.w / 2), c = clamp((off - T.jellySweet) / (1 - T.jellySweet), 0, 1);
+    return { k: T.slamJelly + (T.slamGround - T.slamJelly) * c, a: T.slamAngle, on: c === 0 ? 'centre' : 'jelly' };
+  }
+  if (g && g.kind === 'hill') return slopeAt(g, x) > 0 ? { k: T.slamUp, a: T.slamUpAngle, on: 'up' } : { k: T.slamDown, a: T.slamDownAngle, on: 'down' };
+  if (g && g.kind === 'marsh') return { k: T.slamMarsh, a: T.slamAngle, on: 'marsh' };
+  return { k: T.slamGround, a: T.slamAngle, on: 'ground' };
+}
+
+// A slam relaunches: the impact x the surface's factor x slamPower, at its angle, capped at maxSpeed. A jelly is used up; a
+// centred one refills slamFizz pips.
+function slam(r, g) {
+  const o = slamOf(g, r.x), sp = Math.min(T.maxSpeed, o.k * T.slamPower * r.e);
+  r.ball = false; r.boosted = false; r.mode = 'air'; r.y = surfaceH(g, r.x);
+  r.vx = sp * Math.cos(o.a * DEG); r.vy = sp * Math.sin(o.a * DEG);
+  if (o.on === 'up' || o.on === 'marsh') r.vx = Math.max(r.vx, T.crashKeep); // a crash still moves forward (I5)
+  r.slams++; r.topSpeed = Math.max(r.topSpeed, sp);
+  if (o.on === 'centre' || o.on === 'jelly') {
+    g.spent = true; r.springs++; bump(r);
+    if (o.on === 'centre') { r.centred++; r.fuel = Math.min(r.fuelCap, r.fuel + T.slamFizz); }
+  } else {
+    r.chain = 0;
+    if (o.on === 'down') r.rockets++; else if (o.on === 'up') r.crashes++; else if (o.on === 'marsh') r.marshes++;
+  }
+  r.ev.push({ k: 'slam', on: o.on, x: r.x, y: r.y, v: sp, e: r.e, chain: r.chain });
+}
+
+// A jelly touched without a slam: at least springMin up, or springBounce of the fall, keeping the forward speed.
 function hitSpring(r, g, vyIn) {
   g.spent = true;
   if (r.boosted) r.boostSprings++;
   r.boosted = false;
-  r.vy = Math.max(T.springMin, -vyIn * T.springBounce);
+  r.vy = Math.min(T.maxBounce, Math.max(T.springMin, -vyIn * T.springBounce));
   r.y = 0; r.mode = 'air';
-  r.springs++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
-  r.ev.push({ k: 'spring', x: r.x, chain: r.chain });
+  r.springs++; bump(r);
+  r.ev.push({ k: 'spring', x: r.x, chain: r.chain, v: -vyIn });
 }
 
-// A geyser's column: straight up at geyserLift (or faster if already rising faster), horizontal speed kept.
 function hitGeyser(r, g) {
-  g.spent = true; r.boosted = false;
+  g.spent = true; r.boosted = false; r.ball = false;
   r.vy = Math.max(r.vy, T.geyserLift); r.y = Math.max(r.y, 0); r.mode = 'air';
-  r.geysers++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
+  r.geysers++; bump(r);
   r.ev.push({ k: 'geyser', x: r.x, chain: r.chain });
 }
 
 function enterRamp(r, g, speed) {
-  r.boosted = false;
-  if (r.vx <= 0) { r.vx = 0; r.vy = 0; r.mode = 'ground'; r.y = 0; return; } // bumped the ramp's back
+  r.boosted = false; r.ball = false;
+  if (r.vx <= 0) { r.vx = 0; r.vy = 0; r.mode = 'ground'; r.y = 0; return; }
   r.mode = 'ramp'; r.ramp = g; r.u = speed * T.rampKeep;
   r.y = surfaceH(g, r.x); r.vx = r.u * Math.cos(g.a); r.vy = r.u * Math.sin(g.a);
   r.ev.push({ k: 'ramp' });
 }
 
-function plainTouch(r) {
-  r.chain = 0; r.boosted = false;
-  r.y = 0;
-  r.vx *= 1 - T.groundFriction;
-  if (-r.vy * T.groundBounce >= T.settleSpeed) { r.vy = -r.vy * T.groundBounce; r.ev.push({ k: 'bounce' }); }
-  else { r.vy = 0; r.mode = 'ground'; }
+// A plain touch on the ground or a hill's face (PRD v0.3 C; v0.4 B: hills are terrain, so the bounce is off the slope): of
+// the speed into the surface it keeps groundBounce, along it skimKeep (grazing) down to groundKeep (straight in), and a
+// grazing touch hops on skimLift of the speed along it, so a fast flat mochi skips like a stone. Under settleSpeed it slides
+// (on a hill, along the face). Marshmallow swallows it: marshKeep along, marshBounce off. A flight slow for stopTime ends here.
+function plainTouch(r, g) {
+  r.chain = 0; r.boosted = false; r.y = surfaceH(g, r.x);
+  if (r.slowT >= T.stopTime) { end(r, 'stop'); return; }
+  const sl = slopeAt(g, r.x), n = Math.hypot(1, sl), tx = 1 / n, ty = sl / n, nx = -sl / n, ny = 1 / n;
+  const vn = -(r.vx * nx + r.vy * ny), vt = r.vx * tx + r.vy * ty, steep = vn / (Math.hypot(r.vx, r.vy) || 1), marsh = g && g.kind === 'marsh';
+  const ut = vt * (marsh ? T.marshKeep : T.skimKeep + (T.groundKeep - T.skimKeep) * steep);
+  const out = Math.min(T.maxBounce, marsh ? vn * T.marshBounce : Math.max(vn * T.groundBounce, Math.abs(vt) * T.skimLift * (1 - steep)));
+  if (marsh) { r.marshes++; r.ev.push({ k: 'marsh', v: vn }); }
+  if (out >= T.settleSpeed) {
+    r.vx = ut * tx + out * nx; r.vy = ut * ty + out * ny; r.bounces++;
+    if (sl > 0) r.vx = Math.max(r.vx, T.crashKeep); // an uphill face never sends it backwards: a crash keeps a little forward speed
+    else if (r.vx < 0) r.vx = T.crashKeep;
+    r.ev.push({ k: 'bounce', v: vn, skim: steep < 0.35, soft: marsh });
+  } else {
+    r.ev.push({ k: 'land', v: vn });
+    const u = sl > 0 ? Math.max(ut, T.crashKeep) : Math.max(ut, 0);
+    if (g && g.kind === 'hill') { r.mode = 'hill'; r.hill = g; r.u = u; r.vx = u * tx; r.vy = u * ty; }
+    else { r.mode = 'ground'; r.vx = u; r.vy = 0; }
+  }
 }
 
 // One fixed physics step.
@@ -617,23 +724,21 @@ function stepRun(r) {
   if (r.ended) return;
   const f = r.field, st = r.st, t1 = (r.steps + 1) * STEP;
   while (r.q.length && r.q[0].at < t1) applyInput(r, r.q.shift());
-  if (r.holding && r.fuel > 0) {
-    const k = Math.min(1, r.fuel / (T.holdFuelRate * STEP));
-    r.fuel = Math.max(0, r.fuel - T.holdFuelRate * STEP);
-    push(r, st.thrust * STEP * k); r.boosted = true;
-  }
+  if (r.burstEnd >= 0 && t1 > r.burstEnd) { r.boost = false; r.burstEnd = -1; }
+  const fueled = r.boost && r.fuel > 0;
+  if (fueled) { r.boosted = true; r.boostT += STEP; }
 
   if (r.mode === 'air') {
-    r.vy -= T.gravity * STEP;
-    r.vx *= st.dragK; r.vy *= st.dragK;
-    r.x += r.vx * STEP; r.y += r.vy * STEP;
+    const vent = airStep(r, st, STEP, st.dragK, st.chuteK, f);
+    if (r.chute) r.glideT += STEP;
+    if (vent !== r.vent) { if (vent) { r[vent === 'thermal' ? 'thermals' : 'freezers']++; r.ev.push({ k: vent, x: r.x, glide: r.chute }); } r.vent = vent; }
     const t = t1, cy = r.y + T.critterR;
     for (const b of f.birds) {
       if (b.hit || Math.abs(b.x0 - r.x) > T.birdSwing + 40) continue;
       if (Math.hypot(birdX(b, t) - r.x, b.y - cy) < T.critterR + T.birdR) {
-        b.hit = true; r.boosted = false;
+        b.hit = true; r.boosted = false; r.ball = false;
         r.vy = Math.max(r.vy, T.birdLift);
-        r.birds++; r.chain++; r.chainMax = Math.max(r.chainMax, r.chain);
+        r.birds++; bump(r);
         r.ev.push({ k: 'bird', x: r.x, chain: r.chain });
       }
     }
@@ -646,33 +751,55 @@ function stepRun(r) {
     }
     const g = groundAt(f, r.x);
     if (g && g.kind === 'geyser' && !g.spent && r.y < T.geyserH && geyserOn(g, t)) hitGeyser(r, g);
-    else if (r.y <= surfaceH(g, r.x) && (r.vy <= 0 || (g && g.kind === 'ramp'))) {
+    else if (touching(g, r)) {
       const vyIn = r.vy;
       if (g && g.kind === 'mud') { r.y = 0; end(r, 'mud'); }
-      else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, vyIn);
       else if (g && g.kind === 'ramp') enterRamp(r, g, Math.hypot(r.vx, r.vy));
-      else plainTouch(r);
+      else if (r.ball) slam(r, g);
+      else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, vyIn);
+      else plainTouch(r, g);
     }
   } else if (r.mode === 'ground') {
-    r.vx *= st.slideK;
-    r.x += r.vx * STEP;
-    const g = groundAt(f, r.x);
-    if (g && g.kind === 'mud') end(r, 'mud');
-    else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, 0);
-    else if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t1)) hitGeyser(r, g);
-    else if (g && g.kind === 'ramp') enterRamp(r, g, Math.abs(r.vx));
-    else r.chain = 0;
+    if (fueled) { // a boost on the ground hops
+      r.fuel = Math.max(0, r.fuel - T.boostDrain * STEP);
+      r.vx += Math.cos(T.groundBoostAngle * DEG) * st.thrust * STEP; r.vy = Math.sin(T.groundBoostAngle * DEG) * st.thrust * STEP;
+      r.mode = 'air'; r.y = 0.01;
+    } else {
+      r.vx *= st.slideK;
+      r.x += r.vx * STEP;
+      const g = groundAt(f, r.x);
+      if (g && g.kind === 'mud') end(r, 'mud');
+      else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, 0);
+      else if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t1)) hitGeyser(r, g);
+      else if (g && g.kind === 'ramp') enterRamp(r, g, Math.abs(r.vx));
+      else if (g && g.kind === 'hill') { r.mode = 'hill'; r.hill = g; r.u = r.vx; }
+      else { r.chain = 0; if (g && g.kind === 'marsh') r.vx *= st.slideK; }
+    }
   } else if (r.mode === 'ramp') {
     const g = r.ramp;
-    r.u = r.u * st.dragK - T.gravity * Math.sin(g.a) * STEP;
+    r.u = Math.max(T.crashKeep, r.u * st.dragK - T.gravity * Math.sin(g.a) * STEP + (fueled ? st.thrust * STEP : 0)); // climbing slows it, never backwards
+    if (fueled) r.fuel = Math.max(0, r.fuel - T.boostDrain * STEP);
     r.x += r.u * Math.cos(g.a) * STEP;
     r.vx = r.u * Math.cos(g.a); r.vy = r.u * Math.sin(g.a);
     if (r.x >= g.x1) { r.mode = 'air'; r.y = g.h; r.ramp = null; }
     else if (r.x <= g.x0) { r.mode = 'ground'; r.y = 0; r.vy = 0; r.ramp = null; }
     else r.y = surfaceH(g, r.x);
+  } else if (r.mode === 'hill') { // sliding along a hill's face; it flies off where the face curves away faster than gravity holds it
+    const g = r.hill, sl = slopeAt(g, r.x), c = 1 / Math.hypot(1, sl);
+    r.u = Math.max(T.crashKeep, r.u * st.dragK - T.gravity * sl * c * STEP + (fueled ? st.thrust * STEP : 0));
+    if (fueled) r.fuel = Math.max(0, r.fuel - T.boostDrain * STEP);
+    r.x += r.u * c * STEP;
+    if (r.x >= g.x1 || r.x <= g.x0) { r.mode = 'ground'; r.y = 0; r.vx = r.u; r.vy = 0; r.hill = null; }
+    else {
+      const s2 = slopeAt(g, r.x), c2 = 1 / Math.hypot(1, s2);
+      r.y = surfaceH(g, r.x); r.vx = r.u * c2; r.vy = r.u * s2 * c2;
+      if (-bendAt(g, r.x) * c2 * c2 * c2 * r.u * r.u > T.gravity * c2) { r.mode = 'air'; r.hill = null; r.y += 0.01; r.ev.push({ k: 'launch' }); }
+    }
   }
 
   r.steps++;
+  if (r.y > r.topY) r.topY = r.y;
+  const sq = r.vx * r.vx + r.vy * r.vy; if (sq > r.topSq) r.topSq = sq;
   if (r.x > r.maxX) {
     r.maxX = r.x;
     while (r.maxX >= r.nextMark) { r.coinAcc += T.coinPer10m * mult(r); r.nextMark += 10 * T.unitsPerMetre; }
@@ -682,9 +809,10 @@ function stepRun(r) {
     ensureField(f, r.maxX);
   }
   if (r.ended) return;
-  if (Math.hypot(r.vx, r.vy) < T.stopSpeed) { r.slowT += STEP; if (r.slowT >= T.stopTime) end(r, 'stop'); }
+  // Slow means horizontally slow: on the ground it ends after stopTime, in the air at the next plain touch.
+  if (Math.abs(r.vx) < T.stopSpeed) { r.slowT += STEP; if (r.mode !== 'air' && r.slowT >= T.stopTime) end(r, 'stop'); }
   else r.slowT = 0;
-  if (flightTime(r) >= T.maxFlight) end(r, 'stop');
+  if (!r.ended && flightTime(r) >= T.maxFlight) { r.timeout = true; end(r, 'stop'); }
 }
 
 // Frame-rate independent advance: whole steps only, the remainder carried.
@@ -696,11 +824,43 @@ function advance(r, dt) {
 const metres = (r) => Math.floor(r.maxX / T.unitsPerMetre);
 const coinsOf = (r) => Math.floor(r.coinAcc) + r.birds * T.birdCoins;
 
+// ---------- The range finder (PRD v0.3 D, v0.4 B) ----------
+// The flight's own air step run forward from a copy of its state with the current action kept (a held boost until the
+// fizz runs out, a tap's burst to its end, the glider, the condensed drop), for `look` seconds or to the first contact:
+// a bird, an erupting geyser's column, or the ground (a jelly, caramel, a wafer, a hill's face, marshmallow or plain). The
+// field is only read. Dots every rangeDot steps go into `out` as x, y pairs. Returns { n: dots, hit: contact reached, x, y,
+// kind, slam: what a condensed touch meets (slamOf), vent: the first thermal or freezer column it enters { x, y, kind } }, or
+// null off the air.
+function rangeArc(r, look, out) {
+  if (r.mode !== 'air' || r.ended) return null;
+  const f = r.field, st = r.st, s = { x: r.x, y: r.y, vx: r.vx, vy: r.vy, boost: r.boost, chute: r.chute, ball: r.ball, fuel: r.fuel, e: r.e };
+  const R = T.critterR + T.birdR, near = f.birds.filter((b) => !b.hit && Math.abs(b.x0 - r.x) < 4000);
+  let n = 0, t = flightTime(r), vent = null, was = r.vent;
+  const steps = Math.ceil(look / STEP);
+  for (let i = 1; i <= steps; i++) {
+    t += STEP;
+    if (r.burstEnd >= 0 && t > r.burstEnd) s.boost = false;
+    const v = airStep(s, st, STEP, st.dragK, st.chuteK, f);
+    if (v && v !== was && !vent) vent = { x: s.x, y: s.y, kind: v };
+    was = v;
+    if (out && i % T.rangeDot === 0) { out[2 * n] = s.x; out[2 * n + 1] = s.y; n++; }
+    const cy = s.y + T.critterR;
+    for (const b of near) if (Math.abs(b.x0 - s.x) <= T.birdSwing + 40 && Math.hypot(birdX(b, t) - s.x, b.y - cy) < R) return { n, hit: true, x: s.x, y: s.y, kind: 'bird', vent };
+    if (s.y > T.geyserH) continue; // high up: nothing on the ground reaches
+    const g = groundAt(f, s.x);
+    if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t)) return { n, hit: true, x: s.x, y: s.y, kind: 'geyser', vent };
+    if (touching(g, s)) {
+      const kind = !g ? 'ground' : g.kind === 'spring' ? (g.spent ? 'ground' : 'spring') : g.kind === 'hill' ? (slopeAt(g, s.x) > 0 ? 'up' : 'down') : g.kind === 'mud' || g.kind === 'ramp' || g.kind === 'marsh' ? g.kind : 'ground';
+      return { n, hit: true, x: s.x, y: surfaceH(g, s.x), kind, slam: s.ball && kind !== 'mud' && kind !== 'ramp' ? slamOf(g, s.x).on : null, vent };
+    }
+  }
+  return { n, hit: false, x: s.x, y: s.y, kind: null, vent };
+}
+
 // ---------- Goals (PRD v0.2 B, G2) ----------
 // In order of difficulty; three are active at a time (the first three not done). A flight pays every active goal it meets,
 // on the card, and the next in the list takes its place. Each is a name in the candy kitchen's trade and a short plain
-// condition; `stat` is a number from the flight's summary (goalStats), met at `need`; `count` goals show "have/need". A goal
-// named for a skill is met by a zero-input Good or better launch on at most 20 percent of stops (tools/sim-launch.mjs --rank).
+// condition; `stat` is a number from the flight's summary (goalStats), met at `need`; `count` goals show "have/need".
 const GOALS = [
   { id: 'reach300', name: 'Warm Oven', text: 'Reach 300 m', stat: 'm', need: 300, reward: 80 },
   { id: 'great', name: 'Good Knead', text: 'Launch Great or better', stat: 'great', need: 1, reward: 80 },
@@ -736,9 +896,13 @@ function settleGoals(done, st) {
 const goalLine = (g, have) => (g.count && have !== undefined ? `${g.text}  ${Math.min(have, g.need)}/${g.need}` : g.text);
 
 // ---------- Save ----------
-// v6: { best: metres, sugar, ms: [milestone metres ever passed], flights, up: { band, fuel, aero, rocket, steady }, holdTaught,
-//       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight, birdTaught, mudTaught,
-//       home: the mochi has met the daifuku (the Home moment has played) }
+// v9: { best: metres, sugar, ms: [milestone metres ever passed, on the v0.4 lines], flights, up: { band, fuel, aero, rocket, steady, scope },
+//       goalsDone: [goal ids], perfectRow: Perfect launches in a row up to the last flight (the machine's streak), birdTaught,
+//       mudTaught, home: the mochi has met the daifuku, actionsTaught: the three-action hint has shown,
+//       openSeen: the cold open has shown, placesSeen: the highest place index whose arrival line has shown (0 to 4) }
+// v10 (PRD v0.6): openSeen is the story version shown (a number, 2 now; v9's true reads as 1), placesSeen is also the gifts found
+//       (the first Mochi picks up on entering each of the four places), and proposed: the proposal has shown. `home` stays the
+//       flag for reaching Tea Party (the place called Home before v0.6).
 
 function finishFlight(E, r) {
   const m = metres(r), best = E.save.get('best', 0);
@@ -757,31 +921,34 @@ function finishFlight(E, r) {
   E.save.set('perfectRow', perfectRow);
   if (gs.paid.length) E.save.set('goalsDone', gs.done);
   const up = r.up;
-  E.ledger.add('flight', { m, why: r.ended, sugar: earned, bonus, goals: gs.paid.map((g) => g.id).join('/') || 'none', chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, geysers: r.geysers, clouds: r.clouds, pulses: r.pulses,
-    angle: +r.launch.angle.toFixed(1), zone: ZONES[r.launch.zone ?? 3].replace('!', ''), up: `b${up.band}f${up.fuel}a${up.aero}r${up.rocket}s${up.steady || 0}`, seed: r.seed });
+  E.ledger.add('flight', { m, why: r.ended, sugar: earned, bonus, goals: gs.paid.map((g) => g.id).join('/') || 'none', chain: r.chainMax, ms: r.stars.join('/') || 'none', springs: r.springs, birds: r.birds, geysers: r.geysers, clouds: r.clouds, bounces: r.bounces,
+    boosts: r.boosts, boostT: +r.boostT.toFixed(1), chutes: r.chutes, drops: r.drops, secs: +flightTime(r).toFixed(1),
+    angle: +r.launch.angle.toFixed(1), gauge: +r.launch.gauge.toFixed(3), zone: ZONES[r.launch.zone ?? 3].replace('!', ''), streak: r.launch.streak || 0,
+    up: `b${up.band}f${up.fuel}a${up.aero}r${up.rocket}s${up.steady || 0}t${up.scope || 0}`, seed: r.seed });
   // The card: rewards as tickets (the goals paid and the new places, largest first), then the three goals now active (a
   // counter for those this flight counted toward, "new" for the ones that just took a slot).
   const tickets = gs.paid.map((g) => ({ name: g.name, cond: g.text, sugar: g.reward })).concat(firsts.map((ms) => ({ name: PLACES[T.milestones.indexOf(ms) + 1].name, short: PLACES[T.milestones.indexOf(ms) + 1].name.split(' ')[0], cond: `New place, ${ms} m`, sugar: T.milestoneBonus[T.milestones.indexOf(ms)] })))
     .sort((a, b) => b.sugar - a.sugar);
   const active = activeGoals(gs.done).map((g) => ({ g, have: before.includes(g.id) ? st[g.stat] : undefined, isNew: !before.includes(g.id) }));
-  return { m, best: Math.max(best, m), isNew: m > best, sugar: coinsOf(r), bonus, earned, chainMax: r.chainMax, tickets, active, seed: r.seed, why: r.ended, zone: r.launch.zone ?? 3 };
+  return { m, best: Math.max(best, m), isNew: m > best, sugar: coinsOf(r), bonus, earned, chainMax: r.chainMax, tickets, active, seed: r.seed, why: r.ended, crashes: r.crashes, zone: r.launch.zone ?? 3, streak: perfectRow };
 }
 
 // ---------- Shop ----------
 // Save: `up` holds the bought level of each upgrade (0 to upgradeMax); sugar is spent from `sugar`.
 
-// Named in the candy kitchen's trade (PRD v0.2 E); each is drawn on the mochi or the launcher at every level, and in the shop.
-const UPGRADES = [{ id: 'band', name: 'Licorice Band' }, { id: 'fuel', name: 'Fizz Tank' }, { id: 'rocket', name: 'Cola Rocket' }, { id: 'aero', name: 'Sugar Glaze' }, { id: 'steady', name: 'Steady Chopsticks' }];
+// Named in the candy kitchen's trade; each bolts a part onto the Mochi Maker 3000 (PRD v0.3 A, D), drawn at every level on
+// the machine and in the shop (the Fizz Tank's bottle and the Cola Rocket's nozzle ride on the mochi too).
+const UPGRADES = [{ id: 'band', name: 'Spring Coil' }, { id: 'fuel', name: 'Fizz Tank' }, { id: 'rocket', name: 'Cola Rocket' }, { id: 'aero', name: 'Sugar Glaze' }, { id: 'steady', name: 'Steady Gauge' }, { id: 'scope', name: 'Brass Telescope' }];
 const levelsOf = (E) => ({ ...T.upgrades, ...E.save.get('up', {}) });
 
 // What buying level `lvl` (1 to upgradeMax) of an upgrade does, in plain words.
-function effectText(id, lvl) {
+function effectText(id) {
   if (id === 'band') return `+${Math.round(T.bandStep * 100)}% launch speed`;
-  if (id === 'fuel') return `+${T.fuelStep} fizz pulses`;
+  if (id === 'fuel') return `+${T.fuelStep} fizz pips`;
   if (id === 'aero') return `${Math.round(T.aeroStep * 100)}% less air drag`;
-  if (id === 'steady') return `Needle ${Math.round(T.steadySlow * 100)}% slower, zones +${T.steadyWiden}° a side`;
-  const k = T.rocketThrust / T.holdFuelRate / T.boostPulse;
-  return lvl === 1 ? `Hold to boost, ${+k.toFixed(1)}x push per fizz` : `+${Math.round(T.rocketStep * 100)}% hold thrust`;
+  if (id === 'steady') return `Gauge ${Math.round(T.steadySlow * 100)}% slower, zones wider`;
+  if (id === 'scope') return `Range finder +${T.scopeStep} s`;
+  return `+${Math.round(T.rocketStep * 100)}% boost thrust`;
 }
 
 // Greedy word wrap to `maxW` px at a text size and weight (system font, as E.text draws it).
@@ -805,22 +972,21 @@ function buy(E, id) {
   return true;
 }
 
-// An upgrade's picture at a level (the shop's): the gear itself, as it is drawn on the mochi or the launcher, on a light plate.
+// An upgrade's picture at a level (the shop's): the part itself, as it is drawn on the machine, on a light plate.
 function drawUpgradePic(ctx, id, lvl, cx, cy, size, time) {
   ctx.fillStyle = P.shopWall; ctx.beginPath(); ctx.arc(cx, cy, size / 2, 0, Math.PI * 2); ctx.fill();
   const k = size / 80, lw = 2 * k;
-  if (id === 'band' || id === 'steady') {
-    const base = cy + size * 0.36, top = cy - size * 0.3, fw = size * 0.2;
-    drawChopsticks(ctx, cx, base, top, fw, k * 1.6, lw, id === 'steady' ? lvl : 0, id === 'band' ? lvl : 0, time);
-    drawLicorice(ctx, [cx - fw, top], [cx, top + size * 0.12], [cx + fw, top], k * 1.6, id === 'band' ? lvl : 0);
-  } else if (id === 'fuel') drawBottle(ctx, cx, cy + size * 0.05, size * (0.36 + 0.12 * lvl), 0, 0.75, lw);
+  if (id === 'band') drawCoil(ctx, cx - size * 0.3, cy, size * 0.6, size * (0.16 + 0.05 * lvl), 4 + 2 * lvl, lw);
+  else if (id === 'steady') drawGauge(ctx, cx, cy, size * 0.36, null, T.zoneHalf.map((h) => h + T.steadyWiden * lvl), lvl, lw);
+  else if (id === 'scope') drawScope(ctx, cx - size * 0.3, cy + size * 0.1, size * (0.36 + 0.1 * lvl), -0.35, lvl, lw);
+  else if (id === 'fuel') drawBottle(ctx, cx, cy + size * 0.05, size * (0.36 + 0.12 * lvl), 0, 0.75, lw);
   else if (id === 'rocket') {
     drawNozzle(ctx, cx - size * 0.12, cy, size * (0.2 + 0.07 * lvl), 0, lvl, true, lw, time);
     for (let i = 0; i < 3; i++) { ctx.fillStyle = P.cola; ctx.strokeStyle = P.colaRim; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx + size * (0.18 + 0.08 * i), cy + Math.sin(time * 4 + i) * size * 0.06, size * (0.05 - 0.01 * i), 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-  } else drawMochi(ctx, cx, cy - size * 0.02, size * 0.27, 0, 1, 1, lw, { aero: lvl }, time);
+  } else { drawGlazeDrum(ctx, cx, cy + size * 0.1, size * (0.18 + 0.04 * lvl), lvl, lw); drawMochi(ctx, cx, cy - size * 0.2, size * 0.16, 0, 1, 1, lw * 0.7, { aero: lvl }, time); }
 }
 
-// The shop: five cards in a row, each a picture of the gear at the level Buy gives (or the top level), the name in the
+// The shop: six cards in a row, each a picture of the gear at the level Buy gives (or the top level), the name in the
 // kitchen's trade, level pips, the effect in plain words and a Buy button carrying the price (principle 11: three text items).
 const shop = {
   enter(E, p = {}) { this.from = p.from || 'menu'; this.card = p.card || null; this.cells = []; },
@@ -864,53 +1030,43 @@ const shop = {
   onKey(k, E) { if (k === 'Escape') E.setScene(this.from, this.card ? { ...this.card, again: true } : {}); },
 };
 
-// ---------- Camera ----------
+// ---------- Camera (PRD v0.4 C: one honest mapping) ----------
 // The camera zooms out with height, speed and the predicted landing of the current arc, down to zoomMin, so the landing
-// is in view by the top of the arc. The ground band keeps its screen size and position: when even zoomMin cannot fit the
-// critter's height, the sky pans up with the critter and the band stays pinned at the bottom (a drop line and a height
-// label show how far up it is). Everything here is in design px at zoom 1; `vw` is the view width in design px.
+// is in view by the top of the arc. Above the height zoomMin fits, height is compressed (lift): true to scale up to
+// trueShare of the sky room, then each extra metre takes less screen, so the critter's top stays inside the sky room and
+// the ground is always on screen. The mochi, the range finder, birds, clouds, columns and every object use this one
+// mapping, so the arc ends on the drawn ground at the right place. Drawing only: the physics never reads it. Everything here
+// is in design px at zoom 1; `vw` is the view width in design px.
 
-// Where the critter comes down if nothing else touches it: gravity and drag only, onto the ground or a ramp.
+// Where the critter comes down if nothing else touches it: the air step (with the action it holds now) in 4-step strides,
+// onto the ground or a ramp.
 function predictLanding(r) {
   if (r.mode !== 'air') return r.x;
-  let vx = r.vx, vy = r.vy, x = r.x, y = r.y;
-  const h = STEP * 4, k = Math.pow(1 - r.st.airDrag, h);
-  for (let i = 0; i < 6000; i++) {
-    vy -= T.gravity * h; vx *= k; vy *= k; x += vx * h; y += vy * h;
-    if (vy < 0 && y <= surfaceH(groundAt(r.field, x), x)) return x;
+  const h = STEP * 4, s = { x: r.x, y: r.y, vx: r.vx, vy: r.vy, boost: r.boost && r.burstEnd < 0, chute: r.chute, ball: r.ball, fuel: r.fuel, e: r.e };
+  const kd = Math.pow(1 - r.st.airDrag, h), kc = Math.exp(-T.chuteBleed * h);
+  for (let i = 0; i < 3000; i++) {
+    airStep(s, r.st, h, kd, kc, r.field);
+    if (s.vy < 0 && touching(groundAt(r.field, s.x), s)) return s.x;
   }
-  return x;
+  return s.x;
 }
 
-// The landing marker (PRD v0.2 C): where the critter first touches the ground or a ramp if no more boost is fired, by the
-// flight's own air step run forward on a copy of its state (the field is only read). Null when a bird comes first, or when
-// the critter is not in the air: the marker never shows beyond the first contact.
-function landingMark(r, maxT = 30) {
-  if (r.mode !== 'air' || r.ended) return null;
-  const f = r.field, st = r.st;
-  let x = r.x, y = r.y, vx = r.vx, vy = r.vy, n = r.steps;
-  const near = f.birds.filter((b) => !b.hit && b.x0 > x - T.birdSwing - 40), R = T.critterR + T.birdR;
-  const birdTop = near.reduce((m, b) => Math.max(m, b.y), -Infinity) + R;
-  // Clouds slow the arc on the way (the real physics), so the marker allows for them; a geyser's column is a contact.
-  const clouds = f.clouds.filter((c) => !c.used && c.x > x - T.cloudRX - T.critterR), seen = new Set();
-  const cloudTop = clouds.reduce((m, c) => Math.max(m, c.y), -Infinity) + T.cloudRY + T.critterR;
-  const groundTop = f.ground.reduce((m, g) => Math.max(m, g.kind === 'geyser' && !g.spent ? T.geyserH : g.h), 0);
-  for (let i = 0; i < maxT / STEP; i++) {
-    n++;
-    vy -= T.gravity * STEP; vx *= st.dragK; vy *= st.dragK; x += vx * STEP; y += vy * STEP;
-    const cy = y + T.critterR;
-    if (cy <= birdTop) for (const b of near) if (Math.abs(b.x0 - x) <= T.birdSwing + 40 && Math.hypot(birdX(b, n * STEP) - x, b.y - cy) < R) return null;
-    if (cy <= cloudTop) for (const c of clouds) if (!seen.has(c) && Math.abs(c.x - x) <= T.cloudRX + T.critterR && inCloud(c, x, cy)) { seen.add(c); vx *= 1 - T.cloudDrag; vy *= 1 - T.cloudDrag; }
-    if (y > groundTop) continue; // high up: nothing to touch yet
-    const g = groundAt(f, x);
-    if (g && g.kind === 'geyser' && !g.spent && y < T.geyserH && geyserOn(g, n * STEP)) return { x, g, lift: true };
-    if (y <= surfaceH(g, x) && (vy <= 0 || (g && g.kind === 'ramp'))) return { x, g };
-  }
-  return null;
-}
+const newCamera = (vw) => ({ x: -vw * T.slingScreen, z: 1, a: T.followX, h: 0, L: 1, b: 1, q: 0, lq: 1 });
+const skyRoom = () => (T.groundY - T.skyTop) * T.skyFill; // design px of sky the critter may climb into
 
-const newCamera = (vw) => ({ x: -vw * T.slingScreen, y: 0, z: 1, a: T.followX });
-const skyRoom = () => (T.groundY - T.skyTop) * T.skyFill; // design px of sky the critter may climb into before the view moves
+// The compression for a camera whose top height is c.h: true to scale to c.b, then log-compressed so that c.h lands at
+// c.L (the sky room in world units at this zoom), with the same slope at c.b (no kink).
+function squeeze(c) {
+  c.L = skyRoom() / c.z; c.b = T.trueShare * c.L;
+  if (c.h <= c.L) { c.q = 0; return; }
+  const m = (c.h - c.b) / (c.L - c.b);
+  let lo = 1e-6, hi = 1e9; // q / ln(1 + q) = m
+  for (let i = 0; i < 60; i++) { const q = Math.sqrt(lo * hi); if (q / Math.log1p(q) < m) lo = q; else hi = q; }
+  c.q = Math.sqrt(lo * hi); c.lq = Math.log1p(c.q);
+}
+// A world height on the view (units at zoom 1), and back.
+const lift = (c, y) => (c.q === 0 || y <= c.b ? y : c.b + ((c.L - c.b) * Math.log1p((c.q * (y - c.b)) / (c.h - c.b))) / c.lq);
+const unlift = (c, v) => (c.q === 0 || v <= c.b ? v : c.b + ((c.h - c.b) * Math.expm1(((v - c.b) / (c.L - c.b)) * c.lq)) / c.q);
 
 function cameraStep(c, r, vw, dt) {
   let zt = 1, at = T.followX;
@@ -933,12 +1089,15 @@ function cameraStep(c, r, vw, dt) {
   c.a += (at - c.a) * k(T.zoomOutTime);
   const start = -vw * T.slingScreen;
   c.x = r ? Math.max(start, r.x - (vw * c.a) / c.z) : start;
-  c.y = r ? Math.max(0, r.y + 2 * T.critterR - skyRoom() / c.z) : 0;
+  // The top height: the critter's top (its sprite never under spriteMin), at once when it climbs, eased when it falls.
+  const need = r ? r.y + 2 * T.critterR * Math.max(1, T.spriteMin / c.z) : 0;
+  c.h = need >= c.h ? need : c.h + (need - c.h) * k(T.zoomInTime);
+  squeeze(c);
   return c;
 }
 
-// A world point in design px at zoom 1 (the ground band pinned at groundY).
-const toView = (c, wx, wy) => [(wx - c.x) * c.z, T.groundY - (wy - c.y) * c.z];
+// A world point in design px at zoom 1.
+const toView = (c, wx, wy) => [(wx - c.x) * c.z, T.groundY - lift(c, wy) * c.z];
 
 // ---------- View ----------
 
@@ -950,7 +1109,9 @@ function view(E) {
 }
 
 // S: the play scene's state; S.fx: cosmetic effects in world units (particles, tumbling birds, words), capped.
-const S = { run: null, cam: null, seed: 0, fx: [], sq: { amt: 0, t: 0 } };
+const S = { run: null, cam: null, seed: 0, fx: [], sq: { amt: 0, t: 0 }, pops: new Map(), vents: new Map(), wing: { x: 0, v: 0 }, needle: 0 };
+// The real speed in km/h-like units (the speedometer's number); the dial's needle eases to it.
+const speedOf = (r) => Math.hypot(r.vx, r.vy) * T.speedo.kmh;
 
 const RGB = new Map();
 function hexRgb(h) { let v = RGB.get(h); if (!v) { const n = parseInt(h.slice(1), 16); v = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; RGB.set(h, v); } return v; }
@@ -1013,15 +1174,16 @@ function drawMotif(ctx, E, motif, li, top, off, s, gy, time) {
   }
 }
 
-// `pre`: the launcher's state, { needle: angle or null, wedge: alpha, mark: landing x or null }. `up`: the gear to draw.
+// `pre`: the machine's state ({ aim: barrel angle, gauge, half, lit, glow, pump }, see drawMachine) and in flight `arc`, the
+// range finder. `up`: the gear to draw.
 function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   const s = v.s, z = c.z, lw = T.style.line * s;
-  const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - (wy - c.y) * z) * s;
-  const gy = v.oy + T.groundY * s, lift = c.y * z * s, liftM = c.y / T.unitsPerMetre;
+  const X = (wx) => (wx - c.x) * z * s, Y = (wy) => v.oy + (T.groundY - lift(c, wy) * z) * s;
+  const gy = v.oy + T.groundY * s, squeezed = c.q > 0;
   const sprite = Math.max(z, T.spriteMin), span = v.vw / z;
   const pv = placeView(c.x + span / 2), A = PLACES[pv.a], B = PLACES[pv.b];
   const day = [lerpRgb(hexRgb(A.sky[0]), hexRgb(B.sky[0]), pv.k), lerpRgb(hexRgb(A.sky[1]), hexRgb(B.sky[1]), pv.k)];
-  const alt = (c.y + T.groundY / z) / T.unitsPerMetre, sky = skyAt(alt, day);
+  const alt = unlift(c, T.groundY / z) / T.unitsPerMetre, sky = skyAt(alt, day);
 
   // Sky, stars, hills.
   const grad = ctx.createLinearGradient(0, 0, 0, gy);
@@ -1036,10 +1198,10 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
     }
     ctx.globalAlpha = 1;
   }
-  const hillA = (1 - clamp(liftM / T.hillFadeLift, 0, 1)) * (1 - sky.night);
+  const hillA = 1 - sky.night;
   if (hillA > 0.01) {
     for (const [li, par, key] of [[0, 0.15, 'far'], [1, 0.35, 'near']]) {
-      const off = c.x * z * par, drop = lift * 0.6, ha = A.hills, hb = B.hills, k = pv.k;
+      const off = c.x * z * par, drop = 0, ha = A.hills, hb = B.hills, k = pv.k;
       const hy = (u) => { const a = ha.base[li] + ha.amp[li] * hillY(u, ha, li); return k > 0 ? a + (hb.base[li] + hb.amp[li] * hillY(u, hb, li) - a) * k : a; };
       const top = (u) => gy + drop - hy(u) * s;
       ctx.globalAlpha = hillA; ctx.fillStyle = mix(ha[key], hb[key], k);
@@ -1057,7 +1219,7 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   if (X(hx + 200) > 0 && X(hx - 200) < E.w) {
     shopfront(ctx, X(hx + 60), gy, 90 * z * s, s * z, lw, true);
     const hop = S.homeT > 0 ? Math.abs(Math.sin((J.homeTime - S.homeT) * 9)) * 10 * s * sprite : 0;
-    drawDaifuku(ctx, X(hx), gy - T.critterR * s * sprite - hop, T.critterR * s * sprite, E.time, lw);
+    if (!E.save.get('proposed', false)) drawDaifuku(ctx, X(hx), gy - T.critterR * s * sprite - hop, T.critterR * s * sprite, E.time, lw); // after the proposal she is with him
   }
 
   // The ground band, each place in its own colours from its line: a top strip, soil, distance ticks and labels.
@@ -1078,13 +1240,10 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   ctx.globalAlpha = 1;
   for (let wx = Math.ceil(c.x / (5 * u10)) * 5 * u10; wx < c.x + span + u10; wx += 5 * u10) if (wx > 0) E.text(`${wx / T.unitsPerMetre} m`, X(wx), Math.min(gy + 34 * s, E.h - E.safe.bottom - 10), { size: TY.sm, color: P.text, weight: '600' });
 
-  const fx = X(0), forkTop = gy - (T.slingH + T.critterR) * z * s, fw = 1.3 * T.critterR * s * Math.max(z, T.spriteMin); // tips either side of the mochi
-  const launcherSeen = fx > -60 * s && fx < E.w + 60 * s;
-  if (launcherSeen) { // the chopsticks are one sprite per gear and size (the gold's twinkle is drawn live)
-    const st = up.steady || 0, x0 = fx - fw - 6 * s * z, y0 = forkTop - 6 * s * z, w = 2 * fw + 12 * s * z, h = gy + 4 * s - y0;
-    cached(ctx, `chop${st}${up.band || 0}|${lw.toFixed(2)}`, x0, y0, w, h, (c) => { c.translate(-x0, -y0); drawChopsticks(c, fx, gy + 2 * s, forkTop, fw, s * z, lw, st, up.band || 0); });
-    if (st === 3) { ctx.fillStyle = P.chopHi[3]; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(E.time * 4); star4(ctx, fx + fw * 0.8, forkTop + (gy - forkTop) * 0.15, 4 * s * z); ctx.globalAlpha = 1; }
-  }
+  // The Mochi Maker 3000 at the pivot (x = 0), true size with the zoom.
+  const mk = s * z, mx = X(0), machineSeen = mx > -140 * MACHINE * mk && mx < E.w + 60 * mk;
+  const aim = r ? r.launch.angle : pre && pre.aim !== undefined ? pre.aim : T.aimMin;
+  if (machineSeen) drawMachine(ctx, E, mx, gy, mk, lw, up, aim, pre || {});
 
   if (r) {
     const f = r.field, t = flightTime(r), x0 = c.x - 400, x1 = c.x + span + 400;
@@ -1093,7 +1252,10 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
       if (g.kind === 'spring') drawJelly(ctx, X(g.x0), gy, g.w * z * s, s, g.spent, S.pops.get(g), E.time + g.x0 * 0.01, lw);
       else if (g.kind === 'mud') drawMud(ctx, X(g.x0), gy, g.w * z * s, s, E.time + g.x0 * 0.013);
       else if (g.kind === 'ramp') drawRamp(ctx, X(g.x0), gy, g.w * z * s, g.h * z * s, s, lw);
-      else if (g.kind === 'geyser') drawGeyser(ctx, X(g.x0), gy, g.w * z * s, T.geyserH * z * s, s, g, t, E.time, lw);
+      else if (g.kind === 'geyser') drawGeyser(ctx, X(g.x0), gy, g.w * z * s, gy - Y(T.geyserH), s, g, t, E.time, lw);
+      else if (g.kind === 'thermal' || g.kind === 'freezer') drawVent(ctx, X(g.x0), gy, g.w * z * s, gy - Y(T.ventH), s, g.kind, E.time + g.x0 * 0.01, lw, S.vents.get(g));
+      else if (g.kind === 'hill') drawHill(ctx, X(g.x0), gy, g.w * z * s, g.h * z * s, s, lw);
+      else if (g.kind === 'marsh') drawMarsh(ctx, X(g.x0), gy, g.w * z * s, s, lw, S.pops.get(g), E.time + g.x0 * 0.01);
     }
     for (const cl of f.clouds) if (cl.x > x0 && cl.x < x1) drawCloud(ctx, X(cl.x), Y(cl.y), s * z, cl.used, E.time + cl.x * 0.01, lw);
     for (const b of f.birds) {
@@ -1103,46 +1265,199 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
     }
   }
 
-  if (pre && pre.mark !== null && pre.mark !== undefined && X(pre.mark) <= E.w - 6 * s) drawMark(ctx, X(pre.mark), gy, s, E.time);
-  const px = X(0), py = Y(T.slingH + T.critterR);
-  if (pre && pre.needle !== null && pre.wedge > 0) drawWedge(ctx, px, py, s, pre.needle, pre.wedge, up, lw);
+  if (r && pre && pre.arc) drawArc(ctx, pre.arc, X, Y, s, sprite, E.time);
 
-  // The mochi: in the chopsticks' band until the launch, then where the run has it.
-  const cx = r ? r.x : 0, cy = r ? r.y : T.slingH;
-  const rr = T.critterR * s * sprite, sx = X(cx), sy = Y(cy) - rr;
-  // Soft shadow on the band while low.
+  // The mochi: on the barrel's mouth until the launch, then where the run has it.
+  const [m0x, m0y] = mouth(aim);
+  const cx = r ? r.x : m0x, cy = r ? r.y : m0y;
+  let rr = T.critterR * s * (r ? sprite : z);
+  const sx = X(cx), sy = Y(cy) - rr;
   const hgt = cy * z * s;
-  if (lift === 0 && hgt < 160 * s) { ctx.globalAlpha = 1 - hgt / (160 * s); ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(sx, gy + 2 * s, rr * 1.1, rr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  if (hgt < 160 * s && r) { ctx.globalAlpha = 1 - hgt / (160 * s); ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(sx, gy + 2 * s, rr * 1.1, rr * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
   for (const e of S.fx) drawFx(ctx, E, e, X, Y, s, sprite, lw, true);
-  if (lift > 0) { // panned sky: a dotted drop line from the critter to the band
-    ctx.strokeStyle = sky.night > 0.5 ? P.star : P.ink; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]);
-    ctx.beginPath(); ctx.moveTo(sx, sy + rr + 4); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
-  }
-  // Speed lines after a jelly or a geyser.
-  if (r && S.speedT > 0) {
-    const sp = Math.hypot(r.vx, r.vy) || 1, ux = r.vx / sp, uy = -r.vy / sp;
-    ctx.strokeStyle = P.white; ctx.lineWidth = 2 * s; ctx.globalAlpha = S.speedT / J.speedLines;
-    for (let i = -1; i <= 1; i++) {
-      const ox = -uy * i * rr * 0.7, oy = ux * i * rr * 0.7;
-      ctx.beginPath(); ctx.moveTo(sx - ux * rr * 1.4 + ox, sy - uy * rr * 1.4 + oy); ctx.lineTo(sx - ux * rr * (2.6 + (i & 1)) + ox, sy - uy * rr * (2.6 + (i & 1)) + oy); ctx.stroke();
+  const sp = r ? Math.hypot(r.vx, r.vy) : 0, dir = r && sp > 1 ? Math.atan2(-r.vy, r.vx) : 0;
+  // Speed lines: fast, or just off a jelly or a geyser.
+  const lines = r && !r.ended ? Math.max(S.speedT > 0 ? S.speedT / J.speedLines : 0, clamp((sp - J.speedLineMin) / 600, 0, 1)) : 0;
+  if (lines > 0.02) {
+    const ux = Math.cos(dir), uy = Math.sin(dir);
+    ctx.strokeStyle = P.white; ctx.lineWidth = 2 * s; ctx.globalAlpha = Math.min(1, lines); ctx.lineCap = 'round';
+    for (let i = -2; i <= 2; i++) {
+      const ox = -uy * i * rr * 0.55, oy = ux * i * rr * 0.55, l = 2.2 + ((i + 2) % 3) * 0.7 + Math.sin(E.time * 30 + i) * 0.3;
+      ctx.beginPath(); ctx.moveTo(sx - ux * rr * 1.5 + ox, sy - uy * rr * 1.5 + oy); ctx.lineTo(sx - ux * rr * (1.5 + l) + ox, sy - uy * rr * (1.5 + l) + oy); ctx.stroke();
     }
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1; ctx.lineCap = 'butt';
   }
-  // The licorice band twangs for a moment after the launch, then hangs slack between the tips.
-  const tipL = [fx - fw, forkTop], tipR = [fx + fw, forkTop];
-  if (r && launcherSeen) {
-    const snap = S.snapT > 0 ? S.snapT / J.snapTime : 0;
-    drawLicorice(ctx, tipL, [fx + Math.sin(E.time * 60) * 10 * s * snap, forkTop + (4 + 4 * (1 - snap)) * s * z], tipR, s * Math.max(z, 0.7), up.band || 0);
-  }
-  // Squash: flattened on a landing and wobbling back.
-  let sqx = 1, sqy = 1;
+  // Squash on a landing, wobbling back; stretched along the flight when fast; a ball when condensed; flattened into a wing
+  // while he glides (S.wing, a spring, so it opens fast and springs back round); a fizz jet while boosting.
+  let sqx = 1, sqy = 1, rot = 0;
   if (S.sq.t > 0) { const k = S.sq.t / J.squashTime, w = S.sq.amt * k * Math.cos((1 - k) * Math.PI * 1.5); sqx = 1 + w; sqy = 1 - w; }
   else if (r && r.ended === 'mud') { sqx = 1 + J.landSquash; sqy = 1 - J.landSquash; }
-  const look = r ? Math.atan2(-r.vy, r.vx) : pre && pre.needle !== null ? -pre.needle * DEG : 0; // before launch the eyes follow the needle
+  else if (r && r.mode === 'air' && !r.chute && !r.ball) { const k = clamp((sp - 350) / 1500, 0, 0.28); sqx = 1 + k; sqy = 1 - k * 0.6; rot = dir; }
+  if (r && r.ball && !r.ended) { rr *= 0.8; sqx = 0.95; sqy = 1.05; }
+  if (r && r.boost && r.fuel > 0 && !r.ended) drawJet(ctx, sx, sy, rr, dir, E.time, lw);
+  const look = r ? dir : -aim * DEG;
   const fuelK = r ? clamp(r.fuel / Math.max(1, r.fuelCap), 0, 1) : 1;
-  drawMochi(ctx, sx, sy + (1 - sqy) * rr, rr, look, sqx, sqy, lw, up, E.time, fuelK, !!(r && r.holding && r.fuel > 0));
-  if (!r) drawLicorice(ctx, tipL, [sx, sy + rr * 1.35], tipR, s * Math.max(z, 0.7), up.band || 0, true); // the pocket: a strap under its belly
-  return { sx, sy, rr, height: cy, lifted: lift > 0, night: sky.night };
+  drawMochi(ctx, sx, sy + (1 - sqy) * rr, rr, look, sqx, sqy, lw, up, E.time, fuelK, !!(r && r.boost && r.fuel > 0), rot, r ? S.wing.x : 0);
+  if (r && r.ball && !r.ended) { // spin marks: a condensed ball
+    ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineCap = 'round'; const a0 = E.time * 14;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(sx, sy, rr * 1.35, a0 + i * 2.1, a0 + i * 2.1 + 0.7); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+  }
+  return { sx, sy, rr, height: cy, lifted: squeezed && cy > c.b, night: sky.night, mx, gy, mk: mk * MACHINE };
+}
+
+// The range finder's dotted arc (PRD v0.3 D, v0.4 B): dots in the action's colour, fading out along the arc, a badge where it
+// enters a thermal (a warm up arrow) or a freezer column (a snowflake), and the landing marker where it reaches a contact.
+// Condensed, the marker says what the slam will meet: a gold star on a jelly's centre, teal on its edge, a mint rocket on
+// a downhill face, a berry crash star on an uphill face, a puff on marshmallow, a slate chevron on plain ground (the miss).
+// Not condensed: teal on a jelly, the face's colour on a hill, a puff on marshmallow, a dark cross on caramel, white elsewhere.
+function drawArc(ctx, a, X, Y, s, sprite, time) {
+  const col = P.arc[a.mode], R = T.critterR;
+  ctx.lineWidth = 1.2 * s; ctx.strokeStyle = P.ink;
+  for (let i = 0; i < a.n; i++) {
+    const x = X(a.pts[2 * i]), y = Y(a.pts[2 * i + 1] + R), k = 1 - (i / Math.max(1, a.n)) * 0.6;
+    ctx.globalAlpha = k; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 2.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (a.vent) drawVentBadge(ctx, X(a.vent.x), Y(a.vent.y + R), s, a.vent.kind, time);
+  if (!a.hit || a.kind === 'bird' || a.kind === 'geyser') return;
+  const x = X(a.x), y = Y(a.y), on = a.slam || a.kind;
+  if (a.kind === 'mud') {
+    ctx.strokeStyle = P.white; ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
+    for (const pass of [0, 1]) { if (pass) { ctx.strokeStyle = P.mud; ctx.lineWidth = 2.6 * s; } ctx.beginPath(); ctx.moveTo(x - 6 * s, y - 16 * s); ctx.lineTo(x + 6 * s, y - 4 * s); ctx.moveTo(x + 6 * s, y - 16 * s); ctx.lineTo(x - 6 * s, y - 4 * s); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+  } else if (on === 'centre') { drawMark(ctx, x, y, s, time, P.zones[0]); ctx.fillStyle = P.zones[0]; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.2 * s; starPath(ctx, x, y - 20 * s + Math.sin(time * 7) * 1.5 * s, 6 * s); ctx.fill(); ctx.stroke(); }
+  else if (on === 'up') crashMark(ctx, x, y, s, time);
+  else if (on === 'down') rocketMark(ctx, x, y, s, time);
+  else if (on === 'marsh') puffMark(ctx, x, y, s, time);
+  else drawMark(ctx, x, y, s, time, on === 'spring' || on === 'jelly' ? P.tealLight : a.slam ? P.miss : P.white);
+}
+
+// A five-point star.
+function starPath(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r; ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  ctx.closePath();
+}
+// The downhill face: a mint chevron with a forward arrow over it (the rocket).
+function rocketMark(ctx, x, y, s, time) {
+  drawMark(ctx, x, y, s, time, P.rocket);
+  const b = Math.sin(time * 9) * 2 * s, ay = y - 18 * s;
+  ctx.fillStyle = P.rocket; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4 * s; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 8 * s + b, ay - 3 * s); ctx.lineTo(x + 3 * s + b, ay - 3 * s); ctx.lineTo(x + 3 * s + b, ay - 7 * s); ctx.lineTo(x + 10 * s + b, ay); ctx.lineTo(x + 3 * s + b, ay + 7 * s); ctx.lineTo(x + 3 * s + b, ay + 3 * s); ctx.lineTo(x - 8 * s + b, ay + 3 * s); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+// The uphill face: a berry crash burst (a jagged star) on the face.
+function crashMark(ctx, x, y, s, time) {
+  const k = 1 + 0.12 * Math.sin(time * 10), r = 9 * s * k, cy = y - 10 * s;
+  ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(x, y + 2 * s, 7 * s, 2 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  for (let i = 0; i < 14; i++) { const a = (i * Math.PI) / 7, rr = i % 2 ? r * 0.5 : r; ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+  ctx.closePath(); ctx.fillStyle = P.crash; ctx.strokeStyle = P.white; ctx.lineWidth = 3.4 * s; ctx.lineJoin = 'round'; ctx.stroke(); ctx.fill();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4 * s; ctx.stroke();
+}
+// Marshmallow: a soft white puff sinking (the bounce swallowed).
+function puffMark(ctx, x, y, s, time) {
+  const sink = (Math.sin(time * 4) * 0.5 + 0.5) * 3 * s, cy = y - 9 * s + sink;
+  ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(x, y + 2 * s, 7 * s, 2 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = P.marsh; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4 * s;
+  ctx.beginPath(); ctx.ellipse(x, cy, 9 * s, 6 * s - sink * 0.4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.2 * s; ctx.beginPath(); ctx.moveTo(x - 3 * s, cy - 1 * s); ctx.lineTo(x, cy + 2 * s); ctx.lineTo(x + 3 * s, cy - 1 * s); ctx.stroke();
+}
+// Where the arc enters a column: a warm up arrow (thermal) or a snowflake (freezer) on a small round badge.
+function drawVentBadge(ctx, x, y, s, kind, time) {
+  const r = 8 * s, b = Math.sin(time * 6) * 1.5 * s;
+  ctx.fillStyle = kind === 'thermal' ? P.thermal : P.freezer; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.4 * s;
+  ctx.beginPath(); ctx.arc(x, y + b, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineCap = 'round'; ctx.beginPath();
+  if (kind === 'thermal') { ctx.moveTo(x, y + b + 4.5 * s); ctx.lineTo(x, y + b - 4.5 * s); ctx.moveTo(x - 3.5 * s, y + b - 1 * s); ctx.lineTo(x, y + b - 4.5 * s); ctx.lineTo(x + 3.5 * s, y + b - 1 * s); }
+  else for (let i = 0; i < 3; i++) { const a = (i * Math.PI) / 3; ctx.moveTo(x - Math.cos(a) * 5 * s, y + b - Math.sin(a) * 5 * s); ctx.lineTo(x + Math.cos(a) * 5 * s, y + b + Math.sin(a) * 5 * s); }
+  ctx.stroke(); ctx.lineCap = 'butt';
+}
+
+// An oven-vent thermal or a freezer vent (PRD v0.4 B): a low grate on the ground and its column ventH tall. The thermal's
+// grate is warm rose brick with glowing sugar-yellow slots under a shimmering cream column whose heat lines wave upward;
+// the freezer's is icy blue with frosted slots under a pale blue column where snowflakes and chevrons drift down. `hit`
+// glows the column for a moment when the mochi enters it.
+function drawVent(ctx, x, gy, w, colH, s, kind, time, lw, hit) {
+  const warm = kind === 'thermal', top = gy - colH, glow = hit ? hit.t / J.ventGlow : 0;
+  ctx.globalAlpha = 0.28 + 0.2 * glow; ctx.fillStyle = warm ? P.thermalAir : P.freezerAir;
+  ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w * 0.04, top + 8 * s); ctx.quadraticCurveTo(x + w / 2, top - 6 * s, x + w * 0.96, top + 8 * s); ctx.lineTo(x + w, gy); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.75; ctx.strokeStyle = warm ? P.thermalLine : P.freezerLine; ctx.lineWidth = 1.6 * s; ctx.lineCap = 'round';
+  const n = Math.max(2, Math.round(w / (18 * s)));
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const lx = x + (w * (i + 0.5)) / n, ph = ((time * (warm ? 0.6 : 0.35) + i * 0.37) % 1 + 1) % 1, len = Math.min(40 * s, colH * 0.3);
+    const y0 = warm ? gy - 6 * s - ph * (colH - len) : top + ph * (colH - len) + 6 * s; // heat rises, frost falls
+    if (warm) { ctx.moveTo(lx, y0); for (let k = 1; k <= 6; k++) ctx.lineTo(lx + Math.sin(time * 5 + k + i) * 2.5 * s, y0 - (len * k) / 6); }
+    else { ctx.moveTo(lx - 4 * s, y0); ctx.lineTo(lx, y0 + 4 * s); ctx.lineTo(lx + 4 * s, y0); }
+  }
+  ctx.stroke();
+  if (!warm) { // snowflakes drifting down the column
+    ctx.strokeStyle = P.white; ctx.lineWidth = 1.2 * s; ctx.beginPath();
+    for (let i = 0; i < n + 1; i++) {
+      const ph = ((time * 0.25 + i * 0.29) % 1 + 1) % 1, fx = x + (w * (i + 0.2)) / (n + 1) + Math.sin(time * 2 + i) * 4 * s, fy = top + ph * colH, r = 2.6 * s;
+      for (let k = 0; k < 3; k++) { const a = (k * Math.PI) / 3; ctx.moveTo(fx - Math.cos(a) * r, fy - Math.sin(a) * r); ctx.lineTo(fx + Math.cos(a) * r, fy + Math.sin(a) * r); }
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+  const p = lw * 1.2, vh = 7 * s;
+  cached(ctx, `vent${kind}|${lw.toFixed(2)}`, x - 3 * s - p, gy - vh - p, w + 6 * s + 2 * p, vh + 2 * p, (c) => {
+    const ww = w + 6 * s, y0 = vh + p;
+    roundRectPath(c, p, p, ww, vh + 3 * s, 3 * s);
+    c.lineJoin = 'round'; c.strokeStyle = P.halo; c.lineWidth = lw * 2.2; c.stroke();
+    c.fillStyle = warm ? P.ovenBrick : P.freezerBody; c.fill(); c.strokeStyle = P.ink; c.lineWidth = lw * 0.8; c.stroke();
+    const slots = Math.max(2, Math.round(ww / (9 * s)));
+    for (let i = 0; i < slots; i++) { c.fillStyle = warm ? P.coin : P.freezerLine; roundRectPath(c, p + (ww * (i + 0.25)) / slots, y0 - vh + 2.2 * s, (ww * 0.5) / slots, 2.6 * s, 1.2 * s); c.fill(); }
+  });
+}
+
+// A candy-cane hill (PRD v0.4 B): one smooth bump striped berry and white on the diagonal, an ink outline over a light halo.
+// The uphill face (the left half) is shaded and its stripes deeper, so the face that crashes reads darker than the face
+// that launches. One sprite per size.
+function drawHill(ctx, x, gy, w, h, s, lw) {
+  const p = lw * 2;
+  cached(ctx, `hill|${(w / h).toFixed(2)}|${lw.toFixed(2)}`, x - p, gy - h - p, w + 2 * p, h + 2 * p, (c) => hillShape(c, p, h + p, w, h, s, lw));
+}
+function hillShape(ctx, x, gy, w, h, s, lw) {
+  const path = () => { ctx.beginPath(); ctx.moveTo(x, gy); for (let i = 1; i <= 32; i++) { const u = i / 32; ctx.lineTo(x + w * u, gy - (h * (1 - Math.cos(2 * Math.PI * u))) / 2); } ctx.closePath(); };
+  path(); ctx.lineJoin = 'round'; ctx.strokeStyle = P.halo; ctx.lineWidth = lw * 2.4; ctx.stroke();
+  ctx.save(); path(); ctx.fillStyle = P.white; ctx.fill(); ctx.clip();
+  const step = 12 * s; ctx.fillStyle = P.berry;
+  for (let d = -h; d < w + h; d += step * 2) { ctx.beginPath(); ctx.moveTo(x + d, gy); ctx.lineTo(x + d + step, gy); ctx.lineTo(x + d + step + h, gy - h); ctx.lineTo(x + d + h, gy - h); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle = P.hillShade; ctx.fillRect(x, gy - h, w / 2, h); // the uphill face in shade
+  ctx.restore();
+  path(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.stroke();
+}
+
+// A marshmallow pad (PRD v0.4 B): a row of fat, soft white pillows (wider and rounder than jelly cubes, never teal), a lilac
+// shade along the bottom, a dusting of sugar, an ink outline. They squash when hit and slowly puff back.
+function drawMarsh(ctx, x, gy, w, s, lw, pop, time) {
+  const n = Math.max(1, Math.round(w / (T.marshPuff * s))), cw = w / n, k = pop ? pop.t / J.springPop : 0, pad = lw * 1.2;
+  for (let i = 0; i < n; i++) {
+    const h = Math.round(10 * (1 - 0.45 * k) * (1 + 0.03 * Math.sin(time * 2 + i)) * 2) / 2 * s;
+    cached(ctx, `marsh|${h.toFixed(1)}|${lw.toFixed(2)}`, x + i * cw - pad, gy - h - pad, cw + 2 * pad, h + 2 * pad, (c) => marshPillow(c, pad, pad, cw, h, s, lw));
+  }
+}
+function marshPillow(ctx, x, y, cw, h, s, lw) {
+  const gap = Math.min(2 * s, cw * 0.12), x0 = x + gap / 2, ww = cw - gap, rad = Math.min(ww / 2, h * 0.75);
+  roundRectPath(ctx, x0, y, ww, h, rad); ctx.lineJoin = 'round';
+  ctx.strokeStyle = P.halo; ctx.lineWidth = lw * 2; ctx.stroke();
+  ctx.fillStyle = P.marsh; ctx.fill();
+  ctx.save(); ctx.clip(); ctx.fillStyle = P.marshShade; ctx.fillRect(x0, y + h * 0.62, ww, h); ctx.restore();
+  roundRectPath(ctx, x0, y, ww, h, rad); ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.stroke();
+  ctx.fillStyle = P.marshShade; for (const [u, v] of [[0.3, 0.3], [0.55, 0.22], [0.72, 0.4]]) ctx.fillRect(x0 + ww * u, y + h * v, 1.4 * s, 1.4 * s);
+}
+
+// The fizz jet behind a boosting mochi: a flickering white-and-soda plume pointing back along the flight.
+function drawJet(ctx, x, y, r, dir, time, lw) {
+  const ux = -Math.cos(dir), uy = -Math.sin(dir), len = r * (2 + 0.35 * Math.sin(time * 50)), w = r * 0.55;
+  const bx = x + ux * r * 0.8, by = y + uy * r * 0.8, tx = bx + ux * len, ty = by + uy * len, nx = -uy * w, ny = ux * w;
+  ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(bx + nx, by + ny); ctx.quadraticCurveTo(tx + nx * 0.6, ty + ny * 0.6, tx, ty); ctx.quadraticCurveTo(tx - nx * 0.6, ty - ny * 0.6, bx - nx, by - ny); ctx.closePath();
+  ctx.fillStyle = P.soda; ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx + nx * 0.5, by + ny * 0.5); ctx.quadraticCurveTo(bx + ux * len * 0.6, by + uy * len * 0.6, bx + ux * len * 0.7, by + uy * len * 0.7); ctx.quadraticCurveTo(bx + ux * len * 0.3, by + uy * len * 0.3, bx - nx * 0.5, by - ny * 0.5); ctx.closePath();
+  ctx.fillStyle = P.fizz; ctx.fill();
 }
 
 // A mint jelly: a row of wobbling jelly cubes (one every jellyCube design px, so a long one reads as jelly, never a rail),
@@ -1249,31 +1564,11 @@ function drawCloud(ctx, x, y, s, used, time, lw) {
   ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x - 0.2 * rx, y - 0.45 * ry + bob, 0.14 * rx, 0, Math.PI * 2); ctx.fill();
 }
 
-// The needle wedge at the launcher: graded zones (drawn widest first), the needle over them.
-function drawWedge(ctx, px, py, s, needle, alpha, up, lw) {
-  const R = T.wedgeR * s, r0 = T.wedgeHole * s, h = needleOf(up).half, c = T.sweetAngle, lo = T.needleMin, hi = T.needleMax;
-  const sector = (rOut, rIn, a0, a1, fill, stroke) => {
-    ctx.beginPath(); ctx.arc(px, py, rOut, -a1 * DEG, -a0 * DEG); ctx.arc(px, py, rIn, -a0 * DEG, -a1 * DEG, true); ctx.closePath();
-    ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw * 0.7; ctx.stroke(); }
-  };
-  ctx.save(); ctx.globalAlpha = alpha; ctx.lineJoin = 'round';
-  sector(R + 4 * s, r0 - 3 * s, lo - 1.5, hi + 1.5, P.halo);
-  sector(R, r0, lo, hi, P.zones[3], P.ink);
-  for (let z = 2; z >= 0; z--) sector(R, r0, Math.max(lo, c - h[z]), Math.min(hi, c + h[z]), P.zones[z], P.ink);
-  const a = needle * DEG, ux = Math.cos(a), uy = -Math.sin(a);
-  ctx.lineCap = 'round';
-  // A thin needle, so the gold shows beside it.
-  for (const [w, col] of [[3.6 * s, P.halo], [1.6 * s, P.ink]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(px + ux * r0 * 0.7, py + uy * r0 * 0.7); ctx.lineTo(px + ux * (R + 8 * s), py + uy * (R + 8 * s)); ctx.stroke(); }
-  ctx.fillStyle = P.halo; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
-  ctx.lineWidth = lw * 0.7; ctx.beginPath(); ctx.arc(px + ux * (R + 8 * s), py + uy * (R + 8 * s), 3.5 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.restore();
-}
-
-// The landing marker: a small white chevron on the ground line, bobbing, with a shadow on the band.
-function drawMark(ctx, x, gy, s, time) {
+// The landing marker: a small chevron on the ground line, bobbing, with a shadow on the band.
+function drawMark(ctx, x, gy, s, time, col = P.white) {
   const b = Math.sin(time * 7) * 1.5 * s, tip = gy - 2 * s + b;
   ctx.fillStyle = P.shadow; ctx.beginPath(); ctx.ellipse(x, gy + 2 * s, 7 * s, 2 * s, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = P.white; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineJoin = 'round';
+  ctx.fillStyle = col; ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(x, tip); ctx.lineTo(x - 6 * s, tip - 9 * s); ctx.lineTo(x + 6 * s, tip - 9 * s); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
@@ -1331,31 +1626,35 @@ function cached(ctx, key, x, y, w, h, draw) {
 // The hero: an apricot mochi, a soft round blob with an ink outline and a light halo, a powder dusting, blush, eyes that look
 // where it is going, and its gear (PRD v0.2 E): the Fizz Tank's bottle on its back (larger per level, filled to the fizz
 // left), the Cola Rocket's nozzle (larger per level), and the Sugar Glaze (a shine per level and a tighter shape). The hitbox
-// is the round critterR whatever the drawing.
-function drawMochi(ctx, x, y, r, look, sx, sy, lw, up, time, fuelK = 1, holding = false) {
-  const aero = up.aero || 0, rx = r * (1.12 - 0.04 * aero), ry = r * (0.9 + 0.03 * aero), oy = r - ry;
+// is the round critterR whatever the drawing. `wing` (0 round to 1 open, a little past either end while the spring settles)
+// is the glider (PRD v0.4 I1): his own dough stretched flat and wide into a wing with the little face in its middle.
+function drawMochi(ctx, x, y, r, look, sx, sy, lw, up, time, fuelK = 1, holding = false, rot = 0, wing = 0) {
+  const aero = up.aero || 0, W = wing >= 0 ? wing : wing * J.wing.back, open = Math.abs(W) > 0.03;
+  const rx0 = r * (1.12 - 0.04 * aero), ry0 = r * (0.9 + 0.03 * aero);
+  const rx = rx0 * (1 + J.wing.stretch * W), ry = ry0 * (1 - J.wing.flat * W), oy = (r - ry) * (1 - clamp(W, 0, 1));
   const bx = -Math.cos(look), by = -Math.sin(look); // its back, away from where it is going
-  ctx.save(); ctx.translate(x, y); ctx.scale(sx, sy);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(sx, sy); ctx.rotate(-rot); // squash or stretch along `rot`
   ctx.lineJoin = 'round';
   const side = bx < 0 ? -1 : 1; // the bottle rides on the upper back, the nozzle points out behind
   if (up.fuel) { // the bottle: a sprite per size, side and tenth of fizz left
     const h = r * (0.8 + 0.25 * up.fuel), f = Math.round(fuelK * 10) / 10, m = h * 0.9;
-    cached(ctx, `bottle${side}${f}|${lw.toFixed(2)}`, side * (rx + h * 0.05) - m, oy - ry * 0.55 - m, 2 * m, 2 * m, (c) => drawBottle(c, m, m, h, side * 0.5, f, lw));
+    cached(ctx, `bottle${side}${f}|${lw.toFixed(2)}`, side * (rx0 + h * 0.05) - m, oy - ry0 * 0.55 - m, 2 * m, 2 * m, (c) => drawBottle(c, m, m, h, side * 0.5, f, lw));
   }
   if (up.rocket) { // the nozzle: a sprite per size and level, turned to point behind
     const len = r * (0.5 + 0.2 * up.rocket), m = len * 1.6;
-    ctx.save(); ctx.translate(bx * rx * 0.8, oy + by * ry * 0.8); ctx.rotate(Math.atan2(by, bx));
+    ctx.save(); ctx.translate(bx * rx0 * 0.8, oy + by * ry0 * 0.8); ctx.rotate(Math.atan2(by, bx));
     cached(ctx, `nozzle${up.rocket}|${lw.toFixed(2)}`, -m, -m, 2 * m, 2 * m, (c) => drawNozzle(c, m, m, len, 0, up.rocket, false, lw, 0));
     if (holding) { ctx.fillStyle = P.fizz; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(len * (1.25 + 0.15 * Math.sin(time * 40)), 0, len * 0.32, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
     ctx.restore();
   }
   const m = r + 3 * lw; // the body, powder, glaze and blush are one sprite per size and glaze
-  cached(ctx, `mochi${aero}|${lw.toFixed(2)}`, -m, oy - m, 2 * m, 2 * m, (c) => { c.translate(m, m); mochiBody(c, rx, ry, r, lw, aero); });
-  if (aero >= 3) { const k = 0.6 + 0.4 * Math.sin(time * 5); ctx.fillStyle = P.white; ctx.globalAlpha = 0.9; star4(ctx, rx * 0.55, oy - ry * 0.75, r * 0.32 * k); ctx.globalAlpha = 1; }
-  const ex = Math.cos(look) * r * 0.3, ey = Math.sin(look) * r * 0.3;
+  if (open) { ctx.save(); ctx.translate(0, oy); ctx.rotate(clamp(look * J.wing.tilt, -0.4, 0.4)); wingBody(ctx, rx, ry, r, lw, aero, W, time); ctx.restore(); }
+  else cached(ctx, `mochi${aero}|${lw.toFixed(2)}`, -m, oy - m, 2 * m, 2 * m, (c) => { c.translate(m, m); mochiBody(c, rx, ry, r, lw, aero); });
+  if (aero >= 3) { const k = 0.6 + 0.4 * Math.sin(time * 5); ctx.fillStyle = P.white; ctx.globalAlpha = 0.9; star4(ctx, rx0 * 0.55, oy - ry0 * 0.75, r * 0.32 * k); ctx.globalAlpha = 1; }
+  const ex = Math.cos(look) * r * 0.3, ey = Math.sin(look) * r * 0.3, fx = clamp(W, 0, 1) * r * 0.1; // the face keeps its size in a wing, eyes a touch wider
   for (const [col, k, rr] of [[P.eye, 0.4, 0.24], [P.ink, 0.7, 0.12]]) {
     ctx.fillStyle = col; ctx.beginPath();
-    for (const ox of [-0.05, 0.42]) { ctx.moveTo(ox * r + ex * k + r * rr, oy - r * 0.12 + ey * k); ctx.arc(ox * r + ex * k, oy - r * 0.12 + ey * k, r * rr, 0, Math.PI * 2); }
+    for (const ox of [-0.05 - fx / r, 0.42 + fx / r]) { ctx.moveTo(ox * r + ex * k + r * rr, oy - r * 0.12 + ey * k); ctx.arc(ox * r + ex * k, oy - r * 0.12 + ey * k, r * rr, 0, Math.PI * 2); }
     ctx.fill();
   }
   ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1, lw * 0.6); ctx.beginPath(); ctx.arc(r * 0.18 + ex * 0.3, oy + r * 0.22 + ey * 0.2, r * 0.12, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
@@ -1379,6 +1678,35 @@ function mochiBody(ctx, rx, ry, r, lw, aero) {
   }
   ctx.fillStyle = P.critterLight; ctx.beginPath(); ctx.ellipse(-rx * 0.45, oy + ry * 0.25, r * 0.2, r * 0.13, 0, 0, Math.PI * 2);
   ctx.moveTo(rx * 0.62 + r * 0.17, oy + ry * 0.25); ctx.ellipse(rx * 0.62, oy + ry * 0.25, r * 0.17, r * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// The glider: the mochi's dough drawn out into a wide, flat wing (a lens whose tips are pulled out and lifted, fluttering a
+// little), the same halo, apricot, ink and powder, rib lines where the dough stretches, blush beside the face. `w` is how far
+// open it is (0 round); at 0 the shape is the round body.
+function wingBody(ctx, rx, ry, r, lw, aero, w, time) {
+  const e = clamp(w, 0, 1.4), lift = J.wing.tips * e, n = 30;
+  const path = () => {
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), edge = Math.abs(c) ** 3, side = c < 0 ? 0 : 1.7;
+      const fl = 1 + 0.18 * e * Math.sin(time * 17 + side * 3);
+      ctx[i ? 'lineTo' : 'moveTo'](rx * c, ry * sn * (1 - 0.25 * Math.min(1, e) * edge) - ry * lift * edge * fl);
+    }
+    ctx.closePath();
+  };
+  ctx.lineJoin = 'round';
+  path(); ctx.strokeStyle = P.halo; ctx.lineWidth = 3 * lw; ctx.stroke();
+  ctx.fillStyle = P.critter; ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.fill(); ctx.stroke();
+  ctx.save(); path(); ctx.clip(); // dough ribs and powder, kept inside the wing
+  ctx.strokeStyle = P.critterLight; ctx.lineWidth = Math.max(1, lw * 0.7); ctx.lineCap = 'round'; ctx.beginPath();
+  for (const k of [-1, 1]) for (const u of [0.35, 0.65]) { ctx.moveTo(k * rx * u * 0.4, ry * 0.15); ctx.quadraticCurveTo(k * rx * u * 0.8, ry * 0.5, k * rx * (u + 0.28), -ry * lift * 0.5); }
+  ctx.stroke();
+  ctx.fillStyle = P.powder; ctx.beginPath(); for (const [px, py] of [[-0.62, -0.35], [-0.3, -0.5], [0.3, -0.5], [0.58, -0.3], [0.8, -0.2]]) ctx.rect(px * rx, py * ry, r * 0.09, r * 0.09); ctx.fill();
+  if (aero) { ctx.strokeStyle = P.white; ctx.globalAlpha = 0.9; ctx.lineWidth = r * (0.08 + 0.03 * aero); ctx.beginPath(); ctx.ellipse(0, 0, rx * 0.8, ry * 0.62, 0, Math.PI * 1.1, Math.PI * 1.45); ctx.stroke(); ctx.globalAlpha = 1; }
+  ctx.restore();
+  ctx.fillStyle = P.critterLight; ctx.beginPath();
+  for (const k of [-1, 1]) { ctx.moveTo(k * r * 0.9 + r * 0.17, ry * 0.25); ctx.ellipse(k * r * 0.9, ry * 0.25, r * 0.17, Math.min(r * 0.12, ry * 0.4), 0, 0, Math.PI * 2); }
+  ctx.fill();
 }
 
 // A four-point sparkle.
@@ -1409,36 +1737,133 @@ function drawNozzle(ctx, x, y, len, ang, lvl, holding, lw, time) {
   ctx.restore();
 }
 
-// Steady Chopsticks: two tapered sticks planted at (fx, base) and opening to tips `fw` either side at `top`; plain, lacquered,
-// gold-tipped, then gold (Steady 0 to 3); a licorice wrap where they cross, in the Band's licorice.
-function drawChopsticks(ctx, fx, base, top, fw, s, lw, steady, band, time = null) {
-  const h = base - top, sticks = [-1, 1].map((d) => ({ bx: fx - d * 1.5 * s, tx: fx + d * fw }));
-  const quads = (k0, k1) => {
-    ctx.beginPath();
-    for (const { bx, tx } of sticks) {
-      const w0 = 3.2 * s, w1 = 1.6 * s, ax = bx + (tx - bx) * k0, ay = base - h * k0, cx = bx + (tx - bx) * k1, cy = base - h * k1, wa = w0 + (w1 - w0) * k0, wc = w0 + (w1 - w0) * k1;
-      ctx.moveTo(ax - wa, ay); ctx.lineTo(cx - wc, cy); ctx.lineTo(cx + wc, cy); ctx.lineTo(ax + wa, ay); ctx.closePath();
-    }
-  };
-  quads(0, 1); ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 1.4; ctx.stroke();
-  ctx.fillStyle = P.chop[steady]; ctx.fill();
-  if (steady === 2) { quads(0.5, 1); ctx.fillStyle = P.chop[3]; ctx.fill(); }
-  ctx.strokeStyle = P.chopHi[steady]; ctx.lineWidth = 1 * s; ctx.beginPath();
-  for (const { bx, tx } of sticks) { ctx.moveTo(bx + (tx - bx) * 0.15 - s, base - h * 0.15); ctx.lineTo(bx + (tx - bx) * 0.9 - s, base - h * 0.9); }
-  ctx.stroke();
-  ctx.fillStyle = P.licorice[band]; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7;
-  const wy = base - h * 0.22, ww = 5 * s + fw * 0.25;
-  roundRectPath(ctx, fx - ww, wy - 2.5 * s, ww * 2, 5 * s, 2 * s); ctx.fill(); ctx.stroke();
-  if (steady === 3 && time !== null) { ctx.fillStyle = P.chopHi[3]; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 4); star4(ctx, fx + fw * 0.8, top + h * 0.15, 4 * s); ctx.globalAlpha = 1; }
+// The Mochi Maker 3000 (PRD v0.3 A): a brass body on an iron plinth with a pressure gauge, a row of bulbs, a chimney and two
+// pistons, and a barrel on an iron yoke at the pivot (x = 0, pivotH up). Upgrades bolt on parts: the Spring Coil behind the
+// breech, the Fizz Tank on the left, the Cola Rocket's flared muzzle, the Sugar Glaze drum on the plinth, the Steady Gauge's
+// bezel, the Brass Telescope on the barrel. `k` is CSS px per world unit. The body is one sprite per gear and size; the
+// barrel, needle, bulbs and pistons are drawn live. `pre`: { gauge: reading or null, half: zone half-widths, lit: zone the
+// bulbs show, glow: 0 to 1, pump: 0 to 1 }.
+const MACHINE = 1.3;     // the machine is drawn in units of 1.3 world units (its pivot at 60, its barrel 34 long in them)
+const GAUGE = { x: -46, y: 30, r: 19 }; // the dial on the body (machine units from the pivot's foot)
+const BULBS = [-72, -63, -54, -45, -36];
+function drawMachine(ctx, E, mx, gy, k0, lw, up, aim, pre) {
+  const k = k0 * MACHINE, U = (u) => mx + u * k, V = (v) => gy - v * k, half = pre.half || gaugeOf(0, 0, up).half;
+  const x0 = U(-104), y0 = V(80), key = `machine|${up.fuel || 0}${up.aero || 0}${up.steady || 0}|${half.map((h) => h.toFixed(3)).join(',')}|${lw.toFixed(2)}`;
+  cached(ctx, key, x0, y0, 128 * k, 82 * k, (c) => { c.translate(-x0, -y0); machineBody(c, U, V, k, lw, up, half); });
+  const pump = pre.pump || 0, kick = pump > 0 ? Math.abs(Math.sin((1 - pump) * Math.PI * 3)) * pump : 0;
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8;
+  for (const px of [-26, -16]) { // pistons: rods shoot up as they pump
+    const top = 52 + 5 + 9 * kick;
+    ctx.fillStyle = P.spring; ctx.fillRect(U(px - 1.5), V(top), 3 * k, (top - 52) * k); ctx.strokeRect(U(px - 1.5), V(top), 3 * k, (top - 52) * k);
+    ctx.fillStyle = P.brassDark; roundRectPath(ctx, U(px - 3.5), V(top + 2), 7 * k, 3 * k, 1.5 * k); ctx.fill(); ctx.stroke();
+  }
+  // Barrel, with its parts, turned to the aim; the yoke in front of the breech.
+  ctx.save(); ctx.translate(U(0), V(T.pivotH / MACHINE)); ctx.rotate(-aim * DEG);
+  const bk = `barrel|${up.band || 0}${up.rocket || 0}${up.scope || 0}|${lw.toFixed(2)}`, bx0 = -34 * k, by0 = -16 * k;
+  cached(ctx, bk, bx0, by0, (T.barrelLen / MACHINE + 52) * k, 32 * k, (c) => { c.translate(-bx0, -by0); drawBarrel(c, k, lw, up); });
+  ctx.restore();
+  ctx.fillStyle = P.iron; ctx.beginPath(); ctx.moveTo(U(-10), V(52)); ctx.lineTo(U(-3), V(T.pivotH / MACHINE + 3)); ctx.lineTo(U(3), V(T.pivotH / MACHINE + 3)); ctx.lineTo(U(10), V(52)); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.brassLight; ctx.beginPath(); ctx.arc(U(0), V(T.pivotH / MACHINE), 3.2 * k, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // The gauge's needle.
+  const gv = pre.gauge ?? 0, th = (225 - 270 * gv) * DEG, gx = U(GAUGE.x), gyy = V(GAUGE.y), R = GAUGE.r * k * 0.86;
+  ctx.lineCap = 'round';
+  for (const [w, col] of [[3.4 * k, P.halo], [1.6 * k, P.ink]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(gx - Math.cos(th) * R * 0.2, gyy + Math.sin(th) * R * 0.2); ctx.lineTo(gx + Math.cos(th) * R, gyy - Math.sin(th) * R); ctx.stroke(); }
+  ctx.lineCap = 'butt'; ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(gx, gyy, 2.6 * k, 0, Math.PI * 2); ctx.fill();
+  // Bulbs: off, a preview of the zone under the needle, or lit by the shot (every bulb on a Perfect, chasing).
+  const lit = pre.lit ?? -1, n = lit < 0 ? 0 : [5, 4, 3, 1][lit], glow = pre.glow || 0;
+  BULBS.forEach((bx, i) => {
+    const on = i < n, col = lit === 0 ? (Math.floor(E.time * 12 + i) % 2 ? P.bulb[0] : P.bulb[1]) : P.bulb[lit] || P.bulbOff, x = U(bx), y = V(56);
+    if (on && glow > 0) { ctx.globalAlpha = 0.35 * glow; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 9 * k * (0.8 + glow * 0.4), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.fillStyle = on ? col : P.bulbOff; ctx.globalAlpha = on ? (glow > 0 ? 1 : 0.75) : 1;
+    ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.7; ctx.beginPath(); ctx.arc(x, y, 3.6 * k, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
+    if (on) { ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x - 1.2 * k, y - 1.2 * k, 1 * k, 0, Math.PI * 2); ctx.fill(); }
+  });
 }
 
-// The licorice band from tip `a` through `m` to tip `b` (with `curve`, `m` is the control point of a smooth U): thicker and
-// darker per Band level.
-function drawLicorice(ctx, a, m, b, s, band, curve = false) {
+function machineBody(ctx, U, V, k, lw, up, half) {
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink;
+  const box = (x0, y0, x1, y1, r, fill) => { roundRectPath(ctx, U(x0), V(y1), (x1 - x0) * k, (y1 - y0) * k, r * k); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = lw; ctx.stroke(); };
+  box(-84, 50, -76, 74, 1.5, P.iron); box(-86, 72, -74, 76, 1.5, P.ironDark); // chimney and cap
+  box(-96, 0, 16, 8, 3, P.iron);
+  box(-90, 8, 6, 52, 8, P.brass);
+  ctx.fillStyle = P.brassDark; ctx.fillRect(U(-88), V(16), 92 * k, 4 * k); // a dark band low on the body
+  ctx.fillStyle = P.brassLight; ctx.fillRect(U(-84), V(48), 80 * k, 2 * k);  // a highlight under the top edge
+  ctx.fillStyle = P.brassDark; for (let x = -84; x <= 0; x += 10) { ctx.beginPath(); ctx.arc(U(x), V(12), 1.2 * k, 0, Math.PI * 2); ctx.arc(U(x), V(45), 1.2 * k, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = P.ironDark; for (const x of [-86, -40, 8]) { ctx.beginPath(); ctx.arc(U(x), V(4), 1.6 * k, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = P.iron; ctx.lineWidth = 3 * k; ctx.beginPath(); ctx.moveTo(U(-20), V(14)); ctx.lineTo(U(-20), V(22)); ctx.lineTo(U(-6), V(22)); ctx.lineTo(U(-6), V(40)); ctx.stroke(); // a pipe
+  ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.5; ctx.stroke();
+  for (let i = 0; i < 5; i++) { ctx.fillStyle = P.ironDark; ctx.fillRect(U(BULBS[i] - 2), V(54), 4 * k, 2.4 * k); } // bulb sockets
+  if (up.fuel) { // the Fizz Tank: a glass tank on the left, taller per level
+    const h = 18 + 7 * up.fuel; box(-102, 8, -90, 8 + h, 4, P.glass);
+    ctx.fillStyle = P.soda; ctx.fillRect(U(-100), V(8 + h * 0.75), 8 * k, (h * 0.75 - 2) * k);
+    ctx.fillStyle = P.cap; ctx.fillRect(U(-99), V(10 + h), 6 * k, 2.5 * k);
+  }
+  if (up.aero) { // the Sugar Glaze drum on the plinth, larger per level, a drip
+    const r = 5 + 1.5 * up.aero; ctx.fillStyle = P.glaze; ctx.beginPath(); ctx.arc(U(10), V(8 + r), r * k, 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = P.ink; ctx.stroke();
+    ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(U(10), V(8 + r), r * 0.4 * k, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  drawGauge(ctx, U(GAUGE.x), V(GAUGE.y), GAUGE.r * k, null, half, up.steady || 0, lw);
+}
+
+// The pressure gauge: a cream dial with a bezel (iron, then brass, light brass and gold with Steady Gauge), the zones as a
+// band from 225 degrees round to -45 (Weak slate, Good blue, Great rose, Perfect gold around gaugeSweet), and ticks.
+function drawGauge(ctx, x, y, R, v, half, steady, lw) {
+  const th = (g) => -(225 - 270 * g) * DEG;
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = [P.iron, P.brassDark, P.brass, P.coin][steady]; ctx.strokeStyle = P.ink; ctx.lineWidth = lw;
+  ctx.beginPath(); ctx.arc(x, y, R * 1.12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.dial; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = lw * 0.6; ctx.stroke();
+  const band = (g0, g1, col) => { ctx.beginPath(); ctx.arc(x, y, R * 0.92, th(clamp(g0, 0, 1)), th(clamp(g1, 0, 1))); ctx.arc(x, y, R * 0.6, th(clamp(g1, 0, 1)), th(clamp(g0, 0, 1)), true); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+  band(0, 1, P.zones[3]);
+  for (let z = 2; z >= 0; z--) band(T.gaugeSweet - half[z], T.gaugeSweet + half[z], P.zones[z]);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.5; ctx.beginPath(); ctx.arc(x, y, R * 0.92, th(0), th(1)); ctx.arc(x, y, R * 0.6, th(1), th(0), true); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); for (let i = 0; i <= 10; i++) { const a = th(i / 10); ctx.moveTo(x + Math.cos(a) * R * 0.5, y + Math.sin(a) * R * 0.5); ctx.lineTo(x + Math.cos(a) * R * 0.58, y + Math.sin(a) * R * 0.58); } ctx.stroke();
+  for (let i = 0; i < steady; i++) { ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(x - R * 0.2 + i * R * 0.2, y + R * 0.72, R * 0.06, 0, Math.PI * 2); ctx.fill(); } // damper screws
+  if (v !== null) { const a = th(v); ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * R * 0.85, y + Math.sin(a) * R * 0.85); ctx.stroke(); }
+}
+
+// The barrel in its own frame: the breech at the pivot, the tube along +x to barrelLen; the Spring Coil out of the back.
+function drawBarrel(ctx, k, lw, up) {
+  const L = T.barrelLen / MACHINE, band = up.band || 0;
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink;
+  drawCoil(ctx, -12 * k - (12 + 5 * band) * k, 0, (12 + 5 * band) * k, (5 + 1.5 * band) * k, 5 + 2 * band, lw);
+  roundRectPath(ctx, -12 * k, -9 * k, 16 * k, 18 * k, 3 * k); ctx.fillStyle = P.iron; ctx.fill(); ctx.lineWidth = lw; ctx.stroke();
+  roundRectPath(ctx, 0, -7 * k, (L - 2) * k, 14 * k, 3 * k); ctx.fillStyle = P.brass; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.brassLight; ctx.fillRect(2 * k, -5 * k, (L - 8) * k, 2.4 * k);
+  ctx.fillStyle = P.brassDark; for (const x of [10, 21]) { ctx.fillRect(x * k, -7.5 * k, 3 * k, 15 * k); ctx.strokeRect(x * k, -7.5 * k, 3 * k, 15 * k); }
+  if (up.rocket) { // the Cola Rocket: a flared muzzle, wider per level
+    const f = 2 + 1.6 * up.rocket; ctx.beginPath(); ctx.moveTo((L - 5) * k, -8 * k); ctx.lineTo((L + 1) * k, -(8 + f) * k); ctx.lineTo((L + 1) * k, (8 + f) * k); ctx.lineTo((L - 5) * k, 8 * k); ctx.closePath();
+    ctx.fillStyle = P.nozzle; ctx.fill(); ctx.stroke(); ctx.fillStyle = P.cola; ctx.fillRect((L - 2) * k, -(7 + f) * k, 2 * k, (14 + 2 * f) * k);
+  } else { roundRectPath(ctx, (L - 5) * k, -9 * k, 6 * k, 18 * k, 2 * k); ctx.fillStyle = P.brassDark; ctx.fill(); ctx.stroke(); }
+  if (up.scope) drawScope(ctx, 2 * k, -12 * k, (12 + 6 * up.scope) * k, 0, up.scope, lw);
+}
+
+// A coil spring from (x, y) `len` long along +x, `r` tall either side, `turns` loops (the Spring Coil).
+function drawCoil(ctx, x, y, len, r, turns, lw) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = P.ink; ctx.lineWidth = (P.licoriceW[band] + 1.6) * s;
-  ctx.beginPath(); ctx.moveTo(a[0], a[1]); if (curve) ctx.quadraticCurveTo(m[0], m[1], b[0], b[1]); else { ctx.lineTo(m[0], m[1]); ctx.lineTo(b[0], b[1]); } ctx.stroke();
-  ctx.strokeStyle = P.licorice[band]; ctx.lineWidth = P.licoriceW[band] * s; ctx.stroke();
+  const path = () => { ctx.beginPath(); ctx.moveTo(x, y); for (let i = 0; i <= turns * 2; i++) ctx.lineTo(x + (len * i) / (turns * 2), y + (i % 2 ? -r : r)); ctx.lineTo(x + len, y); };
+  path(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 2.2; ctx.stroke();
+  ctx.strokeStyle = P.spring; ctx.lineWidth = lw; ctx.stroke(); ctx.lineCap = 'butt';
+}
+
+// The Brass Telescope: a tube `len` long from (x, y) along `ang`, with an eyepiece and a lens; level 3 adds a band.
+function drawScope(ctx, x, y, len, ang, lvl, lw) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8;
+  const w = len * 0.2;
+  roundRectPath(ctx, 0, -w * 0.4, len * 0.3, w * 0.8, w * 0.2); ctx.fillStyle = P.brassDark; ctx.fill(); ctx.stroke();
+  roundRectPath(ctx, len * 0.25, -w / 2, len * 0.75, w, w * 0.25); ctx.fillStyle = P.brass; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.cloudBlue; ctx.beginPath(); ctx.ellipse(len, 0, w * 0.18, w * 0.42, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (lvl >= 3) { ctx.fillStyle = P.coin; ctx.fillRect(len * 0.6, -w / 2, len * 0.08, w); }
+  ctx.restore();
+}
+
+// The Sugar Glaze drum (the shop's picture): a pink drum on a stand with a white glaze face, larger per level.
+function drawGlazeDrum(ctx, x, y, r, lvl, lw) {
+  ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8;
+  ctx.fillStyle = P.iron; ctx.fillRect(x - r * 1.1, y + r * 0.7, r * 2.2, r * 0.4); ctx.strokeRect(x - r * 1.1, y + r * 0.7, r * 2.2, r * 0.4);
+  ctx.fillStyle = P.glaze; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  for (let i = 0; i < lvl; i++) { ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x + r * (0.9 - i * 0.35), y + r * 1.25 + i * 2, r * 0.12, 0, Math.PI * 2); ctx.fill(); }
 }
 
 // A shopfront: the bakery the mochi is flung from (or, with `home`, the daifuku's cottage), `w` wide, standing on the ground.
@@ -1517,7 +1942,7 @@ function updateFx(dt) {
     e.vy += e.g * dt; e.x += e.vx * dt; e.y += e.vy * dt;
     if (e.k === 'tumble') { e.rot += e.spin * dt; if (e.y < T.birdR) { e.y = T.birdR; e.vx = e.vy = e.g = e.spin = 0; } } // it lands on the band
   }
-  for (const [g, p] of S.pops) { p.t -= dt; if (p.t <= 0) S.pops.delete(g); }
+  for (const m of [S.pops, S.vents]) if (m) for (const [g, p] of m) { p.t -= dt; if (p.t <= 0) m.delete(g); }
 }
 
 function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
@@ -1526,9 +1951,15 @@ function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
   if (e.k === 'word') {
     const pop = k > 0.8 ? ease.outBack((1 - k) / 0.2) : 1;
     ctx.globalAlpha = Math.min(1, k * 3);
-    ctx.fillStyle = P.panel; const w = e.text.length * e.size * 0.62 + 16; roundRectPath(ctx, x - w / 2, y - e.size * 0.8 * pop, w, e.size * 1.6 * pop, 10); ctx.fill();
-    E.text(e.text, x, y, { size: Math.max(TY.sm, e.size * pop), weight: '800', color: e.color });
+    ctx.font = `800 ${Math.max(TY.sm, e.size * pop)}px system-ui, sans-serif`; ctx.fillStyle = P.panel; const w = ctx.measureText(e.text).width + 20, wx = clamp(x, E.safe.left + w / 2 + 8, E.w - E.safe.right - w / 2 - 8); // never off the screen's sides
+    roundRectPath(ctx, wx - w / 2, y - e.size * 0.8 * pop, w, e.size * 1.6 * pop, 10); ctx.fill();
+    E.text(e.text, wx, y, { size: Math.max(TY.sm, e.size * pop), weight: '800', color: e.color });
     ctx.globalAlpha = 1; return;
+  }
+  if (e.k === 'steam') { // a puff that swells and fades as it rises
+    const r = e.size * s * (1 + (1 - k) * 2.2);
+    ctx.globalAlpha = 0.85 * Math.min(1, k * 1.4); ctx.fillStyle = e.color; ctx.strokeStyle = P.ink; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha *= 0.35; ctx.stroke(); ctx.globalAlpha = 1; return;
   }
   ctx.globalAlpha = Math.min(1, k * 1.5); ctx.fillStyle = e.color;
   const r = e.size * s * Math.max(0.5, k);
@@ -1546,18 +1977,54 @@ function drawFx(ctx, E, e, X, Y, s, sprite, lw) {
 // ---------- Sounds ----------
 // Engine synth only (PRD section 12), through E.audio so the mute flag holds.
 const SFX = {
-  launch: (E) => { E.audio.beep({ freq: 300, dur: 0.1, slide: 1.5, gain: 0.15 }); E.audio.noise({ dur: 0.06, gain: 0.1 }); },
-  boost: (E) => { E.audio.noise({ dur: 0.12, gain: 0.1 }); E.audio.beep({ freq: 220, dur: 0.12, type: 'sine', slide: 2, gain: 0.06 }); },
+  clunk: (E) => { E.audio.noise({ dur: 0.05, gain: 0.14 }); E.audio.beep({ freq: 150, dur: 0.09, slide: 0.6, gain: 0.12 }); E.audio.beep({ freq: 1100, dur: 0.02, gain: 0.05, delay: 0.03 }); },
+  // The fire, by zone: the pistons pump, steam blows, and the whistle shrieks for a Perfect (a short toot for Great, a
+  // sputter for Weak).
+  fire: (E, z) => {
+    [0, 0.07, 0.14].forEach((d, i) => E.audio.beep({ freq: 95 - i * 10, dur: 0.06, gain: 0.13, delay: d }));
+    E.audio.noise({ dur: [0.5, 0.35, 0.22, 0.12][z], gain: [0.16, 0.12, 0.09, 0.06][z], delay: 0.05 });
+    E.audio.beep({ freq: J.zoneFreq[z], dur: 0.16, type: 'triangle', slide: z === 3 ? 0.6 : 1.15, gain: 0.12 });
+    if (z === 0) { E.audio.beep({ freq: 1500, dur: 0.5, type: 'sine', slide: 1.3, gain: 0.09, delay: 0.06 }); E.audio.beep({ freq: 2240, dur: 0.45, type: 'sine', slide: 1.25, gain: 0.05, delay: 0.08 }); }
+    else if (z === 1) E.audio.beep({ freq: 1300, dur: 0.18, type: 'sine', gain: 0.07, delay: 0.06 });
+    else if (z === 3) E.audio.beep({ freq: 180, dur: 0.25, type: 'sawtooth', slide: 0.5, gain: 0.07, delay: 0.05 });
+  },
+  boost: (E) => { E.audio.noise({ dur: 0.14, gain: 0.1 }); E.audio.beep({ freq: 220, dur: 0.16, type: 'sine', slide: 2.2, gain: 0.07 }); },
+  whoosh: (E) => E.audio.noise({ dur: 0.12, gain: 0.04 }),
+  chute: (E) => { E.audio.beep({ freq: 260, dur: 0.2, type: 'sine', slide: 1.7, gain: 0.1 }); E.audio.noise({ dur: 0.08, gain: 0.05 }); },
+  drop: (E) => E.audio.beep({ freq: 760, dur: 0.16, type: 'sine', slide: 0.35, gain: 0.1 }),
+  // A ground bounce: a boing pitched and loud by the impact.
+  bounce: (E, v) => {
+    const k = clamp(v / 900, 0, 1);
+    E.audio.beep({ freq: 160 + 220 * k, dur: 0.14 + 0.08 * k, type: 'sine', slide: 1.9, gain: 0.04 + 0.08 * k });
+  },
   spring: (E) => { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 420, dur: 0.18, type: 'sine', slide: 2.2, gain: 0.1 }); },
   bird: (E) => { E.audio.beep({ freq: 900, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.08 }); E.audio.beep({ freq: 1000, dur: 0.07, type: 'sawtooth', slide: 0.6, gain: 0.07, delay: 0.09 }); },
-  chain: (E, n) => E.audio.beep({ freq: 520 * Math.pow(1.26, n), dur: 0.14, type: 'triangle', gain: 0.12 }),
+  // The combo step n (2 and up): a thump and a bright two-note chime that climbs a whole tone each step.
+  combo: (E, n) => {
+    const f = J.combo.freq * Math.pow(2, (Math.min(n - 2, J.combo.maxSteps) * J.combo.semis) / 12);
+    E.audio.beep({ freq: 150, dur: 0.1, type: 'triangle', slide: 0.6, gain: 0.12 });
+    E.audio.beep({ freq: f, dur: 0.12, type: 'triangle', gain: 0.13 });
+    E.audio.beep({ freq: f * 1.5, dur: 0.16, type: 'triangle', gain: 0.1, delay: 0.07 });
+    E.audio.beep({ freq: f * 2, dur: 0.2, type: 'sine', gain: 0.06, delay: 0.13 });
+  },
   geyser: (E) => { E.audio.noise({ dur: 0.35, gain: 0.12 }); E.audio.beep({ freq: 300, dur: 0.3, type: 'sine', slide: 3, gain: 0.1 }); },
   cloud: (E) => { E.audio.beep({ freq: 660, dur: 0.12, type: 'sine', slide: 0.8, gain: 0.08 }); E.audio.beep({ freq: 990, dur: 0.1, type: 'sine', gain: 0.06, delay: 0.08 }); },
-  home: (E) => { [523, 659, 784, 1047].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.22, type: 'triangle', gain: 0.12, delay: i * 0.12 })); },
-  zone: (E, z) => { // the launch chime: higher for a better zone, a falling note for Weak, a second chime for Perfect
-    E.audio.beep({ freq: J.zoneFreq[z], dur: 0.16, type: 'triangle', slide: z === 3 ? 0.7 : 1.15, gain: 0.14 });
-    if (z === 0) E.audio.beep({ freq: J.zoneFreq[0] * 1.5, dur: 0.2, type: 'triangle', gain: 0.1, delay: 0.08 });
+  // PRD v0.4: each slam's outcome, the columns, the flare.
+  slam: (E, on, v) => {
+    const k = clamp(v / 1200, 0, 1);
+    if (on === 'centre') { E.audio.beep({ freq: 1250, dur: 0.1, slide: 1.5 }); E.audio.beep({ freq: 300, dur: 0.4, type: 'sine', slide: 3.2, gain: 0.14 }); [1320, 1760, 2640].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.12, type: 'triangle', gain: 0.07, delay: 0.06 + i * 0.06 })); }
+    else if (on === 'jelly') { E.audio.beep({ freq: 1100, dur: 0.1, slide: 1.4 }); E.audio.beep({ freq: 380, dur: 0.22, type: 'sine', slide: 2.2, gain: 0.1 }); }
+    else if (on === 'down') { E.audio.beep({ freq: 70, dur: 0.2, type: 'triangle', slide: 0.6, gain: 0.16 }); E.audio.noise({ dur: 0.3, gain: 0.1 }); E.audio.beep({ freq: 320, dur: 0.45, type: 'sine', slide: 4, gain: 0.1, delay: 0.04 }); }
+    else if (on === 'up') { E.audio.noise({ dur: 0.28, gain: 0.16 }); E.audio.beep({ freq: 150, dur: 0.3, type: 'sawtooth', slide: 0.4, gain: 0.1 }); E.audio.beep({ freq: 95, dur: 0.2, type: 'square', slide: 0.5, gain: 0.06, delay: 0.08 }); }
+    else if (on === 'marsh') { E.audio.beep({ freq: 210, dur: 0.32, type: 'sine', slide: 0.45, gain: 0.12 }); E.audio.noise({ dur: 0.18, gain: 0.04 }); }
+    else { E.audio.beep({ freq: 80 + 40 * k, dur: 0.18, type: 'triangle', slide: 0.7, gain: 0.14 }); E.audio.noise({ dur: 0.1, gain: 0.07 }); }
   },
+  thermal: (E) => { E.audio.noise({ dur: 0.3, gain: 0.05 }); E.audio.beep({ freq: 240, dur: 0.4, type: 'sine', slide: 1.9, gain: 0.08 }); E.audio.beep({ freq: 480, dur: 0.3, type: 'triangle', slide: 1.5, gain: 0.04, delay: 0.1 }); },
+  freezer: (E) => { [1900, 1600, 1250].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.09, type: 'triangle', slide: 0.8, gain: 0.06, delay: i * 0.07 })); E.audio.noise({ dur: 0.25, gain: 0.05 }); },
+  flare: (E) => { E.audio.beep({ freq: 180, dur: 0.18, type: 'sine', slide: 2, gain: 0.12 }); E.audio.noise({ dur: 0.12, gain: 0.06 }); },
+  soft: (E) => E.audio.beep({ freq: 230, dur: 0.2, type: 'sine', slide: 0.6, gain: 0.08 }),
+  story: (E) => { E.audio.beep({ freq: 880, dur: 0.18, type: 'sine', gain: 0.07 }); E.audio.beep({ freq: 1320, dur: 0.26, type: 'sine', gain: 0.05, delay: 0.09 }); }, // a soft chime on a story card
+  home: (E) => { [523, 659, 784, 1047].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.22, type: 'triangle', gain: 0.12, delay: i * 0.12 })); },
 };
 
 // ---------- HUD ----------
@@ -1572,21 +2039,47 @@ function pill(E, text, x, y, size, align = 'center', color = P.text) {
   return { x: lx, y: y - h / 2, w, h };
 }
 
+// The speedometer (PRD v0.4 I4): a small brass dial at the top centre, in the safe area, clear of the mochi's climb and of the
+// arc. The face (bezel, cream dial, ticks, red zone) is one sprite; the needle, hub and number are live. Needle and number
+// are the flight's real speed in km/h-like units.
+function drawSpeedo(E, r) {
+  const ctx = E.ctx, o = T.speedo, R = o.r, cx = E.w / 2, cy = E.safe.top + o.top + R, top = o.max * o.kmh;
+  const ang = (v) => (o.start + o.sweep * clamp(v / top, 0, 1)) * DEG, p = 4, m = R + p;
+  if (S.dialT > 0) { ctx.globalAlpha = S.dialT / J.combo.dial; ctx.strokeStyle = P.coin; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, cy, R + 3, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+  cached(ctx, 'speedo', cx - m, cy - m, 2 * m, 2 * m, (c) => {
+    c.translate(m, m); c.lineJoin = 'round';
+    c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fillStyle = P.brass; c.fill(); c.strokeStyle = P.ink; c.lineWidth = 2; c.stroke();
+    c.beginPath(); c.arc(0, 0, R - 1.6, Math.PI * 1.05, Math.PI * 1.55); c.strokeStyle = P.brassLight; c.lineWidth = 2; c.stroke();
+    c.beginPath(); c.arc(0, 0, R - 4.5, 0, Math.PI * 2); c.fillStyle = P.dial; c.fill(); c.strokeStyle = P.brassDark; c.lineWidth = 1.5; c.stroke();
+    c.beginPath(); c.arc(0, 0, R - 8, ang(o.red * top), ang(top)); c.strokeStyle = P.crash; c.lineWidth = 3; c.stroke();
+    c.strokeStyle = P.ink; c.lineCap = 'round';
+    for (let v = 0; v <= top + 1; v += 50) {
+      const a = ang(v), big = v % 100 === 0, r0 = R - 6.5, r1 = r0 - (big ? 5 : 2.5);
+      c.lineWidth = big ? 1.8 : 1; c.beginPath(); c.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); c.lineTo(Math.cos(a) * r1, Math.sin(a) * r1); c.stroke();
+    }
+  });
+  const kmh = r ? speedOf(r) : 0, a = ang(S.needle), len = R - 8;
+  ctx.lineCap = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.moveTo(cx - Math.cos(a) * 5, cy - Math.sin(a) * 5); ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); ctx.stroke();
+  ctx.lineCap = 'butt'; ctx.beginPath(); ctx.arc(cx, cy, 3.6, 0, Math.PI * 2); ctx.fillStyle = P.brass; ctx.fill(); ctx.lineWidth = 1.4; ctx.stroke();
+  E.text(`${Math.round(kmh)}`, cx, cy + R * 0.58, { size: TY.sm, weight: '800', color: P.ink });
+}
+
 function drawHud(E, r, fuel, fuelMax, info) {
   const sf = E.safe, right = E.w - sf.right - 12, top = sf.top + 10;
   const pop = S.distPop > 0 ? 1 + 0.3 * (S.distPop / 0.3) : 1;
   pill(E, `${r ? metres(r) : 0} m`, right, top + 20, Math.round(TY.lg * pop), 'right');
-  if (r && r.chain > 0) {
-    const k = S.chainT > 0 ? ease.outBack(clamp(1 - (S.chainT - (J.chainLife - J.chainPop)) / J.chainPop, 0, 1)) : 1;
-    pill(E, `Chain x${mult(r)}`, right, top + 60, Math.max(TY.sm, Math.round((TY.sm + 3 * r.chain) * k)), 'right', P.tealLight);
+  if (r && r.chain >= 2) { // the combo: jellies, geysers and birds in a row; the counter grows with the step and pops on each
+    const size = Math.round((TY.md + J.combo.size * Math.min(r.chain, J.combo.sizeMax)) * (S.comboT > 0 ? 1 + 0.4 * (S.comboT / J.combo.pop) : 1));
+    pill(E, `Combo x${r.chain}`, right, top + 20 + 21 + 6 + (size + 14) / 2, size, 'right', P.coin);
   }
+  drawSpeedo(E, r);
   const x0 = sf.left + 16, y0 = top + 32;
   E.roundRect(x0 - 8, top - 4, Math.max(64, fuelMax * 18 + 14), 54, T.style.radius, P.panel);
   E.text('Fizz', x0, top + 10, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
   for (let i = 0; i < fuelMax; i++) {
     const k = clamp(fuel - i, 0, 1), popping = S.gaugePop > 0 && i === Math.floor(fuel + 1e-6);
-    const pulse = S.pipT > 0 ? 0.35 * Math.sin(Math.PI * (1 - S.pipT / J.pipPulse)) : 0; // every pip pulses once with "Tap to boost"
-    const g = (popping ? 1 + 0.5 * (S.gaugePop / J.gaugePop) : 1) + pulse, cx = x0 + i * 18 + 7, cy = y0 + 1;
+    const g = popping ? 1 + 0.5 * (S.gaugePop / J.gaugePop) : 1, cx = x0 + i * 18 + 7, cy = y0 + 1;
     E.roundRect(cx - 7 * g, cy - 7 * g, 14 * g, 14 * g, 4, P.panelSolid, P.panelEdge);
     if (k > 0) E.roundRect(cx - 5, cy + 5 - 10 * k, 10, 10 * k, 3, P.coin);
   }
@@ -1594,11 +2087,14 @@ function drawHud(E, r, fuel, fuelMax, info) {
   if (S.banner) {
     const k = S.banner.t / J.bannerTime, inK = ease.outBack(clamp((1 - k) / 0.2, 0, 1)), a = clamp(k / 0.15, 0, 1);
     E.ctx.globalAlpha = a;
-    pill(E, S.banner.text, E.w / 2, sf.top + 56 + 40 * inK, TY.lg, 'center', S.banner.color || P.coin); // below the fuel panel's row
+    pill(E, S.banner.text, E.w / 2, sf.top + 88 + 28 * inK, TY.lg, 'center', S.banner.color || P.coin);
     E.ctx.globalAlpha = 1;
   }
-  if (S.holdT > 0) { E.ctx.globalAlpha = clamp(S.holdT / 0.3, 0, 1); pill(E, 'Hold to boost', E.w / 2, sf.top + 150, TY.md); E.ctx.globalAlpha = 1; }
-  else if (S.tapT > 0) { E.ctx.globalAlpha = clamp(S.tapT / 0.3, 0, 1); pill(E, 'Tap to boost', E.w / 2, sf.top + 150, TY.md); E.ctx.globalAlpha = 1; }
+  if (S.actT > 0) { // the three actions, once, from the top of the first arc
+    E.ctx.globalAlpha = clamp(S.actT / 0.3, 0, 1);
+    pill(E, 'Hold: boost   Swipe up: glide   Swipe down: slam', E.w / 2, E.h - sf.bottom - 30, TY.md); // low, clear of the flight
+    E.ctx.globalAlpha = 1;
+  }
 }
 
 // ---------- Scenes ----------
@@ -1608,22 +2104,22 @@ const btn = (E, label, cx, cy, o = {}) => E.button(label, cx, cy, { fill: P.butt
 
 // The journey strip (PRD v0.2 E): the bakery at the left, the five places as a road in their own ground colours with a small
 // picture each, the daifuku and a heart at the right; places reached are bright, the rest ghosted (state drawn, not
-// written); the best distance is a small mochi on the road, and once Home is reached the two sit together. No text.
+// written); the best distance is a small mochi on the road, and once the proposal has shown (`ride`) a small daifuku rides beside him. No text.
 // The strip only changes with its width, the best, Home and the gear, so it is drawn once into a sprite and reused (the menu
 // redraws every frame, and a few dozen small shapes a frame cost more than one image on a slow phone).
 let JOURNEY = null;
-function journeyStrip(E, x0, x1, y, best, home, up) {
-  const h = 46, w = x1 - x0, key = JSON.stringify([w, best, home, up, E.dpr]);
-  if (typeof OffscreenCanvas === 'undefined') { drawJourney(E.ctx, x0, x1, y, best, home, up); return; }
+function journeyStrip(E, x0, x1, y, best, ride, up) {
+  const h = 46, w = x1 - x0, key = JSON.stringify([w, best, ride, up, E.dpr]);
+  if (typeof OffscreenCanvas === 'undefined') { drawJourney(E.ctx, x0, x1, y, best, ride, up); return; }
   if (!JOURNEY || JOURNEY.key !== key) {
     const cv = new OffscreenCanvas(Math.ceil(w * E.dpr), Math.ceil((h + 4) * E.dpr)), c = cv.getContext('2d');
     c.scale(E.dpr, E.dpr); c.translate(-x0, -(y - h / 2 - 2));
-    drawJourney(c, x0, x1, y, best, home, up);
+    drawJourney(c, x0, x1, y, best, ride, up);
     JOURNEY = { key, cv };
   }
   E.ctx.drawImage(JOURNEY.cv, x0, y - h / 2 - 2, w, h + 4);
 }
-function drawJourney(ctx, x0, x1, y, best, home, up) {
+function drawJourney(ctx, x0, x1, y, best, ride, up) {
   const lw = 2, h = 46, n = PLACES.length - 1, time = 0;
   roundRectPath(ctx, x0, y - h / 2, x1 - x0, h, T.style.radius); ctx.fillStyle = P.panel; ctx.fill();
   const rx0 = x0 + 46, rx1 = x1 - 46, seg = (rx1 - rx0) / n, ry = y + 12;
@@ -1639,14 +2135,14 @@ function drawJourney(ctx, x0, x1, y, best, home, up) {
   ctx.globalAlpha = 1; ctx.lineCap = 'butt';
   drawBakery(ctx, x0 + 10, ry + 4, 26, 0.3, 1.4);
   const dx = x1 - 22, r = 9;
-  if (home) { // together at the end of the road, a heart over them
-    drawDaifuku(ctx, dx + 6, ry - r + 2, r, time, 1.6, false);
-    drawMochi(ctx, dx - 14, ry - r + 2, r, 0, 1, 1, 1.6, up, time);
-    ctx.fillStyle = P.heart; heartPath(ctx, dx - 4, y - 14, 6); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = P.heart; heartPath(ctx, dx, y - 14, 5); ctx.fill();
+  const mx = Math.min(posOf(best), rx1);
+  if (ride) { // after the proposal she rides along, small, beside him
+    drawDaifuku(ctx, mx + r * 1.9, ry - r * 0.7 + 2, r * 0.72, time, 1.4, false);
+    drawMochi(ctx, mx, ry - r - 1, r, 0, 1, 1, 1.6, up, time);
   } else {
     ctx.globalAlpha = 0.6; drawDaifuku(ctx, dx, ry - r + 2, r, time, 1.6, false); ctx.globalAlpha = 1;
-    ctx.fillStyle = P.heart; heartPath(ctx, dx, y - 14, 5); ctx.fill();
-    drawMochi(ctx, Math.min(posOf(best), rx1), ry - r - 1, r, 0, 1, 1, 1.6, up, time);
+    drawMochi(ctx, mx, ry - r - 1, r, 0, 1, 1, 1.6, up, time);
   }
 }
 
@@ -1661,126 +2157,193 @@ function drawPlaceIcon(ctx, i, x, y, r, lw) {
   else { shape(P.house[0], () => ctx.rect(x - r * 0.7, y - r * 0.1, r * 1.4, r)); shape(P.house[1], () => { ctx.moveTo(x - r, y); ctx.lineTo(x, y - r); ctx.lineTo(x + r, y); ctx.closePath(); }); }
 }
 
+// The gift box beside the journey strip (PRD v0.6 B): four slots, an empty outline until Mochi has picked the gift up there. A
+// sugar flower, a chocolate heart, a soda bubble ring and a gingerbread ribbon.
+function drawGiftBox(ctx, x, y, found) {
+  const w = 108, h = 30;
+  roundRectPath(ctx, x, y, w, h, 10); ctx.fillStyle = P.panel; ctx.fill();
+  ctx.lineJoin = 'round'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 4; i++) {
+    const cx = x + 15 + i * 26, cy = y + h / 2, on = i < found;
+    if (!on) { ctx.strokeStyle = P.textOff; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(cx, cy, 8.5, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); continue; }
+    ctx.strokeStyle = P.ink;
+    if (i === 0) { ctx.fillStyle = P.awning; for (let k = 0; k < 5; k++) { const a = k * 1.2566; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 5, cy + Math.sin(a) * 5, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } ctx.fillStyle = P.coin; ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill(); }
+    else if (i === 1) { ctx.fillStyle = '#8a5a44'; heartPath(ctx, cx, cy, 8); ctx.fill(); ctx.stroke(); }
+    else if (i === 2) { ctx.strokeStyle = '#cfe9ff'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(cx, cy, 6.5, 0, Math.PI * 2); ctx.stroke(); ctx.strokeStyle = P.halo; ctx.lineWidth = 1.5; ctx.stroke(); ctx.lineWidth = 1.5; }
+    else { ctx.fillStyle = '#d9a46c'; for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + d * 9, cy - 6); ctx.lineTo(cx + d * 9, cy + 6); ctx.closePath(); ctx.fill(); ctx.stroke(); } ctx.fillStyle = '#e8c08c'; ctx.beginPath(); ctx.arc(cx, cy, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  }
+}
+
 // The menu (principle 11): the journey strip along the top, the title, one headline number (the best distance), the three
 // active goals under it, then Play, Shop and Sound.
 const menu = {
   render(ctx, E) {
     const v = view(E), sf = E.safe, up = levelsOf(E), best = E.save.get('best', 0);
-    drawWorld(ctx, E, v, newCamera(v.vw), null, null, up);
-    journeyStrip(E, sf.left + 92, E.w - sf.right - 84, sf.top + 29, best, E.save.get('home', false), up); // clear of EXPORT and TUNE
+    const world = drawWorld(ctx, E, v, newCamera(v.vw), null, null, up);
+    journeyStrip(E, sf.left + 92, E.w - sf.right - 84, sf.top + 29, best, E.save.get('proposed', false), up); // clear of EXPORT and TUNE
+    drawGiftBox(ctx, E.w - sf.right - 16 - 108, sf.top + 58, Math.min(4, E.save.get('placesSeen', 0)));
+    if (E.save.get('proposed', false)) drawDaifuku(ctx, Math.max(sf.left + 18, world.mx - 112 * world.mk), world.gy - 14, 13, E.time, 2, false); // she rides along, small, beside the machine
     const titled = E.h - sf.top - sf.bottom >= T.menuTitleMinH; // on a short screen the strip is the title
     const cy = titled ? sf.top + 52 + Math.max(32, E.h * 0.12 - 14) : sf.top + 34;
     if (titled) E.text('LAUNCH', E.w / 2, cy, { size: TY.xl, weight: '800', color: P.ink });
     E.titleArea = titled ? { x: E.w / 2 - 110, y: cy - 30, w: 220, h: 60 } : { x: sf.left + 92, y: sf.top + 6, w: E.w - sf.left - sf.right - 176, h: 46 }; // release: five taps here show TUNE
     pill(E, `Best ${best} m`, E.w / 2, cy + 42, TY.md);
     const goals = activeGoals(E.save.get('goalsDone', [])), have = { flights: E.save.get('flights', 0), perfectRow: E.save.get('perfectRow', 0) };
-    const gw = Math.min(E.w - sf.left - sf.right - 40, 420);
+    const gw = Math.min(E.w - sf.left - sf.right - 40, 420), reach = world.mx + 62 * world.mk; // the barrel's tip
+    const gx = Math.max(E.w / 2 - gw / 2, Math.min(reach + 12, E.w - sf.right - 20 - gw)); // the goals clear the barrel when they fit
     let gy = cy + 66;
-    for (const g of goals) gy += goalRow(E, E.w / 2 - gw / 2, gy, gw, g, goalLine(g, have[g.stat]), false) + 6;
+    for (const g of goals) gy += goalRow(E, gx, gy, gw, g, goalLine(g, have[g.stat]), false) + 6;
     const bottom = E.h - sf.bottom - 8;
     if (gy + 8 + 56 + 8 + 44 <= bottom) { // Play above Shop and Sound
       const py = Math.min(gy + 8 + 28, bottom - 44 - 8 - 28);
       this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 220, h: 56, size: TY.md });
-      this.btnShop = btn(E, 'Shop', E.w / 2 - 58, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
-      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 58, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.sm });
+      this.btnShop = btn(E, 'Shop', E.w / 2 - 116, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
+      this.btnStory = btn(E, 'Story', E.w / 2, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
+      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 116, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.sm });
     } else { // short screens: one row
       const py = Math.min(gy + 8 + 28, bottom - 28);
-      this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 180, h: 56, size: TY.md });
-      this.btnShop = btn(E, 'Shop', E.w / 2 - 90 - 12 - 50, py, { fill: P.panelSolid, w: 100, h: 48, size: TY.md });
-      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 90 + 12 + 50, py, { fill: P.panelSolid, w: 100, h: 48, size: TY.sm });
+      this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 150, h: 56, size: TY.md }); // Shop, Play, Sound, Story: Story on the right, clear of the machine
+      this.btnShop = btn(E, 'Shop', E.w / 2 - 126, py, { fill: P.panelSolid, w: 92, h: 48, size: TY.md });
+      this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 126, py, { fill: P.panelSolid, w: 92, h: 48, size: TY.sm });
+      this.btnStory = btn(E, 'Story', E.w / 2 + 222, py, { fill: P.panelSolid, w: 84, h: 48, size: TY.md });
     }
   },
   onTap(p, E) {
     if (this.btnPlay && E.hit(this.btnPlay, p)) { E.audio.play('tap'); E.setScene('play'); }
     else if (this.btnShop && E.hit(this.btnShop, p)) { E.audio.play('tap'); E.setScene('shop', { from: 'menu' }); }
+    else if (this.btnStory && E.hit(this.btnStory, p)) { E.audio.play('tap'); E.setScene('story', { replay: true }); }
     else if (this.btnMute && E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
   },
   onKey(k, E) { if (k === ' ' || k === 'Enter') E.setScene('play'); },
 };
 
+// The play scene. Before the launch S.phase is 'aim' (the barrel sweeps from ready) then 'gauge' (from the lock); a press
+// anywhere takes the beat. In flight a press is a gesture (PRD v0.3 B), decided in its first gestureWindow of flight time.
 const play = {
   enter(E, params = {}) {
     S.seed = params.seed ?? newSeed();
-    S.run = null; S.endT = 0; S.frameReal = performance.now(); S.readyReal = S.frameReal; S.pid = null; S.launchPid = null; S.spaceDown = false;
+    S.run = null; S.endT = 0; S.frameReal = performance.now(); S.readyReal = S.frameReal; S.lockReal = 0; S.phase = 'aim'; S.aim = T.aimMin; S.t1 = 0;
+    S.launchPid = null; S.gest = null; S.keyDown = {}; S.rate = 1;
     S.up = levelsOf(E); S.st = stats(S.up); S.cam = newCamera(view(E).vw);
-    S.hint = E.save.get('flights', 0) === 0; // a fresh save's first launch: "Tap when the needle is in the gold"
-    S.fx.length = 0; S.pops = new Map(); S.sq = { amt: 0, t: 0 };
-    S.snapT = 0; S.speedT = 0; S.gaugePop = 0; S.distPop = 0; S.chainT = 0; S.holdT = 0; S.homeT = 0;
-    S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime }; // every flight names its place on entry, the first as it starts
-    S.wedgeT = 0; S.zonePop = null; S.needle = T.needleMin; S.mark = null; S.markT = 0; S.callouts = []; S.endWait = T.endDelay;
-    S.teachHold = S.up.rocket >= 1 && !E.save.get('holdTaught', false);
+    S.streak = E.save.get('perfectRow', 0); S.streakNow = S.streak; S.gauge = gaugeOf(S.seed, S.streak, S.up); S.gv = null; S.lit = -1;
+    S.hint = E.save.get('flights', 0) < 2; // the two beats are named on a fresh save's first two flights
+    S.fx.length = 0; S.pops = new Map(); S.vents = new Map(); S.sq = { amt: 0, t: 0 };
+    for (const k of ['speedT', 'gaugePop', 'distPop', 'comboT', 'dialT', 'homeT', 'actT', 'pumpT', 'glowT', 'slowT', 'whooshT', 'streakT']) S[k] = 0;
+    S.wing = { x: 0, v: 0 }; S.needle = 0;
+    S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime };
+    S.zonePop = null; S.arc = null; S.arcPts = new Float64Array(800); S.callouts = []; S.endWait = T.endDelay;
     S.teachBird = !E.save.get('birdTaught', false); S.teachMud = !E.save.get('mudTaught', false);
-    S.teachTap = E.save.get('flights', 0) === 0; S.tapT = 0; S.pipT = 0; S.prevVy = 0; S.quit = false;
+    S.teachAct = !E.save.get('actionsTaught', false); S.prevVy = 0; S.quit = false; S.propose = E.save.get('home', false) && !E.save.get('proposed', false); // a save that met her before v0.6 owes the proposal after this flight
   },
-  stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)); },
-  // Seconds since the launcher was ready, at this moment (a tap's handler runs when the tap arrives).
-  needleT() { return Math.max(0, (performance.now() - S.readyReal) / 1000); },
-  launch(E) {
-    const l = needleLaunch(this.needleT(), S.up), v = view(E);
-    S.run = newRun(S.seed, l, S.up);
-    S.needle = l.angle; S.hint = false; S.wedgeT = T.wedgeFade;
-    SFX.launch(E); SFX.zone(E, l.zone); E.haptic(J.zoneHaptic[l.zone]); E.shake(J.kick, J.kickTime);
-    S.snapT = J.snapTime;
-    emit('dust', 0, 0, J.dust, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 90, g: -200, life: 0.5, size: 3, color: P.dust });
-    const [dx, dy] = toView(S.cam, 0, T.slingH + T.critterR + T.wedgeR + 30); // above the launcher, clear of the first arc's hints
-    S.zonePop = { z: l.zone, t: J.zonePop, x: dx * v.s, y: v.oy + dy * v.s };
-    if (l.zone === 0) { // Perfect: a gold flash and a ring of sparks
-      E.flash(P.zones[0], 0.18);
-      for (let i = 0; i < J.sparks; i++) { const t = (i / J.sparks) * Math.PI * 2; S.fx.push({ k: 'spark', x: 0, y: T.slingH + T.critterR, vx: Math.cos(t) * 150, vy: Math.sin(t) * 150, g: 0, t: 0.5, max: 0.5, size: 2.6, color: P.zones[0] }); }
+  // Flight time now: the steps run, the remainder carried, and the real time since this frame began at the current rate.
+  stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)) * S.rate; },
+  sinceReady() { return Math.max(0, (performance.now() - S.readyReal) / 1000); },
+  sinceLock() { return Math.max(0, (performance.now() - S.lockReal) / 1000); },
+  lock(E) {
+    S.t1 = this.sinceReady(); S.aim = aimAngle(S.t1); S.phase = 'gauge'; S.lockReal = performance.now();
+    SFX.clunk(E); E.haptic(J.haptic.lock); E.shake(1.5, 0.08);
+    emit('steam', -16 * MACHINE, 60 * MACHINE, 3, { angle: Math.PI / 2, spread: 1.2, speed: 40, g: 30, life: 0.6, size: 3, color: P.steam });
+  },
+  fire(E) {
+    const l = launchOf(S.seed, S.t1, this.sinceLock(), S.streak, S.up), v = view(E), z = l.zone;
+    S.run = newRun(S.seed, l, S.up); S.phase = 'flight'; S.gv = l.gauge; S.lit = z; S.glowT = J.zonePop; S.pumpT = J.pump; S.hint = false;
+    S.streakNow = z === 0 ? S.streak + 1 : 0; S.streakT = J.zonePop;
+    SFX.fire(E, z); E.haptic(J.zoneHaptic[z]); E.shake(J.kick, J.kickTime);
+    const [mx, my] = mouth(l.angle);
+    emit('steam', -80 * MACHINE, 76 * MACHINE, J.steam[z], { angle: Math.PI / 2, spread: 0.9, speed: 70 + 20 * (3 - z), g: 40, life: 1.0, size: 4, color: P.steam }); // the chimney
+    emit('steam', mx, my + T.critterR, J.steam[z], { angle: l.angle * DEG, spread: 1.4, speed: 110 + 30 * (3 - z), g: 30, life: 0.7, size: 3.5, color: P.steam }); // the muzzle
+    const [dx, dy] = toView(S.cam, -40 * MACHINE, T.pivotH + 80);
+    S.zonePop = { z, t: J.zonePop, x: dx * v.s, y: v.oy + dy * v.s };
+    if (z === 0) { // Perfect: every bulb, the whistle, a gold flash, a ring of sparks, a shake and a slow-motion beat
+      E.flash(P.zones[0], 0.18); E.shake(J.perfectShake, J.perfectShakeTime); S.slowT = J.slowMo;
+      for (let i = 0; i < J.sparks; i++) { const t = (i / J.sparks) * Math.PI * 2; S.fx.push({ k: 'spark', x: mx, y: my + T.critterR, vx: Math.cos(t) * 160, vy: Math.sin(t) * 160, g: 0, t: 0.6, max: 0.6, size: 2.8, color: P.zones[0] }); }
     }
-    if (S.teachHold) { S.holdT = J.holdHint; E.save.set('holdTaught', true); }
   },
   update(dt, E) {
     S.frameReal = performance.now();
-    const r = S.run;
-    for (const k of ['snapT', 'speedT', 'gaugePop', 'distPop', 'chainT', 'holdT', 'tapT', 'pipT', 'wedgeT', 'homeT']) if (S[k] > 0) S[k] -= dt;
+    for (const k of ['speedT', 'gaugePop', 'distPop', 'comboT', 'dialT', 'actT', 'homeT', 'pumpT', 'glowT', 'slowT', 'streakT']) if (S[k] > 0) S[k] -= dt;
+    S.rate = S.slowT > 0 ? J.slowMoRate : 1;
     if (S.sq.t > 0) S.sq.t -= dt;
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
     if (S.zonePop) { S.zonePop.t -= dt; if (S.zonePop.t <= 0) S.zonePop = null; }
     for (const c of S.callouts) c.t -= dt;
     S.callouts = S.callouts.filter((c) => c.t > 0);
-    updateFx(dt);
+    updateFx(dt * S.rate);
+    const r = S.run;
+    const open = r && r.chute && !r.ended ? 1 : 0, w = S.wing, n = Math.max(1, Math.ceil(dt / 0.008)), h = dt / n; // the dough glider's spring
+    for (let i = 0; i < n; i++) { w.v += (J.wing.k * (open - w.x) - J.wing.c * w.v) * h; w.x += w.v * h; }
+    S.needle += ((r ? speedOf(r) : 0) - S.needle) * (1 - Math.exp(-dt / T.speedo.ease));
     cameraStep(S.cam, r, view(E).vw, dt);
+    if (Math.random() < dt * 1.5) emit('steam', -80 * MACHINE, 76 * MACHINE, 1, { angle: Math.PI / 2, spread: 0.5, speed: 30, g: 20, life: 1.2, size: 3, color: P.steam }); // the chimney idles
     if (!r) return;
-    if (S.spaceDown && !E.keys.has(' ')) { // key repeat is ignored: one pulse per press, a held key is the Rocket's hold
-      S.spaceDown = false;
-      if (r.st.hold && !r.ended) queueInput(r, this.stamp(r), 'holdOff');
-    }
-    advance(r, dt);
-    if (S.teachTap && r.mode === 'air' && S.prevVy > 0 && r.vy <= 0) { S.teachTap = false; S.tapT = J.tapHint; S.pipT = J.pipPulse; } // the top of the first arc
-    if (r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone')) S.teachTap = false; // only the first arc teaches
+    const g = S.gest;
+    if (g && !g.kind && !r.ended && this.stamp(r) - g.t0 >= T.gestureWindow) { g.kind = 'boost'; queueInput(r, Math.max(g.t0 + T.gestureWindow, flightTime(r)), 'boostOn'); }
+    for (const [k, off] of [[' ', 'boostOff'], ['ArrowUp', 'chuteOff']]) if (S.keyDown[k] && !E.keys.has(k)) { S.keyDown[k] = false; if (!r.ended) queueInput(r, this.stamp(r), off); }
+    advance(r, dt * S.rate);
+    if (S.teachAct && r.mode === 'air' && S.prevVy > 0 && r.vy <= 0) { S.teachAct = false; S.actT = J.actionHint; E.save.set('actionsTaught', true); } // the top of the first arc
     S.prevVy = r.vy;
-    const contact = r.ev.some((e) => e.k !== 'boost' && e.k !== 'milestone');
     for (const e of r.ev) this.onEvent(e, E);
     r.ev.length = 0;
-    S.markT -= dt;
-    if (contact || S.markT <= 0) { S.mark = landingMark(r); S.markT = T.markEvery; } // a contact ends the old prediction at once
-    if (r.holding && r.fuel > 0 && Math.random() < 0.6) emit('cola', r.x, r.y + T.critterR, 1, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.6, speed: 120, g: 0, life: J.fizzLife, size: 2.6, color: P.cola }); // the Cola Rocket's trail
-    if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene('over', finishFlight(E, r)); }
+    S.arc = rangeArc(r, r.st.look, S.arcPts);
+    if (S.arc) { S.arc.pts = S.arcPts; S.arc.mode = r.boost && r.fuel > 0 ? 1 : r.chute ? 2 : r.ball ? 3 : 0; }
+    if (r.boost && r.fuel > 0 && !r.ended) { // the fizz trail and a whoosh
+      const back = Math.atan2(-r.vy, -r.vx);
+      emit('fizz', r.x, r.y + T.critterR, 2, { angle: back, spread: 0.5, speed: 140, vx: r.vx * 0.2, vy: r.vy * 0.2, g: 0, life: J.fizzTrail, size: 3.4, color: P.fizz });
+      if (Math.random() < 0.5) emit('cola', r.x, r.y + T.critterR, 1, { angle: back, spread: 0.6, speed: 120, g: 0, life: J.fizzLife, size: 2.6, color: P.soda });
+      S.whooshT -= dt; if (S.whooshT <= 0) { S.whooshT = J.whoosh; SFX.whoosh(E); }
+    }
+    if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene(S.propose ? 'proposal' : 'over', finishFlight(E, r)); }
   },
   squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
   onEvent(e, E) {
     const r = S.run, cx = r.x, cy = r.y + T.critterR;
     if (e.k === 'spring') {
-      SFX.spring(E); E.haptic(J.haptic.spring); this.squash(0.12 + r.vy / 2500); S.speedT = J.speedLines;
+      SFX.spring(E); E.haptic(J.haptic.spring); this.squash(0.14 + r.vy / 2500); S.speedT = J.speedLines;
       const g = groundAt(r.field, r.x); if (g) S.pops.set(g, { t: J.springPop });
-      word('Boing', r.x - 40, 90, TY.md, J.boingLife); // above the pad, behind the critter flying off
-      word(`↑ ${Math.round((r.vy * r.vy) / (2 * T.gravity) / T.unitsPerMetre)} m`, r.x - 40, 50, TY.sm, J.boingLife); // the height it gives
-    } else if (e.k === 'bird') {
+      word('Boing', r.x - 40, 90, TY.md, J.boingLife);
+      word(`↑ ${Math.round((r.vy * r.vy) / (2 * T.gravity) / T.unitsPerMetre)} m`, r.x - 40, 50, TY.sm, J.boingLife);
+    } else if (e.k === 'bounce') {
+      const k = clamp(e.v / 900, 0, 1);
+      SFX.bounce(E, e.v); this.squash(Math.max(0.08, e.v * J.bounceSquash));
+      emit('dust', cx, 0, Math.round(4 + J.dust * k), { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 60 + 160 * k, g: -250, life: 0.5, size: 2.6 + 2 * k, color: P.dust });
+      if (e.skim) emit('dust', cx, 0, 3, { angle: Math.PI * 0.85, spread: 0.4, speed: 120, g: -200, life: 0.4, size: 2, color: P.white });
+      if (e.v > J.bigBounce) { E.shake(J.bounceShake * 0.6, J.bounceShakeTime); E.haptic(J.haptic.drop); }
+    } else if (e.k === 'land') { this.squash(Math.max(0.1, e.v * J.bounceSquash)); emit('dust', cx, 0, 5, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 70, g: -250, life: 0.5, size: 2.6, color: P.dust }); }
+    else if (e.k === 'bird') {
       SFX.bird(E); E.haptic(J.haptic.bird);
       emit('feather', cx, cy, J.feathers, { speed: 140, g: -120, life: 0.7, size: 2.6, color: P.tealLight });
-      let b = null, d = Infinity; // the bird just hit, for its tumble
+      let b = null, d = Infinity;
       for (const q of r.field.birds) if (q.hit && !q.tumbled && Math.abs(q.x0 - r.x) < d) { d = Math.abs(q.x0 - r.x); b = q; }
       if (b) { b.tumbled = true; S.fx.push({ k: 'tumble', x: birdX(b, flightTime(r)), y: b.y, vx: r.vx * 0.3, vy: -80, g: -500, t: J.tumbleTime, max: J.tumbleTime, rot: 0, spin: 9, size: 0 }); }
       if (S.teachBird) { S.teachBird = false; E.save.set('birdTaught', true); S.callouts.push({ text: 'Bird bounce: up and onward!', arrow: true, wx: cx, wy: cy, t: J.callout }); }
-    } else if (e.k === 'boost') {
-      SFX.boost(E); E.haptic(J.haptic.boost); S.gaugePop = J.gaugePop;
-      emit('fizz', r.x, r.y + T.critterR, J.fizz, { angle: Math.atan2(-r.vy, -r.vx), spread: 0.7, speed: 160, g: 0, life: J.fizzLife, size: 3.4, color: P.fizz });
-    } else if (e.k === 'bounce' || e.k === 'ramp') this.squash(0.1);
+    } else if (e.k === 'boost') { // the fizz kick: a burst ring of fizz and a whoosh
+      SFX.boost(E); E.haptic(J.haptic.boost); S.gaugePop = J.gaugePop; S.whooshT = J.whoosh;
+      emit('fizz', cx, cy, J.fizz, { angle: Math.atan2(-r.vy, -r.vx), spread: 2.2, speed: 200, g: 0, life: J.fizzLife, size: 4, color: P.fizz });
+      emit('cola', cx, cy, 5, { angle: Math.atan2(-r.vy, -r.vx), spread: 1, speed: 160, g: 0, life: J.fizzLife, size: 3, color: P.soda });
+    } else if (e.k === 'chute') {
+      SFX.chute(E); E.haptic(J.haptic.chute); emit('puff', cx, cy + 30, 6, { speed: 60, g: 0, life: 0.4, size: 3, color: P.powder });
+      if (e.flare) { SFX.flare(E); this.squash(0.18); word('Flare!', r.x - 30, r.y + 70, TY.md, J.boingLife); emit('puff', cx, cy, 10, { angle: -Math.PI / 2, spread: 1.4, speed: 160, g: 0, life: 0.4, size: 3, color: P.powder }); }
+    } else if (e.k === 'slam') this.onSlam(e, E);
+    else if (e.k === 'combo') { // a combo step: the kick (speed lines, a ring of sparks, a shake, the dial glows), the counter, the rising chime
+      const kmh = Math.round(e.kick * T.speedo.kmh), size = TY.md + J.combo.size * Math.min(e.n, J.combo.sizeMax);
+      SFX.combo(E, e.n); E.haptic(J.haptic.combo); E.shake(J.combo.shake, J.combo.shakeTime); S.comboT = J.combo.pop; S.dialT = J.combo.dial; S.speedT = J.speedLines;
+      emit('spark', cx, cy, J.combo.ring, { angle: 0, spread: Math.PI * 2, speed: 220, g: 0, life: 0.45, size: 2.8, color: P.coin });
+      word(`x${e.n}!`, r.x - 20, r.y + 200, size, J.combo.life);
+      if (kmh > 0) word(`+${kmh} km/h`, r.x - 20, r.y + 140, TY.sm, J.combo.life);
+    }
+    else if (e.k === 'thermal' || e.k === 'freezer') {
+      const warm = e.k === 'thermal', g = groundAt(r.field, r.x);
+      SFX[e.k](E); E.haptic(J.haptic.cloud); if (g) S.vents.set(g, { t: J.ventGlow });
+      emit('puff', cx, cy, 8, { angle: warm ? Math.PI / 2 : -Math.PI / 2, spread: 1, speed: 120, g: 0, life: 0.5, size: 3, color: warm ? P.thermalAir : P.freezer });
+      if (e.glide) word(warm ? 'Rising!' : 'Iced!', r.x - 30, r.y + 70, TY.sm, J.boingLife);
+    } else if (e.k === 'marsh') { SFX.soft(E); this.squash(0.2); const g = groundAt(r.field, r.x); if (g) S.pops.set(g, { t: J.springPop }); emit('puff', cx, cy - 10, 6, { angle: Math.PI / 2, spread: 2, speed: 60, g: -100, life: 0.5, size: 3, color: P.marsh }); }
+    else if (e.k === 'launch') { SFX.whoosh(E); S.speedT = J.speedLines * 0.6; }
+    else if (e.k === 'drop') { SFX.drop(E); E.haptic(J.haptic.drop); this.squash(0.2); emit('puff', cx, cy, 6, { angle: Math.PI / 2, spread: 1.2, speed: 120, g: 0, life: 0.35, size: 2.6, color: P.critterLight }); }
+    else if (e.k === 'ramp') this.squash(0.1);
     else if (e.k === 'mud') {
       E.audio.play('miss'); E.haptic(J.haptic.mud); E.shake(J.mudShake, J.mudShakeTime);
       emit('splat', cx, 0, J.splat, { angle: Math.PI / 2, spread: Math.PI * 0.8, speed: 150, g: -400, life: 0.6, size: 3, color: P.mud });
-      if (S.teachMud) { S.teachMud = false; E.save.set('mudTaught', true); S.endWait = T.endDelayTaught; S.callouts.push({ text: 'Stuck! Jump caramel with a boost', arrow: false, wx: cx, wy: cy + 50, t: T.endDelayTaught + 0.2 }); }
+      if (S.teachMud) { S.teachMud = false; E.save.set('mudTaught', true); S.endWait = T.endDelayTaught; S.callouts.push({ text: 'Stuck! Glide or boost over caramel', arrow: false, wx: cx, wy: cy + 50, t: T.endDelayTaught + 0.2 }); }
     } else if (e.k === 'geyser') {
       SFX.geyser(E); E.haptic(J.haptic.geyser); this.squash(0.15); S.speedT = J.speedLines;
       emit('fizz', cx, 0, 14, { angle: Math.PI / 2, spread: 0.6, speed: 260, g: -300, life: 0.7, size: 3, color: P.fizz });
@@ -1794,10 +2357,12 @@ const play = {
       const i = T.milestones.indexOf(e.m) + 1, home = i === PLACES.length - 1;
       E.audio.play('win'); E.haptic(J.haptic.milestone); S.distPop = 0.3;
       S.banner = { text: `★ ${PLACES[i].name}`, t: J.bannerTime };
-      if (home && !E.save.get('home', false)) { // the Home moment: once, the first flight past 5000 m
+      if (GIFTS[i] && i > E.save.get('placesSeen', 0)) { E.save.set('placesSeen', i); S.banner = { text: GIFTS[i], t: T.story.arrivalTime }; } // the first time ever: Mochi's gift for Daifuku
+      if (home && !E.save.get('proposed', false)) S.propose = true; // the proposal follows this flight
+      if (home && !E.save.get('home', false)) { // the Tea Party moment: once, the first flight past 5000 m
         E.save.set('home', true); E.ledger.add('home', { flights: E.save.get('flights', 0) + 1, seed: r.seed });
         S.homeT = J.homeTime; SFX.home(E); E.haptic(J.haptic.home);
-        S.banner = { text: '♥ Home! (keep going)', t: J.homeTime, color: P.text };
+        S.banner = { text: '♥ Tea Party', t: J.homeTime, color: P.text };
         const hx = placeFrom(i) + T.homeAhead;
         emit('heart', hx, 2.6 * T.critterR, J.hearts, { angle: Math.PI / 2, spread: 1.6, speed: 160, g: -60, life: 1.6, size: 4, color: P.heart });
         emit('heart', r.x, r.y + T.critterR, J.hearts / 2, { angle: Math.PI / 2, spread: 2, speed: 120, g: -60, life: 1.4, size: 3.5, color: P.heart });
@@ -1806,48 +2371,102 @@ const play = {
       this.squash(0.18);
       if (!r.stars.length) E.audio.play('lose', 0.3);
     }
-    if ((e.k === 'spring' || e.k === 'bird' || e.k === 'geyser') && e.chain >= 1) {
-      S.chainT = J.chainLife;
-      if (e.chain >= 2) SFX.chain(E, e.chain);
+    if ((e.k === 'spring' || e.k === 'bird' || e.k === 'geyser' || (e.k === 'slam' && (e.on === 'centre' || e.on === 'jelly'))) && e.chain >= 1) {
       emit('coin', cx, cy, J.coins[Math.min(e.chain, J.coins.length - 1)], { angle: Math.PI / 2, spread: 1.2, speed: 200, g: -500, life: 0.7, size: 3.2, color: P.coin });
     }
   },
-  // Before launch a press anywhere stops the needle and launches at once; that press never also boosts.
+  // A slam lands (PRD v0.4 A, B): each outcome has its own sound, squash, particles and word; a centred jelly is the big one.
+  onSlam(e, E) {
+    const r = S.run, cx = r.x, on = e.on, up = r.vy * r.vy / (2 * T.gravity) / T.unitsPerMetre, g = groundAt(r.field, r.x);
+    SFX.slam(E, on, e.v);
+    if (g && (g.kind === 'spring' || g.kind === 'marsh')) S.pops.set(g, { t: J.springPop });
+    if (on === 'centre' || on === 'jelly') {
+      const big = on === 'centre';
+      E.haptic(big ? J.haptic.home[0] : J.haptic.spring); this.squash(big ? 0.35 : 0.22); S.speedT = J.speedLines;
+      emit('dust', cx, e.y, J.dust * (big ? 3 : 1.5), { angle: Math.PI / 2, spread: Math.PI, speed: big ? 300 : 200, g: -300, life: 0.6, size: 3.5, color: P.tealLight });
+      if (big) { E.shake(J.bounceShake * 1.4, J.bounceShakeTime); E.flash(P.zones[0], 0.1); S.gaugePop = J.gaugePop; emit('spark', cx, e.y + T.critterR, 14, { angle: Math.PI / 2, spread: Math.PI * 1.2, speed: 220, g: -200, life: 0.6, size: 2.8, color: P.zones[0] }); }
+      word(big ? 'PERFECT SLAM!' : 'Slam', r.x - 90, e.y + 170, big ? TY.lg : TY.md, J.boingLife * 1.3);
+      word(`${big ? '+1 fizz  ' : ''}↑ ${Math.round(up)} m`, r.x - 90, e.y + 110, TY.sm, J.boingLife);
+    } else if (on === 'down') {
+      E.haptic(J.haptic.geyser); E.shake(J.bounceShake, J.bounceShakeTime); this.squash(0.3); S.speedT = J.speedLines * 2;
+      emit('dust', cx, e.y, J.dust * 2, { angle: Math.PI * 0.85, spread: 0.8, speed: 280, g: -250, life: 0.6, size: 3.2, color: P.rocket });
+      emit('fizz', cx, e.y + T.critterR, 10, { angle: Math.PI, spread: 0.5, speed: 260, g: 0, life: 0.45, size: 3, color: P.white });
+      word('ROCKET!', r.x - 90, e.y + 150, TY.lg, J.boingLife * 1.3);
+    } else if (on === 'up') {
+      E.haptic(J.haptic.mud); E.shake(J.mudShake, J.mudShakeTime); this.squash(J.landSquash); E.flash(P.crash, 0.08);
+      emit('splat', cx, e.y, 12, { angle: Math.PI * 0.6, spread: 1.2, speed: 160, g: -400, life: 0.5, size: 2.8, color: P.berry });
+      emit('splat', cx, e.y, 8, { angle: Math.PI * 0.6, spread: 1.2, speed: 140, g: -400, life: 0.5, size: 2.6, color: P.white });
+      word('Crash!', r.x - 90, e.y + 150, TY.md, J.boingLife * 1.3);
+    } else if (on === 'marsh') {
+      E.haptic(J.haptic.chute); this.squash(J.landSquash);
+      emit('puff', cx, e.y + 6, 12, { angle: Math.PI / 2, spread: 2.4, speed: 90, g: -150, life: 0.7, size: 4, color: P.marsh });
+      word('Squish…', r.x - 90, e.y + 150, TY.md, J.boingLife * 1.3);
+    } else {
+      E.haptic(J.haptic.drop); this.squash(0.3); E.shake(J.bounceShake * 0.6, J.bounceShakeTime);
+      emit('dust', cx, e.y, J.dust, { angle: Math.PI / 2, spread: Math.PI * 0.9, speed: 140, g: -250, life: 0.5, size: 3, color: P.dust });
+      word('Missed', r.x - 90, e.y + 150, TY.md, J.boingLife);
+    }
+  },
   onPointerDown(p, E) {
     const r = S.run;
-    if (!r) { if (this.needleT() < T.readyGrace) return; S.launchPid = p.id; this.launch(E); return; } // a double tap on Launch Again cannot launch
+    if (!r) {
+      if (S.phase === 'aim' && this.sinceReady() >= T.readyGrace) { S.launchPid = p.id; this.lock(E); }
+      else if (S.phase === 'gauge' && this.sinceLock() >= T.gaugeGrace) { S.launchPid = p.id; this.fire(E); }
+      return;
+    }
     if (r.ended || p.id === S.launchPid) return;
-    const at = this.stamp(r);
-    queueInput(r, at, 'pulse');
-    if (r.st.hold) { S.pid = p.id; queueInput(r, at + T.holdDelay, 'holdOn'); }
+    if (S.gest) this.release(S.gest, this.stamp(r), true); // a second thumb takes over
+    S.gest = { id: p.id, t0: this.stamp(r), y0: p.y, kind: null };
+  },
+  onPointerMove(p, E) {
+    const g = S.gest, r = S.run;
+    if (!g || g.id !== p.id || g.kind || !r || r.ended) return;
+    const dy = p.y - g.y0, at = this.stamp(r);
+    if (Math.abs(dy) < T.swipeMin || at - g.t0 > T.gestureWindow) return;
+    g.kind = dy < 0 ? 'chute' : 'drop';
+    queueInput(r, at, dy < 0 ? 'chuteOn' : 'condense');
   },
   onPointerUp(p, E) {
     if (p.id === S.launchPid) { S.launchPid = null; return; }
-    if (p.id !== S.pid) return;
-    S.pid = null;
-    const r = S.run;
-    if (r && !r.ended) queueInput(r, this.stamp(r), 'holdOff');
+    const g = S.gest, r = S.run;
+    if (!g || g.id !== p.id) return;
+    S.gest = null;
+    if (r && !r.ended) this.release(g, this.stamp(r), p.cancelled);
   },
-  onKey(k, E) {
-    if (k !== ' ') return;
+  // A press ends: a quick tap is a short burst; a held boost or an open wing stops.
+  release(g, at, cancelled) {
     const r = S.run;
-    if (!r) { if (this.needleT() < T.readyGrace) return; S.spaceDown = true; this.launch(E); return; }
-    if (!r.ended && !S.spaceDown) {
-      S.spaceDown = true;
-      const at = this.stamp(r);
-      queueInput(r, at, 'pulse');
-      if (r.st.hold) queueInput(r, at + T.holdDelay, 'holdOn');
-    }
+    if (!g.kind) { if (!cancelled) queueInput(r, at, 'burst'); }
+    else if (g.kind === 'boost') queueInput(r, at, 'boostOff');
+    else if (g.kind === 'chute') queueInput(r, at, 'chuteOff');
+  },
+  onKey(k, E) { // desktop: Space takes each beat, then boosts while held; Up holds the glide; Down condenses
+    const r = S.run;
+    if (!r) { if (k === ' ' || k === 'Enter') this.onPointerDown({ id: 'key' }, E); return; }
+    if (r.ended) return;
+    if (k === ' ' && !S.keyDown[' ']) { S.keyDown[' '] = true; queueInput(r, this.stamp(r), 'boostOn'); }
+    else if (k === 'ArrowUp' && !S.keyDown.ArrowUp) { S.keyDown.ArrowUp = true; queueInput(r, this.stamp(r), 'chuteOn'); }
+    else if (k === 'ArrowDown') queueInput(r, this.stamp(r), 'condense');
   },
   render(ctx, E) {
     const v = view(E), r = S.run, sf = E.safe, gy = v.oy + T.groundY * v.s;
-    if (!r) S.needle = needleAngle(this.needleT(), S.up);
-    const pre = { needle: S.needle, wedge: r ? clamp(S.wedgeT / T.wedgeFade, 0, 1) : 1, mark: r && S.mark ? S.mark.x : null };
+    let pre;
+    if (!r) {
+      const aim = S.phase === 'aim' ? aimAngle(this.sinceReady()) : S.aim, gv = S.phase === 'gauge' ? gaugeAt(this.sinceLock(), S.gauge) : null;
+      pre = { aim, gauge: gv ?? 0, half: S.gauge.half, lit: gv === null ? -1 : zoneOf(gv, S.gauge), glow: 0, pump: 0 };
+    } else pre = { gauge: S.gv, half: S.gauge.half, lit: S.glowT > 0 ? S.lit : -1, glow: clamp(S.glowT / J.zonePop, 0, 1), pump: clamp(S.pumpT / J.pump, 0, 1), arc: S.arc };
     const info = drawWorld(ctx, E, v, S.cam, r, pre);
     drawHud(E, r, r ? r.fuel : S.st.fuelMax, r ? r.fuelCap : S.st.fuelMax, r ? info : null);
-    if (!r && S.hint) { // under the wedge, pulsing, until the first launch of a fresh save
-      E.ctx.globalAlpha = 0.7 + 0.3 * Math.sin(E.time * 5);
-      pill(E, 'Tap when the needle is in the gold', info.sx + T.wedgeR * v.s * 0.6, Math.min(gy + 30 * v.s, E.h - sf.bottom - 20), TY.md, 'center', P.zones[0]);
+    const mcx = info.mx - 44 * info.mk, mtop = info.gy - 92 * info.mk;
+    if (mcx > E.safe.left + 40 && (S.streakNow > 0 || S.streakT > 0)) { // the streak counter over the machine
+      const lost = S.streakNow === 0, k = S.streakT > 0 ? 1 + 0.3 * Math.max(0, S.streakT / J.zonePop - 0.6) * 2.5 : 1;
+      E.ctx.globalAlpha = lost ? clamp(S.streakT / 0.3, 0, 1) : 1;
+      pill(E, lost ? 'Streak lost' : `Streak x${S.streakNow}`, mcx, mtop, Math.round(TY.sm * k), 'center', lost ? P.textDim : P.zones[0]);
+      E.ctx.globalAlpha = 1;
+    }
+    if (!r && S.hint) { // under the machine, pulsing, on a fresh save's first two flights
+      E.ctx.globalAlpha = 0.75 + 0.25 * Math.sin(E.time * 5);
+      pill(E, S.phase === 'aim' ? 'Tap to lock the barrel' : 'Tap when the needle is in the gold', info.mx - 20 * info.mk, Math.min(gy + 30 * v.s, E.h - sf.bottom - 20), TY.md, 'center', S.phase === 'aim' ? P.text : P.zones[0]);
       E.ctx.globalAlpha = 1;
     }
     if (S.zonePop) {
@@ -1859,21 +2478,21 @@ const play = {
     for (const c of S.callouts) {
       if (c.sx === undefined) { // pinned to the screen where it happened, so it can be read while the camera moves on
         const [dx, dy] = toView(S.cam, c.wx, c.wy);
-        c.sx = dx * v.s + 48; c.sy = clamp(v.oy + dy * v.s, sf.top + 110, gy - 30); // right of it, at its height: the critter rises out of that column and the bird drifts left as the camera follows
+        c.sx = dx * v.s + 48; c.sy = clamp(v.oy + dy * v.s, sf.top + 110, gy - 30);
       }
       const age = (c.max ??= c.t) - c.t, y = c.sy - Math.min(age, 1) * 10;
       E.ctx.globalAlpha = clamp(c.t / 0.3, 0, 1) * clamp(age / 0.15, 0, 1);
-      const b = pill(E, c.arrow ? `      ${c.text}` : c.text, c.sx, y, TY.md, c.arrow ? 'left' : 'center', P.text); // room for the arrow inside the pill
+      const b = pill(E, c.arrow ? `      ${c.text}` : c.text, c.sx, y, TY.md, c.arrow ? 'left' : 'center', P.text);
       if (c.arrow) drawUpArrow(E.ctx, b.x + 24, b.y + b.h - 5 - 2 * Math.sin(E.time * 6), 1);
       E.ctx.globalAlpha = 1;
     }
   },
-  onPause(E) { // backgrounding mid-flight ends it (PRD section 3, amendment 6 after the v4 gate): logged once as a quit; back to the menu
+  onPause(E) { // backgrounding mid-flight ends it: logged once as a quit; back to the menu
     const r = S.run;
     if (!r || S.quit) return;
     S.quit = true;
     if (!r.ended) E.ledger.add('quit', { m: metres(r), t: +flightTime(r).toFixed(1), seed: r.seed });
-    else finishFlight(E, r); // it had already stopped: keep its sugar
+    else finishFlight(E, r);
     E.setScene('menu');
   },
 };
@@ -1893,6 +2512,10 @@ function drawUpArrow(ctx, x, y, s) {
 // 14, 18 and 44 only.
 const over = {
   enter(E, p) {
+    p.look = p.look || (p.isNew ? 'happy' : p.why === 'mud' || p.crashes > 0 ? 'dizzy' : 'determined'); // Mochi's face and line, kept when the shop hands the card back
+    const pool = E.save.get('proposed', false) && p.look !== 'dizzy' ? HONEYMOON : SAY[p.look]; // after the proposal the happy lines are the honeymoon's
+    p.say = p.say || pool[Math.floor(Math.random() * pool.length)]; // cosmetic
+    if (p.window === undefined) p.window = p.isNew && Math.random() * T.story.windowChance < 1 ? Math.floor(Math.random() * WINDOW_SAY.length) : -1; // Daifuku's window, one new best in three
     this.p = p; this.k = p.again ? 1 : 0; this.t0 = p.again ? -Infinity : E.time;
     if (!p.again) E.tween(J.cardSlide, (t) => { this.k = t; }, ease.outBack); // the card slides up; the buttons come after it
   },
@@ -1902,7 +2525,7 @@ const over = {
     if (S.run) drawWorld(ctx, E, v, S.cam, S.run, null);
     ctx.fillStyle = P.shadow; ctx.fillRect(0, 0, E.w, E.h);
     const aw = E.w - sf.left - sf.right, ah = E.h - sf.top - sf.bottom;
-    const pw = Math.min(700, aw - 32), ph = Math.min(334, ah - 24), px = sf.left + (aw - pw) / 2;
+    const pw = Math.min(700, aw - 32), ph = Math.min(350, ah - 24), px = sf.left + (aw - pw) / 2;
     const py = Math.max(sf.top + 4, sf.top + (ah - ph) / 2 + (1 - this.k) * (E.h - sf.top)); // the slide's overshoot never passes the top
     E.roundRect(px, py, pw, ph, 18, P.panelSolid, P.panelEdge);
     const lw = Math.round(pw * 0.38), cx = px + lw / 2, count = clamp((E.time - this.t0 - J.cardSlide) / J.countUp, 0, 1);
@@ -1911,7 +2534,13 @@ const over = {
     E.text(p.isNew ? 'New best!' : `Best ${p.best} m`, cx, py + 108, { size: TY.md, color: p.isNew ? P.tealLight : P.textDim, weight: '600' });
     E.text(`+${Math.round(p.earned * count)} sugar`, cx, py + 138, { size: TY.md, color: P.coin, weight: '800' });
     const zc = zoneText(p.zone);
-    E.text(`${ZONES[p.zone].replace('!', '')} launch${p.chainMax ? `, chain x${T.chainSteps[Math.min(p.chainMax, T.chainSteps.length - 1)]}` : ''}`, cx, py + 166, { size: TY.sm, color: zc, weight: '600' });
+    E.text(`${ZONES[p.zone].replace('!', '')} launch${p.chainMax >= 2 ? `, combo x${p.chainMax}` : ''}`, cx, py + 166, { size: TY.sm, color: zc, weight: '600' });
+    const slotTop = py + 176, slotH = py + ph - 92 - slotTop, size = Math.min(T.story.portrait, slotH, lw * 0.34); // Mochi's portrait and line, in the room under the launch line
+    if (size >= 44) {
+      drawArt(ctx, E, `mochi-${p.look}`, px + 14 + size / 2, slotTop + (slotH + size) / 2 - 4, size, size, E.time);
+      const tx = px + 14 + size + 10, tw = lw - 4 - (tx - px) - 6, sz = tw >= 140 ? TY.md : TY.sm, ls = wrap(E, p.say, tw, sz, '700').slice(0, 3);
+      ls.forEach((l, n) => E.text(l, tx, slotTop + slotH / 2 + (n - (ls.length - 1) / 2) * (sz + 5), { size: sz, align: 'left', color: P.text, weight: '700' }));
+    } else if (slotH > 14) E.text(fit(E, p.say, lw - 20, TY.sm, '700'), cx, slotTop + slotH / 2, { size: TY.sm, color: P.text, weight: '700' });
     E.text(`Seed ${p.seed}`, cx, py + ph - 84, { size: TY.sm, color: P.textOff, weight: '600' });
     // Tickets.
     const rx = px + lw, rw = pw - lw - 16;
@@ -1940,11 +2569,25 @@ const over = {
     E.text(p.active.length ? 'Goals' : 'Every goal done!', rx + 12, gy + 4, { size: TY.sm, align: 'left', color: P.textDim, weight: '600' });
     gy += 16;
     for (const a of p.active) gy += goalRow(E, rx + 12, gy, rw - 12, a.g, goalLine(a.g, a.have), a.isNew) + 6;
-    if (!this.ready(E)) { this.btnMenu = this.btnAgain = this.btnShop = null; return; }
-    const by = py + ph - 38, bw = Math.min(230, pw - 240);
+    if (!this.ready(E)) { this.btnMenu = this.btnAgain = this.btnShop = this.inset = null; return; }
+    const by = py + ph - 38, gl = px + 16 + 84 + 8, sl = px + pw - 16 - 100 - 8;
+    // Daifuku at her window: her frame and her whole line (two or three lines) sit between Menu and Launch Again, which gives way.
+    let bw = Math.min(230, pw - 240), wl = null, ax = px + pw / 2 + 2;
+    if (p.window >= 0) {
+      const gw = 64, tt = Math.min(190, sl - gl - gw - 16 - 150), b = Math.min(230, sl - gl - gw - 16 - tt);
+      if (tt >= 130 && b >= 150) {
+        wl = wrap(E, WINDOW_SAY[p.window], tt, TY.sm, '700'); bw = b; ax = sl - b / 2;
+        this.inset = { x: gl, y: by - 24, w: gw, h: 48 }; this.winText = { x: gl + gw + 8, w: tt };
+      }
+    }
     this.btnMenu = btn(E, 'Menu', px + 16 + 42, by, { w: 84, h: 52, size: TY.md, fill: P.buttonOff });
-    this.btnAgain = btn(E, 'Launch Again', px + pw / 2 + 2, by, { w: bw, h: 52, size: TY.md });
+    this.btnAgain = btn(E, 'Launch Again', ax, by, { w: bw, h: 52, size: TY.md });
     this.btnShop = btn(E, 'Shop', px + pw - 16 - 50, by, { w: 100, h: 52, size: TY.md, fill: P.buttonOff });
+    if (!wl) this.inset = null;
+    else {
+      drawWindowInset(ctx, E, this.inset.x, this.inset.y, this.inset.w, 48, E.time);
+      wl.forEach((l, n) => E.text(l, this.winText.x, by + (n - (wl.length - 1) / 2) * 16, { size: TY.sm, align: 'left', color: P.tealLight, weight: '700' }));
+    }
   },
   onTap(p, E) {
     if (!this.ready(E)) return;
@@ -1978,6 +2621,392 @@ function goalRow(E, x, y, w, g, cond, isNew) {
   return h;
 }
 
+// ---------- The story (PRD v0.6) ----------
+// Mochi's love letter (world.md). Pack 5 art is webp in assets/, loaded once at boot; a picture that has not loaded (or never
+// will, like Pack 13 until it lands) is drawn by the procedural mochi, daifuku and machine, so the story never waits on a file.
+const ART_FILES = ['mochi-love', 'mochi-happy', 'mochi-dizzy', 'mochi-determined', 'daifuku', 'daifuku-wave', 'mochi-maker'], ART_IMG = {};
+function loadArt() {
+  if (typeof Image === 'undefined') return;
+  for (const id of ART_FILES) {
+    const im = new Image();
+    im.onload = () => { if (im.naturalWidth) ART_IMG[id] = im; };
+    im.src = `assets/${id}.webp`;
+  }
+}
+// A picture contained in a w x h box, standing on `bottom` at centre cx: the loaded webp, else the procedural drawing.
+function drawArt(ctx, E, id, cx, bottom, w, h, time = 0) {
+  const im = ART_IMG[id];
+  if (im) {
+    const k = Math.min(w / im.naturalWidth, h / im.naturalHeight), dw = im.naturalWidth * k, dh = im.naturalHeight * k;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(im, cx - dw / 2, bottom - dh, dw, dh);
+    return;
+  }
+  const lw = 2, bob = Math.sin(time * 3) * 1.5;
+  if (id === 'mochi-maker') { const k0 = Math.min(w / 210, h / 105); drawMachine(ctx, E, cx + 22 * k0 * MACHINE, bottom - 4, k0, lw, STORY_UP, 40, {}); }
+  else if (id === 'daifuku-window') drawWindowInset(ctx, E, cx - w / 2, bottom - h, w, h, time);
+  else if (id.startsWith('daifuku')) { const r = Math.min(w, h) / 3; drawDaifuku(ctx, cx, bottom - r * 0.95 + bob, r, time, lw, id === 'daifuku-wave'); }
+  else {
+    const r = Math.min(w / 2.4, h / 2.2);
+    drawMochi(ctx, cx, bottom - r * 0.95 + bob, r, id === 'mochi-determined' ? -0.2 : 0, 1, id === 'mochi-dizzy' ? 0.85 : 1, lw, STORY_UP, time);
+    if (id === 'mochi-love' || id === 'mochi-happy') { ctx.fillStyle = P.heart; heartPath(ctx, cx + r * 1.0, bottom - r * 1.9, r * 0.3); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.stroke(); }
+  }
+}
+const STORY_UP = { band: 0, fuel: 0, aero: 0, rocket: 0, steady: 0, scope: 0 };
+
+// The cold open (PRD v0.6 A, A2): one animated card each, and the proposal (E); `at` is the scene's length in TUNING.story.
+const STORY = [
+  { text: 'Every morning in the bakery window, Mochi wiggled a little closer to Daifuku.', draw: sceneWindow },
+  { text: 'Then a little girl bought Daifuku for her grandma\'s tea party, 5 km away.', draw: scenePurchase },
+  { text: 'Mochi\'s legs are very small. 5 km is very far.', draw: sceneRoad },
+  { text: 'Then he remembered the bakery\'s Mochi Maker 3000. It has one setting: FLING.', draw: sceneMachine },
+];
+const PROPOSAL = [
+  { text: 'Mochi landed right by the window.', draw: sceneLanding },
+  { text: 'He held out the soda bubble, just like a ring. \'Will you be my sweetheart?\'', draw: sceneRing },
+  { text: '\'Yes!\'', draw: sceneYes },
+  { text: 'Now they fly together. How far can love go?', draw: sceneTogether },
+];
+const GIFTS = [null, 'A sugar flower for Daifuku!', 'A chocolate heart for Daifuku!', 'A soda bubble... shaped like a ring!', 'A gingerbread ribbon, to wrap it all.'];
+const SAY = {
+  happy: ['Closer! \'Hi, Daifuku.\' No, too casual.', 'Daifuku, you\'re my... um... sweet.', 'Nearly there. \'Will you...\' Eek!'],
+  dizzy: ['Note to self: no mud before the big moment.', 'Squished. But my heart is fine.', 'Still cute? Still cute.'],
+  determined: ['\'Hello.\' Too formal. \'Hey you.\' Too cool.', 'One more fling. Daifuku is waiting.', 'I\'ll say it when I get there. I will.'],
+};
+const HONEYMOON = ['Honeymoon flight! Wheee!', 'Daifuku says: higher!', 'Best. Date. Ever.'];
+const WINDOW_SAY = ['Was that... a mochi in the sky?', 'I wish Mochi were here.', 'I saved a seat by the window.'];
+const storySeen = (E) => Number(E.save.get('openSeen', 0)) || 0; // the story version shown (v9's true reads as 1)
+
+// The sky and a strip of a place's ground; the scenes sit on it.
+function storySky(ctx, E, groundY, place = 0) {
+  const pl = PLACES[place], g = ctx.createLinearGradient(0, 0, 0, E.h);
+  g.addColorStop(0, pl.sky[0]); g.addColorStop(1, pl.sky[1]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, E.w, E.h);
+  ctx.fillStyle = pl.top; ctx.fillRect(0, groundY, E.w, E.h - groundY);
+  ctx.fillStyle = pl.soil; ctx.fillRect(0, groundY + 10, E.w, E.h - groundY - 10);
+}
+// A small right-pointing triangle that pulses: "tap for more" without a word.
+function tapMark(ctx, E, x, y, color = P.ink) {
+  const k = 1 + 0.15 * Math.sin(E.time * 6);
+  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(x - 7 * k, y - 9 * k); ctx.lineTo(x + 9 * k, y); ctx.lineTo(x - 7 * k, y + 9 * k); ctx.closePath(); ctx.fill();
+}
+
+// ---- Scene toolkit: every scene is a pure function of its time t, so a tap can jump straight to the end ----
+const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const blend = (a, b, k) => a + (b - a) * k;
+// A portrait standing at (x, bottom), squashed or stretched about its feet (sx, sy), tilted and faded.
+function pic(ctx, E, id, x, bottom, size, o = {}) {
+  ctx.save(); ctx.globalAlpha *= o.alpha ?? 1;
+  ctx.translate(x, bottom); if (o.rot) ctx.rotate(o.rot); ctx.scale(o.sx ?? 1, o.sy ?? 1); ctx.translate(-x, -bottom);
+  drawArt(ctx, E, id, x, bottom, size, size, o.time ?? E.time);
+  ctx.restore();
+}
+// One hop, p from 0 to 1: the arc (0 to 1) and the squash before take-off and on landing, stretch in the air.
+function hopOf(p) {
+  const a = Math.sin(Math.PI * p), c = Math.max(0, 1 - p * 6) + Math.max(0, p * 6 - 5);
+  return { y: a, sx: 1 - 0.1 * a + 0.22 * c, sy: 1 + 0.16 * a - 0.24 * c };
+}
+function sparkle(ctx, x, y, r, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = P.coin; ctx.strokeStyle = P.white; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const an = i * Math.PI / 4 - Math.PI / 2, rr = i % 2 ? r * 0.3 : r; ctx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); }
+  ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+}
+function miniHeart(ctx, x, y, r, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = P.heart; heartPath(ctx, x, y, r); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+}
+function tear(ctx, x, y, r, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#8fd0f5'; ctx.strokeStyle = P.ink; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x, y - r * 1.8); ctx.quadraticCurveTo(x + r * 1.2, y - r * 0.1, x, y + r); ctx.quadraticCurveTo(x - r * 1.2, y - r * 0.1, x, y - r * 1.8); ctx.fill(); ctx.stroke(); ctx.restore();
+}
+function puffDot(ctx, x, y, r, a) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+// n things flying out of (x, y) and fading as p goes 0 to 1: fn(x, y, i, alpha).
+function burst(ctx, x, y, p, n, R, fn, grav = 0) {
+  if (p <= 0 || p >= 1) return;
+  const k = ease.outQuad(p);
+  for (let i = 0; i < n; i++) { const an = (i / n) * Math.PI * 2 + 0.4; fn(x + Math.cos(an) * R * k, y + Math.sin(an) * R * k + grav * p * p, i, 1 - p); }
+}
+
+// A bakery or tea-party window in a wall: the back (interior, shelf), then the front (glass glare, frame, awning or curtains).
+function windowBack(ctx, g, kind) {
+  const { wx, wy, fw, wh } = g;
+  ctx.fillStyle = kind === 'tea' ? '#f6d3d6' : P.shopWall; ctx.fillRect(wx - 26, g.top + 6, fw + 52, g.groundY - g.top - 6); // the wall
+  ctx.fillStyle = kind === 'tea' ? '#c9697f' : '#b8786a'; ctx.fillRect(wx - 30, g.top + 2, fw + 60, 14); // the roof edge
+  ctx.fillStyle = P.halo; ctx.fillRect(wx, wy, fw, wh);
+  const sy = wy + wh * 0.3; ctx.fillStyle = '#c99a6e'; ctx.fillRect(wx, sy, fw, 6);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 5; i++) {
+    const ix = wx + fw * (i + 0.5) / 5, r = Math.min(12, fw / 5 * 0.28);
+    if (kind === 'tea') { // cups
+      ctx.fillStyle = i % 2 ? '#f6a9c0' : P.white; ctx.beginPath(); ctx.moveTo(ix - r, sy - r * 1.3); ctx.lineTo(ix + r, sy - r * 1.3); ctx.lineTo(ix + r * 0.6, sy); ctx.lineTo(ix - r * 0.6, sy); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else { // buns with icing
+      ctx.fillStyle = i % 2 ? '#e9b97a' : '#f4cfa0'; ctx.beginPath(); ctx.ellipse(ix, sy - r * 0.55, r * 1.25, r * 0.85, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = P.awning; ctx.beginPath(); ctx.ellipse(ix, sy - r * 0.8, r * 0.9, r * 0.4, 0, Math.PI, 0); ctx.fill();
+    }
+  }
+}
+function windowFront(ctx, g, kind) {
+  const { wx, wy, fw, wh } = g;
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, fw, wh); ctx.clip(); ctx.globalAlpha = 0.14; ctx.fillStyle = P.white;
+  for (const [a, b] of [[0.14, 0.26], [0.32, 0.36]]) { ctx.beginPath(); ctx.moveTo(wx + fw * a, wy); ctx.lineTo(wx + fw * b, wy); ctx.lineTo(wx + fw * (b - 0.2), wy + wh); ctx.lineTo(wx + fw * (a - 0.2), wy + wh); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+  ctx.strokeStyle = '#9a6a4a'; ctx.lineWidth = 9; ctx.lineJoin = 'round'; ctx.strokeRect(wx - 2, wy - 2, fw + 4, wh + 4);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; ctx.strokeRect(wx - 7, wy - 7, fw + 14, wh + 14); ctx.strokeRect(wx + 2.5, wy + 2.5, fw - 5, wh - 5);
+  ctx.fillStyle = '#c99a6e'; ctx.fillRect(wx - 12, wy + wh + 2, fw + 24, g.groundY - (wy + wh) + 4); ctx.strokeRect(wx - 12, wy + wh + 2, fw + 24, g.groundY - (wy + wh) + 4); // the sill
+  if (kind === 'tea') { // curtains tied back
+    ctx.fillStyle = '#f6a9c0'; ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(wx + fw * 0.2, wy); ctx.quadraticCurveTo(wx + fw * 0.06, wy + wh * 0.35, wx + fw * 0.1, wy + wh * 0.62); ctx.lineTo(wx, wy + wh * 0.62); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx + fw, wy); ctx.lineTo(wx + fw * 0.8, wy); ctx.quadraticCurveTo(wx + fw * 0.94, wy + wh * 0.35, wx + fw * 0.9, wy + wh * 0.62); ctx.lineTo(wx + fw, wy + wh * 0.62); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else { // the striped awning
+    const n = 8, sw = (fw + 20) / n;
+    for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 ? P.white : P.awning; ctx.beginPath(); ctx.moveTo(wx - 10 + i * sw, wy - 22); ctx.lineTo(wx - 10 + (i + 1) * sw, wy - 22); ctx.lineTo(wx - 10 + (i + 1) * sw, wy - 8); ctx.arc(wx - 10 + (i + 0.5) * sw, wy - 8, sw / 2, 0, Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  }
+}
+// Daifuku at the tea-party window: Pack 13's `daifuku-window` when it has landed (drawArt), else her portrait in a drawn frame.
+function drawWindowInset(ctx, E, x, y, w, h, time) {
+  E.roundRect(x, y, w, h, 8, P.halo, '#9a6a4a');
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 3, y + 3, w - 6, h - 6); ctx.clip();
+  drawArt(ctx, E, 'daifuku', x + w / 2, y + h - 3, h - 8, h - 8, time);
+  ctx.fillStyle = '#f6a9c0'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w * 0.24, y); ctx.quadraticCurveTo(x + w * 0.08, y + h * 0.4, x + w * 0.12, y + h * 0.7); ctx.lineTo(x, y + h * 0.7); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(x + w * 0.76, y); ctx.quadraticCurveTo(x + w * 0.92, y + h * 0.4, x + w * 0.88, y + h * 0.7); ctx.lineTo(x + w, y + h * 0.7); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  E.roundRect(x, y, w, h, 8, 'rgba(0,0,0,0)', '#9a6a4a');
+}
+
+// ---- The four cold-open scenes (PRD v0.6 A2). g: { ctx, E, t, cs, left, aw, cx, top, floor, groundY, stand, H, fw, wx, wy, wh } ----
+// 1. The window: three small squashy hops closer, and a heart pops between them on the last.
+function sceneWindow(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, gap0 = g.fw * 0.36, gap1 = cs * 0.62, sill = g.wy + g.wh;
+  windowBack(ctx, g, 'bakery');
+  const hops = [[0.4, 1.0], [1.1, 1.7], [1.8, 2.4]];
+  let done = 0, cur = null;
+  hops.forEach(([a, b], i) => { if (t >= b) done = i + 1; else if (t > a) cur = { i, p: (t - a) / (b - a) }; });
+  const prog = (done + (cur ? ease.inOut(cur.p) : 0)) / 3, x = xD - blend(gap0, gap1, prog), o = cur ? hopOf(cur.p) : { y: 0, sx: 1, sy: 1 };
+  const wig = t < 0.4 || (!cur && t < 2.4) ? Math.sin(t * 20) * 0.06 : 0;
+  const pulse = t > 2.4 ? 1 + 0.08 * Math.sin((t - 2.4) * 16) * Math.exp(-(t - 2.4) * 3) : 1;
+  pic(ctx, E, 'daifuku', xD, sill, cs, { sx: pulse, sy: 2 - pulse });
+  pic(ctx, E, 'mochi-love', x, sill - o.y * cs * 0.22, cs, { sx: o.sx, sy: o.sy, rot: wig });
+  windowFront(ctx, g, 'bakery');
+  if (t > 2.4) { const k = seg(t, 2.4, 2.9); miniHeart(ctx, (x + xD) / 2, sill - cs * 1.05 - 22 * k, 14 * ease.outBack(k)); sparkle(ctx, (x + xD) / 2 - 22, sill - cs * 1.1, 6 * k, k); sparkle(ctx, (x + xD) / 2 + 24, sill - cs * 1.2, 5 * k, k); }
+}
+// 2. The purchase: a child's hand lifts Daifuku into a pink box that slides off with a bounce; Mochi droops and a tear falls.
+function scenePurchase(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, boxX0 = g.cx + g.fw * 0.37, sill = g.wy + g.wh, bw = cs * 0.8, bh = cs * 0.5;
+  windowBack(ctx, g, 'bakery');
+  const slideK = seg(t, 1.95, 2.6), slide = slideK * slideK * (g.fw * 0.9), bob = slideK > 0 && slideK < 1 ? Math.abs(Math.sin(slideK * Math.PI * 3)) * 16 : 0;
+  const bx = boxX0 + slide, by = sill - bob;
+  // Daifuku: stands, is lifted over the box, lowered in, and goes with the box.
+  const lift = cs * 0.9 * ease.outQuad(seg(t, 0.6, 1.0)), lower = ease.inOut(seg(t, 1.4, 1.7));
+  const dx = t < 1.0 ? xD : blend(xD, boxX0, ease.inOut(seg(t, 1.0, 1.4)));
+  const h = blend(lift, bh * 0.5, lower), dsize = cs * blend(1, 0.62, lower);
+  const inBox = t >= 1.7, ox = inBox ? slide : 0, oy = inBox ? bob : 0;
+  // Mochi droops (squash down) once she is gone.
+  const sad = ease.outQuad(seg(t, 1.9, 2.5)), wob = t < 1.9 ? Math.sin(t * 3) * 0.02 : 0;
+  const mx = xD - cs * 0.62;
+  pic(ctx, E, sad > 0 ? 'mochi-dizzy' : 'mochi-love', mx, sill, cs, { sx: 1 + 0.12 * sad, sy: 1 - 0.22 * sad, rot: wob }); // heart eyes and the heart go with the box
+  pic(ctx, E, t < 0.7 ? 'daifuku' : 'daifuku-wave', dx + ox, sill - h - oy, dsize, { sy: 1 + (t > 0.6 && t < 1.4 ? 0.05 * Math.sin(t * 20) : 0) });
+  windowFront(ctx, g, 'bakery');
+  // The pink box with its ribbon, and the lid that closes on her.
+  ctx.save(); ctx.strokeStyle = P.ink; ctx.lineWidth = 2;
+  ctx.fillStyle = '#f7a8c4'; ctx.fillRect(bx - bw / 2, by - bh, bw, bh); ctx.strokeRect(bx - bw / 2, by - bh, bw, bh);
+  ctx.fillStyle = P.white; ctx.fillRect(bx - 5, by - bh, 10, bh); ctx.strokeRect(bx - 5, by - bh, 10, bh);
+  const open = 1 - ease.outBack(seg(t, 1.75, 2.0)), lidW = bw + 8;
+  ctx.translate(bx + lidW / 2, by - bh); ctx.rotate(open * 1.35);
+  ctx.fillStyle = '#f48bb0'; ctx.fillRect(-lidW, -12, lidW, 12); ctx.strokeRect(-lidW, -12, lidW, 12);
+  ctx.fillStyle = P.white; ctx.fillRect(-lidW / 2 - 5, -12, 10, 12);
+  if (open < 0.05) { ctx.fillStyle = P.heart; ctx.beginPath(); ctx.arc(-lidW / 2 - 7, -17, 6, 0, Math.PI * 2); ctx.arc(-lidW / 2 + 7, -17, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  ctx.restore();
+  // The hand: a sleeve and a small hand from above, over her, then away.
+  const handY = t < 1.0 ? blend(g.wy - 80, sill - h - dsize * 0.78, ease.outCubic(seg(t, 0.15, 0.6))) : sill - h - oy - dsize * 0.78;
+  const away = seg(t, 1.75, 2.3), hy = handY - away * (cs * 1.6), hx = t < 1.0 ? xD : dx + ox;
+  if (away < 1) {
+    ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = 30; ctx.beginPath(); ctx.moveTo(hx + 8, g.top - 30); ctx.lineTo(hx + 4, hy - 6); ctx.stroke();
+    ctx.strokeStyle = '#8ec5e8'; ctx.lineWidth = 26; ctx.beginPath(); ctx.moveTo(hx + 8, g.top - 30); ctx.lineTo(hx + 5, hy - 26); ctx.stroke();
+    ctx.strokeStyle = '#f3c9a5'; ctx.lineWidth = 22; ctx.beginPath(); ctx.moveTo(hx + 5, hy - 26); ctx.lineTo(hx + 4, hy - 6); ctx.stroke();
+    ctx.fillStyle = '#f3c9a5'; ctx.beginPath(); ctx.ellipse(hx, hy, 16, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    for (const fx of [-9, -3, 3, 9]) { ctx.beginPath(); ctx.ellipse(hx + fx, hy + 11, 3.5, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+  }
+  if (t > 2.3) { const k = seg(t, 2.3, 3.2); tear(ctx, mx + cs * 0.22, sill - cs * 0.55 + k * cs * 0.5, 4.5, Math.min(1, 3 * (1 - k))); }
+}
+// 3. The road: tiny hops, a signpost that keeps backing away, a sweat drop, then puffing.
+function sceneRoad(g) {
+  const { ctx, E, t, cs } = g, y = g.stand, x0 = g.left + g.aw * 0.14;
+  const stretch = ease.inOut(seg(t, 0.4, 2.2));
+  ctx.fillStyle = '#e6c9a0'; ctx.fillRect(0, g.groundY, E.w, 24);
+  ctx.fillStyle = P.halo;
+  const sx = g.cx + g.aw * blend(0.17, 0.36, stretch), gap = blend(26, 68, stretch);
+  for (let d = sx; d > -gap; d -= gap) ctx.fillRect(d - 9, g.groundY + 10, 18, 4);
+  for (let d = sx + gap; d < E.w + gap; d += gap) ctx.fillRect(d - 9, g.groundY + 10, 18, 4);
+  const ss = blend(1, 0.72, stretch), sy = y - 8 - 8 * stretch, bw = 92 * ss, bh = 36 * ss; // the signpost
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.fillStyle = '#c99a6e'; ctx.fillRect(sx - 3, sy - 66 * ss, 6, 66 * ss); ctx.strokeRect(sx - 3, sy - 66 * ss, 6, 66 * ss);
+  E.roundRect(sx - bw / 2, sy - 66 * ss - bh + 6, bw, bh, 6, P.halo, P.ink);
+  E.text('5 km →', sx, sy - 66 * ss - bh / 2 + 6, { size: Math.round(blend(18, 14, stretch)), weight: '800', color: P.ink });
+  const hops = [[0.5, 1.0], [1.1, 1.6], [1.7, 2.2]];
+  let done = 0, cur = null;
+  hops.forEach(([a, b], i) => { if (t >= b) done = i + 1; else if (t > a) cur = { p: (t - a) / (b - a) }; });
+  const step = g.aw * 0.05, x = x0 + (done + (cur ? ease.inOut(cur.p) : 0)) * step, o = cur ? hopOf(cur.p) : { y: 0, sx: 1, sy: 1 };
+  const breath = t > 2.3 ? 0.05 * Math.sin((t - 2.3) * 11) : 0;
+  pic(ctx, E, 'mochi-determined', x, y - o.y * cs * 0.12, cs, { sx: o.sx * (1 + breath), sy: o.sy * (1 - breath) });
+  if (t > 2.0) { const k = seg(t, 2.0, 2.9); tear(ctx, x + cs * 0.3, y - cs * 0.82 + k * cs * 0.22, 4, Math.min(1, 3 * (1 - k)) ); }
+  if (t > 2.3) for (let i = 0; i < 3; i++) { const p = ((t - 2.3) * 1.6 + i / 3) % 1; puffDot(ctx, x + cs * 0.4 + p * 20, y - cs * 0.3 - p * cs * 0.4, 3 + 6 * p, 0.8 * (1 - p)); }
+}
+// 4. The machine: it slides in, steams, its needle swings to FLING; Mochi turns determined, hops in, and is fired off.
+function sceneMachine(g) {
+  const { ctx, E, t, cs } = g, k0 = Math.min(g.H * 0.62 / 110, g.aw * 0.5 / 170), k = k0 * MACHINE, gy = g.groundY + 6;
+  const mxT = g.cx + 50 * k0, mx = blend(g.left - 30 * k0, mxT, ease.outBack(seg(t, 0, 0.9)));
+  const aim = blend(14, 40, ease.inOut(seg(t, 0.9, 1.7))) * DEG, mouthX = mxT + Math.cos(aim) * T.barrelLen * k0, mouthY = gy - T.pivotH * k0 - Math.sin(aim) * T.barrelLen * k0;
+  const standX = Math.min(g.left + g.aw - cs * 0.6, mouthX + cs * 1.0), size = cs * 0.9;
+  const face = t < 1.9 ? 'mochi-love' : 'mochi-determined', pop = t >= 1.9 ? 1 + 0.18 * Math.sin((t - 1.9) * 14) * Math.exp(-(t - 1.9) * 5) : 1;
+  const hopP = seg(t, 2.1, 2.7);
+  if (hopP < 1) { // Mochi, first beside the machine and then arcing into the barrel's mouth, behind it
+    const hx = blend(standX, mouthX - 6 * k0, ease.inOut(hopP)), sc = 1 - 0.5 * ease.inQuad(hopP);
+    const hy = blend(g.stand, mouthY + size * sc * 0.45, hopP) - Math.sin(Math.PI * hopP) * cs * 0.7;
+    const o = hopP > 0 ? hopOf(Math.min(1, hopP * 1.0)) : { sx: 1, sy: 1 };
+    pic(ctx, E, face, hx, hy, size * sc, { sx: hopP > 0 ? o.sx : pop, sy: hopP > 0 ? o.sy : 2 - pop, alpha: 1 - 0.7 * seg(hopP, 0.85, 1) });
+  }
+  const rec = t > 2.7 ? Math.exp(-(t - 2.7) * 8) * Math.cos((t - 2.7) * 28) : 0;
+  const mxa = mx - rec * 9 * k0;
+  drawMachine(ctx, E, mxa, gy, k0, 2, STORY_UP, aim / DEG, { gauge: 0.62 * ease.outElastic(seg(t, 1.0, 1.9)) + 0.03 * Math.sin(t * 40) * (1 - seg(t, 0.4, 0.9)) * seg(t, 0.2, 0.4), lit: t >= 1.9 ? 0 : -1, glow: seg(t, 1.9, 2.1) * (1 - seg(t, 3.0, 3.6)), pump: t > 2.7 ? 1 - seg(t, 2.7, 3.2) : 0 });
+  if (t > 0.9) for (let i = 0; i < 6; i++) { const p = ((t - 0.9) * 0.8 + i / 6) % 1; puffDot(ctx, mxa - 80 * k + Math.sin(i * 2 + t) * 6, gy - 78 * k - p * 60, 5 + 12 * p, 0.7 * (1 - p)); }
+  if (t > 1.9) { const q = ease.outBack(seg(t, 1.9, 2.25)); E.text('FLING', mxa - 40 * k, gy - 100 * k, { size: Math.max(1, Math.round(TY.lg * q)), weight: '800', color: P.berry }); }
+  burst(ctx, mouthX, mouthY, seg(t, 2.72, 3.4), 10, 64 * k0, (x, y, i, a) => sparkle(ctx, x, y, 6 + (i % 3) * 2, a));
+  const fp = seg(t, 2.75, 3.5);
+  if (fp > 0 && fp < 1) pic(ctx, E, 'mochi-determined', mouthX + Math.cos(aim) * fp * fp * g.aw * 0.8, mouthY - Math.sin(aim) * fp * fp * g.aw * 0.8 + size * 0.4, size, { rot: -aim, sx: 1.25, sy: 0.85 });
+}
+
+// ---- The proposal scenes (PRD v0.6 E): the Tea Party window ----
+// 1. Mochi lands by the window with a big squash.
+function sceneLanding(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, sill = g.wy + g.wh, xM = xD - cs * 0.95;
+  windowBack(ctx, g, 'tea');
+  const jump = t > 1.15 ? Math.abs(Math.sin((t - 1.15) * 9)) * Math.exp(-(t - 1.15) * 2.2) * cs * 0.18 : 0;
+  pic(ctx, E, 'daifuku', xD, sill - jump, cs, { sy: 1 + 0.05 * Math.sin(t * 5) });
+  windowFront(ctx, g, 'tea');
+  const fp = seg(t, 0.15, 1.0);
+  if (fp < 1) { // flying in on an arc from the left
+    const x = blend(g.left - cs * 0.5, xM, fp), y = g.stand - Math.sin(Math.PI * fp) * g.H * 0.55;
+    pic(ctx, E, 'mochi-happy', x, y, cs, { rot: blend(-0.5, 0.5, fp), sx: 1.15, sy: 0.9 });
+  } else {
+    const s = Math.exp(-(t - 1.0) * 6) * Math.cos((t - 1.0) * 22), l = t < 1.0 ? 0 : s;
+    pic(ctx, E, 'mochi-love', xM, g.stand, cs, { sx: 1 + 0.4 * l, sy: 1 - 0.45 * l });
+    burst(ctx, xM, g.stand - 6, seg(t, 1.0, 1.6), 8, cs * 0.8, (x, y, i, a) => puffDot(ctx, x, g.stand - 6 - Math.abs(y - (g.stand - 6)) * 0.4, 5, a * 0.8));
+  }
+}
+// 2. The soda-bubble ring: held up, sparkling.
+function sceneRing(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, sill = g.wy + g.wh, xM = xD - cs * 0.95;
+  windowBack(ctx, g, 'tea');
+  pic(ctx, E, 'daifuku', xD, sill, cs, { sx: 1 + 0.03 * Math.sin(t * 6), sy: 1 - 0.03 * Math.sin(t * 6) });
+  windowFront(ctx, g, 'tea');
+  const up = ease.outBack(seg(t, 0.3, 1.1)), rx = xM + cs * 0.42, ry = blend(g.stand - cs * 0.3, g.stand - cs * 1.08, up) + Math.sin(t * 4) * 2 * seg(t, 1.1, 1.3), rr = cs * 0.2 * blend(0.4, 1, up);
+  const hasArt = !!ART_IMG['mochi-ring'];
+  pic(ctx, E, hasArt ? 'mochi-ring' : 'mochi-love', xM, g.stand, cs, { sy: 1 + 0.03 * Math.sin(t * 6), sx: 1 - 0.02 * Math.sin(t * 6) });
+  if (!hasArt) { // the bubble ring: a pale iridescent circle with a shine
+    const gr = ctx.createLinearGradient(rx - rr, ry - rr, rx + rr, ry + rr); gr.addColorStop(0, '#ffd1e8'); gr.addColorStop(0.5, '#cfe9ff'); gr.addColorStop(1, '#fff3b8');
+    ctx.save(); ctx.strokeStyle = P.ink; ctx.lineWidth = rr * 0.5 + 2; ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = gr; ctx.lineWidth = rr * 0.5; ctx.stroke(); ctx.strokeStyle = P.white; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, rr, Math.PI * 1.15, Math.PI * 1.45); ctx.stroke(); ctx.restore();
+  }
+  if (t > 1.0) for (let i = 0; i < 4; i++) { const p = ((t - 1.0) * 1.3 + i / 4) % 1, an = i * 1.7 + 0.5; sparkle(ctx, rx + Math.cos(an) * rr * 1.7, ry + Math.sin(an) * rr * 1.7, 4 + 5 * Math.sin(p * Math.PI), Math.sin(p * Math.PI)); }
+  if (t > 1.6) { const k = seg(t, 1.6, 2.0); miniHeart(ctx, xD, sill - cs * 1.15 - 8 * k, 11 * ease.outBack(k)); }
+}
+// 3. "Yes!": Daifuku hops out to Mochi and hearts burst.
+function sceneYes(g) {
+  const { ctx, E, t, cs } = g, xD = g.cx + g.fw * 0.14, sill = g.wy + g.wh, xM = xD - cs * 0.95, x2 = xM + cs * 0.9;
+  windowBack(ctx, g, 'tea'); windowFront(ctx, g, 'tea');
+  const jp = seg(t, 0.15, 0.75), dxp = blend(xD, x2, ease.inOut(jp)), dy = blend(sill, g.stand, jp) - Math.sin(Math.PI * jp) * cs * 0.9, landed = t > 0.75 ? Math.exp(-(t - 0.75) * 6) * Math.cos((t - 0.75) * 22) : 0;
+  const cheer = t > 1.0 ? Math.abs(Math.sin((t - 1.0) * 7)) * cs * 0.2 : 0, o = t > 1.0 ? hopOf(((t - 1.0) * 1.1) % 1) : { sx: 1, sy: 1 };
+  pic(ctx, E, 'mochi-love', xM, g.stand - cheer, cs, { sx: t > 1 ? o.sx : 1, sy: t > 1 ? o.sy : 1 });
+  pic(ctx, E, 'daifuku-wave', dxp, jp < 1 ? dy : g.stand - cheer, cs, jp < 1 ? { sx: 0.95, sy: 1.1, rot: blend(-0.3, 0.3, jp) } : { sx: t > 1 ? o.sx : 1 + 0.4 * landed, sy: t > 1 ? o.sy : 1 - 0.45 * landed });
+  burst(ctx, (xM + x2) / 2, g.stand - cs * 1.0, seg(t, 0.75, 2.2), 14, cs * 1.5, (x, y, i, a) => miniHeart(ctx, x, y, 7 + (i % 3) * 3, a), cs * 0.6);
+}
+// 4. Together: they hop away side by side, hearts trailing.
+function sceneTogether(g) {
+  const { ctx, E, t, cs } = g, x0 = g.cx - g.aw * 0.18, x1 = g.cx + g.aw * 0.2, hops = [[0.2, 0.9], [1.0, 1.7], [1.8, 2.5]];
+  let done = 0, cur = null;
+  hops.forEach(([a, b], i) => { if (t >= b) done = i + 1; else if (t > a) cur = { p: (t - a) / (b - a) }; });
+  const prog = (done + (cur ? ease.inOut(cur.p) : 0)) / 3, x = blend(x0, x1, prog), o = cur ? hopOf(cur.p) : { y: 0, sx: 1, sy: 1 }, y = g.stand - o.y * cs * 0.4;
+  for (let i = 0; i < 5; i++) { const p = ((t * 0.9 + i / 5) % 1); miniHeart(ctx, x - cs * 0.9 - p * 50, g.stand - cs * 0.5 - p * 30 + Math.sin(i * 3) * 10, 5 + 3 * (1 - p), (1 - p) * 0.9 * seg(t, 0.2, 0.5)); }
+  pic(ctx, E, 'mochi-love', x - cs * 0.42, y, cs, { sx: o.sx, sy: o.sy });
+  pic(ctx, E, 'daifuku-wave', x + cs * 0.42, y, cs, { sx: o.sx, sy: o.sy });
+  if (t > 2.5) { const k = seg(t, 2.5, 3.0); miniHeart(ctx, x, g.stand - cs * 1.35 - 20 * k, 20 * ease.outBack(k)); sparkle(ctx, x - 34, g.stand - cs * 1.4, 7 * k, k); sparkle(ctx, x + 36, g.stand - cs * 1.55, 6 * k, k); }
+}
+
+// The scene player shared by the cold open and the proposal: one animated card at a time on the sky, its line fading in under
+// it. A tap during a scene jumps to its end, the next tap goes on, and a card goes on by itself TUNING.story.autoGap seconds
+// after its scene ends; Skip ends the lot. Dots (top) count the cards, a pulsing triangle shows when a tap goes on.
+function cardsScene(def) {
+  return {
+    enter(E, p = {}) {
+      this.p = p; this.i = 0; this.t0 = E.time; this.btnSkip = null; this.tapT = -Infinity;
+      def.enter(E, p, this);
+      SFX.story(E);
+    },
+    cards: () => def.cards,
+    dur(i) { return def.dur()[i]; },
+    advance(E) {
+      if (this.i + 1 >= def.cards.length) { def.finish(E, this); return; }
+      this.i++; this.t0 = E.time; SFX.story(E);
+    },
+    update(dt, E) { if (E.time - this.t0 >= this.dur(this.i) + T.story.autoGap) this.advance(E); },
+    render(ctx, E) {
+      const sf = E.safe, Y = T.story, aw = E.w - sf.left - sf.right, cx = sf.left + aw / 2, c = def.cards[this.i], d = this.dur(this.i);
+      if (def.backdrop) def.backdrop(ctx, E, this);
+      const t = Math.min(E.time - this.t0, d);
+      const capW = Math.min(aw - 120, 700);
+      let size = TY.lg, lines;
+      for (const s of [TY.lg, 22, TY.md]) { size = s; lines = wrap(E, c.text, capW - 28, s, '800'); if (lines.length <= 2) break; }
+      if (lines.length === 2) for (let w = capW - 28 - 12; w > 120; w -= 12) { const l2 = wrap(E, c.text, w, size, '800'); if (l2.length > 2) break; lines = l2; } // balance the two lines
+      const lh = size + 6, capH = lines.length * lh + 12, capTop = E.h - sf.bottom - 8 - capH, floor = capTop - 10;
+      const top = sf.top + 8, H = floor - top, groundY = floor - 12;
+      storySky(ctx, E, groundY, def.place);
+      const fw = Math.min(aw * 0.78, 520, aw - 2 * (Y.skipW + 16) - 64), wy = top + 34, sill = groundY - 6;
+      c.draw({ ctx, E, t, cs: clamp(H * 0.4, 60, 128), left: sf.left, aw, cx, top, floor, groundY, stand: groundY + 10, H, fw, wx: cx - fw / 2, wy, wh: sill - wy });
+      const fade = seg(t, 0.5, 1.1);
+      if (fade > 0) {
+        ctx.save(); ctx.globalAlpha = fade;
+        let cw = 0; ctx.font = `800 ${size}px system-ui, sans-serif`; for (const l of lines) cw = Math.max(cw, ctx.measureText(l).width);
+        E.roundRect(cx - cw / 2 - 14, capTop + (1 - fade) * 6, cw + 28, capH, 12, P.panel);
+        lines.forEach((l, n) => E.text(l, cx, capTop + (1 - fade) * 6 + 6 + (n + 0.5) * lh, { size, weight: '800', color: P.text }));
+        ctx.restore();
+      }
+      def.cards.forEach((_, k) => { ctx.globalAlpha = k === this.i ? 1 : 0.35; ctx.fillStyle = P.ink; ctx.beginPath(); ctx.arc(E.w / 2 + (k - (def.cards.length - 1) / 2) * 18, sf.top + 14, k === this.i ? 5 : 4, 0, Math.PI * 2); ctx.fill(); });
+      ctx.globalAlpha = 1;
+      if (E.time - this.t0 >= d) tapMark(ctx, E, E.w - sf.right - 32, E.h - sf.bottom - 22);
+      this.btnSkip = btn(E, 'Skip', E.w - sf.right - 16 - Y.skipW / 2, sf.top + 16 + Y.skipH / 2, { w: Y.skipW, h: Y.skipH, size: TY.md, fill: P.panelSolid });
+      this.cap = { x: cx - capW / 2, y: capTop, w: capW, h: capH, lines: lines.length };
+    },
+    onTap(p, E) {
+      if (this.btnSkip && E.hit(this.btnSkip, p)) { E.audio.play('tap'); def.finish(E, this); return; }
+      if (E.time - this.tapT < T.story.tapGap) return;
+      this.tapT = E.time;
+      if (E.time - this.t0 < this.dur(this.i)) { this.t0 = E.time - this.dur(this.i); return; } // jump to the end of the scene
+      this.advance(E);
+    },
+    onKey(k, E) { if (k === ' ' || k === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
+  };
+}
+
+// The cold open: shown once on a save at story version 1 or less (openSeen is set as it opens, so closing the app mid-way never
+// repeats it) and again from the menu's Story button.
+const story = cardsScene({
+  cards: STORY, place: 0, dur: () => T.story.dur,
+  enter(E, p) { if (!p.replay && storySeen(E) < T.story.version) E.save.set('openSeen', T.story.version); },
+  finish(E) { E.setScene('menu'); },
+});
+
+// The proposal (PRD v0.6 E): the first flight that reaches Tea Party ends here, before the result card. `proposed` is set as
+// the first beat shows, so a flight cut short by backgrounding still owes it.
+const proposal = cardsScene({
+  cards: PROPOSAL, place: 5, dur: () => T.story.proposalDur,
+  enter(E, card, self) { self.card = card; E.save.set('proposed', true); E.ledger.add('proposal', { m: card.m }); },
+  finish(E, self) { E.setScene('over', self.card); },
+});
+
 // ---------- Portrait ----------
 // Launch is landscape (ADR-0013). While the phone is held upright the game pauses under a dimmed prompt and takes no input.
 const upright = (E) => E.h > E.w;
@@ -1999,13 +3028,21 @@ function landscapeOnly(scene) {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 6,
+  saveVersion: 10,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
-  // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`,
-  // false until the first flight with Rocket 1 has shown "Hold to boost" (an older save with Rocket 1 sees it once).
+  // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`.
   // v5 (PRD v0.2 B): coins become sugar one for one; `up.steady` at 0; goals start at the top of the list with every distance
   // goal the best already meets done silently (paying nothing); `perfectRow` 0; the bird and mud call-outs not yet shown.
-  // v6 (PRD v0.2 E) adds `home`, false: an older save meets the daifuku on its next flight past 5000 m.
+  // v6 (PRD v0.2 E) adds `home`, false. v7 (PRD v0.3 F6): the machine replaces the chopsticks; owned levels are kept (Steady
+  // Chopsticks becomes Steady Gauge, the Cola Rocket's levels now strengthen the boost every flight has), `up.scope` (the
+  // Brass Telescope) 0, `actionsTaught` false so the three actions are shown once; `holdTaught` is gone; `perfectRow` is the
+  // machine's streak. v8 (PRD v0.4 B): Soda Springs and Gingerbread Town start earlier, so the places passed (`ms`, by
+  // their old lines 500, 1000, 2000, 3500, 5000) map by index onto the new lines; everything else is kept. v9 (PRD v0.5 F): the
+  // story: `openSeen` (the cold open has shown) and `placesSeen` (the highest place whose arrival line has shown); a save with
+  // any flight has seen the open and every place its best reached (a veteran meets no cold open and no stale arrival line).
+  // v10 (PRD v0.6 H): the story is new. `openSeen` becomes the story version shown (v9's true reads as 1, so the new cold open
+  // shows once; a fresh or older save reads 0), `placesSeen` also counts the gifts found and is reset to 0 (a veteran's 4 would start the gift box full, so every save finds each gift once on its next flights), and `proposed` (the proposal has shown) is
+  // false for everyone, so a save that already reached Home sees the proposal at the end of its next flight, once.
   migrate(data, fromVersion) {
     if (fromVersion < 2) { delete data.best; delete data.runs; }
     if (fromVersion < 3) data.up = { band: 0, fuel: 0, aero: 0, rocket: 0 };
@@ -2017,19 +3054,40 @@ export const game = {
       data.perfectRow = 0; data.birdTaught = false; data.mudTaught = false;
     }
     if (fromVersion < 6) data.home = false;
+    if (fromVersion < 7) { data.up = { ...data.up, scope: 0 }; data.actionsTaught = false; delete data.holdTaught; }
+    if (fromVersion < 8) { // the hint shows once more, as the actions are now glide and slam
+      const old = [500, 1000, 2000, 3500, 5000]; data.ms = (data.ms || []).map((m) => T.milestones[old.indexOf(m)] ?? m); data.actionsTaught = false;
+    }
+    if (fromVersion < 9) {
+      data.openSeen = (data.flights || 0) > 0;
+      data.placesSeen = Math.min(4, T.milestones.filter((m) => (data.best || 0) >= m).length);
+    }
+    if (fromVersion < 10) { data.openSeen = data.openSeen ? 1 : 0; data.proposed = false; data.placesSeen = 0; } // every save finds each gift once
     return data;
   },
   TUNING,
+  init(E) { // the portraits load before the first frame; a fresh save opens on the cold open
+    loadArt();
+    game.start = storySeen(E) >= T.story.version ? 'menu' : 'story';
+  },
+  // The TUNE panel (PRD v0.4 D): four strengths, and two whole feels. Floaty: light gravity, a soft launch, a long flat glide,
+  // gentle thermals and freezers, soft slams. Punchy: heavy gravity, a hard launch, a short steep glide, hard slams with a
+  // bigger jelly bonus, strong columns and a strong boost.
   experiments: [
-    { key: 'needlePeriod', label: 'Needle period (s)', min: 0.8, max: 3, step: 0.05 },
-    { key: 'sweetAngle', label: 'Sweet angle', min: 30, max: 50, step: 0.5 },
-    { key: 'zoneScale', label: 'Zone widths (x)', min: 0.5, max: 2, step: 0.05 },
-    { key: 'launchSpeedMax', label: 'Launch speed', min: 500, max: 900, step: 10 },
+    { key: 'glideRatio', label: 'Glide', min: 2, max: 9, step: 0.1 },
+    { key: 'slamPower', label: 'Slam power', min: 0.6, max: 1.4, step: 0.02 },
+    { key: 'slamJelly', label: 'Jelly bonus', min: 0.8, max: 1.3, step: 0.01 },
+    { key: 'boostThrust', label: 'Boost thrust', min: 300, max: 1500, step: 10 },
+  ],
+  presets: [
+    { label: 'Floaty', values: { gravity: 340, launchSpeedMax: 640, airDrag: 0.012, groundBounce: 0.72, skimLift: 0.14, glideRatio: 6, glideSink: 50, stallSpeed: 200, flare: 0.35, condenseDrop: 480, slamPower: 0.96, slamJelly: 1.08, thermalLift: 800, freezerPush: 550, boostThrust: 600 } },
+    { label: 'Punchy', values: { gravity: 580, launchSpeedMax: 940, airDrag: 0.015, groundBounce: 0.63, skimLift: 0.12, glideRatio: 3.5, glideSink: 110, stallSpeed: 300, flare: 0.45, condenseDrop: 820, slamPower: 1.06, slamJelly: 1.12, thermalLift: 1300, freezerPush: 900, boostThrust: 1050 } },
   ],
   // Read by tools/sim-launch.mjs so the harness runs the real physics (S, the play scene's state, lets a browser check set up the HUD).
-  sim: { STEP, FIRST_CHUNK, teachingChunk, goodStops, CHUNKS, tierAt, makeField, ensureField, groundAt, birdX, stats, newRun, stepRun, advance, queueInput, metres, coinsOf,
-    needleOf, needleAngle, zoneAt, launchAt, needleLaunch, ZONES, GOALS, activeGoals, goalStats, settleGoals, landingMark,
-    UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView, PLACES, placeFrom, placeIndex, geyserOn, inCloud, palette: P },
+  sim: { STEP, FIELD, makeField, ensureField, groundAt, surfaceH, birdX, stats, newRun, stepRun, advance, airStep, queueInput, metres, coinsOf, flightTime,
+    aimAngle, gaugeOf, gaugeAt, zoneOf, powerOf, launchOf, mouth, ZONES, GOALS, activeGoals, goalStats, settleGoals, rangeArc,
+    UPGRADES, effectText, S, predictLanding, newCamera, cameraStep, toView, PLACES, placeFrom, placeIndex, geyserOn, inCloud, palette: P,
+    slamOf, impactOf, slopeAt, touching, ventAt, condense, openChute, speedOf },
   start: 'menu',
-  scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop) },
+  scenes: { menu: landscapeOnly(menu), play: landscapeOnly(play), over: landscapeOnly(over), shop: landscapeOnly(shop), story: landscapeOnly(story), proposal: landscapeOnly(proposal) },
 };
