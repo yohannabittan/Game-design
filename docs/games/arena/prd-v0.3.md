@@ -5,7 +5,7 @@
 | Slug | `arena` |
 | Version | 0.3 (v2) |
 | Date | 2026-10-12 |
-| Status | **draft 2**, for the designer |
+| Status | **draft 3**, for the designer |
 
 **Basis:**
 - v1 (`prd-v0.2.md`, released as v1.5) and its playtest (`playtests/2026-10-12-v1.md`);
@@ -13,6 +13,8 @@
 - the designer's calls and the roast of draft 1 (below).
 
 **Decisions from the designer (2026-10-12):**
+- Draft 2 agreed: the City is pairs, there are lion and bear beasts, and the veteran stays. "Except the Colosseum should have men and beasts."
+- "What's missing for me is a lot of different cards that can synergise and are not just small incremental bonus bumps" (section K).
 - "One run is one arena."
 - "Gold within a run. Often games do some upgrades that last over time and some only for runs."
 - The roast's version is liked ("I like this better, yes"). Keep planning before building.
@@ -51,7 +53,7 @@ One run is one arena. The menu's Play opens an arena picker showing the arenas y
 | --- | --- | --- | --- |
 | **The Pit** (Capua) | 5 | **The tight ring.** The walls stand closer, so backing off is short, wall play matters, and he can pin you. | the v1 walls, nearer |
 | **The City arena** (Pompeii) | 5 | **Pairs.** From bout 3, a second foe waits at the edge. When the first is winded or felled, the second steps in, and felling both fells the bout. You fight one at a time, and his partner's taunts are his tells. | the v1 foe, swapped in |
-| **The Colosseum** (Rome) | 5 | **The beast bout.** Bout 3 is a lion or a bear. It has no shield and no feints, just short-tell pounces and a swipe. You read it by its crouch, not a weapon glow. The other bouts are against Rome's best. | a new foe kind with its own move set |
+| **The Colosseum** (Rome) | 5 | **Men and beasts.** Bouts 1 and 3 are men. Bouts 2 and 4 are beasts, a lion or a bear (rolled). A beast has no shield and no feints, just short-tell pounces and swipes; you read it by its crouch, not a weapon glow. The lion is quick and pounces; the bear is slow and mauls, and stands up to strike. The champion (bout 5) is a *bestiarius* who sends in his lion at half health, the City's pairs rule with a beast. | a new foe kind with two move sets |
 | **The Grand Games** (Rome) | 3, then the Emperor's champion | **The Emperor's thumb.** After the final fell, the crowd meter decides the epilogue (C). | the crowd meter |
 
 - **Each arena also tunes its foes,** in one per-arena table in TUNING: grade shift, feint rate and move set.
@@ -150,6 +152,72 @@ In order of what you look at:
 
 That is about 37 images, at about $6 to $10. Each step ships on its own, so step 1 can land before the portraits.
 
+## K. The deck, rebuilt for builds (designer, 2026-10-12)
+
+The v1 deck is mostly "+20% this". From now on, a card changes a **rule**. Cards work together through three things a bout produces, so picks combine into a build instead of adding up.
+
+### K1. Three things cards make and spend
+
+| Resource | Made by | Spent by | Shown as |
+| --- | --- | --- | --- |
+| **Momentum** (0 to 5 pips, per bout) | perfect blocks, feint reads, a dodge in his tell, a laming | finishers (K3) | pips under your hearts |
+| **Bleed** (stacks on him) | slot hits with a bleed card | ticks of damage, and payoffs that read his stacks | drops on his HUD slot |
+| **The crowd** (C) | style | crowd cards, and the gold | the crowd meter |
+
+### K2. Six families
+
+Each card shows its family's icon. A family has an **enabler** that starts it, **payoffs** that reward it, and one **keystone**: a rare that bends a rule and costs you something.
+
+| Family | Fantasy | Example cards (one line each) | Keystone (with its price) |
+| --- | --- | --- | --- |
+| **The Wall** | the shield is a weapon | **Riposte** (kept); **Thorns**: each block dents his weapon, and 3 dents disarm him, so he fights with fists; **Shield Shove**: a perfect block drives him back, and at the wall he is stunned 1 s | **Iron Wall**: the perfect-block window doubles and each one is a free slot hit, *but you cannot dodge* |
+| **Blood** | slow, cruel, certain | **Serrated Edge**: slot hits bleed 1; **Open Vein**: a bleeding foe's tells are 20% slower; **Bloodlust**: each bleed tick gives you stamina | **Haemorrhage**: when he falls, his bleed jumps to the next foe, *but your bare hits do nothing* |
+| **The Showman** | win them over, then win | **Flourish**: a twirl of the sword (a fast circle) fills the crowd; **Bread and Circuses**: a full meter throws you a heart; **Crowd Pleaser**: at a full meter your next slot hit does 3x | **Darling of Rome**: the meter never drains, and at full he hesitates in awe, *but the crowd's gold is halved* |
+| **The Dancer** | never be there | **Blur** (kept); **Sidestep**: a dodge in his tell makes him overcommit, and he is winded; **Matador**: a dodged lunge or pounce sends him into the wall | **Untouchable**: dodges cost nothing, and each one in his tell opens every slot for 1 s, *but you have no shield* |
+| **The Brute** | through, not around | **Heavy Arm** (kept); **Plate Breaker**: an overhead strips the plate it hits; **Juggernaut**: lunge through his blow, so your plate takes it and you keep coming | **Titan**: +2 hearts, and every overhead staggers him, *but you cannot dodge or step back* |
+| **The Trickster** | make him guess | **Your own feint**: pull a lunge back before it lands and he raises his guard, so the slot opposite opens for 0.6 s; **Mind Reader**: a feint read gives 2 Momentum; **Bait**: lower your shield and his next blow has twice the tell | **Puppeteer**: every third blow of his is a feint you can see coming, *but your hearts are capped at 2* |
+
+- **Each family has about 6 cards,** so about 36 in all, written in the build within these lines.
+- **The Trickster's feint is a new gesture** (a lunge pulled back), so it is the riskiest card. It is built first and judged in the card lab (K5).
+
+### K3. Finishers: spend Momentum
+
+- **Execute** (3 Momentum): the next slot hit fells him outright if he is below half.
+- **Whirlwind** (2): one slash hits every slot it crosses.
+- **Second Breath** (2): refill all your stamina.
+- **Disarm** (4): his weapon flies, and he fights barehanded for 3 s.
+
+Finishers come in the draft like any card. A finisher fires with a long press on the sword thumb when you have the pips, so there is no new button.
+
+### K4. Duos: when two families meet
+
+- If you hold at least one card from each of two families, the draft may deal that pair's **duo**: one card that marries them. (Hades does this with its gods.)
+- There are 8 duos at first, for example:
+  - **Blood Sport** (Blood and Showman): each bleed tick fills the crowd;
+  - **Matador's Cape** (Dancer and Wall): a perfect block or a dodge in his tell both give Momentum, and the next one stuns;
+  - **Butcher** (Brute and Blood): a stripped plate leaves a bleeding slot;
+  - **Sucker Punch** (Trickster and Brute): your own feint followed by an overhead always staggers.
+- **A duo shows both families' icons and a gold border.** It is the "I made a build" moment.
+
+### K5. How the deck deals, so a build can form in one run
+
+- **More picks:** a run has 5 picks.
+  - **The start card:** your background deals one card from its family. A soldier gets the Wall, a horseman the Dancer, a baker the Showman, a farmer the Brute, a scribe the Trickster and a sailor Blood. This replaces the flat v1 background perks.
+  - **Plus a draft after each of the four fells.**
+- **Pull:** each draft weights families you already hold, as with Hades' gods, so builds deepen.
+  - Three cards, at most two from the same family.
+  - One is priced in gold (D), and it is the slot where duos and keystones usually appear.
+- **The old "+20%" commons leave the draft.** They move to the armourer's tent as cheap wares (D), so the draft is always a choice between rules.
+- **The ludus opens families** (E): a new save starts with the Wall, the Dancer and the Brute. Blood, the Showman and the Trickster are unlocked with fame at the barracks. The tailor and the shrine stay as in E.
+- **The card lab (dev channel only):** a TUNE page to pick any cards before a bout, so the designer can try combos without waiting for the deal.
+
+### K6. Guard rails
+
+- **Every card is one line,** at most about 60 characters, with its numbers in TUNING.
+- **A keystone always names its price on the card.**
+- **No card makes a bout winnable without reading his tells.** The naked run (v0.2 H) still holds: a plain fighter with no cards can fell the Pit champion.
+- **The draft card has a "?"** that shows how a duo works and which families you hold, so synergy is never hidden.
+
 ## G. Saves
 
 `saveVersion` bump. `migrate` keeps the rival, the pit wall, the feint lesson and the bouts seen, and adds:
@@ -164,12 +232,12 @@ The run resume stays at bout start, now with the arena and the gold.
 ## H. How v2 is built (cost before rigour)
 
 Each build is reviewed, played by the designer, then the next one starts.
-1. **The beast bout and crippling** (Opus). The two new fight feels, playable in the Pit as a dev preset, so the designer judges them first.
+1. **The deck and the beast** (Opus). K's trigger engine and its families, the duos and keystones, plus crippling (B) and the lion and bear. They are playable in the Pit, with a beast as a dev preset and the card lab, so the designer judges builds and beasts first.
 2. **The ladder and the crowd** (Opus): A, C and E2 (the arena picker, the four twists, the crowd meter and coins, the Emperor's thumb, the arena chapters).
 3. **Gold, fame and the ludus** (Sonnet): D, E and G.
 4. **Art wiring** (Sonnet), step by step as each part of Pack 15 lands.
 
-Rough cost: about $30 to $40 for builds 1 to 3, plus $6 to $10 for images and about $5 for wiring.
+Rough cost: about $40 to $50 for builds 1 to 3 (K adds about $10), plus $6 to $10 for images and about $5 for wiring.
 
 ## I. Out of scope (v3 and later)
 
@@ -190,10 +258,8 @@ Rough cost: about $30 to $40 for builds 1 to 3, plus $6 to $10 for images and ab
 - Frame time is no worse than arena-v17 (with two fighters and the crowd).
 - **The designer's runs judge difficulty and feel.**
 
-## Open questions for the designer
+## Resolved (2026-10-12)
 
-1. **The City's twist.** Pairs (a tag-team foe) or something else? Alternatives:
-   - *the night games:* torchlight, so his tell glows only when he is close;
-   - *the chariot:* he circles, and you strike as he passes.
-2. **The beast:** a lion, a bear, or both (one per Colosseum run, rolled)?
-3. **The veteran:** keep it (lasting attachment, capped), or drop it so every run is a fresh roll?
+1. **The City arena:** pairs.
+2. **Beasts:** both the lion and the bear, rolled per Colosseum beast bout, with men in the other bouts and a bestiarius as champion.
+3. **The veteran:** kept, capped as in E.
