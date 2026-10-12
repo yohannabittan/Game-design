@@ -197,6 +197,23 @@ Two options each, about US$0.50 to 1. Into `docs/art/final/launch/`.
 Spec: `docs/games/gravity-golf/prd-v0.11.md` C2. Use `docs/art/final/gravity-golf/mission-control.png` as the reference image so Sam is the same person in the same frame.
 - `mission-control-worried.png`: Sam on the same video call, but the room dimmer and the screens behind showing a red "BUDGET REVIEW" glow (no readable text needed), Sam's brow worried, holding the mug with both hands, still kind. 512 x 512, same frame. Two options, about US$0.30.
 
+### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
+
+Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
+
+Two new clients, 768 x 1024, a plain warm-lamp background, each in three expressions: happy (delighted, looking at the patch), neutral (polite, unsure) and sad (disappointed, not angry). Generate happy first and use it as the reference for the other two.
+
+| Files | Client | Framing that shows the skin patch |
+| --- | --- | --- |
+| `client-ines-{happy,neutral,sad}.png` | Ines, a firefighter in her fifties, short grey-streaked hair, a fire-service T-shirt with one sleeve rolled high | three-quarter view, bare shoulder and upper arm toward the viewer |
+| `client-arlo-{happy,neutral,sad}.png` | Arlo, a gentle man of eighty, cardigan and shirt sleeve rolled, a wedding ring, slightly nervous | seated, inner forearm turned up toward the viewer across the lower third |
+
+**Rita for the finale:** use `docs/art/final/ink/rita.png` as the reference, so she is the same woman. 768 x 1024, warm-lamp background. She sits in the client's chair, one sleeve rolled to show a **clear bare patch on the inner forearm** among her faded flash tattoos.
+- `rita-proud.png`: moved and proud, eyes a little wet.
+- `rita-kind.png`: kind and encouraging, a small smile.
+
+That is 8 images. Use one option each for the neutral, sad and kind images (from the happy or proud reference), and two options for each happy and for `rita-proud`. About US$2 to 3. They go into `docs/art/final/ink/`. In the handoff, list each portrait's skin patch rectangle in pixels (x, y, w, h).
+
 ## Handoffs from the orchestrator (2026-10-03)
 
 The designer pastes the orchestrator's one-line task into the art chat. (A Routine bound to the art chat was tried and does not reach it: each firing starts a new empty session.) The art session replies with a pushed `docs/art/HANDOFF-<topic>.md`, which the orchestrator reads when it pulls.
