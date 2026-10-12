@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'ink-v27';
+const CACHE_VERSION = 'ink-v28';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'ink-v';
 const ASSETS = [
@@ -14,6 +14,25 @@ const ASSETS = [
   './icons/icon-180.png',
   './assets/title-ink@2x.png',
   './assets/title-ink@3x.png',
+  './assets/client-bram-happy.webp',
+  './assets/client-bram-neutral.webp',
+  './assets/client-bram-sad.webp',
+  './assets/client-june-happy.webp',
+  './assets/client-june-neutral.webp',
+  './assets/client-june-sad.webp',
+  './assets/client-kai-happy.webp',
+  './assets/client-kai-neutral.webp',
+  './assets/client-kai-sad.webp',
+  './assets/client-mina-happy.webp',
+  './assets/client-mina-neutral.webp',
+  './assets/client-mina-sad.webp',
+  './assets/client-ola-happy.webp',
+  './assets/client-ola-neutral.webp',
+  './assets/client-ola-sad.webp',
+  './assets/client-theo-happy.webp',
+  './assets/client-theo-neutral.webp',
+  './assets/client-theo-sad.webp',
+  './assets/rita.webp',
 ];
 
 self.addEventListener('install', (event) => {

@@ -1,6 +1,7 @@
 // Ink, layers 1 to 5 and the v0.2 dynamic needle, the v0.3 needle inertia and the v0.4 gap hint: the mechanic, the progression, the juice, a speed-driven ink radius with momentum, a highlight for the gaps that are hard to find, and the art. Hold the tattoo machine, lay ink inside the stencil, never leave the line three times.
 // Art (layer 5, PRD v0.1 section 11): tattoo flash. A transfer stencil on skin, ink on a body part, a pen-style machine in the hand, a flash-sheet menu. All of it is procedural Canvas drawing and lives in TUNING.art.
 // v0.6: the timer is the biggest thing on the HUD, a slip makes the body flinch, stencils may come in parts with scored landings, and the body parts are flat.
+// v0.7: a client for every stencil, the cold open, the reveal on the client's skin, Rita's rank cards and the Portfolio (the story layer, PRD v0.7).
 // Fifteen stencils, authored as data and verified with tools/sim-ink.mjs.
 
 import { clamp, dist, ease, makeRng, hashString } from './engine.js';
@@ -17,6 +18,7 @@ const TUNING = {
   maxSlips: 3,           // Third slip ruins the piece
   starPercents: [70, 80, 90, 95, 99], // Percentage thresholds for 1 to 5 stars
   passPercent: 70,       // Below this at the timer is a fail
+  rankAt: [25, 60],      // Total stars that make Artist and Master (PRD v0.7 D); the ladder never changes a rule
   timerMultEarly: 2.2,   // Timer is this times the perfect-path time to 99 percent: Circle, Diamond, Heart, Star (read by tools/sim-ink.mjs)
   timerMultMid: 1.9,     // Same for the stencils between the bosses (Bolt, Halo, Clover, Key)
   timerMultBoss: 1.7,    // Same for the mid boss, Crescent
@@ -136,8 +138,8 @@ const TUNING = {
     story: { delay: 0.35, sec: 0.55, facetFrom: 95, facetWidth: 1.8, facetAlpha: 0.9, glintSize: 11, swirlWidth: 2.6, swirlAlpha: 0.9, bannerText: 'LOVE', bannerTilt: -0.07 }, // Card decorations: reveal timing, the percent the gem facets start showing
     machine: { needleLen: 9, needleW: 1.4, nozzleTopW: 3.2, nozzleW: 9, nozzleEnd: 29, bandLen: 3, neckEnd: 46, neckW: 13, gripEnd: 98, gripW: 25, tailEnd: 128, tailW: 15, cableW: 4.5, cableAlpha: 0.85, shadowDx: 3, shadowDy: 4, shadowAlpha: 0.3, knurl: 5 }, // Pen-style machine, screen px from the needle tip down to the cable
     hud: { plateAlpha: 0.5, plateH: 46, pipGap: 22, pipR: 7, pipW: 3.2, ring: 38, ringW: 4, ringTrack: 0.28, amberAt: 1 / 3, ringHide: 0.002, timerBig: 100 }, // The timer's ring (radius, width, faint track alpha), when it turns amber (share of the time left), the slip plate; a timer of timerBig or more seconds uses the smaller numeral
-    menu: { margin: 16, rowsSeen: 3, penHalf: 57, penMin: 0.25, hintSwW: 30, hintSwH: 14, hintSwDy: 8, hintLabelDy: 8, tilt: 0.03, tileWant: 116, tileMin: 100, tileMax: 132, titleMin: 0.55, topPad: 8, rowH: 44, gapTag: 8, gapDaily: 10, dailyH: 52, gapPlay: 10, playH: 52, soundW: 56, missionsW: 124, botPad: 10, warmMs: 3, bootFrames: 5, slackTop: 0.4, numH: 22, badgeW: 46, badgeH: 18, cleanW: 56, pinR: 4.5, cardR: 5, fiberDensity: 0.0032, boardMaxDpr: 1.5, tab: { w: 74, y: 10, h: 32 } }, // Flash-sheet menu: tile heights it wants, its limits and the title's, gaps and button heights (44 px at least), and the engine's TUNE tab it must clear
-    missions: { top: 60, rowH: 60, lineH: 18, rowGap: 8, headH: 30, medalR: 18, bottom: 16, backW: 76, backH: 44, scrollBar: 3 }, // Missions screen: the list scrolls under the heading row, which holds Back (top left, clear of the toast at the bottom)
+    menu: { margin: 16, rowsSeen: 3, penHalf: 57, penMin: 0.25, hintSwW: 30, hintSwH: 14, hintSwDy: 8, hintLabelDy: 8, tilt: 0.03, tileWant: 116, tileMin: 100, tileMax: 132, titleMin: 0.55, topPad: 8, rowH: 44, gapTag: 8, gapDaily: 10, dailyH: 52, gapPlay: 10, playH: 52, soundW: 56, missionsW: 124, storyW: 76, rankDy: 8, botPad: 10, warmMs: 3, bootFrames: 5, slackTop: 0.4, numH: 22, badgeW: 46, badgeH: 18, cleanW: 56, pinR: 4.5, cardR: 5, fiberDensity: 0.0032, boardMaxDpr: 1.5, tab: { w: 74, y: 10, h: 32 } }, // Flash-sheet menu: tile heights it wants, its limits and the title's, gaps and button heights (44 px at least), and the engine's TUNE tab it must clear
+    missions: { folioH: 56, top: 60, rowH: 60, lineH: 18, rowGap: 8, headH: 30, medalR: 18, bottom: 16, backW: 76, backH: 44, scrollBar: 3 }, // Missions screen: the list scrolls under the heading row, which holds Back (top left, clear of the toast at the bottom)
     // Skins (PRD v0.5 section F): data entries, each earned by one badge and never by grind. A machine skin overrides the machine palette and adds one decoration to the same
     // silhouette; an ink skin overrides the ink, its sheen, gloss and bleed halo. Anything a skin leaves out is the default palette. The outline, the hint and the slip colours never change.
     skins: {
@@ -164,6 +166,11 @@ const TUNING = {
     intro: { sec: 5, fade: 0.5, bottom: 16, pad: 10, lineH: 18, maxW: 340, text: 'Land on the line. Skin is a blot, and three slips ruin the piece.' }, // Split stencils: a plate near the bottom of the screen (clear of the piece) for the first seconds after the piece opens
     callout: { sec: 2.6, fade: 0.5, gap: 8, pad: 8, h: 28, text: 'Blot: landed on skin' }, // The call-out above the first blot of a piece
     blot: { rim: 2, specks: 3, speckAngle: 0.9, speckStep: 2.1, speckDist: 5, speckR: 2.2, core: 0.35 }, // The blot mark (radius is TUNING.blotRadius): dark rim beyond the disc, the specks around it (count, first angle, angle step, distance beyond the disc, size), the dark core as a share of the radius
+    cast: { sec: 4, fade: 0.5, top: 8, face: 36, pad: 6, gap: 10, maxW: 340, lineH: 18, clear: 8, bottomGap: 8 }, // The client of the day on the play intro (PRD v0.7 B): a plate under the HUD (at most two lines, so a fixed height) with the client's face and line; it is gone at the first touch. `clear` is the gap kept between the plate and a stencil's tip, `bottomGap` the least left under the piece: on a short screen the piece is moved down (never scaled) to clear the plate
+    reveal: { zoomSec: 1.2, holdSec: 1.1, tapGuard: 0.2, cueVol: 0.3, cue: { happy: 'coin', neutral: 'tap', sad: 'tap' }, crossFrom: 0.1, crossTo: 0.7, lineFrom: 0.9, lineFade: 0.25, inkAlpha: 0.92, portraitMaxW: 300, top: 12, bottom: 14, frame: 8, gap: 10, stripPad: 12, lineH: 26 }, // The reveal (PRD v0.7 C): the zoom from the skin to the client (seconds), how long the end holds, the tap guard, when the skin gives way to the portrait (share of the zoom), when the line shows and how fast it fades in (seconds), the multiply strength of the ink, and the portrait card
+    open: { anchorFit: 0.9, guard: 0.25, fade: 0.4, skipW: 96, skipH: 44, cardW: 320, pad: 22, art: 128, gap: 14, lineH: 28, face: 60, faceGap: 8 }, // The cold open (PRD v0.7 A): two cards, Skip always top right
+    rank: { w: 320, h: 470, pad: 18, portH: 250, btnH: 52, guard: 0.5, gap: 12, nameGap: 10, lineH: 26, btnGap: 14, margin: 24, popSec: 0.35, medalR: 14, medalDx: 78, nameDx: 12, cueVol: 0.6 }, // The rank-up card with Rita (PRD v0.7 D): its layout (px), the pop-in (seconds) and the volume of its one sound
+    folio: { cols: 3, gap: 10, pad: 6, starH: 22, headH: 8, lockedAlpha: 0.3, openAlpha: 0.55, inkAlpha: 0.92, outlineAlpha: 0.9, starScale: 0.4, starPad: 5, headY: 30, headGap: 12, countGap: 14, scrollMinH: 24 }, // The Portfolio page (PRD v0.7 E): the heading row (Back, heading, count) keeps `headGap` and `countGap` between its parts
     star: { inner: 0.45, sheen: 0.55 }, // Ink stars
   },
 };
@@ -285,6 +292,42 @@ function prepStencil(st) {
   return st;
 }
 for (const st of STENCILS) prepStencil(st);
+
+// ---------- The cast (PRD v0.7) ----------
+// Each stencil belongs to one client (the daily has none): its line shows on the play intro, and the client wears the finished piece in the reveal and the Portfolio.
+// `face` is the square crop of the head (x, y and width, as shares of the portrait's width and height) for the small plates.
+const CLIENTS = {
+  bram: { name: 'Bram', face: [0.27, 0.04, 0.42] },
+  theo: { name: 'Theo', face: [0.12, 0.02, 0.42] },
+  june: { name: 'June', face: [0.34, 0.02, 0.4] },
+  ola: { name: 'Ola', face: [0.3, 0.06, 0.4] },
+  mina: { name: 'Mina', face: [0.04, 0, 0.4] },
+  kai: { name: 'Kai', face: [0.46, 0, 0.42] },
+};
+const CAST = {
+  Circle: ['bram', 'Something simple. My first.'], Anchor: ['bram', 'An anchor for my first voyage.'],
+  Key: ['theo', 'The key to my first restaurant.'], Trinity: ['theo', 'Three knots: me, my wife, my kitchen.'],
+  Rose: ['june', 'My grandchildren dared me.'], Swallow: ['june', 'A swallow always comes home.'],
+  Diamond: ['ola', 'Something new, for the wedding.'], Star: ['ola', 'My wife calls me her star.'], Constellation: ['ola', 'The sky the night we met.'],
+  Heart: ['mina', 'For my mum, who never misses a race.'], Bolt: ['mina', 'Fastest on the team. Prove it.'], Dagger: ['mina', 'Hill sprints. Every week.'], Skull: ['mina', 'Survived the mountain race.'], Bones: ['mina', 'Two broken legs, still running.'],
+  Crescent: ['kai', 'The moon from our first album.'], Halo: ['kai', 'For my band. We\'re angels. Ish.'], Clover: ['kai', 'Lucky, for the tour.'], Snake: ['kai', 'Tour starts Monday. Make it count.'],
+};
+// The skin patch on each portrait, measured from the final art (docs/art/final/ink): [centre x, centre y, width, height, tilt in radians], x and width as shares of the portrait's width,
+// y and height of its height. The piece is fitted inside the rectangle (and turned with the limb), so the tattoo sits on skin.
+const PATCH = {
+  bram: { happy: [0.56, 0.675, 0.17, 0.075, -0.33], neutral: [0.56, 0.715, 0.17, 0.07, -0.33], sad: [0.595, 0.69, 0.17, 0.07, -0.38] },
+  theo: { happy: [0.795, 0.58, 0.14, 0.13, 0], neutral: [0.795, 0.58, 0.14, 0.13, 0], sad: [0.795, 0.58, 0.14, 0.13, 0] },
+  june: { happy: [0.58, 0.505, 0.2, 0.15, 0], neutral: [0.58, 0.505, 0.2, 0.15, 0], sad: [0.58, 0.505, 0.2, 0.15, 0] },
+  ola: { happy: [0.52, 0.54, 0.2, 0.14, 0], neutral: [0.52, 0.54, 0.2, 0.14, 0], sad: [0.52, 0.54, 0.2, 0.14, 0] },
+  mina: { happy: [0.58, 0.6, 0.17, 0.08, 0.12], neutral: [0.6, 0.6, 0.17, 0.07, 0.1], sad: [0.6, 0.6, 0.17, 0.07, 0.15] },
+  kai: { happy: [0.45, 0.475, 0.26, 0.19, 0], neutral: [0.45, 0.475, 0.26, 0.19, 0], sad: [0.45, 0.475, 0.26, 0.19, 0] },
+};
+const MOODS = ['happy', 'neutral', 'sad'];
+const REACT = { happy: ['I love it. Thank you.', 'It\'s perfect.'], neutral: ['It\'s... good. Thanks.'], sad: ['Oh. Well. It\'s done now.'] };
+const moodOf = (stars, failed) => (failed || stars <= 1 ? 'sad' : stars >= 4 ? 'happy' : 'neutral'); // PRD v0.7 C: happy at 4 or 5, neutral at 2 or 3, sad at 0 or 1 or a failed piece
+const castOf = (st) => { const c = st && CAST[st.name]; return c ? { id: c[0], who: CLIENTS[c[0]], line: c[1] } : null; };
+const RANKS = [{ name: 'Apprentice' }, { name: 'Artist', line: 'Clean lines. You\'ll do. Chair two is yours.' }, { name: 'Master', line: 'Your own shop. Your name on the door.' }];
+const rankOf = (total) => T.rankAt.filter((n) => total >= n).length;
 
 // ---------- Timers, the daily stencil, badges (v0.5) ----------
 
@@ -480,7 +523,17 @@ const V = { s: 1, ox: 0, oy: 0 }; // the play view, shared: one object, refilled
 function view(E, o = V) {
   o.s = Math.min(E.w / T.designW, E.h / T.designH);
   o.ox = (E.w - T.designW * o.s) / 2; o.oy = (E.h - T.designH * o.s) / 2;
+  o.oy += plateShift(E, o);
   return o;
+}
+// The client's plate (PRD v0.7 B) is two lines at most, so its height is fixed: on a short screen a tall stencil's tip would sit under it, so the piece is moved down (never scaled,
+// so every judged distance is unchanged) until its tip clears the plate, as far as the room under it allows (and clear of the split intro's plate).
+function plateRect(E) { const C = A.cast; return { y: E.safe.top + T.hudTop + 2 * A.hud.ring + 2 + C.top, h: C.face + 2 * C.pad }; }
+function plateShift(E, v) {
+  if (!S.st || S.daily || !CAST[S.st.name]) return 0;
+  const C = A.cast, I = A.intro, bb = bboxOf(S.idx), pl = plateRect(E), top = v.oy + bb.y0 * v.s, bot = v.oy + bb.y1 * v.s;
+  const floor = E.h - E.safe.bottom - (S.st.parts ? I.bottom + 2 * I.lineH + 2 * I.pad + C.bottomGap : 0) - C.bottomGap;
+  return clamp(pl.y + pl.h + C.clear - top, 0, Math.max(0, floor - bot));
 }
 
 // ---------- Gap hint (v0.4) ----------
@@ -1326,6 +1379,31 @@ function drawStory(ctx, ct) {
   ctx.restore();
 }
 
+// The slip marks and blots, in design space (the caller has set the transform): a cross per slip, and a splat per touch-down on skin.
+function drawMarks(ctx) {
+  ctx.lineCap = 'round';
+  const m = T.slipMarkSize;
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.strokeStyle = pass ? P.slip : P.slipShadow; ctx.lineWidth = pass ? 3 : 5.5;
+    for (const k of S.marks) {
+      if (k.blot) continue;
+      ctx.beginPath();
+      ctx.moveTo(k.x - m, k.y - m); ctx.lineTo(k.x + m, k.y + m);
+      ctx.moveTo(k.x + m, k.y - m); ctx.lineTo(k.x - m, k.y + m);
+      ctx.stroke();
+    }
+  }
+  // A blot (a touch-down on skin outside every line): a slip-red splat with its own shape, a dark rim and three specks, so it never reads as a cross.
+  for (const k of S.marks) {
+    if (!k.blot) continue;
+    const R = T.blotRadius;
+    ctx.fillStyle = P.slipShadow; ctx.beginPath(); ctx.arc(k.x, k.y, R + A.blot.rim, 0, TAU); ctx.fill();
+    ctx.fillStyle = P.slip; ctx.beginPath(); ctx.arc(k.x, k.y, R, 0, TAU); ctx.fill();
+    for (let i = 0; i < A.blot.specks; i++) { const a = A.blot.speckAngle + i * A.blot.speckStep, d = R + A.blot.speckDist; ctx.fillStyle = P.slip; ctx.beginPath(); ctx.arc(k.x + Math.cos(a) * d, k.y + Math.sin(a) * d, A.blot.speckR, 0, TAU); ctx.fill(); }
+    ctx.fillStyle = P.slipShadow; ctx.beginPath(); ctx.arc(k.x, k.y, R * A.blot.core, 0, TAU); ctx.fill();
+  }
+}
+
 // ----- The piece: field, ink, story, outline, slips -----
 // One draw for play and for the card. `v` maps design space to the screen, `ct` is the card time (-1 while playing). The layers are kept at the play scale and
 // the card only ever shrinks the piece, so nothing is rebuilt when the card opens.
@@ -1377,27 +1455,7 @@ function drawPiece(ctx, E, v, ct) {
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const red = 1 - (now - f.slipT) / J.slipFlashSec;
   if (red > 0 && red <= 1) { ctx.globalAlpha = red * a; ctx.strokeStyle = P.slip; ctx.lineWidth = T.outlineWidth + 1.5; ctx.stroke(outlineFor(S.idx).main); ctx.globalAlpha = 1; }
-  ctx.lineCap = 'round';
-  const m = T.slipMarkSize;
-  for (let pass = 0; pass < 2; pass++) {
-    ctx.strokeStyle = pass ? P.slip : P.slipShadow; ctx.lineWidth = pass ? 3 : 5.5;
-    for (const k of S.marks) {
-      if (k.blot) continue;
-      ctx.beginPath();
-      ctx.moveTo(k.x - m, k.y - m); ctx.lineTo(k.x + m, k.y + m);
-      ctx.moveTo(k.x + m, k.y - m); ctx.lineTo(k.x - m, k.y + m);
-      ctx.stroke();
-    }
-  }
-  // A blot (a touch-down on skin outside every line): a slip-red splat with its own shape, a dark rim and three specks, so it never reads as a cross.
-  for (const k of S.marks) {
-    if (!k.blot) continue;
-    const R = T.blotRadius;
-    ctx.fillStyle = P.slipShadow; ctx.beginPath(); ctx.arc(k.x, k.y, R + A.blot.rim, 0, TAU); ctx.fill();
-    ctx.fillStyle = P.slip; ctx.beginPath(); ctx.arc(k.x, k.y, R, 0, TAU); ctx.fill();
-    for (let i = 0; i < A.blot.specks; i++) { const a = A.blot.speckAngle + i * A.blot.speckStep, d = R + A.blot.speckDist; ctx.fillStyle = P.slip; ctx.beginPath(); ctx.arc(k.x + Math.cos(a) * d, k.y + Math.sin(a) * d, A.blot.speckR, 0, TAU); ctx.fill(); }
-    ctx.fillStyle = P.slipShadow; ctx.beginPath(); ctx.arc(k.x, k.y, R * A.blot.core, 0, TAU); ctx.fill();
-  }
+  drawMarks(ctx);
   ctx.restore();
   if (fk) ctx.restore();
 }
@@ -1697,7 +1755,7 @@ const blotsOf = () => S.marks.filter((k) => k.blot).length;
 // ---------- Scenes ----------
 
 const menu = {
-  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnDaily = null; this.btnHint = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; this.daily = dailyToday(E); this.dayT = E.time; applyHint(E); this.scroll = 0; this.drag = null; this.focus = true; this.gridView = { top: 0, h: 0, max: 0 }; this.titleBox = { x: 0, y: 0, w: 0, h: 0 }; applySkins(E); },
+  enter(E) { this.btnPlay = null; this.btnMute = null; this.btnMissions = null; this.btnStory = null; this.btnDaily = null; this.btnHint = null; this.tiles = []; this.popIdx = menuPopIdx; this.popT = E.time; menuPopIdx = -1; this.daily = dailyToday(E); this.dayT = E.time; applyHint(E); this.scroll = 0; this.drag = null; this.focus = true; this.gridView = { top: 0, h: 0, max: 0 }; this.titleBox = { x: 0, y: 0, w: 0, h: 0 }; applySkins(E); },
   // The vertical layout comes from the height there is. The title shrinks (to titleMin) until rowsSeen rows of tiles at tileWant fit between the count row and the daily strip;
   // the daily strip and Play stay fixed under the grid. If every row fits at tileMin or more the grid is laid out whole and grows to tileMax; if not, the grid scrolls in a
   // window that shows a whole number of rows and a peek of the next (tiles never below tileMin). The title also drops below the engine's TUNE tab when its letters would run
@@ -1753,9 +1811,11 @@ const menu = {
     { const ex = E._exportTab, tb = this.titleBox; if (ex && tb.x < ex.x + ex.w + 2 && tb.y < ex.y + ex.h) { const cut = ex.x + ex.w + 2 - tb.x; tb.x += cut; tb.w -= cut; } } // keep the title's tap box off the EXPORT tab
     E.titleArea = this.titleBox;
     const str = `${p.total} / ${STENCILS.length * T.starPercents.length}`;
-    drawStar(ctx, m + 11, Y.rowY - 1, 10, true);
-    label(ctx, str, m + 26, Y.rowY, FONT.mid, P.textDark, 'left');
+    drawStar(ctx, m + 11, Y.rowY - M.rankDy - 1, 10, true);
+    label(ctx, str, m + 26, Y.rowY - M.rankDy, FONT.mid, P.textDark, 'left');
+    label(ctx, RANKS[rankOf(p.total)].name, m + 2, Y.rowY + M.rankDy + 5, FONT.small, P.textMute, 'left'); // the ladder, quietly (PRD v0.7 D)
     this.btnMissions = inkButton(ctx, 'Missions', E.w - m - M.missionsW / 2, Y.rowY, M.missionsW, M.rowH, false, FONT.small);
+    this.btnStory = inkButton(ctx, 'Story', E.w - m - M.missionsW - 8 - M.storyW / 2, Y.rowY, M.storyW, M.rowH, false, FONT.small);
 
     this.tiles = [];
     const gv = this.gridView; gv.top = Y.tilesTop; gv.h = Y.viewH; gv.max = Y.max;
@@ -1842,6 +1902,7 @@ const menu = {
     if (E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); return; }
     if (E.hit(this.btnHint, p)) { const on = !hintOn(E); E.save.set('hint', on); applyHint(E); E.audio.play('tap'); ledger(E, 'hint', { on }); return; }
     if (E.hit(this.btnMissions, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
+    if (E.hit(this.btnStory, p)) { E.audio.play('tap'); E.setScene('story', { replay: true }); return; }
     if (E.hit(this.btnDaily, p)) { E.audio.play('tap'); E.setScene('play', { daily: true }); return; }
     const gv = this.gridView, t = p.y >= gv.top && p.y <= gv.top + gv.h && this.tiles.find((t) => !t.locked && E.hit(t, p));
     if (t) { E.audio.play('tap'); E.setScene('play', { stencil: t.idx }); }
@@ -1897,11 +1958,11 @@ function drawMedal(ctx, cx, cy, r, tier, earned) {
 
 // The missions screen: the badges by tier, earned ones in colour and the rest with how far along they are. The list scrolls by dragging; Back is fixed at the top left, so the engine's toast (bottom of the screen) never covers it.
 const missions = {
-  enter(E) { this.scroll = 0; this.drag = null; this.btnBack = null; this.moved = 0; this.swatches = []; applySkins(E); },
+  enter(E) { this.scroll = 0; this.drag = null; this.btnBack = null; this.btnFolio = null; this.moved = 0; this.swatches = []; applySkins(E); },
   skinsH() { const M = A.missions, W = A.skins.swatch; return M.headH + 2 * (W.headH + W.size + W.rowGap) + 6; },
   textW(E) { return E.w - 2 * A.menu.margin - (14 + 2 * A.missions.medalR + 12) - 12; }, // room for a badge's line of text on its tile
   rowH(E, b) { const M = A.missions; return M.rowH + (wrapText(b.text, this.textW(E), FONT.small).length - 1) * M.lineH; }, // a long line wraps and the tile grows
-  content(E) { const M = A.missions; return this.skinsH() + BADGE_TIERS.length * M.headH + BADGES.reduce((n, b) => n + this.rowH(E, b) + M.rowGap, 0); },
+  content(E) { const M = A.missions; return M.folioH + this.skinsH() + BADGE_TIERS.length * M.headH + BADGES.reduce((n, b) => n + this.rowH(E, b) + M.rowGap, 0); },
   view(E) { const M = A.missions, top = E.safe.top + M.top, bot = E.h - E.safe.bottom - M.bottom; return { top, bot, max: Math.max(0, this.content(E) - (bot - top)) }; },
   render(ctx, E) {
     const M = A.missions, p = progress(E), V = this.view(E), m = A.menu.margin, w = E.w - 2 * m, L = A.line;
@@ -1912,6 +1973,8 @@ const missions = {
     this.scroll = clamp(this.scroll, 0, V.max);
     ctx.save(); ctx.beginPath(); ctx.rect(0, V.top, E.w, V.bot - V.top); ctx.clip();
     let y = V.top - this.scroll;
+    this.btnFolio = inkButton(ctx, 'Portfolio', E.w / 2, y + (M.folioH - 8) / 2, w, M.folioH - 8, false, FONT.mid);
+    y += M.folioH;
     y = this.drawSkins(ctx, E, p, y, V, m, w);
     BADGE_TIERS.forEach((tn, tier) => {
       const inTier = BADGES.filter((b) => b.tier === tier);
@@ -1979,7 +2042,9 @@ const missions = {
   onPointerUp() { this.drag = null; },
   onTap(p, E) {
     if (E.hit(this.btnBack, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
-    const V = this.view(E), sw = p.y >= V.top && p.y <= V.bot && this.swatches.find((s) => E.hit(s, p));
+    const V = this.view(E);
+    if (p.y >= V.top && p.y <= V.bot && this.btnFolio && E.hit(this.btnFolio, p)) { E.audio.play('tap'); E.setScene('folio'); return; }
+    const sw = p.y >= V.top && p.y <= V.bot && this.swatches.find((s) => E.hit(s, p));
     if (!sw) return;
     if (!sw.owned) { E.toast(`${sw.sk.name} ${sw.kind === 'machine' ? 'machine' : 'ink'}: earn the ${BADGES.find((b) => b.id === sw.sk.badge).name} badge`); return; }
     E.save.set('skin', { ...E.save.get('skin', {}), [sw.kind]: sw.sk.id });
@@ -2053,7 +2118,7 @@ function drawCallout(ctx, E) {
 }
 
 const play = {
-  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); applyHint(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); S.hintOff = !hintOn(E); S.introT = E.time; },
+  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); applyHint(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); S.hintOff = !hintOn(E); S.introT = E.time; const c = !daily && castOf(S.st); if (c) loadClient(c.id); },
   update(dt, E) {
     holdStep(E, dt);
     hintStep(dt);
@@ -2092,7 +2157,8 @@ const play = {
     if (fresh.length) E.save.set('badges', { ...had, ...now });
     S.tickets = ticketFit(E, fresh.length);
     for (const b of fresh) ledger(E, 'badge', { badge: b.name, tier: BADGE_TIERS[b.tier], stencil: S.st.name });
-    E.setScene('over', { idx: S.idx, pct, stars, failed, clean, ruined, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp, newBadges: byTier(fresh), landings, cleanLand });
+    const rk = rankOf(progress(E).total), over = { idx: S.idx, pct, stars, failed, clean, ruined, best: progress(E).best[S.idx] || 0, boss: S.st.boss, last: S.idx === STENCILS.length - 1, starsUp, newBadges: byTier(fresh), landings, cleanLand, rankUp: rk > E.save.get('rankSeen', 0) ? rk : 0 };
+    E.setScene(castOf(S.st) ? 'reveal' : 'over', castOf(S.st) ? { over } : over); // the reveal comes first, and hands the same params to the card
   },
   // Leaving a piece that was started and not finished (the app going to the background, or any scene change) is a quit, logged once.
   quit(E) {
@@ -2127,6 +2193,7 @@ const play = {
     drawMachine(ctx, E);
     drawHud(ctx, E);
     drawIntro(ctx, E);
+    drawCast(ctx, E);
     drawCallout(ctx, E);
   },
 };
@@ -2282,28 +2349,348 @@ const over = {
     ctx.globalAlpha = a; ctx.fillRect(-12, -700, 24, 1400);
     ctx.restore();
   },
+  // A rank earned on this piece shows Rita's card first (once per rank), then goes where the player was going.
+  go(E, scene, params) { const r = this.p.rankUp; if (r) E.setScene('rank', { rank: r, next: scene, params }); else E.setScene(scene, params); },
   onTap(p, E) {
     if (this.t < this.buttonsAt || !this.btnMain) return;
     if (E.hit(this.btnMain, p)) {
       E.audio.play('tap');
       const q = this.p;
-      if (q.failed) { ledger(E, 'retry', { stencil: S.st.name, after: q.pct, daily: !!q.daily }); E.setScene('play', q.daily ? { daily: true } : { stencil: q.idx }); }
-      else if (q.last || q.daily) { menuPopIdx = q.starsUp ? q.idx : -1; E.setScene('menu'); }
-      else E.setScene('play', { stencil: q.idx + 1 });
+      if (q.failed) { ledger(E, 'retry', { stencil: S.st.name, after: q.pct, daily: !!q.daily }); this.go(E, 'play', q.daily ? { daily: true } : { stencil: q.idx }); }
+      else if (q.last || q.daily) { menuPopIdx = q.starsUp ? q.idx : -1; this.go(E, 'menu'); }
+      else this.go(E, 'play', { stencil: q.idx + 1 });
     } else if (this.btnMenu && E.hit(this.btnMenu, p)) {
       E.audio.play('tap');
       const q = this.p;
-      if (q.daily && !q.failed) { ledger(E, 'retry', { stencil: S.st.name, after: q.pct, daily: true }); E.setScene('play', { daily: true }); return; }
-      menuPopIdx = q.starsUp ? q.idx : -1; E.setScene('menu');
+      if (q.daily && !q.failed) { ledger(E, 'retry', { stencil: S.st.name, after: q.pct, daily: true }); this.go(E, 'play', { daily: true }); return; }
+      menuPopIdx = q.starsUp ? q.idx : -1; this.go(E, 'menu');
     }
+  },
+};
+
+// ---------- The cast on screen (PRD v0.7) ----------
+// Portraits (ADR-0015): looking at, never in play. Each is drawn once it has decoded; until then, or if it fails, a drawn face stands in.
+const IMGS = {};
+function artImg(file) {
+  let o = IMGS[file];
+  if (o) return o;
+  o = IMGS[file] = { img: new Image(), ok: false };
+  o.img.src = `assets/${file}.webp`;
+  (o.img.decode ? o.img.decode() : Promise.reject()).then(() => { o.ok = true; }, () => { o.ok = o.img.complete && o.img.naturalWidth > 0; });
+  return o;
+}
+const portraitOf = (id, mood) => artImg(`client-${id}-${mood}`);
+const loadClient = (id) => { for (const m of MOODS) portraitOf(id, m); };
+
+// A plain drawn face: a head, two eyes and a mouth that follows the mood.
+function drawFace(ctx, cx, cy, r, mood) {
+  ctx.fillStyle = P.skin; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1.5, r * 0.07); ctx.lineCap = 'round'; ctx.stroke();
+  ctx.fillStyle = P.ink;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(cx + s * r * 0.36, cy - r * 0.12, r * 0.08, 0, TAU); ctx.fill(); }
+  const my = cy + r * 0.38, dy = mood === 'happy' ? r * 0.2 : mood === 'sad' ? -r * 0.16 : 0;
+  ctx.beginPath(); ctx.moveTo(cx - r * 0.34, my); ctx.quadraticCurveTo(cx, my + dy * 2, cx + r * 0.34, my); ctx.stroke();
+}
+// A client's whole portrait in the box (x, y, w, h): the webp, or a head over a torso where the patch table still points at skin.
+function drawPortrait(ctx, id, mood, x, y, w, h) {
+  const o = portraitOf(id, mood);
+  if (o.ok) { ctx.drawImage(o.img, x, y, w, h); return; }
+  ctx.fillStyle = P.boardDark; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = P.skin; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 1.02, w * 0.6, h * 0.55, 0, 0, TAU); ctx.fill();
+  drawFace(ctx, x + w / 2, y + h * 0.28, w * 0.2, mood);
+}
+// The head only, square, for the small plates.
+function drawFaceCrop(ctx, c, mood, x, y, size) {
+  const o = portraitOf(c.id, mood);
+  if (o.ok) { const W = o.img.naturalWidth, H = o.img.naturalHeight, f = c.who.face; ctx.drawImage(o.img, f[0] * W, f[1] * H, f[2] * W, f[2] * W, x, y, size, size); }
+  else { ctx.fillStyle = P.boardDark; ctx.fillRect(x, y, size, size); drawFace(ctx, x + size / 2, y + size / 2, size * 0.4, mood); }
+}
+// Rita, on her own card: the webp (transparent around her), or a head with silver hair and glasses.
+function drawRita(ctx, x, y, w, h) {
+  const o = artImg('rita');
+  if (o.ok) { ctx.drawImage(o.img, x, y, w, h); return; }
+  const cx = x + w / 2, cy = y + h * 0.4, r = Math.min(w, h) * 0.3;
+  drawFace(ctx, cx, cy, r, 'neutral');
+  ctx.strokeStyle = P.steel; ctx.lineWidth = Math.max(2, r * 0.12);
+  ctx.beginPath(); ctx.arc(cx, cy - r * 0.1, r * 1.02, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1.5, r * 0.07);
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(cx + s * r * 0.36, cy - r * 0.12, r * 0.22, 0, TAU); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(cx - r * 0.14, cy - r * 0.12); ctx.lineTo(cx + r * 0.14, cy - r * 0.12); ctx.stroke();
+}
+// Where a piece goes on a portrait drawn into the box (x, y, w, h): { cx, cy, w, h, r } in the box's own coordinates.
+const PS = { cx: 0, cy: 0, w: 0, h: 0, r: 0 };
+function patchIn(id, mood, x, y, w, h, o = PS) {
+  const p = PATCH[id][mood];
+  o.cx = x + p[0] * w; o.cy = y + p[1] * h; o.w = p[2] * w; o.h = p[3] * h; o.r = p[4];
+  return o;
+}
+// The stencil as it is (a perfect fill, or its outline) in a patch, as ink laid on skin: multiply, so the skin shows through.
+function stencilInPatch(ctx, idx, o, alpha, filled) {
+  const bb = bboxOf(idx), fit = Math.min(o.w / bb.w, o.h / bb.h), mp = miniPath(idx);
+  ctx.save();
+  ctx.translate(o.cx, o.cy); ctx.rotate(o.r); ctx.scale(fit, fit); ctx.translate(-bb.cx, -bb.cy);
+  if (filled) { ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = alpha; ctx.fillStyle = SK.i.ink || P.ink; ctx.fill(mp, 'evenodd'); }
+  else { ctx.globalAlpha = alpha; ctx.strokeStyle = P.stencilDeep; ctx.lineWidth = 1.6 / fit; ctx.lineJoin = 'round'; ctx.stroke(mp); }
+  ctx.restore();
+}
+
+// The client of the day on the play intro (PRD v0.7 B): a plate under the HUD with the client's face and line. It never sits near the thumb, and it is gone as soon as
+// the player's first touch. The daily has no client.
+function drawCast(ctx, E) {
+  const C = A.cast, c = !S.daily && !S.ended && !S.started && castOf(S.st), age = E.time - S.introT;
+  if (!c || age < 0 || age >= C.sec) return;
+  const a = clamp((C.sec - age) / C.fade, 0, 1);
+  if (a <= 0) return;
+  const w = Math.min(C.maxW, E.w - 2 * A.menu.margin), tx = C.pad + C.face + C.gap, lines = wrapText(c.line, w - tx - C.pad, FONT.small), pl = plateRect(E);
+  const h = pl.h, x = (E.w - w) / 2, y = pl.y, fy = y + h / 2 - C.face / 2;
+  fadePlate(ctx, x, y, w, h, a);
+  ctx.globalAlpha = a;
+  ctx.save(); ctx.beginPath(); rr(ctx, x + C.pad, fy, C.face, C.face, 8); ctx.clip();
+  drawFaceCrop(ctx, c, 'neutral', x + C.pad, fy, C.face);
+  ctx.restore();
+  ctx.strokeStyle = P.cream; ctx.lineWidth = 1.5; ctx.beginPath(); rr(ctx, x + C.pad, fy, C.face, C.face, 8); ctx.stroke();
+  lines.forEach((ln, i) => label(ctx, ln, x + tx, y + h / 2 + (i - (lines.length - 1) / 2) * C.lineH, FONT.small, P.cream, 'left'));
+  ctx.globalAlpha = 1;
+}
+
+// The paper card the cold open and the rank card share: shadow, paper, rule and pin.
+function paperCard(ctx, x, y, w, h) {
+  const L = A.line;
+  ctx.globalAlpha = L.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, x + L.shadowDx, y + L.shadowDy + 2, w, h, L.radius + 4); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.beginPath(); rr(ctx, x, y, w, h, L.radius + 4); ctx.fillStyle = P.paper; ctx.fill();
+  ctx.strokeStyle = P.ink; ctx.lineWidth = L.weight; ctx.beginPath(); rr(ctx, x + 7, y + 7, w - 14, h - 14, L.radius); ctx.globalAlpha = 0.8; ctx.stroke(); ctx.globalAlpha = 1;
+  drawPin(ctx, x + w / 2, y + 1, 6);
+}
+
+// The cold open (PRD v0.7 A): two cards, one tap each, Skip always top right. Shown once on a save without `openSeen` (set as it opens, so closing the app midway never repeats
+// it) and again from the menu's Story button.
+const OPEN_CARDS = ['A tattoo lasts a lifetime.', 'Every client trusts your hand with theirs.'];
+const story = {
+  enter(E, p) {
+    this.replay = !!(p && p.replay); this.i = 0; this.t = 0; this.btnSkip = null;
+    if (!this.replay) E.save.set('openSeen', true);
+    ledger(E, 'story', { part: this.replay ? 'replay' : 'open' });
+    for (const id of Object.keys(CLIENTS)) portraitOf(id, 'happy');
+  },
+  update(dt) { this.t += dt; },
+  next(E) { if (this.i + 1 < OPEN_CARDS.length) { this.i++; this.t = 0; } else E.setScene('menu'); },
+  render(ctx, E) {
+    const O = A.open, cx = E.w / 2, w = Math.min(O.cardW, E.w - 2 * A.menu.margin), lines = wrapText(OPEN_CARDS[this.i], w - 2 * O.pad, FONT.mid);
+    const h = 2 * O.pad + O.art + O.gap + lines.length * O.lineH, k = ease.outCubic(clamp(this.t / O.fade, 0, 1)), x = cx - w / 2, y = E.safe.top + (E.h - E.safe.top - E.safe.bottom - h) / 2 + (1 - k) * 16;
+    ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
+    ctx.save(); ctx.globalAlpha = k;
+    paperCard(ctx, x, y, w, h);
+    const ay = y + O.pad;
+    if (this.i === 0) { // the anchor, inked
+      const idx = Math.max(0, STENCILS.findIndex((s) => s.name === 'Anchor')), bb = bboxOf(idx), fit = Math.min((w - 2 * O.pad) / bb.w, O.art / bb.h) * O.anchorFit;
+      ctx.save(); ctx.translate(cx, ay + O.art / 2); ctx.scale(fit, fit); ctx.translate(-bb.cx, -bb.cy);
+      ctx.fillStyle = P.ink; ctx.fill(miniPath(idx), 'evenodd'); ctx.restore();
+    } else { // six clients, three by two
+      const names = Object.keys(CLIENTS), gw = 3 * O.face + 2 * O.faceGap, gx = cx - gw / 2;
+      names.forEach((id, i) => {
+        const fx = gx + (i % 3) * (O.face + O.faceGap), fy = ay + Math.floor(i / 3) * (O.face + O.faceGap);
+        ctx.save(); ctx.beginPath(); rr(ctx, fx, fy, O.face, O.face, 8); ctx.clip();
+        drawFaceCrop(ctx, { id, who: CLIENTS[id] }, 'happy', fx, fy, O.face);
+        ctx.restore();
+        ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6; ctx.beginPath(); rr(ctx, fx, fy, O.face, O.face, 8); ctx.stroke();
+      });
+    }
+    const ty = ay + O.art + O.gap;
+    lines.forEach((ln, i) => label(ctx, ln, cx, ty + O.lineH * (i + 0.5), FONT.mid, P.textDark));
+    ctx.restore();
+    this.btnSkip = inkButton(ctx, 'Skip', E.w - E.safe.right - 16 - O.skipW / 2, E.safe.top + 10 + O.skipH / 2, O.skipW, O.skipH, false, FONT.small);
+  },
+  onTap(p, E) {
+    if (this.btnSkip && E.hit(this.btnSkip, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    if (this.t >= A.open.guard) { E.audio.play('tap', 0.6); this.next(E); }
+  },
+};
+
+// The reveal (PRD v0.7 C): after the finish, the view zooms out from the skin to the client. Your piece (ink, slips) shrinks into the skin patch of the client's portrait, the
+// portrait fills the card, the face reacts to the result, one line under it. The first tap jumps to the end frame (face and line showing), the next leaves for the result card.
+const PV = { s: 1, ox: 0, oy: 0 }; // the piece's view in the portrait's frame
+const reveal = {
+  enter(E, p) {
+    this.p = p; this.t = 0; this.cued = false; this.guardT = 0; this.c = castOf(S.st); this.mood = moodOf(p.over.stars, p.over.failed);
+    const pool = REACT[this.mood];
+    this.line = pool[Math.floor(Math.random() * pool.length)]; // which of the pool is cosmetic
+    this.L = { px: 0, py: 0, pw: 0, ph: 0, sy: 0, sh: 0, lines: null };
+    loadClient(this.c.id);
+  },
+  // The portrait card, as big as fits above the line strip; the card and the strip are centred together.
+  layout(E) {
+    const R = A.reveal, L = this.L, m = A.menu.margin, F = R.frame, availH = E.h - E.safe.top - E.safe.bottom - R.top - R.bottom;
+    const w0 = Math.min(R.portraitMaxW, E.w - 2 * m - 2 * F), lines = wrapText(this.line, w0 + 2 * F - 2 * R.stripPad, FONT.mid), sh = lines.length * R.lineH + 2 * R.stripPad;
+    const pw = Math.min(w0, ((availH - 2 * F - R.gap - sh) * 3) / 4), ph = (pw * 4) / 3, total = ph + 2 * F + R.gap + sh;
+    L.pw = pw; L.ph = ph; L.px = (E.w - pw) / 2; L.py = E.safe.top + R.top + Math.max(0, (availH - total) / 2) + F; L.sy = L.py + ph + F + R.gap; L.sh = sh; L.lines = lines;
+    return L;
+  },
+  update(dt, E) {
+    const R = A.reveal;
+    this.t += dt;
+    if (!this.cued && this.t >= R.zoomSec * R.crossTo) { this.cued = true; E.audio.play(R.cue[this.mood], R.cueVol); } // one soft cue as the face shows
+    if (this.t >= R.zoomSec + R.holdSec) this.leave(E);
+  },
+  leave(E) { E.setScene('over', this.p.over); },
+  onTap(p, E) {
+    const R = A.reveal;
+    if (E.time < this.guardT || this.t < R.tapGuard) return;
+    if (this.t < R.zoomSec) { this.t = R.zoomSec; this.guardT = E.time + R.tapGuard; } // the end frame: the face and the line are showing
+    else this.leave(E);
+  },
+  render(ctx, E) {
+    const R = A.reveal, L = this.layout(E), F = R.frame, k = clamp(this.t / R.zoomSec, 0, 1), e = ease.inOut(k), id = this.c.id, mood = this.mood;
+    ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
+    prepareCard(E);
+    const bb = bboxOf(S.idx), pv = view(E), pt = patchIn(id, mood, L.px, L.py, L.pw, L.ph);
+    const sf = Math.min(pt.w / bb.w, pt.h / bb.h), z = Math.pow(pv.s / sf, 1 - e); // zoom: the piece is as big as it was in play at the start, as big as the patch at the end
+    const ppx = pv.ox + bb.cx * pv.s, ppy = pv.oy + bb.cy * pv.s; // where the piece's centre sat in play
+    const cross = ease.inOut(clamp((k - R.crossFrom) / (R.crossTo - R.crossFrom), 0, 1)); // the skin gives way to the portrait
+    ctx.save();
+    ctx.translate(ppx + (pt.cx - ppx) * e, ppy + (pt.cy - ppy) * e); ctx.rotate(-pt.r * (1 - e)); ctx.scale(z, z); ctx.translate(-pt.cx, -pt.cy);
+    const lk = A.line;
+    ctx.globalAlpha = lk.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, L.px - F + lk.shadowDx, L.py - F + lk.shadowDy + 2, L.pw + 2 * F, L.ph + 2 * F, lk.radius); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.fillStyle = P.paper; ctx.beginPath(); rr(ctx, L.px - F, L.py - F, L.pw + 2 * F, L.ph + 2 * F, lk.radius); ctx.fill();
+    ctx.save();
+    ctx.beginPath(); ctx.rect(L.px, L.py, L.pw, L.ph); ctx.clip();
+    if (cross < 1) { // the piece as it was on the skin, turned with the limb, shrinking into the patch
+      PV.s = sf; PV.ox = pt.cx - sf * bb.cx; PV.oy = pt.cy - sf * bb.cy;
+      ctx.save(); ctx.translate(pt.cx, pt.cy); ctx.rotate(pt.r); ctx.translate(-pt.cx, -pt.cy);
+      drawPiece(ctx, E, PV, J.cardSlideSec * 0.99);
+      ctx.restore();
+    }
+    if (cross > 0) { // the client, with your ink on the skin (multiply, so the skin shows through) and the slips over it
+      ctx.globalAlpha = cross;
+      drawPortrait(ctx, id, mood, L.px, L.py, L.pw, L.ph);
+      syncInk(E, view(E).s);
+      const bx = Math.max(0, bb.x0 - A.ink.blitMargin), by = Math.max(0, bb.y0 - A.ink.blitMargin), bw = Math.min(T.designW, bb.x1 + A.ink.blitMargin) - bx, bh = Math.min(T.designH, bb.y1 + A.ink.blitMargin) - by, ik = S.layer.width / T.designW;
+      ctx.save();
+      ctx.translate(pt.cx, pt.cy); ctx.rotate(pt.r); ctx.scale(sf, sf); ctx.translate(-bb.cx, -bb.cy);
+      ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = cross * R.inkAlpha;
+      ctx.drawImage(S.layer, bx * ik, by * ik, bw * ik, bh * ik, bx, by, bw, bh);
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = cross;
+      drawMarks(ctx);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    ctx.strokeStyle = P.ink; ctx.lineWidth = lk.weight; ctx.beginPath(); rr(ctx, L.px - F + 3, L.py - F + 3, L.pw + 2 * F - 6, L.ph + 2 * F - 6, lk.radius - 3); ctx.globalAlpha = 0.8; ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.restore();
+    const la = clamp((this.t - R.lineFrom) / R.lineFade, 0, 1);
+    if (la > 0) { // the client's line, on a paper strip under the card
+      const sw = L.pw + 2 * F, sx = L.px - F;
+      ctx.globalAlpha = la;
+      ctx.fillStyle = P.paper; ctx.beginPath(); rr(ctx, sx, L.sy, sw, L.sh, lk.radius); ctx.fill();
+      ctx.strokeStyle = P.ink; ctx.lineWidth = lk.weight; ctx.globalAlpha = la * 0.8; ctx.stroke(); ctx.globalAlpha = la;
+      L.lines.forEach((ln, i) => label(ctx, ln, E.w / 2, L.sy + R.stripPad + R.lineH * (i + 0.5), FONT.mid, P.textDark));
+      ctx.globalAlpha = 1;
+    }
+  },
+};
+
+// The rank-up card (PRD v0.7 D): Rita, once per rank, between the result card and wherever the player was going.
+const rank = {
+  enter(E, p) {
+    this.p = p; this.t = 0; this.btn = null;
+    E.save.set('rankSeen', Math.max(E.save.get('rankSeen', 0), p.rank));
+    artImg('rita');
+    ledger(E, 'rank', { rank: RANKS[p.rank].name });
+    E.audio.play('win', A.rank.cueVol); E.haptic(J.finishHaptic);
+  },
+  update(dt) { this.t += dt; },
+  render(ctx, E) {
+    const R = A.rank, rk = RANKS[this.p.rank], cx = E.w / 2, w = Math.min(R.w, E.w - 2 * A.menu.margin), inner = w - 2 * R.pad, lines = wrapText(rk.line, inner, FONT.mid);
+    const rest = 2 * R.pad + R.gap + A.type.big + R.nameGap + lines.length * R.lineH + R.btnGap + R.btnH, availH = E.h - E.safe.top - E.safe.bottom - R.margin, portH = Math.min(R.portH, availH - rest), h = rest + portH;
+    const k = ease.outBack(clamp(this.t / R.popSec, 0, 1)), y = E.safe.top + (E.h - E.safe.top - E.safe.bottom - h) / 2, cy = y + h / 2;
+    ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(k, k); ctx.translate(-cx, -cy);
+    paperCard(ctx, cx - w / 2, y, w, h);
+    const px = cx - w / 2 + R.pad, py = y + R.pad;
+    ctx.fillStyle = P.drape; ctx.beginPath(); rr(ctx, px, py, inner, portH, 10); ctx.fill();
+    ctx.save(); ctx.beginPath(); rr(ctx, px, py, inner, portH, 10); ctx.clip();
+    const rh = portH - 8, rw = (rh * 2) / 3;
+    drawRita(ctx, cx - rw / 2, py + 8, rw, rh);
+    ctx.restore();
+    let ty = py + portH + R.gap + A.type.big / 2;
+    drawMedal(ctx, cx - R.medalDx, ty, R.medalR, this.p.rank, true);
+    label(ctx, rk.name, cx + R.nameDx, ty + 1, FONT.big, P.textDark);
+    ty += A.type.big / 2 + R.nameGap;
+    lines.forEach((ln, i) => label(ctx, ln, cx, ty + R.lineH * (i + 0.5), FONT.mid, P.textDark));
+    this.btn = inkButton(ctx, 'Continue', cx, y + h - R.pad - R.btnH / 2, inner, R.btnH, true, FONT.big);
+    ctx.restore();
+  },
+  onTap(p, E) {
+    if (this.t < A.rank.guard) return;
+    E.audio.play('tap');
+    E.setScene(this.p.next, this.p.params);
+  },
+};
+
+// The Portfolio (PRD v0.7 E): every stencil's best, worn by its client. The game keeps stars, not the ink, so each tile is a perfect fill of the stencil on the client,
+// the face by its best stars. Not yet passed: the outline only, the portrait faded.
+const folio = {
+  enter(E) { this.scroll = 0; this.drag = null; this.moved = 0; this.btnBack = null; this.tiles = []; },
+  geom(E, o = {}) {
+    const F = A.folio, m = A.menu.margin, tw = (E.w - 2 * m - (F.cols - 1) * F.gap) / F.cols, pw = tw - 2 * F.pad, ph = (pw * 4) / 3, th = F.pad + ph + F.starH + F.headH, rows = Math.ceil(STENCILS.length / F.cols);
+    const top = E.safe.top + A.missions.top, bot = E.h - E.safe.bottom - A.missions.bottom, content = rows * th + (rows - 1) * F.gap;
+    o.tw = tw; o.pw = pw; o.ph = ph; o.th = th; o.top = top; o.bot = bot; o.max = Math.max(0, content - (bot - top));
+    return o;
+  },
+  render(ctx, E) {
+    const F = A.folio, M = A.missions, m = A.menu.margin, p = progress(E), G = this.geom(E, this.G || (this.G = {})), L = A.line, cols = F.cols;
+    ctx.drawImage(boardLayer(E), 0, 0, E.w, E.h);
+    const count = `${STENCILS.filter((s, i) => p.stars[i]).length} / ${STENCILS.length}`, hy = E.safe.top + F.headY, hx = m + M.backW + F.headGap;
+    ctx.font = FONT.mid; const cw = ctx.measureText(count).width; ctx.font = FONT.big;
+    const room = E.w - m - cw - F.countGap - hx, headFont = ctx.measureText('Portfolio').width <= room ? FONT.big : FONT.mid; // Back, heading and count never touch
+    label(ctx, 'Portfolio', hx, hy, headFont, P.textDark, 'left');
+    label(ctx, count, E.w - m, hy, FONT.mid, P.textMute, 'right');
+    this.scroll = clamp(this.scroll, 0, G.max);
+    this.tiles = [];
+    ctx.save(); ctx.beginPath(); ctx.rect(0, G.top, E.w, G.bot - G.top); ctx.clip();
+    STENCILS.forEach((st, i) => {
+      const x = m + (i % cols) * (G.tw + F.gap), y = G.top + Math.floor(i / cols) * (G.th + F.gap) - this.scroll;
+      if (y + G.th < G.top || y > G.bot) return;
+      const c = castOf(st), stars = p.stars[i] || 0, locked = i > p.unlocked, got = stars > 0, mood = got ? moodOf(stars, false) : 'neutral';
+      ctx.globalAlpha = L.shadowAlpha; ctx.fillStyle = P.shadow; ctx.beginPath(); rr(ctx, x + L.shadowDx, y + L.shadowDy, G.tw, G.th, A.menu.cardR); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.fillStyle = got ? P.paper : P.paperShade; ctx.beginPath(); rr(ctx, x, y, G.tw, G.th, A.menu.cardR); ctx.fill();
+      ctx.strokeStyle = got ? P.ink : P.paperEdge; ctx.lineWidth = got ? 1.6 : 1; ctx.stroke();
+      const qx = x + F.pad, qy = y + F.pad;
+      ctx.save(); ctx.beginPath(); rr(ctx, qx, qy, G.pw, G.ph, 4); ctx.clip();
+      ctx.globalAlpha = got ? 1 : locked ? F.lockedAlpha : F.openAlpha;
+      drawPortrait(ctx, c.id, mood, qx, qy, G.pw, G.ph);
+      ctx.globalAlpha = 1;
+      const pt = patchIn(c.id, mood, qx, qy, G.pw, G.ph);
+      if (got) stencilInPatch(ctx, i, pt, F.inkAlpha, true); else if (!locked) stencilInPatch(ctx, i, pt, F.outlineAlpha, false);
+      ctx.restore();
+      if (locked) drawLock(ctx, x + G.tw / 2, qy + G.ph / 2);
+      else {
+        const step = (G.tw - 2 * F.starPad) / T.starPercents.length, sy = y + F.pad + G.ph + F.starH / 2 + 2;
+        for (let j = 0; j < T.starPercents.length; j++) drawStar(ctx, x + F.starPad + step * (j + 0.5), sy, step * F.starScale, j < stars);
+      }
+      this.tiles.push({ x, y, w: G.tw, h: G.th, idx: i, locked });
+    });
+    ctx.restore();
+    if (G.max > 0) {
+      const tr = G.bot - G.top, bh = Math.max(F.scrollMinH, (tr * tr) / (tr + G.max));
+      ctx.globalAlpha = 0.45; ctx.fillStyle = P.ink; ctx.beginPath(); rr(ctx, E.w - 6, G.top + (tr - bh) * (this.scroll / G.max), M.scrollBar, bh, 1.5); ctx.fill(); ctx.globalAlpha = 1;
+    }
+    this.btnBack = inkButton(ctx, 'Back', m + M.backW / 2, hy, M.backW, M.backH, true, FONT.mid);
+  },
+  onPointerDown(p) { this.drag = { y: p.y, scroll: this.scroll }; this.moved = 0; },
+  onPointerMove(p, E) { if (this.drag) { this.scroll = clamp(this.drag.scroll - (p.y - this.drag.y), 0, this.geom(E).max); this.moved = Math.max(this.moved, Math.abs(p.y - this.drag.y)); } },
+  onPointerUp() { this.drag = null; },
+  onTap(p, E) {
+    if (E.hit(this.btnBack, p)) { E.audio.play('tap'); E.setScene('missions'); return; }
+    const G = this.G, t = G && p.y >= G.top && p.y <= G.bot && this.tiles.find((q) => E.hit(q, p));
+    if (t && t.locked) E.toast(`Pass No. ${t.idx} first`);
   },
 };
 
 export const game = {
   slug: 'ink',
   title: 'Ink',
-  init() { loadTitleImage(); },
-  saveVersion: 9,
+  init(E) { loadTitleImage(); game.start = E.save.get('openSeen', false) ? 'menu' : 'story'; }, // a fresh save opens on the cold open
+  saveVersion: 10,
   // v1 saved only best percentages: derive stars and the unlock from them. v3 kept bests per needle mode; v4 has one needle, so the dynamic bests become the bests
   // and every earlier best (all made with the classic needle) is dropped. Stars, clean and unlocks are kept.
   migrate(data, fromVersion) {
@@ -2352,6 +2739,13 @@ export const game = {
       for (const id of ['steady-landing', 'set-piece']) { const g = badgeProgress(BADGES.find((b) => b.id === id), p); if (g.have >= g.need) badges[id] = true; else delete badges[id]; }
       data.badges = badges;
     }
+    if (fromVersion < 10) {
+      // v10 (PRD v0.7 G): `openSeen` (the cold open has shown) and `rankSeen` (the highest rank whose card has shown). A save that has been played has seen the open and holds its
+      // current rank already, so the ladder never cascades; a save with nothing played in it (settings only) still gets the open.
+      const stars = data.stars || {}, total = Object.values(stars).reduce((n, v) => n + (v || 0), 0);
+      const played = total > 0 || Object.keys(data.best || {}).length > 0 || (data.unlocked || 0) > 0 || Object.keys(data.daily || {}).length > 0;
+      data.openSeen = played; data.rankSeen = played ? rankOf(total) : 0;
+    }
     return data;
   },
   TUNING,
@@ -2368,7 +2762,7 @@ export const game = {
     { label: 'Tight', values: { timerMultEarly: 1.6, timerMultMid: 1.6, timerMultBoss: 1.6, timerMultFinal: 1.6, timerMultSkull: 1.35, timerGlobalMult: 1 } }, // the skull's standard 1.35 is already tighter than 1.6
   ],
   start: 'menu',
-  scenes: { menu, play, over, missions },
+  scenes: { menu, play, reveal, over, rank, missions, folio, story },
   // Read by tools/sim-ink.mjs so the simulator runs the real coverage and slip code.
   sim: { stencils: STENCILS, prep: prepStencil, landings: () => S.landings, cleanLand: () => S.cleanLand, parts: () => (S.g.part ? S.partDone.slice() : null), partPct: () => S.partN.map((n, i) => (100 * n) / S.g.partTotal[i]), timerFor, dailyTimer: () => dailyTimer(DAILY_ST), skins: () => ({ machine: SK.m.id, ink: SK.i.id }), percent, slips: () => S.slips, ended: () => S.ended, inked: () => S.inked, time: () => S.time, total: () => S.total, grid: () => S.g, radius: () => S.r, tickets: () => S.tickets, maxR: () => S.maxR, lifts99: () => S.lifts99, hint: () => S.hint, computeHint },
 };
