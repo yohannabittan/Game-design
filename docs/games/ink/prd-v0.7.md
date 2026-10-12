@@ -58,3 +58,13 @@ New stencils, timers or rules; voice; changes to the needle, slips, badges or sk
 - A v9 save migrates with no cold open and no rank card cascade.
 - The tattoo sits inside the skin patch on all 18 portraits (screenshot sheet).
 - `npm run smoke` passes; the play frame is not slower than ink-v27.
+
+## C2. The client stays (designer, 2026-10-12)
+
+The designer, after playing: "It's too bad that we see the person we tattooed for such a short time."
+
+- **The reveal no longer hands over to a separate result card.** Its end frame becomes the result card: the client's portrait, wearing your piece, stays as the card's main picture for as long as the card is up. It is sized as large as fits beside or above the stars.
+- **The rest of the card** fits around the portrait: the stars, the badge reveal, the client's line and the buttons (Retry, Next, Menu), all clear of the face and the piece.
+- **Taps.** The first tap jumps to the end of the zoom, as before. After that, the card waits for a button and never moves on by itself.
+- **The face changes with a better result.** A retry that beats the stars swaps to the better face, with the soft cue.
+- **Layouts** must fit at 360x640, 390x844 and 430x932 without overlap.
