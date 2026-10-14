@@ -2624,13 +2624,21 @@ function goalRow(E, x, y, w, g, cond, isNew) {
 // ---------- The story (PRD v0.6) ----------
 // Mochi's love letter (world.md). Pack 5 art is webp in assets/, loaded once at boot; a picture that has not loaded (or never
 // will, like Pack 13 until it lands) is drawn by the procedural mochi, daifuku and machine, so the story never waits on a file.
-const ART_FILES = ['mochi-love', 'mochi-happy', 'mochi-dizzy', 'mochi-determined', 'daifuku', 'daifuku-wave', 'mochi-maker'], ART_IMG = {};
-function loadArt() {
+const ART_FILES = ['mochi-love', 'mochi-happy', 'mochi-dizzy', 'mochi-determined', 'daifuku', 'daifuku-wave', 'mochi-maker'], ART_IMG = {}, ART_SRC = {};
+// Pack 13 is only ever a candidate (ADR-0020): in the dev channel, once the manifest has it, the ART tab's pick is drawn; in release, or
+// with no candidates, the procedural drawing stays. Every other name loads through E.art.src, so a pick can replace it too.
+const ART_CAND = ['daifuku-window', 'mochi-ring'];
+function loadArt(E) {
   if (typeof Image === 'undefined') return;
-  for (const id of ART_FILES) {
+  for (const id of ART_FILES.concat(ART_CAND)) {
+    const cand = ART_CAND.includes(id);
+    if (cand && !E.art.has(id)) { delete ART_IMG[id]; delete ART_SRC[id]; continue; }
+    const src = E.art.src(id, `assets/${id}.webp`);
+    if (ART_SRC[id] === src) continue;
+    ART_SRC[id] = src;
     const im = new Image();
-    im.onload = () => { if (im.naturalWidth) ART_IMG[id] = im; };
-    im.src = `assets/${id}.webp`;
+    im.onload = () => { if (im.naturalWidth && ART_SRC[id] === src) ART_IMG[id] = im; };
+    im.src = src;
   }
 }
 // A picture contained in a w x h box, standing on `bottom` at centre cx: the loaded webp, else the procedural drawing.
@@ -2768,6 +2776,7 @@ function windowFront(ctx, g, kind) {
 }
 // Daifuku at the tea-party window: Pack 13's `daifuku-window` when it has landed (drawArt), else her portrait in a drawn frame.
 function drawWindowInset(ctx, E, x, y, w, h, time) {
+  if (ART_IMG['daifuku-window']) { drawArt(ctx, E, 'daifuku-window', x + w / 2, y + h, w, h, time); return; }
   E.roundRect(x, y, w, h, 8, P.halo, '#9a6a4a');
   ctx.save(); ctx.beginPath(); ctx.rect(x + 3, y + 3, w - 6, h - 6); ctx.clip();
   drawArt(ctx, E, 'daifuku', x + w / 2, y + h - 3, h - 8, h - 8, time);
@@ -3067,7 +3076,8 @@ export const game = {
   },
   TUNING,
   init(E) { // the portraits load before the first frame; a fresh save opens on the cold open
-    loadArt();
+    loadArt(E);
+    E.art.on(() => loadArt(E)); // the dev channel's ART picks (ADR-0020): the manifest arrives after init, and a pick changes the file
     game.start = storySeen(E) >= T.story.version ? 'menu' : 'story';
   },
   // The TUNE panel (PRD v0.4 D): four strengths, and two whole feels. Floaty: light gravity, a soft launch, a long flat glide,

@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'launch-v16';
+const CACHE_VERSION = 'launch-v17';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'launch-v';
 const ASSETS = [
@@ -42,6 +42,7 @@ const NET_TIMEOUT = 3000;
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  if (new URL(req.url).pathname.includes('/docs/art/candidates/')) return; // dev-channel art candidates are never cached (ADR-0020)
   const fromCache = () => caches.match(req, { ignoreSearch: true }).then((hit) => hit || (req.mode === 'navigate' ? caches.match('./index.html') : undefined));
   const fromNet = fetch(req, { cache: 'no-cache' }).then((res) => {
     if (res && res.ok) { const copy = res.clone(); caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy)); }

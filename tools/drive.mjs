@@ -52,10 +52,11 @@ export async function open(slug, { w = 390, h = 844, save, offline = false, root
     }, [`game:${slug}`, env]);
   }
   const page = await ctx.newPage();
-  page.on('console', (m) => { if (m.type() === 'error') errs.push(`console: ${m.text()}`); });
+  const noManifest = (u) => /\/docs\/art\/candidates\/[^/]+\/candidates\.json$/.test(u); // a game with no art pack: expected 404 (ADR-0020)
+  page.on('console', (m) => { if (m.type() === 'error' && !noManifest(m.location().url || '')) errs.push(`console: ${m.text()}`); });
   page.on('pageerror', (e) => errs.push(`pageerror: ${e.message}`));
   page.on('requestfailed', (r) => errs.push(`failed: ${r.url()} (${r.failure()?.errorText})`));
-  page.on('response', (r) => { if (r.status() >= 400) errs.push(`${r.status()} ${r.url()}`); });
+  page.on('response', (r) => { if (r.status() >= 400 && !noManifest(r.url())) errs.push(`${r.status()} ${r.url()}`); });
 
   const booted = (timeout = 8000) => page.waitForFunction(() => window.__engine && window.__engine.frame > 5, null, { timeout });
   if (offline) await ctx.setOffline(true);

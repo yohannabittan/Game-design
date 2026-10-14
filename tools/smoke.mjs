@@ -48,14 +48,18 @@ for (const folder of folders) {
   const landscape = (meta.find((g) => g.slug === slug) || {}).orientation === 'landscape';
   const ctx = await browser.newContext({ ...(landscape ? devices['iPhone 13 landscape'] : devices['iPhone 13']), serviceWorkers: 'allow' });
   const page = await ctx.newPage();
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+  // A dev game with no art pack has no candidates.json: the engine asks, gets a 404 and carries on (ADR-0020). Not an error.
+  const noManifest = (u) => /\/docs\/art\/candidates\/[^/]+\/candidates\.json$/.test(u);
+  const requested = [];
+  page.on('request', (r) => requested.push(r.url()));
+  page.on('console', (m) => { if (m.type() === 'error' && !noManifest(m.location().url || '')) errors.push(`console: ${m.text()}`); });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('response', (r) => { if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`); });
+  page.on('response', (r) => { if (r.status() >= 400 && !noManifest(r.url())) errors.push(`${r.status()} ${r.url()}`); });
   try {
     await page.goto(`${base}/${folder}/`, { waitUntil: 'load' });
     await page.waitForFunction(() => window.__engine && window.__engine.frame > 5, null, { timeout: 5000 });
     const before = await page.evaluate(() => window.__engine.sceneName);
-    const info = await page.evaluate(() => { const E = window.__engine; return { channel: E.channel, version: E.releaseVersion, gslug: E.game.slug, hasLedger: !!(E.ledger && E.ledger.add), exportTab: !!E._exportTab, tune: !!E._tune, tuneShown: E._tuneShown, tuneTab: !!E._tuneTab, scene: E.sceneName, meta: (document.querySelector('meta[name="channel"]') || {}).content || null }; });
+    const info = await page.evaluate(() => { const E = window.__engine; return { channel: E.channel, version: E.releaseVersion, gslug: E.game.slug, hasLedger: !!(E.ledger && E.ledger.add), exportTab: !!E._exportTab, artTab: !!E._artTab, tune: !!E._tune, tuneShown: E._tuneShown, tuneTab: !!E._tuneTab, scene: E.sceneName, meta: (document.querySelector('meta[name="channel"]') || {}).content || null }; });
     if (before === 'menu' && !info.exportTab) errors.push('no EXPORT tab on the menu');
     if (!info.hasLedger) errors.push('engine has no ledger');
     else {
@@ -65,6 +69,7 @@ for (const folder of folders) {
     if (isRelease) {
       if (info.channel !== 'release' || info.meta !== 'release') errors.push(`release copy reports channel ${info.channel} (meta ${info.meta})`);
       if (!info.version) errors.push('release copy has no release-version meta');
+      if (info.artTab || requested.some((u) => u.includes('/docs/art/candidates/'))) errors.push('release copy shows the ART tab or asks for art candidates');
       if (info.tune && (info.tuneShown || info.tuneTab)) errors.push('TUNE tab is visible in the release channel before five title taps');
       const sw = await (await fetch(`${base}/${folder}/sw.js`)).text();
       const cache = (sw.match(/const CACHE_VERSION = '([^']*)'/) || [])[1];

@@ -2608,12 +2608,13 @@ const over = {
 // ---------- The cast on screen (PRD v0.7) ----------
 // Portraits (ADR-0015): looking at, never in play. Each is drawn once it has decoded; until then, or if it fails, a drawn face stands in.
 const IMGS = {};
+let ART = null; // E.art (ADR-0020): portraits load through ART.src, so a dev-channel pick can replace one
 function artImg(file) {
   let o = IMGS[file];
   if (o) return o;
   o = IMGS[file] = { img: new Image(), ok: false };
   if (!artReady(file)) return o; // Pack 16 art that has not landed is never requested: the drawn stand-in shows
-  o.img.src = `assets/${file}.webp`;
+  o.img.src = ART ? ART.src(file, `assets/${file}.webp`) : `assets/${file}.webp`;
   (o.img.decode ? o.img.decode() : Promise.reject()).then(() => { o.ok = true; }, () => { o.ok = o.img.complete && o.img.naturalWidth > 0; });
   return o;
 }
@@ -2917,7 +2918,7 @@ const folio = {
 export const game = {
   slug: 'ink',
   title: 'Ink',
-  init(E) { loadTitleImage(); game.start = E.save.get('openSeen', false) ? 'menu' : 'story'; }, // a fresh save opens on the cold open
+  init(E) { ART = E.art; loadTitleImage(); game.start = E.save.get('openSeen', false) ? 'menu' : 'story'; }, // a fresh save opens on the cold open
   saveVersion: 11,
   // v1 saved only best percentages: derive stars and the unlock from them. v3 kept bests per needle mode; v4 has one needle, so the dynamic bests become the bests
   // and every earlier best (all made with the classic needle) is dropped. Stars, clean and unlocks are kept.
