@@ -8,7 +8,8 @@
 // keeps his weapon's range, remembers your habits, and is winded and open when his stamina runs out. After each fell the bout is graded, the crowd's gold counted, and you
 // pick one of three seeded cards (four families of rule cards that make and spend Momentum and Bleed; the third is priced in gold), with the armourer's tent once after bout 3.
 // One run is one arena, picked on a ladder that opens as each arena's champion falls: the Pit's tight ring, the City's pairs (a second foe waits at the edge
-// and steps in when the first is winded or felled), the Grand Games ending on the Emperor's thumb; a crowd meter fills with style and drains on turtling,
+// and steps in when the first is winded or felled), the Colosseum's men and beasts (a lion that crouches and pounces, a bear that rears and mauls, read
+// by their bodies), the Grand Games ending on the Emperor's thumb; a crowd meter fills with style and drains on turtling,
 // throws the gold as coins, drives Glory's chant and decides the thumb. H is the fighter body unit (screen height x fighter.height, scaled by size); body units have x forward, y down,
 // origin at the feet. Particles are the game's own, so a hit-stop freezes them. The section map is docs/games/arena/CODEMAP.md.
 
@@ -67,7 +68,9 @@ const TUNING = {
   juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, strawPerDmg: 14, shake: 0.5, shakeOn: 1,
     slotStop: 0.06, slotSpark: 18, slotRing: 34, fellSlow: 1, fellMul: 0.35, fellZoom: 0.06, zoomIn: 0.2, dropAt: 0.35, dropDust: 18,
     perfRing: 150, perfShake: 2, readBurst: 28, lungeDust: 7, ghost: 0.22, ghostEvery: 0.05, scuff: 7, finSlow: 0.35, finMul: 0.4, banner: 0.9, paint: 1.2,
-    giantAt: 1.25, giantStep: 0.12, giantShake: 1.5, recoil: 0.14, shatter: 0.6 },
+    giantAt: 1.25, giantStep: 0.12, giantShake: 1.5, recoil: 0.14, shatter: 0.6,
+    // a beast: its roar on the tell (gain), the sand its pounce sprays from its hind feet (motes), the bear's maul landing (a thud x, a shake px)
+    roar: 0.12, sand: 22, maulThud: 1.7, maulShake: 4 },
   foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, hp: 22, tierHp: 0.1, champHp: 1.15, dmgCap: 3, coverShield: 0.2, coverGuard: 0.1 },  // hp scaled by size and tier; dmgCap: most half hearts one blow takes; cover radii (H) with and without a shield
   cover: { dur: 3.2, slide: 0.07, jabTol: 0.8 },  // seconds the foe's guard stays on the part you hit; seconds to slide there; radians a jab may stray from the slit's axis
   step: { circle: [-0.05, 0.07], period: 3.4, tau: 0.16, lead: 0.5, dodge: 0.3, dodgeDur: 0.7, dodgeCool: 2.4 },  // footwork (H): a slow drift around his range (period s); lead: seconds before a move he steps to striking distance; his sidestep from a lunge
@@ -83,6 +86,13 @@ const TUNING = {
     feint:  { show: 0.6, cock: 0.6, after: 0.85, min: 0.6, snap: 0.3, cost: 8, dmg: 1 },
     bash:   { wind: 0.7, cost: 15, drain: 30, blocked: 0.4, push: 0.2, w: 1.2 },  // drain: your stamina; blocked: drain fraction when you block it; push: H; w: weight for a shield-bearer
     net:    { wind: 0.95, cost: 14, dur: 2.2, slow: 2.6 },  // dur: seconds you are slowed; slow: hand lag multiplier while netted
+    // the beasts' moves. pounce: the lion's crouch (at = the tell's share spent crouching, gathering back H as it does), then the spring, at most leap H
+    // of ground, landing at its striking distance from you; a pounce that lands pushes you back. swipe: a paw raised, then swung (HIGH or MID). maul: the
+    // bear rears up (rear = the tell's share spent rising), then slams down (LOW or MID). shove: the bear's charge, a bash with its shoulder.
+    pounce: { wind: 1, cost: 16, dmg: 2, at: 0.72, back: 0.06, leap: 0.34 },
+    swipe:  { wind: 0.95, cost: 10, dmg: 1 },
+    maul:   { wind: 1, cost: 18, dmg: 2, rear: 0.6 },
+    shove:  { wind: 0.75, cost: 14, drain: 26, blocked: 0.4 },
   },
   // rhythm of an exchange: how many moves, the pause between them (s), windup multiplier, the pause after it (x the base gap), feint weight multiplier
   rhythm: [
@@ -124,6 +134,18 @@ const TUNING = {
     { id: 'dagger', name: 'DAGGER & NET', range: 0.04, strike: -0.16, speed: 0.85, dmg: 0.8, len: 0.17, moves: { chop: 1, thrust: 3, sweep: 1, combo: 2, feint: 2, net: 1.6 }, combo: [2, 3], shield: 0, drain: 0, wear: 1 },
   ],
   // armour sets: plates (min, max), a helmet, joint slots open
+  // the beasts (the Colosseum), foes with their own body and moves: no shield, gear, guards or feints. band: its size band (its stats follow TUNING.sizes
+  // at its varied scale, its profile rolls with prof's weights); draw: its body unit against a man's (drawn at the band's scale x draw); front, back: its
+  // nose and rump from its forepaws (body units); tall: its height against a man's (the frame's fit); range, strike, speed, dmg as a weapon's; wear: shield
+  // hits a block takes; moves: weights; zone: a swipe's (lion) or maul's (bear) chance of its first zone (HIGH, LOW); counter: the move it counters with
+  beasts: {
+    lion: { band: 'big', draw: 1.1, front: 0.26, back: 0.43, tall: 0.62, range: 0.03, strike: -0.15, speed: 0.8, dmg: 1, wear: 1, moves: { pounce: 2, swipe: 3 }, zone: 0.5, counter: 'swipe',
+      prof: { brute: 0.3, duelist: 3, glass: 3, tank: 0.3, balanced: 1 } },
+    bear: { band: 'giant', draw: 0.92, front: 0.28, back: 0.37, tall: 0.8, range: -0.05, strike: -0.22, speed: 1.2, dmg: 1.15, wear: 2, moves: { maul: 3, shove: 1.4 }, zone: 0.5, counter: 'shove',
+      prof: { brute: 3, duelist: 0.2, glass: 0.2, tank: 3, balanced: 1 } },
+  },
+  // a beast's bout: the frame shrinks (never under min) until the beast, at its home plus room H, needs the frame to slide left by at most slide H
+  beastFit: { room: 0.1, slide: 0.1, min: 0.7 },
   armourSets: [
     { id: 'light', name: 'LIGHT', plates: [1, 1], helmet: false, slots: 3 },
     { id: 'medium', name: 'MEDIUM', plates: [2, 3], helmet: false, slots: 4 },
@@ -230,7 +252,7 @@ const TUNING = {
     fist: 1,
   },
   // finishers: Momentum each costs; Execute works below this share of his health; Disarm's seconds
-  fin: { exec: 3, whirl: 2, breath: 2, disarm: 4, below: 0.5, disarmDur: 3 },
+  fin: { exec: 3, whirl: 2, breath: 2, disarm: 4, below: 0.5, disarmDur: 3, beastStun: 1 },  // beastStun: a beast has no weapon, so a disarm stuns it this long
   // Momentum pips, per bout: the most you hold, what each event gives (a perfect block, a feint read, a dodge in his tell, a laming);
   // a finisher fires on a long press of the sword thumb: held within slop px of where it landed for hold s, with no swing in the last still s
   mom: { max: 5, perfect: 1, read: 1, dodge: 1, lame: 1, hold: 0.45, slop: 14, still: 0.3 },
@@ -242,24 +264,27 @@ const TUNING = {
   foeGear: { n: [0, 1, 1, 2, 3], rar: [0, 1, 1, 2, 2], thorns: 8, bloodlust: 15 },
   // his gap guards: per bout, the chance of one, then of a second; each gap's weight (the gorget the most common); the gaps always left open
   guard: { one: [0, 0.35, 0.5, 0.65, 1], two: [0, 0.15, 0.25, 0.35, 0.4], w: { 'slot-neck': 4, 'slot-armpit': 1.5, 'slot-waist': 1.5, 'slot-elbow': 1.5, 'slot-knee': 1.5 }, open: 2 },
-  // crippling him: a lamed sword arm lengthens his wind-ups by arm; a lamed shield arm makes his cover slide cover x slower; lamed legs walk at legs x
-  lame: { arm: 0.2, cover: 2.5, legs: 0.55 },
+  // crippling him: a lamed sword arm lengthens his wind-ups by arm; a lamed shield arm makes his cover slide cover x slower; lamed legs walk at legs x.
+  // A beast: a lamed foreleg lengthens its wind-ups by arm; either leg lamed lengthens its pounce or charge's tell by pounce and its leap to legs x
+  lame: { arm: 0.2, cover: 2.5, legs: 0.55, pounce: 0.25 },
   // each arena's foes: shift = stat levels added to every bout's centre, feint = x his feint weight, guard = added to the chance of a first and a second
   // gap guard (never in bout 1), gear = pieces added to each foe's; ring = x the distance to both walls; pairs = the bout index (0-based) pairs start at
   arenas: {
     pit: { shift: 0, feint: 1, guard: [0, 0], gear: 0, ring: 0.7, pairs: 99 },
     city: { shift: 0.4, feint: 1.15, guard: [0.1, 0.05], gear: 0, ring: 1, pairs: 2 },
-    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99 },
+    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99, beasts: [1, 3] },  // beasts: the bouts (0-based) a beast fights
     games: { shift: 0.9, feint: 1.35, guard: [0.2, 0.1], gear: 1, ring: 1, pairs: 99 },
   },
   // the City's pairs: the waiting foe drawn at scale x his size and alpha, his centre x from the screen's edge (in his H), his body's half width (body, in his H);
   // the fighters' frame slides left until the one fighting stays clear of him (room = H his wall gives the one fighting past his mark, fbody = his half width in
   // his H); taunt = s his bubble shows before he steps in; enter = s before the one who steps in may swing; hp = x each pair foe's health
-  pairs: { scale: 0.6, alpha: 0.6, x: 0.3, body: 0.2, room: 0.1, fbody: 0.22, taunt: 0.5, enter: 1.2, hp: 1 },
+  pairs: { scale: 0.6, alpha: 0.6, x: 0.3, body: 0.2, room: 0.1, fbody: 0.22, taunt: 0.5, enter: 1.2, hp: 1, beastScale: 0.6 },  // beastScale: the waiting one's scale when a beast is in the pair
   // the crowd's favour, 0 to max, carried through the run: what each style event gives (a feint read, a perfect block, a slot hit, a laming, a bout with
   // no hits taken, two of your hits within comboWin s, a finisher), what turtling (his turtle read's measure) and backing off with no blow coming drain
   // per second; coins arc in from the stands at each step of favour; the Emperor's thumb reads the meter by thirds (bands)
   crowd: { max: 100, read: 10, perfect: 5, slot: 5, lame: 5, clean: 10, combo: 2, fin: 2, comboWin: 1, turtle: 4, back: 6, step: 20, coins: 5, coinCap: 15, bands: [1 / 3, 2 / 3] },
+  // the Colosseum's champions: Carpophorus sends in his lion when his health falls to send x his own; Mevia's spear also throws a net (its weight)
+  champs: { carpophorus: { send: 0.5 }, mevia: { net: 2.4 } },
   // the Emperor's thumb card: s the box takes to show, then the hand to rise, then the thumb to turn; s before a tap continues
   thumb: { box: 0.6, hand: 0.8, turn: 0.4, tap: 2.2 },
 };
@@ -296,15 +321,30 @@ const NEW_CHAMPS = {
   aquila: { name: "Aquila, the Emperor's Blade",
     tie: { revenge: "He carried the Emperor's torch.", debt: "The Emperor's purse. Your debt is in it.", freedom: "He holds the wooden sword, by the Emperor's leave.", glory: "Rome's own champion." },
     line: { revenge: 'The Emperor ordered it. I obeyed.', debt: 'Your debt bought my armour.', freedom: 'The wooden sword is mine to give. I will not.', glory: 'Rome has one name. Mine.' } },
+  // the Colosseum: the Beastmaster fights with his lion waiting at the edge (beast: it steps in when his health falls, TUNING.champs); the Huntress's
+  // spear also throws a net (weapon: hers whatever the roll)
+  carpophorus: { name: 'Carpophorus the Beastmaster', title: 'Carpophorus and his lion', beast: 'lion',
+    tie: { revenge: 'He came with the soldiers, and his cages.', debt: "He feeds the moneylender's beasts.", freedom: "A slave once. Now Rome's beasts obey him.", glory: 'Rome loves his lion more than any man.' },
+    line: { revenge: 'My lion was a cub that night. Look at him now.', debt: 'Your debt feeds my lion. Every day.', freedom: 'I tamed lions to be free. You are no lion.', glory: 'They came for my lion. Not for you.' } },
+  mevia: { name: 'Mevia the Huntress', weapon: 'spear',
+    tie: { revenge: 'She netted the ones who ran from your village.', debt: 'The moneylender sends her after debtors who run.', freedom: 'She hunts runaways for the bounty.', glory: "The Colosseum's favourite huntress." },
+    line: { revenge: 'My net caught your village. It will catch you.', debt: 'Debtors run. I bring them back in a net.', freedom: 'Freedom? I bring runaways back for a living.', glory: 'Rome loves a hunt. Tonight, you are the prey.' } },
 };
+// The beasts: each kind's name, the epithets its card rolls from, and what its tells look like, in one line on its card.
+const BEASTS = {
+  lion: { name: 'Lion', epithets: ['the Black-Maned', 'of Numidia', 'the Golden', 'of the Atlas', 'the Scarred', 'the Restless'], tell: 'Crouches, then pounces. Lifts a paw, then swipes.' },
+  bear: { name: 'Bear', epithets: ['of Dacia', 'the Mountain', 'of the North', 'the Grey-Muzzled', 'the Broad-Backed', 'of Britannia'], tell: 'Rears up, then mauls. Lowers its head, then shoves.' },
+};
+// a beast's name on its card: "A LION, THE GOLDEN" or "A BEAR OF DACIA"
+const beastTitle = (d) => `A ${BEASTS[d.beast].name}${d.epithet.startsWith('of ') ? ' ' : ', '}${d.epithet}`;
 // The ladder: one run is one arena. rows = which gauntlet rows its bouts roll from (the Grand Games skip the sparring partner); champs = its champion pool;
-// who = how its champion is named on the next arena's lock; soon = shown locked, not built yet. Its numbers are TUNING.arenas.
+// who = how its champion is named on the next arena's lock. Its numbers are TUNING.arenas.
 const ARENAS = [
   { id: 'pit', name: 'The Pit', short: 'Pit', who: 'Pit', place: 'Capua', twist: 'The tight ring', rows: [0, 1, 2, 3, 4], champs: CHAMPIONS, champLabel: 'Four champions',
     brutus: 'Everyone starts in the sand. Few leave it.' },
   { id: 'city', name: 'The City arena', short: 'City', who: 'City', place: 'Pompeii', twist: 'Two foes, one at a time', rows: [0, 1, 2, 3, 4], champs: ['twins', 'hermes'], champLabel: 'The Twins or Hermes',
     brutus: 'Pompeii likes a show. Give them one.' },
-  { id: 'rome', name: 'The Colosseum', short: 'Colosseum', who: 'Colosseum', place: 'Rome', twist: 'Men and beasts', rows: [0, 1, 2, 3, 4], champs: [], champLabel: 'Carpophorus or Mevia', soon: true,
+  { id: 'rome', name: 'The Colosseum', short: 'Colosseum', who: 'Colosseum', place: 'Rome', twist: 'Men and beasts', rows: [0, 1, 2, 3, 4], champs: ['carpophorus', 'mevia'], champLabel: 'Carpophorus or Mevia',
     brutus: "Rome. Fifty thousand eyes. Don't blink." },
   { id: 'games', name: 'The Grand Games', short: 'Games', who: 'Grand Games', place: 'Rome', twist: "The Emperor's thumb", rows: [1, 2, 3, 4], champs: ['aquila'], champLabel: 'Aquila',
     brutus: 'The Emperor himself. I never got this far.' },
@@ -385,6 +425,13 @@ const CITY_END = {
   revenge: (n) => `In Pompeii, ${n} learned who gave the order: Rome.`,
   glory: (n) => `Pompeii chanted ${n} until dawn. Rome heard it.`,
 };
+// The Colosseum's ending, one per reason: Rome has seen you, and the Emperor's games are next.
+const ROME_END = {
+  freedom: (n) => `${n} walked out past the lions' cages. The wooden sword waits at the Emperor's games.`,
+  debt: (n) => `The Colosseum paid ${n} in gold. The moneylender counted it twice.`,
+  revenge: (n) => `In the Colosseum, ${n} heard the name at last: Aquila, the Emperor's Blade.`,
+  glory: (n) => `Fifty thousand voices learned the name ${n}. The Emperor heard it too.`,
+};
 // The Grand Games end on the Emperor's thumb: the true ending for your reason at a full meter, a cold nod, or thumbs down.
 const TRUE_END = {
   debt: 'The Emperor pays your debt himself. The moneylender bows.',
@@ -395,10 +442,11 @@ const TRUE_END = {
 const THUMB_END = ['Free, but forgotten. You walk out to silence.', 'The Emperor nods. Rome will forget you by spring.'];
 // the crowd's band: 0 low, 1 middling, 2 full (the top third)
 const bandOf = (fav) => { const B = TUNING.crowd.bands, k = fav / TUNING.crowd.max; return k >= B[1] ? 2 : k >= B[0] ? 1 : 0; };
-// how a won run ends: the Pit's epilogue, the City's, or the Emperor's thumb
+// how a won run ends: the Pit's epilogue, the City's, the Colosseum's, or the Emperor's thumb
 function endingOf(arenaId, me, fav) {
   if (arenaId === 'games') { const b = bandOf(fav); return b === 2 ? TRUE_END[me.reason] : THUMB_END[b]; }
   if (arenaId === 'city') return CITY_END[me.reason](me.name, me.female);
+  if (arenaId === 'rome') return ROME_END[me.reason](me.name);
   return EPILOGUE[me.reason](me.name, me.female);
 }
 const storyLine = (me) => `${me.name}, ${ORIGINS[me.origin].text}. Fights for: ${REASON_NAME[me.reason]}.`;
@@ -502,6 +550,48 @@ const SLOTS = [
   { id: 'slot-knee', label: 'KNEE', shape: 'rect', x: 0.075, y: -0.20, w: 0.045, h: 0.06, axis: 0.3 },
 ];
 const ARM_LEN = 0.30, SHOULDER = [0.05, -0.67];
+// A beast's body, side view, in its own body units (x forward, y down, origin at its near forepaw). Its parts ride frames set by its pose (poseBeast):
+// 'body' (the torso, rearing about the hip), 'head' (the body's, dipped) and the near foreleg 'legF' (from the shoulder joint, like an arm); the hind
+// legs stand on the ground. Its gaps are its soft spots: the throat, the foreleg's joint, and the flank (lion) or belly (bear). sh, hp: the shoulders and
+// hips (near, far); feet: where each foot stands (fore near, fore far, hind near, hind far); leg: the upper and lower bone of a fore and a hind leg.
+const BEAST_BODY = {
+  lion: {
+    parts: [
+      { id: 'head', shape: 'circle', x: 0.17, y: -0.4, r: 0.075, frame: 'head' },
+      { id: 'chest', shape: 'rect', x: 0.04, y: -0.3, w: 0.18, h: 0.18, frame: 'body' },
+      { id: 'belly', shape: 'rect', x: -0.15, y: -0.29, w: 0.2, h: 0.15, frame: 'body' },
+      { id: 'legF', shape: 'rect', x: 0, y: 0.145, w: 0.06, h: 0.29, joint: [0.05, -0.29] },
+      { id: 'legs', shape: 'rect', x: -0.27, y: -0.16, w: 0.12, h: 0.32 },
+    ],
+    slots: [
+      { id: 'slot-throat', label: 'THROAT', shape: 'rect', x: 0.12, y: -0.335, w: 0.045, h: 0.06, axis: 0.5, frame: 'body' },
+      { id: 'slot-joint', label: 'JOINT', shape: 'rect', x: 0, y: 0.13, w: 0.065, h: 0.035, axis: 0, frame: 'legF' },
+      { id: 'slot-flank', label: 'FLANK', shape: 'rect', x: -0.06, y: -0.3, w: 0.035, h: 0.08, axis: 0.35, frame: 'body' },
+    ],
+    sh: [[0.05, -0.29], [0.08, -0.3]], hp: [[-0.26, -0.27], [-0.22, -0.28]], feet: [0.04, 0.09, -0.27, -0.22], leg: [[0.15, 0.15], [0.15, 0.16]], hip: [-0.25, -0.27],
+  },
+  bear: {
+    parts: [
+      { id: 'head', shape: 'circle', x: 0.17, y: -0.42, r: 0.08, frame: 'head' },
+      { id: 'chest', shape: 'rect', x: 0.03, y: -0.32, w: 0.2, h: 0.22, frame: 'body' },
+      { id: 'belly', shape: 'rect', x: -0.16, y: -0.31, w: 0.2, h: 0.2, frame: 'body' },
+      { id: 'legF', shape: 'rect', x: 0, y: 0.15, w: 0.08, h: 0.3, joint: [0.05, -0.3] },
+      { id: 'legs', shape: 'rect', x: -0.27, y: -0.18, w: 0.13, h: 0.36 },
+    ],
+    slots: [
+      { id: 'slot-throat', label: 'THROAT', shape: 'rect', x: 0.125, y: -0.345, w: 0.045, h: 0.06, axis: 0.5, frame: 'body' },
+      { id: 'slot-joint', label: 'JOINT', shape: 'rect', x: 0, y: 0.14, w: 0.075, h: 0.035, axis: 0, frame: 'legF' },
+      { id: 'slot-belly', label: 'BELLY', shape: 'rect', x: -0.13, y: -0.225, w: 0.12, h: 0.035, axis: 0, frame: 'body' },
+    ],
+    sh: [[0.05, -0.3], [0.08, -0.31]], hp: [[-0.26, -0.28], [-0.22, -0.29]], feet: [0.05, 0.1, -0.27, -0.22], leg: [[0.15, 0.16], [0.15, 0.17]], hip: [-0.25, -0.28],
+  },
+};
+// a beast's parts: every gap open (a beast wears no guard)
+function beastParts(kind) {
+  const K = BEAST_BODY[kind], out = K.parts.map((d) => mkPart(d, false));
+  for (const d of K.slots) { const q = mkPart(d, false); q.slot = true; out.push(q); }
+  return out;
+}
 
 // The three zones: where the blow lands (body units), the shield height that blocks it.
 const ZONES = [
@@ -521,7 +611,7 @@ const POSES = {
 };
 const ZONE_POSE = { high: 'chop', mid: 'slash', low: 'sweep' };
 const MOVE_ZONE = { chop: 'high', thrust: 'mid', sweep: 'low' };
-const POSE_NAME = { chop: 'CHOP', slash: 'SLASH', sweep: 'SWEEP', thrust: 'THRUST', bash: 'BASH', net: 'NET' };
+const POSE_NAME = { chop: 'CHOP', slash: 'SLASH', sweep: 'SWEEP', thrust: 'THRUST', bash: 'BASH', net: 'NET', pounce: 'POUNCE', swipe: 'SWIPE', maul: 'MAUL', shove: 'SHOVE' };
 const REST_TH = 0.9;
 
 // Your plates follow your rolled set: n of head, chest and legs (the parts the high, mid and low blows land on), heavy also plates the shield arm.
@@ -647,15 +737,16 @@ function rollFighter(rng, tier, weapon, used, A = ARENAS[0], at = tier) {
   used.add(`${band}${weapon.id}${set.id}`);
   const size = sizeOf(band, rng.range(-1, 1)), st = rollStats(rng, tier, size, A);
   const pick = G.champion ? rng.pick(A.champs) : rng.pick(NAMES), C = NEW_CHAMPS[pick];
+  if (C && C.weapon) weapon = TUNING.weapons.find((z) => z.id === C.weapon);
   return { tier, at, name: C ? C.name : pick, ck: C ? pick : null, title: C ? C.title || null : null, pair: null, champion: !!G.champion, size, prof: st.prof, weapon, set, str: st.v[0], spd: st.v[1], sta: st.v[2],
     shield: rng.chance(weapon.shield), mace: rng.chance(0.5), partSeed: (rng() * 2 ** 32) >>> 0 };
 }
 // His stats (TUNING.foeStats): the row's points (plus a champion's, plus the arena's shift for each stat), split by a profile rolled with his band's
-// weights, a little seeded jitter, each 1 to 5. His weakest stat (on a tie, the one his profile gives least) is held to the weakness cap, and its spare
-// points go to the others while they have room, so every foe has an opening to read.
-function rollStats(rng, tier, size, A) {
+// weights (a beast's own, w), a little seeded jitter, each 1 to 5. His weakest stat (on a tie, the one his profile gives least) is held to the weakness cap,
+// and its spare points go to the others while they have room, so every foe has an opening to read.
+function rollStats(rng, tier, size, A, w = null) {
   const F = TUNING.foeStats, P = TUNING.profiles, G = GAUNTLET[tier], cap = G.champion ? F.champWeak : F.weak;
-  const prof = pickW(rng, Object.keys(P).map((id) => [id, P[id].w[size.band]])), sh = P[prof].share;
+  const prof = pickW(rng, Object.keys(P).map((id) => [id, w ? w[id] : P[id].w[size.band]])), sh = P[prof].share;
   const budget = clamp(F.budget[tier] + (G.champion ? F.champ : 0) + Math.round(3 * TUNING.arenas[A.id].shift), 3, 10 + cap);
   const raw = sh.map((q) => budget * q + rng.range(-F.jitter, F.jitter)), v = raw.map((r) => clamp(Math.floor(r), 1, 5)), I = [0, 1, 2];
   const sum = () => v[0] + v[1] + v[2], left = (i) => raw[i] - v[i];
@@ -674,8 +765,21 @@ function profileOf(d) {
   const P = TUNING.profiles, t = d.str + d.spd + d.sta, err = (id) => P[id].share.reduce((e, q, i) => e + (q - [d.str, d.spd, d.sta][i] / t) ** 2, 0);
   return Object.keys(P).sort((a, b) => err(a) - err(b))[0];
 }
-// a fighter from a saved rival record, on the rolled one's place
+// A beast of the gauntlet: its kind's band at a seeded height in it, its stats from the row's points split by a profile its kind leans to (the weakness
+// rule holds), a seeded epithet. Its "weapon" is its kind's numbers (TUNING.beasts) and its hide is no armour: no plates, no shield, no gear, no guard.
+const beastWeapon = (kind) => ({ ...TUNING.beasts[kind], id: kind, name: 'CLAWS', len: 0, combo: [1, 1], shield: 0, drain: 0 });
+const beastSet = (kind) => ({ id: 'beast', name: 'HIDE', plates: [0, 0], helmet: false, slots: BEAST_BODY[kind].slots.length });
+function rollBeast(rng, tier, kind, A, at) {
+  const B = TUNING.beasts[kind], size = sizeOf(B.band, rng.range(-1, 1)), st = rollStats(rng, tier, size, A, B.prof);
+  return { tier, at, name: BEASTS[kind].name, ck: null, title: null, pair: null, champion: false, beast: kind, epithet: rng.pick(BEASTS[kind].epithets), size, prof: st.prof,
+    weapon: beastWeapon(kind), set: beastSet(kind), str: st.v[0], spd: st.v[1], sta: st.v[2], shield: false, mace: false, partSeed: (rng() * 2 ** 32) >>> 0 };
+}
+// a fighter from a saved rival record, on the rolled one's place (a beast, the Beastmaster's lion, from its own)
 function fromRival(c, rv) {
+  if (rv.beast && BEASTS[rv.beast] && BAND(rv.size)) {
+    return { ...c, name: BEASTS[rv.beast].name, ck: null, title: null, champion: false, beast: rv.beast, epithet: rv.epithet || BEASTS[rv.beast].epithets[0], size: sizeOf(rv.size, rv.vary || 0), prof: rv.prof || profileOf(rv),
+      weapon: beastWeapon(rv.beast), set: beastSet(rv.beast), str: rv.str, spd: rv.spd, sta: rv.sta, shield: false, mace: false, partSeed: rv.partSeed >>> 0, gaps: {} };
+  }
   const T = TUNING, weapon = T.weapons.find((z) => z.id === rv.weapon), set = T.armourSets.find((z) => z.id === rv.set);
   if (!BAND(rv.size) || !weapon || !set) return null;
   return { ...c, name: rv.name, ck: rv.ck || null, title: rv.title || null, rival: true, champion: rv.champion != null ? rv.champion : c.champion, size: sizeOf(rv.size, rv.vary || 0), prof: rv.prof || profileOf(rv), weapon, set, str: rv.str, spd: rv.spd, sta: rv.sta, shield: !!rv.shield, mace: !!rv.mace, partSeed: rv.partSeed >>> 0, gaps: rv.gaps || {} };
@@ -696,8 +800,16 @@ function rollGauntlet(seed, rival, A = ARENAS[0]) {
     for (let k = 0; k < 6 && (!q || g.some((o) => o.name === q.name || (o.pair && o.pair.name === q.name))); k++) q = rollFighter(pr, row, pr.pick(W), used, A, i);
     d.pair = twin ? { ...q, name: NEW_CHAMPS.twins.pair, ck: null, title: null } : { ...q, champion: false, ck: null, title: null };
   });
+  // the Colosseum: its beast bouts are a lion or a bear (on their own stream), and the Beastmaster's lion waits at the edge as his partner
+  const br = makeRng(seed ^ 0x1f83d9ab), AT = TUNING.arenas[A.id];
+  for (const i of AT.beasts || []) if (g[i]) g[i] = rollBeast(br, g[i].tier, br.pick(Object.keys(BEASTS)), A, i);
+  g.forEach((d, i) => { const C = NEW_CHAMPS[d.ck]; if (C && C.beast) { d.pair = rollBeast(pr, d.tier, C.beast, A, i); d.sends = true; } });
   const c = g[g.length - 1], rv = rival && fromRival(c, rival);
-  if (rv) { g[g.length - 1] = rv; rv.pair = rival.pair ? fromRival({ ...(c.pair || c), pair: null }, rival.pair) || c.pair : c.pair; }
+  if (rv) {
+    // a rival keeps his own partner; one who sends no beast never borrows the rolled Beastmaster's lion
+    const C = NEW_CHAMPS[rv.ck], cp = c.pair && c.pair.beast && !(C && C.beast) ? null : c.pair;
+    g[g.length - 1] = rv; rv.sends = !!(C && C.beast); rv.pair = rival.pair ? fromRival({ ...(c.pair || c), pair: null }, rival.pair) || cp : cp;
+  }
   // his gear and gap guards, on their own stream so the fighters above roll as they always did (a pair's second on another); a rival keeps the gear he wore
   const gr = makeRng(seed ^ 0x2f6b9a17), gp = makeRng(seed ^ 0x3c6ef373);
   const kit = (d, src, rec) => { const gear = rollGear(src, d, d.tier, A), guards = rollGuards(src, d, d.tier, A); d.gear = d.rival && rec && rec.gear ? rec.gear.slice() : gear; d.guards = guards; };
@@ -706,10 +818,11 @@ function rollGauntlet(seed, rival, A = ARENAS[0]) {
   return g;
 }
 const rivalOf = (d) => ({ name: d.name, ck: d.ck || null, title: d.title || null, champion: !!d.champion, size: d.size.id, vary: d.size.vary, prof: d.prof, weapon: d.weapon.id, set: d.set.id, str: d.str, spd: d.spd, sta: d.sta, shield: d.shield, mace: d.mace, partSeed: d.partSeed,
-  gear: (d.gear || []).slice(), gaps: { ...(d.gaps || {}) }, pair: d.pair ? rivalOf(d.pair) : null });
+  gear: (d.gear || []).slice(), gaps: { ...(d.gaps || {}) }, pair: d.pair ? rivalOf(d.pair) : null, ...(d.beast ? { beast: d.beast, epithet: d.epithet } : {}) });
 // His gear from the deck: more pieces in later bouts, one a slot, up to the bout's rarity; a champion also wears a legendary. A shield piece only on a
 // shield-bearer, and the cape that bans the shield only on a man without one.
 function rollGear(rng, d, i, A = ARENAS[0]) {
+  if (d.beast) return [];
   const F = TUNING.foeGear, out = [], fams = ['wall', 'blood', 'dancer', 'brute', 'rare'], n = F.n[i] + TUNING.arenas[A.id].gear;
   const ok = (c) => c.slot && !out.some((id) => CARD[id].slot === c.slot) && (c.slot !== 'shield' || d.shield) && !(c.bans === 'shield' && d.shield);
   if (d.champion) { const L = DECK.filter((c) => c.key && ok(c)); out.push(rng.pick(L).id); }
@@ -722,6 +835,7 @@ function rollGear(rng, d, i, A = ARENAS[0]) {
 // His gap guards: never in bout 1, at least TUNING.guard.open gaps left open, a chance of one (and then of a second) rising by bout, the champion always one,
 // the gorget the most common. A rival first guards the gap you hit most against him.
 function rollGuards(rng, d, i, A = ARENAS[0]) {
+  if (d.beast) return [];
   const G = TUNING.guard, S = TUNING.arenas[A.id].guard, open = foeParts(makeRng(d.partSeed), d.set).filter((q) => q.slot).map((q) => q.d.id), room = Math.max(0, open.length - G.open), out = [];
   let n = rng.chance(Math.min(1, G.one[i] + S[0])) ? (rng.chance(Math.min(1, G.two[i] + S[1])) ? 2 : 1) : 0;
   if (d.champion) n = Math.max(n, 1);
@@ -738,7 +852,7 @@ function guardParts(parts, guards) { for (const q of parts) if (q.slot && (guard
 function makeFoe(d, pair) {
   const FT = TUNING.foe, f = { ...d };
   f.wname = d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
-  f.parts = guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards); f.look = foeLook(d); f.cloak = null;
+  f.parts = d.beast ? beastParts(d.beast) : guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards); f.look = d.beast ? null : foeLook(d); f.cloak = null; f.bp = null;
   f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1) * (pair ? TUNING.pairs.hp : 1)); f.hp = f.maxHp; f.shown = f.hp;
   f.staMax = TUNING.foeSta.base + TUNING.foeSta.per * d.sta; f.sta = f.staMax; f.staT = 9; f.staShown = 1;
   f.home = d.weapon.range + d.size.reach; f.strike = d.weapon.strike + d.size.reach;
@@ -748,7 +862,7 @@ function makeFoe(d, pair) {
 function newRack(E) {
   const d = state.gauntlet[state.rack];
   state.foe = makeFoe(d, !!d.pair); state.edge = d.pair ? makeFoe(d.pair, true) : null;
-  state.swapping = false; state.tauntT = 0; state.taunt = '';
+  state.swapping = false; state.tauntT = 0; state.taunt = ''; state.sent = false; state.sendT = 0;
   state.rng = makeRng(state.seed + state.rack * 7919);
   state.cover = null; state.step = { x: state.foe.home, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
   state.pop = 1; state.fallT = 0; state.sw = null; state.move = null; state.plan = null; state.stun = 0; state.stagger = 0; state.kickA = 0; state.kickV = 0;
@@ -826,22 +940,33 @@ function resumeRun(E, run) {
 
 // ====== FIGHTER MODEL: layout, your body and sword arm, footwork, defence, the foe's body ======
 // ----- layout and frames -----
+// In a pairs bout the waiting foe takes the screen's right edge, so the frame slides left (by the worst of the two foes in either place) until the one
+// fighting keeps clear of him when he gives ground to his wall. A beast is long: in its bout the frame also shrinks (TUNING.beastFit) until it fits with
+// a short slide, the beast at its home plus room, or the pair in either place.
 function lay(E) {
-  const F = TUNING.fighter, kMax = Math.max(state.me ? meSize().scale : 1, state.foe && state.foe.size ? state.foe.size.scale : 1), H = E.h * F.height * Math.min(1, F.fit / kMax), half = (E.w * F.gap + 2 * F.body * H) / 2;
+  const F = TUNING.fighter, f = state.foe, e = state.edge, kMax = Math.max(state.me ? meSize().scale : 1, f && f.size ? (f.beast ? drawK(f) * beastOf(f).tall : f.size.scale) : 1);
+  let H = E.h * F.height * Math.min(1, F.fit / kMax);
   // the frame is centred on the space right of the left column (partly, so the foe keeps room too)
-  const R = colRect(E), c0 = E.w / 2 + TUNING.col.frame * ((R.x + R.w + (E.w - E.safe.right)) / 2 - E.w / 2), cx = c0 - pairShift(E, H, half, c0);
+  const R = colRect(E), c0 = E.w / 2 + TUNING.col.frame * ((R.x + R.w + (E.w - E.safe.right)) / 2 - E.w / 2), g2 = E.w * F.gap / 2;
+  const pair = !!(e && f && f.size && e.size), solo = !pair && !!(f && f.beast), lim = E.w - E.safe.right - (pair ? 4 : 12);
+  // how far right of the frame's edge each arrangement reaches (H): the one fighting at his wall, and the one waiting
+  const need = pair ? Math.max(reachR(f) + waitW(e), reachR(e) + waitW(f)) : solo ? f.home + TUNING.beastFit.room + rearOf(f) : 0;
+  if ((f && f.beast) || (e && e.beast)) { const BF = TUNING.beastFit; H = clamp((lim - c0 - g2) / (F.body + need - BF.slide), H * BF.min, H); }
+  const half = g2 + F.body * H, cx = c0 - (pair || solo ? Math.max(0, c0 + half + need * H - lim) : 0);
   return { H, floor: E.h * F.floor, x0: cx - half, x1: cx + half };
 }
-// In a pairs bout the waiting foe takes the screen's right edge, so the frame slides left (by the worst of the two foes in either place) until the one
-// fighting keeps clear of him when he gives ground to his wall.
-const waitLeft = (E, H, e) => E.w - E.safe.right - (TUNING.pairs.x + TUNING.pairs.body) * H * e.size.scale * TUNING.pairs.scale;
-const foeRight = (H, f) => (f.home + TUNING.pairs.room + (f.size.scale - 1) * TUNING.fighter.body + TUNING.pairs.fbody * f.size.scale) * H;
-function pairShift(E, H, half, cx) {
-  const f = state.foe, e = state.edge;
-  if (!e || !f || !f.size || !e.size) return 0;
-  const x1 = cx + half;
-  return Math.max(0, x1 + foeRight(H, f) - waitLeft(E, H, e) + 4, x1 + foeRight(H, e) - waitLeft(E, H, f) + 4);
-}
+// a beast's numbers (TUNING.beasts), or null for a man
+const beastOf = (f) => (f && f.beast ? TUNING.beasts[f.beast] : null);
+// the scale a foe is drawn at: his band's, and a beast's body unit against a man's
+const drawK = (f) => f.size.scale * (f.beast ? TUNING.beasts[f.beast].draw : 1);
+// how far a foe reaches behind the line a medium man's near edge stands on (H): a man's body, or a beast from nose to rump
+function rearOf(f) { const B = beastOf(f), k = drawK(f); return B ? k * (B.front + B.back) - TUNING.fighter.body : (k - 1) * TUNING.fighter.body + TUNING.pairs.fbody * k; }
+// the one fighting in a pair, at his wall (his home and the room past it), and the one waiting at the edge: his centre from the edge, and his near half
+const reachR = (f) => f.home + TUNING.pairs.room + rearOf(f);
+const pairScale = () => ((state.foe && state.foe.beast) || (state.edge && state.edge.beast) ? TUNING.pairs.beastScale : TUNING.pairs.scale);
+const edgeX = (f) => (f.beast ? beastOf(f).back + 0.06 : TUNING.pairs.x);
+const waitW = (f) => (edgeX(f) + (f.beast ? beastOf(f).front : TUNING.pairs.body)) * drawK(f) * pairScale();
+const waitLeft = (E, H, e) => E.w - E.safe.right - waitW(e) * H;
 // you are drawn at your rolled size the same way: your near edge stays put
 function youF(E) { const L = lay(E), y = state.you, k = meSize().scale; return { x: L.x0 + state.foot.pos * L.H + y.lunge - y.push * L.H - (k - 1) * TUNING.fighter.body * L.H, y: L.floor + y.hopY, a: y.a, dir: 1, H: L.H * k }; }
 // The arena's edges, in H from each fighter's mark: how far you can give ground (negative) and how far he can, trimmed so both stay on screen, then
@@ -849,8 +974,8 @@ function youF(E) { const L = lay(E), y = state.you, k = meSize().scale; return {
 function walls(E) {
   const L = lay(E), T = TUNING.foot, k = state.foe.size ? state.foe.size.scale : 1, ring = bout().spar ? 1 : arenaT().ring;
   const back = Math.min(T.room[0], Math.max(0.1, (L.x0 - 0.2 * L.H * meSize().scale - colRect(E).x - colRect(E).w - T.margin) / L.H));
-  const fore = state.edge && state.edge.size ? Math.min(T.room[1], Math.max(0.1, (waitLeft(E, L.H, state.edge) - 4 - L.x1 - ((k - 1) * TUNING.fighter.body + TUNING.pairs.fbody * k) * L.H) / L.H))
-    : Math.min(T.room[1], Math.max(0.1, (E.w - E.safe.right - 24 - L.x1 - 0.3 * L.H * k) / L.H));
+  const f = state.foe, fore = state.edge && state.edge.size ? Math.min(T.room[1], Math.max(0.1, (waitLeft(E, L.H, state.edge) - 4 - L.x1 - rearOf(f) * L.H) / L.H))
+    : Math.min(T.room[1], Math.max(0.1, (E.w - E.safe.right - (f.beast ? 12 : 24) - L.x1 - (f.beast ? rearOf(f) : 0.3 * k) * L.H) / L.H));
   return { back: -back * ring, fore: fore * ring };
 }
 // the nearest the two can stand: the clear gap between the bodies at the marks, less a little air
@@ -859,12 +984,15 @@ const gMin = (E) => -(E.w * TUNING.fighter.gap) / lay(E).H + TUNING.foot.close;
 const gapNow = () => state.step.x - state.foot.pos;
 // your body's place in the same units: your feet plus the lunge's stride; his reach is measured to it
 const bodyPos = () => state.foot.pos + state.you.lungeK * TUNING.lunge.stride * meSize().scale;
-const inReach = () => state.step.x - bodyPos() <= state.foe.strike + TUNING.foot.reach;
+const inReach = (extra = 0) => state.step.x - bodyPos() <= state.foe.strike + TUNING.foot.reach + extra;
 const myH = (E) => lay(E).H * meSize().scale;
 const myArm = (E) => TUNING.arm.len * myH(E) * meSize().arm;
 const myBlade = (E) => TUNING.blade.len * myH(E) * meWeapon().reach;
-// the foe is drawn at his size: the frame's unit scales, his near edge stays where a medium fighter's would be
-function foeF(E) { const L = lay(E), f = state.foe, k = f.size ? f.size.scale : 1; return { x: L.x1 + f.dx + (k - 1) * TUNING.fighter.body * L.H, y: L.floor + f.dy, a: f.a, dir: -1, H: L.H * k }; }
+// the foe is drawn at his size: the frame's unit scales, his near edge (a beast's nose) stays where a medium fighter's would be
+function foeF(E) {
+  const L = lay(E), f = state.foe, k = f.size ? drawK(f) : 1, B = beastOf(f);
+  return { x: L.x1 + f.dx + (B ? k * B.front - TUNING.fighter.body : (k - 1) * TUNING.fighter.body) * L.H, y: L.floor + f.dy, a: f.a, dir: -1, H: L.H * k };
+}
 function toScreen(F, lx, ly) {
   const c = Math.cos(F.a), s = Math.sin(F.a);
   return [F.x + F.dir * (lx * c - ly * s) * F.H, F.y + (lx * s + ly * c) * F.H];
@@ -1101,6 +1229,7 @@ const noPush = () => has('stance');
 // ----- the foe's pose: sway, wind-up, lunge, fall, winded -----
 const cockOf = (pose, zone) => POSES[pose].cock + (pose === 'thrust' && zone.id === 'high' ? -0.35 : 0);
 function poseFoe(E, dt) {
+  if (state.foe.beast) { poseBeast(E, dt); return; }
   const L = lay(E), f = state.foe, sw = state.sw, S = TUNING.swing, FT = TUNING.foe;
   const fall = state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
   let lean = FT.swayDeg * Math.PI / 180 * Math.sin(state.m * TUNING.swayRate * 1.3) + state.kickA, crouch = 0, lunge = 0;
@@ -1155,10 +1284,14 @@ function stepFoe(dt, E) {
     if (lungeRead()) { state.lungeReads++; readPop(E, 'READS YOUR LUNGE'); counter(E, 'thrust'); }
   }
   if (state.fallT > 0 || state.winded > 0 || state.stagger > 0) return;
+  // the pounce's spring carries a beast across the ground to where it lands
+  const sw = state.sw;
+  if (sw && sw.spring && sw.fin <= 0) { st.x = lerp(sw.from, sw.land, ease.inOut(clamp((sw.t - sw.springAt) / Math.max(0.01, sw.wind - sw.springAt), 0, 1))); return; }
   const c = T.circle, wave = (c[0] + c[1]) / 2 + (c[1] - c[0]) / 2 * Math.sin(state.m * 2 * Math.PI / T.period + state.rack);
-  // a blow in flight keeps him at striking distance, whatever else he meant to do
-  const want = state.sw ? f.strike : st.dodgeT > 0 ? f.home + T.dodge : state.retreat > 0 ? f.home + TUNING.retreat.dist
-    : state.chase > 0 || state.open > 0 || (!state.intro && state.swingIn < T.lead) ? f.strike : f.home + wave;
+  // a blow in flight keeps him at striking distance, whatever else he meant to do; a crouching lion gathers itself back, and stays back for a pounce
+  const pounce = !!(state.plan && state.plan.q[0] && state.plan.q[0].kind === 'pounce');
+  const want = sw ? (sw.pose === 'pounce' ? f.home + TUNING.moves.pounce.back : f.strike) : st.dodgeT > 0 ? f.home + T.dodge : state.retreat > 0 ? f.home + TUNING.retreat.dist
+    : state.chase > 0 || state.open > 0 || (!state.intro && state.swingIn < T.lead && !pounce) ? f.strike : f.home + wave;
   // the same footwork rules as yours: he keeps his distance from where you stand, walks no faster than his legs allow
   // (barely at all while winding up a blow), and stops at the wall behind him
   const FT = TUNING.foot, pos = state.foot.pos, wl = walls(E), lo = pos + gMin(E);
@@ -1180,6 +1313,82 @@ function pushFoe(E) {
   }
 }
 
+// ----- a beast's pose: the lion's crouch and spring and its raised paw, the bear rearing up and lowering its head -----
+// A pose is a few numbers (q): the body lowered (y) and risen about the hip (rot, negative is up), the head dipped, the jaw open, each foreleg free at
+// an angle (0 hangs down, -PI/2 points at you) or standing, the hind legs trailing or standing, the tail's lash. From it come the body, head and near
+// foreleg frames its parts and gaps ride, and its four legs (shoulder or hip, knee, foot), so what is drawn is what is hit.
+const beastRestQ = () => ({ y: 0, rot: 0, dip: 0, jaw: 0, fore: [null, null], hind: null, tail: 1 });
+function poseBeast(E, dt) {
+  const L = lay(E), f = state.foe, sw = state.sw, S = TUNING.swing, M = TUNING.moves, q = beastRestQ();
+  const fall = state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
+  let lunge = 0, air = 0;
+  q.y = 0.006 * Math.sin(state.m * 2.4); q.dip = 0.01 * Math.sin(state.m * 1.3);
+  if (state.winded > 0 && fall === 0) { q.y = 0.035; q.dip = 0.06; q.jaw = 0.45 + 0.2 * Math.sin(state.m * 9); q.tail = 0.3; }
+  else if (state.stun > 0) { q.dip = 0.07; q.jaw = 0.25; }
+  // a lamed foreleg is held off the sand; lamed hind legs limp
+  if (lamed('legF')) q.fore[0] = -0.45;
+  if (lamed('legs') && fall === 0) q.y += 0.02 * Math.max(0, Math.sin(state.m * 5));
+  if (sw) {
+    const P = sw.pose, t = sw.t, w = sw.wind, fin = sw.fin > 0, back = fin ? clamp(sw.fin / 0.2, 0, 1) : 1, v = fin ? clamp((0.4 - sw.fin) / 0.12, 0, 1) : 0;
+    const shiver = (u) => (u >= 1 ? Math.sin(t * 55) : 0);
+    if (P === 'pounce') {
+      const at = sw.springAt;
+      if (fin) { q.y = 0.04 * back; q.fore = [-1.1 * back, -1.25 * back]; q.jaw = 0.4 * back; if (back < 0.15) q.fore = [null, null]; }
+      else if (t < at) { const u = clamp(t / at, 0, 1), e = easeOut(u); q.y = 0.11 * e + 0.006 * shiver(u); q.rot = 0.09 * e; q.dip = 0.06 * e; q.jaw = 0.2 * e; q.tail = 2.6; }
+      else { const u = clamp((t - at) / Math.max(0.01, w - at), 0, 1); q.y = 0.11 * (1 - u) - 0.03 * u; q.rot = 0.06 - 0.18 * u; air = Math.sin(Math.PI * u) * 0.1; q.fore = [0.1 - 1.2 * u, 0.1 - 1.35 * u]; q.hind = 0.7 * u; q.jaw = 0.7 * u; }
+    } else if (P === 'swipe') {
+      // the paw goes up: high over its head for HIGH, forward at its chest for MID; then it swings forward and down through that height
+      const cock = sw.zone.id === 'high' ? -2.55 : -1.85, end = sw.zone.id === 'high' ? -1.45 : -0.85, u = clamp(t / (w * 0.55), 0, 1), e = easeOut(u);
+      if (fin) { q.fore[0] = v < 1 ? cock + (end - cock) * v * v : end * back + 0.1 * (1 - back); q.rot = -0.08 * back; lunge = S.lunge * easeOut(v) * back; q.jaw = 0.5 * back; if (back < 0.1) q.fore[0] = null; }
+      else { q.fore[0] = 0.1 + (cock - 0.1) * e + 0.05 * shiver(u); q.rot = -0.08 * e; q.jaw = 0.3 * e; q.tail = 2; }
+    } else if (P === 'maul') {
+      // it rears up about its hips: high with its paws over its head (it will come down on your chest, MID), or half up with its paws low (it rakes LOW)
+      const lo = sw.zone.id === 'low', top = lo ? 0.45 : 0.66, up = lo ? [-0.6, -0.75] : [-2.35, -2.6], down = lo ? [-0.3, -0.4] : [-0.9, -1.0];
+      const u = clamp(t / (w * M.maul.rear), 0, 1), e = easeOut(u);
+      if (fin) { q.rot = -top * (1 - v) * back; q.fore = [up[0] + (down[0] - up[0]) * v, up[1] + (down[1] - up[1]) * v].map((a) => a * back); lunge = S.lunge * 1.2 * easeOut(v) * back; q.jaw = 0.6 * back; if (back < 0.1) q.fore = [null, null]; }
+      else { q.rot = -top * e + 0.03 * shiver(u); q.fore = [0.1 + (up[0] - 0.1) * e, 0.1 + (up[1] - 0.1) * e]; q.jaw = 0.9 * e; q.tail = 1.5; }
+    } else if (P === 'shove') {
+      // the head goes down and it draws back, then it charges in with its shoulder
+      const u = clamp(t / (w * 0.55), 0, 1), e = easeOut(u);
+      q.dip = 0.08 * (fin ? back : e); q.rot = 0.08 * (fin ? back : e); q.y = 0.03 * (fin ? back : e);
+      lunge = fin ? S.lunge * 1.9 * easeOut(v) * back : -0.04 * e - 0.005 * shiver(u); q.jaw = 0.3 * (fin ? back : e);
+    }
+  }
+  if (fall > 0) { q.y = 0.16 * fall; q.rot = 0.05 * fall; q.dip = 0.1 * fall; q.fore = [null, null]; q.hind = null; q.jaw = 0.3 * fall; q.tail = 0; }
+  // walking moves the feet: a little stride cycle from the ground he covers
+  const wx = state.step.x; f.walk = (f.walk || 0) + Math.abs(wx - (f.walkX == null ? wx : f.walkX)); f.walkX = wx;
+  f.dx = -(lunge * L.H) + 0.01 * Math.sin(state.m * TUNING.swayRate * 0.8) * L.H + state.step.x * L.H;
+  f.dy = -air * L.H * drawK(f);
+  f.a = 0;
+  beastFrames(f, q, sw || fall > 0 ? 0 : f.walk);
+}
+// the waiting beast's (and its card's) pose: standing at rest
+function beastRest(f) { beastFrames(f, beastRestQ(), 0); }
+// A pose's frames and legs (body units, in the beast's own ground frame), and each part's centre in them.
+function beastFrames(f, q, walk) {
+  const K = BEAST_BODY[f.beast], [hx, hy] = K.hip, c = Math.cos(q.rot), s = Math.sin(q.rot);
+  const ox = hx - hx * c + hy * s, oy = hy + q.y - hx * s - hy * c, T = (p) => [ox + p[0] * c - p[1] * s, oy + p[0] * s + p[1] * c];
+  f.fr = { body: { ox, oy, rot: q.rot }, head: { ox: ox - s * q.dip, oy: oy + c * q.dip, rot: q.rot } };
+  const anchors = [T(K.sh[0]), T(K.sh[1]), T(K.hp[0]), T(K.hp[1])], free = [q.fore[0], q.fore[1], q.hind, q.hind == null ? null : q.hind * 0.85];
+  f.lg = anchors.map((a, i) => {
+    const [l1, l2] = K.leg[i < 2 ? 0 : 1], n = l1 + l2;
+    const ft = free[i] != null ? [a[0] - Math.sin(free[i]) * n * 0.97, Math.min(0, a[1] + Math.cos(free[i]) * n * 0.97)] : [K.feet[i] + (walk ? 0.022 * Math.sin(walk * 22 + i * 1.7) : 0), Math.min(0, a[1] + n)];
+    return [a, knee(a, ft, l1, l2, i < 2 ? -1 : 1), ft];
+  });
+  const [a, , ft] = f.lg[0];
+  f.fr.legF = { ox: a[0], oy: a[1], rot: Math.atan2(-(ft[0] - a[0]), ft[1] - a[1]) };
+  f.bq = q;
+  for (const p of f.parts) {
+    const fr = f.fr[p.d.frame || p.d.id] || ZERO, cc = Math.cos(fr.rot), sn = Math.sin(fr.rot);
+    p.cx = fr.ox + p.d.x * cc - p.d.y * sn; p.cy = fr.oy + p.d.x * sn + p.d.y * cc;
+  }
+}
+// a two-bone leg's knee between a and b: side -1 bends it back (a foreleg's elbow), 1 forward (a hind knee); straight when the leg is at full stretch
+function knee(a, b, l1, l2, side) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.max(1e-6, Math.hypot(dx, dy)), k = clamp((l1 * l1 - l2 * l2 + d * d) / (2 * d * d), 0, 1), h = Math.sqrt(Math.max(0, l1 * l1 - (k * d) ** 2));
+  return [a[0] + dx * k + side * dy / d * h, a[1] + dy * k - side * dx / d * h];
+}
+
 // ====== FOE AI: his cover, memory, move building, exchanges and the swing clock ======
 // ----- his cover: the guard he slides over the spot you just hit -----
 function guardUp() { return !state.sw && state.open <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0 && state.winded <= 0; }
@@ -1191,7 +1400,8 @@ const covered = (p) => p.armour || p.guard || (guarded(p) && !(p.slot && state.o
 // a piece of his gear that acts for him (TUNING.foeGear)
 const foeHas = (id) => !!state.foe.gear && state.foe.gear.includes(id);
 // a limb of his lamed for the rest of the bout: armF (sword arm), armB (shield arm), legs
-const LIMB = { armF: 'SWORD ARM', armB: 'SHIELD ARM', legs: 'LEGS' };
+const LIMB = { armF: 'SWORD ARM', armB: 'SHIELD ARM', legs: 'LEGS', legF: 'FORELEG' };
+const limbName = (id) => (state.foe.beast && id === 'legs' ? 'HIND LEGS' : LIMB[id]);
 const lamed = (id) => !!state.foe.parts && state.foe.parts.some((p) => p.d.id === id && !p.slot && p.cut);
 function setCover(p) {
   const c = state.cover, r = state.foe.shield ? TUNING.foe.coverShield : TUNING.foe.coverGuard;
@@ -1244,9 +1454,20 @@ function buildMove(rng, kind, ctx) {
     mv.hits.push({ ...blow(real, show + hes + after, M.feint.dmg, ZONE_POSE[real]), fake, fakePose: ZONE_POSE[fake], switchAt: show, hes });
   } else if (kind === 'bash') mv.hits.push(blow('mid', wind(M.bash.wind), 0, 'bash'));
   else if (kind === 'net') mv.hits.push(blow('mid', wind(M.net.wind), 0, 'net'));
+  // a beast's: the pounce lands MID, the swipe HIGH or MID, the maul LOW or MID, the shove MID (away from the zone you keep blocking)
+  else if (kind === 'pounce') mv.hits.push(blow('mid', wind(M.pounce.wind), M.pounce.dmg, 'pounce'));
+  else if (kind === 'swipe') mv.hits.push(blow(beastZone(rng, avoid, 'high', 'mid'), wind(M.swipe.wind), M.swipe.dmg, 'swipe'));
+  else if (kind === 'maul') mv.hits.push(blow(beastZone(rng, avoid, 'low', 'mid'), wind(M.maul.wind), M.maul.dmg, 'maul'));
+  else if (kind === 'shove') mv.hits.push(blow('mid', wind(M.shove.wind), 0, 'shove'));
   return mv;
 }
 
+function beastZone(rng, avoid, a, b) { return avoid === a ? b : avoid === b ? a : rng.chance(beastOf(state.foe).zone) ? a : b; }
+// his move weights: his weapon's (a beast's own), and the Huntress's net besides her spear
+function movesOf(f) { const C = TUNING.champs[f.ck]; return C && C.net ? { ...f.weapon.moves, net: C.net } : f.weapon.moves; }
+// how much further than his striking distance a move may start from: the pounce's leap, shorter on a lamed leg
+const leapOf = () => TUNING.moves.pounce.leap * (lamed('legs') || lamed('legF') ? TUNING.lame.legs : 1);
+const reachOf = (mv) => (mv && mv.kind === 'pounce' ? leapOf() : 0);
 // An exchange: a rhythm (flurry, probe or pause), one to three moves weighted by his weapon and by what he has read of you, his mood if hurt, the pause after.
 function planExchange(E) {
   const rng = state.rng, f = state.foe, R = TUNING.read;
@@ -1254,7 +1475,7 @@ function planExchange(E) {
   const rh = pickW(rng, TUNING.rhythm.map((r) => [r, r.w * (press && r.id === 'flurry' ? R.pressMul : 1)]));
   const n = rng.int(rh.n[0], rh.n[1]), wind = rh.wind * (press ? R.pressWind : 1), q = [];
   for (let i = 0; i < n; i++) {
-    const w = Object.entries(f.weapon.moves).filter(([k]) => k !== 'feint' || bout().feints).map(([k, v]) => [k, v * (k === 'feint' ? rh.feint * arenaT().feint * (turtle ? R.turtleFeint : 1) : 1) * (avoid && MOVE_ZONE[k] === avoid ? R.avoid : 1)]);
+    const w = Object.entries(movesOf(f)).filter(([k]) => k !== 'feint' || bout().feints).map(([k, v]) => [k, v * (k === 'feint' ? rh.feint * arenaT().feint * (turtle ? R.turtleFeint : 1) : k === 'shove' && turtle ? R.turtleBash : 1) * (avoid && MOVE_ZONE[k] === avoid ? R.avoid : 1)]);
     if (f.shield) w.push(['bash', TUNING.moves.bash.w * (turtle ? R.turtleBash : 1)]);
     const kind = pickW(rng, w);
     q.push(buildMove(rng, kind, { avoid, wind }));
@@ -1278,13 +1499,17 @@ function startMove(E, mv, isCounter) {
 }
 function startBlow(E) {
   const mv = state.move, h = mv.hits[mv.idx], f = state.foe;
-  settleFeint('none'); windSound(E, f.weapon.id);
+  settleFeint('none');
+  if (f.beast) beastSound(E, f.beast, h.pose); else windSound(E, f.weapon.id);
   state.feintLive = !!h.fake;
-  const k = (1 + (lamed('armF') ? TUNING.lame.arm : 0)) * (has('vein') && state.bleed.length ? TUNING.cards.vein : 1);
+  // a lamed sword arm (a beast's foreleg) slows every wind-up; a beast's lamed leg slows its pounce or charge
+  const charge = f.beast && (h.pose === 'pounce' || h.pose === 'shove') && (lamed('legs') || lamed('legF'));
+  const k = (1 + (lamed(f.beast ? 'legF' : 'armF') ? TUNING.lame.arm : 0) + (charge ? TUNING.lame.pounce : 0)) * (has('vein') && state.bleed.length ? TUNING.cards.vein : 1);
   state.sw = {
     zone: ZONE[h.fake || h.zone], real: ZONE[h.zone], fake: h.fake ? ZONE[h.fake] : null, fakePose: h.fakePose, switchAt: (h.switchAt || 0) * k, switched: false,
     t: 0, wind: h.wind * k, dmg: h.dmg, pose: h.pose, kind: mv.kind, idx: mv.idx, n: mv.hits.length, counter: mv.counter, fin: 0, outcome: null, th0: f.th,
     hes: (h.hes || 0) * k, hesOn: false, realAt: 0, lesson: null, body0: bodyPos(), m0: state.m,
+    springAt: h.pose === 'pounce' ? h.wind * k * TUNING.moves.pounce.at : 0, spring: false, from: 0, land: 0,
   };
   // the first feint ever is a slow-motion lesson, the second a short reminder (counted in the save)
   if (h.fake && state.lessons < 2) {
@@ -1309,6 +1534,13 @@ function feintSwitch(E) {
   E.audio.beep({ freq: 2200, dur: 0.03, type: 'square', slide: 0.5, gain: 0.08 });
   E.audio.beep({ freq: 1100, dur: 0.05, type: 'triangle', gain: 0.1, delay: 0.01 });
   E.haptic(12);
+}
+// the pounce's spring: from where it crouched to its striking distance from you (at most its leap), spraying sand from its hind feet
+function spring(E, sw) {
+  const f = state.foe, from = state.step.x, lo = state.foot.pos + gMin(E);
+  sw.spring = true; sw.from = from; sw.land = clamp(Math.max(bodyPos() + f.strike, from - leapOf()), lo, from);
+  const Ff = foeF(E), [hx, hy] = toScreen(Ff, -0.27, 0);
+  sand(hx, hy, 1, TUNING.juice.sand); swooshSound(E, 0.16);
 }
 // a blow is done: the next blow of a combo, the next move of the exchange, or a pause; winded after a combo or at zero stamina, open otherwise
 function endBlow(E) {
@@ -1352,13 +1584,16 @@ function updateFoe(dt, E) {
       if (!sw.hesOn && sw.t >= sw.switchAt) feintHesitate(E);
       if (sw.t >= sw.switchAt + sw.hes) feintSwitch(E);
     }
+    if (sw.pose === 'pounce' && !sw.spring && sw.t >= sw.springAt) spring(E, sw);
     if (sw.t >= sw.wind) resolveSwing(E);
     return;
   }
   if (state.stagger > 0) return;
   state.swingIn -= dt;
-  // he commits only once you are inside his reach; until then his footwork closes in
-  if (state.swingIn <= 0 && state.endT <= 0 && inReach()) {
+  // a beast plans its exchange as it gets ready, so its feet know whether it springs from where it stands (a pounce) or walks in
+  if (f.beast && !state.plan && state.swingIn < TUNING.step.lead && state.endT <= 0) state.plan = planExchange(E);
+  // he commits only once you are inside his reach (a pounce's, from further); until then his footwork closes in
+  if (state.swingIn <= 0 && state.endT <= 0 && inReach(f.beast && state.plan ? reachOf(state.plan.q[0]) : 0)) {
     if (!state.plan) state.plan = planExchange(E);
     startMove(E, state.plan.q.shift(), false);
   }
@@ -1367,9 +1602,13 @@ function updateFoe(dt, E) {
 // ----- the City's pairs: one foe fights, the other waits at the edge -----
 // When the one fighting is winded, his partner taunts from the edge in the window's last half second and they swap as it closes; when he is felled, the
 // partner taunts and takes over. The one who leaves keeps his health, cuts, lamings and bleed, and gets his breath back at the edge.
-const TAUNT = { winded: 'Now, brother!', fell: 'For my brother!' };
+// The Colosseum's Beastmaster is the same machinery with his lion: it roars from the edge and steps in once his health falls to half (never on a winding),
+// and he comes back if it falls first.
+const TAUNT = { winded: 'Now, brother!', fell: 'For my brother!', beast: 'RRROAR!', master: 'My lion! Now you pay.' };
 function taunt(E, why) {
-  state.tauntT = TUNING.pairs.taunt; state.taunt = TAUNT[why];
+  const e = state.edge, sends = !!state.gauntlet[state.rack].sends;
+  state.tauntT = TUNING.pairs.taunt; state.taunt = TAUNT[e && e.beast ? 'beast' : sends ? 'master' : why];
+  if (e && e.beast) { beastSound(E, e.beast, 'pounce'); return; }
   E.audio.beep({ freq: 300, dur: 0.12, type: 'sawtooth', slide: 1.3, gain: 0.08 }); E.audio.beep({ freq: 420, dur: 0.14, type: 'sawtooth', slide: 0.8, gain: 0.07, delay: 0.12 });
 }
 function stepIn(E) {
@@ -1378,30 +1617,37 @@ function stepIn(E) {
   state.foe = inn; state.edge = out;
   state.bleed = inn.bleed; state.dents = inn.dents; state.bout.foeShrug = inn.shrug;
   state.fallT = 0; state.sw = null; state.move = null; state.plan = null; state.stun = 0; state.stagger = 0; state.winded = 0; state.open = 0; state.retreat = 0; state.chase = 0;
-  state.cover = null; state.disarm = 0; state.flyW = 0; state.kickA = 0; state.kickV = 0; state.pop = 1; state.swapping = false; state.tauntT = 0;
+  state.cover = null; state.disarm = 0; state.flyW = 0; state.kickA = 0; state.kickV = 0; state.pop = 1; state.swapping = false; state.tauntT = 0; state.sendT = 0;
   state.step = { x: walls(E).fore, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
   state.swingIn = Math.max(state.swingIn, TUNING.pairs.enter);
   inn.th = REST_TH;
   poseFoe(E, 0.016);
   if (fellOut && state.carry) { addBleed(E, state.carry); state.carry = 0; }
-  const Ff = foeF(E); pop(Ff.x, Ff.y - 1.2 * Ff.H, `${inn.name.split(' ')[0].toUpperCase()} STEPS IN`, '#fca5a5', 22);
+  const Ff = foeF(E); pop(Ff.x, Ff.y - (inn.beast ? 0.8 : 1.2) * Ff.H, `${inn.name.split(' ')[0].toUpperCase()} STEPS IN`, '#fca5a5', 22);
   dust(Ff.x, Ff.y, 10); shake(E, 4, 0.15); swooshSound(E, 0.14);
+  if (inn.beast) { const [hx, hy] = toScreen(Ff, -0.27, 0); sand(hx, hy, 1, TUNING.juice.sand >> 1); }
 }
 // the swap clock, after his AI each frame (the fell's is in the play scene's fall clock)
 function updatePair(E, dt) {
   state.tauntT = Math.max(0, state.tauntT - dt);
-  const e = state.edge, P = TUNING.pairs;
+  const e = state.edge, P = TUNING.pairs, f = state.foe;
   if (!e || e.down || state.fallT > 0) return;
+  if (state.gauntlet[state.rack].sends) {
+    if (!state.sent && !f.beast && f.hp <= f.maxHp * TUNING.champs.carpophorus.send) { state.sent = true; state.sendT = P.taunt; taunt(E, 'winded'); dropBlow(); state.swingIn = Math.max(state.swingIn, P.taunt + 0.2); }
+    if (state.sendT > 0 && (state.sendT -= dt) <= 0) stepIn(E);
+    return;
+  }
   if (state.swapping && state.winded > P.taunt) state.swapping = false;
   if (!state.swapping && state.winded > 0 && state.winded <= P.taunt) { state.swapping = true; taunt(E, 'winded'); }
   if (state.swapping && state.winded <= 0) stepIn(E);
 }
 // the waiting foe at the edge: smaller, dimmer, standing at rest
 function edgeF(E, f = state.edge) {
-  const L = lay(E), P = TUNING.pairs, H = L.H * f.size.scale * P.scale;
-  return { x: E.w - E.safe.right - P.x * H, y: L.floor, a: 0, dir: -1, H };
+  const L = lay(E), H = L.H * drawK(f) * pairScale();
+  return { x: E.w - E.safe.right - edgeX(f) * H, y: L.floor, a: 0, dir: -1, H };
 }
 function poseEdge(f) {
+  if (f.beast) { beastRest(f); return; }
   f.fr = { armF: { ox: SHOULDER[0], oy: SHOULDER[1], rot: REST_TH - Math.PI / 2 }, armB: { ox: PARTS[4].joint[0], oy: PARTS[4].joint[1], rot: 0.14 } };
   for (const p of f.parts) {
     const fr = f.fr[p.d.frame || p.d.id] || ZERO, c = Math.cos(fr.rot), sn = Math.sin(fr.rot);
@@ -1412,7 +1658,7 @@ function poseEdge(f) {
 // A counter is a fresh one-move exchange: a quick thrust or chop, planned now with the fight RNG, its zone glowing like any tell.
 function counter(E, kind) {
   if (!bout().counters || state.sw || state.fallT > 0 || state.stun > 0 || state.endT > 0 || state.stagger > 0 || state.winded > 0 || state.intro || !inReach()) return;
-  const k = kind || (state.rng.chance(0.5) ? 'thrust' : 'chop');
+  const B = beastOf(state.foe), k = B ? B.counter : kind || (state.rng.chance(0.5) ? 'thrust' : 'chop');
   state.plan = null;
   startMove(E, buildMove(state.rng, k, { avoid: blockRun(), wind: 1, fixed: TUNING.counter.windup * statMul('spdWind', state.foe.spd) }), true);
   state.counters++;
@@ -1657,7 +1903,7 @@ function disable(E, p, at, ang) {
   }
   if (LIMB[p.d.id]) {
     state.lamings++;
-    pop(at.x, at.y - 70, `LAMED: ${LIMB[p.d.id]}`, '#f87171', 20); E.flash('#7f1d1d', 0.08);
+    pop(at.x, at.y - 70, `LAMED: ${limbName(p.d.id)}`, '#f87171', 20); E.flash('#7f1d1d', 0.08);
     gainMom(E, TUNING.mom.lame); emit(E, 'lame', { p });
   }
 }
@@ -1694,8 +1940,10 @@ function fellJuice(E) {
 function slowFx(sec, mul) { if (state.slowFx > 0 && state.slowMul < mul) return; state.slowFx = sec; state.slowMul = mul; }
 function resolveSwing(E) {
   const sw = state.sw, L = lay(E), zy = zoneScreenY(L, sw.zone), Fy = youF(E), Ff = foeF(E), sh = state.sh, SH = TUNING.shield, M = TUNING.moves, W = state.foe.weapon;
-  const net = sw.pose === 'net', bash = sw.pose === 'bash', feint = !!sw.fake;
+  // a beast's shove is its bash; its pounce bounces off your shield and, landing, drives you back; its maul lands with a thud whatever it meets
+  const net = sw.pose === 'net', bash = sw.pose === 'bash' || sw.pose === 'shove', BM = sw.pose === 'shove' ? M.shove : M.bash, pounce = sw.pose === 'pounce', feint = !!sw.fake;
   sw.fin = 0.4;
+  if (sw.pose === 'maul') maulJuice(E);
   state.streaks.push({ x1: Ff.x - Ff.H * 0.3, y1: zy - 30, x2: Fy.x - L.H * 0.1, y2: zy + 20, life: 0.22, max: 0.22, red: !state.away, net });
   if (sw.ghostX) {
     sw.outcome = 'whiff'; settleFeint('none');
@@ -1738,11 +1986,11 @@ function resolveSwing(E) {
       gainMom(E, TUNING.mom.perfect); emit(E, 'perfect', { bx, by });
     } else {
       sh.hits -= bash ? 1 : W.wear;
-      const drain = (bash ? M.bash.drain * M.bash.blocked : W.drain) * steadyMul();
+      const drain = (bash ? BM.drain * BM.blocked : W.drain) * steadyMul();
       if (drain) { state.stamina = Math.max(0, state.stamina - drain); state.lastAtk = state.m; pop(bx, by - 70, 'DRAINED', '#fca5a5', 14); }
-      if (bash) { if (!noPush()) state.pushT = 0.2; pushFoe(E); }
+      if (bash) { if (!noPush()) state.pushT = 0.2; pushFoe(E); } else if (pounce) pushFoe(E);
       clangSound(E, 0); shake(E, bash || W.wear > 1 ? 9 : 6, 0.15); E.haptic(22); state.stop = Math.max(state.stop, 0.06);
-      if (!read) pop(bx, by - 40, feint ? 'FEINT BLOCKED' : bash ? 'BASH BLOCKED' : W.wear > 1 ? 'SHIELD CRACKS' : 'BLOCK', '#ffffff', 24);
+      if (!read) pop(bx, by - 40, feint ? 'FEINT BLOCKED' : bash ? `${POSE_NAME[sw.pose]} BLOCKED` : W.wear > 1 ? 'SHIELD CRACKS' : 'BLOCK', '#ffffff', 24);
       if (sh.hits <= 0) {
         sh.hits = 0; sh.broken = true; sh.t = -1; sh.up = 0;
         plateBits(bx, by, 12); pop(bx, by - 70, 'SHIELD BROKEN', '#ff9f43', 22); shake(E, 9, 0.2);
@@ -1761,8 +2009,8 @@ function resolveSwing(E) {
   if (bash) {
     sw.outcome = 'bash'; state.bashHits++;
     if (!noPush()) { state.pushT = 0.35; pushYou(E); }
-    state.stamina = Math.max(0, state.stamina - M.bash.drain); state.lastAtk = state.m;
-    pop(Fy.x, zy - 40, 'BASHED', '#fca5a5', 30); shake(E, 12, 0.25); E.haptic(45); clangSound(E, 0); E.audio.play('boom', 0.5);
+    state.stamina = Math.max(0, state.stamina - BM.drain); state.lastAtk = state.m;
+    pop(Fy.x, zy - 40, sw.pose === 'shove' ? 'SHOVED' : 'BASHED', '#fca5a5', 30); shake(E, 12, 0.25); E.haptic(45); clangSound(E, 0); E.audio.play('boom', 0.5);
     state.hand.lock = Math.max(state.hand.lock, 0.3); state.hand.hvx = -260; state.hand.hvy = 60; state.hand.atk = null;
     return;
   }
@@ -1777,6 +2025,7 @@ function resolveSwing(E) {
   const part = state.you.parts.find((q) => q.d.id === ZONE_PART[sw.zone.id]), plated = !!(part && part.armour), jugg = has('jugg') && state.you.lungeK > 0.5;
   const dmg = (state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg) * (plated ? TUNING.me.plateMul : 1) * (jugg ? TUNING.cards.jugg : 1);
   sw.outcome = 'hit'; state.hp -= dmg; state.taken++; state.hurt = plated ? 0.25 : 0.4; if (sw.counter) state.counterHits++;
+  if (pounce && !noPush()) { state.pushT = 0.3; pushYou(E); }
   // you recoil, and the heart that took it shatters on the HUD
   state.you.a -= TUNING.juice.recoil; state.shatter = { i: Math.max(0, Math.floor(state.hp / 2)), t: TUNING.juice.shatter };
   // his Bloodlust (the wolf pelt): a blow that lands gives him stamina
@@ -1826,7 +2075,7 @@ const HOOKS = {
   thorns: { block: (E, c) => {
     if (state.disarm > 0) return;
     state.dents++; const Ff = foeF(E);
-    if (state.dents >= C_().thorns) { state.dents = 0; disarmFoe(E, C_().thornsDur); } else pop(Ff.x, Ff.y - 1.15 * Ff.H, `WEAPON DENTED ${state.dents}/${C_().thorns}`, '#cbd5e1', 15);
+    if (state.dents >= C_().thorns) { state.dents = 0; disarmFoe(E, C_().thornsDur); } else pop(Ff.x, Ff.y - 1.15 * Ff.H, `${state.foe.beast ? 'THORNS' : 'WEAPON DENTED'} ${state.dents}/${C_().thorns}`, '#cbd5e1', 15);
   } },
   serrated: { slot: (E) => addBleed(E, C_().serrated) },
   rend: { hit: (E, c) => { if (c.kind === 'slash') addBleed(E, C_().rend); } },
@@ -1834,7 +2083,7 @@ const HOOKS = {
   haem: { fell: () => { state.carry = state.bleed.length; } },
   sidestep: { dodge: (E) => { const Ff = foeF(E); pop(Ff.x, Ff.y - 1.3 * Ff.H, 'OVERCOMMITTED', '#86efac', 18); windFoe(E, C_().sidestep); } },
   lightfeet: { dodge: (E) => { state.stamina = Math.min(state.staMax, state.stamina + TUNING.dodge.cost); } },
-  matador: { dodge: (E, c) => { if (c.sw.pose === 'thrust' || c.sw.pose === 'bash') stunFoe(E, C_().matador, 'STUMBLES!'); } },
+  matador: { dodge: (E, c) => { if (['thrust', 'bash', 'pounce', 'shove'].includes(c.sw.pose)) stunFoe(E, C_().matador, 'STUMBLES!'); } },
   untouch: { dodge: (E) => { state.openAll = C_().untouch; } },
   brawler: { break: (E) => gainMom(E, C_().brawler) },
   cape: { perfect: (E) => capeStep(E), dodge: (E) => capeStep(E) },
@@ -1864,6 +2113,8 @@ function staggerFoe(E) {
 }
 function disarmFoe(E, dur) {
   if (state.fallT > 0) return;
+  // a beast has no weapon to lose: it is stunned a moment instead
+  if (state.foe.beast) { stunFoe(E, TUNING.fin.beastStun, 'STUNNED'); return; }
   state.disarm = dur; state.flyW = 0.9;
   const Ff = foeF(E); pop(Ff.x, Ff.y - 1.3 * Ff.H, 'DISARMED!', '#e879f9', 26); shake(E, 6, 0.2); E.haptic(30); clangSound(E, 0);
 }
@@ -1876,7 +2127,7 @@ const FIN_OK = {
   exec: () => !state.armed.exec && state.foe.hp < state.foe.maxHp * TUNING.fin.below,
   whirl: () => !state.armed.whirl,
   breath: () => state.stamina < state.staMax || state.exhaust > 0,
-  disarm: () => state.disarm <= 0,
+  disarm: () => (state.foe.beast ? state.stun <= 0 : state.disarm <= 0),
 };
 function finReady() {
   return DECK.filter((c) => c.fam === 'fin' && has(c.id) && TUNING.fin[c.id] <= state.mom && FIN_OK[c.id]()).sort((a, b) => TUNING.fin[b.id] - TUNING.fin[a.id])[0] || null;
@@ -2117,6 +2368,14 @@ function dust(x, y, n) {
     state.fx.push({ k: 'd', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 30, g: 0, life: 0.35 + Math.random() * 0.25, max: 0.6, r: 4 + Math.random() * 6, c: '#8a7452' });
   }
 }
+// sand kicked up from the sand at (x, y), thrown back (dir 1 is away from you, -1 toward you) and up, falling back
+const SAND = ['#d8b878', '#c9a466', '#e6cc96', '#b08c52'];
+function sand(x, y, dir, n) {
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + dir * (0.3 + Math.random() * 0.9), sp = 160 + Math.random() * 260;
+    state.fx.push({ k: 's', x, y: y - 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 900, rot: a, vr: (Math.random() - 0.5) * 6, len: 3 + Math.random() * 5, life: 0.4 + Math.random() * 0.35, max: 0.75, c: SAND[i % 4] });
+  }
+}
 function ring(x, y, r, color) { state.fx.push({ k: 'r', x, y, r0: 10, r, life: 0.3, max: 0.3, c: color }); }
 // a new pop stacks above (or, at the HUD, below) a live one near it, so simultaneous texts never overlap
 let popTop = 80;
@@ -2202,6 +2461,18 @@ function windSound(E, id) {
   else if (id === 'axe') { A.beep({ freq: 110, dur: 0.22, type: 'sawtooth', slide: 0.6, gain: 0.07 }); A.beep({ freq: 380, dur: 0.16, type: 'square', slide: 0.7, gain: 0.02, delay: 0.05 }); }
   else if (id === 'dagger') { A.noise({ dur: 0.1, gain: 0.07 }); A.beep({ freq: 900, dur: 0.06, type: 'sine', slide: 1.3, gain: 0.025 }); }
   else A.beep({ freq: 150, dur: 0.14, type: 'sawtooth', slide: 0.7, gain: 0.06 });
+}
+// a beast's tell is heard: the lion roars before a pounce and snarls before a swipe, the bear roars as it rears and grunts before a shove
+function beastSound(E, kind, pose) {
+  const A = E.audio, g = TUNING.juice.roar, big = pose === 'pounce' || pose === 'maul', f0 = kind === 'bear' ? 92 : 150;
+  A.noise({ dur: big ? 0.55 : 0.18, gain: g * (big ? 0.9 : 0.6) });
+  A.beep({ freq: f0 * (big ? 1 : 1.3), dur: big ? 0.6 : 0.2, type: 'sawtooth', slide: 0.55, gain: g * 0.7 });
+  A.beep({ freq: f0 * 1.5, dur: big ? 0.45 : 0.15, type: 'square', slide: 0.6, gain: g * 0.18, delay: 0.03 });
+}
+// the bear's maul landing: a heavy thud, a shake and the sand kicked up under its paws
+function maulJuice(E) {
+  const J = TUNING.juice, Ff = foeF(E), [x, y] = toScreen(Ff, 0.2, 0);
+  thud(E, J.maulThud); shake(E, J.maulShake, 0.15); dust(x, y, 12); sand(x, y, -1, J.sand >> 1);
 }
 // a heavy footfall (k: louder)
 function thud(E, k = 1) { E.audio.beep({ freq: 55, dur: 0.14, type: 'sine', slide: 0.7, gain: 0.18 * k }); E.audio.noise({ dur: 0.04, gain: 0.05 * k }); }
@@ -2312,8 +2583,8 @@ function myLook(me, ids = []) {
   return withGear({ ...G, metal: A.metal, trim: A.trim, skin: YOU.skin, hair: '#3a2414', tunic: YOU.tunic, hem: YOU.hem,
     crest: A.crest || G.crest || YOU.crest, band: G.band ? YOU.crest : YOU.tunic, beard: G.beard && !me.female }, ids, `you-${me.set}-${me.weapon}${me.female ? 'f' : ''}`);
 }
-// his look: his type's, with his gear (rolled once per bout)
-const foeLook = (d) => withGear(GTYPE[d.weapon.id], d.gear || [], GTYPE[d.weapon.id].id);
+// his look: his type's, with his gear (rolled once per bout); the Huntress carries her net at her belt
+const foeLook = (d) => withGear({ ...GTYPE[d.weapon.id], ...(TUNING.champs[d.ck] && TUNING.champs[d.ck].net ? { net: true } : {}) }, d.gear || [], GTYPE[d.weapon.id].id);
 // yours is rebuilt only when your picks change
 function lookOf(fm, isFoe) {
   if (isFoe) return fm.look || GTYPE[fm.weapon.id];
@@ -3053,7 +3324,10 @@ function hudSlot(E) {
 function foeHealth(ctx, E) {
   const L = lay(E), f = state.foe, S = hudSlot(E), w = Math.min(0.46 * L.H, S.w - 10), h = 10, x = S.cx - w / 2, y = S.top + 14;
   const k = clamp(f.hp / f.maxHp, 0, 1), ks = clamp(f.shown / f.maxHp, 0, 1), sk = clamp(f.sta / f.staMax, 0, 1);
-  const nm = `${f.name.toUpperCase()}  ${f.size.name} · ${f.wname}`;
+  // a long name (a champion's title) drops its title when the line would pass the slot at 14 px
+  let nm = f.beast ? `${f.name.toUpperCase()}  ${f.size.name}` : `${f.name.toUpperCase()}  ${f.size.name} · ${f.wname}`;
+  ctx.font = '800 14px system-ui, sans-serif';
+  if (ctx.measureText(nm).width > S.w) nm = `${f.name.split(/[ ,]/)[0].toUpperCase()}  ${f.size.name} · ${f.wname}`;
   E.text(nm, S.cx, S.top + 3, { size: fitSize(ctx, nm, 12, S.w), color: f.champion ? '#ffd24a' : '#f0e6cc', weight: '800' });
   ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 11);
   ctx.fillStyle = '#f2d88a'; ctx.fillRect(x, y, w * ks, h);
@@ -3090,17 +3364,20 @@ function drawCoin(ctx, x, y, r) {
 // The waiting foe stands still, so he is painted once into his own sprite (again when his size on screen or his wounds change) and drawn dimmed each
 // frame; without OffscreenCanvas he is drawn live.
 // The waiting foe's sprite for the foe f, repainted when his size on screen or his wounds change (a number, so the check allocates nothing).
+// its box: a man's 0.9 H wide about his feet, a beast's from its nose to its tail (left: from its box's left edge to its feet)
+const edgeBox = (f, H) => { const B = beastOf(f); return B ? [(B.front + B.back + 0.14) * H, (B.front + 0.05) * H] : [0.9 * H, 0.45 * H]; };
 function edgeSprite(E, f) {
-  const F = edgeF(E, f), k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), w = 0.9 * F.H, h = 1.25 * F.H, feet = 1.12 * F.H;
+  const F = edgeF(E, f), k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), [w, left] = edgeBox(f, F.H), h = 1.25 * F.H, feet = 1.12 * F.H;
   let key = Math.round(F.H * k);
   for (const p of f.parts) key = (key * 31 + (p.cut ? 1 : 0) + 2 * p.dents + 64 * p.cracks.length) % 2147483647;
   if (!f.spr || f.spr.key !== key) {
     const cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
     // painting poses him as he waits, so the one fighting keeps his own pose and frames
-    const fr = f.fr, pc = f.parts.map((p) => [p.cx, p.cy]);
-    poseEdge(f); c.scale(k, k); c.translate(w / 2 - F.x, feet - F.y);
+    const fr = f.fr, lg = f.lg, pc = f.parts.map((p) => [p.cx, p.cy]);
+    poseEdge(f); c.scale(k, k); c.translate(left - F.x, feet - F.y);
     drawFighter(c, E, { ...F, a: 0 }, f, 'edge');
     f.fr = fr; f.parts.forEach((p, i) => { p.cx = pc[i][0]; p.cy = pc[i][1]; });
+    if (f.beast) f.lg = lg;
     f.spr = { key, cv };
   }
   return f.spr.cv;
@@ -3109,9 +3386,9 @@ function edgeSprite(E, f) {
 function drawEdge(ctx, E) {
   const f = state.edge, F = edgeF(E), A = TUNING.pairs.alpha;
   if (!canSprite) { poseEdge(f); drawFighter(ctx, E, F, f, 'edge', A); return; }
-  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), w = 0.9 * F.H, feet = 1.12 * F.H, img = edgeSprite(E, f);
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), left = edgeBox(f, F.H)[1], feet = 1.12 * F.H, img = edgeSprite(E, f);
   // drawn upright at whole device pixels and the sprite's own size, the cheapest copy there is
-  const X = Math.round((F.x - w / 2) * k) / k, Y = Math.round((F.y - feet) * k) / k;
+  const X = Math.round((F.x - left) * k) / k, Y = Math.round((F.y - feet) * k) / k;
   ctx.save(); ctx.globalAlpha = A; ctx.drawImage(img, X, Y, img.width / k, img.height / k); ctx.restore();
 }
 // During the intro card both foes' sprites are painted for the swap: the one fighting as he will wait, the one waiting as he will fight.
@@ -3120,12 +3397,13 @@ function warmPair(E) {
   if (!canSprite || !e || state.warm) return;
   state.warm = true;
   edgeSprite(E, state.foe); edgeSprite(E, e);
+  if (e.beast) return;
   const H = lay(E).H * e.size.scale, lk = lookOf(e, true);
   for (const p of e.parts) spriteOf(E, p, H, lk);
 }
 // The waiting foe's name and health over his head, and his taunt, the tell that he is about to step in: a bubble above them
 function drawEdgeTag(ctx, E) {
-  const f = state.edge, F = edgeF(E), [hx, hy] = toScreen(F, 0.03, -1.0), r = E.w - 10 - E.safe.right, bw = Math.min(90, 0.5 * F.H), bx = Math.min(hx - bw / 2, r - bw);
+  const f = state.edge, F = edgeF(E), [hx, hy] = f.beast ? toScreen(F, 0.12, -0.62) : toScreen(F, 0.03, -1.0), r = E.w - 10 - E.safe.right, bw = Math.min(90, 0.5 * F.H), bx = Math.min(hx - bw / 2, r - bw);
   // clear of the right HUD's rows (hearts to the shield bar)
   const hud = 10 + E.safe.top + (state.picks.length ? HUD_ROW.shield : HUD_ROW.shield0) + 8, ny = Math.max(hy - 18, hud + 12), nm = f.name.split(/[ ,]/)[0].toUpperCase();
   ctx.font = '800 14px system-ui, sans-serif';
@@ -3283,12 +3561,14 @@ function lameIcon(ctx, id, x, y) {
   ctx.fillStyle = 'rgba(60,8,8,0.85)'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
   ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.stroke();
   if (id === 'armF') { line(ctx, -4, 4, 4, -4); line(ctx, -4, 0, 0, 4); }
+  else if (id === 'legF') { line(ctx, 1, -5, 0, 4); line(ctx, 0, 4, -4, 4); }
   else if (id === 'armB') { ctx.beginPath(); ctx.moveTo(-4, -4); ctx.lineTo(4, -4); ctx.lineTo(3.5, 1); ctx.lineTo(0, 5); ctx.lineTo(-3.5, 1); ctx.closePath(); ctx.fill(); }
   else { line(ctx, -1, -5, -2, 4); line(ctx, -2, 4, 2, 4); line(ctx, 2, -5, 2, 1); }
   ctx.restore();
 }
 // who: 'you', 'foe' (the one fighting, with every live state drawn on him) or 'edge' (a pair's foe waiting: his look and kit only)
 function drawFighter(ctx, E, F, fm, who, ga = 1) {
+  if (fm.beast) { drawBeast(ctx, E, F, fm, who, ga); return; }
   const H = F.H, L = lay(E), isFoe = who !== 'you', live = who === 'foe', lk = lookOf(fm, isFoe);
   const P = (id) => fm.parts.find((q) => q.d.id === id);
   const fall = live && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
@@ -3494,6 +3774,133 @@ function gearGlint(ctx, x, y, s, c, ph) {
   ctx.save(); glint(ctx, x, y, s, rarCol(c), k); ctx.restore();
 }
 
+// ----- a beast on screen, drawn live from its pose: far legs, tail, torso, near hind leg, head (a mane or a bear's snout), near foreleg, its gaps -----
+const BEAST_COL = {
+  lion: { body: '#c99a52', dark: '#93672f', light: '#ead0a0', mane: '#7a4a1e', maneHi: '#a86a2c', nose: '#3a2418', line: '#3a2410' },
+  bear: { body: '#6e4c2e', dark: '#47311c', light: '#a07c56', mane: '#5a3c21', maneHi: '#82603c', nose: '#17100a', line: '#1e140a' },
+};
+const inFrame = (ctx, fr, H) => { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); };
+// one leg of three points (body units): a thick upper bone, a thinner lower one, a paw
+function beastLeg(ctx, lg, H, w, col, line) {
+  const [a, k, f] = lg, P = (q) => [q[0] * H, q[1] * H];
+  const [ax, ay] = P(a), [kx, ky] = P(k), [fx, fy] = P(f);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = line; ctx.lineWidth = w * H + 3; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+  ctx.strokeStyle = col; ctx.lineWidth = w * H; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(kx, ky); ctx.stroke();
+  ctx.lineWidth = w * H * 0.72; ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+  ctx.fillStyle = col; ctx.strokeStyle = line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(fx + 0.012 * H, fy - 0.012 * H, 0.03 * H, 0.018 * H, 0, 0, TAU); ctx.fill(); ctx.stroke();
+}
+// the torso's outline (body units), its frame applied
+function beastTorso(ctx, lion, H) {
+  const Q = (a, b, c, d) => ctx.quadraticCurveTo(a * H, b * H, c * H, d * H);
+  ctx.beginPath();
+  if (lion) { ctx.moveTo(0.14 * H, -0.31 * H); Q(0.12, -0.4, 0.04, -0.405); Q(-0.12, -0.375, -0.27, -0.375); Q(-0.36, -0.37, -0.35, -0.28); Q(-0.34, -0.21, -0.27, -0.2); Q(-0.15, -0.195, -0.04, -0.215); Q(0.1, -0.2, 0.14, -0.31); }
+  else { ctx.moveTo(0.14 * H, -0.3 * H); Q(0.13, -0.44, 0.02, -0.455); Q(-0.06, -0.465, -0.12, -0.425); Q(-0.26, -0.415, -0.33, -0.38); Q(-0.38, -0.31, -0.33, -0.22); Q(-0.28, -0.19, -0.18, -0.2); Q(-0.06, -0.205, 0.02, -0.2); Q(0.12, -0.19, 0.14, -0.3); }
+  ctx.closePath();
+}
+// a beast's gap: a dark slit under the fur's pale lip, a red line of flesh along it
+function beastSlot(ctx, p, H) {
+  const d = p.d, w = d.w * H, h = d.h * H, x = d.x * H - w / 2, y = d.y * H - h / 2;
+  rrect(ctx, x, y, w, h, Math.min(w, h) * 0.45); ctx.fillStyle = 'rgba(28,8,6,0.95)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,228,186,0.9)'; ctx.lineWidth = Math.max(1.2, 0.006 * H); ctx.stroke();
+  ctx.strokeStyle = '#b4413a'; ctx.lineWidth = Math.max(1, 0.004 * H);
+  if (w > h) line(ctx, x + w * 0.2, d.y * H, x + w * 0.8, d.y * H); else line(ctx, d.x * H, y + h * 0.2, d.x * H, y + h * 0.8);
+}
+// a part's cuts and its flash when hit, in its frame
+function beastMarks(ctx, fm, p, H) {
+  const fr = fm.fr[p.d.frame || p.d.id];
+  ctx.save(); if (fr) inFrame(ctx, fr, H);
+  cuts(ctx, p, H);
+  if (p.flash > 0) { path(ctx, p.d, H); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,240,200,${0.6 * p.flash / 0.16})`; ctx.fill(); }
+  ctx.restore();
+}
+function drawBeast(ctx, E, F, fm, who, ga = 1) {
+  const H = F.H, live = who === 'foe', lion = fm.beast === 'lion', C = BEAST_COL[fm.beast], fr = fm.fr, lg = fm.lg, q = fm.bq || beastRestQ();
+  if (!fr || !lg || !fr.body) return;
+  const P = (id) => fm.parts.find((r) => r.d.id === id), fall = live && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
+  const [sx] = toScreen(F, -0.06, 0);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(sx, F.y - (live ? fm.dy : 0) + 3, H * 0.34, H * 0.035, 0, 0, TAU); ctx.fill();
+  ctx.save();
+  ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
+  if (live && (state.stagger > 0 || state.winded > 0)) {
+    const k = state.winded > 0 ? 0.35 + 0.25 * Math.sin(state.m * 9) : 0.45, g = ctx.createRadialGradient(-0.06 * H, -0.3 * H, 10, -0.06 * H, -0.3 * H, 0.5 * H);
+    g.addColorStop(0, `rgba(255,210,74,${k})`); g.addColorStop(1, 'rgba(255,210,74,0)');
+    ctx.fillStyle = g; ctx.fillRect(-0.6 * H, -0.8 * H, 1.1 * H, 0.9 * H);
+  }
+  const sc = live && state.pop < 1 ? 0.85 + 0.15 * (1 - state.pop) : 1;
+  ctx.scale(sc, sc);
+  ctx.globalAlpha = ga * (live && state.pop < 1 ? 1 - state.pop * 0.7 : 1) * (1 - fall * 0.5);
+  const fw = lion ? 0.06 : 0.075, hw = lion ? 0.065 : 0.08;
+  beastLeg(ctx, lg[1], H, fw, C.dark, C.line); beastLeg(ctx, lg[3], H, hw, C.dark, C.line);
+  // the body: tail, torso with its shaded belly and lit back, a bear's fur
+  ctx.save(); inFrame(ctx, fr.body, H);
+  if (lion) {
+    const ph = state.m * (1.6 + 1.6 * q.tail), tx = -0.43 + 0.02 * Math.sin(ph), ty = -0.47 + 0.03 * Math.cos(ph * 0.8);
+    ctx.lineCap = 'round'; ctx.strokeStyle = C.line; ctx.lineWidth = 0.018 * H + 3; ctx.beginPath(); ctx.moveTo(-0.33 * H, -0.33 * H); ctx.quadraticCurveTo(-0.45 * H, -0.3 * H, tx * H, ty * H); ctx.stroke();
+    ctx.strokeStyle = C.body; ctx.lineWidth = 0.018 * H; ctx.stroke();
+    ctx.fillStyle = C.mane; ctx.beginPath(); ctx.ellipse(tx * H, ty * H, 0.022 * H, 0.03 * H, 0.4, 0, TAU); ctx.fill();
+  } else { ctx.fillStyle = C.dark; ctx.beginPath(); ctx.ellipse(-0.35 * H, -0.35 * H, 0.03 * H, 0.022 * H, 0, 0, TAU); ctx.fill(); }
+  beastTorso(ctx, lion, H); ctx.fillStyle = C.body; ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.stroke();
+  ctx.save(); beastTorso(ctx, lion, H); ctx.clip();
+  ctx.fillStyle = 'rgba(40,22,8,0.3)'; ctx.fillRect(-0.4 * H, -0.27 * H, 0.6 * H, 0.1 * H);
+  ctx.fillStyle = 'rgba(255,236,200,0.16)'; ctx.fillRect(-0.4 * H, -0.47 * H, 0.6 * H, 0.08 * H);
+  if (!lion) { ctx.strokeStyle = 'rgba(20,12,6,0.4)'; ctx.lineWidth = 1.2; for (let i = 0; i < 9; i++) { const x = (-0.3 + i * 0.05) * H, y = (-0.4 + (i % 3) * 0.05) * H; line(ctx, x, y, x - 0.015 * H, y + 0.03 * H); } }
+  ctx.restore();
+  ctx.restore();
+  beastMarks(ctx, fm, P('chest'), H); beastMarks(ctx, fm, P('belly'), H);
+  // the near hind leg, its haunch over the hip
+  const [ha] = lg[2];
+  beastLeg(ctx, lg[2], H, hw, C.body, C.line);
+  ctx.fillStyle = C.body; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(ha[0] * H, (ha[1] + 0.03) * H, 0.075 * H, 0.085 * H, -0.3, 0, TAU); ctx.fill(); ctx.stroke();
+  beastMarks(ctx, fm, P('legs'), H);
+  // the head: the lion's mane behind it, ears, the muzzle and its nose, an eye, the jaw opening on a roar
+  ctx.save(); inFrame(ctx, fr.head, H);
+  const hd = P('head').d, hx = hd.x * H, hy = hd.y * H, r = hd.r * H;
+  if (lion) {
+    ctx.fillStyle = C.mane; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5; ctx.beginPath();
+    // the mane: a shaggy ring round the head that hangs down over the chest
+    for (let i = 0; i < 22; i++) { const a = i * TAU / 22, rr = (i % 2 ? 0.1 : 0.128) * H * (Math.sin(a) > 0 ? 1.12 : 1); ctx.lineTo(hx - 0.045 * H + Math.cos(a) * rr, hy + 0.01 * H + Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.maneHi; ctx.beginPath(); ctx.arc(hx - 0.04 * H, hy + 0.005 * H, 0.085 * H, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,30,10,0.55)'; ctx.lineWidth = 1.3; for (let i = 0; i < 7; i++) { const a = 0.6 + i * 0.55; line(ctx, hx - 0.045 * H + Math.cos(a) * 0.07 * H, hy + Math.sin(a) * 0.07 * H, hx - 0.045 * H + Math.cos(a) * 0.11 * H, hy + Math.sin(a) * 0.11 * H); }
+  } else for (const [ex, ey] of [[-0.035, -0.06], [-0.005, -0.068]]) { ctx.fillStyle = C.dark; ctx.beginPath(); ctx.arc(hx + ex * H, hy + ey * H, 0.022 * H, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = C.body; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5;
+  if (lion) { ctx.beginPath(); ctx.arc(hx - 0.025 * H, hy - 0.06 * H, 0.02 * H, 0, TAU); ctx.fill(); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(hx, hy, r * (lion ? 0.95 : 0.9), 0, TAU); ctx.fill(); ctx.stroke();
+  // the jaw, open by q.jaw: a dark mouth with two fangs under the muzzle
+  const jx = hx + 0.01 * H, jy = hy + 0.035 * H, ja = 0.55 * q.jaw;
+  if (ja > 0.02) {
+    ctx.save(); ctx.translate(jx, jy); ctx.rotate(ja);
+    ctx.fillStyle = '#5a1410'; ctx.beginPath(); ctx.moveTo(0, -0.02 * H); ctx.lineTo(0.085 * H, -0.02 * H); ctx.lineTo(0.075 * H, 0.012 * H); ctx.lineTo(0, 0.012 * H); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C.light; ctx.beginPath(); ctx.moveTo(0, 0.004 * H); ctx.lineTo(0.08 * H, 0.004 * H); ctx.lineTo(0.07 * H, 0.022 * H); ctx.lineTo(0.005 * H, 0.024 * H); ctx.closePath(); ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = '#fff8e8'; for (const fx of [0.06, 0.035]) { ctx.beginPath(); ctx.moveTo(fx * H, 0.004 * H); ctx.lineTo((fx + 0.008) * H, -0.012 * H); ctx.lineTo((fx + 0.016) * H, 0.004 * H); ctx.fill(); }
+    ctx.restore();
+  }
+  ctx.fillStyle = C.light; ctx.beginPath();
+  if (lion) ctx.ellipse(hx + 0.05 * H, hy + 0.025 * H, 0.045 * H, 0.032 * H, 0, 0, TAU); else ctx.ellipse(hx + 0.065 * H, hy + 0.02 * H, 0.05 * H, 0.03 * H, 0.1, 0, TAU);
+  ctx.fill(); ctx.strokeStyle = C.line; ctx.stroke();
+  ctx.fillStyle = C.nose; ctx.beginPath(); ctx.arc(hx + (lion ? 0.086 : 0.108) * H, hy + 0.01 * H, (lion ? 0.012 : 0.015) * H, 0, TAU); ctx.fill();
+  // the eye, a brow drawn down over it in a tell
+  const ex = hx + 0.02 * H, ey = hy - 0.018 * H, tell = live && state.sw && state.sw.fin <= 0;
+  ctx.fillStyle = '#1a0f08'; ctx.beginPath(); ctx.arc(ex, ey, 0.01 * H, 0, TAU); ctx.fill();
+  ctx.fillStyle = tell ? '#ffd24a' : '#f6e7c8'; ctx.beginPath(); ctx.arc(ex + 0.003 * H, ey - 0.003 * H, 0.0035 * H, 0, TAU); ctx.fill();
+  if (tell) { ctx.strokeStyle = C.line; ctx.lineWidth = 2; line(ctx, ex - 0.018 * H, ey - 0.02 * H, ex + 0.016 * H, ey - 0.008 * H); }
+  ctx.restore();
+  beastMarks(ctx, fm, P('head'), H);
+  // the near foreleg over the chest, a red cross on a lamed leg, then the gaps and their light
+  beastLeg(ctx, lg[0], H, fw, C.body, C.line);
+  beastMarks(ctx, fm, P('legF'), H);
+  markLamed(ctx, fm, H);
+  for (const p of fm.parts) if (p.slot) { ctx.save(); inFrame(ctx, fr[p.d.frame], H); beastSlot(ctx, p, H); ctx.restore(); }
+  if (live) for (const p of fm.parts) if (p.slot) slotLight(ctx, F, p, H, fm);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  if (live && state.stun > 0) {
+    const [hx2, hy2] = toScreen(F, 0.17, -0.58);
+    for (let i = 0; i < 3; i++) { const a = state.m * 7 + i * 2.09; E.text('*', hx2 + Math.cos(a) * 0.1 * H, hy2 + Math.sin(a) * 0.03 * H, { size: 26, color: '#fde68a', weight: '800' }); }
+  }
+}
+
 // ----- the play screen: the left column, the walls, his cover and tell, the hint, the caption, the background -----
 // The shield buttons and DODGE. The shield button matching the foe's tell glows; the raised one is lit; DODGE lights while you are backed off and reddens at the wall.
 function drawShieldBtns(ctx, E) {
@@ -3525,8 +3932,8 @@ function drawDodgeBtn(ctx, E, b) {
 }
 // The arena's edges: a low timber barrier behind each fighter, where he can give no more ground.
 function drawWalls(ctx, E) {
-  const L = lay(E), wl = walls(E), H = L.H, k = state.foe.size ? state.foe.size.scale : 1;
-  const xs = [L.x0 + wl.back * H - 0.2 * H * meSize().scale - 6, L.x1 + wl.fore * H + 0.3 * H * k + 6];
+  const L = lay(E), wl = walls(E), H = L.H, f = state.foe, k = f.size ? f.size.scale : 1;
+  const xs = [L.x0 + wl.back * H - 0.2 * H * meSize().scale - 6, L.x1 + wl.fore * H + (f.beast ? rearOf(f) : 0.3 * k) * H + 6];
   for (const x of xs) {
     const top = L.floor - 0.34 * H;
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 6, L.floor - 2, 12, 6);
@@ -3539,7 +3946,7 @@ function drawWalls(ctx, E) {
 // The foe's cover: a shield or guard disc sliding over the part you just hit. His OPEN flags are in the HUD (foeHealth).
 function drawGuard(ctx, E) {
   if (state.fallT > 0) return;
-  const F = foeF(E), H = F.H, sty = state.foe.shield ? { tint: '#7dd3fc', label: 'SHIELD' } : { tint: '#fde68a', label: 'GUARD' };
+  const F = foeF(E), H = F.H, sty = state.foe.shield ? { tint: '#7dd3fc', label: 'SHIELD' } : state.foe.beast ? { tint: '#ead0a0', label: 'PAW' } : { tint: '#fde68a', label: 'GUARD' };
   if (covering()) {
     const c = state.cover, r = c.r * H, k = clamp(c.t / c.max, 0, 1);
     ctx.save(); ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
@@ -3557,8 +3964,10 @@ function drawGuard(ctx, E) {
 }
 
 // The foe's tell: a band at the height of the coming blow. The label says what to do, and turns gold in the perfect-block window.
+let zoneLbl = null;
 function drawZone(ctx, E) {
   const sw = state.sw;
+  zoneLbl = null;
   if (!sw || sw.fin > 0) return;
   const L = lay(E), SH = TUNING.shield, Fy = youF(E), Ff = foeF(E);
   const y = zoneScreenY(L, sw.zone), bh = 0.11 * L.H;
@@ -3569,7 +3978,7 @@ function drawZone(ctx, E) {
     g.addColorStop(0, 'rgba(167,139,250,0)'); g.addColorStop(0.5, `rgba(167,139,250,${0.25 + 0.35 * sh})`); g.addColorStop(1, 'rgba(167,139,250,0)');
     ctx.fillStyle = g; ctx.fillRect(x0, y - bh, w, bh * 2);
     for (let i = 0; i < 7; i++) { const px = x0 + w * ((i * 0.37 + state.m * 1.7) % 1), py = y + Math.sin(i * 2.3 + state.m * 23) * bh * 0.6; ctx.fillStyle = `rgba(221,214,254,${0.5 + 0.5 * Math.sin(i + state.m * 40)})`; ctx.fillRect(px - 2, py - 2, 4, 4); }
-    E.text(`${sw.fake.label}...?`, (x0 + x1) / 2, y - bh - 10, { size: 18, weight: '800', color: '#c4b5fd', alpha: 0.6 + 0.4 * sh });
+    zoneLbl = { t: `${sw.fake.label}...?`, y: y - bh - 10, color: '#c4b5fd', alpha: 0.6 + 0.4 * sh };
     return;
   }
   const left = sw.wind - sw.t, inWin = left <= SH.dur, perfect = left <= perfectWin();
@@ -3592,7 +4001,14 @@ function drawZone(ctx, E) {
   ctx.beginPath(); ctx.moveTo(ax - s, y - s); ctx.lineTo(ax - 2 * s, y); ctx.lineTo(ax - s, y + s); ctx.stroke();
   const pose = sw.fake && !sw.switched ? sw.fakePose : sw.pose, name = sw.kind === 'combo' ? `COMBO ${sw.idx + 1}/${sw.n}` : POSE_NAME[pose];
   const what = pose === 'bash' ? 'BASH: DODGE' : pose === 'net' ? 'NET: DODGE' : null;
-  E.text(what || (perfect ? `${sw.zone.label} NOW` : inWin ? `SHIELD ${sw.zone.label}` : `${sw.counter ? 'COUNTER ' : ''}${name} ${sw.zone.label}`), (x0 + x1) / 2, y - bh - 10, { size: 18, weight: '800', color: `rgb(${rgb})` });
+  zoneLbl = { t: what || (perfect ? `${sw.zone.label} NOW` : inWin ? `SHIELD ${sw.zone.label}` : `${sw.counter ? 'COUNTER ' : ''}${name} ${sw.zone.label}`), y: y - bh - 10, color: `rgb(${rgb})`, alpha: 1 };
+}
+// The tell's label, drawn after the shield and sword arm so they never cover it: centred over the foe, kept on screen, so it never sits under your arm.
+function drawZoneLabel(ctx, E) {
+  if (!zoneLbl) return;
+  const Ff = foeF(E), z = zoneLbl, w = (ctx.font = '800 18px system-ui, sans-serif', ctx.measureText(z.t).width);
+  const x = clamp(Ff.x, w / 2 + 8, E.w - E.safe.right - w / 2 - 8);
+  E.text(z.t, x, z.y, { size: 18, weight: '800', color: z.color, alpha: z.alpha });
 }
 
 // The hint, in a player's first bouts ever: two short lines along the bottom, in the space right of the left thumb's column, fading out.
@@ -3746,8 +4162,9 @@ function drawDraft(ctx, E) {
     E.text(title, x + w / 2, ly, { size: fitSize(ctx, title, 17, w - 16), weight: '800', color: '#f0e6cc' });
     E.text(sub, x + w / 2, ly + 17, { size: fitSize(ctx, sub, 12, w - 16, '700'), weight: '700', color: col });
     // the rule's line, a size smaller when three lines would meet the bottom lines
-    let fs = 13, ls = wrapPx(ctx, c.line, w - 18, fs, '600');
-    if (ly + 35 + (ls.length - 1) * 15 > y + h - bh - 6) { fs = 11; ls = wrapPx(ctx, c.line, w - 14, fs, '600'); }
+    const cl = cardLine(c);
+    let fs = 13, ls = wrapPx(ctx, cl, w - 18, fs, '600');
+    if (ly + 35 + (ls.length - 1) * 15 > y + h - bh - 6) { fs = 11; ls = wrapPx(ctx, cl, w - 14, fs, '600'); }
     ls.slice(0, 3).forEach((s2, k) => E.text(s2, x + w / 2, ly + 35 + k * (fs + 2), { size: fs, color: '#cbd5e1' }));
     bot.forEach(([t, color, wt], k) => E.text(t, x + w / 2, y + h - 13 - (bot.length - 1 - k) * 16, { size: 14, weight: String(wt), color }));
     ctx.globalAlpha = 1;
@@ -3784,6 +4201,20 @@ function drawDealHelp(ctx, E, held, odds = []) {
     E.text(c.line, x + 50, ry + 9, { size: fitSize(ctx, c.line, 12, w - 64, '600'), align: 'left', color: '#cbd5e1' });
   });
   E.text('Tap to close', E.w / 2, y + h - 10, { size: 12, weight: '800', color: '#ffd24a' });
+}
+// A card whose rule needs his weapon reads differently when the next bout has a beast in it (a beast has no weapon to lose: it is stunned instead)
+const BEAST_LINE = {
+  disarm: '4 pips: his weapon flies; a beast is stunned 1 s',
+  thorns: 'Each block dents; 3 disarm him, or stun a beast 1 s',
+  matador: 'A dodged thrust, bash, pounce or shove: stunned 1 s',
+  heavy: 'No plates on a beast',
+  brawler: 'No plates on a beast',
+  breaker: 'No plates on a beast',
+  butcher: 'No plates on a beast',
+};
+function cardLine(c) {
+  const d = state.gauntlet && state.gauntlet[state.draft || state.tent ? state.rack + 1 : state.rack];
+  return BEAST_LINE[c.id] && d && (d.beast || (d.pair && d.pair.beast)) ? BEAST_LINE[c.id] : c.line;
 }
 // The armourer's tent: your purse, three wares to buy (tap one), and Skip (Leave once you have bought)
 function drawTent(ctx, E) {
@@ -3931,6 +4362,7 @@ function wrapPx(ctx, t, w, size, weight = '600') {
 // its tip and stats on the right, your reason's thread, Brutus, what the champion or your rival says, and the tap.
 function drawIntro(ctx, E) {
   if (state.edge) { drawPairIntro(ctx, E); return; }
+  if (state.foe.beast) { drawBeastIntro(ctx, E); return; }
   const d = state.foe, me = state.me, champ = d.champion, spar = bout().spar;
   const voice = d.rival ? tauntOf(me) : champ ? champLine(d, me.reason) : null, sub = champ ? champTie(d, me.reason) : spar ? 'Sparring: learn his tells.' : null;
   const gear = (d.gear || []).map((id) => CARD[id]), thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 152 + ((d.guards || []).length ? 12 : 0), tb = b + bodyH + (thread ? 32 : 6);
@@ -3987,6 +4419,40 @@ function drawIntro(ctx, E) {
   const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
   E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
 }
+// A beast's card: what it is (a lion or a bear, its epithet), no shield and no feints, its body with its gaps on the left, its size and how its tells
+// look, its profile and stats on the right, then the thread, Brutus and the tap.
+function drawBeastIntro(ctx, E) {
+  const d = state.foe, me = state.me, thread = me.reason !== 'revenge', b = 88, bodyH = 160, tb = b + bodyH + (thread ? 32 : 6);
+  const w = Math.min(E.w - 32, 520), h = Math.min(E.h - 12, tb + 22 + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
+  E.roundRect(x, y, w, h, 18, '#221a2b', '#fb923c');
+  E.text(`BOUT ${state.rack + 1} OF ${state.gauntlet.length}  ·  A BEAST`, cx, y + 20, { size: 14, weight: '800', color: '#fb923c' });
+  const name = beastTitle(d).toUpperCase();
+  E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40), weight: '800', color: '#f0e6cc' });
+  E.text('No shield, no feints: read its body.', cx, y + 72, { size: 15, weight: '800', color: '#7de3ff' });
+  const iw = 150, lx = x + 16 + iw / 2, gaps = d.parts.filter((p) => p.slot).map((p) => p.d.label);
+  beastIcon(ctx, E, d, lx, y + b + 92, iw);
+  E.text(`${gaps.length} gaps open`, lx, y + b + 106, { size: 14, weight: '800', color: '#c4b99a' });
+  wrapPx(ctx, gaps.join(', '), iw + 10, 14, '700').slice(0, 2).forEach((t, i) => E.text(t, lx, y + b + 123 + i * 16, { size: 14, weight: '700', color: '#ffd24a' }));
+  const rx = x + 32 + iw, rw = x + w - 22 - rx;
+  E.text(clipLine(ctx, `${d.size.name} · ${BEASTS[d.beast].name.toUpperCase()}`, rw), rx, y + b + 8, { size: 18, weight: '800', align: 'left', color: '#fde68a' });
+  const tl = wrapPx(ctx, BEASTS[d.beast].tell, rw, 14, '700').slice(0, 3);
+  tl.forEach((t, i) => E.text(t, rx, y + b + 30 + i * 17, { size: 14, weight: '700', align: 'left', color: '#e2e8f0' }));
+  const py = y + b + 38 + tl.length * 17, two = !profFits(ctx, d, rw);
+  profLine(ctx, E, d, rx, py, rw, 17);
+  statBars(ctx, E, d, rx, py + (two ? 40 : 26), rw, 19, 14);
+  if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
+  const bl = `Old Brutus: “${brutusIntro()}”`;
+  E.text(bl, cx, y + tb + 10, { size: fitSize(ctx, bl, 14, w - 28, '700'), weight: '700', color: '#fde68a' });
+  const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
+  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
+}
+// a beast drawn small at rest on its card, w px from nose to tail, its feet at (x, y); its gaps show as on the sand
+function beastIcon(ctx, E, d, x, y, w) {
+  const B = TUNING.beasts[d.beast], s = w / (B.front + B.back + 0.08), ic = d.icon || (d.icon = { beast: d.beast, parts: beastParts(d.beast) });
+  beastRest(ic);
+  drawBeast(ctx, E, { x: x - (B.back - B.front) / 2 * s, y, a: 0, dir: -1, H: s }, ic, 'edge');
+}
 // his profile in one line (14 px): its name in his profile's colour, then what it means, cut to w px
 const PROF_COL = { brute: '#fb923c', duelist: '#7de3ff', glass: '#f87171', tank: '#a3e635', balanced: '#e2e8f0' };
 // does his whole profile line fit one line of w px?
@@ -4021,10 +4487,10 @@ function drawPairIntro(ctx, E) {
   const of = `PAIRS  ·  BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
   E.text(d0.rival ? `YOUR RIVAL  ·  ${of}` : champ ? `THE CHAMPION  ·  ${of}` : of, cx, y + 20, { size: 14, weight: '800', color: champ ? '#ffd24a' : '#c4b99a' });
   const name = (a.title || `${a.name} and ${q.name}`).toUpperCase();
-  E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40), weight: '800', color: '#f0e6cc' });
+  E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 150), weight: '800', color: '#f0e6cc' });  // clear of the LAB tab
   E.text(sub, cx, y + 72, { size: Math.max(14, fitSize(ctx, sub, 15, w - 28)), weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   pairCol(ctx, E, a, x + 16, y + b, cw, 'FIGHTS FIRST', ex);
-  pairCol(ctx, E, q, x + 32 + cw, y + b, cw, 'WAITS AT THE EDGE', ex);
+  pairCol(ctx, E, q, x + 32 + cw, y + b, cw, d0.sends ? 'STEPS IN AT HALF HEALTH' : 'WAITS AT THE EDGE', ex);
   ctx.fillStyle = 'rgba(240,230,204,0.18)'; ctx.fillRect(cx - 1, y + b, 2, bodyH - 6);
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
   const bl = `Old Brutus: “${brutusIntro()}”`;
@@ -4035,11 +4501,11 @@ function drawPairIntro(ctx, E) {
 // one foe's column on the pairs card: who he is, his health, his armour and guards, his gear (the pieces that act for him in red)
 function pairCol(ctx, E, f, x, y, w, tag, ex) {
   E.text(tag, x + w / 2, y + 6, { size: 14, weight: '800', color: '#c4b99a' });
-  const nm = f.name.toUpperCase();
+  const nm = (f.beast ? beastTitle(f) : f.name).toUpperCase();
   E.text(nm, x + w / 2, y + 26, { size: Math.max(14, fitSize(ctx, nm, 18, w - 8)), weight: '800', color: f.champion ? '#ffd24a' : '#f0e6cc' });
-  armourIcon(ctx, f.parts, x + 40, y + 122 + ex / 2, 80);
+  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, f.parts, x + 40, y + 122 + ex / 2, 80);
   const rx = x + 84, rw = w - 88, ng = (f.guards || []).length, T = (t, yy, col = '#e2e8f0', wt = '700') => E.text(t, rx, yy, { size: 14, weight: wt, align: 'left', color: col });
-  T(clipLine(ctx, `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
+  T(clipLine(ctx, f.beast ? `${f.size.name} · ${BEASTS[f.beast].name.toUpperCase()}` : `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
   profLine(ctx, E, f, rx, y + 69, rw, ex);
   y += ex;
   ctx.font = '800 14px system-ui, sans-serif';
@@ -4048,7 +4514,7 @@ function pairCol(ctx, E, f, x, y, w, tag, ex) {
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(rx + hw, y + 84, rw - hw, 8); ctx.fillStyle = '#d9483a'; ctx.fillRect(rx + hw, y + 84, (rw - hw) * clamp(f.hp / f.maxHp, 0, 1), 8);
   T(clipLine(ctx, ng ? `${f.set.slots - ng} open \u00b7 ${f.guards.map((id) => GUARDS[id]).join(', ')}` : `${f.set.slots} gaps open`, rw), y + 107, ng ? '#ffd24a' : '#c4b99a');
   const gear = (f.gear || []).map((id) => CARD[id]), act = gear.filter((c) => FOE_TELL[c.id]), look = gear.filter((c) => !FOE_TELL[c.id]);
-  const rows = [...act.map((c) => [c.gear, '#f87171']), ...(look.length ? [[`${look.map((c) => c.gear).join(', ')}`, '#9aa4b2']] : [])];
+  const rows = f.beast ? wrapPx(ctx, BEASTS[f.beast].tell, rw, 14, '700').map((t) => [t, '#e2e8f0']) : [...act.map((c) => [c.gear, '#f87171']), ...(look.length ? [[`${look.map((c) => c.gear).join(', ')}`, '#9aa4b2']] : [])];
   if (!rows.length) rows.push(['No gear', '#9aa4b2']);
   rows.slice(0, 2).forEach(([t, col], i) => T(clipLine(ctx, t, rw), y + 126 + i * 18, col));
 }
@@ -4071,7 +4537,7 @@ function miniCard(ctx, E, d, x, y, w, h, res) {
   const plus = `${d.name.split(/[ ,]/)[0].toUpperCase()} +1`, nm = ctx.measureText(both).width <= w - 8 ? both : d.pair && ctx.measureText(plus).width <= w - 8 ? plus : first;
   E.text(clipLine(ctx, nm, w - 6), cx, y + 27, { size: 14, weight: '800', color: '#f0e6cc', alpha: a });
   // size, weapon and armour on their own 14 px lines, then the stat bars across the card
-  const wn = d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
+  const wn = d.beast ? BEASTS[d.beast].name.toUpperCase() : d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
   E.text(d.size.name, cx, y + 42, { size: 14, weight: '700', color: '#fde68a', alpha: a });
   E.text(clipLine(ctx, wn.split(' & ')[0], w - 6), cx, y + 57, { size: 14, weight: '700', color: '#fde68a', alpha: a });
   E.text(d.set.name, cx, y + 72, { size: 14, weight: '700', color: '#aab3bc', alpha: a });
@@ -4289,7 +4755,7 @@ const menu = {
 
 // The arena picker, the ladder in order (principle 11: a card is its name, its state drawn, one line of twist and its champion). An open arena: its name
 // (with its place), its twist and its champion (your rival in red when one waits); cleared ones are gilded. The next locked arena: its champion's silhouette and
-// what opens it. The Colosseum: coming soon. A tap on a locked card says in one line what opens it; in the dev channel a second tap enters a built one.
+// what opens it. A tap on a locked card says in one line what opens it; in the dev channel a second tap enters it.
 const openTo = (E) => E.save.get('arenas', 0);
 function lockLine(i) { return `Fell the ${ARENAS[i - 1].who} champion to open`; }
 const pickArena = {
@@ -4306,7 +4772,7 @@ const pickArena = {
     this.back = E.button('Back', 16 + E.safe.left + 44, top + 28, { w: 88, h: 44, size: 16, fill: '#1f2937' });
     this.cards = this.layout(E);
     for (const c of this.cards) {
-      const { a, i, x, y, w, h } = c, open = i <= to && !a.soon, cleared = i < to && !a.soon, next = !open && !a.soon && i === to, cx = x + w / 2;
+      const { a, i, x, y, w, h } = c, open = i <= to, cleared = i < to, next = !open && i === to, cx = x + w / 2;
       E.roundRect(x, y, w, h, 14, open ? '#2a2016' : 'rgba(34,26,43,0.6)', cleared ? '#ffd24a' : open ? '#e6c866' : 'rgba(240,230,204,0.25)');
       ctx.globalAlpha = open ? 1 : 0.55;
       // the name carries its place ("The City arena, Pompeii"), wrapped onto up to three lines: one item
@@ -4314,13 +4780,14 @@ const pickArena = {
       ctx.globalAlpha = 1;
       const sh = Math.min(80, h * 0.31), sy = y + 74 + sh;
       if (cleared) laurel(ctx, cx, sy - sh * 0.5, sh * 0.62);
-      silhouette(ctx, cx + (a.id === 'city' ? 12 : 0), sy, sh, open ? '#6b5a44' : '#3a3242');
+      silhouette(ctx, cx + (a.id === 'city' ? 12 : a.id === 'rome' ? 16 : 0), sy, sh, open ? '#6b5a44' : '#3a3242');
       if (a.id === 'city') silhouette(ctx, cx - 18, sy + 4, sh * 0.85, open ? '#4e4234' : '#2e2836');
-      if (!open) padlock(ctx, cx, sy - sh * 0.45, a.soon ? '#9aa4b2' : '#e6c866');
+      if (a.id === 'rome') lionSilhouette(ctx, cx - 14, sy, sh * 0.5, open ? '#8a7454' : '#2e2836');
+      if (!open) padlock(ctx, cx, sy - sh * 0.45, '#e6c866');
       // open: the twist (white) and the champion (gold, or your rival in red); locked: what opens it
       const rv = rivals[a.id], wrap = (t) => wrapPx(ctx, t, w - 16, 14, '700').slice(0, 2);
       const lines = open ? [...wrap(a.twist).map((t) => [t, '#f0e6cc']), ...wrap(rv ? `Rival: ${rv.name.split(/[ ,]/)[0]}` : a.champLabel).map((t) => [t, rv ? '#f87171' : '#fde68a'])]
-        : wrapPx(ctx, a.soon ? 'Coming soon' : next ? lockLine(i) : 'Locked', w - 16, 14, '700').slice(0, 3).map((t) => [t, '#c4b99a']);
+        : wrapPx(ctx, next ? lockLine(i) : 'Locked', w - 16, 14, '700').slice(0, 3).map((t) => [t, '#c4b99a']);
       const ly = y + h - 14 - (lines.length - 1) * 18;
       lines.forEach(([t, col], k) => E.text(t, cx, ly + k * 18, { size: 14, weight: '700', color: col }));
     }
@@ -4330,10 +4797,9 @@ const pickArena = {
     if (this.back && E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
     const c = this.cards.find((q) => E.hit(q, p));
     if (!c) return;
-    const to = openTo(E), open = c.i <= to && !c.a.soon, start = () => { E.audio.play('tap'); E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0, arena: c.a.id }); };
+    const to = openTo(E), open = c.i <= to, start = () => { E.audio.play('tap'); E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0, arena: c.a.id }); };
     if (open) { start(); return; }
     E.audio.play('miss');
-    if (c.a.soon) { E.toast('The Colosseum is coming soon'); return; }
     if (E.channel !== 'release' && this.dev === c.i) { start(); return; }
     this.dev = c.i;
     E.toast(`${lockLine(c.i)}${E.channel !== 'release' ? ' (dev: tap again to enter)' : ''}`);
@@ -4350,6 +4816,18 @@ function silhouette(ctx, x, y, h, col) {
   ctx.beginPath(); ctx.moveTo(x + h * 0.13, y - h * 0.7); ctx.lineTo(x + h * 0.24, y - h * 0.5); ctx.stroke();
   ctx.lineWidth = h * 0.03; ctx.beginPath(); ctx.moveTo(x + h * 0.24, y - h * 0.5); ctx.lineTo(x + h * 0.34, y - h * 0.86); ctx.stroke();
   rrect(ctx, x - h * 0.3, y - h * 0.72, h * 0.16, h * 0.32, h * 0.03); ctx.fill();
+  ctx.restore();
+}
+// the Colosseum's lion beside its champion: a crouched cat in profile facing left, its feet at (x, y), h its height to the top of its mane
+function lionSilhouette(ctx, x, y, h, col) {
+  const u = h / 0.5;
+  ctx.save(); ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.ellipse(x + 0.04 * u, y - 0.29 * u, 0.2 * u, 0.09 * u, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - 0.15 * u, y - 0.38 * u, 0.1 * u, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - 0.2 * u, y - 0.37 * u, 0.06 * u, 0, TAU); ctx.fill();
+  ctx.lineWidth = 0.05 * u;
+  for (const lx of [-0.1, -0.04, 0.12, 0.18]) { ctx.beginPath(); ctx.moveTo(x + lx * u, y - 0.25 * u); ctx.lineTo(x + lx * u, y); ctx.stroke(); }
+  ctx.lineWidth = 0.025 * u; ctx.beginPath(); ctx.moveTo(x + 0.23 * u, y - 0.3 * u); ctx.quadraticCurveTo(x + 0.33 * u, y - 0.3 * u, x + 0.3 * u, y - 0.45 * u); ctx.stroke();
   ctx.restore();
 }
 // a cleared arena's gilding: a gold laurel round its champion
@@ -4767,6 +5245,7 @@ const play = {
     drawZone(ctx, E);
     drawShield(ctx, E);
     drawSwordArm(ctx, E);
+    drawZoneLabel(ctx, E);
 
     for (const f of state.fx) {
       const t = clamp(f.life / f.max, 0, 1);
@@ -4919,7 +5398,7 @@ const over = {
     if (portrait(E)) { this.btnAgain = this.btnMenu = this.btnDetails = null; rotateCard(ctx, E); return; }
     if (this.page === 0) { this.btnAgain = this.btnMenu = this.btnDetails = null; if (p.arena === 'games') this.thumb(ctx, E); else this.epilogue(ctx, E); return; }
     const last = g[p.reached - 1], me = p.me, by = E.h - 30 - E.safe.bottom;
-    E.text(p.won ? 'CHAMPION FELLED' : `Cut down by ${last.name}`, E.w / 2, top, { size: 24, weight: '800', color: p.won ? '#ffd24a' : '#ef4444' });
+    E.text(p.won ? 'CHAMPION FELLED' : `Cut down by ${last.beast ? `a ${last.name.toLowerCase()}` : last.name}`, E.w / 2, top, { size: 24, weight: '800', color: p.won ? '#ffd24a' : '#ef4444' });
     E.text(`Reached bout ${p.reached} of ${g.length}${p.grades.length ? `  \u00b7  grades ${p.grades.join(' ')}` : ''}`, E.w / 2, top + 22, { size: 13, color: '#fbbf24' });
     this.btnDetails = E.button(this.details ? 'Hide details' : 'Details', E.w / 2 - 160, by, { w: 150, h: 48, size: 16, fill: '#1f2937' });
     this.btnAgain = E.button('Again', E.w / 2, by, { w: 150, h: 48, size: 18 });
@@ -4968,7 +5447,7 @@ const over = {
     } else {
       const ending = endingOf(p.arena, me, p.fav);
       E.text(ending, E.w / 2, y, { size: fitSize(ctx, ending, 14, E.w - 32, '700'), weight: '700', color: '#fde68a' });
-      if (p.opened) { const t = `Opened: ${p.opened.name}${p.opened.soon ? ' (coming soon)' : `, ${p.opened.place}`}`; E.text(t, E.w / 2, y + 20, { size: 14, weight: '800', color: '#ffd24a' }); }
+      if (p.opened) { const t = `Opened: ${p.opened.name}, ${p.opened.place}`; E.text(t, E.w / 2, y + 20, { size: 14, weight: '800', color: '#ffd24a' }); }
     }
   },
   // Details: the raw counts of the run, laid out in a grid between the headline and the buttons

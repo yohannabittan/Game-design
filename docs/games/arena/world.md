@@ -29,7 +29,25 @@ Each has his own tie to your reason (on his card) and his own line (what he says
 | **Hermes the Swift** | the City | "He runs the moneylender's errands." / "I collect. Quickly." | "He ran the torch from roof to roof." / "I was gone before the roofs fell." | "He ran his way free. Nobody catches him." / "You can't win freedom you can't catch." | "The fastest blade in Pompeii." / "Blink, and you miss your own fall." |
 | **Aquila, the Emperor's Blade** | the Grand Games | "The Emperor's purse. Your debt is in it." / "Your debt bought my armour." | "He carried the Emperor's torch." / "The Emperor ordered it. I obeyed." | "He holds the wooden sword, by the Emperor's leave." / "The wooden sword is mine to give. I will not." | "Rome's own champion." / "Rome has one name. Mine." |
 
-Carpophorus the Beastmaster and Mevia the Huntress (the Colosseum) are written with the Colosseum's build (3b). Hermes and Carpophorus are no longer ordinary foes' names.
+### The Colosseum's champions (v2 step 3b)
+
+| Champion | Debt | Revenge | Freedom | Glory |
+| --- | --- | --- | --- | --- |
+| **Carpophorus the Beastmaster** (fights with his lion waiting at the edge; it steps in at half his health, and he comes back if it falls first) | "He feeds the moneylender's beasts." / "Your debt feeds my lion. Every day." | "He came with the soldiers, and his cages." / "My lion was a cub that night. Look at him now." | "A slave once. Now Rome's beasts obey him." / "I tamed lions to be free. You are no lion." | "Rome loves his lion more than any man." / "They came for my lion. Not for you." |
+| **Mevia the Huntress** (a spear and a net) | "The moneylender sends her after debtors who run." / "Debtors run. I bring them back in a net." | "She netted the ones who ran from your village." / "My net caught your village. It will catch you." | "She hunts runaways for the bounty." / "Freedom? I bring runaways back for a living." | "The Colosseum's favourite huntress." / "Rome loves a hunt. Tonight, you are the prey." |
+
+Hermes and Carpophorus are no longer ordinary foes' names. Carpophorus's lion roars from the edge ("RRROAR!") before it steps in; if it falls first, he shouts "My lion! Now you pay." and comes back.
+
+### The beasts (v2 step 3b)
+
+Bouts 2 and 4 of the Colosseum are a lion or a bear. They never speak; their card names them with an epithet and says how their tells look.
+
+| Beast | Epithets | Its tells, on its card |
+| --- | --- | --- |
+| A lion | the Black-Maned, of Numidia, the Golden, of the Atlas, the Scarred, the Restless | "Crouches, then pounces. Lifts a paw, then swipes." |
+| A bear | of Dacia, the Mountain, of the North, the Grey-Muzzled, the Broad-Backed, of Britannia | "Rears up, then mauls. Lowers its head, then shoves." |
+
+Gritty, never cruel: a felled beast lies down in the sand, like a felled man.
 
 A pair's partner taunts from the edge before he steps in: "Now, brother!" when the one fighting is winded, "For my brother!" when he falls.
 
@@ -39,7 +57,7 @@ A pair's partner taunts from the edge before he steps in: "Now, brother!" when t
 | --- | --- | --- | --- |
 | The Pit | Capua | "Everyone starts in the sand. Few leave it." | the v1 epilogue |
 | The City arena | Pompeii | "Pompeii likes a show. Give them one." | Freedom: "Pompeii roared for [name]. The wooden sword waits in Rome." Debt: "Pompeii paid in silver. [name]'s family ate meat that winter." Revenge: "In Pompeii, [name] learned who gave the order: Rome." Glory: "Pompeii chanted [name] until dawn. Rome heard it." |
-| The Colosseum | Rome | "Rome. Fifty thousand eyes. Don't blink." | (3b) |
+| The Colosseum | Rome | "Rome. Fifty thousand eyes. Don't blink." | Freedom: "[name] walked out past the lions' cages. The wooden sword waits at the Emperor's games." Debt: "The Colosseum paid [name] in gold. The moneylender counted it twice." Revenge: "In the Colosseum, [name] heard the name at last: Aquila, the Emperor's Blade." Glory: "Fifty thousand voices learned the name [name]. The Emperor heard it too." |
 | The Grand Games | Rome | "The Emperor himself. I never got this far." | the Emperor's thumb: the true ending for your reason at a full crowd meter, "The Emperor nods. Rome will forget you by spring." at a middling one, "Free, but forgotten. You walk out to silence." at a low one |
 
 On the first card, his reason's opening line follows the arena's line.
