@@ -291,3 +291,94 @@ The designer asked: "How long to start with just one arena, with the armourer's 
   - `npm run smoke` passes;
   - frame time is no worse than arena-v17;
   - the designer's runs judge the rest.
+
+## Step 2 (locked 2026-10-14): cards become gear, cascading deals, and gear that covers gaps
+
+**What the designer said (2026-10-14):**
+- "Could we turn the cards into gear that has an aesthetic impact?" Then: "Yes, I agree", to one piece per slot and finishers as war paint.
+- After a won run: "I was almost always going for the neck gap. While the shielding covers that sometimes, maybe it's actually good for some people or some gear to block certain gaps, so I have to learn to hit others."
+- A Candlesan video on loot tables (`docs/pattern-library.md` L9, cascading rolls).
+
+**Step 2 is one Opus build, reviewed. It changes the look and the deal, not the fight's base rules.**
+
+### G1. Every card is a piece of gear
+
+- **Each of the 24 family cards and Unbreakable gets:**
+  - a slot: helmet, shield, weapon, chest, arms, legs, cloak or belt;
+  - a gear name;
+  - a procedural look.
+  
+  The effect lines stay as they are. Example names: Thorns becomes a spiked bronze shield, Serrated Edge a saw-toothed blade, Sidestep dancer's sandals, Bloodlust a wolf pelt, Juggernaut iron pauldrons.
+- **A family look,** so a build reads at a glance:
+
+  | Family | Look |
+  | --- | --- |
+  | The Wall | bronze and big shields |
+  | Blood | dark red, barbs and hooks |
+  | The Dancer | light cloth and ribbons |
+  | The Brute | black iron and spikes |
+
+- **Keystones are signature pieces:**
+  - **Iron Wall:** a tower shield.
+  - **Untouchable:** a cape and no shield, visibly.
+  - **Titan:** full black plate.
+  - **Haemorrhage:** a hooked sica.
+- **Rarity has a colour:** common, rare, epic, legendary. It shows on the card's border and as a faint glint on the worn piece.
+- **One piece per slot.** Picking a piece for a filled slot shows "replaces Bronze Helm" on the card, and the old piece is gone.
+- **Gear never adds plates,** except the pieces that already plate a part (Bronze Helm, Iron Greaves, Titan).
+- **Drawn by the game,** on both fighters, layered on v1's painted parts. The slot names are the file names for the painted gear pack later (F), with the procedural look kept as the fallback.
+
+### G2. Duos are set bonuses
+
+- A duo card is now a **set bonus**, offered when you wear at least one piece of each of its two families.
+- It is shown as a set name on the card, for example "Matador's Cape set: ...", and as a small set mark on the fighter card. It takes no slot.
+
+### G3. Finishers are war paint
+
+- The four finishers are war paint that Old Brutus paints on your face and sword arm: a pattern per finisher.
+- They are dealt and fired as now (the long press). They take no slot.
+
+### G4. The deal cascades (L9)
+
+- **The priced slot rolls top-down,** with fixed chances in TUNING:
+  1. a set bonus, if you qualify;
+  2. a legendary (a keystone);
+  3. an epic;
+  4. otherwise a rare.
+  
+  A tier with nothing left to deal falls through to the next.
+- **The free slots keep their grade-based tier roll.**
+- **Within any tier, the family is rolled before the piece.** Families you wear are weighted up, then a piece is picked inside the family. Adding pieces to one family never changes another family's share.
+- **The "?" card shows the priced slot's odds,** for example "Set 60% · Legendary 15% · Epic 30%", and the families you wear.
+
+### G5. His gear covers gaps (the neck lesson)
+
+- **Opponents wear gear from the same deck,** with more pieces in later bouts, and legendary pieces for champions. His gear is a tell: a spiked shield means don't hammer his guard, a wolf pelt means he drinks blood. A foe's piece gives him its effect only where the effect makes sense for the AI. Otherwise it is a look and a warning (simplest option; the builder lists which).
+- **Gap guards,** a new small set of foe-only pieces. Each covers one joint gap with a visible guard, so that gap is shut for the bout:
+  - a **gorget** covers the neck;
+  - a **manica** (an arm guard) covers the armpit;
+  - a **wide belt** covers the waist;
+  - **couters** cover the elbow;
+  - **knee guards** cover the knee.
+- **His intro card shows which gaps are guarded.**
+- **The rules:**
+  - at least 2 gaps are always open;
+  - the bout 1 sparring partner never wears a guard, so the neck lesson still teaches;
+  - from bout 2 on, each foe has a chance of one or two guards, rising by bout and set in TUNING;
+  - the gorget is the most common guard, so a neck-only player meets it often and has to learn the armpit, waist, elbow and knee;
+  - the champion always wears at least one guard.
+- **The rival remembers,** in the spirit of v1's memory: a rival who lost to you wears a guard on the gap you hit most against him.
+
+### G6. Saves
+
+- `saveVersion` 6.
+- **The picks keep their card ids,** so a saved run migrates as is. The gear is derived from the ids.
+
+### G7. Acceptance
+
+- Every piece draws on both fighters at 667x375, 844x390 and 932x430. The slot replace, the set mark and the war paint show.
+- The cascade's odds match its TUNING over a seeded sample (a sample only, not a search).
+- At least 2 gaps are always open, and bout 1 is never guarded.
+- `npm run smoke` passes.
+- Frame time is no worse than arena-v18.
+- **The designer's runs judge the rest.**
