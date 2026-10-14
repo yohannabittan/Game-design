@@ -499,3 +499,107 @@ The designer asked: "How long to start with just one arena, with the armourer's 
 - `npm run smoke` passes.
 - Frame time is no worse than arena-v19 (with two foes on screen in the City).
 - **The designer's runs judge difficulty.**
+
+## Step 3.5 (locked 2026-10-14): fighters with shape, better wheels, more juice
+
+**What the designer asked:**
+- "We need to change some variables in Arena: more size changes, and the distribution of strength and stamina and speed."
+- Then, to the plan below: "Yes, this is better. We also need better-looking wheels and a bit more juice."
+
+**It is built after 3a lands and before 3b,** so the lion and the bear use the same size and profile system. One Opus build (feel-critical), reviewed.
+
+### F1. Five sizes, and no two the same
+
+- **Five bands for you and for him.** The numbers are starting points in TUNING:
+
+  | Band | Scale | Health | Reach | Damage | Wind-up | Feet |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Runt | 0.75 | 0.65x | -0.08 | 0.8x | 0.8x (faster) | 0.65x (quicker) |
+  | Lean | 0.88 | 0.82x | -0.04 | 0.9x | 0.9x | 0.82x |
+  | Medium | 1 | 1x | 0 | 1x | 1x | 1x |
+  | Big | 1.16 | 1.3x | +0.05 | 1.2x | 1.12x | 1.3x |
+  | Giant | 1.35 | 1.6x | +0.1 | 1.4x | 1.25x (slower) | 1.5x (slow) |
+
+- **A small variation inside each band,** about ±4 percent of scale. It is rolled and seeded, and the effects follow the scale continuously, so heights differ fight to fight.
+- **Your own hearts by band:** 2 / 2.5 / 3 / 3.5 / 4.5.
+- **Your hand lag by band:** 0.75 / 0.85 / 1 / 1.15 / 1.3.
+- **Weights:** your size wheel's weights favour Medium, with the Runt and the Giant as thin slices. The gauntlet's size lists per bout move to the five bands, and the Giant is rare before bout 3.
+- **Layout check:** a Giant must fit at 667x375 with the HUD clear.
+
+### F2. His stats: a budget with a profile
+
+- **His total stat points rise by bout.** Starting points: 6, 8, 9, 10 and 11, plus 1 for a champion, each stat 1 to 5.
+- **The points split by a rolled profile,** with the shares in TUNING:
+  - **Brute:** high strength, high stamina, low speed.
+  - **Duelist:** high speed, fair strength and stamina.
+  - **Glass cannon:** high strength, high speed, low stamina.
+  - **Tank:** high stamina, fair strength, low speed.
+  - **Balanced.**
+- **Size leans the profile roll.** A Giant is more often a Brute or a Tank, and a Runt a Duelist or a Glass cannon. Any profile is still possible at any size.
+- **Every foe keeps at least one stat at 2 or below until the champion,** and the champion keeps one at 3 or below, so every fight has a weakness to read.
+- **The intro card names his profile in one line,** beside the stat bars:
+  - "Glass cannon: hits hard, tires fast."
+  - "Tank: soaks blows, slow to start."
+  - "Brute: hits hard, never tires, slow feet."
+  - "Duelist: quick hands, quick feet."
+  - "Balanced: no easy opening."
+
+### F3. Your wheels reshape each other (pattern L8)
+
+- **Your band tilts your stat wheels.** A Giant's strength wheel grows its strong slices and its speed wheel shrinks its fast ones. A Runt is the reverse.
+- **Each stat result reshapes the next wheel.** A Strong or Mighty result shrinks the next stat wheel's top slices by one tier step, and a Feeble or Fair result grows them. All lucky is still possible, just rare.
+- **Before each spin, the slices visibly grow and shrink from the last result,** so you see the cause before the effect.
+- **The tier letter (S to D)** still sums the stats, and the underdog bonus stays.
+
+### F4. Better-looking wheels
+
+The roll scene gets a real wheel-of-fate look, drawn by the game:
+- **The wheel itself:**
+  - a rim with gold studs;
+  - pegs between slices, with a ticker that flicks on each peg (a tick sound per peg, pitch rising as it slows);
+  - slices with a gentle gradient, sized by their odds;
+  - a hub with the wheel's question ("Size?", "Strength?").
+- **The spin:** a fast start, then an eased slowdown with a last-peg tease that wobbles before it settles.
+- **The landing:**
+  - a flash on the slice;
+  - the slice pops out a little;
+  - the answer drops in big below ("MIGHTY!");
+  - rare slivers (Runt, Giant, Mighty, Feeble) get a bigger burst and a crowd "ooh".
+- **Progress pips** for the eight wheels.
+- **The fighter card builds up beside the wheels** as each answer lands.
+- **Tap to spin, tap again to snap,** as now. Each wheel stays about 2 s.
+
+### F5. More juice in the fight
+
+Principle 16: every action sounds and shows.
+
+| Moment | Juice |
+| --- | --- |
+| a gap (slot) hit | a short hit-stop (about 60 ms), a bright spark at the gap, a deeper hit sound |
+| a fell | a slow-motion second, the camera punching in a little, the crowd roar, dust as he drops |
+| a perfect block | a white ring flash on the shield, a sharp ring sound, a tiny shake |
+| a feint read | a violet shimmer bursting off him, a crowd "ooh" |
+| a lunge | a dust puff at the back foot, a whoosh |
+| a dodge | a short ghost trail, a sand scuff |
+| a finisher | the war paint glowing, a beat of slow motion, a named banner ("EXECUTE!") |
+| his wind-up | a creak or grunt by weapon, so the tell is heard as well as seen |
+| a Giant's step | a soft thud and a tiny shake |
+| getting hit | a red edge flash, your fighter recoiling, a heart-shatter pop on the HUD |
+
+- **Comfort and settings:** effects respect mute. Shake is small, and off when the system asks for reduced motion if the engine exposes it (otherwise a TUNING switch).
+- **All numbers** are in `TUNING.juice`.
+- **No gore:** sparks, sand and straw only.
+
+### F6. Saves
+
+`saveVersion` bump only if needed. Saved fighters and rivals on the old three sizes map S to Lean, M to Medium and L to Big.
+
+### F7. Acceptance
+
+- Five bands draw and fit at 667x375, 844x390 and 932x430, with a Giant beside a Runt in a screenshot.
+- Over a seeded sample of 400 gauntlets, every non-champion foe has a stat at 2 or below and every champion one at 3 or below. Profiles and bands follow their weights.
+- The wheels' reshaping is visible. A screenshot shows a slice growing before the spin.
+- Every F5 row is present (checked in a short recording or a frame series).
+- `npm run smoke` passes.
+- Frame time is no worse than the 3a build.
+- **The designer's runs judge feel and difficulty.**
