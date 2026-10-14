@@ -382,3 +382,120 @@ The designer asked: "How long to start with just one arena, with the armourer's 
 - `npm run smoke` passes.
 - Frame time is no worse than arena-v18.
 - **The designer's runs judge the rest.**
+
+## Step 3 (locked 2026-10-14): the four arenas
+
+**What the designer said:** "Start the Arena arenas build."
+
+**Scope:** A (the ladder and its twists), C (the crowd and the Emperor's thumb) and a lighter E2. Fame and the ludus (E) are step 4, and the painted gear pack (F) is separate.
+
+**Two Opus builds, one after the other, each reviewed:**
+- **3a, the frame:**
+  - the arena picker and the unlocks;
+  - the Pit's tight ring;
+  - the City's pairs;
+  - the Grand Games and the Emperor's thumb;
+  - the crowd meter and its coins;
+  - Brutus's arena lines;
+  - the endings.
+  
+  The Colosseum shows on the picker, locked, with "Coming soon" under its silhouette.
+- **3b, the Colosseum:** men and beasts (the lion and the bear) and the bestiarius champion. It opens the Colosseum for good.
+
+### S1. The ladder
+
+- **One run is one arena.** Play opens a picker with four arena cards.
+  - An open arena shows its name, its twist in one line, and its champion's name.
+  - The next locked arena shows the champion's silhouette and "Fell the [previous] champion to open".
+  - The arenas: the Pit (Capua), the City arena (Pompeii), the Colosseum (Rome) and the Grand Games (Rome).
+- **Felling an arena's champion opens the next one for good.**
+- **Migrate:** a save that has felled a Pit champion opens the City.
+- **Per-arena foe tuning,** in one TUNING table per arena:
+  - grade shift;
+  - feint rate;
+  - guard chances (step 2's G5 numbers, shifted up per arena);
+  - gear pieces per foe.
+- **Champion pools:**
+
+  | Arena | Champions |
+  | --- | --- |
+  | The Pit | the four v1 champions (as now) |
+  | The City | **Castor and Pollux, the Twins** (one pairs bout: one twin, then the other) and **Hermes the Swift** |
+  | The Colosseum (3b) | **Carpophorus the Beastmaster** (sends in his lion at half health) and **Mevia the Huntress** |
+  | The Grand Games | **Aquila, the Emperor's Blade** |
+
+  Remove Hermes and Carpophorus from the ordinary name pool. Each new champion gets a tie line per reason, as in v1 C, written in the build in the same voice.
+- **The rival** is remembered per arena.
+- **The run resume** keeps the arena.
+
+### S2. The twists
+
+- **The Pit: the tight ring.** The walls stand closer (one TUNING factor, about 0.7 of the v1 distance), so backing off is short, and he can pin you at the wall: "Back to the wall!", as in v1. The bout 1 sparring partner stays as it is.
+- **The City arena: pairs, from bout 3.**
+  - A second foe waits at the edge, drawn smaller and dimmer.
+  - When the first is winded or felled, the second steps in. When the first is winded, they swap. When he is felled, the second takes over at full health.
+  - The bout is felled when both are down.
+  - The one at the edge taunts as a tell, in a short bubble ("Now, brother!"), half a second before he steps in.
+  - Each foe has his own hearts and gear, and both are shown on the intro card.
+  - The draft follows a pairs bout once, as for any bout.
+- **The Grand Games: 3 bouts, then Aquila.** No new mechanic. The ending is the Emperor's thumb (S3).
+
+### S3. The crowd
+
+- **The crowd meter** sits small in the HUD next to BOUT, clear of both thumbs.
+- **It fills on style:**
+  - a feint read: big;
+  - a perfect block: medium;
+  - a slot hit: medium;
+  - a laming: medium;
+  - a bout with no hits taken: big;
+  - a combo or a finisher: small.
+- **It drains** a little when you turtle (the existing turtle read) and when you back off without cause. It carries from bout to bout within a run.
+- **The amounts** are in TUNING.
+- **Coins in the sand:** at each favour step, a few coins arc in from the stands, with a coin sound.
+- **Gold:** step 1's gold formula stays, and it is shown as the crowd's coins: the style bonuses are what the crowd throws. Nothing changes in the totals.
+- **The chant:** the reason Glory's chant is driven by the meter.
+- **The Emperor's thumb.** After Aquila falls, a short animated card: the imperial box, then the Emperor's hand.
+
+  | Meter | Thumb | Ending |
+  | --- | --- | --- |
+  | full (top third) | thumbs up, the crowd roars | the true ending for your reason (below) |
+  | middling | a cold nod | "The Emperor nods. Rome will forget you by spring." |
+  | low | thumbs down, jeers | "Free, but forgotten. You walk out to silence." |
+
+  All three are a win: the arena is cleared and you go on the Wall of Champions when step 4 adds it. **The true endings, at a full meter:**
+  - **Debt:** "The Emperor pays your debt himself. The moneylender bows."
+  - **Revenge:** "Aquila burned your village on the Emperor's order. The Emperor looks away first."
+  - **Freedom:** "The Emperor hands you the wooden sword. You are free."
+  - **Glory:** "Rome chants your name. They will sing it for a hundred years."
+
+### S4. Story, lighter (the cut-5 version)
+
+- **Brutus has one opening line per arena,** on the first intro card of the run:
+  - **the Pit:** "Everyone starts in the sand. Few leave it.";
+  - **the City:** "Pompeii likes a show. Give them one.";
+  - **the Colosseum:** "Rome. Fifty thousand eyes. Don't blink.";
+  - **the Grand Games:** "The Emperor himself. I never got this far."
+- **The run's reason thread** (debt, notches, chant) works within each run, as now.
+- **The Pit's v1 epilogue** stays as the Pit's ending, and the City has a short ending of its own (the builder writes one per reason, in the same voice).
+
+### S5. Saves
+
+- `saveVersion` 7 adds:
+  - `arenas` (the highest open);
+  - per-arena rivals;
+  - the arena in the run resume.
+- `migrate` per S1.
+
+### S6. Acceptance
+
+- The picker, both City foes on the intro card, the crowd meter, the coins and the thumb card don't overlap at 667x375, 844x390 or 932x430.
+- A seeded run of each open arena plays through:
+  - in the Pit, the walls are closer;
+  - in the City, the swap happens on winded and the second foe takes over on a fell;
+  - the Grand Games end on the right thumb for a full, a middling and a low meter.
+- Each new champion has a tie line per reason.
+- A v6 save migrates.
+- `npm run smoke` passes.
+- Frame time is no worse than arena-v19 (with two foes on screen in the City).
+- **The designer's runs judge difficulty.**
