@@ -6,7 +6,10 @@
 // raises the shield High, Mid or Low (only the matching zone blocks, a block at the last moment is perfect) and works one big DODGE (tap a backstep, hold to back off).
 // The foe plans each exchange with the seeded fight RNG and plays it out with honest tells (chops, thrusts, sweeps, combos, feints, bashes, nets),
 // keeps his weapon's range, remembers your habits, and is winded and open when his stamina runs out. After each fell the bout is graded, the crowd's gold counted, and you
-// pick one of three seeded cards (four families of rule cards that make and spend Momentum and Bleed; the third is priced in gold), with the armourer's tent once after bout 3. H is the fighter body unit (screen height x fighter.height, scaled by size); body units have x forward, y down,
+// pick one of three seeded cards (four families of rule cards that make and spend Momentum and Bleed; the third is priced in gold), with the armourer's tent once after bout 3.
+// One run is one arena, picked on a ladder that opens as each arena's champion falls: the Pit's tight ring, the City's pairs (a second foe waits at the edge
+// and steps in when the first is winded or felled), the Grand Games ending on the Emperor's thumb; a crowd meter fills with style and drains on turtling,
+// throws the gold as coins, drives Glory's chant and decides the thumb. H is the fighter body unit (screen height x fighter.height, scaled by size); body units have x forward, y down,
 // origin at the feet. Particles are the game's own, so a hit-stop freezes them. The section map is docs/games/arena/CODEMAP.md.
 
 import { makeRng, clamp, lerp } from './engine.js';
@@ -147,7 +150,8 @@ const TUNING = {
   },
   // the two backgrounds that keep a v1 perk until their families arrive: the bar share Second Wind refills (once per run), seconds of feint shimmer
   perks: { baker: 0.5, scribe: 0.2 },
-  // the reason's thread: the debt in denarii and what each fell knocks off it; the crowd's chant (a clap per bout so far, louder each bout: gain base + step x bout)
+  // the reason's thread: the debt in denarii and what each fell knocks off it; the crowd's chant (one clap, and one more per share of the crowd meter, up to
+  // max, louder with each: gain base + step x claps beyond the first)
   story: { debt: 1000, debtPer: 200, chant: { gain: 0.08, step: 0.04, gap: 0.24, max: 5 } },
   // the one token per run: a Respin on your fighter card or a Reroll on a draft
   token: 1,
@@ -201,6 +205,24 @@ const TUNING = {
   guard: { one: [0, 0.35, 0.5, 0.65, 1], two: [0, 0.15, 0.25, 0.35, 0.4], w: { 'slot-neck': 4, 'slot-armpit': 1.5, 'slot-waist': 1.5, 'slot-elbow': 1.5, 'slot-knee': 1.5 }, open: 2 },
   // crippling him: a lamed sword arm lengthens his wind-ups by arm; a lamed shield arm makes his cover slide cover x slower; lamed legs walk at legs x
   lame: { arm: 0.2, cover: 2.5, legs: 0.55 },
+  // each arena's foes: shift = stat levels added to every bout's centre, feint = x his feint weight, guard = added to the chance of a first and a second
+  // gap guard (never in bout 1), gear = pieces added to each foe's; ring = x the distance to both walls; pairs = the bout index (0-based) pairs start at
+  arenas: {
+    pit: { shift: 0, feint: 1, guard: [0, 0], gear: 0, ring: 0.7, pairs: 99 },
+    city: { shift: 0.4, feint: 1.15, guard: [0.1, 0.05], gear: 0, ring: 1, pairs: 2 },
+    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99 },
+    games: { shift: 0.9, feint: 1.35, guard: [0.2, 0.1], gear: 1, ring: 1, pairs: 99 },
+  },
+  // the City's pairs: the waiting foe drawn at scale x his size and alpha, his centre x from the screen's edge (in his H), his body's half width (body, in his H);
+  // the fighters' frame slides left until the one fighting stays clear of him (room = H his wall gives the one fighting past his mark, fbody = his half width in
+  // his H); taunt = s his bubble shows before he steps in; enter = s before the one who steps in may swing; hp = x each pair foe's health
+  pairs: { scale: 0.6, alpha: 0.6, x: 0.3, body: 0.2, room: 0.1, fbody: 0.22, taunt: 0.5, enter: 1.2, hp: 1 },
+  // the crowd's favour, 0 to max, carried through the run: what each style event gives (a feint read, a perfect block, a slot hit, a laming, a bout with
+  // no hits taken, two of your hits within comboWin s, a finisher), what turtling (his turtle read's measure) and backing off with no blow coming drain
+  // per second; coins arc in from the stands at each step of favour; the Emperor's thumb reads the meter by thirds (bands)
+  crowd: { max: 100, read: 10, perfect: 5, slot: 5, lame: 5, clean: 10, combo: 2, fin: 2, comboWin: 1, turtle: 4, back: 6, step: 20, coins: 5, coinCap: 15, bands: [1 / 3, 2 / 3] },
+  // the Emperor's thumb card: s the box takes to show, then the hand to rise, then the thumb to turn; s before a tap continues
+  thumb: { box: 0.6, hand: 0.8, turn: 0.4, tap: 2.2 },
 };
 
 // ====== DATA TABLES: the gauntlet, story lines, the upgrade deck, body parts, zones and poses ======
@@ -213,9 +235,40 @@ const GAUNTLET = [
   { sizes: ['S', 'M', 'L'], armour: ['medium', 'heavy'], stat: 3.2, feints: true, memory: true, counters: true },
   { sizes: ['M', 'L'], armour: ['heavy'], stat: 4, champion: true, feints: true, memory: true, counters: true },
 ];
-const bout = () => GAUNTLET[state.rack] || GAUNTLET[GAUNTLET.length - 1];
-const NAMES = ['Crixus', 'Priscus', 'Verus', 'Celadus', 'Hermes', 'Triumphus', 'Tetraites', 'Spiculus', 'Carpophorus', 'Attilius', 'Oenomaus', 'Gannicus', 'Pugnax', 'Calamus', 'Asteropaeus'];
+const NAMES = ['Crixus', 'Priscus', 'Verus', 'Celadus', 'Triumphus', 'Tetraites', 'Spiculus', 'Attilius', 'Oenomaus', 'Gannicus', 'Pugnax', 'Calamus', 'Asteropaeus'];
 const CHAMPIONS = ['Flamma the Unbroken', 'Marcus the Red', 'Varro of Capua', 'Aurelius the Golden'];
+// The later arenas' champions, each tied to your reason in his own words: the tie on his card and the line he says. The Twins are one pairs bout,
+// Castor first and Pollux waiting.
+const NEW_CHAMPS = {
+  twins: { name: 'Castor', pair: 'Pollux', title: 'Castor and Pollux, the Twins',
+    tie: { revenge: 'Their torches lit your village.', debt: "The moneylender's sons. They collect in pairs.", freedom: 'Freed together. They fight to stay that way.', glory: "Pompeii's darlings, both of them." },
+    line: { revenge: 'One of us lit the fire. Guess which.', debt: 'Two of us, one debt. Pay twice.', freedom: 'Free men fight in pairs. You fight alone.', glory: 'They came to see twins. Not you.' } },
+  hermes: { name: 'Hermes the Swift',
+    tie: { revenge: 'He ran the torch from roof to roof.', debt: "He runs the moneylender's errands.", freedom: 'He ran his way free. Nobody catches him.', glory: 'The fastest blade in Pompeii.' },
+    line: { revenge: 'I was gone before the roofs fell.', debt: 'I collect. Quickly.', freedom: "You can't win freedom you can't catch.", glory: 'Blink, and you miss your own fall.' } },
+  aquila: { name: "Aquila, the Emperor's Blade",
+    tie: { revenge: "He carried the Emperor's torch.", debt: "The Emperor's purse. Your debt is in it.", freedom: "He holds the wooden sword, by the Emperor's leave.", glory: "Rome's own champion." },
+    line: { revenge: 'The Emperor ordered it. I obeyed.', debt: 'Your debt bought my armour.', freedom: 'The wooden sword is mine to give. I will not.', glory: 'Rome has one name. Mine.' } },
+};
+// The ladder: one run is one arena. rows = which gauntlet rows its bouts roll from (the Grand Games skip the sparring partner); champs = its champion pool;
+// who = how its champion is named on the next arena's lock; soon = shown locked, not built yet. Its numbers are TUNING.arenas.
+const ARENAS = [
+  { id: 'pit', name: 'The Pit', short: 'Pit', who: 'Pit', place: 'Capua', twist: 'The tight ring', rows: [0, 1, 2, 3, 4], champs: CHAMPIONS, champLabel: 'Four champions',
+    brutus: 'Everyone starts in the sand. Few leave it.' },
+  { id: 'city', name: 'The City arena', short: 'City', who: 'City', place: 'Pompeii', twist: 'Two foes, one at a time', rows: [0, 1, 2, 3, 4], champs: ['twins', 'hermes'], champLabel: 'The Twins or Hermes',
+    brutus: 'Pompeii likes a show. Give them one.' },
+  { id: 'rome', name: 'The Colosseum', short: 'Colosseum', who: 'Colosseum', place: 'Rome', twist: 'Men and beasts', rows: [0, 1, 2, 3, 4], champs: [], champLabel: 'Carpophorus or Mevia', soon: true,
+    brutus: "Rome. Fifty thousand eyes. Don't blink." },
+  { id: 'games', name: 'The Grand Games', short: 'Games', who: 'Grand Games', place: 'Rome', twist: "The Emperor's thumb", rows: [1, 2, 3, 4], champs: ['aquila'], champLabel: 'Aquila',
+    brutus: 'The Emperor himself. I never got this far.' },
+];
+const ARENA = Object.fromEntries(ARENAS.map((a) => [a.id, a]));
+const arena = () => ARENA[state.arena] || ARENAS[0];
+const arenaT = () => TUNING.arenas[arena().id];
+const bout = () => GAUNTLET[arena().rows[state.rack]] || GAUNTLET[GAUNTLET.length - 1];
+// the champion's tie and line: a later arena's champion has his own, the Pit's four share theirs
+const champTie = (d, r) => (NEW_CHAMPS[d.ck] ? NEW_CHAMPS[d.ck].tie[r] : CHAMP_TIE[r]);
+const champLine = (d, r) => (NEW_CHAMPS[d.ck] ? NEW_CHAMPS[d.ck].line[r] : CHAMP_LINE[r]);
 
 // Your fighter's story. Each origin is one background (its noun), and each background gives one perk. Names carry 'f' or 'm' for the epilogue's and the wall's words.
 const ORIGINS = {
@@ -254,13 +307,16 @@ const CHAMP_TIE = { revenge: 'He burned your village.', debt: "He's in the money
 const CHAMP_LINE = { revenge: 'I remember the fire. Do you?', debt: "Your family's debt is my purse.", freedom: 'I was free once. Gold brought me back.', glory: 'They will forget you by morning.' };
 const debtLeft = () => Math.max(0, TUNING.story.debt - TUNING.story.debtPer * state.felled);
 const denarii = (n) => n.toLocaleString('en-US');
-// Old Brutus before a bout: his first line, your background's line before bout 2, the champion line last, his reason's line between (revenge climbs)
+// Old Brutus before a bout: the arena's opening line first (his reason's first line under it, brutusReason), your background's line before bout 2,
+// the champion line last, his reason's line between (revenge climbs)
 function brutusIntro() {
   const me = state.me, r = state.rack, champ = state.foe.champion;
+  if (r === 0) return arena().brutus;
   if (r === 1) return BRUTUS_BG[bg()];
   if (me.reason === 'revenge') return REVENGE.intro[champ ? 4 : r];
   return brutus(me, r === 0 ? 'first' : champ ? 'champ' : 'intro');
 }
+const brutusReason = () => (state.me.reason === 'revenge' ? REVENGE.intro[0] : brutus(state.me, 'first'));
 // after a fell: the reason's thread
 function brutusWon() {
   const me = state.me, n = state.felled;
@@ -275,6 +331,29 @@ const EPILOGUE = {
   revenge: (n) => `The village was avenged. ${n} finally slept.`,
   glory: (n) => `Rome sang the name ${n} for a generation.`,
 };
+// The City's ending, one per reason: a chapter closed, Rome ahead.
+const CITY_END = {
+  freedom: (n) => `Pompeii roared for ${n}. The wooden sword waits in Rome.`,
+  debt: (n) => `Pompeii paid in silver. ${n}'s family ate meat that winter.`,
+  revenge: (n) => `In Pompeii, ${n} learned who gave the order: Rome.`,
+  glory: (n) => `Pompeii chanted ${n} until dawn. Rome heard it.`,
+};
+// The Grand Games end on the Emperor's thumb: the true ending for your reason at a full meter, a cold nod, or thumbs down.
+const TRUE_END = {
+  debt: 'The Emperor pays your debt himself. The moneylender bows.',
+  revenge: "Aquila burned your village on the Emperor's order. The Emperor looks away first.",
+  freedom: 'The Emperor hands you the wooden sword. You are free.',
+  glory: 'Rome chants your name. They will sing it for a hundred years.',
+};
+const THUMB_END = ['Free, but forgotten. You walk out to silence.', 'The Emperor nods. Rome will forget you by spring.'];
+// the crowd's band: 0 low, 1 middling, 2 full (the top third)
+const bandOf = (fav) => { const B = TUNING.crowd.bands, k = fav / TUNING.crowd.max; return k >= B[1] ? 2 : k >= B[0] ? 1 : 0; };
+// how a won run ends: the Pit's epilogue, the City's, or the Emperor's thumb
+function endingOf(arenaId, me, fav) {
+  if (arenaId === 'games') { const b = bandOf(fav); return b === 2 ? TRUE_END[me.reason] : THUMB_END[b]; }
+  if (arenaId === 'city') return CITY_END[me.reason](me.name, me.female);
+  return EPILOGUE[me.reason](me.name, me.female);
+}
 const storyLine = (me) => `${me.name}, ${ORIGINS[me.origin].text}. Fights for: ${REASON_NAME[me.reason]}.`;
 
 // The deck: four families, each card one rule and one piece of gear (fam; tier = rarity: 0 common, 1 rare, 2 epic, 3 legendary; key = a keystone, the
@@ -473,9 +552,10 @@ function foeParts(rng, set) {
   return out;
 }
 
-// One fighter of the gauntlet, rolled from the bout's tables: size, weapon, armour set, three 1-5 stats with the size's bias.
-function rollFighter(rng, tier, weapon, used) {
-  const G = GAUNTLET[tier], T = TUNING;
+// One fighter of the gauntlet, rolled from the bout's tables: size, weapon, armour set, three 1-5 stats with the size's bias (shifted by the arena).
+// tier is his gauntlet row, at his place in the arena's run; a champion is picked from the arena's pool.
+function rollFighter(rng, tier, weapon, used, A = ARENAS[0], at = tier) {
+  const G = GAUNTLET[tier], T = TUNING, shift = T.arenas[A.id].shift;
   let size, set;
   for (let k = 0; k < 20; k++) {
     const si = rng.pick(G.sizes), ai = rng.pick(G.armour);
@@ -483,36 +563,53 @@ function rollFighter(rng, tier, weapon, used) {
     if (!used.has(`${size.id}${weapon.id}${set.id}`)) break;
   }
   used.add(`${size.id}${weapon.id}${set.id}`);
-  const roll = (b) => clamp(Math.round(G.stat + b + rng.range(-1, 1)), 1, 5);
+  const roll = (b) => clamp(Math.round(G.stat + shift + b + rng.range(-1, 1)), 1, 5);
   const best = (b) => (G.champion ? Math.max(roll(b), roll(b)) : roll(b));
   const stats = size.bias.map(best);
-  const name = G.champion ? rng.pick(CHAMPIONS) : rng.pick(NAMES);
-  return { tier, name, champion: !!G.champion, size, weapon, set, str: stats[0], spd: stats[1], sta: stats[2], shield: rng.chance(weapon.shield), mace: rng.chance(0.5), partSeed: (rng() * 2 ** 32) >>> 0 };
+  const pick = G.champion ? rng.pick(A.champs) : rng.pick(NAMES), C = NEW_CHAMPS[pick];
+  return { tier, at, name: C ? C.name : pick, ck: C ? pick : null, title: C ? C.title || null : null, pair: null, champion: !!G.champion, size, weapon, set, str: stats[0], spd: stats[1], sta: stats[2],
+    shield: rng.chance(weapon.shield), mace: rng.chance(0.5), partSeed: (rng() * 2 ** 32) >>> 0 };
+}
+// a fighter from a saved rival record, on the rolled one's place
+function fromRival(c, rv) {
+  const T = TUNING, size = T.sizes.find((z) => z.id === rv.size), weapon = T.weapons.find((z) => z.id === rv.weapon), set = T.armourSets.find((z) => z.id === rv.set);
+  if (!size || !weapon || !set) return null;
+  return { ...c, name: rv.name, ck: rv.ck || null, title: rv.title || null, rival: true, champion: rv.champion != null ? rv.champion : c.champion, size, weapon, set, str: rv.str, spd: rv.spd, sta: rv.sta, shield: !!rv.shield, mace: !!rv.mace, partSeed: rv.partSeed >>> 0, gaps: rv.gaps || {} };
 }
 
-// A saved rival takes the champion's place: the same man, look and weapon as the one who cut you down.
-function rollGauntlet(seed, rival) {
-  const rng = makeRng(seed ^ 0x51ed270b), used = new Set(), W = TUNING.weapons, T = TUNING;
+// The arena's gauntlet. A saved rival takes the champion's place: the same man, look and weapon as the one who cut you down (and his partner, in a pair).
+// From the arena's pairs bout on, each bout has a second foe waiting, rolled from the same row on his own stream; the Twins' second is Pollux, a champion
+// too, and Hermes's partner is an ordinary man from the row below.
+function rollGauntlet(seed, rival, A = ARENAS[0]) {
+  const rng = makeRng(seed ^ 0x51ed270b), used = new Set(), W = TUNING.weapons, rows = A.rows;
   const order = rng.shuffle(W.map((_, i) => i));
-  const g = GAUNTLET.map((_, i) => rollFighter(rng, i, W[i < order.length ? order[i] : rng.int(0, W.length - 1)], used));
-  const size = rival && T.sizes.find((z) => z.id === rival.size), weapon = rival && W.find((z) => z.id === rival.weapon), set = rival && T.armourSets.find((z) => z.id === rival.set);
-  if (size && weapon && set) {
-    const c = g[g.length - 1];
-    g[g.length - 1] = { ...c, name: rival.name, rival: true, size, weapon, set, str: rival.str, spd: rival.spd, sta: rival.sta, shield: !!rival.shield, mace: !!rival.mace, partSeed: rival.partSeed >>> 0, gaps: rival.gaps || {} };
-  }
-  // his gear and gap guards, on their own stream so the fighters above roll as they always did; a rival keeps the gear he wore
-  const gr = makeRng(seed ^ 0x2f6b9a17);
-  g.forEach((d, i) => { const gear = rollGear(gr, d, i), guards = rollGuards(gr, d, i); d.gear = d.rival && rival.gear ? rival.gear.slice() : gear; d.guards = guards; });
+  const g = rows.map((row, i) => rollFighter(rng, row, W[i < order.length ? order[i] : rng.int(0, W.length - 1)], used, A, i));
+  const pr = makeRng(seed ^ 0x6a09e667);
+  g.forEach((d, i) => {
+    if (i < TUNING.arenas[A.id].pairs) return;
+    const twin = d.ck === 'twins', row = d.champion && !twin ? d.tier - 1 : d.tier;
+    let q;
+    for (let k = 0; k < 6 && (!q || g.some((o) => o.name === q.name || (o.pair && o.pair.name === q.name))); k++) q = rollFighter(pr, row, pr.pick(W), used, A, i);
+    d.pair = twin ? { ...q, name: NEW_CHAMPS.twins.pair, ck: null, title: null } : { ...q, champion: false, ck: null, title: null };
+  });
+  const c = g[g.length - 1], rv = rival && fromRival(c, rival);
+  if (rv) { g[g.length - 1] = rv; rv.pair = rival.pair ? fromRival({ ...(c.pair || c), pair: null }, rival.pair) || c.pair : c.pair; }
+  // his gear and gap guards, on their own stream so the fighters above roll as they always did (a pair's second on another); a rival keeps the gear he wore
+  const gr = makeRng(seed ^ 0x2f6b9a17), gp = makeRng(seed ^ 0x3c6ef373);
+  const kit = (d, src, rec) => { const gear = rollGear(src, d, d.tier, A), guards = rollGuards(src, d, d.tier, A); d.gear = d.rival && rec && rec.gear ? rec.gear.slice() : gear; d.guards = guards; };
+  g.forEach((d) => kit(d, gr, rival));
+  g.forEach((d) => { if (d.pair) kit(d.pair, gp, rival && rival.pair); });
   return g;
 }
-const rivalOf = (d) => ({ name: d.name, size: d.size.id, weapon: d.weapon.id, set: d.set.id, str: d.str, spd: d.spd, sta: d.sta, shield: d.shield, mace: d.mace, partSeed: d.partSeed, gear: (d.gear || []).slice(), gaps: { ...(d.gaps || {}) } });
+const rivalOf = (d) => ({ name: d.name, ck: d.ck || null, title: d.title || null, champion: !!d.champion, size: d.size.id, weapon: d.weapon.id, set: d.set.id, str: d.str, spd: d.spd, sta: d.sta, shield: d.shield, mace: d.mace, partSeed: d.partSeed,
+  gear: (d.gear || []).slice(), gaps: { ...(d.gaps || {}) }, pair: d.pair ? rivalOf(d.pair) : null });
 // His gear from the deck: more pieces in later bouts, one a slot, up to the bout's rarity; a champion also wears a legendary. A shield piece only on a
 // shield-bearer, and the cape that bans the shield only on a man without one.
-function rollGear(rng, d, i) {
-  const F = TUNING.foeGear, out = [], fams = ['wall', 'blood', 'dancer', 'brute', 'rare'];
+function rollGear(rng, d, i, A = ARENAS[0]) {
+  const F = TUNING.foeGear, out = [], fams = ['wall', 'blood', 'dancer', 'brute', 'rare'], n = F.n[i] + TUNING.arenas[A.id].gear;
   const ok = (c) => c.slot && !out.some((id) => CARD[id].slot === c.slot) && (c.slot !== 'shield' || d.shield) && !(c.bans === 'shield' && d.shield);
   if (d.champion) { const L = DECK.filter((c) => c.key && ok(c)); out.push(rng.pick(L).id); }
-  for (let k = 0; k < 30 && out.length < F.n[i]; k++) {
+  for (let k = 0; k < 30 && out.length < n; k++) {
     const fam = rng.pick(fams), list = DECK.filter((c) => c.fam === fam && !c.key && c.tier <= F.rar[i] && ok(c));
     if (list.length) out.push(rng.pick(list).id);
   }
@@ -520,9 +617,9 @@ function rollGear(rng, d, i) {
 }
 // His gap guards: never in bout 1, at least TUNING.guard.open gaps left open, a chance of one (and then of a second) rising by bout, the champion always one,
 // the gorget the most common. A rival first guards the gap you hit most against him.
-function rollGuards(rng, d, i) {
-  const G = TUNING.guard, open = foeParts(makeRng(d.partSeed), d.set).filter((q) => q.slot).map((q) => q.d.id), room = Math.max(0, open.length - G.open), out = [];
-  let n = rng.chance(G.one[i]) ? (rng.chance(G.two[i]) ? 2 : 1) : 0;
+function rollGuards(rng, d, i, A = ARENAS[0]) {
+  const G = TUNING.guard, S = TUNING.arenas[A.id].guard, open = foeParts(makeRng(d.partSeed), d.set).filter((q) => q.slot).map((q) => q.d.id), room = Math.max(0, open.length - G.open), out = [];
+  let n = rng.chance(Math.min(1, G.one[i] + S[0])) ? (rng.chance(Math.min(1, G.two[i] + S[1])) ? 2 : 1) : 0;
   if (d.champion) n = Math.max(n, 1);
   if (GAUNTLET[i].spar) n = 0;
   const gaps = d.rival && d.gaps, best = gaps && open.filter((id) => gaps[id] > 0).sort((a, b) => gaps[b] - gaps[a])[0];
@@ -533,21 +630,27 @@ function rollGuards(rng, d, i) {
 // the guarded gaps are shut: drawn as their guard, and hit as a guard
 function guardParts(parts, guards) { for (const q of parts) if (q.slot && (guards || []).includes(q.d.id)) q.guard = true; return parts; }
 
-function newRack(E) {
-  const f = state.foe, d = state.gauntlet[state.rack], FT = TUNING.foe;
-  Object.assign(f, d);
+// one foe as he stands at the bout's start, from his gauntlet record (a pair's foes each have their own health, stamina, parts and gear)
+function makeFoe(d, pair) {
+  const FT = TUNING.foe, f = { ...d };
   f.wname = d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
   f.parts = guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards); f.look = foeLook(d); f.cloak = null;
-  f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1)); f.hp = f.maxHp; f.shown = f.hp;
+  f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1) * (pair ? TUNING.pairs.hp : 1)); f.hp = f.maxHp; f.shown = f.hp;
   f.staMax = TUNING.foeSta.base + TUNING.foeSta.per * d.sta; f.sta = f.staMax; f.staT = 9; f.staShown = 1;
   f.home = d.weapon.range + d.size.reach; f.strike = d.weapon.strike + d.size.reach;
-  f.th = REST_TH; f.dx = 0; f.dy = 0; f.a = 0; f.fr = {};
+  f.th = REST_TH; f.dx = 0; f.dy = 0; f.a = 0; f.fr = {}; f.down = false; f.bleed = []; f.dents = 0; f.shrug = false;
+  return f;
+}
+function newRack(E) {
+  const d = state.gauntlet[state.rack];
+  state.foe = makeFoe(d, !!d.pair); state.edge = d.pair ? makeFoe(d.pair, true) : null;
+  state.swapping = false; state.tauntT = 0; state.taunt = '';
   state.rng = makeRng(state.seed + state.rack * 7919);
-  state.cover = null; state.step = { x: f.home, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
+  state.cover = null; state.step = { x: state.foe.home, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
   state.pop = 1; state.fallT = 0; state.sw = null; state.move = null; state.plan = null; state.stun = 0; state.stagger = 0; state.kickA = 0; state.kickV = 0;
   state.winded = 0; state.windedMax = 1; state.retreat = 0; state.chase = 0; state.mood = { retreat: false };
   state.mem = { blocks: [], lunges: [], turtle: 0 };
-  state.swingIn = 1.2; state.intro = true; state.introT = 0;
+  state.swingIn = 1.2; state.intro = true; state.introT = 0; state.warm = false;
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
   settleFeint('none');
@@ -563,13 +666,13 @@ function newRack(E) {
 
 function nextGap() { const S = TUNING.swing; return S.gap * 0.6 + state.rng.range(0, S.gapSpread); }
 
-function newRound(E, seed, me0, rv) {
-  const M = TUNING.me, me = { ...me0, plates: me0.plates.slice() }, rival = rv !== undefined ? rv : E.save.get('rival', null);
+function newRound(E, seed, me0, rv, arenaId = 'pit') {
+  const M = TUNING.me, me = { ...me0, plates: me0.plates.slice() }, A = ARENA[arenaId] || ARENAS[0], rival = rv !== undefined ? rv : E.save.get('rivals', {})[A.id] || null;
   Object.assign(state, {
     me, maxHp: me.halves, staMax: M.staMax[me.sta - 1], lessons: E.save.get('feintLesson', 0), caption: null, slowT: 0,
     picks: [], grades: [], draft: null, token: TUNING.token, tokenUsed: '', epicsSeen: 0, switchReads: 0, hint: false, boutT0: 0, stepsIn: 0, stepsOut: 0, wallHits: 0, foeWall: 0, outReach: 0, dodged: 0, chases: 0, bakerWind: false, shrugs: 0, rivalBeaten: 0,
     foot: { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 },
-    seed, rng: makeRng(seed ^ 0x9e3779b9), gauntlet: rollGauntlet(seed, rival), results: [], rack: 0, m: 0, stop: 0, kickA: 0, kickV: 0,
+    seed, arena: A.id, rng: makeRng(seed ^ 0x9e3779b9), gauntlet: rollGauntlet(seed, rival, A), results: [], rack: 0, m: 0, stop: 0, kickA: 0, kickV: 0,
     hp: me.halves, endT: 0, dodgeT: 0, dodgeMax: TUNING.dodge.dur, dodgeCool: 0, away: false, dodgeM: -9, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, slotHits: 0, dg: { down: false, id: -1, t: 0 },
     stamina: M.staMax[me.sta - 1], lastAtk: -9, riposte: 0, open: 0, netT: 0, pushT: 0,
     gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
@@ -577,7 +680,8 @@ function newRound(E, seed, me0, rv) {
     fx: [], pops: [], streaks: [], trail: [],
     mom: 0, momT: 0, momGained: 0, momSpent: 0, lamings: 0, gold: 0, goldEarned: 0, lastGold: null, bought: [], rerolls: 0, tent: null, tentDone: false, lab: null, labMom: false, labUsed: 0, fins: [], wares: [], carry: 0, armed: {}, openAll: 0, disarm: 0, flyW: 0, dents: 0, cape: 0, bleed: [], bleedT: 0, bleeds: 0, bleedDmg: 0,
     you: { lunge: 0, lungeK: 0, a: 0, back: 0, hopY: 0, push: 0, parts: playerParts(me), fr: {} },
-    foe: {},
+    foe: {}, edge: null, swapping: false, tauntT: 0, taunt: '',
+    fav: 0, favStep: 0, favT: 0, favShown: 0, lastHitM: -9, opened: null,
     crowd: [],
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, zy: -0.58, arm: 0, blocked: false, pressT: -9 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
@@ -598,19 +702,19 @@ function startCard(me) {
 const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token', 'tokenUsed', 'epicsSeen', 'switchReads', 'stepsIn', 'stepsOut', 'wallHits', 'foeWall', 'outReach', 'dodged', 'chases',
   'bakerWind', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
   'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
-  'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'fins', 'carry', 'labUsed'];
+  'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'fins', 'carry', 'labUsed', 'fav', 'favStep'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
   const c = state.gauntlet[state.gauntlet.length - 1];
   const d = state.draft, draft = d ? { grade: d.grade, tally: d.tally, gold: d.gold, ids: d.cards.map((q) => q.id), priced: d.priced, odds: d.odds } : null;
-  E.save.set('run', JSON.parse(JSON.stringify({ seed: state.seed, rack, me: state.me, rival: c.rival ? rivalOf(c) : null, draft, ...Object.fromEntries(RUN_KEYS.map((k) => [k, state[k]])) })));
+  E.save.set('run', JSON.parse(JSON.stringify({ seed: state.seed, arena: state.arena, rack, me: state.me, rival: c.rival ? rivalOf(c) : null, draft, ...Object.fromEntries(RUN_KEYS.map((k) => [k, state[k]])) })));
 }
 function resumeRun(E, run) {
-  newRound(E, run.seed, run.me, run.rival);
+  newRound(E, run.seed, run.me, run.rival, run.arena);
   for (const k of RUN_KEYS) if (k in run) state[k] = run[k];
   state.results = (run.results || []).map((q) => q || undefined);
-  state.rack = run.rack; state.you.parts = playerParts(state.me); state.stamina = state.staMax;
+  state.rack = run.rack; state.you.parts = playerParts(state.me); state.stamina = state.staMax; state.favShown = state.fav;
   const d = run.draft;
   if (d) state.draft = { grade: d.grade, tally: d.tally, gold: d.gold, cards: d.ids.map((id) => CARD[id]), priced: d.priced, odds: d.odds || [], t: 0, btns: [], reroll: null, help: null, helpOn: false };
 }
@@ -620,17 +724,29 @@ function resumeRun(E, run) {
 function lay(E) {
   const F = TUNING.fighter, H = E.h * F.height, half = (E.w * F.gap + 2 * F.body * H) / 2;
   // the frame is centred on the space right of the left column (partly, so the foe keeps room too)
-  const R = colRect(E), cx = E.w / 2 + TUNING.col.frame * ((R.x + R.w + (E.w - E.safe.right)) / 2 - E.w / 2);
+  const R = colRect(E), c0 = E.w / 2 + TUNING.col.frame * ((R.x + R.w + (E.w - E.safe.right)) / 2 - E.w / 2), cx = c0 - pairShift(E, H, half, c0);
   return { H, floor: E.h * F.floor, x0: cx - half, x1: cx + half };
+}
+// In a pairs bout the waiting foe takes the screen's right edge, so the frame slides left (by the worst of the two foes in either place) until the one
+// fighting keeps clear of him when he gives ground to his wall.
+const waitLeft = (E, H, e) => E.w - E.safe.right - (TUNING.pairs.x + TUNING.pairs.body) * H * e.size.scale * TUNING.pairs.scale;
+const foeRight = (H, f) => (f.home + TUNING.pairs.room + (f.size.scale - 1) * TUNING.fighter.body + TUNING.pairs.fbody * f.size.scale) * H;
+function pairShift(E, H, half, cx) {
+  const f = state.foe, e = state.edge;
+  if (!e || !f || !f.size || !e.size) return 0;
+  const x1 = cx + half;
+  return Math.max(0, x1 + foeRight(H, f) - waitLeft(E, H, e) + 4, x1 + foeRight(H, e) - waitLeft(E, H, f) + 4);
 }
 // you are drawn at your rolled size the same way: your near edge stays put
 function youF(E) { const L = lay(E), y = state.you, k = meSize().scale; return { x: L.x0 + state.foot.pos * L.H + y.lunge - y.push * L.H - (k - 1) * TUNING.fighter.body * L.H, y: L.floor + y.hopY, a: y.a, dir: 1, H: L.H * k }; }
-// The arena's edges, in H from each fighter's mark: how far you can give ground (negative) and how far he can, trimmed so both stay on screen.
+// The arena's edges, in H from each fighter's mark: how far you can give ground (negative) and how far he can, trimmed so both stay on screen, then
+// brought in by the arena's ring (the Pit's tight ring; the sparring bout keeps the full room).
 function walls(E) {
-  const L = lay(E), T = TUNING.foot, k = state.foe.size ? state.foe.size.scale : 1;
+  const L = lay(E), T = TUNING.foot, k = state.foe.size ? state.foe.size.scale : 1, ring = bout().spar ? 1 : arenaT().ring;
   const back = Math.min(T.room[0], Math.max(0.1, (L.x0 - 0.2 * L.H * meSize().scale - colRect(E).x - colRect(E).w - T.margin) / L.H));
-  const fore = Math.min(T.room[1], Math.max(0.1, (E.w - E.safe.right - 24 - L.x1 - 0.3 * L.H * k) / L.H));
-  return { back: -back, fore };
+  const fore = state.edge && state.edge.size ? Math.min(T.room[1], Math.max(0.1, (waitLeft(E, L.H, state.edge) - 4 - L.x1 - ((k - 1) * TUNING.fighter.body + TUNING.pairs.fbody * k) * L.H) / L.H))
+    : Math.min(T.room[1], Math.max(0.1, (E.w - E.safe.right - 24 - L.x1 - 0.3 * L.H * k) / L.H));
+  return { back: -back * ring, fore: fore * ring };
 }
 // the nearest the two can stand: the clear gap between the bodies at the marks, less a little air
 const gMin = (E) => -(E.w * TUNING.fighter.gap) / lay(E).H + TUNING.foot.close;
@@ -1032,7 +1148,7 @@ function planExchange(E) {
   const rh = pickW(rng, TUNING.rhythm.map((r) => [r, r.w * (press && r.id === 'flurry' ? R.pressMul : 1)]));
   const n = rng.int(rh.n[0], rh.n[1]), wind = rh.wind * (press ? R.pressWind : 1), q = [];
   for (let i = 0; i < n; i++) {
-    const w = Object.entries(f.weapon.moves).filter(([k]) => k !== 'feint' || bout().feints).map(([k, v]) => [k, v * (k === 'feint' ? rh.feint * (turtle ? R.turtleFeint : 1) : 1) * (avoid && MOVE_ZONE[k] === avoid ? R.avoid : 1)]);
+    const w = Object.entries(f.weapon.moves).filter(([k]) => k !== 'feint' || bout().feints).map(([k, v]) => [k, v * (k === 'feint' ? rh.feint * arenaT().feint * (turtle ? R.turtleFeint : 1) : 1) * (avoid && MOVE_ZONE[k] === avoid ? R.avoid : 1)]);
     if (f.shield) w.push(['bash', TUNING.moves.bash.w * (turtle ? R.turtleBash : 1)]);
     const kind = pickW(rng, w);
     q.push(buildMove(rng, kind, { avoid, wind }));
@@ -1139,6 +1255,51 @@ function updateFoe(dt, E) {
   if (state.swingIn <= 0 && state.endT <= 0 && inReach()) {
     if (!state.plan) state.plan = planExchange(E);
     startMove(E, state.plan.q.shift(), false);
+  }
+}
+
+// ----- the City's pairs: one foe fights, the other waits at the edge -----
+// When the one fighting is winded, his partner taunts from the edge in the window's last half second and they swap as it closes; when he is felled, the
+// partner taunts and takes over. The one who leaves keeps his health, cuts, lamings and bleed, and gets his breath back at the edge.
+const TAUNT = { winded: 'Now, brother!', fell: 'For my brother!' };
+function taunt(E, why) {
+  state.tauntT = TUNING.pairs.taunt; state.taunt = TAUNT[why];
+  E.audio.beep({ freq: 300, dur: 0.12, type: 'sawtooth', slide: 1.3, gain: 0.08 }); E.audio.beep({ freq: 420, dur: 0.14, type: 'sawtooth', slide: 0.8, gain: 0.07, delay: 0.12 });
+}
+function stepIn(E) {
+  const out = state.foe, inn = state.edge, fellOut = state.fallT > 0;
+  out.bleed = state.bleed; out.dents = state.dents; out.shrug = state.bout.foeShrug; out.down = fellOut; out.sta = out.staMax;
+  state.foe = inn; state.edge = out;
+  state.bleed = inn.bleed; state.dents = inn.dents; state.bout.foeShrug = inn.shrug;
+  state.fallT = 0; state.sw = null; state.move = null; state.plan = null; state.stun = 0; state.stagger = 0; state.winded = 0; state.open = 0; state.retreat = 0; state.chase = 0;
+  state.cover = null; state.disarm = 0; state.flyW = 0; state.kickA = 0; state.kickV = 0; state.pop = 1; state.swapping = false; state.tauntT = 0;
+  state.step = { x: walls(E).fore, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
+  state.swingIn = Math.max(state.swingIn, TUNING.pairs.enter);
+  inn.th = REST_TH;
+  poseFoe(E, 0.016);
+  if (fellOut && state.carry) { addBleed(E, state.carry); state.carry = 0; }
+  const Ff = foeF(E); pop(Ff.x, Ff.y - 1.2 * Ff.H, `${inn.name.split(' ')[0].toUpperCase()} STEPS IN`, '#fca5a5', 22);
+  dust(Ff.x, Ff.y, 10); E.shake(4, 0.15); swooshSound(E, 0.14);
+}
+// the swap clock, after his AI each frame (the fell's is in the play scene's fall clock)
+function updatePair(E, dt) {
+  state.tauntT = Math.max(0, state.tauntT - dt);
+  const e = state.edge, P = TUNING.pairs;
+  if (!e || e.down || state.fallT > 0) return;
+  if (state.swapping && state.winded > P.taunt) state.swapping = false;
+  if (!state.swapping && state.winded > 0 && state.winded <= P.taunt) { state.swapping = true; taunt(E, 'winded'); }
+  if (state.swapping && state.winded <= 0) stepIn(E);
+}
+// the waiting foe at the edge: smaller, dimmer, standing at rest
+function edgeF(E, f = state.edge) {
+  const L = lay(E), P = TUNING.pairs, H = L.H * f.size.scale * P.scale;
+  return { x: E.w - E.safe.right - P.x * H, y: L.floor, a: 0, dir: -1, H };
+}
+function poseEdge(f) {
+  f.fr = { armF: { ox: SHOULDER[0], oy: SHOULDER[1], rot: REST_TH - Math.PI / 2 }, armB: { ox: PARTS[4].joint[0], oy: PARTS[4].joint[1], rot: 0.14 } };
+  for (const p of f.parts) {
+    const fr = f.fr[p.d.frame || p.d.id] || ZERO, c = Math.cos(fr.rot), sn = Math.sin(fr.rot);
+    p.cx = fr.ox + p.d.x * c - p.d.y * sn; p.cy = fr.oy + p.d.x * sn + p.d.y * c;
   }
 }
 
@@ -1392,14 +1553,25 @@ function disable(E, p, at, ang) {
   }
 }
 
+// the bout's rival is cleared from this arena's record once he falls
+function clearRival(E) { const rv = { ...E.save.get('rivals', {}) }; delete rv[state.arena]; E.save.set('rivals', rv); }
 function fell(E) {
   if (state.fallT > 0) return;
+  if (state.edge && !state.edge.down) { fellOne(E); return; }
   state.felled++; state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.results[state.rack] = 'felled';
   state.hp = Math.min(state.maxHp, state.hp + TUNING.heal);
   state.grades.push(gradeBout());
   state.lastGold = boutGold(); state.gold += state.lastGold.sum; state.goldEarned += state.lastGold.sum;
-  if (state.foe.rival) { state.rivalBeaten = 1; E.save.set('rival', null); pop(E.w * 0.62, E.h * 0.42, 'Rival defeated!', '#f87171', 30); }
+  if (state.gauntlet[state.rack].rival) { state.rivalBeaten = 1; clearRival(E); pop(E.w * 0.62, E.h * 0.42, 'Rival defeated!', '#f87171', 30); }
   pop(E.w * 0.62, E.h * 0.3, 'FOE DOWN', '#ffd24a', 28); E.shake(10, 0.3); E.flash('#fff0b8', 0.1); E.audio.play('coin');
+  if (boutTally().taken === 0) favour(E, TUNING.crowd.clean);
+  emit(E, 'fell');
+}
+// the first of a pair falls: the bout goes on, his partner taunts from the edge and steps in (stepIn, from the play scene's fall clock)
+function fellOne(E) {
+  state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.swapping = false;
+  pop(E.w * 0.62, E.h * 0.3, 'ONE DOWN', '#ffd24a', 26); E.shake(8, 0.25); E.flash('#fff0b8', 0.08);
+  E.audio.beep({ freq: 220, dur: 0.2, type: 'triangle', slide: 0.6, gain: 0.2 });
   emit(E, 'fell');
 }
 
@@ -1595,6 +1767,7 @@ function fireFinisher(E, c) {
   else if (c.id === 'breath') { state.stamina = state.staMax; state.exhaust = 0; }
   else if (c.id === 'disarm') disarmFoe(E, TUNING.fin.disarmDur);
   pop(Fy.x + 0.4 * Fy.H, Fy.y - 1.15 * Fy.H, c.name.toUpperCase() + (state.armed[c.id] ? ' ARMED' : '!'), '#e879f9', 24);
+  favour(E, TUNING.crowd.fin);
   E.flash('#e879f9', 0.1); E.haptic(30);
   E.audio.beep({ freq: 330, dur: 0.18, type: 'sawtooth', slide: 2, gain: 0.1 }); E.audio.beep({ freq: 990, dur: 0.2, type: 'sine', gain: 0.08, delay: 0.1 });
 }
@@ -1607,7 +1780,42 @@ function updateFinisher(E) {
   if (c) fireFinisher(E, c);
 }
 function emit(E, ev, ctx = {}) {
+  crowdEvent(E, ev);
   for (const id of new Set(state.picks)) { const h = HOOKS[id] && HOOKS[id][ev]; if (h) h(E, ctx); }
+}
+
+// ----- the crowd: favour for style (TUNING.crowd), carried through the run; coins arc in the first time it passes each step (favStep is the run's high-water) -----
+function favour(E, n) {
+  const C = TUNING.crowd;
+  state.fav = clamp(state.fav + n, 0, C.max);
+  if (n > 0) state.favT = 0.5;
+  const step = Math.floor(state.fav / C.step);
+  if (step > state.favStep) { coins(E, C.coins * (step - state.favStep)); state.favStep = step; }
+}
+// the events that please them: a feint read, a perfect block, a slot hit, a laming, and two of your hits close together
+function crowdEvent(E, ev) {
+  const C = TUNING.crowd;
+  if (ev === 'read' || ev === 'perfect' || ev === 'slot' || ev === 'lame') favour(E, C[ev]);
+  if (ev === 'slot' || ev === 'hit') { if (state.m - state.lastHitM <= C.comboWin) favour(E, C.combo); state.lastHitM = state.m; }
+}
+// what bores them, each frame of play: turtling (the measure his turtle read uses) and backing off with no blow of his coming
+function crowdDrain(E, dt) {
+  const C = TUNING.crowd, sw = state.sw;
+  if (state.fallT > 0 || state.endT > 0 || state.winded > 0) return;
+  if (state.mem.turtle >= TUNING.read.turtle) favour(E, -C.turtle * dt);
+  if (state.dg.down && state.dg.t > TUNING.dodge.dur && !(sw && sw.fin <= 0)) favour(E, -C.back * dt);
+}
+// a few coins thrown from the stands, arcing into the sand between the fighters (cosmetic)
+function coins(E, n) {
+  const L = lay(E), y0 = E.h * 0.12;
+  let live = 0;
+  for (const f of state.fx) if (f.k === 'c') live++;
+  n = Math.min(n, Math.max(0, TUNING.crowd.coinCap - live));
+  for (let i = 0; i < n; i++) {
+    const x = Math.random() * E.w, tx = L.x0 + Math.random() * (L.x1 - L.x0), T = 0.8 + Math.random() * 0.4, g = 900, fl = L.floor - 2 - Math.random() * 8;
+    state.fx.push({ k: 'c', x, y: y0, vx: (tx - x) / T, vy: (fl - y0 - 0.5 * g * T * T) / T, g, floor: fl, rot: Math.random() * 6.28, vr: 9 + Math.random() * 6, life: T + 0.9, max: T + 0.9 });
+  }
+  E.audio.play('coin');
 }
 function gainMom(E, n) {
   const was = state.mom;
@@ -1819,14 +2027,22 @@ function parrySound(E) {
   A.beep({ freq: 220, dur: 0.18, type: 'triangle', slide: 0.6, gain: 0.25 });
   A.noise({ dur: 0.05, gain: 0.18 });
 }
-// the crowd chants your name: a clap per bout so far, louder each bout
+// the crowd chants your name: a clap for each step of their favour (one at least), louder the more they love you
+const chantN = () => 1 + Math.round((TUNING.story.chant.max - 1) * state.fav / TUNING.crowd.max);
 function chant(E) {
-  const C = TUNING.story.chant, n = Math.min(C.max, state.rack + 1), g = C.gain + C.step * state.rack;
+  const C = TUNING.story.chant, n = chantN(), g = C.gain + C.step * (n - 1);
   for (let i = 0; i < n; i++) {
     E.audio.noise({ dur: 0.06, gain: g, delay: i * C.gap });
     E.audio.beep({ freq: 196, dur: 0.16, type: 'triangle', gain: g * 0.8, delay: i * C.gap + 0.02 });
     E.audio.beep({ freq: 294, dur: 0.12, type: 'sine', gain: g * 0.5, delay: i * C.gap + 0.1 });
   }
+}
+// the crowd at the Emperor's thumb: a long roar, a murmur, or jeers
+function crowdVerdict(E, band) {
+  const A = E.audio;
+  if (band === 2) { for (let i = 0; i < 6; i++) A.noise({ dur: 0.3, gain: 0.22 - i * 0.02, delay: i * 0.22 }); A.play('win'); }
+  else if (band === 1) A.noise({ dur: 0.5, gain: 0.08 });
+  else for (let i = 0; i < 4; i++) A.beep({ freq: 140 - i * 10, dur: 0.22, type: 'sawtooth', slide: 0.7, gain: 0.08, delay: i * 0.2 });
 }
 function swooshSound(E, gain = 0.12) { E.audio.noise({ dur: 0.16, gain }); E.audio.beep({ freq: 700, dur: 0.14, type: 'sine', slide: 0.3, gain: gain * 0.4 }); }
 
@@ -2537,6 +2753,9 @@ function spriteOf(E, p, H, lk) {
   const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), d = p.d;
   const key = `${Math.round(H * k)}|${lk.id}|${p.guard ? 'g' : ''}${p.armour ? 1 : 0}|${p.dents}|${p.cracks.length}|${p.cut ? 1 : 0}|${Math.ceil(p.hp / TUNING.part.hp * 4)}`;
   if (p.spr && p.spr.key === key) return p.spr;
+  // a pair's foe is painted at two sizes (waiting at the edge and fighting), so the last two sprites are kept
+  if (p.spr2 && p.spr2.key === key) { [p.spr, p.spr2] = [p.spr2, p.spr]; return p.spr; }
+  p.spr2 = p.spr;
   const m = p.guard ? 0.05 : 0.03, b = p.slot ? [d.x - d.w / 2 - m, d.y - d.h / 2 - m, d.x + d.w / 2 + m, d.y + d.h / 2 + m] : BOX[d.id];
   const x = b[0] * H, y = b[1] * H, cw = Math.ceil((b[2] - b[0]) * H * k), ch = Math.ceil((b[3] - b[1]) * H * k);
   const cv = new OffscreenCanvas(cw, ch), c = cv.getContext('2d');
@@ -2573,10 +2792,10 @@ function drawPart(ctx, E, p, H, lk, fr) {
 }
 
 // The joint slots riding on their limbs: all the sprites first, then the live light over them (the open window's gold, or a glint when your tip is near).
-function drawSlots(ctx, E, F, H, fm, lk) {
+function drawSlots(ctx, E, F, H, fm, lk, live = true) {
   const slots = fm.parts.filter((q) => q.slot);
   for (const p of slots) drawPart(ctx, E, p, H, lk, p.d.frame ? fm.fr[p.d.frame] : null);
-  for (const p of slots) if (!p.guard) slotLight(ctx, F, p, H, fm);
+  if (live) for (const p of slots) if (!p.guard) slotLight(ctx, F, p, H, fm);
 }
 function slotLight(ctx, F, p, H, fm) {
   const d = p.d, fr = d.frame ? fm.fr[d.frame] : null;
@@ -2642,6 +2861,78 @@ function foeHealth(ctx, E) {
   const size = fitSize(ctx, t, 15, S.w - 16), tw = ctx.measureText(t).width * size / 15, fy = y + h + 22, pulse = 0.5 + 0.5 * Math.sin(state.m * 10);
   E.roundRect(S.cx - tw / 2 - 8, fy - 11, tw + 16, 22, 8, 'rgba(20,14,8,0.85)', wd ? `rgba(255,210,74,${0.5 + 0.5 * pulse})` : null);
   E.text(t, S.cx, fy, { size, weight: '800', color: '#ffd24a' });
+}
+
+// The crowd meter beside BOUT: three little heads, then the bar marked in thirds (the Emperor's thumb reads them), gold at the top third, flashing as it fills
+function drawCrowdMeter(ctx, E, x, y) {
+  const C = TUNING.crowd, k = clamp(state.favShown / C.max, 0, 1), band = bandOf(state.favShown), bx = x + 22, bw = 74, bh = 9;
+  ctx.fillStyle = '#c4b99a';
+  for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + 3 + i * 7, y + (i === 1 ? -1 : 1), 3, 0, 6.28); ctx.fill(); }
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx - 1, y - bh / 2 - 1, bw + 2, bh + 2);
+  ctx.fillStyle = band === 2 ? '#ffd24a' : band === 1 ? '#f59e0b' : '#b45309'; ctx.fillRect(bx, y - bh / 2, bw * k, bh);
+  if (state.favT > 0) { ctx.fillStyle = `rgba(255,255,255,${state.favT})`; ctx.fillRect(bx, y - bh / 2, bw * k, bh); }
+  ctx.fillStyle = 'rgba(240,230,204,0.7)';
+  for (const t of C.bands) ctx.fillRect(bx + bw * t - 1, y - bh / 2 - 2, 2, bh + 4);
+}
+function drawCoin(ctx, x, y, r) {
+  ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#8a5a12'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fde68a'; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, 6.28); ctx.fill();
+}
+// The waiting foe stands still, so he is painted once into his own sprite (again when his size on screen or his wounds change) and drawn dimmed each
+// frame; without OffscreenCanvas he is drawn live.
+// The waiting foe's sprite for the foe f, repainted when his size on screen or his wounds change (a number, so the check allocates nothing).
+function edgeSprite(E, f) {
+  const F = edgeF(E, f), k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), w = 0.9 * F.H, h = 1.25 * F.H, feet = 1.12 * F.H;
+  let key = Math.round(F.H * k);
+  for (const p of f.parts) key = (key * 31 + (p.cut ? 1 : 0) + 2 * p.dents + 64 * p.cracks.length) % 2147483647;
+  if (!f.spr || f.spr.key !== key) {
+    const cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
+    // painting poses him as he waits, so the one fighting keeps his own pose and frames
+    const fr = f.fr, pc = f.parts.map((p) => [p.cx, p.cy]);
+    poseEdge(f); c.scale(k, k); c.translate(w / 2 - F.x, feet - F.y);
+    drawFighter(c, E, { ...F, a: 0 }, f, 'edge');
+    f.fr = fr; f.parts.forEach((p, i) => { p.cx = pc[i][0]; p.cy = pc[i][1]; });
+    f.spr = { key, cv };
+  }
+  return f.spr.cv;
+}
+// The waiting foe stands still, so he is painted once into his own sprite and drawn dimmed each frame; without OffscreenCanvas he is drawn live.
+function drawEdge(ctx, E) {
+  const f = state.edge, F = edgeF(E), A = TUNING.pairs.alpha;
+  if (!canSprite) { poseEdge(f); drawFighter(ctx, E, F, f, 'edge', A); return; }
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), w = 0.9 * F.H, feet = 1.12 * F.H, img = edgeSprite(E, f);
+  // drawn upright at whole device pixels and the sprite's own size, the cheapest copy there is
+  const X = Math.round((F.x - w / 2) * k) / k, Y = Math.round((F.y - feet) * k) / k;
+  ctx.save(); ctx.globalAlpha = A; ctx.drawImage(img, X, Y, img.width / k, img.height / k); ctx.restore();
+}
+// During the intro card both foes' sprites are painted for the swap: the one fighting as he will wait, the one waiting as he will fight.
+function warmPair(E) {
+  const e = state.edge;
+  if (!canSprite || !e || state.warm) return;
+  state.warm = true;
+  edgeSprite(E, state.foe); edgeSprite(E, e);
+  const H = lay(E).H * e.size.scale, lk = lookOf(e, true);
+  for (const p of e.parts) spriteOf(E, p, H, lk);
+}
+// The waiting foe's name and health over his head, and his taunt, the tell that he is about to step in: a bubble above them
+function drawEdgeTag(ctx, E) {
+  const f = state.edge, F = edgeF(E), [hx, hy] = toScreen(F, 0.03, -1.0), r = E.w - 10 - E.safe.right, bw = Math.min(90, 0.5 * F.H), bx = Math.min(hx - bw / 2, r - bw);
+  // clear of the right HUD's rows (hearts to the shield bar)
+  const hud = 10 + E.safe.top + (state.picks.length ? HUD_ROW.shield : HUD_ROW.shield0) + 8, ny = Math.max(hy - 18, hud + 12), nm = f.name.split(/[ ,]/)[0].toUpperCase();
+  ctx.font = '800 14px system-ui, sans-serif';
+  E.text(nm, Math.min(hx, r - ctx.measureText(nm).width / 2), ny, { size: 14, weight: '800', color: '#f0e6cc', alpha: 0.85 });
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(bx - 1, ny + 9, bw + 2, 7);
+  ctx.fillStyle = '#d9483a'; ctx.fillRect(bx, ny + 10, bw * clamp(f.hp / f.maxHp, 0, 1), 5);
+  if (state.tauntT <= 0) return;
+  // his taunt above his name and head, at the screen's edge, its tail pointing down at him: clear of both faces and of the right HUD's rows
+  const t = state.taunt, tw = ctx.measureText(t).width + 20, th = 28, tx = r - tw, ty = Math.max(ny - 20 - th / 2, hud + th / 2), pulse = 1 + 0.06 * Math.sin(state.m * 30);
+  ctx.save(); ctx.translate(tx + tw / 2, ty); ctx.scale(pulse, pulse);
+  E.roundRect(-tw / 2, -th / 2, tw, th, 12, '#f0e6cc', '#7f1d1d');
+  const ax = clamp(hx - (tx + tw / 2), -tw / 2 + 14, tw / 2 - 14);
+  ctx.fillStyle = '#f0e6cc'; ctx.beginPath(); ctx.moveTo(ax - 7, th / 2 - 1); ctx.lineTo(ax, th / 2 + 9); ctx.lineTo(ax + 7, th / 2 - 1); ctx.closePath(); ctx.fill();
+  E.text(t, 0, 1, { size: 14, weight: '800', color: '#7f1d1d' });
+  ctx.restore();
 }
 
 // a blood drop of radius s, point up, centred at (x, y)
@@ -2788,26 +3079,27 @@ function lameIcon(ctx, id, x, y) {
   else { line(ctx, -1, -5, -2, 4); line(ctx, -2, 4, 2, 4); line(ctx, 2, -5, 2, 1); }
   ctx.restore();
 }
+// who: 'you', 'foe' (the one fighting, with every live state drawn on him) or 'edge' (a pair's foe waiting: his look and kit only)
 function drawFighter(ctx, E, F, fm, who, ga = 1) {
-  const H = F.H, L = lay(E), isFoe = who === 'foe', lk = lookOf(fm, isFoe);
+  const H = F.H, L = lay(E), isFoe = who !== 'you', live = who === 'foe', lk = lookOf(fm, isFoe);
   const P = (id) => fm.parts.find((q) => q.d.id === id);
-  const fall = isFoe && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
+  const fall = live && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath(); ctx.ellipse(F.x, L.floor + 3, H * 0.22, H * 0.035, 0, 0, 6.28); ctx.fill();
   ctx.save();
   ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
-  if (isFoe && (state.stagger > 0 || state.winded > 0)) {
+  if (live && (state.stagger > 0 || state.winded > 0)) {
     const k = state.winded > 0 ? 0.35 + 0.25 * Math.sin(state.m * 9) : 0.45;
     const g = ctx.createRadialGradient(0, -0.5 * H, 10, 0, -0.5 * H, 0.6 * H);
     g.addColorStop(0, `rgba(255,210,74,${k})`); g.addColorStop(1, 'rgba(255,210,74,0)');
     ctx.fillStyle = g; ctx.fillRect(-0.7 * H, -1.1 * H, 1.4 * H, 1.3 * H);
   }
-  const sc = isFoe && state.pop < 1 ? 0.85 + 0.15 * (1 - state.pop) : 1;
+  const sc = live && state.pop < 1 ? 0.85 + 0.15 * (1 - state.pop) : 1;
   ctx.scale(sc, sc);
-  ctx.globalAlpha = ga * (isFoe && state.pop < 1 ? 1 - state.pop * 0.7 : 1);
+  ctx.globalAlpha = ga * (live && state.pop < 1 ? 1 - state.pop * 0.7 : 1);
   if (fall > 0) ctx.globalAlpha = 1 - fall * 0.5;
   // far arm and its shield, legs, tunic and belly, chest, head
-  const sw = isFoe ? state.sw : null, bashing = sw && sw.pose === 'bash';
+  const sw = live ? state.sw : null, bashing = sw && sw.pose === 'bash';
   if (lk.gear && lk.gear.cloak) { if (!fm.cloak) fm.cloak = mkPart(CLOAK, false); drawPart(ctx, E, fm.cloak, H, lk, null); }
   drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
   if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk));
@@ -2822,19 +3114,19 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
     const fr = fm.fr.armF;
     drawPart(ctx, E, P('armF'), H, lk, fr);
     ctx.save(); ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot);
-    if (hesitating()) {
+    if (live && hesitating()) {
       ctx.save(); ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 24; ctx.strokeStyle = `rgba(167,139,250,${0.5 + 0.4 * Math.sin(state.m * 60)})`; ctx.lineWidth = 0.07 * H; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(0, ARM_LEN * H); ctx.lineTo(0, (ARM_LEN + fm.weapon.len) * H); ctx.stroke(); ctx.restore();
     }
-    if (sw && sw.pose === 'net' && sw.fin <= 0) drawNet(ctx, 0, (ARM_LEN + 0.05) * H, 0.1 * H); else if (state.disarm <= 0) drawWeapon(ctx, fm, H);
+    if (sw && sw.pose === 'net' && sw.fin <= 0) drawNet(ctx, 0, (ARM_LEN + 0.05) * H, 0.1 * H); else if (!live || state.disarm <= 0) drawWeapon(ctx, fm, H);
     ctx.restore();
-    drawSlots(ctx, E, F, H, fm, lk);
+    drawSlots(ctx, E, F, H, fm, lk, live);
     if (fm.shield && bashing) { ctx.save(); ctx.translate((0.2 + 0.1 * (sw.fin > 0 ? 1 : clamp(sw.t / sw.wind, 0, 1))) * H, -0.52 * H); drawFoeShield(ctx, H, 1, lk); ctx.restore(); }
     markLamed(ctx, fm, H);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
-  if (isFoe && state.stun > 0) {
+  if (live && state.stun > 0) {
     const [sx, sy] = toScreen(F, 0.03, -1.0);
     for (let i = 0; i < 3; i++) {
       const a = state.m * 7 + i * 2.09;
@@ -3115,7 +3407,19 @@ function drawCaption(ctx, E) {
   ctx.globalAlpha = 1;
 }
 
+// The stands, the wall and the sand never move, so they are painted once per screen size and run (the crowd is seeded) and copied each frame.
+let bgSpr = null;
 function drawBackground(ctx, E) {
+  if (!canSprite) { paintBackground(ctx, E); return; }
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), m = 20, key = `${E.w}|${E.h}|${k}|${state.seed}`;
+  if (!bgSpr || bgSpr.key !== key) {
+    const cv = new OffscreenCanvas(Math.ceil((E.w + 2 * m) * k), Math.ceil((E.h + 2 * m) * k)), c = cv.getContext('2d', { alpha: false });
+    c.scale(k, k); c.translate(m, m); paintBackground(c, E);
+    bgSpr = { key, cv };
+  }
+  ctx.drawImage(bgSpr.cv, -m, -m, bgSpr.cv.width / k, bgSpr.cv.height / k);
+}
+function paintBackground(ctx, E) {
   const L = lay(E), sandTop = L.floor - 0.06 * L.H, wallTop = E.h * 0.2;
   const sky = ctx.createLinearGradient(0, 0, 0, wallTop);
   sky.addColorStop(0, '#1a1420'); sky.addColorStop(1, '#3a2a28');
@@ -3197,14 +3501,17 @@ function wrapText(t, n) {
 function drawDraft(ctx, E) {
   const d = state.draft, D = TUNING.draft, top = E.safe.top + 18, t = d.tally, gc = TIER_COL[d.grade], held = heldFams();
   ctx.fillStyle = 'rgba(10,8,14,0.82)'; ctx.fillRect(0, 0, E.w, E.h);
-  E.text(`${state.foe.name.toUpperCase()} FELLED  ·  BOUT ${state.rack + 1} OF ${state.gauntlet.length}`, E.w / 2, top, { size: 13, weight: '800', color: '#c4b99a' });
+  const d0 = state.gauntlet[state.rack], who = d0.pair ? `${d0.name.split(/[ ,]/)[0]} AND ${d0.pair.name.split(/[ ,]/)[0]}` : state.foe.name;
+  E.text(`${who.toUpperCase()} FELLED  ·  BOUT ${state.rack + 1} OF ${state.gauntlet.length}`, E.w / 2, top, { size: 13, weight: '800', color: '#c4b99a' });
   E.text(`GRADE ${d.grade}`, E.w / 2, top + 28, { size: 24, weight: '800', color: gc });
   E.text(`${t.slot} slot hits · ${t.read} feints read · ${t.pun} punishes · ${t.taken} hits taken`, E.w / 2, top + 52, { size: 12, color: '#e2e8f0' });
   // his line stays left of the faint HUD's shield label under the overlay (wraps to two lines on a short, narrow screen)
   const bl = wrapPx(ctx, `Old Brutus: “${brutusWon()}”`, 2 * (E.w - 16 - E.safe.right - 110 - 6 - 72 - E.w / 2), 14, '700'), ex = (bl.length - 1) * 17;
   bl.forEach((s2, k) => E.text(s2, E.w / 2, top + 72 + k * 17, { size: 14, weight: '700', color: '#fde68a' }));
   const o = D.odds[d.grade], pct = o.map((v) => Math.round(v / (o[0] + o[1]) * 100)), g = d.gold;
-  const gl = `${g ? `+${g.sum} gold (${g.items.map((e) => `${e[0]} ${e[1]}`).join(', ')})  ·  ` : ''}purse ${state.gold}  ·  Grade ${d.grade}: Common ${pct[0]}% · Rare ${pct[1]}%`;
+  // the style bonuses are the crowd's coins: what they threw is shown apart from the fell's purse
+  const thrown = g ? g.items.filter((e) => e[0] !== 'fell') : [], tsum = thrown.reduce((a2, e) => a2 + e[1], 0);
+  const gl = `${g ? `+${g.sum} gold (fell ${g.sum - tsum}${tsum ? `, the crowd threw ${tsum}: ${thrown.map((e) => `${e[0]} ${e[1]}`).join(', ')}` : ''})  ·  ` : ''}purse ${state.gold}  ·  Grade ${d.grade}: Common ${pct[0]}% · Rare ${pct[1]}%`;
   E.text(gl, E.w / 2, top + 92 + ex, { size: fitSize(ctx, gl, 12, E.w - 32, '700'), weight: '700', color: '#fbbf24' });
   const n = d.cards.length, gap = 14, w = Math.min(210, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 108 + ex, h = Math.min(190, E.h - E.safe.bottom - y - 62), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
   const ready = d.t > D.delay;
@@ -3380,11 +3687,11 @@ function drawThread(ctx, E, cx, cy, w) {
     woodSword(ctx, x0, cy, sw, n);
     E.text(t, x0 + sw + 12, cy, { size: 14, weight: '800', align: 'left', color: '#e6c866' });
   } else if (me.reason === 'glory') {
-    const C = TUNING.story.chant, k = Math.min(C.max, state.rack + 1), t = Array(k).fill(`${me.name.toUpperCase()}!`).join('  '), bw = w - 48, bh = 26;
+    const k = chantN(), t = Array(k).fill(`${me.name.toUpperCase()}!`).join('  '), bw = w - 48, bh = 26;
     ctx.fillStyle = '#7f1d1d'; ctx.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
     ctx.fillStyle = '#e6c866'; ctx.fillRect(cx - bw / 2, cy - bh / 2, bw, 3); ctx.fillRect(cx - bw / 2, cy + bh / 2 - 3, bw, 3);
     for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx + sx * bw / 2, cy - bh / 2); ctx.lineTo(cx + sx * (bw / 2 + 12), cy - bh / 2); ctx.lineTo(cx + sx * (bw / 2 + 4), cy); ctx.lineTo(cx + sx * (bw / 2 + 12), cy + bh / 2); ctx.lineTo(cx + sx * bw / 2, cy + bh / 2); ctx.closePath(); ctx.fillStyle = '#5f1515'; ctx.fill(); }
-    E.text(t, cx, cy + 1, { size: fitSize(ctx, t, 13 + 2 * state.rack, bw - 16), weight: '800', color: '#fde68a' });
+    E.text(t, cx, cy + 1, { size: fitSize(ctx, t, 13 + 2 * (k - 1), bw - 16), weight: '800', color: '#fde68a' });
   }
 }
 // the wooden sword of freedom, lying flat, with a notch for each fell
@@ -3410,10 +3717,12 @@ function wrapPx(ctx, t, w, size, weight = '600') {
 // His card before each bout, in rows that never meet: the bout, his name and (champion) his tie to your reason, his armour on the left, size, weapon,
 // its tip and stats on the right, your reason's thread, Brutus, what the champion or your rival says, and the tap.
 function drawIntro(ctx, E) {
+  if (state.edge) { drawPairIntro(ctx, E); return; }
   const d = state.foe, me = state.me, champ = d.champion, spar = bout().spar;
-  const voice = d.rival ? tauntOf(me) : champ ? CHAMP_LINE[me.reason] : null, sub = champ ? CHAMP_TIE[me.reason] : spar ? 'Sparring: learn his tells.' : null;
+  const voice = d.rival ? tauntOf(me) : champ ? champLine(d, me.reason) : null, sub = champ ? champTie(d, me.reason) : spar ? 'Sparring: learn his tells.' : null;
   const gear = (d.gear || []).map((id) => CARD[id]), thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 140 + ((d.guards || []).length ? 18 : 0), tb = b + bodyH + (thread ? 32 : 6);
-  const w = Math.min(E.w - 32, gear.length ? 640 : 460), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const second = state.rack === 0 && !voice;
+  const w = Math.min(E.w - 32, gear.length ? 640 : 460), h = Math.min(E.h - 12, tb + 22 + (voice || second ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', d.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
   const of = `BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
@@ -3454,17 +3763,68 @@ function drawIntro(ctx, E) {
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
   const bl = `Old Brutus: “${brutusIntro()}”`;
   E.text(bl, cx, y + tb + 10, { size: fitSize(ctx, bl, 13, w - 28, '700'), weight: '700', color: '#fde68a' });
-  if (voice) { const vl = `${d.name.split(' ')[0]}: “${voice}”`; E.text(vl, cx, y + tb + 33, { size: fitSize(ctx, vl, 15, w - 28), weight: '800', color: '#f87171' }); }
+  if (voice) { const vl = `${d.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, y + tb + 33, { size: fitSize(ctx, vl, 15, w - 28), weight: '800', color: '#f87171' }); }
+  else if (second) { const sl = `“${brutusReason()}”`; E.text(sl, cx, y + tb + 31, { size: fitSize(ctx, sl, 14, w - 28, '700'), weight: '700', color: '#fde68a' }); }
   const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
   E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
+}
+// A pairs bout's card: both foes side by side, the one who fights first on the left, each with his own health, armour, guarded gaps and gear (at 14 px)
+function drawPairIntro(ctx, E) {
+  const a = state.foe, q = state.edge, me = state.me, d0 = state.gauntlet[state.rack], champ = a.champion;
+  const voice = d0.rival ? tauntOf(me) : champ ? champLine(a, me.reason) : null, sub = champ ? champTie(a, me.reason) : 'Pairs: when one is winded or down, the other steps in.';
+  const thread = me.reason !== 'revenge', b = 88, bodyH = 150, tb = b + bodyH + (thread ? 32 : 6);
+  const w = Math.min(E.w - 32, 640), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
+  E.roundRect(x, y, w, h, 18, '#221a2b', d0.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
+  const of = `PAIRS  ·  BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
+  E.text(d0.rival ? `YOUR RIVAL  ·  ${of}` : champ ? `THE CHAMPION  ·  ${of}` : of, cx, y + 20, { size: 14, weight: '800', color: champ ? '#ffd24a' : '#c4b99a' });
+  const name = (a.title || `${a.name} and ${q.name}`).toUpperCase();
+  E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40), weight: '800', color: '#f0e6cc' });
+  E.text(sub, cx, y + 72, { size: Math.max(14, fitSize(ctx, sub, 15, w - 28)), weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
+  const cw = (w - 48) / 2;
+  pairCol(ctx, E, a, x + 16, y + b, cw, 'FIGHTS FIRST');
+  pairCol(ctx, E, q, x + 32 + cw, y + b, cw, 'WAITS AT THE EDGE');
+  ctx.fillStyle = 'rgba(240,230,204,0.18)'; ctx.fillRect(cx - 1, y + b, 2, bodyH - 6);
+  if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
+  const bl = `Old Brutus: “${brutusIntro()}”`;
+  E.text(bl, cx, y + tb + 10, { size: Math.max(14, fitSize(ctx, bl, 14, w - 28, '700')), weight: '700', color: '#fde68a' });
+  if (voice) { const vl = `${a.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, y + tb + 33, { size: Math.max(14, fitSize(ctx, vl, 15, w - 28)), weight: '800', color: '#f87171' }); }
+  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? 0.6 + 0.4 * Math.sin(state.introT * 4) : 0.3 });
+}
+// one foe's column on the pairs card: who he is, his health, his armour and guards, his gear (the pieces that act for him in red)
+function pairCol(ctx, E, f, x, y, w, tag) {
+  E.text(tag, x + w / 2, y + 6, { size: 14, weight: '800', color: '#c4b99a' });
+  const nm = f.name.toUpperCase();
+  E.text(nm, x + w / 2, y + 26, { size: Math.max(14, fitSize(ctx, nm, 18, w - 8)), weight: '800', color: f.champion ? '#ffd24a' : '#f0e6cc' });
+  armourIcon(ctx, f.parts, x + 40, y + 122, 80);
+  const rx = x + 84, rw = w - 88, ng = (f.guards || []).length, T = (t, yy, col = '#e2e8f0', wt = '700') => E.text(t, rx, yy, { size: 14, weight: wt, align: 'left', color: col });
+  T(clipLine(ctx, `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
+  T(`HEALTH ${f.maxHp}`, y + 70, '#f0e6cc', '800');
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(rx, y + 80, rw, 8); ctx.fillStyle = '#d9483a'; ctx.fillRect(rx, y + 80, rw * clamp(f.hp / f.maxHp, 0, 1), 8);
+  T(clipLine(ctx, ng ? `${f.set.slots - ng} open \u00b7 ${f.guards.map((id) => GUARDS[id]).join(', ')}` : `${f.set.slots} gaps open`, rw), y + 102, ng ? '#ffd24a' : '#c4b99a');
+  const gear = (f.gear || []).map((id) => CARD[id]), act = gear.filter((c) => FOE_TELL[c.id]), look = gear.filter((c) => !FOE_TELL[c.id]);
+  const rows = [...act.map((c) => [c.gear, '#f87171']), ...(look.length ? [[`${look.map((c) => c.gear).join(', ')}`, '#9aa4b2']] : [])];
+  if (!rows.length) rows.push(['No gear', '#9aa4b2']);
+  rows.slice(0, 2).forEach(([t, col], i) => T(clipLine(ctx, t, rw), y + 122 + i * 18, col));
+}
+// a line cut to w px at 14 px bold, with an ellipsis
+function clipLine(ctx, t, w) {
+  ctx.font = '700 14px system-ui, sans-serif';
+  if (ctx.measureText(t).width <= w) return t;
+  while (t.length > 2 && ctx.measureText(`${t}\u2026`).width > w) t = t.slice(0, -1);
+  return `${t.trimEnd()}\u2026`;
 }
 function miniCard(ctx, E, d, x, y, w, h, res) {
   const stroke = res === 'felled' ? '#4ade80' : res === 'lost' ? '#ef4444' : 'rgba(240,230,204,0.25)';
   E.roundRect(x, y, w, h, 12, res ? '#221a2b' : 'rgba(34,26,43,0.5)', stroke);
   const a = res ? 1 : 0.45;
   ctx.globalAlpha = a;
-  E.text(d.champion ? 'CHAMPION' : `BOUT ${d.tier + 1}`, x + w / 2, y + 13, { size: 10, weight: '800', color: d.champion ? '#ffd24a' : '#c4b99a', alpha: a });
-  E.text(d.name.length > 13 ? d.name.split(' ')[0].toUpperCase() : d.name.toUpperCase(), x + w / 2, y + 30, { size: 14, weight: '800', color: '#f0e6cc', alpha: a });
+  E.text(d.champion ? 'CHAMPION' : `BOUT ${d.at + 1}`, x + w / 2, y + 13, { size: 10, weight: '800', color: d.champion ? '#ffd24a' : '#c4b99a', alpha: a });
+  // a pair: both names when they fit, else the first and "+1"
+  const first = d.name.length > 13 ? d.name.split(/[ ,]/)[0].toUpperCase() : d.name.toUpperCase(), both = d.pair ? `${d.name.split(/[ ,]/)[0]} & ${d.pair.name.split(/[ ,]/)[0]}`.toUpperCase() : first;
+  ctx.font = '800 14px system-ui, sans-serif';
+  const plus = `${d.name.split(/[ ,]/)[0].toUpperCase()} +1`, nm = ctx.measureText(both).width <= w - 8 ? both : d.pair && ctx.measureText(plus).width <= w - 8 ? plus : first;
+  E.text(nm, x + w / 2, y + 30, { size: 14, weight: '800', color: '#f0e6cc', alpha: a });
   E.text(`${d.size.id} \u00b7 ${d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name}`, x + w / 2, y + 47, { size: 10, weight: '700', color: '#fde68a', alpha: a });
   ctx.globalAlpha = a;
   armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), x + w * 0.28, y + 104, 54);
@@ -3578,14 +3938,21 @@ const STORY = ['So. Another nobody from the pit.', 'I am Brutus. I make champion
   'Five bouts stand between you and the end of it. The last is the champion.', 'Win, and Rome remembers you. Fall, and I chalk your name on the wall.'];
 // The menu: the title, Play (Resume when a run was saved, with New run beside Story and Sound), the Story card, and the pit wall of the fallen.
 const menu = {
-  enter() { this.btns = {}; this.story = false; },
+  enter(E) {
+    this.btns = {}; this.story = false;
+    // a v6 save's won runs are only in the ledger, which migrate cannot read: checked once here, a won run opens the City
+    if (E.save.get('arenasCheck', 0)) {
+      if (E.ledger.entries.some((e) => e.k === 'result' && e.d && e.d.won === true)) E.save.set('arenas', Math.max(1, E.save.get('arenas', 0)));
+      E.save.set('arenasCheck', 0);
+    }
+  },
   render(ctx, E) {
     this.btns = {};
     if (portrait(E)) { rotateCard(ctx, E); return; }
     const run = E.save.get('run', null), cx = E.w / 2, top = E.safe.top, bottom = E.h - E.safe.bottom;
     E.text('ARENA', cx, top + Math.max(44, E.h * 0.15), { size: 44, weight: '800', color: '#e6c866' });
     const py = top + E.h * 0.4, ry = py + 64, row = run ? ['new', 'story', 'sound'] : ['story', 'sound'], bw = 140, gap = 12;
-    this.btns.play = E.button(run ? `Resume: bout ${run.rack + 1}` : 'Play', cx, py, { w: 260, h: 56, size: 20 });
+    this.btns.play = E.button(run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', cx, py, { w: 280, h: 56, size: 20 });
     row.forEach((k, i) => {
       const x = cx + (i - (row.length - 1) / 2) * (bw + gap), label = k === 'new' ? 'New run' : k === 'story' ? 'Story' : E.audio.muted ? 'Sound: off' : 'Sound: on';
       this.btns[k] = E.button(label, x, ry, { w: bw, h: 48, size: 16, fill: k === 'story' ? '#7c2d12' : '#1f2937' });
@@ -3608,7 +3975,7 @@ const menu = {
   },
   onTap(p, E) {
     if (this.story) { this.story = false; E.audio.play('tap'); return; }
-    const b = this.btns, run = E.save.get('run', null), fresh = () => E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0 });
+    const b = this.btns, run = E.save.get('run', null), fresh = () => E.setScene('arenas');
     if (b.play && E.hit(b.play, p)) { E.audio.play('tap'); if (run) E.setScene('play', { resume: run }); else fresh(); }
     else if (b.new && E.hit(b.new, p)) { E.audio.play('tap'); E.save.set('run', null); fresh(); }
     else if (b.story && E.hit(b.story, p)) { this.story = true; E.audio.play('tap'); }
@@ -3616,11 +3983,96 @@ const menu = {
   },
 };
 
+// The arena picker, the ladder in order (principle 11: a card is its name, its state drawn, one line of twist and its champion). An open arena: its name
+// (with its place), its twist and its champion (your rival in red when one waits); cleared ones are gilded. The next locked arena: its champion's silhouette and
+// what opens it. The Colosseum: coming soon. A tap on a locked card says in one line what opens it; in the dev channel a second tap enters a built one.
+const openTo = (E) => E.save.get('arenas', 0);
+function lockLine(i) { return `Fell the ${ARENAS[i - 1].who} champion to open`; }
+const pickArena = {
+  enter() { this.cards = []; this.back = null; this.dev = null; },
+  layout(E) {
+    const n = ARENAS.length, gap = 12, top = E.safe.top + 58, w = Math.min(210, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n);
+    const h = Math.min(250, E.h - top - 14 - E.safe.bottom), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
+    return ARENAS.map((a, i) => ({ a, i, x: x0 + i * (w + gap), y: top, w, h }));
+  },
+  render(ctx, E) {
+    if (portrait(E)) { this.cards = []; this.back = null; rotateCard(ctx, E); return; }
+    const top = E.safe.top, to = openTo(E), rivals = E.save.get('rivals', {});
+    E.text('CHOOSE YOUR ARENA', E.w / 2, top + 28, { size: 22, weight: '800', color: '#e6c866' });
+    this.back = E.button('Back', 16 + E.safe.left + 44, top + 28, { w: 88, h: 44, size: 16, fill: '#1f2937' });
+    this.cards = this.layout(E);
+    for (const c of this.cards) {
+      const { a, i, x, y, w, h } = c, open = i <= to && !a.soon, cleared = i < to && !a.soon, next = !open && !a.soon && i === to, cx = x + w / 2;
+      E.roundRect(x, y, w, h, 14, open ? '#2a2016' : 'rgba(34,26,43,0.6)', cleared ? '#ffd24a' : open ? '#e6c866' : 'rgba(240,230,204,0.25)');
+      ctx.globalAlpha = open ? 1 : 0.55;
+      // the name carries its place ("The City arena, Pompeii"), wrapped onto up to three lines: one item
+      wrapPx(ctx, `${a.name}, ${a.place}`.toUpperCase(), w - 12, 14, '800').slice(0, 3).forEach((t, k) => E.text(t, cx, y + 20 + k * 17, { size: 14, weight: '800', color: open ? (cleared ? '#ffd24a' : '#f0e6cc') : '#9aa4b2' }));
+      ctx.globalAlpha = 1;
+      const sh = Math.min(80, h * 0.31), sy = y + 74 + sh;
+      if (cleared) laurel(ctx, cx, sy - sh * 0.5, sh * 0.62);
+      silhouette(ctx, cx + (a.id === 'city' ? 12 : 0), sy, sh, open ? '#6b5a44' : '#3a3242');
+      if (a.id === 'city') silhouette(ctx, cx - 18, sy + 4, sh * 0.85, open ? '#4e4234' : '#2e2836');
+      if (!open) padlock(ctx, cx, sy - sh * 0.45, a.soon ? '#9aa4b2' : '#e6c866');
+      // open: the twist (white) and the champion (gold, or your rival in red); locked: what opens it
+      const rv = rivals[a.id], wrap = (t) => wrapPx(ctx, t, w - 16, 14, '700').slice(0, 2);
+      const lines = open ? [...wrap(a.twist).map((t) => [t, '#f0e6cc']), ...wrap(rv ? `Rival: ${rv.name.split(/[ ,]/)[0]}` : a.champLabel).map((t) => [t, rv ? '#f87171' : '#fde68a'])]
+        : wrapPx(ctx, a.soon ? 'Coming soon' : next ? lockLine(i) : 'Locked', w - 16, 14, '700').slice(0, 3).map((t) => [t, '#c4b99a']);
+      const ly = y + h - 14 - (lines.length - 1) * 18;
+      lines.forEach(([t, col], k) => E.text(t, cx, ly + k * 18, { size: 14, weight: '700', color: col }));
+    }
+  },
+  onTap(p, E) {
+    if (portrait(E)) return;
+    if (this.back && E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    const c = this.cards.find((q) => E.hit(q, p));
+    if (!c) return;
+    const to = openTo(E), open = c.i <= to && !c.a.soon, start = () => { E.audio.play('tap'); E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0, arena: c.a.id }); };
+    if (open) { start(); return; }
+    E.audio.play('miss');
+    if (c.a.soon) { E.toast('The Colosseum is coming soon'); return; }
+    if (E.channel !== 'release' && this.dev === c.i) { start(); return; }
+    this.dev = c.i;
+    E.toast(`${lockLine(c.i)}${E.channel !== 'release' ? ' (dev: tap again to enter)' : ''}`);
+  },
+};
+// a dark champion's silhouette standing at (x, y = his feet), h tall: crested helm, shoulders, a shield and a sword
+function silhouette(ctx, x, y, h, col) {
+  ctx.save(); ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(x, y - h * 0.86, h * 0.09, 0, 6.28); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x - h * 0.08, y - h * 0.97); ctx.quadraticCurveTo(x, y - h * 1.08, x + h * 0.1, y - h * 0.95); ctx.lineWidth = h * 0.04; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - h * 0.14, y - h * 0.74); ctx.lineTo(x + h * 0.14, y - h * 0.74); ctx.lineTo(x + h * 0.1, y - h * 0.42); ctx.lineTo(x - h * 0.1, y - h * 0.42); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = h * 0.07;
+  ctx.beginPath(); ctx.moveTo(x - h * 0.06, y - h * 0.44); ctx.lineTo(x - h * 0.1, y); ctx.moveTo(x + h * 0.06, y - h * 0.44); ctx.lineTo(x + h * 0.11, y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + h * 0.13, y - h * 0.7); ctx.lineTo(x + h * 0.24, y - h * 0.5); ctx.stroke();
+  ctx.lineWidth = h * 0.03; ctx.beginPath(); ctx.moveTo(x + h * 0.24, y - h * 0.5); ctx.lineTo(x + h * 0.34, y - h * 0.86); ctx.stroke();
+  rrect(ctx, x - h * 0.3, y - h * 0.72, h * 0.16, h * 0.32, h * 0.03); ctx.fill();
+  ctx.restore();
+}
+// a cleared arena's gilding: a gold laurel round its champion
+function laurel(ctx, x, y, r) {
+  ctx.save(); ctx.strokeStyle = '#ffd24a'; ctx.fillStyle = '#ffd24a'; ctx.lineWidth = 2.5;
+  for (const sd of [-1, 1]) {
+    ctx.beginPath(); ctx.arc(x, y, r, Math.PI / 2 + sd * 0.35, Math.PI / 2 + sd * 2.6, sd < 0); ctx.stroke();
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 2 + sd * (0.6 + i * 0.36), lx = x + Math.cos(a) * r, ly = y + Math.sin(a) * r;
+      ctx.beginPath(); ctx.ellipse(lx, ly, 6, 3, a + sd * 0.9, 0, 6.28); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+function padlock(ctx, x, y, col) {
+  ctx.save(); ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, y - 6, 7, Math.PI, 0); ctx.stroke();
+  rrect(ctx, x - 10, y - 6, 20, 16, 3); ctx.fill();
+  ctx.fillStyle = '#14101a'; ctx.beginPath(); ctx.arc(x, y + 1, 2.5, 0, 6.28); ctx.fill();
+  ctx.restore();
+}
+
 // Before the gauntlet: your fighter's six function wheels and two flavour wheels, one after another (tap stops the spinning one), then your card.
 // On the card the wheels sit in a strip above it: tap one, then Respin to roll it again with the run's one token, then Fight!
 const roll = {
   enter(E, params) {
-    this.seed = params.seed; this.me = rollMe(this.seed); this.i = 0; this.t = 0; this.landed = false; this.cardT = 0;
+    this.seed = params.seed; this.arena = params.arena || 'pit'; this.me = rollMe(this.seed); this.i = 0; this.t = 0; this.landed = false; this.cardT = 0;
     this.btn = this.respinBtn = null; this.token = TUNING.token; this.used = ''; this.sel = -1; this.spin = null; this.prev = null;
   },
   update(dt, E) {
@@ -3696,7 +4148,7 @@ const roll = {
       return;
     }
     if (this.cardT <= 0.3 || this.spin) return;
-    if (this.btn && E.hit(this.btn, p)) { E.audio.play('tap'); E.setScene('play', { seed: this.seed, me: this.me, token: this.token, tokenUsed: this.used }); return; }
+    if (this.btn && E.hit(this.btn, p)) { E.audio.play('tap'); E.setScene('play', { seed: this.seed, arena: this.arena, me: this.me, token: this.token, tokenUsed: this.used }); return; }
     if (this.respinBtn && this.respinBtn.live && E.hit(this.respinBtn, p)) { this.respin(E); return; }
     const S = this.strip(E);
     if (this.token > 0 && p.y <= S.bottom + 4 && p.x >= S.x0 && p.x < S.x0 + S.cw * S.n) {
@@ -3721,8 +4173,9 @@ const play = {
   state, lay, foeF, youF, toScreen, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, lamed, applyCard, finReady, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
+  ARENAS, rollGauntlet, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
-    if (params.resume) resumeRun(E, params.resume); else newRound(E, params.seed, params.me || rollMe(params.seed));
+    if (params.resume) resumeRun(E, params.resume); else newRound(E, params.seed, params.me || rollMe(params.seed), undefined, params.arena);
     newRack(E); initHand(E);
     if (state.draft) { state.intro = false; state.fallT = TUNING.resetDelay; state.foe.hp = 0; state.foe.shown = 0; }
     if (params.token != null && !params.resume) { state.token = params.token; state.tokenUsed = params.tokenUsed || ''; }
@@ -3737,7 +4190,7 @@ const play = {
     if (state.intro) {
       state.m += dt; state.introT += dt;
       if (state.pop > 0) state.pop = Math.max(0, state.pop - dt * 4);
-      poseFoe(E, dt); poseYou(E, dt); moveHand(E, dt);
+      poseFoe(E, dt); poseYou(E, dt); moveHand(E, dt); warmPair(E);
       for (const q of state.pops) q.life -= dt;
       state.pops = state.pops.filter((q) => q.life > 0);
       return;
@@ -3771,22 +4224,30 @@ const play = {
     updateAttack(E, dt);
     checkHits(E);
     updateFoe(dt, E);
+    updatePair(E, dt);
     updateBleed(E, dt);
     updateFinisher(E);
     updateDefence(dt, E);
     checkExhaust(E, dt);
+    crowdDrain(E, dt);
     state.foe.shown += (Math.max(0, state.foe.hp) - state.foe.shown) * (1 - Math.exp(-dt / 0.25));
+    state.favShown += (state.fav - state.favShown) * (1 - Math.exp(-dt / 0.2)); state.favT = Math.max(0, state.favT - dt);
     poseFoe(E, 0);
 
     if (state.fallT > 0) {
       state.fallT += dt;
-      if (state.fallT >= TUNING.resetDelay) {
+      // the first of a pair is down: his partner taunts, then steps in; otherwise the bout is over
+      if (state.edge && !state.edge.down) {
+        if (state.fallT >= TUNING.resetDelay - TUNING.pairs.taunt && !state.tauntT && !state.swapping) { state.swapping = true; taunt(E, 'fell'); }
+        if (state.fallT >= TUNING.resetDelay) stepIn(E);
+      } else if (state.fallT >= TUNING.resetDelay) {
         if (state.rack + 1 >= Math.min(TUNING.bouts, state.gauntlet.length)) { this.finish(E); return; }
         openDraft(E); return;
       }
     }
     for (const f of state.fx) {
       f.life -= dt; f.vy += (f.g || 0) * dt; f.x += f.vx * dt || 0; f.y += f.vy * dt || 0;
+      if (f.k === 'c') { f.rot += f.vr * dt; if (f.y >= f.floor) { f.y = f.floor; f.vx = 0; f.vy = 0; f.g = 0; f.vr = 0; } }
       if (f.k === 's' || f.k === 'p') f.rot += f.vr * dt;
       if (f.k === 'd') { f.vx *= 0.94; f.vy *= 0.94; }
     }
@@ -3811,16 +4272,24 @@ const play = {
       momGained: state.momGained, momSpent: state.momSpent, bleeds: state.bleeds, lamings: state.lamings };
     const me = state.me, champ = g[g.length - 1];
     // the champion who cut you down is remembered for the next run; a fall earlier only chalks your name on the wall
-    if (!won && state.results[g.length - 1] === 'lost') { const gaps = { ...(champ.gaps || {}) }; for (const [k, v] of Object.entries(state.bout.gaps)) gaps[k] = (gaps[k] || 0) + v; E.save.set('rival', rivalOf({ ...champ, gaps })); }
+    if (!won && state.results[g.length - 1] === 'lost') {
+      const gaps = { ...(champ.gaps || {}) }; for (const [k, v] of Object.entries(state.bout.gaps)) gaps[k] = (gaps[k] || 0) + v;
+      E.save.set('rivals', { ...E.save.get('rivals', {}), [state.arena]: rivalOf({ ...champ, gaps }) });
+    }
+    // felling an arena's champion opens the next arena for good
+    const ai = ARENAS.indexOf(arena()), was = E.save.get('arenas', 0), opened = won && ai + 1 > was ? ARENAS[ai + 1] || null : null;
+    if (won && ai + 1 > was) E.save.set('arenas', ai + 1);
     const wall = won ? E.save.get('wall', []) : E.save.set('wall', [{ name: me.name, bout: reached, female: me.female }, ...E.save.get('wall', [])].slice(0, 8));
     E.ledger.add('result', { ...r, won, reached, halves: state.hp, sizes: g.map((d) => d.size.id).join(''), weapons: g.map((d) => d.weapon.id).join(','), armour: g.map((d) => d.set.id[0]).join(''),
       stats: g.map((d) => `${d.str}${d.spd}${d.sta}`).join(','), champ: g[g.length - 1].name, lostTo: won ? '' : `${g[reached - 1].name} ${g[reached - 1].size.id} ${g[reached - 1].weapon.id}`,
       moves: Object.entries(state.moveCount).map(([k, v]) => `${k}${v}`).join(','),
       meSize: me.size, meStats: `${me.str}${me.spd}${me.sta}`, meArmour: me.set, mePlates: me.plates.join(','), meTier: me.tier, underdog: me.underdog ? 1 : 0,
       grades: state.grades.join(''), picks: state.picks.join(','), stepsIn: state.stepsIn, stepsOut: state.stepsOut, wallHits: state.wallHits, foeWall: state.foeWall, outReach: state.outReach, dodged: state.dodged, chases: state.chases,
-      shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten });
+      shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
+      arena: state.arena, fav: Math.round(state.fav), thumb: won && state.arena === 'games' ? bandOf(state.fav) : -1 });
     E.setScene('over', { ...r, won, reached, gauntlet: g, me, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew,
-      picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice() });
+      picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice(),
+      arena: state.arena, fav: state.fav, opened });
   },
   // two thumbs: a touch that starts in the left third is the shield and dodge thumb (buttons only), any other is the sword thumb
   onPointerDown(p, E) {
@@ -3884,6 +4353,7 @@ const play = {
     if (state.sw && state.sw.ghostX) drawFighter(ctx, E, { ...youF(E), x: state.sw.ghostX }, state.you, 'you', 0.3 + 0.1 * Math.sin(state.m * 20));
     drawFighter(ctx, E, youF(E), state.you, 'you');
     if (state.netT > 0) { const Fy = youF(E); drawNet(ctx, Fy.x, Fy.y - 0.55 * Fy.H, 0.32 * Fy.H * clamp(state.netT / 0.3, 0.6, 1)); }
+    if (state.edge && !state.edge.down) drawEdge(ctx, E);
     drawFighter(ctx, E, foeF(E), state.foe, 'foe');
     if (state.flyW > 0) flyingWeapon(ctx, E);
     drawGuard(ctx, E);
@@ -3909,6 +4379,9 @@ const play = {
       } else if (f.k === 'r') {
         ctx.globalAlpha = t; ctx.strokeStyle = f.c; ctx.lineWidth = 3 * t + 1;
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r0 + (f.r - f.r0) * (1 - t), 0, 6.28); ctx.stroke();
+      } else if (f.k === 'c') {
+        ctx.globalAlpha = Math.min(1, f.life / 0.3); ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#8a5a12'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(f.x, f.y, 1 + 4.5 * Math.abs(Math.cos(f.rot)), 5, 0, 0, 6.28); ctx.fill(); ctx.stroke();
       }
     }
     ctx.globalAlpha = 1;
@@ -3937,7 +4410,9 @@ const play = {
     // HUD, inside the safe area
     const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right, TS = TUNING.stamina;
     E.text(`BOUT ${state.rack + 1}/${state.gauntlet.length}`, l, top + 14, { size: 20, align: 'left', weight: '800', color: state.foe.champion ? '#ffd24a' : '#e6e6e6' });
-    E.text(`${state.gold} gold`, l, top + 38, { size: 13, align: 'left', weight: '800', color: '#fbbf24' });
+    drawCrowdMeter(ctx, E, l, top + 34);
+    drawCoin(ctx, l + 6, top + 53, 6);
+    E.text(`${state.gold}`, l + 17, top + 53, { size: 14, align: 'left', weight: '800', color: '#fbbf24' });
     // hearts in quarters: a plated hit takes a quarter
     const nh = Math.ceil(state.maxHp / 2);
     for (let i = 0; i < nh; i++) {
@@ -3962,6 +4437,7 @@ const play = {
     }
     E.text(noShield() ? 'no shield' : state.sh.broken ? 'shield broken' : 'shield', bx - 6, sy + 6, { size: 10, align: 'right', color: state.sh.broken || noShield() ? '#ef4444' : '#c4b99a' });
     if (!state.draft && !state.tent) foeHealth(ctx, E);
+    if (state.edge && !state.edge.down && !state.intro && !state.draft && !state.tent) drawEdgeTag(ctx, E);
     if (state.netT > 0) E.text('NETTED: slow hand, no lunge', bx + bw, sy + 34, { size: 11, align: 'right', color: '#e2e8f0', weight: '700' });
     if (state.hint && !state.intro && !state.caption) drawHint(ctx, E);
     if (state.intro) { drawIntro(ctx, E); if (E.channel !== 'release') { const t = labTab(E); E.roundRect(t.x, t.y, t.w, t.h, 10, '#1f2937', '#e879f9'); E.text('LAB', t.x + t.w / 2, t.y + t.h / 2, { size: 15, weight: '800', color: '#f5d0fe' }); } }
@@ -3974,23 +4450,61 @@ const play = {
 // The end: an epilogue card first when the champion fell, then the end card (your card and theirs, your upgrades, the pit wall when you fell).
 const over = {
   enter(E, params) {
-    this.p = params; this.page = params.won ? 0 : 1; this.t = 0; this.details = false;
+    this.p = params; this.page = params.won ? 0 : 1; this.t = 0; this.details = false; this.heard = false;
     E.audio.play(params.won ? 'win' : 'lose');
   },
   update(dt) { this.t += dt; },
   epilogue(ctx, E) {
     const p = this.p, me = p.me, w = Math.min(E.w - 32, 620), h = Math.min(E.h - 40, 230), x = (E.w - w) / 2, y = (E.h - h) / 2;
     E.roundRect(x, y, w, h, 18, '#221a2b', '#ffd24a');
-    E.text('CHAMPION FELLED', E.w / 2, y + 30, { size: 15, weight: '800', color: '#ffd24a' });
+    E.text(`CHAMPION FELLED  \u00b7  ${ARENA[p.arena].name.toUpperCase()}`, E.w / 2, y + 30, { size: 15, weight: '800', color: '#ffd24a' });
     if (p.rivalBeaten) E.text('Rival defeated!', E.w / 2, y + 54, { size: 16, weight: '800', color: '#f87171' });
     E.text(`${me.name}, ${ORIGINS[me.origin].text}.`, E.w / 2, y + h * 0.45, { size: 20, weight: '800', color: '#f0e6cc' });
-    E.text(EPILOGUE[me.reason](me.name, me.female), E.w / 2, y + h * 0.45 + 32, { size: 17, weight: '700', color: '#fde68a' });
+    wrapPx(ctx, endingOf(p.arena, me, p.fav), w - 40, 17, '700').slice(0, 2).forEach((t, i) => E.text(t, E.w / 2, y + h * 0.45 + 32 + i * 22, { size: 17, weight: '700', color: '#fde68a' }));
     E.text('Tap to continue', E.w / 2, y + h - 22, { size: 14, weight: '800', color: '#ffd24a', alpha: this.t > 0.5 ? 0.6 + 0.4 * Math.sin(E.time * 4) : 0.3 });
+  },
+  // The Grand Games end on the Emperor's thumb: the imperial box, then his hand rises and the thumb turns by the crowd's meter (up and a roar, a cold
+  // nod, or down and jeers), then the ending. All three are a win.
+  thumb(ctx, E) {
+    const p = this.p, T = TUNING.thumb, b = bandOf(p.fav), t = this.t, w = Math.min(E.w - 32, 620), h = Math.min(E.h - 24, 272), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+    E.roundRect(x, y, w, h, 18, '#1c1424', b === 2 ? '#ffd24a' : b === 1 ? '#c4b99a' : '#94a3b8');
+    E.text("THE EMPEROR'S THUMB", cx, y + 24, { size: 15, weight: '800', color: '#ffd24a' });
+    // the box: a purple-draped balcony between two columns, the Emperor seated under a laurel
+    const k = easeOut(clamp(t / T.box, 0, 1)), bw = Math.min(260, w - 60), bh = Math.min(110, h * 0.36), bx = cx - bw / 2, by = y + 40 + (1 - k) * 20;
+    ctx.save(); ctx.globalAlpha = k;
+    ctx.fillStyle = '#3a2a40'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = '#d9c9a0'; ctx.fillRect(bx - 10, by - 6, 14, bh + 6); ctx.fillRect(bx + bw - 4, by - 6, 14, bh + 6); ctx.fillRect(bx - 14, by - 10, bw + 28, 8);
+    ctx.fillStyle = '#5b2160'; ctx.beginPath(); ctx.moveTo(bx, by + bh * 0.62);
+    for (let i = 0; i <= 6; i++) ctx.quadraticCurveTo(bx + bw * (i - 0.5) / 6, by + bh * 0.82, bx + bw * i / 6, by + bh * 0.62);
+    ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx, by + bh); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e6c866'; ctx.fillRect(bx, by + bh * 0.6, bw, 3);
+    const nod = b === 1 ? Math.sin(clamp((t - T.box - T.hand) / T.turn, 0, 1) * Math.PI) * 4 : 0, ex = cx, ey = by + bh * 0.3 + nod;
+    ctx.fillStyle = '#c9a27a'; ctx.beginPath(); ctx.arc(ex, ey, bh * 0.12, 0, 6.28); ctx.fill();
+    ctx.fillStyle = '#f2f0ea'; ctx.beginPath(); ctx.moveTo(ex - bh * 0.22, by + bh * 0.62); ctx.quadraticCurveTo(ex, ey + bh * 0.05, ex + bh * 0.22, by + bh * 0.62); ctx.fill();
+    ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ex, ey - bh * 0.02, bh * 0.13, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    ctx.restore();
+    // the hand rises over the rail, a fist with the thumb out, and turns
+    const kh = easeOut(clamp((t - T.box) / T.hand, 0, 1)), kt = easeOut(clamp((t - T.box - T.hand) / T.turn, 0, 1)), hx = cx + bw * 0.3, hy = by + bh * 0.9 - kh * bh * 0.45;
+    if (kh > 0) {
+      const ang = kt * (b === 2 ? -Math.PI / 2 : b === 0 ? Math.PI / 2 : 0), r = bh * 0.15;
+      ctx.save(); ctx.translate(hx, hy);
+      ctx.fillStyle = '#5b2160'; ctx.fillRect(-r * 0.7, r * 0.6, r * 1.4, bh * 0.4);
+      ctx.fillStyle = '#d4a77e'; rrect(ctx, -r, -r * 0.8, r * 2, r * 1.6, r * 0.5); ctx.fill();
+      ctx.rotate(ang); ctx.fillRect(r * 0.6, -r * 0.28, r * 1.1, r * 0.56); ctx.strokeStyle = '#7a5032'; ctx.lineWidth = 1.5; ctx.strokeRect(r * 0.6, -r * 0.28, r * 1.1, r * 0.56);
+      ctx.restore();
+    }
+    if (t >= T.box + T.hand + T.turn) {
+      if (!this.heard) { this.heard = true; crowdVerdict(E, b); }
+      const head = b === 2 ? 'Thumbs up. The crowd roars.' : b === 1 ? 'A cold nod.' : 'Thumbs down. The crowd jeers.';
+      E.text(head, cx, by + bh + 24, { size: 17, weight: '800', color: b === 2 ? '#ffd24a' : b === 1 ? '#e2e8f0' : '#fca5a5' });
+      wrapPx(ctx, endingOf('games', p.me, p.fav), w - 40, 16, '700').slice(0, 2).forEach((s2, i) => E.text(s2, cx, by + bh + 50 + i * 20, { size: 16, weight: '700', color: '#fde68a' }));
+    }
+    E.text('Tap to continue', cx, y + h - 18, { size: 14, weight: '800', color: '#ffd24a', alpha: t > T.tap ? 0.6 + 0.4 * Math.sin(E.time * 4) : 0.3 });
   },
   render(ctx, E) {
     const p = this.p, g = p.gauntlet, top = E.safe.top + 22;
     if (portrait(E)) { this.btnAgain = this.btnMenu = this.btnDetails = null; rotateCard(ctx, E); return; }
-    if (this.page === 0) { this.btnAgain = this.btnMenu = this.btnDetails = null; this.epilogue(ctx, E); return; }
+    if (this.page === 0) { this.btnAgain = this.btnMenu = this.btnDetails = null; if (p.arena === 'games') this.thumb(ctx, E); else this.epilogue(ctx, E); return; }
     const last = g[p.reached - 1], me = p.me, by = E.h - 30 - E.safe.bottom;
     E.text(p.won ? 'CHAMPION FELLED' : `Cut down by ${last.name}`, E.w / 2, top, { size: 24, weight: '800', color: p.won ? '#ffd24a' : '#ef4444' });
     E.text(`Reached bout ${p.reached} of ${g.length}${p.grades.length ? `  \u00b7  grades ${p.grades.join(' ')}` : ''}`, E.w / 2, top + 22, { size: 13, color: '#fbbf24' });
@@ -4036,7 +4550,9 @@ const over = {
       E.text(`Old Brutus: \u201c${brutus(me, 'lost')}\u201d`, E.w / 2, y, { size: 13, weight: '700', color: '#fde68a' });
       y += 16;
     } else {
-      E.text(EPILOGUE[me.reason](me.name, me.female), E.w / 2, y, { size: 13, weight: '700', color: '#fde68a' });
+      const ending = endingOf(p.arena, me, p.fav);
+      E.text(ending, E.w / 2, y, { size: fitSize(ctx, ending, 14, E.w - 32, '700'), weight: '700', color: '#fde68a' });
+      if (p.opened) { const t = `Opened: ${p.opened.name}${p.opened.soon ? ' (coming soon)' : `, ${p.opened.place}`}`; E.text(t, E.w / 2, y + 20, { size: 14, weight: '800', color: '#ffd24a' }); }
     }
   },
   // Details: the raw counts of the run, laid out in a grid between the headline and the buttons
@@ -4058,9 +4574,9 @@ const over = {
     });
   },
   onTap(p, E) {
-    if (this.page === 0) { if (this.t > 0.5) { this.page = 1; E.audio.play('tap'); } return; }
+    if (this.page === 0) { if (this.t > (this.p.arena === 'games' ? TUNING.thumb.tap : 0.5)) { this.page = 1; E.audio.play('tap'); } return; }
     if (this.btnDetails && E.hit(this.btnDetails, p)) { this.details = !this.details; E.audio.play('tap'); }
-    else if (this.btnAgain && E.hit(this.btnAgain, p)) E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0 });
+    else if (this.btnAgain && E.hit(this.btnAgain, p)) E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0, arena: this.p.arena });
     else if (this.btnMenu && E.hit(this.btnMenu, p)) E.setScene('menu');
   },
 };
@@ -4071,7 +4587,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 6,
+  saveVersion: 7,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -4092,6 +4608,13 @@ export const game = {
     if (fromVersion < 6) {
       for (const rv of [data.rival, data.run && data.run.rival]) if (rv) { rv.gaps = rv.gaps || {}; rv.gear = rv.gear || null; }
       if (data.run && data.run.draft) data.run.draft.odds = data.run.draft.odds || [];
+    }
+    // v7 (v2 step 3, the arenas): the highest arena open (a won run opens the City; menu.enter reads the ledger once for it), the rival per arena (the
+    // Pit's is the old one), and a saved run is a Pit run
+    if (fromVersion < 7) {
+      data.rivals = data.rival ? { pit: data.rival } : {}; delete data.rival;
+      data.arenas = 0; data.arenasCheck = 1;
+      if (data.run) data.run.arena = 'pit';
     }
     return data;
   },
@@ -4115,5 +4638,5 @@ export const game = {
     { label: 'Brutal', values: { ...STD, 'stamina.regen': 22, 'attack.over.cost': 34, 'shield.perfect': 0.1, 'shield.hits': 3, 'shield.drain': 12, 'open.dur': 0.6, 'swing.windup': 0.55, 'swing.gap': 1.3, 'counter.windup': 0.35, 'hit.minSpeed': 600, 'dodge.cost': 28 } },
   ],
   start: 'menu',
-  scenes: { menu, roll, play, over },
+  scenes: { menu, arenas: pickArena, roll, play, over },
 };
