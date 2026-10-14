@@ -325,7 +325,7 @@ The designer asked: "How long to start with just one arena, with the armourer's 
   - **Haemorrhage:** a hooked sica.
 - **Rarity has a colour:** common, rare, epic, legendary. It shows on the card's border and as a faint glint on the worn piece.
 - **One piece per slot.** Picking a piece for a filled slot shows "replaces Bronze Helm" on the card, and the old piece is gone.
-- **Gear never adds plates,** except the pieces that already plate a part (Bronze Helm, Iron Greaves, Titan).
+- **Gear never adds plates.** Titan's black plate is a look; its line (+2 hearts, staggering overheads, no dodge) is unchanged.
 - **Drawn by the game,** on both fighters, layered on v1's painted parts. The slot names are the file names for the painted gear pack later (F), with the procedural look kept as the fallback.
 
 ### G2. Duos are set bonuses
@@ -367,7 +367,7 @@ The designer asked: "How long to start with just one arena, with the armourer's 
   - from bout 2 on, each foe has a chance of one or two guards, rising by bout and set in TUNING;
   - the gorget is the most common guard, so a neck-only player meets it often and has to learn the armpit, waist, elbow and knee;
   - the champion always wears at least one guard.
-- **The rival remembers,** in the spirit of v1's memory: a rival who lost to you wears a guard on the gap you hit most against him.
+- **The rival remembers,** in the spirit of v1's memory. The rival is the champion who beat you. Next time, he wears a guard on the gap you hit most against him.
 
 ### G6. Saves
 
