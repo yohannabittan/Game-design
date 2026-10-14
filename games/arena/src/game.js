@@ -12,7 +12,7 @@
 // throws the gold as coins, drives Glory's chant and decides the thumb. H is the fighter body unit (screen height x fighter.height, scaled by size); body units have x forward, y down,
 // origin at the feet. Particles are the game's own, so a hit-stop freezes them. The section map is docs/games/arena/CODEMAP.md.
 
-import { makeRng, clamp, lerp } from './engine.js';
+import { makeRng, clamp, lerp, ease } from './engine.js';
 
 // ====== TUNING: every tunable number ======
 const TUNING = {
@@ -32,7 +32,9 @@ const TUNING = {
   arm: { len: 0.45, minFrac: 0.35, full: 0.97, chamberAt: 0.16, straightAt: 0.5 },  // arm in H; finger distance (H) at which the arm is chambered and at which it is straight
   blade: { len: 0.36, pad: 5, jabPad: 10, tip: 0.22 },   // gladius length in H, hit pad px, jab tip radius px, fraction of the blade that is the jab tip
   grip: { straight: -0.25, chamber: -0.6, tau: 0.045, trail: 0.018 },  // blade angle from the arm (radians, up is negative), smoothing, trail per rad/s of arm swing
-  fighter: { height: 0.72, floor: 0.92, gap: 0.2, body: 0.12 },   // body unit as a fraction of screen height, feet line, clear gap between the bodies (fraction of width), half body width in H
+  // body unit as a fraction of screen height, feet line, clear gap between the bodies (fraction of width), half body width in H; fit = the largest scale
+  // drawn at full frame: a bigger fighter (a Giant) shrinks the whole frame so his head stays as high as that scale's would, clear of the HUD
+  fighter: { height: 0.72, floor: 0.92, gap: 0.2, body: 0.12, fit: 1.15 },
   lunge: { stride: 0.3, cost: 10, tauIn: 0.06, tauOut: 0.14 },  // stride in H; extra stamina; seconds to step in and back
   lean: { base: 0.03, max: 0.21, beyond: 0.6, span: 0.2, fast: 0.7, tau: 0.06, back: 0.05 },  // radians (max = 12 degrees); aim distance (H) past which a fast slash leans, over span; fast = fraction of hit.mid
   dodge: { dur: 0.35, back: 0.32, hop: 0.1, cost: 12, cool: 0.2, drain: 14 },  // dur: a tap's sidestep; a hold stays back and drains stamina per second
@@ -56,7 +58,16 @@ const TUNING = {
   counter: { windup: 0.55 },  // only an overhead clang (or any clang on a shield-bearer) brings a counter
   open: { dur: 1.1 },      // seconds the foe is open after each of his moves
   shield: { dur: 0.6, perfect: 0.25, hits: 6, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2, drain: 3, slow: 0.45 },  // drain: stamina per second of hold
-  juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, strawPerDmg: 14 },
+  // juice (principle 16). Hit-stops (s) and straw per damage; shake = x every shake, shakeOn = 0 turns shake off (the engine does not expose the system's
+  // reduced motion). A slot hit: its hit-stop, sparks and ring (px). A fell: s of slow motion at fellMul game speed, the camera punching in by fellZoom
+  // over zoomIn s, dust as he drops (dropAt s after, dropDust motes). A perfect block: its white ring (px) and tiny shake (px). A feint read: the violet
+  // burst off him. A lunge: dust at your back foot. A dodge: s of ghost trail, one ghost each ghostEvery s, sand scuff motes. A finisher: s of slow motion
+  // at finMul, the banner's s, the war paint's glow s. A Giant (scale giantAt and up) thuds each giantStep H he walks, with a shake (px). Getting hit:
+  // your recoil (radians of lean back) and the heart's shatter (s).
+  juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, strawPerDmg: 14, shake: 0.5, shakeOn: 1,
+    slotStop: 0.06, slotSpark: 18, slotRing: 34, fellSlow: 1, fellMul: 0.35, fellZoom: 0.06, zoomIn: 0.2, dropAt: 0.35, dropDust: 18,
+    perfRing: 150, perfShake: 2, readBurst: 28, lungeDust: 7, ghost: 0.22, ghostEvery: 0.05, scuff: 7, finSlow: 0.35, finMul: 0.4, banner: 0.9, paint: 1.2,
+    giantAt: 1.25, giantStep: 0.12, giantShake: 1.5, recoil: 0.14, shatter: 0.6 },
   foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, hp: 22, tierHp: 0.1, champHp: 1.15, dmgCap: 3, coverShield: 0.2, coverGuard: 0.1 },  // hp scaled by size and tier; dmgCap: most half hearts one blow takes; cover radii (H) with and without a shield
   cover: { dur: 3.2, slide: 0.07, jabTol: 0.8 },  // seconds the foe's guard stays on the part you hit; seconds to slide there; radians a jab may stray from the slit's axis
   step: { circle: [-0.05, 0.07], period: 3.4, tau: 0.16, lead: 0.5, dodge: 0.3, dodgeDur: 0.7, dodgeCool: 2.4 },  // footwork (H): a slow drift around his range (period s); lead: seconds before a move he steps to striking distance; his sidestep from a lunge
@@ -84,12 +95,27 @@ const TUNING = {
   read: { blockRun: 3, memWin: 20, avoid: 0.08, lunges: 2, lungeWin: 10, turtle: 0.45, turtleTau: 4, turtleFeint: 3, turtleBash: 4, lowSta: 0.3, pressMul: 3, pressWind: 0.88 },
   retreat: { chance: 0.5, hurt: 0.6, dur: 1.2, dist: 0.2 },  // chance per exchange that a hit below hurt (health fraction) sends him back dist (H) for dur s
   stat: { strDmg: [0.75, 0.1], spdWind: [1.25, 0.1], spdStep: [1.3, 0.12] },  // multiplier = a - b * stat (Strength adds: a + b * stat)
-  // sizes: drawn scale, health, extra range (H), damage, windup and footwork multipliers, stat bias (Strength, Speed, Stamina)
+  // the five size bands, his and yours: drawn scale, health, extra range (H), damage, windup and footwork multipliers (under 1 is quicker). Each fighter's
+  // scale is his band's, varied by up to sizeVary either way (seeded), and every effect follows his scale continuously between the bands' rows.
   sizes: [
-    { id: 'S', name: 'SMALL', scale: 0.86, hp: 0.8, reach: -0.04, dmg: 0.9, wind: 0.9, step: 0.8, bias: [-1, 1, 0] },
-    { id: 'M', name: 'MEDIUM', scale: 1, hp: 1, reach: 0, dmg: 1, wind: 1, step: 1, bias: [0, 0, 0] },
-    { id: 'L', name: 'LARGE', scale: 1.15, hp: 1.3, reach: 0.06, dmg: 1.2, wind: 1.12, step: 1.3, bias: [1, -1, 0.5] },
+    { id: 'runt', name: 'RUNT', scale: 0.75, hp: 0.65, reach: -0.08, dmg: 0.8, wind: 0.8, step: 0.65 },
+    { id: 'lean', name: 'LEAN', scale: 0.88, hp: 0.82, reach: -0.04, dmg: 0.9, wind: 0.9, step: 0.82 },
+    { id: 'medium', name: 'MEDIUM', scale: 1, hp: 1, reach: 0, dmg: 1, wind: 1, step: 1 },
+    { id: 'big', name: 'BIG', scale: 1.16, hp: 1.3, reach: 0.05, dmg: 1.2, wind: 1.12, step: 1.3 },
+    { id: 'giant', name: 'GIANT', scale: 1.35, hp: 1.6, reach: 0.1, dmg: 1.4, wind: 1.25, step: 1.5 },
   ],
+  sizeVary: 0.04,
+  // his stats: points by bout (plus champ for a champion, plus the arena's shift x 3), split by a rolled profile's shares (Strength, Speed, Stamina), each
+  // 1 to 5, with jitter (points) of seeded spread before rounding; his weakest stat is held to weak (champWeak for a champion). Each profile's roll weight
+  // per size band (runt, lean, medium, big, giant), so a Giant is more often a Brute or a Tank and a Runt a Duelist or a Glass cannon.
+  foeStats: { budget: [6, 8, 9, 10, 11], champ: 1, weak: 2, champWeak: 3, jitter: 0.6 },
+  profiles: {
+    brute: { share: [0.42, 0.16, 0.42], w: [0.4, 0.8, 1, 2, 3] },
+    duelist: { share: [0.29, 0.42, 0.29], w: [3, 2, 1, 0.7, 0.4] },
+    glass: { share: [0.42, 0.42, 0.16], w: [3, 2, 1, 0.8, 0.5] },
+    tank: { share: [0.32, 0.16, 0.52], w: [0.4, 0.8, 1, 2, 3] },
+    balanced: { share: [1 / 3, 1 / 3, 1 / 3], w: [1.2, 1.2, 1.5, 1.2, 1] },
+  },
   // weapons: home and striking distance (H, beyond the base stance), windup multiplier, damage, drawn length (H), move weights, combo length, shield chance, your stamina drained per block, shield wear per block
   weapons: [
     { id: 'gladius', name: 'GLADIUS', range: 0.12, strike: -0.04, speed: 0.9, dmg: 1, len: 0.3, moves: { chop: 2, thrust: 2, sweep: 1.5, combo: 3, feint: 1.5 }, combo: [2, 3], shield: 0.7, drain: 0, wear: 1 },
@@ -108,23 +134,36 @@ const TUNING = {
   lesson: { hes: 0.28, slow: 0.4, cap: 5, remind: 2.6 },
   feintRead: { drain: 0.6 },  // fraction of his stamina bar a read feint costs him
   openWin: { dur: 0.15, slow: 0.25 },  // when he is winded: seconds of slow time, and the game speed during it
-  // your rolled fighter. Wheels: [value, weight, tier name]. Per size: drawn scale, arm reach multiplier, hearts, hand lag (swing speed) multiplier.
-  // Per stat value 1-5: Strength damage, Speed hand lag / recoil and dodge length, Stamina bar and regen. Armour: plates on head/chest/legs (+ shield arm), stamina regen.
+  // your rolled fighter. Wheels: [value, weight, tier name]. Per size band: arm reach multiplier, hearts, hand lag (swing speed) multiplier and tier score
+  // (your scale and damage follow TUNING.sizes, like his). Per stat value 1-5: Strength damage, Speed hand lag / recoil and dodge length, Stamina bar and regen.
+  // Armour: plates on head/chest/legs (+ shield arm), stamina regen.
   me: {
     wheels: {
-      size: [['S', 30, 'Small'], ['M', 45, 'Medium'], ['L', 25, 'Large']],
-      stat: [[1, 8, 'Feeble'], [2, 20, 'Fair'], [3, 34, 'Solid'], [4, 26, 'Strong'], [5, 12, 'Mighty']],
+      size: [['runt', 7, 'Runt'], ['lean', 22, 'Lean'], ['medium', 38, 'Medium'], ['big', 25, 'Big'], ['giant', 8, 'Giant']],
+      stat: [[1, 8, 'Feeble'], [2, 20, 'Fair'], [3, 34, 'Solid'], [4, 26, 'Strong'], [5, 12, 'Mighty']],  // the B-tier wheel; statTiers holds every tier's weights
       armour: [['light', 35, 'Light'], ['medium', 45, 'Medium'], ['heavy', 20, 'Heavy']],
       weapon: [['gladius', 35, 'Gladius', 'GL'], ['spear', 25, 'Spear', 'SP'], ['axe', 20, 'Axe/mace', 'AX'], ['dagger', 20, 'Dagger', 'DG']],
       // flavour only: [value, weight, name, wheel label]
       origin: [['gaul', 1, 'Gaul', 'GA'], ['thrace', 1, 'Thrace', 'TH'], ['numidia', 1, 'Numidia', 'NU'], ['capua', 1, 'Capua', 'CA'], ['ostia', 1, 'Ostia', 'OS'], ['alexandria', 1, 'Alexandria', 'AL']],
       reason: [['freedom', 1, 'Freedom', 'F'], ['debt', 1, 'Debt', 'D'], ['revenge', 1, 'Revenge', 'R'], ['glory', 1, 'Glory', 'G']],
     },
-    spin: 0.8, turns: 2.5, pause: 0.22,  // seconds per wheel, turns per spin, pause before the next wheel
+    // the stat wheels' named tiers (L8): each tier's weights over Feeble to Mighty. A wheel starts at B; your band tilts it (steps per stat: Strength,
+    // Speed, Stamina; up is toward S) and the stat wheel before it shifts it by chain[its result - 1]; the sum stays within D to S.
+    statTiers: { S: [3, 8, 24, 37, 28], A: [5, 13, 32, 32, 18], B: [8, 20, 34, 26, 12], C: [14, 30, 34, 16, 6], D: [24, 36, 26, 10, 4] },
+    tierOrder: ['D', 'C', 'B', 'A', 'S'],
+    tilt: { runt: [-1, 1, 0], lean: [0, 1, 0], medium: [0, 0, 0], big: [1, 0, 0], giant: [1, -1, 0] },
+    chain: [1, 1, 0, -1, -1],
+    rare: { size: ['runt', 'giant'], stat: [1, 5] },  // the slivers that burst and make the crowd ooh
+    // the roll scene, per wheel (s): the slices reshape (shape, or wait when nothing changed), the spin (turns, and the share of it before the last-peg
+    // tease), the hold on the answer; the card's spin on a respin (spin); the tease's peg margin and settle (fraction across the landed slice, radians)
+    roll: { shape: 0.5, wait: 0.25, spin: 1.15, turns: 2.6, main: 0.8, hold: 0.5, settle: 0.32, peg: 0.05, tickGap: 0.025 },
+    spin: 0.8, turns: 2.5,  // a respin on the card: seconds and turns
     sizes: {
-      S: { name: 'SMALL', scale: 0.88, reach: 0.95, hearts: 2.5, lag: 0.82, score: 0 },
-      M: { name: 'MEDIUM', scale: 1, reach: 1, hearts: 3, lag: 1, score: 0.5 },
-      L: { name: 'LARGE', scale: 1.15, reach: 1.05, hearts: 3.5, lag: 1.2, score: 1 },
+      runt: { name: 'RUNT', arm: 0.9, hearts: 2, lag: 0.75, score: 0 },
+      lean: { name: 'LEAN', arm: 0.95, hearts: 2.5, lag: 0.85, score: 0.25 },
+      medium: { name: 'MEDIUM', arm: 1, hearts: 3, lag: 1, score: 0.5 },
+      big: { name: 'BIG', arm: 1.05, hearts: 3.5, lag: 1.15, score: 0.75 },
+      giant: { name: 'GIANT', arm: 1.1, hearts: 4.5, lag: 1.3, score: 1 },
     },
     str: [0.75, 0.9, 1, 1.15, 1.3],
     spdLag: [1.35, 1.15, 1, 0.88, 0.76], spdDodge: [0.8, 0.9, 1, 1.12, 1.25],
@@ -226,15 +265,23 @@ const TUNING = {
 };
 
 // ====== DATA TABLES: the gauntlet, story lines, the upgrade deck, body parts, zones and poses ======
-// The gauntlet: what each bout may roll (sizes, armour sets) and the stat level it centres on. The fifth is the named champion.
-// The ramp: bout 1 is a sparring partner (no feints, no memory, no counters, tells x tell); feints from bout 2, memory from bout 3.
+// The gauntlet: what each bout may roll (size bands with their weights, armour sets). The fifth is the named champion. His stat points are TUNING.foeStats.
+// The ramp: bout 1 is a sparring partner (no feints, no memory, no counters, tells x tell); feints from bout 2, memory from bout 3. A Giant is rare before bout 3.
 const GAUNTLET = [
-  { sizes: ['S'], armour: ['light'], stat: 1, spar: true, tell: 1.4 },
-  { sizes: ['S', 'M'], armour: ['light', 'medium'], stat: 1.9, feints: true, counters: true },
-  { sizes: ['M', 'L'], armour: ['medium'], stat: 2.6, feints: true, memory: true, counters: true },
-  { sizes: ['S', 'M', 'L'], armour: ['medium', 'heavy'], stat: 3.2, feints: true, memory: true, counters: true },
-  { sizes: ['M', 'L'], armour: ['heavy'], stat: 4, champion: true, feints: true, memory: true, counters: true },
+  { sizes: [['runt', 2], ['lean', 3], ['medium', 3]], armour: ['light'], spar: true, tell: 1.4 },
+  { sizes: [['runt', 1.5], ['lean', 3], ['medium', 3], ['big', 1.5], ['giant', 0.3]], armour: ['light', 'medium'], feints: true, counters: true },
+  { sizes: [['runt', 1], ['lean', 2], ['medium', 3], ['big', 2.5], ['giant', 1]], armour: ['medium'], feints: true, memory: true, counters: true },
+  { sizes: [['runt', 1.5], ['lean', 2], ['medium', 2.5], ['big', 2.5], ['giant', 1.5]], armour: ['medium', 'heavy'], feints: true, memory: true, counters: true },
+  { sizes: [['lean', 1.5], ['medium', 2.5], ['big', 3], ['giant', 2]], armour: ['heavy'], champion: true, feints: true, memory: true, counters: true },
 ];
+// his profile's name and its line on his intro card (the shares are TUNING.profiles)
+const PROFILES = {
+  brute: { name: 'Brute', line: 'hits hard, never tires, slow feet.' },
+  duelist: { name: 'Duelist', line: 'quick hands, quick feet.' },
+  glass: { name: 'Glass cannon', line: 'hits hard, tires fast.' },
+  tank: { name: 'Tank', line: 'soaks blows, slow to start.' },
+  balanced: { name: 'Balanced', line: 'no easy opening.' },
+};
 const NAMES = ['Crixus', 'Priscus', 'Verus', 'Celadus', 'Triumphus', 'Tetraites', 'Spiculus', 'Attilius', 'Oenomaus', 'Gannicus', 'Pugnax', 'Calamus', 'Asteropaeus'];
 const CHAMPIONS = ['Flamma the Unbroken', 'Marcus the Red', 'Varro of Capua', 'Aurelius the Golden'];
 // The later arenas' champions, each tied to your reason in his own words: the tie on his card and the line he says. The Twins are one pairs bout,
@@ -422,7 +469,7 @@ const WARES = [
 // Rarity has a colour: the card's border and the glint on the worn piece. A set is gold.
 const TIERS = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'], TIER_TINT = ['#c4b99a', '#7dd3fc', '#c084fc', '#fb923c'], DUO_GOLD = '#ffd24a';
 const rarCol = (c) => (c.duo ? DUO_GOLD : TIER_TINT[c.tier]);
-const tierName = (c) => (c.duo ? 'SET BONUS' : c.fam === 'fin' ? `WAR PAINT \u00b7 ${TUNING.fin[c.id]} PIPS` : `${TIERS[c.tier]}${c.key ? ' KEYSTONE' : ''} \u00b7 ${c.slot.toUpperCase()}`);
+const tierName = (c) => (c.duo ? 'SET BONUS' : c.fam === 'fin' ? `WAR PAINT \u00b7 ${TUNING.fin[c.id]} PIPS` : `${TIERS[c.tier]} \u00b7 ${c.slot.toUpperCase()}`);
 // the title a card shows: the piece's name, the war paint's pattern, or the set's name
 const titleOf = (c) => (c.duo ? `${c.name} set` : c.gear);
 // The gear worn: the last piece picked for each slot (a migrated run may still hold two for one slot; the later one shows).
@@ -495,6 +542,8 @@ const noDodge = () => has('ironwall') || has('titan');
 const noShield = () => has('untouch');
 function pickW(rng, list) { let tot = 0; for (const e of list) tot += e[1]; let r = rng() * tot; for (const e of list) { r -= e[1]; if (r < 0) return e[0]; } return list[list.length - 1][0]; }
 const statMul = (k, v) => TUNING.stat[k][0] - TUNING.stat[k][1] * v;
+// every shake goes through here: small (TUNING.juice.shake) and switchable
+function shake(E, px, sec) { const J = TUNING.juice; if (J.shakeOn) E.shake(px * J.shake, sec); }
 
 // ====== ROLLS: your fighter, the gauntlet, and each run and bout set up from the seed ======
 // Your fighter, rolled once at setup on eight weighted wheels (size, three stats, armour, weapon, origin, reason). Each wheel's landing is decided here; the wheels only show it.
@@ -508,17 +557,33 @@ function platesFor(rng, set) {
 function rollMe(seed) {
   const rng = makeRng(seed ^ 0x2545f491), W = TUNING.me.wheels;
   const spin = (list) => pickW(rng, list.map((e, i) => [i, e[1]]));
-  const idx = [spin(W.size), spin(W.stat), spin(W.stat), spin(W.stat), spin(W.armour)];
+  // each stat wheel is shaped by your band and the stat before it (wheelList), so they are spun in order
+  const idx = [spin(W.size)];
+  for (let k = 1; k <= 3; k++) idx.push(spin(wheelList(k, idx)));
+  idx.push(spin(W.armour));
   const plates = platesFor(rng, W.armour[idx[4]][0]);
   const origin = spin(W.origin), reason = spin(W.reason), [name, sex] = rng.pick(MY_NAMES);
-  // the weapon is rolled last, after the name, so adding the wheel did not change what a seed rolls for the rest
-  const weapon = spin(W.weapon), mace = rng.chance(TUNING.me.mace), cardRoll = rng.int(0, 9999);
+  // the weapon is rolled last, after the name, so adding the wheel did not change what a seed rolls for the rest; then your height inside your band
+  const weapon = spin(W.weapon), mace = rng.chance(TUNING.me.mace), cardRoll = rng.int(0, 9999), vary = rng.range(-1, 1);
   idx.push(weapon, origin, reason);
-  return deriveMe({ idx, plates, name, female: sex === 'f', mace, cardRoll });
+  return deriveMe({ idx, plates, name, female: sex === 'f', mace, cardRoll, vary });
+}
+// Wheel k's slices for a fighter whose earlier wheels landed at idx: a stat wheel takes its tier's weights (TUNING.me.statTiers).
+function wheelList(k, idx) {
+  const W = TUNING.me.wheels, key = ME_WHEEL[k];
+  if (key !== 'stat') return W[key];
+  const w = TUNING.me.statTiers[statTier(k, idx).tier];
+  return W.stat.map((e, i) => [e[0], w[i], e[2]]);
+}
+// A stat wheel's tier (L8): B, tilted by your band and shifted by the stat wheel before it, within D to S; with its causes, which the roll scene shows.
+function statTier(k, idx) {
+  const M = TUNING.me, O = M.tierOrder, band = M.wheels.size[idx[0]][0], tilt = M.tilt[band][k - 1];
+  const prev = k > 1 && idx[k - 1] != null ? M.chain[M.wheels.stat[idx[k - 1]][0] - 1] : 0;
+  return { tier: O[clamp(O.indexOf('B') + tilt + prev, 0, O.length - 1)], tilt, prev, band };
 }
 // everything that follows from the wheels' landings
 function deriveMe(me) {
-  const M = TUNING.me, W = M.wheels, v = (k) => W[ME_WHEEL[k]][me.idx[k]][0];
+  const M = TUNING.me, v = (k) => wheelList(k, me.idx)[me.idx[k]][0];
   const size = v(0), str = v(1), spd = v(2), sta = v(3), set = v(4), A = M.armour[set];
   const score = str + spd + sta + M.sizes[size].score + A.score;
   const tier = M.tiers.find((t) => score >= t[1])[0], underdog = score < M.underdog;
@@ -526,13 +591,29 @@ function deriveMe(me) {
 }
 // The respin: wheel k rolled again with its own seeded stream, by its odds but never landing where it was. A new armour set re-rolls its plates.
 function respinMe(me, k, seed) {
-  const rng = makeRng((seed ^ 0x6c8e9cf5) + k * 7919), list = TUNING.me.wheels[ME_WHEEL[k]];
+  const rng = makeRng((seed ^ 0x6c8e9cf5) + k * 7919), list = wheelList(k, me.idx);
   const idx = me.idx.slice();
   idx[k] = pickW(rng, list.map((e, j) => [j, j === me.idx[k] ? 0 : e[1]]));
   return deriveMe({ ...me, idx, plates: k === 4 ? platesFor(rng, list[idx[k]][0]) : me.plates.slice(), mace: k === 5 ? rng.chance(TUNING.me.mace) : me.mace });
 }
-// your size, weapon and stat multipliers
-const meSize = () => TUNING.me.sizes[state.me.size];
+// A fighter's size: his band's row at his scale (the band's, varied by vary x TUNING.sizeVary), with every effect read off the bands' rows at that
+// scale, a straight line between the two rows either side (and past the end rows). Your arm reach and hand lag follow the same way; hearts are by band.
+const BAND = (id) => TUNING.sizes.find((z) => z.id === id);
+function sizeOf(id, vary = 0) {
+  const Z = TUNING.sizes, M = TUNING.me.sizes, b = BAND(id) || BAND('medium'), s = b.scale * (1 + clamp(vary, -1, 1) * TUNING.sizeVary);
+  let i = 0;
+  while (i < Z.length - 2 && s > Z[i + 1].scale) i++;
+  const a = Z[i], c = Z[i + 1], u = (s - a.scale) / (c.scale - a.scale), at = (A, C, k) => A[k] + (C[k] - A[k]) * u;
+  return { id: b.id, name: b.name, band: Z.indexOf(b), vary, scale: s, hp: at(a, c, 'hp'), reach: at(a, c, 'reach'), dmg: at(a, c, 'dmg'), wind: at(a, c, 'wind'), step: at(a, c, 'step'),
+    arm: at(M[a.id], M[c.id], 'arm'), lag: at(M[a.id], M[c.id], 'lag') };
+}
+// your size (cached on your band and height), weapon and stat multipliers
+let meSz = null;
+function meSize() {
+  const me = state.me, key = `${me.size}:${me.vary || 0}`;
+  if (!meSz || meSz.key !== key) meSz = { ...sizeOf(me.size, me.vary || 0), key };
+  return meSz;
+}
 const meWeapon = () => TUNING.me.weapons[state.me.weapon];
 const meLag = () => meSize().lag * TUNING.me.spdLag[state.me.spd - 1] / meWeapon().speed;
 const weaponName = (me) => { const W = TUNING.me.weapons[me.weapon]; return W.alt && me.mace ? W.alt : W.name; };
@@ -552,29 +633,52 @@ function foeParts(rng, set) {
   return out;
 }
 
-// One fighter of the gauntlet, rolled from the bout's tables: size, weapon, armour set, three 1-5 stats with the size's bias (shifted by the arena).
-// tier is his gauntlet row, at his place in the arena's run; a champion is picked from the arena's pool.
+// One fighter of the gauntlet, rolled from the bout's tables: a size band by its weight and his height in it, weapon, armour set, and three 1-5 stats
+// from his points and profile (rollStats). tier is his gauntlet row, at his place in the arena's run; a champion is picked from the arena's pool.
 function rollFighter(rng, tier, weapon, used, A = ARENAS[0], at = tier) {
-  const G = GAUNTLET[tier], T = TUNING, shift = T.arenas[A.id].shift;
-  let size, set;
+  const G = GAUNTLET[tier], T = TUNING;
+  let band, set;
   for (let k = 0; k < 20; k++) {
-    const si = rng.pick(G.sizes), ai = rng.pick(G.armour);
-    size = T.sizes.find((z) => z.id === si); set = T.armourSets.find((z) => z.id === ai);
-    if (!used.has(`${size.id}${weapon.id}${set.id}`)) break;
+    band = pickW(rng, G.sizes);
+    const ai = rng.pick(G.armour);
+    set = T.armourSets.find((z) => z.id === ai);
+    if (!used.has(`${band}${weapon.id}${set.id}`)) break;
   }
-  used.add(`${size.id}${weapon.id}${set.id}`);
-  const roll = (b) => clamp(Math.round(G.stat + shift + b + rng.range(-1, 1)), 1, 5);
-  const best = (b) => (G.champion ? Math.max(roll(b), roll(b)) : roll(b));
-  const stats = size.bias.map(best);
+  used.add(`${band}${weapon.id}${set.id}`);
+  const size = sizeOf(band, rng.range(-1, 1)), st = rollStats(rng, tier, size, A);
   const pick = G.champion ? rng.pick(A.champs) : rng.pick(NAMES), C = NEW_CHAMPS[pick];
-  return { tier, at, name: C ? C.name : pick, ck: C ? pick : null, title: C ? C.title || null : null, pair: null, champion: !!G.champion, size, weapon, set, str: stats[0], spd: stats[1], sta: stats[2],
+  return { tier, at, name: C ? C.name : pick, ck: C ? pick : null, title: C ? C.title || null : null, pair: null, champion: !!G.champion, size, prof: st.prof, weapon, set, str: st.v[0], spd: st.v[1], sta: st.v[2],
     shield: rng.chance(weapon.shield), mace: rng.chance(0.5), partSeed: (rng() * 2 ** 32) >>> 0 };
+}
+// His stats (TUNING.foeStats): the row's points (plus a champion's, plus the arena's shift for each stat), split by a profile rolled with his band's
+// weights, a little seeded jitter, each 1 to 5. His weakest stat (on a tie, the one his profile gives least) is held to the weakness cap, and its spare
+// points go to the others while they have room, so every foe has an opening to read.
+function rollStats(rng, tier, size, A) {
+  const F = TUNING.foeStats, P = TUNING.profiles, G = GAUNTLET[tier], cap = G.champion ? F.champWeak : F.weak;
+  const prof = pickW(rng, Object.keys(P).map((id) => [id, P[id].w[size.band]])), sh = P[prof].share;
+  const budget = clamp(F.budget[tier] + (G.champion ? F.champ : 0) + Math.round(3 * TUNING.arenas[A.id].shift), 3, 10 + cap);
+  const raw = sh.map((q) => budget * q + rng.range(-F.jitter, F.jitter)), v = raw.map((r) => clamp(Math.floor(r), 1, 5)), I = [0, 1, 2];
+  const sum = () => v[0] + v[1] + v[2], left = (i) => raw[i] - v[i];
+  while (sum() < budget) { const up = I.filter((i) => v[i] < 5).sort((a, b) => left(b) - left(a)); if (!up.length) break; v[up[0]]++; }
+  while (sum() > budget) v[I.filter((i) => v[i] > 1).sort((a, b) => left(a) - left(b))[0]]--;
+  const weak = I.slice().sort((a, b) => v[a] - v[b] || sh[a] - sh[b] || raw[a] - raw[b])[0];
+  if (v[weak] > cap) {
+    let spare = v[weak] - cap;
+    v[weak] = cap;
+    for (const i of I.filter((j) => j !== weak).sort((a, b) => sh[b] - sh[a] || raw[b] - raw[a])) { const add = Math.min(spare, 5 - v[i]); v[i] += add; spare -= add; }
+  }
+  return { prof, v };
+}
+// the profile whose shares sit nearest these stats (a rival saved before profiles)
+function profileOf(d) {
+  const P = TUNING.profiles, t = d.str + d.spd + d.sta, err = (id) => P[id].share.reduce((e, q, i) => e + (q - [d.str, d.spd, d.sta][i] / t) ** 2, 0);
+  return Object.keys(P).sort((a, b) => err(a) - err(b))[0];
 }
 // a fighter from a saved rival record, on the rolled one's place
 function fromRival(c, rv) {
-  const T = TUNING, size = T.sizes.find((z) => z.id === rv.size), weapon = T.weapons.find((z) => z.id === rv.weapon), set = T.armourSets.find((z) => z.id === rv.set);
-  if (!size || !weapon || !set) return null;
-  return { ...c, name: rv.name, ck: rv.ck || null, title: rv.title || null, rival: true, champion: rv.champion != null ? rv.champion : c.champion, size, weapon, set, str: rv.str, spd: rv.spd, sta: rv.sta, shield: !!rv.shield, mace: !!rv.mace, partSeed: rv.partSeed >>> 0, gaps: rv.gaps || {} };
+  const T = TUNING, weapon = T.weapons.find((z) => z.id === rv.weapon), set = T.armourSets.find((z) => z.id === rv.set);
+  if (!BAND(rv.size) || !weapon || !set) return null;
+  return { ...c, name: rv.name, ck: rv.ck || null, title: rv.title || null, rival: true, champion: rv.champion != null ? rv.champion : c.champion, size: sizeOf(rv.size, rv.vary || 0), prof: rv.prof || profileOf(rv), weapon, set, str: rv.str, spd: rv.spd, sta: rv.sta, shield: !!rv.shield, mace: !!rv.mace, partSeed: rv.partSeed >>> 0, gaps: rv.gaps || {} };
 }
 
 // The arena's gauntlet. A saved rival takes the champion's place: the same man, look and weapon as the one who cut you down (and his partner, in a pair).
@@ -601,7 +705,7 @@ function rollGauntlet(seed, rival, A = ARENAS[0]) {
   g.forEach((d) => { if (d.pair) kit(d.pair, gp, rival && rival.pair); });
   return g;
 }
-const rivalOf = (d) => ({ name: d.name, ck: d.ck || null, title: d.title || null, champion: !!d.champion, size: d.size.id, weapon: d.weapon.id, set: d.set.id, str: d.str, spd: d.spd, sta: d.sta, shield: d.shield, mace: d.mace, partSeed: d.partSeed,
+const rivalOf = (d) => ({ name: d.name, ck: d.ck || null, title: d.title || null, champion: !!d.champion, size: d.size.id, vary: d.size.vary, prof: d.prof, weapon: d.weapon.id, set: d.set.id, str: d.str, spd: d.spd, sta: d.sta, shield: d.shield, mace: d.mace, partSeed: d.partSeed,
   gear: (d.gear || []).slice(), gaps: { ...(d.gaps || {}) }, pair: d.pair ? rivalOf(d.pair) : null });
 // His gear from the deck: more pieces in later bouts, one a slot, up to the bout's rarity; a champion also wears a legendary. A shield piece only on a
 // shield-bearer, and the cape that bans the shield only on a man without one.
@@ -656,6 +760,7 @@ function newRack(E) {
   settleFeint('none');
   state.bout = { felled: false, shrugged: false, foeShrug: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken };
   state.open = 0; state.riposte = 0; state.slowT = 0; state.snapT = 0;
+  Object.assign(state, { slowFx: 0, slowMul: 1, zoomT: 0, dropT: 0, ghostT: 0, ghostAt: -9, ghosts: [], paintT: 0, banner: null, shatter: null, steps: { foe: null, me: null } });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
   // both fighters start each bout back on their marks
   Object.assign(state.foot, { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 });
@@ -722,7 +827,7 @@ function resumeRun(E, run) {
 // ====== FIGHTER MODEL: layout, your body and sword arm, footwork, defence, the foe's body ======
 // ----- layout and frames -----
 function lay(E) {
-  const F = TUNING.fighter, H = E.h * F.height, half = (E.w * F.gap + 2 * F.body * H) / 2;
+  const F = TUNING.fighter, kMax = Math.max(state.me ? meSize().scale : 1, state.foe && state.foe.size ? state.foe.size.scale : 1), H = E.h * F.height * Math.min(1, F.fit / kMax), half = (E.w * F.gap + 2 * F.body * H) / 2;
   // the frame is centred on the space right of the left column (partly, so the foe keeps room too)
   const R = colRect(E), c0 = E.w / 2 + TUNING.col.frame * ((R.x + R.w + (E.w - E.safe.right)) / 2 - E.w / 2), cx = c0 - pairShift(E, H, half, c0);
   return { H, floor: E.h * F.floor, x0: cx - half, x1: cx + half };
@@ -756,7 +861,7 @@ const gapNow = () => state.step.x - state.foot.pos;
 const bodyPos = () => state.foot.pos + state.you.lungeK * TUNING.lunge.stride * meSize().scale;
 const inReach = () => state.step.x - bodyPos() <= state.foe.strike + TUNING.foot.reach;
 const myH = (E) => lay(E).H * meSize().scale;
-const myArm = (E) => TUNING.arm.len * myH(E) * meSize().reach;
+const myArm = (E) => TUNING.arm.len * myH(E) * meSize().arm;
 const myBlade = (E) => TUNING.blade.len * myH(E) * meWeapon().reach;
 // the foe is drawn at his size: the frame's unit scales, his near edge stays where a medium fighter's would be
 function foeF(E) { const L = lay(E), f = state.foe, k = f.size ? f.size.scale : 1; return { x: L.x1 + f.dx + (k - 1) * TUNING.fighter.body * L.H, y: L.floor + f.dy, a: f.a, dir: -1, H: L.H * k }; }
@@ -801,6 +906,7 @@ function poseYou(E, dt) {
       const lc = LU.cost;
       if (state.stamina >= lc) {
         state.stamina -= lc; state.lastAtk = state.m; state.lunging = true; state.lunges++; state.mem.lunges.push(state.m); swooshSound(E, 0.1);
+        const Fy = youF(E); dust(Fy.x - 0.1 * Fy.H, Fy.y, TUNING.juice.lungeDust);
         if (gapNow() > state.foe.strike + TUNING.foot.reach) chaseIn();
       }
       else { tk = 0; tiredPop(E); }
@@ -947,7 +1053,7 @@ function backToWall(E) {
   const ft = state.foot;
   if (state.m - ft.wallT < TUNING.foot.wallMsg) return;
   ft.wallT = state.m; state.wallHits++;
-  const Fy = youF(E); pop(Fy.x + 30, Fy.y - 1.1 * Fy.H, 'Back to the wall!', '#fca5a5', 24); E.haptic(18); E.shake(3, 0.1);
+  const Fy = youF(E); pop(Fy.x + 30, Fy.y - 1.1 * Fy.H, 'Back to the wall!', '#fca5a5', 24); E.haptic(18); shake(E, 3, 0.1);
 }
 function stepYou(E, dt) {
   const T = TUNING.foot, ft = state.foot, dg = state.dg, k = gripMul(), wl = walls(E), hi = Math.max(wl.back, state.step.x - gMin(E));
@@ -1172,7 +1278,7 @@ function startMove(E, mv, isCounter) {
 }
 function startBlow(E) {
   const mv = state.move, h = mv.hits[mv.idx], f = state.foe;
-  settleFeint('none');
+  settleFeint('none'); windSound(E, f.weapon.id);
   state.feintLive = !!h.fake;
   const k = (1 + (lamed('armF') ? TUNING.lame.arm : 0)) * (has('vein') && state.bleed.length ? TUNING.cards.vein : 1);
   state.sw = {
@@ -1279,7 +1385,7 @@ function stepIn(E) {
   poseFoe(E, 0.016);
   if (fellOut && state.carry) { addBleed(E, state.carry); state.carry = 0; }
   const Ff = foeF(E); pop(Ff.x, Ff.y - 1.2 * Ff.H, `${inn.name.split(' ')[0].toUpperCase()} STEPS IN`, '#fca5a5', 22);
-  dust(Ff.x, Ff.y, 10); E.shake(4, 0.15); swooshSound(E, 0.14);
+  dust(Ff.x, Ff.y, 10); shake(E, 4, 0.15); swooshSound(E, 0.14);
 }
 // the swap clock, after his AI each frame (the fell's is in the play scene's fall clock)
 function updatePair(E, dt) {
@@ -1376,7 +1482,8 @@ function dodge(E, pid) {
   state.dg.down = true; state.dg.id = pid; state.dg.t = 0;
   s.held = false; s.hid = -1; s.t = -1; s.arm = 0;
   pop(Fy.x, Fy.y - 1.0 * Fy.H, 'BACK', '#7de3ff', 24); swooshSound(E, 0.16); E.haptic(12);
-  dust(Fy.x, Fy.y, 8);
+  // a short ghost trail behind you and a scuff of sand
+  dust(Fy.x, Fy.y, TUNING.juice.scuff); E.audio.noise({ dur: 0.07, gain: 0.1, delay: 0.05 }); state.ghostT = TUNING.juice.ghost; state.ghostAt = -9;
 }
 
 // ====== HIT RESOLUTION: your blows on him, his blows on you ======
@@ -1456,14 +1563,14 @@ function bounce(E, p, at, ang, sp, a) {
     p.cracks.push(pts);
   }
   sparks(at.x, at.y, ang + Math.PI, glance ? 8 : 24); ring(at.x, at.y, glance ? 24 : 44, '#cbd5e1');
-  clangSound(E, 0); E.shake(glance ? 2 : 6, 0.12); E.haptic(glance ? 8 : 24);
+  clangSound(E, 0); shake(E, glance ? 2 : 6, 0.12); E.haptic(glance ? 8 : 24);
   let stop = glance ? 0.01 : J.stopClang + 0.02;
   const breakAt = a.kind === 'over' && meWeapon().overBreak ? meWeapon().overBreak : A.dents;
   if (p.armour && (p.dents >= breakAt || (a.kind === 'over' && has('breaker')))) {
     p.armour = false; state.broken++;
     const [sx, sy] = partCenter(foeF(E), state.foe, p);
     plateBits(sx, sy, 9); ring(sx, sy, 70, '#ffe9a8'); pop(sx, sy - 24, 'PLATE BROKEN', '#ffe9a8', 17); emit(E, 'break', { p });
-    E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 }); E.shake(8, 0.2); E.haptic(30);
+    E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 }); shake(E, 8, 0.2); E.haptic(30);
     stop = J.stopBreak + 0.04;
   } else pop(at.x, at.y - 18, p.guard ? GUARDS[p.d.id].toUpperCase() : glance ? 'GLANCE' : !p.armour ? 'GUARDED' : p.dents >= breakAt - 1 ? 'DENT!' : 'CLANG', p.guard ? '#ffd24a' : '#9aa4b2', glance ? 13 : 16);
   if (state.cover) state.cover.t = Math.max(state.cover.t, TUNING.cover.dur * 0.5);
@@ -1487,7 +1594,7 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   const MW = meWeapon();
   let dmg = kind === 'jab' ? AT.jab.dmg : kind === 'over' ? AT.over.dmg : sp >= T.hit.mid ? AT.slash.fastDmg : AT.slash.dmg;
   if (a.tired) dmg = Math.max(1, Math.floor(dmg * T.stamina.tired));
-  dmg *= T.me.str[state.me.str - 1];
+  dmg *= T.me.str[state.me.str - 1] * meSize().dmg;
   // the weapon multiplies after the usual rounding, to the nearest half, so the gladius (1x) adds no rounding of its own; a slot hit uses slotDmg
   const wm = thrust ? MW.slotDmg : MW.dmg * (kind === 'slash' ? MW.slash : 1);
   const rip = state.riposte > 0, winded = state.winded > 0;
@@ -1519,9 +1626,11 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   sliceSound(E, big);
   pop(at.x, at.y - 20, exec ? 'EXECUTED!' : numb ? 'NO BITE' : slip ? `SLIP x${Math.round(dealt)}` : rip ? `RIPOSTE x${Math.round(dealt)}` : winded ? `PUNISH x${Math.round(dealt)}` : thrust ? `${p.d.label}!` : kind === 'jab' ? 'STAB' : kind === 'over' ? 'SMASH!' : dealt >= 2 ? 'HARD' : 'HIT', rip ? '#ffd24a' : thrust ? '#ff6a4a' : big ? '#ffb347' : '#fff0b8', Math.min(34, 15 + dealt * 4));
   state.kickV += T.foe.kick * (Math.cos(ang) > 0 ? -1 : 0.5) * (0.6 + Math.min(dealt, 4) * 0.4);
-  E.shake(2 + Math.min(dealt, 5) * 2.5, 0.1); E.haptic(10 + Math.min(dealt, 5) * 8);
+  shake(E, 2 + Math.min(dealt, 5) * 2.5, 0.1); E.haptic(10 + Math.min(dealt, 5) * 8);
   if (big) E.flash('#fff0b8', 0.07);
   let stop = dealt >= 3 ? J.stop3 : dealt >= 2 ? J.stop2 : J.stop1;
+  // a gap hit: a short hit-stop, a bright spark in the gap and a deeper hit
+  if (thrust) { stop = Math.max(stop, J.slotStop); sparks(at.x, at.y, ang + Math.PI, J.slotSpark); ring(at.x, at.y, J.slotRing, '#ffffff'); slotSound(E); }
   if (!slot && p.hp <= 0) { disable(E, p, at, ang); stop += 0.04; }
   emit(E, thrust ? 'slot' : 'hit', { p, kind, at, ang });
   if (kind === 'over') emit(E, 'over', { p, at });
@@ -1563,18 +1672,26 @@ function fell(E) {
   state.grades.push(gradeBout());
   state.lastGold = boutGold(); state.gold += state.lastGold.sum; state.goldEarned += state.lastGold.sum;
   if (state.gauntlet[state.rack].rival) { state.rivalBeaten = 1; clearRival(E); pop(E.w * 0.62, E.h * 0.42, 'Rival defeated!', '#f87171', 30); }
-  pop(E.w * 0.62, E.h * 0.3, 'FOE DOWN', '#ffd24a', 28); E.shake(10, 0.3); E.flash('#fff0b8', 0.1); E.audio.play('coin');
+  pop(E.w * 0.62, E.h * 0.3, 'FOE DOWN', '#ffd24a', 28); shake(E, 10, 0.3); E.flash('#fff0b8', 0.1); E.audio.play('coin'); fellJuice(E);
   if (boutTally().taken === 0) favour(E, TUNING.crowd.clean);
   emit(E, 'fell');
 }
 // the first of a pair falls: the bout goes on, his partner taunts from the edge and steps in (stepIn, from the play scene's fall clock)
 function fellOne(E) {
   state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.swapping = false;
-  pop(E.w * 0.62, E.h * 0.3, 'ONE DOWN', '#ffd24a', 26); E.shake(8, 0.25); E.flash('#fff0b8', 0.08);
+  pop(E.w * 0.62, E.h * 0.3, 'ONE DOWN', '#ffd24a', 26); shake(E, 8, 0.25); E.flash('#fff0b8', 0.08); fellJuice(E);
   E.audio.beep({ freq: 220, dur: 0.2, type: 'triangle', slide: 0.6, gain: 0.2 });
   emit(E, 'fell');
 }
 
+// A fell: a slow-motion second, the camera punching in on him, the crowd's roar, dust as he goes down and again as he lands
+function fellJuice(E) {
+  const J = TUNING.juice, Ff = foeF(E);
+  slowFx(J.fellSlow, J.fellMul); state.zoomT = J.fellSlow; state.dropT = J.dropAt;
+  dust(Ff.x, Ff.y, J.dropDust >> 1); roar(E);
+}
+// slow motion for sec real seconds at game speed mul (a slower one already running is kept)
+function slowFx(sec, mul) { if (state.slowFx > 0 && state.slowMul < mul) return; state.slowFx = sec; state.slowMul = mul; }
 function resolveSwing(E) {
   const sw = state.sw, L = lay(E), zy = zoneScreenY(L, sw.zone), Fy = youF(E), Ff = foeF(E), sh = state.sh, SH = TUNING.shield, M = TUNING.moves, W = state.foe.weapon;
   const net = sw.pose === 'net', bash = sw.pose === 'bash', feint = !!sw.fake;
@@ -1611,7 +1728,8 @@ function resolveSwing(E) {
     if (net) { pop(bx, by - 40, 'NET BLOCKED', '#ffffff', 22); clangSound(E, 0); return; }
     if (perfect) {
       state.perfects++; state.stagger = SH.stagger; state.riposte = SH.riposte; state.plan = null; if (state.move) state.move.broken = true;
-      parrySound(E); E.shake(10, 0.2); E.haptic(35); E.flash('#fff0b8', 0.1); E.audio.play('coin');
+      parrySound(E); ringSound(E); shake(E, TUNING.juice.perfShake, 0.12); E.haptic(35); E.flash('#fff0b8', 0.1); E.audio.play('coin');
+      ring(bx, by, TUNING.juice.perfRing, '#ffffff'); ring(bx, by, TUNING.juice.perfRing * 0.6, '#ffffff');
       state.stop = Math.max(state.stop, 0.12);
       pop(bx, by - 40, 'PERFECT BLOCK', '#ffd24a', 28); if (!read) pop(bx + 30, by - 70, 'RIPOSTE!', '#ffd24a', 18);
       state.kickV += -0.8; pushFoe(E);
@@ -1623,11 +1741,11 @@ function resolveSwing(E) {
       const drain = (bash ? M.bash.drain * M.bash.blocked : W.drain) * steadyMul();
       if (drain) { state.stamina = Math.max(0, state.stamina - drain); state.lastAtk = state.m; pop(bx, by - 70, 'DRAINED', '#fca5a5', 14); }
       if (bash) { if (!noPush()) state.pushT = 0.2; pushFoe(E); }
-      clangSound(E, 0); E.shake(bash || W.wear > 1 ? 9 : 6, 0.15); E.haptic(22); state.stop = Math.max(state.stop, 0.06);
+      clangSound(E, 0); shake(E, bash || W.wear > 1 ? 9 : 6, 0.15); E.haptic(22); state.stop = Math.max(state.stop, 0.06);
       if (!read) pop(bx, by - 40, feint ? 'FEINT BLOCKED' : bash ? 'BASH BLOCKED' : W.wear > 1 ? 'SHIELD CRACKS' : 'BLOCK', '#ffffff', 24);
       if (sh.hits <= 0) {
         sh.hits = 0; sh.broken = true; sh.t = -1; sh.up = 0;
-        plateBits(bx, by, 12); pop(bx, by - 70, 'SHIELD BROKEN', '#ff9f43', 22); E.shake(9, 0.2);
+        plateBits(bx, by, 12); pop(bx, by - 70, 'SHIELD BROKEN', '#ff9f43', 22); shake(E, 9, 0.2);
         E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 });
       }
     }
@@ -1637,21 +1755,21 @@ function resolveSwing(E) {
   if (feint) { state.feintsBit++; settleFeint('bit'); }
   if (net) {
     sw.outcome = 'net'; state.netT = M.net.dur; state.netted++;
-    pop(Fy.x, zy - 40, 'NETTED', '#e2e8f0', 30); E.shake(6, 0.2); E.haptic(30); E.audio.noise({ dur: 0.25, gain: 0.2 });
+    pop(Fy.x, zy - 40, 'NETTED', '#e2e8f0', 30); shake(E, 6, 0.2); E.haptic(30); E.audio.noise({ dur: 0.25, gain: 0.2 });
     return;
   }
   if (bash) {
     sw.outcome = 'bash'; state.bashHits++;
     if (!noPush()) { state.pushT = 0.35; pushYou(E); }
     state.stamina = Math.max(0, state.stamina - M.bash.drain); state.lastAtk = state.m;
-    pop(Fy.x, zy - 40, 'BASHED', '#fca5a5', 30); E.shake(12, 0.25); E.haptic(45); clangSound(E, 0); E.audio.play('boom', 0.5);
+    pop(Fy.x, zy - 40, 'BASHED', '#fca5a5', 30); shake(E, 12, 0.25); E.haptic(45); clangSound(E, 0); E.audio.play('boom', 0.5);
     state.hand.lock = Math.max(state.hand.lock, 0.3); state.hand.hvx = -260; state.hand.hvy = 60; state.hand.atk = null;
     return;
   }
   // Unbreakable: the first blow each bout that would hurt you is shrugged off
   if (has('unbreak') && !state.bout.shrugged) {
     state.bout.shrugged = true; state.shrugs++; sw.outcome = 'shrug';
-    sparks(Fy.x + 0.2 * L.H, zy, Math.PI, 20); clangSound(E, 0); E.shake(6, 0.2); E.haptic(30);
+    sparks(Fy.x + 0.2 * L.H, zy, Math.PI, 20); clangSound(E, 0); shake(E, 6, 0.2); E.haptic(30);
     pop(Fy.x, zy - 40, 'UNBREAKABLE', '#e879f9', 28); return;
   }
   // a blow on one of your plates costs half as much (a quarter heart for a light blow)
@@ -1659,12 +1777,14 @@ function resolveSwing(E) {
   const part = state.you.parts.find((q) => q.d.id === ZONE_PART[sw.zone.id]), plated = !!(part && part.armour), jugg = has('jugg') && state.you.lungeK > 0.5;
   const dmg = (state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg) * (plated ? TUNING.me.plateMul : 1) * (jugg ? TUNING.cards.jugg : 1);
   sw.outcome = 'hit'; state.hp -= dmg; state.taken++; state.hurt = plated ? 0.25 : 0.4; if (sw.counter) state.counterHits++;
+  // you recoil, and the heart that took it shatters on the HUD
+  state.you.a -= TUNING.juice.recoil; state.shatter = { i: Math.max(0, Math.floor(state.hp / 2)), t: TUNING.juice.shatter };
   // his Bloodlust (the wolf pelt): a blow that lands gives him stamina
   if (foeHas('bloodlust')) { const f = state.foe; f.sta = Math.min(f.staMax, f.sta + TUNING.foeGear.bloodlust); pop(Ff.x, Ff.y - 1.2 * Ff.H, 'HE DRINKS', '#f87171', 15); }
   if (plated) { state.plateSaves++; part.clang = 0.25; const [px, py] = partCenter(Fy, state.you, part); sparks(px, py, Math.PI, 16); clangSound(E, 0); }
-  E.flash('#ff2a2a', plated ? 0.15 : 0.3); E.shake(12 + 4 * sw.dmg, 0.35); E.haptic(50 + 20 * sw.dmg);
+  E.flash('#ff2a2a', plated ? 0.15 : 0.3); shake(E, 12 + 4 * sw.dmg, 0.35); E.haptic(50 + 20 * sw.dmg);
   E.audio.play('boom'); E.audio.play('lose', 0.5);
-  pop(Fy.x, zy - 40, jugg ? 'JUGGERNAUT' : feint ? 'FEINTED!' : plated ? 'PLATE TOOK IT' : sw.dmg >= 2 ? `OUCH x${sw.dmg}` : 'OUCH', jugg || plated ? '#cbd5e1' : '#ff5a4a', 30 + 4 * sw.dmg);
+  pop(Fy.x, zy - (plated ? 70 : 40), jugg ? 'JUGGERNAUT' : feint ? 'FEINTED!' : plated ? 'PLATE TOOK IT' : sw.dmg >= 2 ? `OUCH x${sw.dmg}` : 'OUCH', jugg || plated ? '#cbd5e1' : '#ff5a4a', 30 + 4 * sw.dmg);
   if (!jugg) { state.hand.lock = Math.max(state.hand.lock, 0.2); state.hand.hvx = -200; state.hand.hvy = 120; state.hand.atk = null; }
   if (state.hp <= 0) { state.hp = 0; state.endT = 1.0; state.results[state.rack] = 'lost'; }
 }
@@ -1680,6 +1800,7 @@ function feintRead(E, bx, by) {
   gainMom(E, TUNING.mom.read); emit(E, 'read');
   pop(bx + 20, by - 64, 'Feint read!', '#c4b5fd', 30);
   E.flash('#a78bfa', 0.12); E.haptic(30);
+  const Ff = foeF(E); shimmer(Ff.x, Ff.y - 0.55 * Ff.H, TUNING.juice.readBurst); ring(Ff.x, Ff.y - 0.55 * Ff.H, 0.5 * Ff.H, '#c4b5fd'); ooh(E, 0.8);
   E.audio.beep({ freq: 660, dur: 0.12, type: 'triangle', gain: 0.12 }); E.audio.beep({ freq: 990, dur: 0.16, type: 'sine', gain: 0.1, delay: 0.08 });
   if (state.caption && state.sw && state.sw.lesson) state.caption = { lines: ['Feint read! He spent his stamina on the fake.'], t: 2.2, max: 2.2, good: true };
 }
@@ -1744,7 +1865,7 @@ function staggerFoe(E) {
 function disarmFoe(E, dur) {
   if (state.fallT > 0) return;
   state.disarm = dur; state.flyW = 0.9;
-  const Ff = foeF(E); pop(Ff.x, Ff.y - 1.3 * Ff.H, 'DISARMED!', '#e879f9', 26); E.shake(6, 0.2); E.haptic(30); clangSound(E, 0);
+  const Ff = foeF(E); pop(Ff.x, Ff.y - 1.3 * Ff.H, 'DISARMED!', '#e879f9', 26); shake(E, 6, 0.2); E.haptic(30); clangSound(E, 0);
 }
 // the perfect-block window, doubled by Iron Wall
 const perfectWin = () => TUNING.shield.perfect * (has('ironwall') ? 2 : 1);
@@ -1769,6 +1890,8 @@ function fireFinisher(E, c) {
   pop(Fy.x + 0.4 * Fy.H, Fy.y - 1.15 * Fy.H, c.name.toUpperCase() + (state.armed[c.id] ? ' ARMED' : '!'), '#e879f9', 24);
   favour(E, TUNING.crowd.fin);
   E.flash('#e879f9', 0.1); E.haptic(30);
+  // the war paint glows, a beat of slow motion, and the finisher's name on a banner
+  const J = TUNING.juice; state.paintT = J.paint; slowFx(J.finSlow, J.finMul); state.banner = { s: `${c.name.toUpperCase()}!`, t: J.banner };
   E.audio.beep({ freq: 330, dur: 0.18, type: 'sawtooth', slide: 2, gain: 0.1 }); E.audio.beep({ freq: 990, dur: 0.2, type: 'sine', gain: 0.08, delay: 0.1 });
 }
 // the sword thumb held still: once it has rested hold s, the press fires (once per press)
@@ -1995,7 +2118,14 @@ function dust(x, y, n) {
   }
 }
 function ring(x, y, r, color) { state.fx.push({ k: 'r', x, y, r0: 10, r, life: 0.3, max: 0.3, c: color }); }
-function pop(x, y, s, color, size) { state.pops.push({ x, y, s, color, size, life: 0.8, max: 0.8 }); }
+// a new pop stacks above (or, at the HUD, below) a live one near it, so simultaneous texts never overlap
+let popTop = 80;
+function pop(x, y, s, color, size) {
+  const clash = (yy) => state.pops.find((q) => q.life > 0.5 * q.max && Math.abs(q.x - x) < 120 && Math.abs(q.y - yy) < (q.size + size) * 0.6);
+  for (let n = 0, q; n < 6 && (q = clash(y)); n++) y = q.y - (q.size + size) * 0.6;
+  if (y < popTop) { y = popTop; for (let n = 0, q; n < 6 && (q = clash(y)); n++) y = q.y + (q.size + size) * 0.6; }
+  state.pops.push({ x, y, s, color, size, life: 0.8, max: 0.8 });
+}
 function plateBits(x, y, n) {
   for (let i = 0; i < n; i++) {
     const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, s = 200 + Math.random() * 360;
@@ -2003,7 +2133,78 @@ function plateBits(x, y, n) {
   }
 }
 
+// his violet shimmer off a read feint: sparks of light bursting from his body
+function shimmer(x, y, n) {
+  const C = ['#c4b5fd', '#a78bfa', '#f5d0fe', '#ffffff'];
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.28, sp = 120 + Math.random() * 260;
+    state.fx.push({ k: 'k', x: x + Math.cos(a) * 12, y: y + Math.sin(a) * 30, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, g: -60, life: 0.3 + Math.random() * 0.3, max: 0.6, c: C[i % 4] });
+  }
+}
+// the juice that follows the fighters' feet each frame: a Giant's thud as he walks, your dodge's ghosts, the dust as a felled foe lands
+function stepJuice(E, dt) {
+  const J = TUNING.juice;
+  if (state.dropT > 0 && (state.dropT -= dt) <= 0) { const Ff = foeF(E); dust(Ff.x + 0.35 * Ff.H, Ff.y, J.dropDust); thud(E, 1.4); }
+  for (const [key, k, x, F] of [['foe', state.foe.size.scale, state.step.x, foeF], ['me', meSize().scale, state.foot.pos, youF]]) {
+    if (k < J.giantAt) continue;
+    const st = state.steps[key] || (state.steps[key] = { x, acc: 0 });
+    st.acc += Math.min(0.1, Math.abs(x - st.x)); st.x = x;
+    if (st.acc >= J.giantStep) { st.acc = 0; thud(E, 1); shake(E, J.giantShake, 0.08); const Fq = F(E); dust(Fq.x, Fq.y, 3); }
+  }
+  if (state.ghostT > 0) {
+    state.ghostT -= dt;
+    if (state.m - state.ghostAt >= J.ghostEvery) { state.ghostAt = state.m; state.ghosts.push({ x: youF(E).x, life: J.ghost }); }
+  }
+  for (const g of state.ghosts) g.life -= dt;
+  state.ghosts = state.ghosts.filter((g) => g.life > 0);
+}
+// your war paint glowing while a finisher fires
+function paintGlow(ctx, E) {
+  const F = youF(E), hp = state.you.parts.find((q) => q.d.id === 'head'), k = state.paintT / TUNING.juice.paint;
+  if (!hp) return;
+  const [x, y] = partCenter(F, state.you, hp), R = 0.2 * F.H, g = ctx.createRadialGradient(x, y, R * 0.2, x, y, R);
+  g.addColorStop(0, `rgba(240,171,252,${0.75 * k})`); g.addColorStop(1, 'rgba(232,121,249,0)');
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, 6.283); ctx.fill(); ctx.restore();
+}
+// the finisher's name on a banner across the arena, sliding in and out
+function drawBanner(ctx, E) {
+  const b = state.banner, J = TUNING.juice, u = 1 - b.t / J.banner, a = Math.min(1, u * 6, b.t / 0.2), y = E.h * 0.38, h = 46;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(76,29,90,0.85)'; ctx.fillRect(0, y - h / 2, E.w, h);
+  ctx.fillStyle = '#e879f9'; ctx.fillRect(0, y - h / 2, E.w, 3); ctx.fillRect(0, y + h / 2 - 3, E.w, 3);
+  ctx.restore();
+  E.text(b.s, E.w / 2 + (1 - Math.min(1, u * 5)) * 60, y + 1, { size: 32, weight: '800', color: '#fde68a', alpha: a });
+}
+// a heart breaking on the HUD: shards flying out and falling (u: 0 to 1)
+function heartShatter(ctx, x, y, u) {
+  ctx.save(); ctx.globalAlpha = 1 - u; ctx.fillStyle = '#ef4444';
+  for (let q = 0; q < 6; q++) {
+    const a = -Math.PI / 2 + (q - 2.5) * 0.7, d = 28 * u, sx = x + Math.cos(a) * d, sy = y + Math.sin(a) * d + 50 * u * u;
+    ctx.beginPath(); ctx.moveTo(sx, sy - 4); ctx.lineTo(sx + 4, sy + 3); ctx.lineTo(sx - 4, sy + 3); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ----- sounds -----
+// a gap hit's deeper thump under the slice
+function slotSound(E) { E.audio.beep({ freq: 72, dur: 0.2, type: 'sine', slide: 0.5, gain: 0.32 }); E.audio.noise({ dur: 0.05, gain: 0.12, delay: 0.01 }); }
+// a perfect block's sharp ring
+function ringSound(E) { E.audio.beep({ freq: 2093, dur: 0.5, type: 'sine', gain: 0.07 }); E.audio.beep({ freq: 3136, dur: 0.32, type: 'sine', gain: 0.035, delay: 0.01 }); }
+// the crowd's roar at a fell: a long swell of noise over low voices
+function roar(E) {
+  E.audio.noise({ dur: 0.9, gain: 0.16 }); E.audio.noise({ dur: 0.7, gain: 0.1, delay: 0.25 });
+  [147, 175, 220].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.8, type: 'sawtooth', slide: 1.15, gain: 0.025, delay: i * 0.03 }));
+}
+// his wind-up, heard as well as seen: a grunt with the gladius, a shaft's creak with the spear, a heavy grunt and creak with the axe, a hiss with the dagger
+function windSound(E, id) {
+  const A = E.audio;
+  if (id === 'spear') A.beep({ freq: 520, dur: 0.18, type: 'square', slide: 0.6, gain: 0.025 });
+  else if (id === 'axe') { A.beep({ freq: 110, dur: 0.22, type: 'sawtooth', slide: 0.6, gain: 0.07 }); A.beep({ freq: 380, dur: 0.16, type: 'square', slide: 0.7, gain: 0.02, delay: 0.05 }); }
+  else if (id === 'dagger') { A.noise({ dur: 0.1, gain: 0.07 }); A.beep({ freq: 900, dur: 0.06, type: 'sine', slide: 1.3, gain: 0.025 }); }
+  else A.beep({ freq: 150, dur: 0.14, type: 'sawtooth', slide: 0.7, gain: 0.06 });
+}
+// a heavy footfall (k: louder)
+function thud(E, k = 1) { E.audio.beep({ freq: 55, dur: 0.14, type: 'sine', slide: 0.7, gain: 0.18 * k }); E.audio.noise({ dur: 0.04, gain: 0.05 * k }); }
 function sliceSound(E, big) {
   const A = E.audio, f = 1500 + Math.random() * 500;
   A.noise({ dur: 0.1, gain: 0.26 });
@@ -2026,6 +2227,13 @@ function parrySound(E) {
   A.beep({ freq: 1320, dur: 0.1, type: 'sine', gain: 0.1 });
   A.beep({ freq: 220, dur: 0.18, type: 'triangle', slide: 0.6, gain: 0.25 });
   A.noise({ dur: 0.05, gain: 0.18 });
+}
+// a wheel's ticker on a peg: a click, higher the slower the wheel turns (speed in radians per second)
+function tickSound(E, speed) { E.audio.beep({ freq: lerp(1500, 520, clamp(speed / 30, 0, 1)), dur: 0.025, type: 'square', gain: 0.045 }); }
+// the crowd's "ooh": a few low voices sliding down together over a breath of noise (k: louder)
+function ooh(E, k = 1) {
+  [196, 247, 294, 330].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.6, type: i % 2 ? 'triangle' : 'sine', slide: 0.78, gain: 0.035 * k, delay: i * 0.02 }));
+  E.audio.noise({ dur: 0.45, gain: 0.05 * k });
 }
 // the crowd chants your name: a clap for each step of their favour (one at least), louder the more they love you
 const chantN = () => 1 + Math.round((TUNING.story.chant.max - 1) * state.fav / TUNING.crowd.max);
@@ -2845,7 +3053,7 @@ function hudSlot(E) {
 function foeHealth(ctx, E) {
   const L = lay(E), f = state.foe, S = hudSlot(E), w = Math.min(0.46 * L.H, S.w - 10), h = 10, x = S.cx - w / 2, y = S.top + 14;
   const k = clamp(f.hp / f.maxHp, 0, 1), ks = clamp(f.shown / f.maxHp, 0, 1), sk = clamp(f.sta / f.staMax, 0, 1);
-  const nm = `${f.name.toUpperCase()}  ${f.size.id} · ${f.wname}`;
+  const nm = `${f.name.toUpperCase()}  ${f.size.name} · ${f.wname}`;
   E.text(nm, S.cx, S.top + 3, { size: fitSize(ctx, nm, 12, S.w), color: f.champion ? '#ffd24a' : '#f0e6cc', weight: '800' });
   ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 11);
   ctx.fillStyle = '#f2d88a'; ctx.fillRect(x, y, w * ks, h);
@@ -3522,7 +3730,7 @@ function drawDraft(ctx, E) {
     E.roundRect(x, y, w, h, 14, priced ? '#2a2016' : '#221a2b', rc);
     E.roundRect(x + 3, y + 3, w - 6, h - 6, 11, null, priced ? 'rgba(255,210,74,0.55)' : shade(rc, 0.6));
     E.text(tierName(c), x + w / 2, y + 14, { size: fitSize(ctx, tierName(c), 10, w - 16), weight: '800', color: rc });
-    // the bottom lines, each 14 px or more: the price, the piece it replaces (on its own line, split in two when it is too wide), or the family
+    // the bottom lines, each 14 px or more: the price, the piece it replaces (on its own line, "drops" when too wide, split in two after that), or the family
     const bot = [], fits = (t, wt) => { ctx.font = `${wt} 14px system-ui, sans-serif`; return ctx.measureText(t).width <= w - 16; };
     if (priced) {
       const have = `${price} gold \u00b7 you have ${state.gold}`;
@@ -3530,11 +3738,11 @@ function drawDraft(ctx, E) {
     }
     if (old) {
       const t = `replaces ${old.gear}`;
-      if (fits(t, 700)) bot.push([t, '#fb923c', 700]); else bot.push(['replaces', '#fb923c', 700], [old.gear, '#fb923c', 700]);
+      if (fits(t, 700)) bot.push([t, '#fb923c', 700]); else if (fits(`drops ${old.gear}`, 700)) bot.push([`drops ${old.gear}`, '#fb923c', 700]); else bot.push(['replaces', '#fb923c', 700], [old.gear, '#fb923c', 700]);
     } else if (!priced) bot.push([c.duo ? c.duo.map((f) => FAMS[f].name).join(' + ') : `${FAMS[c.fam].name}${held[c.fam] ? ` \u00b7 you wear ${held[c.fam]}` : ''}`, col, 800]);
     const bh = 8 + 16 * bot.length, r = Math.min(24, h * 0.13, Math.max(14, (h - 130 - bh) * 0.5));
     drawIcon(ctx, c.id, x + w / 2, y + 22 + r, r);
-    const ly = y + 34 + 2 * r, title = titleOf(c), sub = c.duo ? 'takes no slot' : c.fam === 'fin' ? 'war paint, takes no slot' : c.name;
+    const ly = y + 34 + 2 * r, title = titleOf(c), sub = c.duo ? 'takes no slot' : c.fam === 'fin' ? 'war paint, takes no slot' : c.key ? `${c.name} \u00b7 keystone` : c.name;
     E.text(title, x + w / 2, ly, { size: fitSize(ctx, title, 17, w - 16), weight: '800', color: '#f0e6cc' });
     E.text(sub, x + w / 2, ly + 17, { size: fitSize(ctx, sub, 12, w - 16, '700'), weight: '700', color: col });
     // the rule's line, a size smaller when three lines would meet the bottom lines
@@ -3617,9 +3825,14 @@ function drawLab(ctx, E) {
   for (const q of L.cells) {
     const on = has(q.c.id), col = q.c.duo ? DUO_GOLD : FAMS[q.c.fam].col;
     E.roundRect(q.x, q.y, q.w, q.h, 8, on ? 'rgba(232,121,249,0.35)' : 'rgba(34,26,43,0.9)', on ? '#f5d0fe' : col);
-    E.text(q.c.name, q.x + q.w / 2, q.y + q.h / 2 - 6, { size: fitSize(ctx, q.c.name, 12, q.w - 8), weight: '800', color: on ? '#ffffff' : '#f0e6cc' });
-    const sub = q.c.duo ? 'duo' : q.c.key ? 'keystone' : FAMS[q.c.fam].name.replace('The ', '');
-    E.text(sub, q.x + q.w / 2, q.y + q.h / 2 + 9, { size: 10, weight: '700', color: col });
+    // the name at 14 px: one line with its family under it, else two lines (a word too wide for the cell is clipped)
+    const nc = on ? '#ffffff' : '#f0e6cc', cx = q.x + q.w / 2, cy = q.y + q.h / 2, one = wrapPx(ctx, q.c.name, q.w - 8, 14, '800');
+    ctx.font = '800 14px system-ui, sans-serif';
+    const lines = one.length === 1 && ctx.measureText(one[0]).width <= q.w - 8 ? one : one.map((t) => { let r = t; while (r.length > 2 && ctx.measureText(r).width > q.w - 8) r = `${r.slice(0, -2)}\u2026`; return r; }).slice(0, 2);
+    if (lines.length === 1) {
+      E.text(lines[0], cx, cy - 6, { size: 14, weight: '800', color: nc });
+      E.text(q.c.duo ? 'duo' : q.c.key ? 'keystone' : FAMS[q.c.fam].name.replace('The ', ''), cx, cy + 9, { size: 10, weight: '700', color: col });
+    } else lines.forEach((t, k) => E.text(t, cx, cy - 8 + k * 16, { size: 14, weight: '800', color: nc }));
   }
   for (const b of L.btns) { E.roundRect(b.x, b.y, b.w, b.h, 10, b.k === 'done' ? '#b45309' : '#1f2937', '#c4b99a'); E.text(b.label, b.x + b.w / 2, b.y + b.h / 2, { size: fitSize(ctx, b.label, 15, b.w - 10), weight: '800', color: '#f0e6cc' }); }
 }
@@ -3642,7 +3855,7 @@ function tokenButton(E, label, cx, cy, n, on = true, sub = null) {
 }
 
 // ----- fighter cards: the intro before each bout, and the row on the end card -----
-const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps you at range', axe: 'big overheads that crack shields', dagger: 'rushes in; the net slows you' };
+const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps range', axe: 'big overheads crack shields', dagger: 'rushes in, nets slow you' };
 // A little body with his plates (grey) and open joint slots (dark), at scale s px per body unit, feet at (x, y).
 function armourIcon(ctx, parts, x, y, s) {
   ctx.save(); ctx.translate(x, y);
@@ -3705,7 +3918,7 @@ function woodSword(ctx, x, y, len, n) {
 // the font size that fits a line into w px, never larger than size
 function fitSize(ctx, t, size, w, weight = '800') {
   ctx.font = `${weight} ${size}px system-ui, sans-serif`;
-  return Math.max(10, Math.floor(size * Math.min(1, w / ctx.measureText(t).width)));
+  return Math.max(14, Math.floor(size * Math.min(1, w / ctx.measureText(t).width)));
 }
 // text wrapped to lines no wider than w px at this font
 function wrapPx(ctx, t, w, size, weight = '600') {
@@ -3720,28 +3933,34 @@ function drawIntro(ctx, E) {
   if (state.edge) { drawPairIntro(ctx, E); return; }
   const d = state.foe, me = state.me, champ = d.champion, spar = bout().spar;
   const voice = d.rival ? tauntOf(me) : champ ? champLine(d, me.reason) : null, sub = champ ? champTie(d, me.reason) : spar ? 'Sparring: learn his tells.' : null;
-  const gear = (d.gear || []).map((id) => CARD[id]), thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 140 + ((d.guards || []).length ? 18 : 0), tb = b + bodyH + (thread ? 32 : 6);
+  const gear = (d.gear || []).map((id) => CARD[id]), thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 152 + ((d.guards || []).length ? 12 : 0), tb = b + bodyH + (thread ? 32 : 6);
   const second = state.rack === 0 && !voice;
   const w = Math.min(E.w - 32, gear.length ? 640 : 460), h = Math.min(E.h - 12, tb + 22 + (voice || second ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', d.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
   const of = `BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
-  E.text(d.rival ? `YOUR RIVAL  ·  THE CHAMPION  ·  ${of}` : champ ? `THE CHAMPION  ·  ${of}` : `${of}${spar ? '  ·  SPARRING' : ''}`, cx, y + 20, { size: 13, weight: '800', color: champ ? '#ffd24a' : '#c4b99a' });
+  E.text(d.rival ? `YOUR RIVAL  ·  THE CHAMPION  ·  ${of}` : champ ? `THE CHAMPION  ·  ${of}` : `${of}${spar ? '  ·  SPARRING' : ''}`, cx, y + 20, { size: 14, weight: '800', color: champ ? '#ffd24a' : '#c4b99a' });
   const name = d.name.toUpperCase();
   E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40), weight: '800', color: '#f0e6cc' });
   if (sub) E.text(sub, cx, y + 72, { size: 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   const lx = x + 80, s = 96;
   armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s);
-  E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 12, weight: '800', color: '#aab3bc' });
+  E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 14, weight: '800', color: '#aab3bc' });
   const ng = (d.guards || []).length;
-  E.text(`${d.set.slots - ng} gaps open${ng ? ` · ${ng} guarded` : ''}`, lx, y + b + 134, { size: fitSize(ctx, 'x 4 gaps open · 2 guarded', 12, 150, '400'), color: '#c4b99a' });
-  if (ng) { const gl = `${d.guards.map((id) => GUARDS[id].toUpperCase()).join(', ')}`; E.text(gl, lx, y + b + 150, { size: fitSize(ctx, gl, 12, 150), weight: '800', color: '#ffd24a' }); }
+  E.text(ng ? `${d.set.slots - ng} open · ${ng} guarded` : `${d.set.slots} gaps open`, lx, y + b + 134, { size: 14, weight: '700', color: '#c4b99a' });
+  if (ng) { const gl = `${d.guards.map((id) => GUARDS[id].toUpperCase()).join(', ')}`; E.text(clipLine(ctx, gl, 150), lx, y + b + 150, { size: 14, weight: '700', color: '#ffd24a' }); }
   const rx = x + 164, rw = gear.length ? Math.max(170, w - 164 - 32 - 226) : x + w - 22 - rx;
-  E.text(d.size.name, rx, y + b + 10, { size: 18, weight: '800', align: 'left', color: '#fde68a' });
-  E.text(d.wname, rx, y + b + 36, { size: 18, weight: '800', align: 'left', color: '#f0e6cc' });
-  weaponIcon(ctx, d, rx + rw - d.weapon.len * 100, y + b + 28, 100);
-  wrapPx(ctx, WEAPON_TIP[d.weapon.id] + (d.shield ? ', carries a shield' : ''), rw, 12).slice(0, 2).forEach((t, i) => E.text(t, rx, y + b + 58 + i * 14, { size: 12, align: 'left', color: '#9aa4b2' }));
-  statBars(ctx, E, d, rx, y + b + 96, rw, 20, 13);
+  // his size and weapon on one line (the size in gold), the weapon drawn at its end, its tip below, then his profile beside the stat bars
+  const iw = d.weapon.len * 100 + 10, sz = `${d.size.name} · `, fs = Math.max(14, fitSize(ctx, `${sz}${d.wname}`, 18, rw - iw));
+  ctx.font = `800 ${fs}px system-ui, sans-serif`;
+  const sw = ctx.measureText(sz).width;
+  E.text(sz, rx, y + b + 8, { size: fs, weight: '800', align: 'left', color: '#fde68a' });
+  E.text(d.wname, rx + sw, y + b + 8, { size: fs, weight: '800', align: 'left', color: '#f0e6cc' });
+  const tw0 = sw + ctx.measureText(d.wname).width, is = Math.min(100, (rw - tw0 - 10) / (d.weapon.len + 0.42));
+  if (is >= 24) weaponIcon(ctx, d, rx + rw - (d.weapon.len + 0.12) * is, y + b + 2, is);
+  wrapPx(ctx, WEAPON_TIP[d.weapon.id] + (d.shield ? ', with shield' : ''), rw, 14).slice(0, 2).forEach((t, i) => E.text(t, rx, y + b + 30 + i * 16, { size: 14, align: 'left', color: '#9aa4b2' }));
+  profLine(ctx, E, d, rx, y + b + 64, rw, 17);
+  statBars(ctx, E, d, rx, y + b + 104, rw, 20, 14);
   // his gear in a third column, a tell: the pieces that act for him in red with what each does, the rest a look in grey (14 px, at most 9 or 10 lines)
   if (gear.length) {
     const gx = rx + rw + 16, gw = x + w - 16 - gx, maxL = Math.floor((bodyH - 8) / 16) + 1, rows = [];
@@ -3762,17 +3981,40 @@ function drawIntro(ctx, E) {
   }
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
   const bl = `Old Brutus: “${brutusIntro()}”`;
-  E.text(bl, cx, y + tb + 10, { size: fitSize(ctx, bl, 13, w - 28, '700'), weight: '700', color: '#fde68a' });
+  E.text(bl, cx, y + tb + 10, { size: fitSize(ctx, bl, 14, w - 28, '700'), weight: '700', color: '#fde68a' });
   if (voice) { const vl = `${d.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, y + tb + 33, { size: fitSize(ctx, vl, 15, w - 28), weight: '800', color: '#f87171' }); }
   else if (second) { const sl = `“${brutusReason()}”`; E.text(sl, cx, y + tb + 31, { size: fitSize(ctx, sl, 14, w - 28, '700'), weight: '700', color: '#fde68a' }); }
   const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
   E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
 }
+// his profile in one line (14 px): its name in his profile's colour, then what it means, cut to w px
+const PROF_COL = { brute: '#fb923c', duelist: '#7de3ff', glass: '#f87171', tank: '#a3e635', balanced: '#e2e8f0' };
+// does his whole profile line fit one line of w px?
+function profFits(ctx, d, w) {
+  const P = PROFILES[d.prof] || PROFILES.balanced;
+  ctx.font = '800 14px system-ui, sans-serif';
+  const hw = ctx.measureText(`${P.name}:`).width + 5;
+  ctx.font = '700 14px system-ui, sans-serif';
+  return hw + ctx.measureText(P.line).width <= w;
+}
+// (wrap: when it does not fit, the words that do not go on a second line, wrap px below)
+function profLine(ctx, E, d, x, y, w, wrap = 0) {
+  const P = PROFILES[d.prof] || PROFILES.balanced, head = `${P.name}:`;
+  ctx.font = '800 14px system-ui, sans-serif';
+  const hw = ctx.measureText(head).width + 5;
+  E.text(head, x, y, { size: 14, weight: '800', align: 'left', color: PROF_COL[d.prof] || '#e2e8f0' });
+  ctx.font = '700 14px system-ui, sans-serif';
+  const words = P.line.split(' ');
+  let n = words.length;
+  while (wrap && n > 1 && ctx.measureText(words.slice(0, n).join(' ')).width > w - hw) n--;
+  E.text(clipLine(ctx, words.slice(0, n).join(' '), w - hw), x + hw, y, { size: 14, weight: '700', align: 'left', color: '#e2e8f0' });
+  if (n < words.length) E.text(clipLine(ctx, words.slice(n).join(' '), w), x, y + wrap, { size: 14, weight: '700', align: 'left', color: '#e2e8f0' });
+}
 // A pairs bout's card: both foes side by side, the one who fights first on the left, each with his own health, armour, guarded gaps and gear (at 14 px)
 function drawPairIntro(ctx, E) {
   const a = state.foe, q = state.edge, me = state.me, d0 = state.gauntlet[state.rack], champ = a.champion;
   const voice = d0.rival ? tauntOf(me) : champ ? champLine(a, me.reason) : null, sub = champ ? champTie(a, me.reason) : 'Pairs: when one is winded or down, the other steps in.';
-  const thread = me.reason !== 'revenge', b = 88, bodyH = 150, tb = b + bodyH + (thread ? 32 : 6);
+  const thread = me.reason !== 'revenge', b = 88, cw = (Math.min(E.w - 32, 640) - 48) / 2, ex = profFits(ctx, a, cw - 88) && profFits(ctx, q, cw - 88) ? 0 : 16, bodyH = 150 + ex, tb = b + bodyH + (thread ? 32 : 6);
   const w = Math.min(E.w - 32, 640), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', d0.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
@@ -3781,9 +4023,8 @@ function drawPairIntro(ctx, E) {
   const name = (a.title || `${a.name} and ${q.name}`).toUpperCase();
   E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40), weight: '800', color: '#f0e6cc' });
   E.text(sub, cx, y + 72, { size: Math.max(14, fitSize(ctx, sub, 15, w - 28)), weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
-  const cw = (w - 48) / 2;
-  pairCol(ctx, E, a, x + 16, y + b, cw, 'FIGHTS FIRST');
-  pairCol(ctx, E, q, x + 32 + cw, y + b, cw, 'WAITS AT THE EDGE');
+  pairCol(ctx, E, a, x + 16, y + b, cw, 'FIGHTS FIRST', ex);
+  pairCol(ctx, E, q, x + 32 + cw, y + b, cw, 'WAITS AT THE EDGE', ex);
   ctx.fillStyle = 'rgba(240,230,204,0.18)'; ctx.fillRect(cx - 1, y + b, 2, bodyH - 6);
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
   const bl = `Old Brutus: “${brutusIntro()}”`;
@@ -3792,20 +4033,24 @@ function drawPairIntro(ctx, E) {
   E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? 0.6 + 0.4 * Math.sin(state.introT * 4) : 0.3 });
 }
 // one foe's column on the pairs card: who he is, his health, his armour and guards, his gear (the pieces that act for him in red)
-function pairCol(ctx, E, f, x, y, w, tag) {
+function pairCol(ctx, E, f, x, y, w, tag, ex) {
   E.text(tag, x + w / 2, y + 6, { size: 14, weight: '800', color: '#c4b99a' });
   const nm = f.name.toUpperCase();
   E.text(nm, x + w / 2, y + 26, { size: Math.max(14, fitSize(ctx, nm, 18, w - 8)), weight: '800', color: f.champion ? '#ffd24a' : '#f0e6cc' });
-  armourIcon(ctx, f.parts, x + 40, y + 122, 80);
+  armourIcon(ctx, f.parts, x + 40, y + 122 + ex / 2, 80);
   const rx = x + 84, rw = w - 88, ng = (f.guards || []).length, T = (t, yy, col = '#e2e8f0', wt = '700') => E.text(t, rx, yy, { size: 14, weight: wt, align: 'left', color: col });
   T(clipLine(ctx, `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
-  T(`HEALTH ${f.maxHp}`, y + 70, '#f0e6cc', '800');
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(rx, y + 80, rw, 8); ctx.fillStyle = '#d9483a'; ctx.fillRect(rx, y + 80, rw * clamp(f.hp / f.maxHp, 0, 1), 8);
-  T(clipLine(ctx, ng ? `${f.set.slots - ng} open \u00b7 ${f.guards.map((id) => GUARDS[id]).join(', ')}` : `${f.set.slots} gaps open`, rw), y + 102, ng ? '#ffd24a' : '#c4b99a');
+  profLine(ctx, E, f, rx, y + 69, rw, ex);
+  y += ex;
+  ctx.font = '800 14px system-ui, sans-serif';
+  const hl = `HEALTH ${f.maxHp}`, hw = ctx.measureText(hl).width + 8;
+  T(hl, y + 88, '#f0e6cc', '800');
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(rx + hw, y + 84, rw - hw, 8); ctx.fillStyle = '#d9483a'; ctx.fillRect(rx + hw, y + 84, (rw - hw) * clamp(f.hp / f.maxHp, 0, 1), 8);
+  T(clipLine(ctx, ng ? `${f.set.slots - ng} open \u00b7 ${f.guards.map((id) => GUARDS[id]).join(', ')}` : `${f.set.slots} gaps open`, rw), y + 107, ng ? '#ffd24a' : '#c4b99a');
   const gear = (f.gear || []).map((id) => CARD[id]), act = gear.filter((c) => FOE_TELL[c.id]), look = gear.filter((c) => !FOE_TELL[c.id]);
   const rows = [...act.map((c) => [c.gear, '#f87171']), ...(look.length ? [[`${look.map((c) => c.gear).join(', ')}`, '#9aa4b2']] : [])];
   if (!rows.length) rows.push(['No gear', '#9aa4b2']);
-  rows.slice(0, 2).forEach(([t, col], i) => T(clipLine(ctx, t, rw), y + 122 + i * 18, col));
+  rows.slice(0, 2).forEach(([t, col], i) => T(clipLine(ctx, t, rw), y + 126 + i * 18, col));
 }
 // a line cut to w px at 14 px bold, with an ellipsis
 function clipLine(ctx, t, w) {
@@ -3817,63 +4062,121 @@ function clipLine(ctx, t, w) {
 function miniCard(ctx, E, d, x, y, w, h, res) {
   const stroke = res === 'felled' ? '#4ade80' : res === 'lost' ? '#ef4444' : 'rgba(240,230,204,0.25)';
   E.roundRect(x, y, w, h, 12, res ? '#221a2b' : 'rgba(34,26,43,0.5)', stroke);
-  const a = res ? 1 : 0.45;
+  const a = res ? 1 : 0.45, cx = x + w / 2;
   ctx.globalAlpha = a;
-  E.text(d.champion ? 'CHAMPION' : `BOUT ${d.at + 1}`, x + w / 2, y + 13, { size: 10, weight: '800', color: d.champion ? '#ffd24a' : '#c4b99a', alpha: a });
+  E.text(d.champion ? 'CHAMPION' : `BOUT ${d.at + 1}`, cx, y + 12, { size: 14, weight: '800', color: d.champion ? '#ffd24a' : '#c4b99a', alpha: a });
   // a pair: both names when they fit, else the first and "+1"
   const first = d.name.length > 13 ? d.name.split(/[ ,]/)[0].toUpperCase() : d.name.toUpperCase(), both = d.pair ? `${d.name.split(/[ ,]/)[0]} & ${d.pair.name.split(/[ ,]/)[0]}`.toUpperCase() : first;
   ctx.font = '800 14px system-ui, sans-serif';
   const plus = `${d.name.split(/[ ,]/)[0].toUpperCase()} +1`, nm = ctx.measureText(both).width <= w - 8 ? both : d.pair && ctx.measureText(plus).width <= w - 8 ? plus : first;
-  E.text(nm, x + w / 2, y + 30, { size: 14, weight: '800', color: '#f0e6cc', alpha: a });
-  E.text(`${d.size.id} \u00b7 ${d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name}`, x + w / 2, y + 47, { size: 10, weight: '700', color: '#fde68a', alpha: a });
-  ctx.globalAlpha = a;
-  armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), x + w * 0.28, y + 104, 54);
-  statBars(ctx, E, d, x + w * 0.5, y + 70, w * 0.46, 15, 9);
-  E.text(d.set.name, x + w * 0.72, y + 118, { size: 9, color: '#aab3bc', alpha: a });
+  E.text(clipLine(ctx, nm, w - 6), cx, y + 27, { size: 14, weight: '800', color: '#f0e6cc', alpha: a });
+  // size, weapon and armour on their own 14 px lines, then the stat bars across the card
+  const wn = d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
+  E.text(d.size.name, cx, y + 42, { size: 14, weight: '700', color: '#fde68a', alpha: a });
+  E.text(clipLine(ctx, wn.split(' & ')[0], w - 6), cx, y + 57, { size: 14, weight: '700', color: '#fde68a', alpha: a });
+  E.text(d.set.name, cx, y + 72, { size: 14, weight: '700', color: '#aab3bc', alpha: a });
+  statBars(ctx, E, d, x + 8, y + 92, w - 16, 15, 14);
   ctx.globalAlpha = 1;
-  E.text(res === 'felled' ? 'FELLED' : res === 'lost' ? 'CUT YOU DOWN' : 'NOT REACHED', x + w / 2, y + h - 14, { size: 11, weight: '800', color: res === 'felled' ? '#4ade80' : res === 'lost' ? '#ef4444' : '#6b7280' });
+  E.text(res === 'felled' ? 'FELLED' : res === 'lost' ? 'BEAT YOU' : 'NOT MET', cx, y + h - 10, { size: 14, weight: '800', color: res === 'felled' ? '#4ade80' : res === 'lost' ? '#ef4444' : '#6b7280' });
 }
 
 // ----- your fighter: the eight wheels, the card, and the end-card mini -----
 const TIER_COL = { S: '#ffd24a', A: '#4ade80', B: '#7dd3fc', C: '#c4b99a', D: '#f87171' };
-const SIZE_TIP = { S: 'quick swing, short reach', M: 'balanced', L: 'long reach, slow swing' };
+const SIZE_TIP = { runt: 'tiny, quick, short reach', lean: 'quick swing, short reach', medium: 'balanced', big: 'long reach, slow swing', giant: 'huge reach, slow swing' };
 const WHEELS = [
-  { title: 'SIZE', list: () => TUNING.me.wheels.size, cols: ['#4a6a8c', '#6b5a8c', '#8c4a6a'] },
-  { title: 'STRENGTH', list: () => TUNING.me.wheels.stat },
-  { title: 'SPEED', list: () => TUNING.me.wheels.stat },
-  { title: 'STAMINA', list: () => TUNING.me.wheels.stat },
-  { title: 'ARMOUR', list: () => TUNING.me.wheels.armour, cols: ['#8a7452', '#6f7c89', '#3f4a5a'] },
-  { title: 'WEAPON', list: () => TUNING.me.wheels.weapon, cols: ['#9b2f2f', '#38457a', '#5a3b22', '#b08c34'] },
-  { title: 'ORIGIN', list: () => TUNING.me.wheels.origin, cols: ['#5f7a3a', '#7a3a3a', '#a07a3a', '#8c5a2e', '#2e5f7a', '#6a4a8c'] },
-  { title: 'REASON', list: () => TUNING.me.wheels.reason, cols: ['#2f7d6d', '#8a6a2a', '#8b2e2e', '#b8923a'] },
-];
+  { title: 'SIZE', cols: ['#2f7d6d', '#4a6a8c', '#6b5a8c', '#8c4a6a', '#a8402e'] },
+  { title: 'STRENGTH' },
+  { title: 'SPEED' },
+  { title: 'STAMINA' },
+  { title: 'ARMOUR', cols: ['#8a7452', '#6f7c89', '#3f4a5a'] },
+  { title: 'WEAPON', cols: ['#9b2f2f', '#38457a', '#5a3b22', '#b08c34'] },
+  { title: 'ORIGIN', cols: ['#5f7a3a', '#7a3a3a', '#a07a3a', '#8c5a2e', '#2e5f7a', '#6a4a8c'] },
+  { title: 'REASON', cols: ['#2f7d6d', '#8a6a2a', '#8b2e2e', '#b8923a'] },
+].map((wh, k) => ({ ...wh, k, list: (me) => wheelList(k, me.idx) }));
 const STAT_COLS = ['#8b2e2e', '#a8642e', '#9a8c32', '#5f8f3e', '#2f7d6d'];
 const shortOf = (e) => (typeof e[0] === 'number' ? `${e[0]}` : e[3] || (e[0].length > 1 ? e[2][0] : e[0]));
 const halvesText = (n) => `${Math.floor(n / 2)}${n % 2 ? '½' : ''}`;
 
-// One wheel: segments sized by their odds, a pointer on top. rot turns the wheel; the landed segment sits under the pointer.
-function drawWheel(ctx, E, wh, cx, cy, r, rot, landed, dim, labels = true) {
-  const list = wh.list(), tot = list.reduce((a, e) => a + e[1], 0);
-  let a0 = -Math.PI / 2 + rot;
-  list.forEach((e, i) => {
-    const a1 = a0 + e[1] / tot * Math.PI * 2;
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a0, a1); ctx.closePath();
-    ctx.fillStyle = (wh.cols || STAT_COLS)[i]; ctx.globalAlpha = dim * (landed == null || landed === i ? 1 : 0.45); ctx.fill(); ctx.globalAlpha = dim;
-    ctx.strokeStyle = '#14101a'; ctx.lineWidth = 2; ctx.stroke();
-    const am = (a0 + a1) / 2;
-    if (labels) E.text(shortOf(e), cx + Math.cos(am) * r * 0.66, cy + Math.sin(am) * r * 0.66, { size: shortOf(e).length > 1 ? 11 : 15, weight: '800', color: '#fff7e0', alpha: dim });
-    a0 = a1;
-  });
-  ctx.strokeStyle = '#e6c866'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.28); ctx.stroke();
-  ctx.fillStyle = '#221a2b'; ctx.beginPath(); ctx.arc(cx, cy, r * 0.18, 0, 6.28); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#ffd24a'; ctx.beginPath(); ctx.moveTo(cx - 9, cy - r - 12); ctx.lineTo(cx + 9, cy - r - 12); ctx.lineTo(cx, cy - r + 6); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#14101a'; ctx.lineWidth = 1.5; ctx.stroke();
+// ----- the wheel of fate (L8) -----
+// Each slice's start and end, in radians clockwise from the pointer, for these weights (slice size is the odds).
+function sliceArcs(w) {
+  const tot = w.reduce((a, q) => a + q, 0) || 1;
+  let a = 0;
+  return w.map((q) => { const s = a; a += q / tot * Math.PI * 2; return [s, a]; });
 }
-// the wheel turn that puts segment i under the pointer
-function wheelRest(wh, i) {
-  const list = wh.list(), tot = list.reduce((a, e) => a + e[1], 0);
-  let mid = 0; for (let k = 0; k < i; k++) mid += list[k][1];
-  return -(mid + list[i][1] / 2) / tot * Math.PI * 2;
+// where the pointer comes to rest on slice i: settle of the way across it from its leading peg (a thin slice, its middle); wheelRest is that turn
+function restAt(w, i) { const [s, e] = sliceArcs(w)[i], wd = e - s; return s + wd * (wd < 0.3 ? 0.5 : TUNING.me.roll.settle); }
+const wheelRest = (w, i) => -restAt(w, i);
+const WHEEL_Q = ['Size?', 'Strength?', 'Speed?', 'Stamina?', 'Armour?', 'Weapon?', 'Origin?', 'Reason?'];
+const sliceCol = (wh, i) => (wh.cols || STAT_COLS)[i];
+// One wheel, drawn by the game: a bronze rim with gold studs, gradient slices sized by their odds (names on the slices that have room), pegs between
+// slices, a hub with the wheel's question and the ticker on top. o: rot (the wheel's turn), w (the slice weights, which may be mid-reshape), landed
+// (the landed slice, or -1), names (the slices' names, on a big wheel), pop and flash (0 to 1, the landing), tick (the ticker's flick, radians), grow (per slice: +1 growing, -1 shrinking).
+// A small wheel (the card's strip) keeps the rim, slices, pegs and pointer only.
+function drawWheel(ctx, E, wh, cx, cy, r, o) {
+  const arcs = sliceArcs(o.w), small = r < 40, base = -Math.PI / 2 + o.rot, landed = o.landed == null ? -1 : o.landed;
+  ctx.save();
+  // the rim
+  ctx.fillStyle = '#5a3d17'; ctx.beginPath(); ctx.arc(cx, cy, r * 1.1, 0, 6.283); ctx.fill();
+  ctx.strokeStyle = '#c99a3e'; ctx.lineWidth = Math.max(1.5, r * 0.025); ctx.beginPath(); ctx.arc(cx, cy, r * 1.1, 0, 6.283); ctx.stroke();
+  if (!small) {
+    ctx.fillStyle = '#ffd24a';
+    for (let k = 0; k < 24; k++) { const a = base + k * Math.PI / 12; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r * 1.05, cy + Math.sin(a) * r * 1.05, r * 0.022, 0, 6.283); ctx.fill(); }
+  }
+  // the slices, a light centre shading to the rim; the landed one pops out and flashes, the rest dim
+  const shade = ctx.createRadialGradient(cx, cy, r * 0.15, cx, cy, r);
+  shade.addColorStop(0, 'rgba(255,240,200,0.32)'); shade.addColorStop(1, 'rgba(0,0,0,0.25)');
+  arcs.forEach(([s, e], i) => {
+    if (e - s < 1e-4) return;
+    const on = i === landed, mid = base + (s + e) / 2, out = on ? (o.pop || 0) * r * 0.07 : 0, x = cx + Math.cos(mid) * out, y = cy + Math.sin(mid) * out, rr = r * (on ? 1 + (o.pop || 0) * 0.03 : 1);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, rr, base + s, base + e); ctx.closePath();
+    ctx.fillStyle = sliceCol(wh, i); ctx.fill();
+    ctx.save(); ctx.translate(x - cx, y - cy); ctx.fillStyle = shade; ctx.fill(); ctx.restore();
+    if (landed >= 0 && !on) { ctx.fillStyle = 'rgba(10,8,14,0.4)'; ctx.fill(); }
+    if (on && o.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${0.75 * o.flash})`; ctx.fill(); }
+    ctx.strokeStyle = on ? '#ffd24a' : '#14101a'; ctx.lineWidth = on ? 3 : 1.5; ctx.stroke();
+    // a reshaping slice: a green arc on its rim while it grows, red while it shrinks
+    const g = o.grow && o.grow[i];
+    if (g) { ctx.strokeStyle = g > 0 ? '#4ade80' : '#f87171'; ctx.lineWidth = Math.max(3, r * 0.05); ctx.beginPath(); ctx.arc(cx, cy, r * 0.95, base + s + 0.03, base + e - 0.03); ctx.stroke(); }
+    if (!small && o.names) {
+      const name = o.names[i];
+      ctx.font = '800 14px system-ui, sans-serif';
+      if ((e - s) * r * 0.66 > ctx.measureText(name).width + 8 && e - s > 0.42) E.text(name, x + Math.cos(mid) * r * 0.69, y + Math.sin(mid) * r * 0.69, { size: 14, weight: '800', color: '#fff7e0' });
+    }
+  });
+  // pegs between the slices
+  ctx.fillStyle = '#f0e6cc'; ctx.strokeStyle = '#3a2a10'; ctx.lineWidth = 1;
+  for (const [s, e] of arcs) {
+    if (e - s < 1e-4) continue;
+    const a = base + s;
+    ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r * 0.97, cy + Math.sin(a) * r * 0.97, Math.max(1.6, r * 0.032), 0, 6.283); ctx.fill(); if (!small) ctx.stroke();
+  }
+  // the hub with the question
+  const hr = small ? r * 0.2 : r * 0.38;
+  ctx.fillStyle = '#221a2b'; ctx.beginPath(); ctx.arc(cx, cy, hr, 0, 6.283); ctx.fill();
+  ctx.strokeStyle = '#e6c866'; ctx.lineWidth = small ? 1.5 : 3; ctx.stroke();
+  if (!small) { const q = WHEEL_Q[wh.k]; E.text(q, cx, cy + 1, { size: Math.max(14, fitSize(ctx, q, 17, hr * 1.85)), weight: '800', color: '#ffd24a' }); }
+  // the ticker: hinged above the rim, flicked aside by each peg
+  const py = cy - r * 1.1 - (small ? 3 : 8), len = small ? r * 0.35 : r * 0.28, wd = small ? 5 : Math.max(8, r * 0.09);
+  ctx.translate(cx, py); ctx.rotate(o.tick || 0);
+  ctx.fillStyle = '#ffd24a'; ctx.strokeStyle = '#14101a'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-wd, -2); ctx.lineTo(wd, -2); ctx.lineTo(0, len); ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (!small) { ctx.fillStyle = '#5a3d17'; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, 6.283); ctx.fill(); }
+  ctx.restore();
+}
+// The turn of a spin at u (0 to 1) that ends with slice i under the pointer (settle of the way across it, from its leading peg): a fast start easing
+// down to the leading peg (the tease: will it slip into the next slice?), then a wobble back that settles.
+function spinRot(w, i, u) {
+  const R = TUNING.me.roll, [s, e] = sliceArcs(w)[i], fin = restAt(w, i), tease = s + Math.min(R.peg, (e - s) * 0.15);
+  const end = -fin + Math.PI * 2 * Math.ceil(R.turns + fin / (Math.PI * 2)), over = fin - tease;
+  if (u < R.main) { const p = u / R.main; return (end + over) * (1 - Math.pow(1 - p, 3)); }
+  const q = (u - R.main) / (1 - R.main);
+  return end + over * Math.cos(q * Math.PI * 2.5) * Math.pow(1 - q, 2);
+}
+// pegs passed by the pointer between two turns of the wheel
+function pegsPassed(w, r0, r1) {
+  const T = Math.PI * 2, n = (x, b) => Math.floor((x - b) / T);
+  return sliceArcs(w).reduce((c, [s]) => c + Math.abs(n(-r0, s) - n(-r1, s)), 0);
 }
 
 // what your weapon is for, in one line
@@ -3887,7 +4190,7 @@ function drawMeCard(ctx, E, me, x, y, w, h) {
   E.text(st, cx, y + 36, { size: fitSize(ctx, st, 15, w - 28), weight: '800', color: '#f0e6cc' });
   const pk = P ? `${P.name}: ${P.line}` : `${noun[0].toUpperCase()}${noun.slice(1)}: starts with ${sc.name} (${FAMS[sc.fam].name})`;
   E.text(pk, cx, y + 56, { size: fitSize(ctx, pk, 13, w - 28, '700'), weight: '700', color: '#86efac' });
-  const lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * S.scale;
+  const lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
   armourIcon(ctx, playerParts(me), ax, y + 72 + s * 0.95, s);
   E.text(`${A.name} ARMOUR`, ax, y + 180, { size: 11, weight: '800', color: '#aab3bc' });
   if (me.plates.length) wrapPx(ctx, `plated: ${me.plates.map((q) => (q === 'armB' ? 'shield arm' : q)).join(', ')}`, lw, 10).forEach((t, i) => E.text(t, ax, y + 194 + i * 12, { size: 10, color: '#c4b99a' }));
@@ -3909,15 +4212,16 @@ function drawMeCard(ctx, E, me, x, y, w, h) {
 }
 function meMini(ctx, E, me, x, y, w, h, picks = []) {
   E.roundRect(x, y, w, h, 12, '#1d2a2a', '#4ade80');
-  // the set mark: each set bonus you wear, a small gold roundel under your armour
-  picks.filter((id) => CARD[id].duo).forEach((id, i) => drawIcon(ctx, id, x + 16 + i * 19, y + 117, 8));
-  E.text(me.name.toUpperCase(), x + w / 2, y + 13, { size: 10, weight: '800', color: '#9fe3c6' });
-  E.text(`TIER ${me.tier}`, x + w / 2, y + 30, { size: 14, weight: '800', color: TIER_COL[me.tier] });
-  E.text(`${me.size} · ${weaponName(me)} · ♥ ${halvesText(me.halves)}`, x + w / 2, y + 47, { size: 10, weight: '700', color: '#fde68a' });
-  armourIcon(ctx, playerParts(me), x + w * 0.28, y + 104, 54 * TUNING.me.sizes[me.size].scale);
-  statBars(ctx, E, me, x + w * 0.5, y + 70, w * 0.46, 15, 9);
-  E.text(TUNING.me.armour[me.set].name, x + w * 0.72, y + 118, { size: 9, color: '#aab3bc' });
-  E.text('YOUR FIGHTER', x + w / 2, y + h - 14, { size: 11, weight: '800', color: '#4ade80' });
+  const cx = x + w / 2;
+  E.text(clipLine(ctx, me.name.toUpperCase(), w - 10), cx, y + 12, { size: 14, weight: '800', color: '#9fe3c6' });
+  E.text(`TIER ${me.tier} \u2665${halvesText(me.halves)}`, cx, y + 27, { size: 14, weight: '800', color: TIER_COL[me.tier] });
+  E.text(TUNING.me.sizes[me.size].name, cx, y + 42, { size: 14, weight: '700', color: '#fde68a' });
+  E.text(clipLine(ctx, weaponName(me).split(' & ')[0], w - 6), cx, y + 57, { size: 14, weight: '700', color: '#fde68a' });
+  E.text(TUNING.me.armour[me.set].name, cx, y + 72, { size: 14, weight: '700', color: '#aab3bc' });
+  statBars(ctx, E, me, x + 8, y + 92, w - 16, 15, 14);
+  E.text('YOU', cx, y + h - 10, { size: 14, weight: '800', color: '#4ade80' });
+  // the set mark: each set bonus you wear (up to two), a small gold roundel either side of YOU
+  picks.filter((id) => CARD[id].duo).slice(0, 2).forEach((id, i) => drawIcon(ctx, id, i ? x + w - 16 : x + 16, y + h - 10, 7));
 }
 
 // ====== SCENES: menu, roll, play, over ======
@@ -4068,29 +4372,73 @@ function padlock(ctx, x, y, col) {
   ctx.restore();
 }
 
-// Before the gauntlet: your fighter's six function wheels and two flavour wheels, one after another (tap stops the spinning one), then your card.
-// On the card the wheels sit in a strip above it: tap one, then Respin to roll it again with the run's one token, then Fight!
+// The roll: one big wheel at a time, in the eight wheels' order, with progress pips above it, its odds and what reshaped them beside it, and your fighter's
+// card building on the right as each answer lands; then the card with the strip of small wheels (tap one, then Respin rolls it again with the run's one token) and Fight!. Each wheel: its slices grow and
+// shrink from the plain wheel (TUNING.me.roll.shape s, or wait when nothing changed), it spins (a tap spins it at once), a tap snaps it to its landing,
+// and the answer holds (a tap moves on). The landings were all decided by rollMe; the wheels only show them.
+const isRare = (k, v) => { const R = TUNING.me.rare[k === 0 ? 'size' : ME_WHEEL[k]]; return !!R && R.includes(v); };
 const roll = {
   enter(E, params) {
-    this.seed = params.seed; this.arena = params.arena || 'pit'; this.me = rollMe(this.seed); this.i = 0; this.t = 0; this.landed = false; this.cardT = 0;
+    this.seed = params.seed; this.arena = params.arena || 'pit'; this.me = rollMe(this.seed); this.cardT = 0; this.landT = [];
     this.btn = this.respinBtn = null; this.token = TUNING.token; this.used = ''; this.sel = -1; this.spin = null; this.prev = null;
+    this.at(0);
+  },
+  // wheel k, before its spin: its plain weights (a stat wheel's B tier) and the reshaped ones it spins on
+  at(k) {
+    Object.assign(this, { i: k, ph: 'shape', t: 0, rot: 0, tick: 0, flash: 0, pop: 0, lastTick: -9 });
+    if (k >= WHEELS.length) return;
+    this.w1 = WHEELS[k].list(this.me).map((e) => e[1]);
+    this.w0 = ME_WHEEL[k] === 'stat' ? TUNING.me.statTiers.B.slice() : this.w1.slice();
+    this.shaped = this.w0.some((q, j) => q !== this.w1[j]);
+  },
+  weights() {
+    if (this.ph !== 'shape' || !this.shaped) return this.w1;
+    const u = ease.inOut(clamp(this.t / TUNING.me.roll.shape, 0, 1));
+    return this.w0.map((q, j) => lerp(q, this.w1[j], u));
+  },
+  // the big wheel's place, its odds column and the card column
+  lay(E) {
+    const top = E.safe.top, bot = E.h - E.safe.bottom, L = 16 + E.safe.left, Rx = E.w - 16 - E.safe.right, cw = clamp(E.w * 0.27, 180, 250);
+    const r = Math.min((bot - top - 130) / 2.2, E.w * 0.42 / 2.2), cx = L + r * 1.1 + 6, cy = top + 50 + r * 1.1 + 10;
+    return { top, bot, r, cx, cy, lx: cx + r * 1.1 + 22, lw: Rx - cw - 14 - (cx + r * 1.1 + 22), kx: Rx - cw, kw: cw, ky: top + 44, kh: bot - top - 60 };
   },
   update(dt, E) {
     if (portrait(E)) return;
-    const M = TUNING.me;
+    const M = TUNING.me, R = M.roll;
     if (this.spin) { this.spin.t += dt; if (this.spin.t >= M.spin) { this.spin = null; this.prev = null; this.sel = -1; E.audio.beep({ freq: 660, dur: 0.1, type: 'triangle', gain: 0.12 }); E.haptic(12); } }
     if (this.i >= WHEELS.length) { this.cardT += dt; return; }
-    this.t += dt;
-    if (!this.landed && this.t >= M.spin) this.land(E);
-    if (this.t >= M.spin + M.pause) { this.i++; this.t = 0; this.landed = false; }
+    this.t += dt; this.tick *= Math.exp(-dt * 14); this.flash = Math.max(0, this.flash - dt * 2.5);
+    if (this.ph === 'shape') { if (this.t >= (this.shaped ? R.shape : R.wait)) this.go(E); }
+    else if (this.ph === 'spin') {
+      const u = clamp(this.t / R.spin, 0, 1), r1 = spinRot(this.w1, this.me.idx[this.i], u);
+      if (pegsPassed(this.w1, this.rot, r1)) {
+        this.tick = -0.5 * Math.sign(r1 - this.rot);
+        if (E.time - this.lastTick > R.tickGap) { this.lastTick = E.time; tickSound(E, Math.abs(r1 - this.rot) / Math.max(dt, 1e-3)); }
+      }
+      this.rot = r1;
+      if (u >= 1) this.land(E);
+    } else {
+      this.pop = Math.min(1, this.pop + dt * 8);
+      if (this.t >= R.hold) this.at(this.i + 1);
+    }
   },
+  go(E) { this.ph = 'spin'; this.t = 0; this.rot = 0; E.audio.beep({ freq: 300, dur: 0.14, type: 'triangle', slide: 1.8, gain: 0.1 }); E.haptic(8); },
+  // the landing: the slice flashes and pops out, the answer drops in; a rare sliver bursts and the crowd oohs
   land(E) {
-    this.landed = true; this.t = Math.max(this.t, TUNING.me.spin);
-    E.audio.beep({ freq: 440 + this.i * 90, dur: 0.08, type: 'triangle', gain: 0.12 }); E.haptic(10);
+    const k = this.i, j = this.me.idx[k], e = WHEELS[k].list(this.me)[j], L = this.lay(E);
+    Object.assign(this, { ph: 'land', t: 0, rot: spinRot(this.w1, j, 1), flash: 1, pop: 0, tick: 0 });
+    this.landT[k] = E.time;
+    E.audio.beep({ freq: 440 + k * 60, dur: 0.1, type: 'triangle', gain: 0.13 }); E.audio.beep({ freq: 880 + k * 120, dur: 0.16, type: 'sine', gain: 0.07, delay: 0.06 });
+    const [s, en] = sliceArcs(this.w1)[j], a = -Math.PI / 2 + this.rot + (s + en) / 2, px = L.cx + Math.cos(a) * L.r * 0.7, py = L.cy + Math.sin(a) * L.r * 0.7;
+    if (isRare(k, e[0])) {
+      E.particles.emit({ x: px, y: py, count: 46, speed: 340, life: 0.9, size: 5, color: '#ffd24a', gravity: 260 });
+      E.particles.emit({ x: px, y: py, count: 24, speed: 220, life: 0.7, size: 4, color: '#ffffff', gravity: 160 });
+      ooh(E, 1); E.haptic(30);
+    } else { E.particles.emit({ x: px, y: py, count: 12, speed: 160, life: 0.45, size: 3, color: '#fde68a' }); E.haptic(10); }
   },
   // the card stage's strip of small wheels: one column per wheel, the whole column is its tap target
   strip(E) {
-    const n = WHEELS.length, top = E.safe.top + 4, cw = (E.w - 32 - E.safe.left - E.safe.right) / n, r = Math.min(cw * 0.28, 16);
+    const n = WHEELS.length, top = E.safe.top + 4, cw = (E.w - 32 - E.safe.left - E.safe.right) / n, r = Math.min(cw * 0.26, 15);
     return { n, top, cw, r, cy: top + 14 + r, bottom: top + 2 * r + 46, x0: 16 + E.safe.left };
   },
   respin(E) {
@@ -4101,36 +4449,15 @@ const roll = {
   },
   render(ctx, E) {
     if (portrait(E)) { this.btn = this.respinBtn = null; rotateCard(ctx, E); return; }
-    const M = TUNING.me, me = this.me, n = WHEELS.length;
-    if (this.i < n) {
-      const top = E.safe.top + 22;
-      E.text('ROLL YOUR FIGHTER', E.w / 2, top, { size: 22, weight: '800', color: '#e6c866' });
-      const cw = (E.w - 32 - E.safe.left - E.safe.right) / n, r = Math.min(cw * 0.36, E.h * 0.15), cy = top + 30 + r;
-      WHEELS.forEach((wh, k) => {
-        const cx = 16 + E.safe.left + cw * (k + 0.5), rest = wheelRest(wh, me.idx[k]);
-        const done = k < this.i || (k === this.i && this.landed), spinning = k === this.i && !done;
-        const u = spinning ? clamp(this.t / M.spin, 0, 1) : 1, rot = k > this.i ? 0 : rest - M.turns * Math.PI * 2 * Math.pow(1 - u, 3);
-        const dim = k > this.i ? 0.35 : 1;
-        ctx.globalAlpha = dim;
-        drawWheel(ctx, E, wh, cx, cy, r, rot, done ? me.idx[k] : null, dim);
-        ctx.globalAlpha = 1;
-        E.text(wh.title, cx, cy + r + 16, { size: 13, weight: '800', color: done ? '#f0e6cc' : '#9aa4b2' });
-        const list = wh.list(), tot = list.reduce((a, e) => a + e[1], 0);
-        list.forEach((e, j) => {
-          const hit = done && j === me.idx[k];
-          E.text(`${typeof e[0] === 'number' ? `${e[0]} ` : ''}${e[2]}  ${Math.round(e[1] / tot * 100)}%`, cx, cy + r + 34 + j * 14, { size: hit ? 12 : 11, weight: hit ? '800' : '600', color: hit ? '#ffd24a' : '#8a8f99' });
-        });
-      });
-      E.text('tap to stop the wheel', E.w / 2, E.h - 14 - E.safe.bottom, { size: 12, color: '#c4b99a', alpha: 0.6 + 0.4 * Math.sin(E.time * 4) });
-      return;
-    }
+    const M = TUNING.me, me = this.me;
+    if (this.i < WHEELS.length) { this.drawWheels(ctx, E); return; }
     const S = this.strip(E), sp = this.spin, k = clamp(this.cardT / 0.25, 0, 1);
     WHEELS.forEach((wh, j) => {
-      const cx = S.x0 + S.cw * (j + 0.5), rest = wheelRest(wh, me.idx[j]), u = sp && sp.k === j ? clamp(sp.t / M.spin, 0, 1) : 1;
+      const cx = S.x0 + S.cw * (j + 0.5), w = wh.list(me).map((e) => e[1]), u = sp && sp.k === j ? clamp(sp.t / M.spin, 0, 1) : 1;
       if (this.sel === j) E.roundRect(cx - S.cw / 2 + 3, S.top, S.cw - 6, S.bottom - S.top, 10, 'rgba(124,58,237,0.35)', '#c4b5fd');
-      drawWheel(ctx, E, wh, cx, S.cy, S.r, rest - M.turns * Math.PI * 2 * Math.pow(1 - u, 3), u < 1 ? null : me.idx[j], 1, false);
+      drawWheel(ctx, E, wh, cx, S.cy, S.r, { rot: wheelRest(w, me.idx[j]) - M.turns * Math.PI * 2 * Math.pow(1 - u, 3), w, landed: u < 1 ? -1 : me.idx[j] });
       E.text(wh.title, cx, S.cy + S.r + 11, { size: 10, weight: '800', color: this.sel === j ? '#ffffff' : '#c4b99a' });
-      const e = wh.list()[me.idx[j]];
+      const e = wh.list(me)[me.idx[j]];
       if (u >= 1) E.text(typeof e[0] === 'number' ? `${e[0]} ${e[2]}` : e[2], cx, S.cy + S.r + 24, { size: 11, weight: '700', color: '#ffd24a' });
     });
     const shown = this.prev || me, w = Math.min(E.w - 32, 480), y = S.bottom + 4, h = Math.min(E.h - E.safe.bottom - y - 6, 290), x = (E.w - w) / 2;
@@ -4141,10 +4468,76 @@ const roll = {
     this.respinBtn = tokenButton(E, pick ? `Respin ${WHEELS[this.sel].title.toLowerCase()}` : 'Respin', x + 108, by, this.token, pick && !sp, this.token > 0 && !pick ? '1 left · tap a wheel' : null);
     this.btn = E.button('Fight!', x + w - 92, by, { w: 150, h: 48, size: 20, fill: '#b45309' });
   },
+  drawWheels(ctx, E) {
+    const me = this.me, L = this.lay(E), k = this.i, wh = WHEELS[k], list = wh.list(me), j = me.idx[k], landed = this.ph === 'land', w = this.weights();
+    E.text('ROLL YOUR FIGHTER', 16 + E.safe.left, L.top + 20, { size: 16, weight: '800', align: 'left', color: '#e6c866' });
+    // progress pips: one per wheel, gold once answered, the current one pulsing
+    for (let n = 0; n < WHEELS.length; n++) {
+      const px = E.w / 2 + (n - (WHEELS.length - 1) / 2) * 22, done = n < k || (n === k && landed), cur = n === k && !landed;
+      ctx.beginPath(); ctx.arc(px, L.top + 20, cur ? 6 + Math.sin(E.time * 8) : 6, 0, 6.283);
+      ctx.fillStyle = done ? '#ffd24a' : cur ? '#7c3aed' : 'rgba(240,230,204,0.15)'; ctx.fill();
+      ctx.strokeStyle = cur ? '#ffffff' : '#14101a'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    const grow = this.shaped && !landed ? w.map((q, n) => Math.sign(Math.round(this.w1[n] - this.w0[n]))) : null;
+    drawWheel(ctx, E, wh, L.cx, L.cy, L.r, { rot: this.rot, w, landed: landed ? j : -1, names: list.map((e) => e[2]), pop: ease.outBack(this.pop), flash: this.flash, tick: this.tick, grow });
+    // the answer drops in below the wheel
+    const e = list[j], rare = isRare(k, e[0]), ay = L.cy + L.r * 1.1 + 26;
+    if (landed) {
+      const u = clamp(this.t / 0.22, 0, 1), ans = `${e[2].toUpperCase()}!`, sz = Math.max(14, fitSize(ctx, ans, rare ? 36 : 30, L.r * 2.4));
+      E.text(ans, L.cx, ay - (1 - ease.outBack(u)) * 30, { size: sz * (rare ? 1 + 0.06 * Math.sin(E.time * 10) : 1), weight: '800', color: rare ? '#ffd24a' : '#f0e6cc', alpha: u });
+    }
+    const hint = landed ? (rare ? 'A rare sliver! The crowd loves it.' : 'tap for the next wheel') : this.ph === 'spin' ? 'tap to snap' : 'tap to spin';
+    E.text(hint, landed ? L.cx : E.w / 2, L.bot - 12, { size: 14, weight: '700', color: rare && landed ? '#ffd24a' : '#c4b99a', alpha: 0.65 + 0.35 * Math.sin(E.time * 4) });
+    this.drawOdds(ctx, E, L, wh, list, w);
+    this.drawBuild(ctx, E, L);
+  },
+  // the odds column: the wheel's name and tier, what reshaped it, then each slice's share now (and its change from the plain wheel)
+  drawOdds(ctx, E, L, wh, list, w) {
+    const k = this.i, st = ME_WHEEL[k] === 'stat' ? statTier(k, this.me.idx) : null, x = L.lx, lw = L.lw, landed = this.ph === 'land';
+    let y = L.cy - L.r * 1.1 + 6;
+    const head = `${wh.title}${st ? ` · ${st.tier}-TIER` : ''}`;
+    E.text(head, x, y, { size: Math.max(14, fitSize(ctx, head, 17, lw)), weight: '800', align: 'left', color: st ? TIER_COL[st.tier] : '#f0e6cc' });
+    y += 22;
+    const why = [];
+    if (st && st.tilt) why.push([`${TUNING.me.sizes[st.band].name[0]}${TUNING.me.sizes[st.band].name.slice(1).toLowerCase()}: top slices ${st.tilt > 0 ? 'grow' : 'shrink'}`, st.tilt > 0]);
+    if (st && st.prev) { const pe = TUNING.me.wheels.stat[this.me.idx[k - 1]]; why.push([`After ${pe[2]} ${WHEELS[k - 1].title.toLowerCase()}: top slices ${st.prev > 0 ? 'grow' : 'shrink'}`, st.prev > 0]); }
+    if (st && !why.length) why.push(['A plain wheel', null]);
+    for (const [t, up] of why) for (const ln of wrapPx(ctx, t, lw, 14, '700').slice(0, 2)) { E.text(ln, x, y, { size: 14, weight: '700', align: 'left', color: up == null ? '#9aa4b2' : up ? '#86efac' : '#fca5a5' }); y += 17; }
+    y += 6;
+    const tot = w.reduce((a, q) => a + q, 0), t0 = this.w0.reduce((a, q) => a + q, 0), t1 = this.w1.reduce((a, q) => a + q, 0), rh = Math.min(22, (L.bot - 40 - y) / list.length);
+    list.forEach((e, n) => {
+      const ry = y + n * rh, hit = landed && n === this.me.idx[k], pct = Math.round(w[n] / tot * 100), d = Math.round(this.w1[n] / t1 * 100) - Math.round(this.w0[n] / t0 * 100);
+      if (hit) E.roundRect(x - 4, ry - rh / 2, lw + 4, rh, 6, 'rgba(255,210,74,0.18)', null);
+      ctx.fillStyle = sliceCol(wh, n); ctx.fillRect(x, ry - 6, 12, 12);
+      E.text(e[2], x + 18, ry, { size: 14, weight: hit ? '800' : '700', align: 'left', color: hit ? '#ffd24a' : '#e2e8f0' });
+      E.text(`${pct}%`, x + lw - 40, ry, { size: 14, weight: '800', align: 'right', color: hit ? '#ffd24a' : '#c4b99a' });
+      if (this.shaped && d) E.text(`${d > 0 ? '▲' : '▼'}${Math.abs(d)}`, x + lw, ry, { size: 14, weight: '800', align: 'right', color: d > 0 ? '#4ade80' : '#f87171' });
+    });
+  },
+  // your card, building as the answers land: each row slides in and glows gold for a moment
+  drawBuild(ctx, E, L) {
+    const me = this.me, M = TUNING.me, done = this.i + (this.ph === 'land' ? 1 : 0), x = L.kx, w = L.kw, rh = Math.min(30, (L.kh - 34) / WHEELS.length);
+    E.roundRect(x, L.ky, w, 34 + rh * WHEELS.length, 14, '#1d2a2a', '#4ade80');
+    E.text(me.name.toUpperCase(), x + w / 2, L.ky + 17, { size: Math.max(14, fitSize(ctx, me.name.toUpperCase(), 16, w - 16)), weight: '800', color: '#9fe3c6' });
+    for (let n = 0; n < WHEELS.length; n++) {
+      const y = L.ky + 34 + rh * (n + 0.5), e = WHEELS[n].list(me)[me.idx[n]];
+      if (n >= done) { E.text(WHEELS[n].title, x + 10, y, { size: 14, weight: '700', align: 'left', color: 'rgba(196,185,154,0.35)' }); continue; }
+      const age = this.landT[n] != null ? E.time - this.landT[n] : 9, slide = (1 - clamp(age / 0.2, 0, 1)) * 24, glow = clamp(1 - age / 0.6, 0, 1);
+      if (glow > 0) E.roundRect(x + 4, y - rh / 2 + 2, w - 8, rh - 4, 6, `rgba(255,210,74,${0.3 * glow})`, null);
+      E.text(WHEELS[n].title, x + 10 + slide, y, { size: 14, weight: '700', align: 'left', color: '#c4b99a' });
+      if (ME_WHEEL[n] === 'stat') {
+        const seg = Math.min(14, (w - 106) / 5);
+        for (let q = 0; q < 5; q++) { ctx.fillStyle = q < e[0] ? '#e6c866' : 'rgba(255,255,255,0.12)'; ctx.fillRect(x + w - 10 - (5 - q) * seg + slide, y - 5, seg - 3, 10); }
+      } else {
+        const v = n === 0 ? `${e[2]}  ♥${halvesText(M.sizes[e[0]].hearts * 2)}` : n === 5 ? weaponName(me) : e[2];
+        E.text(v, x + w - 10 + slide, y, { size: Math.max(14, fitSize(ctx, v, 15, w - 100)), weight: '800', align: 'right', color: isRare(n, e[0]) ? '#ffd24a' : '#f0e6cc' });
+      }
+    }
+  },
   onTap(p, E) {
     if (portrait(E)) return;
     if (this.i < WHEELS.length) {
-      if (!this.landed) this.land(E); else { this.i++; this.t = 0; this.landed = false; }
+      if (this.ph === 'shape') this.go(E); else if (this.ph === 'spin') this.land(E); else this.at(this.i + 1);
       return;
     }
     if (this.cardT <= 0.3 || this.spin) return;
@@ -4173,6 +4566,7 @@ const play = {
   state, lay, foeF, youF, toScreen, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, lamed, applyCard, finReady, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
+  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize,
   ARENAS, rollGauntlet, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     if (params.resume) resumeRun(E, params.resume); else newRound(E, params.seed, params.me || rollMe(params.seed), undefined, params.arena);
@@ -4182,9 +4576,15 @@ const play = {
   },
   update(dt, E) {
     if (portrait(E)) return;
+    popTop = E.safe.top + 80;
     if (state.draft) { state.draft.t += dt; return; }
     if (state.tent) { state.tent.t += dt; return; }
     if (state.caption) { state.caption.t -= dt; if (state.caption.t <= 0) state.caption = null; }
+    // the juice's clocks run on real time: the fell's camera, the war paint, the banner, the heart's shatter, and its slow motion
+    state.zoomT = Math.max(0, state.zoomT - dt); state.paintT = Math.max(0, state.paintT - dt);
+    if (state.banner && (state.banner.t -= dt) <= 0) state.banner = null;
+    if (state.shatter && (state.shatter.t -= dt) <= 0) state.shatter = null;
+    if (state.slowFx > 0) { state.slowFx -= dt; dt *= state.slowMul; }
     // slow time: the open window's brief slow, and the whole of the first feint ever
     if (state.slowT > 0) { state.slowT -= dt; dt *= TUNING.openWin.slow; } else if (state.sw && state.sw.lesson === 'slow') dt *= TUNING.lesson.slow;
     if (state.intro) {
@@ -4217,6 +4617,7 @@ const play = {
     }
     stepFoe(dt, E);
     stepYou(E, dt);
+    stepJuice(E, dt);
 
     poseFoe(E, dt);
     poseYou(E, dt);
@@ -4280,7 +4681,7 @@ const play = {
     const ai = ARENAS.indexOf(arena()), was = E.save.get('arenas', 0), opened = won && ai + 1 > was ? ARENAS[ai + 1] || null : null;
     if (won && ai + 1 > was) E.save.set('arenas', ai + 1);
     const wall = won ? E.save.get('wall', []) : E.save.set('wall', [{ name: me.name, bout: reached, female: me.female }, ...E.save.get('wall', [])].slice(0, 8));
-    E.ledger.add('result', { ...r, won, reached, halves: state.hp, sizes: g.map((d) => d.size.id).join(''), weapons: g.map((d) => d.weapon.id).join(','), armour: g.map((d) => d.set.id[0]).join(''),
+    E.ledger.add('result', { ...r, won, reached, halves: state.hp, sizes: g.map((d) => d.size.id[0]).join(''), profs: g.map((d) => d.prof).join(','), weapons: g.map((d) => d.weapon.id).join(','), armour: g.map((d) => d.set.id[0]).join(''),
       stats: g.map((d) => `${d.str}${d.spd}${d.sta}`).join(','), champ: g[g.length - 1].name, lostTo: won ? '' : `${g[reached - 1].name} ${g[reached - 1].size.id} ${g[reached - 1].weapon.id}`,
       moves: Object.entries(state.moveCount).map(([k, v]) => `${k}${v}`).join(','),
       meSize: me.size, meStats: `${me.str}${me.spd}${me.sta}`, meArmour: me.set, mePlates: me.plates.join(','), meTier: me.tier, underdog: me.underdog ? 1 : 0,
@@ -4348,10 +4749,16 @@ const play = {
   render(ctx, E) {
     if (portrait(E)) { rotateCard(ctx, E); return; }
     ctx.save();
+    if (state.zoomT > 0) {
+      const J = TUNING.juice, z = 1 + J.fellZoom * Math.min(1, (J.fellSlow - state.zoomT) / J.zoomIn) * Math.min(1, state.zoomT / 0.3), Ff = foeF(E), fy = Ff.y - 0.5 * Ff.H;
+      ctx.translate(Ff.x, fy); ctx.scale(z, z); ctx.translate(-Ff.x, -fy);
+    }
     drawBackground(ctx, E);
     drawWalls(ctx, E);
     if (state.sw && state.sw.ghostX) drawFighter(ctx, E, { ...youF(E), x: state.sw.ghostX }, state.you, 'you', 0.3 + 0.1 * Math.sin(state.m * 20));
+    for (const g of state.ghosts) drawFighter(ctx, E, { ...youF(E), x: g.x }, state.you, 'you', 0.3 * g.life / TUNING.juice.ghost);
     drawFighter(ctx, E, youF(E), state.you, 'you');
+    if (state.paintT > 0) paintGlow(ctx, E);
     if (state.netT > 0) { const Fy = youF(E); drawNet(ctx, Fy.x, Fy.y - 0.55 * Fy.H, 0.32 * Fy.H * clamp(state.netT / 0.3, 0.6, 1)); }
     if (state.edge && !state.edge.down) drawEdge(ctx, E);
     drawFighter(ctx, E, foeF(E), state.foe, 'foe');
@@ -4360,8 +4767,6 @@ const play = {
     drawZone(ctx, E);
     drawShield(ctx, E);
     drawSwordArm(ctx, E);
-    drawShieldBtns(ctx, E);
-    drawCaption(ctx, E);
 
     for (const f of state.fx) {
       const t = clamp(f.life / f.max, 0, 1);
@@ -4396,6 +4801,9 @@ const play = {
     }
     ctx.globalAlpha = 1;
     ctx.restore();
+    // the left column and the caption stay still while the camera punches in
+    drawShieldBtns(ctx, E);
+    drawCaption(ctx, E);
 
     if (state.hurt > 0) {
       const g2 = ctx.createRadialGradient(E.w / 2, E.h / 2, E.h * 0.4, E.w / 2, E.h / 2, E.w * 0.6);
@@ -4406,6 +4814,7 @@ const play = {
       const t = q.life / q.max;
       E.text(q.s, q.x, q.y - (1 - t) * 34, { size: q.size * (1 + (1 - t) * 0.2), color: q.color, weight: '800', alpha: Math.min(1, t * 2) });
     }
+    if (state.banner) drawBanner(ctx, E);
 
     // HUD, inside the safe area
     const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right, TS = TUNING.stamina;
@@ -4413,6 +4822,9 @@ const play = {
     drawCrowdMeter(ctx, E, l, top + 34);
     drawCoin(ctx, l + 6, top + 53, 6);
     E.text(`${state.gold}`, l + 17, top + 53, { size: 14, align: 'left', weight: '800', color: '#fbbf24' });
+    // a dark plate under the right column, so a tall foe's helmet passing behind it never hides a row
+    const H2 = HUD_ROW;
+    E.roundRect(E.w - r - 176, top - 6, 182, (state.picks.length ? H2.shield : H2.shield0) + 18, 8, 'rgba(18,12,22,0.72)', null);
     // hearts in quarters: a plated hit takes a quarter
     const nh = Math.ceil(state.maxHp / 2);
     for (let i = 0; i < nh; i++) {
@@ -4420,7 +4832,8 @@ const play = {
       E.text('\u2665', hx, top + 14, { size: 26, color: have >= 1 ? '#ef4444' : '#3b3f46' });
       if (have > 0 && have < 1) { ctx.save(); ctx.beginPath(); ctx.rect(hx - 13, top - 4, 26 * have, 36); ctx.clip(); E.text('\u2665', hx, top + 14, { size: 26, color: '#ef4444' }); ctx.restore(); }
     }
-    const bw = 110, bx = E.w - r - bw, sf = state.stamina / state.staMax, H2 = HUD_ROW;
+    if (state.shatter) heartShatter(ctx, E.w - r - 10 - (nh - 1 - Math.min(nh - 1, state.shatter.i)) * 26, top + 14, 1 - state.shatter.t / TUNING.juice.shatter);
+    const bw = 110, bx = E.w - r - bw, sf = state.stamina / state.staMax;
     drawPips(ctx, E, bx, bw, top + H2.pips);
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(bx - 1, top + H2.sta - 1, bw + 2, 11);
     const flashOn = state.exhaust > 0 && Math.floor(state.m * 8) % 2 === 0;
@@ -4536,14 +4949,17 @@ const over = {
     y += 18;
     // the run's gold: what is left (it resets with the run) and what the crowd's style earned, and the tent's wares
     const wn = p.wares.map((id) => WARES.find((q) => q.id === id).name.replace(' {weapon}', '')), gl = `Gold: ${p.gold} left of ${p.goldEarned} earned${wn.length ? `  \u00b7  bought: ${wn.join(', ')}` : ''}`;
-    E.text(gl, E.w / 2, y, { size: fitSize(ctx, gl, 12, E.w - 32, '700'), weight: '700', color: '#fbbf24' });
-    y += 18;
+    const gls = wrapPx(ctx, gl, E.w - 32 - E.safe.left - E.safe.right, 14, '700');
+    gls.forEach((t, k) => E.text(t, E.w / 2, y + k * 17, { size: 14, weight: '700', color: '#fbbf24' }));
+    y += 17 * gls.length + 1;
     if (!p.won) {
       const her = me.female ? 'her' : 'his';
       E.text(`${me.name} fell in bout ${p.reached}. Old Brutus chalked ${her} name on the wall of the pit.`, E.w / 2, y, { size: 13, weight: '700', color: '#f0e6cc' });
       y += 18;
       // the pit wall: the last eight fallen, newest first, chalked on stone
       const names = p.wall.slice(0, 8), sw = Math.min(E.w - 40, 120 * names.length + 20), sx = (E.w - sw) / 2;
+      ctx.font = '700 12px system-ui, sans-serif';
+      while (names.length > 1 && names.reduce((a2, q) => a2 + ctx.measureText(`${q.name} (${q.bout})`).width + 26, 0) > sw - 20) names.pop();
       E.roundRect(sx, y - 2, sw, 24, 6, '#3a322c', '#5a4e44');
       names.forEach((q, i) => E.text(`${q.name} (${q.bout})`, sx + 10 + (sw - 20) * (i + 0.5) / names.length, y + 10, { size: 12, weight: '700', color: i === 0 ? '#ffffff' : '#d6d0c4', alpha: i === 0 ? 1 : 0.75 }));
       y += 32;
@@ -4587,7 +5003,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 7,
+  saveVersion: 8,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -4615,6 +5031,15 @@ export const game = {
       data.rivals = data.rival ? { pit: data.rival } : {}; delete data.rival;
       data.arenas = 0; data.arenasCheck = 1;
       if (data.run) data.run.arena = 'pit';
+    }
+    // v8 (v2 step 3.5, five sizes): the old three sizes map S to Lean, M to Medium and L to Big, for your saved fighter (his size wheel's landing moves up
+    // one slice) and every rival and his partner, who gain the profile nearest their stats; both stand at their band's own height
+    if (fromVersion < 8) {
+      const MAP = { S: 'lean', M: 'medium', L: 'big' }, fix = (rv) => { if (!rv) return; rv.size = MAP[rv.size] || rv.size; rv.vary = rv.vary || 0; rv.prof = rv.prof || profileOf(rv); fix(rv.pair); };
+      for (const rv of Object.values(data.rivals || {})) fix(rv);
+      const r = data.run;
+      if (r && r.me && MAP[r.me.size]) { r.me.idx = r.me.idx.slice(); r.me.idx[0] += 1; r.me.vary = 0; r.me = deriveMe(r.me); }
+      if (r) fix(r.rival);
     }
     return data;
   },
