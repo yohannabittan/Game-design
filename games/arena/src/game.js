@@ -41,7 +41,7 @@ const TUNING = {
   },
   stamina: { max: 100, regen: 45, delay: 0.45, tired: 0.5, idleMul: 1.8, exhaust: 1.5 },  // tired: damage multiplier at zero; idleMul: regen when not swinging, blocking or dodging; exhaust: seconds with no swings at zero
   part: { hp: 3 },         // damage a gap part takes before it is disabled
-  skin: { glint: 0.16, cutFade: 3.5, maxDpr: 3 },  // art only: tip distance (H) at which a slot glints, seconds a cut line takes to fade, sprite pixel-ratio cap
+  skin: { glint: 0.16, cutFade: 3.5, maxDpr: 3, gearGlint: 2.8, gearGlintA: 0.55 },  // art only: tip distance (H) at which a slot glints, seconds a cut line takes to fade, sprite pixel-ratio cap, seconds between a worn piece's glints and their brightest alpha
   armour: { dents: 3, kick: 0.6 },
   stun: 1.2,               // seconds the foe is stunned when the head goes
   swing: {
@@ -163,9 +163,10 @@ const TUNING = {
   foot: { pace: 0.14, drift: { idle: 0.6, secs: 1.5 }, gainDur: 0.16, back: 0.2, walkBack: 0.42, close: 0.1, room: [0.6, 0.7], margin: 22, foeV: 0.75, commit: 0.3, reach: 0.12, push: 0.5, wallMsg: 0.9, give: 0.02, chase: 1.0, chaseV: 1.6, chaseSwing: 0.5 },
   // the bout's grade: S needs no hits taken and reads + punishes of at least S.skill; A and B allow up to taken hits with slot hits + reads + punishes of at least skill
   grade: { S: { taken: 0, skill: 2 }, A: { taken: 1, skill: 3 }, B: { taken: 3, skill: 1 } },
-  // the draft: cards dealt (the last is priced, a tier above the rest), weights per grade for the free cards (common, rare), the pull on a family you hold, at most
-  // perFam cards of one family a draft, the chance the priced slot deals a duo you can play, its prices by tier and a duo's, delay before a pick counts (s)
-  draft: { deal: 3, odds: { S: [20, 80], A: [35, 65], B: [55, 45], C: [75, 25] }, pull: 3, perFam: 2, duo: 0.6, price: [0, 30, 60], duoPrice: 50, delay: 0.45 },
+  // the draft: cards dealt (the last is priced), weights per grade for the free cards (common, rare), the pull on a family you wear, at most perFam cards of
+  // one family a draft; the priced slot's cascade, each tier's own chance (a set bonus you qualify for, else a legendary, else an epic, else a rare);
+  // prices by rarity (common, rare, epic, legendary) and a set's; delay before a pick counts (s)
+  draft: { deal: 3, odds: { S: [20, 80], A: [35, 65], B: [55, 45], C: [75, 25] }, pull: 3, perFam: 2, cascade: { set: 0.6, legend: 0.15, epic: 0.3 }, price: [0, 30, 45, 60], duoPrice: 50, delay: 0.45 },
   // gold, per run: a fell, each feint read, perfect block and slot hit in the bout, and a bout with no hits taken
   gold: { fell: 20, read: 4, perfect: 2, slot: 2, clean: 15 },
   // the armourer's tent, once a run after bout `after`: big wares and cheap ones (the old commons) shown, each ware's price; forge = your weapon's damage x
@@ -192,6 +193,12 @@ const TUNING = {
   mom: { max: 5, perfect: 1, read: 1, dodge: 1, lame: 1, hold: 0.45, slop: 14, still: 0.3 },
   // bleed on him: at most max stacks, each lasting dur s; every tick s each stack deals dmg
   bleed: { max: 5, dur: 6, tick: 1, dmg: 0.5 },
+  // his gear (from the deck, one piece a slot): pieces per bout, the highest rarity each bout deals (a champion also wears one legendary). Four pieces act for
+  // him: Thorns (a blow on his guard costs you thorns stamina), Bloodlust (his blow that lands gives him bloodlust stamina), Riposte (he counters a blow off
+  // his guard) and Unbreakable (he shrugs off your first hit each bout); the rest are a look and a warning
+  foeGear: { n: [0, 1, 1, 2, 3], rar: [0, 1, 1, 2, 2], thorns: 8, bloodlust: 15 },
+  // his gap guards: per bout, the chance of one, then of a second; each gap's weight (the gorget the most common); the gaps always left open
+  guard: { one: [0, 0.35, 0.5, 0.65, 1], two: [0, 0.15, 0.25, 0.35, 0.4], w: { 'slot-neck': 4, 'slot-armpit': 1.5, 'slot-waist': 1.5, 'slot-elbow': 1.5, 'slot-knee': 1.5 }, open: 2 },
   // crippling him: a lamed sword arm lengthens his wind-ups by arm; a lamed shield arm makes his cover slide cover x slower; lamed legs walk at legs x
   lame: { arm: 0.2, cover: 2.5, legs: 0.55 },
 };
@@ -270,42 +277,44 @@ const EPILOGUE = {
 };
 const storyLine = (me) => `${me.name}, ${ORIGINS[me.origin].text}. Fights for: ${REASON_NAME[me.reason]}.`;
 
-// The deck: four families, each card one rule (fam, tier 0 common, 1 rare, 2 keystone; key = a keystone, which names its price). needs: a card that is
-// useless without your shield or your dodge; bans: what a keystone takes away. Finishers spend Momentum (TUNING.fin). A duo marries two families.
+// The deck: four families, each card one rule and one piece of gear (fam; tier = rarity: 0 common, 1 rare, 2 epic, 3 legendary; key = a keystone, the
+// legendary that names its price). slot: where the piece is worn (one piece a slot), gear: its name. needs: a card that is useless without your shield or
+// your dodge; bans: what a keystone takes away. Finishers are war paint (TUNING.fin) and a duo is a set bonus; neither takes a slot.
 const FAMS = {
   wall: { name: 'The Wall', col: '#7dd3fc' }, blood: { name: 'Blood', col: '#f87171' }, dancer: { name: 'The Dancer', col: '#86efac' }, brute: { name: 'The Brute', col: '#fbbf24' },
-  fin: { name: 'Finisher', col: '#e879f9' }, rare: { name: 'Rare', col: '#c4b99a' },
+  fin: { name: 'War paint', col: '#e879f9' }, rare: { name: 'Lone piece', col: '#c4b99a' },
 };
+const SLOT_NAMES = ['helmet', 'shield', 'weapon', 'chest', 'arms', 'legs', 'cloak', 'belt'];
 const DECK = [
-  { id: 'riposte', fam: 'wall', tier: 0, name: 'Riposte', line: 'A perfect block gives a free counter jab', needs: 'shield' },
-  { id: 'shove', fam: 'wall', tier: 0, name: 'Shield Shove', line: 'A perfect block shoves him; at his wall he is stunned 1 s', needs: 'shield' },
-  { id: 'braced', fam: 'wall', tier: 0, name: 'Braced', line: 'Every block gives 1 Momentum, not only perfect ones', needs: 'shield' },
-  { id: 'thorns', fam: 'wall', tier: 1, name: 'Thorns', line: 'Each block dents his weapon; 3 dents disarm him', needs: 'shield' },
-  { id: 'standfast', fam: 'wall', tier: 1, name: 'Stand Fast', line: 'With your back to the wall, every block is perfect', needs: 'shield' },
-  { id: 'ironwall', fam: 'wall', tier: 2, key: true, name: 'Iron Wall', line: 'Perfect window x2, each a free slot hit; but no dodge', needs: 'shield', bans: 'dodge' },
-  { id: 'serrated', fam: 'blood', tier: 0, name: 'Serrated Edge', line: 'Slot hits make him bleed 1' },
-  { id: 'rend', fam: 'blood', tier: 0, name: 'Rend', line: 'A slash on a bare part makes him bleed 1' },
-  { id: 'vein', fam: 'blood', tier: 1, name: 'Open Vein', line: 'While he bleeds, his tells are 20% slower' },
-  { id: 'bloodlust', fam: 'blood', tier: 1, name: 'Bloodlust', line: 'Each bleed tick gives you 2 stamina per stack' },
-  { id: 'cruel', fam: 'blood', tier: 1, name: 'Cruel Edge', line: 'Slot hits do +1 for each bleed on him' },
-  { id: 'haem', fam: 'blood', tier: 2, key: true, name: 'Haemorrhage', line: 'His bleed passes to the next foe; but bare hits do nothing' },
-  { id: 'sidestep', fam: 'dancer', tier: 0, name: 'Sidestep', line: 'A dodge in his tell makes him overcommit: winded', needs: 'dodge' },
-  { id: 'lightfeet', fam: 'dancer', tier: 0, name: 'Light Feet', line: 'A dodge in his tell gives back its stamina', needs: 'dodge' },
-  { id: 'blur', fam: 'dancer', tier: 1, name: 'Blur', line: 'A backstep leaves a ghost he attacks instead', needs: 'dodge' },
-  { id: 'matador', fam: 'dancer', tier: 1, name: 'Matador', line: 'A dodged thrust or bash: he stumbles, stunned 1 s', needs: 'dodge' },
-  { id: 'slip', fam: 'dancer', tier: 1, name: 'Slip and Stab', line: 'A jab within 1 s of a tell dodge does 2x', needs: 'dodge' },
-  { id: 'untouch', fam: 'dancer', tier: 2, key: true, name: 'Untouchable', line: 'Free dodges; a tell dodge opens all slots 1 s; but no shield', needs: 'dodge', bans: 'shield' },
-  { id: 'heavy', fam: 'brute', tier: 0, name: 'Heavy Arm', line: 'Your overheads dent plates twice as much' },
-  { id: 'brawler', fam: 'brute', tier: 0, name: 'Brawler', line: 'Breaking a plate gives 2 Momentum' },
-  { id: 'breaker', fam: 'brute', tier: 1, name: 'Plate Breaker', line: 'An overhead strips the plate it hits' },
-  { id: 'bones', fam: 'brute', tier: 1, name: 'Bonebreaker', line: 'An overhead on a bare limb lames it at once' },
-  { id: 'jugg', fam: 'brute', tier: 1, name: 'Juggernaut', line: 'Lunging, his blow costs half and does not stop you' },
-  { id: 'titan', fam: 'brute', tier: 2, key: true, name: 'Titan', line: "+2 hearts; every overhead staggers him; but you can't dodge", bans: 'dodge' },
-  { id: 'exec', fam: 'fin', tier: 1, name: 'Execute', line: '3 pips, him below half: your next slot hit fells him' },
-  { id: 'whirl', fam: 'fin', tier: 1, name: 'Whirlwind', line: '2 pips: your next slash hits every slot it crosses' },
-  { id: 'breath', fam: 'fin', tier: 1, name: 'Second Breath', line: '2 pips: refill all your stamina' },
-  { id: 'disarm', fam: 'fin', tier: 1, name: 'Disarm', line: '4 pips: his weapon flies; 3 s of fists only' },
-  { id: 'unbreak', fam: 'rare', tier: 2, name: 'Unbreakable', line: 'The first hit each bout is ignored' },
+  { id: 'riposte', fam: 'wall', tier: 0, slot: 'arms', gear: 'Bronze Bracers', name: 'Riposte', line: 'A perfect block gives a free counter jab', needs: 'shield' },
+  { id: 'shove', fam: 'wall', tier: 0, slot: 'chest', gear: 'Bronze Phalerae', name: 'Shield Shove', line: 'A perfect block shoves him; at his wall he is stunned 1 s', needs: 'shield' },
+  { id: 'braced', fam: 'wall', tier: 0, slot: 'helmet', gear: 'Bronze Crest', name: 'Braced', line: 'Every block gives 1 Momentum, not only perfect ones', needs: 'shield' },
+  { id: 'thorns', fam: 'wall', tier: 2, slot: 'shield', gear: 'Spiked Shield', name: 'Thorns', line: 'Each block dents his weapon; 3 dents disarm him', needs: 'shield' },
+  { id: 'standfast', fam: 'wall', tier: 1, slot: 'legs', gear: 'Bronze Boots', name: 'Stand Fast', line: 'With your back to the wall, every block is perfect', needs: 'shield' },
+  { id: 'ironwall', fam: 'wall', tier: 3, key: true, slot: 'shield', gear: 'Tower Shield', name: 'Iron Wall', line: 'Perfect window x2, each a free slot hit; but no dodge', needs: 'shield', bans: 'dodge' },
+  { id: 'serrated', fam: 'blood', tier: 0, slot: 'weapon', gear: 'Saw-toothed Blade', name: 'Serrated Edge', line: 'Slot hits make him bleed 1' },
+  { id: 'rend', fam: 'blood', tier: 0, slot: 'arms', gear: 'Barbed Bracers', name: 'Rend', line: 'A slash on a bare part makes him bleed 1' },
+  { id: 'vein', fam: 'blood', tier: 1, slot: 'helmet', gear: 'Blood Band', name: 'Open Vein', line: 'While he bleeds, his tells are 20% slower' },
+  { id: 'bloodlust', fam: 'blood', tier: 1, slot: 'cloak', gear: 'Wolf Pelt', name: 'Bloodlust', line: 'Each bleed tick gives you 2 stamina per stack' },
+  { id: 'cruel', fam: 'blood', tier: 2, slot: 'belt', gear: 'Hook Belt', name: 'Cruel Edge', line: 'Slot hits do +1 for each bleed on him' },
+  { id: 'haem', fam: 'blood', tier: 3, key: true, slot: 'weapon', gear: 'Hooked Sica', name: 'Haemorrhage', line: 'His bleed passes to the next foe; but bare hits do nothing' },
+  { id: 'sidestep', fam: 'dancer', tier: 0, slot: 'legs', gear: "Dancer's Sandals", name: 'Sidestep', line: 'A dodge in his tell makes him overcommit: winded', needs: 'dodge' },
+  { id: 'lightfeet', fam: 'dancer', tier: 0, slot: 'belt', gear: 'Ribbon Sash', name: 'Light Feet', line: 'A dodge in his tell gives back its stamina', needs: 'dodge' },
+  { id: 'blur', fam: 'dancer', tier: 1, slot: 'chest', gear: 'Ghost Silk', name: 'Blur', line: 'A backstep leaves a ghost he attacks instead', needs: 'dodge' },
+  { id: 'matador', fam: 'dancer', tier: 2, slot: 'arms', gear: "Matador's Ribbons", name: 'Matador', line: 'A dodged thrust or bash: he stumbles, stunned 1 s', needs: 'dodge' },
+  { id: 'slip', fam: 'dancer', tier: 1, slot: 'helmet', gear: 'Ribbon Band', name: 'Slip and Stab', line: 'A jab within 1 s of a tell dodge does 2x', needs: 'dodge' },
+  { id: 'untouch', fam: 'dancer', tier: 3, key: true, slot: 'cloak', gear: 'Flowing Cape', name: 'Untouchable', line: 'Free dodges; a tell dodge opens all slots 1 s; but no shield', needs: 'dodge', bans: 'shield' },
+  { id: 'heavy', fam: 'brute', tier: 0, slot: 'weapon', gear: 'Iron Pommel', name: 'Heavy Arm', line: 'Your overheads dent plates twice as much' },
+  { id: 'brawler', fam: 'brute', tier: 0, slot: 'belt', gear: 'Chain Belt', name: 'Brawler', line: 'Breaking a plate gives 2 Momentum' },
+  { id: 'breaker', fam: 'brute', tier: 2, slot: 'helmet', gear: 'Horned Cap', name: 'Plate Breaker', line: 'An overhead strips the plate it hits' },
+  { id: 'bones', fam: 'brute', tier: 1, slot: 'legs', gear: 'Spiked Boots', name: 'Bonebreaker', line: 'An overhead on a bare limb lames it at once' },
+  { id: 'jugg', fam: 'brute', tier: 1, slot: 'arms', gear: 'Iron Pauldrons', name: 'Juggernaut', line: 'Lunging, his blow costs half and does not stop you' },
+  { id: 'titan', fam: 'brute', tier: 3, key: true, slot: 'chest', gear: 'Black Plate', name: 'Titan', line: "+2 hearts; every overhead staggers him; but you can't dodge", bans: 'dodge' },
+  { id: 'exec', fam: 'fin', tier: 1, gear: 'Red Bar', name: 'Execute', line: '3 pips, him below half: your next slot hit fells him' },
+  { id: 'whirl', fam: 'fin', tier: 1, gear: 'Woad Spiral', name: 'Whirlwind', line: '2 pips: your next slash hits every slot it crosses' },
+  { id: 'breath', fam: 'fin', tier: 1, gear: 'Chalk Dots', name: 'Second Breath', line: '2 pips: refill all your stamina' },
+  { id: 'disarm', fam: 'fin', tier: 1, gear: 'Ochre Zigzag', name: 'Disarm', line: '4 pips: his weapon flies; 3 s of fists only' },
+  { id: 'unbreak', fam: 'rare', tier: 2, slot: 'cloak', gear: 'Lion Pelt', name: 'Unbreakable', line: 'The first hit each bout is ignored' },
   { id: 'cape', duo: ['dancer', 'wall'], tier: 2, name: "Matador's Cape", line: 'Every 2nd perfect block or tell dodge stuns him 1 s' },
   { id: 'butcher', duo: ['brute', 'blood'], tier: 2, name: 'Butcher', line: 'A broken plate makes him bleed 2' },
   { id: 'spiked', duo: ['wall', 'blood'], tier: 2, name: 'Spiked Boss', line: 'A perfect block makes him bleed 1', needs: 'shield' },
@@ -331,8 +340,23 @@ const WARES = [
   { id: 'tough', name: 'Tough Shield', line: '2 more shield hits' },
   { id: 'stance', name: 'Wide Stance', line: 'no push-back from a bash' },
 ];
-const TIERS = ['COMMON', 'RARE', 'EPIC'], TIER_TINT = ['#c4b99a', '#7dd3fc', '#e879f9'], DUO_GOLD = '#ffd24a';
-const tierName = (c) => (c.duo ? 'DUO' : c.key ? 'KEYSTONE' : c.fam === 'fin' ? `FINISHER \u00b7 ${TUNING.fin[c.id]} PIPS` : TIERS[c.tier]);
+// Rarity has a colour: the card's border and the glint on the worn piece. A set is gold.
+const TIERS = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'], TIER_TINT = ['#c4b99a', '#7dd3fc', '#c084fc', '#fb923c'], DUO_GOLD = '#ffd24a';
+const rarCol = (c) => (c.duo ? DUO_GOLD : TIER_TINT[c.tier]);
+const tierName = (c) => (c.duo ? 'SET BONUS' : c.fam === 'fin' ? `WAR PAINT \u00b7 ${TUNING.fin[c.id]} PIPS` : `${TIERS[c.tier]}${c.key ? ' KEYSTONE' : ''} \u00b7 ${c.slot.toUpperCase()}`);
+// the title a card shows: the piece's name, the war paint's pattern, or the set's name
+const titleOf = (c) => (c.duo ? `${c.name} set` : c.gear);
+// The gear worn: the last piece picked for each slot (a migrated run may still hold two for one slot; the later one shows).
+function gearOf(ids) {
+  const out = {};
+  for (const id of ids) { const c = CARD[id]; if (c && c.slot) out[c.slot] = c; }
+  return out;
+}
+const wornGear = () => gearOf(state.picks);
+// the piece a card would replace: the one now worn in its slot
+const replaces = (c) => (c.slot ? wornGear()[c.slot] || null : null);
+// The gap guards: foe-only pieces, each shutting one joint gap for the bout
+const GUARDS = { 'slot-neck': 'Gorget', 'slot-armpit': 'Manica', 'slot-waist': 'Wide Belt', 'slot-elbow': 'Couters', 'slot-knee': 'Knee Guards' };
 
 // Parts in body units. Arms hang from a joint (their own frame): d is relative to the joint.
 const PARTS = [
@@ -474,17 +498,46 @@ function rollGauntlet(seed, rival) {
   const size = rival && T.sizes.find((z) => z.id === rival.size), weapon = rival && W.find((z) => z.id === rival.weapon), set = rival && T.armourSets.find((z) => z.id === rival.set);
   if (size && weapon && set) {
     const c = g[g.length - 1];
-    g[g.length - 1] = { ...c, name: rival.name, rival: true, size, weapon, set, str: rival.str, spd: rival.spd, sta: rival.sta, shield: !!rival.shield, mace: !!rival.mace, partSeed: rival.partSeed >>> 0 };
+    g[g.length - 1] = { ...c, name: rival.name, rival: true, size, weapon, set, str: rival.str, spd: rival.spd, sta: rival.sta, shield: !!rival.shield, mace: !!rival.mace, partSeed: rival.partSeed >>> 0, gaps: rival.gaps || {} };
   }
+  // his gear and gap guards, on their own stream so the fighters above roll as they always did; a rival keeps the gear he wore
+  const gr = makeRng(seed ^ 0x2f6b9a17);
+  g.forEach((d, i) => { const gear = rollGear(gr, d, i), guards = rollGuards(gr, d, i); d.gear = d.rival && rival.gear ? rival.gear.slice() : gear; d.guards = guards; });
   return g;
 }
-const rivalOf = (d) => ({ name: d.name, size: d.size.id, weapon: d.weapon.id, set: d.set.id, str: d.str, spd: d.spd, sta: d.sta, shield: d.shield, mace: d.mace, partSeed: d.partSeed });
+const rivalOf = (d) => ({ name: d.name, size: d.size.id, weapon: d.weapon.id, set: d.set.id, str: d.str, spd: d.spd, sta: d.sta, shield: d.shield, mace: d.mace, partSeed: d.partSeed, gear: (d.gear || []).slice(), gaps: { ...(d.gaps || {}) } });
+// His gear from the deck: more pieces in later bouts, one a slot, up to the bout's rarity; a champion also wears a legendary. A shield piece only on a
+// shield-bearer, and the cape that bans the shield only on a man without one.
+function rollGear(rng, d, i) {
+  const F = TUNING.foeGear, out = [], fams = ['wall', 'blood', 'dancer', 'brute', 'rare'];
+  const ok = (c) => c.slot && !out.some((id) => CARD[id].slot === c.slot) && (c.slot !== 'shield' || d.shield) && !(c.bans === 'shield' && d.shield);
+  if (d.champion) { const L = DECK.filter((c) => c.key && ok(c)); out.push(rng.pick(L).id); }
+  for (let k = 0; k < 30 && out.length < F.n[i]; k++) {
+    const fam = rng.pick(fams), list = DECK.filter((c) => c.fam === fam && !c.key && c.tier <= F.rar[i] && ok(c));
+    if (list.length) out.push(rng.pick(list).id);
+  }
+  return out;
+}
+// His gap guards: never in bout 1, at least TUNING.guard.open gaps left open, a chance of one (and then of a second) rising by bout, the champion always one,
+// the gorget the most common. A rival first guards the gap you hit most against him.
+function rollGuards(rng, d, i) {
+  const G = TUNING.guard, open = foeParts(makeRng(d.partSeed), d.set).filter((q) => q.slot).map((q) => q.d.id), room = Math.max(0, open.length - G.open), out = [];
+  let n = rng.chance(G.one[i]) ? (rng.chance(G.two[i]) ? 2 : 1) : 0;
+  if (d.champion) n = Math.max(n, 1);
+  if (GAUNTLET[i].spar) n = 0;
+  const gaps = d.rival && d.gaps, best = gaps && open.filter((id) => gaps[id] > 0).sort((a, b) => gaps[b] - gaps[a])[0];
+  if (best && n > 0) out.push(best);
+  while (out.length < Math.min(n, room)) out.push(pickW(rng, open.filter((id) => !out.includes(id)).map((id) => [id, G.w[id]])));
+  return out;
+}
+// the guarded gaps are shut: drawn as their guard, and hit as a guard
+function guardParts(parts, guards) { for (const q of parts) if (q.slot && (guards || []).includes(q.d.id)) q.guard = true; return parts; }
 
 function newRack(E) {
   const f = state.foe, d = state.gauntlet[state.rack], FT = TUNING.foe;
   Object.assign(f, d);
   f.wname = d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
-  f.parts = foeParts(makeRng(d.partSeed), d.set);
+  f.parts = guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards); f.look = foeLook(d); f.cloak = null;
   f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1)); f.hp = f.maxHp; f.shown = f.hp;
   f.staMax = TUNING.foeSta.base + TUNING.foeSta.per * d.sta; f.sta = f.staMax; f.staT = 9; f.staShown = 1;
   f.home = d.weapon.range + d.size.reach; f.strike = d.weapon.strike + d.size.reach;
@@ -498,7 +551,7 @@ function newRack(E) {
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
   settleFeint('none');
-  state.bout = { felled: false, shrugged: false, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken };
+  state.bout = { felled: false, shrugged: false, foeShrug: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken };
   state.open = 0; state.riposte = 0; state.slowT = 0; state.snapT = 0;
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
   // both fighters start each bout back on their marks
@@ -550,7 +603,7 @@ const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token'
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
   const c = state.gauntlet[state.gauntlet.length - 1];
-  const d = state.draft, draft = d ? { grade: d.grade, tally: d.tally, gold: d.gold, ids: d.cards.map((q) => q.id), priced: d.priced } : null;
+  const d = state.draft, draft = d ? { grade: d.grade, tally: d.tally, gold: d.gold, ids: d.cards.map((q) => q.id), priced: d.priced, odds: d.odds } : null;
   E.save.set('run', JSON.parse(JSON.stringify({ seed: state.seed, rack, me: state.me, rival: c.rival ? rivalOf(c) : null, draft, ...Object.fromEntries(RUN_KEYS.map((k) => [k, state[k]])) })));
 }
 function resumeRun(E, run) {
@@ -559,7 +612,7 @@ function resumeRun(E, run) {
   state.results = (run.results || []).map((q) => q || undefined);
   state.rack = run.rack; state.you.parts = playerParts(state.me); state.stamina = state.staMax;
   const d = run.draft;
-  if (d) state.draft = { grade: d.grade, tally: d.tally, gold: d.gold, cards: d.ids.map((id) => CARD[id]), priced: d.priced, t: 0, btns: [], reroll: null, help: null, helpOn: false };
+  if (d) state.draft = { grade: d.grade, tally: d.tally, gold: d.gold, cards: d.ids.map((id) => CARD[id]), priced: d.priced, odds: d.odds || [], t: 0, btns: [], reroll: null, help: null, helpOn: false };
 }
 
 // ====== FIGHTER MODEL: layout, your body and sword arm, footwork, defence, the foe's body ======
@@ -912,7 +965,9 @@ function guardUp() { return !state.sw && state.open <= 0 && state.stun <= 0 && s
 const hesitating = () => !!state.sw && !!state.sw.fake && state.sw.hesOn && !state.sw.switched && state.sw.fin <= 0;
 const covering = () => !!state.cover && state.cover.t > 0 && guardUp();
 const guarded = (p) => covering() && Math.hypot(p.cx - state.cover.x, p.cy - state.cover.y) <= state.cover.r;
-const covered = (p) => p.armour || (guarded(p) && !(p.slot && state.openAll > 0));
+const covered = (p) => p.armour || p.guard || (guarded(p) && !(p.slot && state.openAll > 0));
+// a piece of his gear that acts for him (TUNING.foeGear)
+const foeHas = (id) => !!state.foe.gear && state.foe.gear.includes(id);
 // a limb of his lamed for the rest of the bout: armF (sword arm), armB (shield arm), legs
 const LIMB = { armF: 'SWORD ARM', armB: 'SHIELD ARM', legs: 'LEGS' };
 const lamed = (id) => !!state.foe.parts && state.foe.parts.some((p) => p.d.id === id && !p.slot && p.cut);
@@ -1204,7 +1259,7 @@ function whirlwind(E, F, fm, pad) {
     const hx = h.phx + (h.hx - h.phx) * f, hy = h.phy + (h.hy - h.phy) * f, tx = h.pux + (h.ux - h.pux) * f, ty = h.puy + (h.uy - h.puy) * f, n = Math.max(1, Math.ceil(Math.hypot(tx - hx, ty - hy) / 8));
     for (let i = 0; i <= n; i++) {
       const [lx, ly] = toLocal(F, hx + (tx - hx) * i / n, hy + (ty - hy) * i / n);
-      for (const p of fm.parts) if (p.slot && !p.cut && p.cool <= 0 && !hit.has(p)) { const [qx, qy] = partLocal(p, fm, lx, ly); if (inside(p.d, qx, qy, pad)) hit.add(p); }
+      for (const p of fm.parts) if (p.slot && !p.guard && !p.cut && p.cool <= 0 && !hit.has(p)) { const [qx, qy] = partLocal(p, fm, lx, ly); if (inside(p.d, qx, qy, pad)) hit.add(p); }
     }
   }
   if (!hit.size) return false;
@@ -1249,17 +1304,25 @@ function bounce(E, p, at, ang, sp, a) {
     plateBits(sx, sy, 9); ring(sx, sy, 70, '#ffe9a8'); pop(sx, sy - 24, 'PLATE BROKEN', '#ffe9a8', 17); emit(E, 'break', { p });
     E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 }); E.shake(8, 0.2); E.haptic(30);
     stop = J.stopBreak + 0.04;
-  } else pop(at.x, at.y - 18, glance ? 'GLANCE' : !p.armour ? 'GUARDED' : p.dents >= breakAt - 1 ? 'DENT!' : 'CLANG', '#9aa4b2', glance ? 13 : 16);
+  } else pop(at.x, at.y - 18, p.guard ? GUARDS[p.d.id].toUpperCase() : glance ? 'GLANCE' : !p.armour ? 'GUARDED' : p.dents >= breakAt - 1 ? 'DENT!' : 'CLANG', p.guard ? '#ffd24a' : '#9aa4b2', glance ? 13 : 16);
   if (state.cover) state.cover.t = Math.max(state.cover.t, TUNING.cover.dur * 0.5);
-  const onGuard = !p.armour;
+  // his cover (a gap guard is not: it shuts its gap and costs him nothing); his Thorns make a blow on his guard cost you, his Riposte answers it
+  const onGuard = !p.armour && !p.guard;
   if (a.kind === 'over') { emit(E, 'over', { p, at, clang: true }); if (has('titan')) staggerFoe(E); }
   if (onGuard) spendFoe(E, TUNING.foeSta.block);
-  if (a.kind === 'over' || (state.foe.shield && onGuard)) counter(E);
+  if (onGuard && foeHas('thorns')) { state.stamina = Math.max(0, state.stamina - TUNING.foeGear.thorns); state.lastAtk = state.m; pop(at.x, at.y - 40, 'THORNS', '#fca5a5', 15); }
+  if (a.kind === 'over' || (onGuard && (state.foe.shield || foeHas('riposte')))) counter(E);
   return stop;
 }
 
 function gapHit(E, p, at, ang, sp, a, thrust) {
   const T = TUNING, J = T.juice, AT = T.attack, kind = a.kind, f = state.foe, slot = p.slot;
+  // his Unbreakable (the lion pelt): your first hit each bout is shrugged off
+  if (foeHas('unbreak') && !state.bout.foeShrug) {
+    state.bout.foeShrug = true; p.cool = T.hit.cool;
+    sparks(at.x, at.y, ang + Math.PI, 14); clangSound(E, 0); pop(at.x, at.y - 20, 'SHRUGGED OFF', '#e879f9', 22);
+    return J.stopClang;
+  }
   const MW = meWeapon();
   let dmg = kind === 'jab' ? AT.jab.dmg : kind === 'over' ? AT.over.dmg : sp >= T.hit.mid ? AT.slash.fastDmg : AT.slash.dmg;
   if (a.tired) dmg = Math.max(1, Math.floor(dmg * T.stamina.tired));
@@ -1281,7 +1344,7 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   // Execute, armed: a slot hit on a foe below half his health fells him
   const exec = thrust && state.armed.exec && f.hp < f.maxHp * T.fin.below;
   if (exec) { dealt = Math.max(dealt, f.hp); state.armed.exec = false; }
-  p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; if (thrust) state.slotHits++; if (winded) state.punishes++;
+  p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; if (thrust) { state.slotHits++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1; } if (winded) state.punishes++;
   f.hp -= dealt;
   const gl = kind === 'jab' ? 0.03 : 0.06;
   // Bonebreaker: an overhead on a bare limb lames it at once
@@ -1424,6 +1487,8 @@ function resolveSwing(E) {
   const part = state.you.parts.find((q) => q.d.id === ZONE_PART[sw.zone.id]), plated = !!(part && part.armour), jugg = has('jugg') && state.you.lungeK > 0.5;
   const dmg = (state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg) * (plated ? TUNING.me.plateMul : 1) * (jugg ? TUNING.cards.jugg : 1);
   sw.outcome = 'hit'; state.hp -= dmg; state.taken++; state.hurt = plated ? 0.25 : 0.4; if (sw.counter) state.counterHits++;
+  // his Bloodlust (the wolf pelt): a blow that lands gives him stamina
+  if (foeHas('bloodlust')) { const f = state.foe; f.sta = Math.min(f.staMax, f.sta + TUNING.foeGear.bloodlust); pop(Ff.x, Ff.y - 1.2 * Ff.H, 'HE DRINKS', '#f87171', 15); }
   if (plated) { state.plateSaves++; part.clang = 0.25; const [px, py] = partCenter(Fy, state.you, part); sparks(px, py, Math.PI, 16); clangSound(E, 0); }
   E.flash('#ff2a2a', plated ? 0.15 : 0.3); E.shake(12 + 4 * sw.dmg, 0.35); E.haptic(50 + 20 * sw.dmg);
   E.audio.play('boom'); E.audio.play('lose', 0.5);
@@ -1451,7 +1516,7 @@ const counterJab = (E) => freeHit(E, 'COUNTER JAB', false);
 // A free jab: into the first bare part (or, for a slot hit, the first open slot)
 function freeHit(E, label, slot) {
   const f = state.foe, F = foeF(E);
-  const p = slot ? f.parts.find((q) => q.slot && !q.cut) : f.parts.find((q) => !q.slot && !q.armour && !q.cut) || f.parts.find((q) => q.slot && !q.cut);
+  const open = (q) => q.slot && !q.guard && !q.cut, p = slot ? f.parts.find(open) : f.parts.find((q) => !q.slot && !q.armour && !q.cut) || f.parts.find(open);
   if (!p || f.hp <= 0) return;
   const [x, y] = partCenter(F, f, p);
   state.stop = Math.max(state.stop, gapHit(E, p, { x, y, lx: p.d.x, ly: p.d.y }, Math.PI, TUNING.hit.mid, { kind: 'jab', tired: false }, slot));
@@ -1585,39 +1650,54 @@ function gradeBout() {
   if (t.taken <= G.B.taken && skill >= G.B.skill) return 'B';
   return 'C';
 }
-// The families you hold, counted (a duo counts for both)
+// The families you wear, counted: each piece for its family, war paint for its own (a set bonus is worn by no family)
 const famsOf = (c) => c.duo || [c.fam];
 function heldFams() {
   const n = {};
-  for (const id of state.picks) for (const f of famsOf(CARD[id])) n[f] = (n[f] || 0) + 1;
+  for (const id of state.picks) { const c = CARD[id]; if (!c.duo) n[c.fam] = (n[c.fam] || 0) + 1; }
   return n;
 }
 // What can be dealt: each card once; never one your keystone makes useless (a dodge card without a dodge, a shield card without a shield), never a keystone
-// that takes away what your keystone lives on, and a duo only once you hold both its families.
+// that takes away what your keystone lives on, and a set bonus only while you wear a piece of both its families.
 function dealable() {
   const held = heldFams(), lost = (k) => (k === 'dodge' ? noDodge() : noShield());
   return DECK.filter((c) => !has(c.id) && !(c.needs && lost(c.needs)) && !(c.bans && DECK.some((k) => k.key && has(k.id) && k.needs === c.bans))
     && !(c.duo && !c.duo.every((f) => held[f])));
 }
 const priceOf = (c) => (c.duo ? TUNING.draft.duoPrice : TUNING.draft.price[c.tier]);
-// Three seeded cards, dealt when the draft opens (salt 0) or rerolled (salt n, never the cards just shown when the deck allows). Two are free: each one's tier
-// by the grade's odds, then a card of that tier, weighted toward families you hold. The third is priced, one tier above the best free card: there a duo you
-// can play comes first (by its chance), then keystones and the plain rare. At most perFam cards of one family in a draft.
+// Within a tier the family is rolled first (families you wear weighted by pull, each set its own), then a piece inside it, so adding pieces to one family
+// never changes another family's share.
+function famPick(rng, list, held) {
+  const key = (c) => (c.duo ? c.id : c.fam), fams = [...new Set(list.map(key))];
+  const f = pickW(rng, fams.map((k) => [k, held[k] ? TUNING.draft.pull : 1]));
+  return rng.pick(list.filter((c) => key(c) === f));
+}
+// The priced slot's cascade (L9), top down: a set bonus, a legendary, an epic, each at its own chance, and otherwise a rare (then a common). A tier with
+// nothing left to deal falls through to the next; its chance is never spread over the others. The odds are what this deal could give, as the "?" shows them.
+const CASCADE = [['set', 'set'], [3, 'legend'], [2, 'epic'], [1, null], [0, null]];
+const inTier = (c, t) => (t === 'set' ? !!c.duo : !c.duo && c.tier === t);
+// The tiers this deal can reach, each with its chance key; the last one takes whatever is left.
+const cascadeTiers = (left) => CASCADE.filter(([t]) => left.some((c) => inTier(c, t))).map(([t, k], i, a) => [t, i === a.length - 1 ? null : k]);
+function cascadeOdds(left) {
+  let rest = 1;
+  return cascadeTiers(left).map(([t, k]) => { const p = k ? rest * TUNING.draft.cascade[k] : rest; rest -= p; return [t, p]; }).filter((e) => e[1] > 0);
+}
+// Three seeded cards, dealt when the draft opens (salt 0) or rerolled (salt n, never the cards just shown when the deck allows). Two are free: each one's
+// rarity (common or rare) by the grade's odds, then its family, then the piece. The third is priced and cascades. At most perFam cards of one family a draft.
 function dealDraft(grade, salt = 0, not = []) {
   const D = TUNING.draft, rng = makeRng((state.seed ^ 0x7f4a7c15) + state.rack * 104729 + salt * 15485863), all = dealable(), held = heldFams(), out = [];
   const fresh = all.filter((c) => !not.includes(c)), pool = fresh.length >= D.deal ? fresh : all;
   const room = (c) => famsOf(c).every((f) => out.filter((o) => famsOf(o).includes(f)).length < D.perFam);
-  const pull = (c) => [c, famsOf(c).some((f) => held[f]) ? D.pull : 1];
   for (let i = 0; i < D.deal - 1; i++) {
-    const left = pool.filter((c) => !c.key && !c.duo && c.tier <= 1 && !out.includes(c) && room(c)), tiers = [0, 1].filter((t) => left.some((c) => c.tier === t));
+    const left = pool.filter((c) => !c.duo && c.tier <= 1 && !out.includes(c) && room(c)), tiers = [0, 1].filter((t) => left.some((c) => c.tier === t));
     if (!tiers.length) break;
     const tier = pickW(rng, tiers.map((t) => [t, D.odds[grade][t]]));
-    out.push(pickW(rng, left.filter((c) => c.tier === tier).map(pull)));
+    out.push(famPick(rng, left.filter((c) => c.tier === tier), held));
   }
-  const top = Math.min(2, 1 + Math.max(0, ...out.map((c) => c.tier))), left = pool.filter((c) => !out.includes(c) && room(c) && c.tier >= 1);
-  const duos = left.filter((c) => c.duo), at = left.filter((c) => c.tier === top && !c.duo);
-  const pick = duos.length && rng.chance(D.duo) ? pickW(rng, duos.map(pull)) : at.length ? pickW(rng, at.map(pull)) : left.length ? pickW(rng, left.map(pull)) : null;
-  return { cards: pick ? [...out, pick] : out, priced: pick ? out.length : -1 };
+  const left = pool.filter((c) => !out.includes(c) && room(c));
+  let pick = null;
+  for (const [t, k] of cascadeTiers(left)) if (!k || rng.chance(D.cascade[k])) { pick = famPick(rng, left.filter((c) => inTier(c, t)), held); break; }
+  return { cards: pick ? [...out, pick] : out, priced: pick ? out.length : -1, odds: cascadeOdds(left).map(([t, p]) => [t, Math.round(p * 100)]) };
 }
 // the bout's gold: a fell, plus style
 function boutGold() {
@@ -1627,14 +1707,15 @@ function boutGold() {
 }
 function openDraft(E) {
   const grade = state.grades[state.grades.length - 1] || 'C', deal = dealDraft(grade);
-  state.draft = { grade, tally: boutTally(), gold: state.lastGold, cards: deal.cards, priced: deal.priced, t: 0, btns: [], reroll: null, help: null, helpOn: false };
-  state.epicsSeen += deal.cards.filter((c) => c.tier === 2).length;
+  state.draft = { grade, tally: boutTally(), gold: state.lastGold, cards: deal.cards, priced: deal.priced, odds: deal.odds, t: 0, btns: [], reroll: null, help: null, helpOn: false };
+  state.epicsSeen += deal.cards.filter((c) => c.tier >= 2).length;
   saveRun(E);
   const h = state.hand; h.down = false; h.id = -1; h.atk = null; state.sh.held = false; state.sh.hid = -1; state.dg.down = false;
   E.audio.play('coin');
 }
-// a card joins your picks; Titan's hearts come with it (and go with it, in the card lab)
+// a card joins your picks, and a piece takes its slot: whatever was worn there is gone. Titan's hearts come and go with it.
 function applyCard(c, on = true) {
+  if (on && c.slot) for (const id of state.picks.filter((q) => CARD[q].slot === c.slot)) applyCard(CARD[id], false);
   if (on) state.picks.push(c.id); else state.picks.splice(state.picks.indexOf(c.id), 1);
   if (c.id === 'titan') { const k = on ? 1 : -1; state.maxHp += k * TUNING.cards.titan; state.hp = clamp(state.hp + k * TUNING.cards.titan, 1, state.maxHp); }
 }
@@ -1677,8 +1758,8 @@ function rerollDraft(E) {
   const d = state.draft;
   if (!d || state.token <= 0) return;
   state.token--; state.rerolls++; state.tokenUsed += `${state.tokenUsed ? ',' : ''}reroll-b${state.rack + 1}`;
-  const deal = dealDraft(d.grade, state.rerolls, d.cards); d.cards = deal.cards; d.priced = deal.priced; d.t = 0;
-  state.epicsSeen += d.cards.filter((c) => c.tier === 2).length;
+  const deal = dealDraft(d.grade, state.rerolls, d.cards); d.cards = deal.cards; d.priced = deal.priced; d.odds = deal.odds; d.t = 0;
+  state.epicsSeen += d.cards.filter((c) => c.tier >= 2).length;
   saveRun(E);
   E.audio.beep({ freq: 520, dur: 0.12, type: 'triangle', slide: 1.4, gain: 0.12 }); E.haptic(12);
 }
@@ -1783,17 +1864,43 @@ const MYLOOK = {
   medium: { metal: STEEL, trim: BRONZE.lite },
   heavy: { metal: POLISH, trim: '#e6c866', crest: '#d8473a' },
 };
-// Your look: the gladiator type of your rolled weapon, in your own colours (teal tunic) and the metal of your armour set.
-function myLook(me) {
-  const G = GTYPE[me.weapon], A = MYLOOK[me.set];
-  return { ...G, id: `you-${me.set}-${me.weapon}${me.female ? 'f' : ''}`, metal: A.metal, trim: A.trim, skin: YOU.skin, hair: '#3a2414', tunic: YOU.tunic, hem: YOU.hem,
-    crest: A.crest || G.crest || YOU.crest, band: G.band ? YOU.crest : YOU.tunic, beard: G.beard && !me.female };
+const BLACK = { hi: '#a4a4ac', lite: '#62626a', mid: '#3a3a40', dark: '#1d1d22', edge: '#08080a' };
+const GOLD = { hi: '#fff4c2', lite: '#f0cf6a', mid: '#c9a43a', dark: '#7a5a14', edge: '#3a2a06' };
+// The family looks, so a build reads at a glance: the Wall bronze, Blood dark red with iron barbs and hooks, the Dancer light cloth and mint ribbons,
+// the Brute black iron and spikes; the lone piece (the lion pelt) gold.
+const FAM_LOOK = {
+  wall: { metal: BRONZE, cloth: '#8a5a24', hi: '#e6c866' },
+  blood: { metal: IRON, cloth: '#6e1414', hi: '#b91c1c' },
+  dancer: { metal: BRONZE, cloth: '#efe6cf', hi: '#6ee7b7' },
+  brute: { metal: BLACK, cloth: '#2a2420', hi: '#77746d' },
+  rare: { metal: GOLD, cloth: '#b8862e', hi: '#f2d88a' },
+};
+// War paint, one pattern per finisher: its colour
+const PAINT_COL = { exec: '#dc2626', whirl: '#3b82f6', breath: '#f8fafc', disarm: '#d97706' };
+// A look's gear: the pieces by slot, the war paint held, and a signature for the sprite cache. Titan's black plate turns every plate black iron.
+function withGear(lk, ids, id) {
+  const gear = gearOf(ids), paint = ids.filter((q) => PAINT_COL[q]);
+  return { ...lk, gear, paint, metal: gear.chest && gear.chest.id === 'titan' ? BLACK : lk.metal, id: `${id}|${Object.values(gear).map((c) => c.id).join('.')}|${paint.join('.')}` };
 }
-const lookOf = (fm, isFoe) => (isFoe ? GTYPE[fm.weapon.id] : myLook(state.me));
+// Your look: the gladiator type of your rolled weapon, in your own colours (teal tunic) and the metal of your armour set, with the gear you wear.
+function myLook(me, ids = []) {
+  const G = GTYPE[me.weapon], A = MYLOOK[me.set];
+  return withGear({ ...G, metal: A.metal, trim: A.trim, skin: YOU.skin, hair: '#3a2414', tunic: YOU.tunic, hem: YOU.hem,
+    crest: A.crest || G.crest || YOU.crest, band: G.band ? YOU.crest : YOU.tunic, beard: G.beard && !me.female }, ids, `you-${me.set}-${me.weapon}${me.female ? 'f' : ''}`);
+}
+// his look: his type's, with his gear (rolled once per bout)
+const foeLook = (d) => withGear(GTYPE[d.weapon.id], d.gear || [], GTYPE[d.weapon.id].id);
+// yours is rebuilt only when your picks change
+function lookOf(fm, isFoe) {
+  if (isFoe) return fm.look || GTYPE[fm.weapon.id];
+  const sig = state.picks.join(',');
+  if (state.you.lookSig !== sig) { state.you.look = myLook(state.me, state.picks); state.you.lookSig = sig; }
+  return state.you.look;
+}
 // What shows through each gap, and which sides the plate edges frame it from (top and bottom, or left and right).
 const SLOT_ART = { 'slot-neck': ['skin', 'tb'], 'slot-armpit': ['linen', 'lr'], 'slot-waist': ['linen', 'tb'], 'slot-elbow': ['skin', 'tb'], 'slot-knee': ['skin', 'tb'] };
 // Sprite bounds in body units (arms in their own frame): room for crests, straps, the fist and the shoulder guards.
-const BOX = { head: [-0.17, -1.05, 0.18, -0.66], chest: [-0.15, -0.74, 0.16, -0.5], belly: [-0.19, -0.54, 0.19, -0.24], armF: [-0.12, -0.2, 0.12, 0.37], armB: [-0.12, -0.2, 0.12, 0.37], legs: [-0.21, -0.43, 0.25, 0.02] };
+const BOX = { head: [-0.17, -1.05, 0.18, -0.66], chest: [-0.15, -0.74, 0.16, -0.5], belly: [-0.19, -0.54, 0.19, -0.24], armF: [-0.14, -0.2, 0.12, 0.42], armB: [-0.14, -0.2, 0.12, 0.42], legs: [-0.21, -0.43, 0.25, 0.04], cloak: [-0.34, -0.86, 0.14, 0.01] };
 const LEGS = [[[-0.02, -0.37], [-0.07, -0.19], [-0.12, -0.02]], [[0.02, -0.37], [0.09, -0.2], [0.12, -0.02]]];
 const canSprite = typeof OffscreenCanvas === 'function';
 
@@ -2189,15 +2296,248 @@ function paintSlot(c, p, H, lk) {
   c.strokeStyle = 'rgba(255,170,90,0.35)'; c.lineWidth = 1; c.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
 }
 
-const PAINT = { head: paintHead, chest: paintChest, belly: paintBelly, armF: paintArm, armB: paintArm, legs: paintLegs };
-function paintPart(c, p, H, lk) { (p.slot ? paintSlot : PAINT[p.d.id])(c, p, H, lk); }
+// ----- gear: each piece painted into its part's sprite over the painted part (the shield and weapon pieces are drawn with them, live) -----
+const lerp2 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+// a spike; flat (one colour, no gradient) where it is drawn live each frame
+function spike(c, x, y, a, len, w, M, flat = false) {
+  const nx = -Math.sin(a) * w / 2, ny = Math.cos(a) * w / 2, tx = x + Math.cos(a) * len, ty = y + Math.sin(a) * len;
+  c.beginPath(); c.moveTo(x + nx, y + ny); c.lineTo(tx, ty); c.lineTo(x - nx, y - ny); c.closePath();
+  c.fillStyle = flat ? M.lite : metalGrad(c, x + nx, y + ny, x - nx, y - ny, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = 1; c.stroke();
+}
+// a ribbon or strap along a smooth line through pts, w px wide, with a darker edge
+function ribbon(c, pts, w, col) {
+  const go = () => { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length - 1; i++) { const m = lerp2(pts[i], pts[i + 1], 0.5); c.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); } const e = pts[pts.length - 1]; c.lineTo(e[0], e[1]); };
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  go(); c.strokeStyle = shade(col, 0.55); c.lineWidth = w + 1.5; c.stroke();
+  go(); c.strokeStyle = col; c.lineWidth = w; c.stroke();
+  go(); c.strokeStyle = 'rgba(255,255,255,0.28)'; c.lineWidth = Math.max(0.6, w * 0.25); c.stroke();
+}
+function disc(c, x, y, r, M) {
+  const g = c.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
+  g.addColorStop(0, M.hi); g.addColorStop(0.5, M.lite); g.addColorStop(1, M.dark);
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); c.strokeStyle = M.edge; c.lineWidth = 1; c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,0.45)'; c.beginPath(); c.arc(x, y, r * 0.65, Math.PI * 1.1, Math.PI * 1.8); c.stroke();
+}
+// a band across a part, clipped to the head (or anything)
+function clipBand(c, clip, x, y, w, h, fill) { c.save(); clip(); c.clip(); c.fillStyle = fill; c.fillRect(x, y, w, h); c.restore(); }
+
+// The helmet slot rides on the head, plated or bare, and never covers the face. War paint goes on the face first (on the helm, when it is closed).
+function paintHeadGear(c, p, H, lk) {
+  const d = p.d, x = d.x * H, y = d.y * H, r = d.r * H, g = lk.gear.helmet, closed = p.armour && (lk.helm === 'murmillo' || lk.helm === 'hoplo');
+  const head = () => { c.beginPath(); c.arc(x, y, r * 1.04, 0, TAU); };
+  (lk.paint || []).forEach((id, i) => {
+    const col = PAINT_COL[id];
+    c.save(); head(); c.clip(); c.globalAlpha = 0.85; c.fillStyle = col; c.strokeStyle = col; c.lineCap = 'round';
+    if (closed) { c.lineWidth = r * 0.18; line(c, x - r * (0.7 - i * 0.3), y - r, x - r * (0.2 - i * 0.3), y + r); }
+    else if (id === 'exec') c.fillRect(x + r * 0.2, y - r * 0.24, r * 0.9, r * 0.26);
+    else if (id === 'whirl') { c.lineWidth = r * 0.09; c.beginPath(); for (let k = 0; k <= 24; k++) { const a = k * 0.42, rr = r * 0.05 + k * r * 0.012; const px = x + r * 0.32 + Math.cos(a) * rr, py = y + r * 0.42 + Math.sin(a) * rr; if (k) c.lineTo(px, py); else c.moveTo(px, py); } c.stroke(); }
+    else if (id === 'breath') for (let k = 0; k < 3; k++) { c.beginPath(); c.arc(x + r * (0.62 - k * 0.08), y + r * (0.18 + k * 0.2), r * 0.08, 0, TAU); c.fill(); }
+    else if (id === 'disarm') { c.lineWidth = r * 0.1; c.beginPath(); for (let k = 0; k < 6; k++) c.lineTo(x - r * 0.2 + k * r * 0.18, y - r * (k % 2 ? 0.42 : 0.6)); c.stroke(); }
+    c.restore();
+  });
+  if (!g) return;
+  const L = FAM_LOOK[g.fam], M = L.metal;
+  if (g.id === 'braced') {
+    // a bronze crest ridge front to back, with a brush of gold horsehair
+    clipBand(c, head, x - r * 1.1, y - r * 0.5, r * 2.2, r * 0.17, metalGrad(c, x, y - r * 0.5, x, y - r * 0.33, M));
+    c.strokeStyle = L.hi; c.lineWidth = lw(H, 0.004);
+    for (let i = 0; i <= 8; i++) { const t = i / 8, bx = x + r * (0.45 - t * 1.35), by = y - r * (0.85 + Math.sin(t * Math.PI) * 0.75); line(c, bx, by, bx - r * 0.12, by - r * 0.32); }
+    c.beginPath(); c.moveTo(x + r * 0.55, y - r * 0.8); c.quadraticCurveTo(x + r * 0.1, y - r * 1.75, x - r * 0.95, y - r * 0.55);
+    c.lineTo(x - r * 0.75, y - r * 0.48); c.quadraticCurveTo(x, y - r * 1.35, x + r * 0.4, y - r * 0.72); c.closePath();
+    c.fillStyle = metalGrad(c, x + r, y - r * 1.6, x - r, y - r * 0.5, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+  } else if (g.id === 'vein') {
+    // a dark red band with its tails hanging behind, and an iron hook
+    clipBand(c, head, x - r * 1.1, y - r * 0.52, r * 2.2, r * 0.24, L.cloth);
+    ribbon(c, [[x - r * 0.92, y - r * 0.4], [x - r * 1.35, y], [x - r * 1.3, y + r * 0.45]], r * 0.16, L.cloth);
+    ribbon(c, [[x - r * 0.92, y - r * 0.4], [x - r * 1.6, y - r * 0.2], [x - r * 1.75, y + r * 0.25]], r * 0.14, L.hi);
+    c.strokeStyle = IRON.dark; c.lineWidth = lw(H, 0.006); c.beginPath(); c.moveTo(x - r * 0.1, y - r * 0.3); c.lineTo(x - r * 0.1, y - r * 0.05); c.arc(x - r * 0.2, y - r * 0.05, r * 0.1, 0, Math.PI * 0.9); c.stroke();
+  } else if (g.id === 'slip') {
+    // a light band with two mint ribbons streaming back
+    clipBand(c, head, x - r * 1.1, y - r * 0.5, r * 2.2, r * 0.2, L.cloth);
+    ribbon(c, [[x - r * 0.95, y - r * 0.4], [x - r * 1.4, y - r * 0.75], [x - r * 1.85, y - r * 0.55]], r * 0.14, L.hi);
+    ribbon(c, [[x - r * 0.95, y - r * 0.35], [x - r * 1.45, y - r * 0.1], [x - r * 1.8, y - r * 0.2]], r * 0.12, L.hi);
+  } else if (g.id === 'breaker') {
+    // a black iron band and two horns
+    clipBand(c, head, x - r * 1.1, y - r * 0.55, r * 2.2, r * 0.2, metalGrad(c, x, y - r * 0.55, x, y - r * 0.35, M));
+    for (const s of [1, -1]) {
+      const bx = x + r * (s > 0 ? 0.4 : -0.55), by = y - r * 0.82, tx = bx + s * r * 0.55, ty = y - r * 1.9;
+      c.beginPath(); c.moveTo(bx - r * 0.16, by); c.quadraticCurveTo(bx + s * r * 0.05, y - r * 1.5, tx, ty); c.quadraticCurveTo(bx + s * r * 0.3, y - r * 1.3, bx + r * 0.16, by); c.closePath();
+      c.fillStyle = metalGrad(c, bx - r * 0.2, by, bx + r * 0.2, ty, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.004); c.stroke();
+    }
+  }
+}
+// The chest slot: a harness, a drape or Titan's black collar and shoulder caps; never a plate on a bare chest.
+function paintChestGear(c, p, H, lk) {
+  const g = lk.gear.chest; if (!g) return;
+  const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, x1 = x0 + w, y1 = y0 + h, L = FAM_LOOK[g.fam], M = L.metal;
+  if (g.id === 'shove') {
+    strap(c, x0 + w * 0.12, y0, x1 - w * 0.14, y1 - h * 0.1, 0.018 * H, H, false); strap(c, x1 - w * 0.12, y0, x0 + w * 0.14, y1 - h * 0.1, 0.018 * H, H, false);
+    disc(c, x0 + w * 0.5, y0 + h * 0.48, 0.03 * H, M); disc(c, x0 + w * 0.26, y0 + h * 0.25, 0.022 * H, M); disc(c, x0 + w * 0.74, y0 + h * 0.25, 0.022 * H, M);
+  } else if (g.id === 'blur') {
+    c.save(); c.globalAlpha = 0.6;
+    c.beginPath(); c.moveTo(x0 - 0.01 * H, y0 + h * 0.05); c.lineTo(x0 + w * 0.35, y0); c.quadraticCurveTo(x0 + w * 0.7, y0 + h * 0.5, x1 + 0.01 * H, y1); c.lineTo(x1 - w * 0.3, y1 + 0.01 * H); c.quadraticCurveTo(x0 + w * 0.3, y0 + h * 0.6, x0 - 0.01 * H, y0 + h * 0.05); c.closePath();
+    c.fillStyle = L.cloth; c.fill(); c.restore();
+    c.strokeStyle = L.hi; c.lineWidth = lw(H, 0.004); c.beginPath(); c.moveTo(x0 + w * 0.35, y0); c.quadraticCurveTo(x0 + w * 0.7, y0 + h * 0.5, x1 + 0.01 * H, y1); c.stroke();
+    c.strokeStyle = 'rgba(120,110,90,0.35)'; for (const k of [0.3, 0.5]) { c.beginPath(); c.moveTo(x0 + w * k * 0.6, y0 + h * 0.15); c.quadraticCurveTo(x0 + w * (k + 0.2), y0 + h * 0.55, x0 + w * (k + 0.45), y1 - h * 0.05); c.stroke(); }
+  } else if (g.id === 'titan') {
+    rrect(c, x0 - 0.012 * H, y0 - 0.022 * H, w + 0.024 * H, 0.036 * H, 0.01 * H); c.fillStyle = metalGrad(c, x1, y0 - 0.02 * H, x0, y0 + 0.02 * H, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+    for (let i = 0; i < 5; i++) spike(c, x0 + w * (0.1 + i * 0.2), y0 - 0.02 * H, -Math.PI / 2, 0.028 * H, 0.014 * H, M);
+    for (const sx of [x0 + 0.004 * H, x1 - 0.004 * H]) {
+      c.beginPath(); c.ellipse(sx, y0 + 0.012 * H, 0.04 * H, 0.03 * H, 0, Math.PI, TAU); c.closePath(); c.fillStyle = metalGrad(c, sx + 0.04 * H, y0 - 0.02 * H, sx - 0.04 * H, y0 + 0.01 * H, M); c.fill(); c.strokeStyle = M.edge; c.stroke();
+      spike(c, sx, y0 - 0.012 * H, -Math.PI / 2 - (sx < 0 ? 0.5 : -0.5), 0.03 * H, 0.014 * H, M);
+    }
+  }
+}
+// The belt slot hangs below your belt, on the tunic, so the waist gap stays as it is.
+function paintBeltGear(c, p, H, lk) {
+  const g = lk.gear.belt; if (!g) return;
+  const L = FAM_LOOK[g.fam], M = L.metal, y = -0.474 * H;
+  if (g.id === 'cruel') {
+    rrect(c, -0.112 * H, y - 0.012 * H, 0.224 * H, 0.024 * H, 0.006 * H); c.fillStyle = L.cloth; c.fill(); c.strokeStyle = shade(L.cloth, 0.5); c.lineWidth = 1; c.stroke();
+    c.strokeStyle = M.dark; c.lineWidth = lw(H, 0.006); c.lineCap = 'round';
+    for (const k of [-0.07, 0, 0.07]) { c.beginPath(); c.moveTo(k * H, y); c.lineTo(k * H, y + 0.035 * H); c.arc(k * H - 0.012 * H, y + 0.035 * H, 0.012 * H, 0, Math.PI * 0.95); c.stroke(); }
+  } else if (g.id === 'lightfeet') {
+    ribbon(c, [[-0.11 * H, y], [0, y + 0.006 * H], [0.11 * H, y]], 0.018 * H, L.cloth);
+    ribbon(c, [[-0.085 * H, y], [-0.105 * H, y + 0.06 * H], [-0.08 * H, y + 0.13 * H]], 0.012 * H, L.hi);
+    ribbon(c, [[-0.085 * H, y], [-0.06 * H, y + 0.07 * H], [-0.09 * H, y + 0.15 * H]], 0.01 * H, L.hi);
+    c.fillStyle = L.hi; c.beginPath(); c.arc(-0.085 * H, y, 0.013 * H, 0, TAU); c.fill(); c.strokeStyle = shade(L.hi, 0.5); c.lineWidth = 1; c.stroke();
+  } else if (g.id === 'brawler') {
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8, cx = (-0.1 + t * 0.2) * H, cy = y + 0.004 * H + Math.sin(t * Math.PI) * 0.035 * H;
+      c.beginPath(); c.ellipse(cx, cy, i % 2 ? 0.012 * H : 0.006 * H, i % 2 ? 0.006 * H : 0.01 * H, 0, 0, TAU); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke(); c.strokeStyle = M.lite; c.lineWidth = lw(H, 0.003); c.stroke();
+    }
+    rrect(c, -0.018 * H, y - 0.03 * H, 0.036 * H, 0.032 * H, 0.006 * H); c.fillStyle = metalGrad(c, 0.02 * H, y - 0.03 * H, -0.02 * H, y, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = 1; c.stroke();
+    spike(c, 0.018 * H, y - 0.014 * H, 0, 0.02 * H, 0.012 * H, M);
+  }
+}
+// The arms slot: a bracer near the wrist, or iron pauldrons on the shoulder (in the arm's own frame, the fist at ARM_LEN)
+function paintArmGear(c, p, H, lk) {
+  const g = lk.gear.arms; if (!g) return;
+  const d = p.d, w = d.w * H, h = d.h * H, x0 = -w / 2, L = FAM_LOOK[g.fam], M = L.metal;
+  if (g.id === 'riposte') {
+    const by = h * 0.58, bh = h * 0.22;
+    rrect(c, x0 - w * 0.1, by, w * 1.2, bh, w * 0.2); c.fillStyle = metalGrad(c, w / 2, by, -w / 2, by + bh, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = lw(H, 0.003); line(c, x0, by + 1.5, x0 + w, by + 1.5);
+    rivet(c, 0, by + bh * 0.3, H, M); rivet(c, 0, by + bh * 0.75, H, M);
+  } else if (g.id === 'rend') {
+    const by = h * 0.55, bh = h * 0.25;
+    rrect(c, x0 - w * 0.08, by, w * 1.16, bh, w * 0.2); c.fillStyle = L.cloth; c.fill(); c.strokeStyle = '#2a0808'; c.lineWidth = lw(H, 0.004); c.stroke();
+    c.strokeStyle = 'rgba(255,190,170,0.4)'; for (let k = 0; k < 3; k++) line(c, x0, by + bh * (0.2 + k * 0.3), x0 + w, by + bh * (0.35 + k * 0.3));
+    for (let k = 0; k < 3; k++) spike(c, x0 - w * 0.08, by + bh * (0.2 + k * 0.3), Math.PI + 0.35, 0.03 * H, 0.012 * H, M);
+  } else if (g.id === 'matador') {
+    for (let k = 0; k < 4; k++) ribbon(c, [[x0 - w * 0.05, h * (0.5 + k * 0.08)], [0, h * (0.53 + k * 0.08)], [x0 + w * 1.05, h * (0.55 + k * 0.08)]], h * 0.035, L.hi);
+    ribbon(c, [[x0, h * 0.82], [x0 - w * 0.5, h * 0.92], [x0 - w * 0.9, h * 1.05]], h * 0.035, L.hi);
+  } else if (g.id === 'jugg') {
+    for (let i = 2; i >= 0; i--) {
+      const py = -0.012 * H + i * 0.03 * H;
+      c.beginPath(); c.ellipse(0, py, w * 0.95, 0.042 * H, 0, Math.PI, TAU); c.closePath();
+      c.fillStyle = metalGrad(c, w, py - 0.04 * H, -w, py, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+    }
+    spike(c, 0, -0.05 * H, -Math.PI / 2, 0.04 * H, 0.018 * H, M);
+  }
+}
+// The legs slot: boots, sandal ribbons or spiked boots on both shins
+function paintLegGear(c, p, H, lk) {
+  const g = lk.gear.legs; if (!g) return;
+  const L = FAM_LOOK[g.fam], M = L.metal, SH = 0.068 * H;
+  LEGS.forEach((leg) => {
+    const [, knee, ank] = leg.map((q) => [q[0] * H, q[1] * H]);
+    if (g.id === 'standfast' || g.id === 'bones') {
+      const top = lerp2(knee, ank, 0.45), boot = g.id === 'bones' ? BLACK : null;
+      c.beginPath(); quad(c, top, [ank[0], ank[1] + 0.012 * H], SH * 1.22, SH * 1.18);
+      c.fillStyle = boot ? metalGrad(c, top[0] - SH, top[1], top[0] + SH, ank[1], boot) : LEATHER.mid; c.fill(); c.strokeStyle = boot ? boot.edge : LEATHER.dark; c.lineWidth = lw(H, 0.005); c.stroke();
+      if (boot) { for (const t of [0.25, 0.65]) { const q = lerp2(top, ank, t); spike(c, q[0] + SH * 0.5, q[1], 0.15, 0.03 * H, 0.013 * H, boot); } }
+      else {
+        c.beginPath(); quad(c, top, lerp2(top, ank, 0.18), SH * 1.3, SH * 1.28); c.fillStyle = metalGrad(c, top[0] - SH, top[1], top[0] + SH, top[1], M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = 1; c.stroke();
+        for (const t of [0.45, 0.8]) { const q = lerp2(top, ank, t); rivet(c, q[0] + SH * 0.25, q[1], H, M); }
+      }
+    } else if (g.id === 'sidestep') {
+      const pts = [];
+      for (let k = 0; k <= 6; k++) { const q = lerp2(ank, knee, 0.08 + k * 0.13); pts.push([q[0] + (k % 2 ? 1 : -1) * SH * 0.5, q[1]]); }
+      ribbon(c, pts, 0.008 * H, L.hi);
+      c.fillStyle = L.cloth; c.beginPath(); c.moveTo(ank[0] - SH * 0.4, ank[1] - 0.01 * H); c.lineTo(ank[0] - SH * 1.4, ank[1] - 0.04 * H); c.lineTo(ank[0] - SH * 1.1, ank[1] - 0.005 * H); c.lineTo(ank[0] - SH * 1.5, ank[1] + 0.005 * H); c.lineTo(ank[0] - SH * 0.4, ank[1] + 0.005 * H); c.closePath(); c.fill();
+      c.strokeStyle = shade(L.cloth, 0.6); c.lineWidth = 1; c.stroke();
+    }
+  });
+}
+// The cloak slot: drawn behind the whole body as its own sprite
+const CLOAK = { id: 'cloak', shape: 'rect', x: -0.1, y: -0.45, w: 0.2, h: 0.5 };
+function paintCloak(c, p, H, lk) {
+  const g = lk.gear.cloak; if (!g) return;
+  const L = FAM_LOOK[g.fam], P = (x, y) => [x * H, y * H];
+  const shape = (pts, fill, edge) => { c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]))); c.closePath(); c.fillStyle = fill; c.fill(); c.strokeStyle = edge; c.lineWidth = lw(H, 0.005); c.lineJoin = 'round'; c.stroke(); };
+  if (g.id === 'untouch') {
+    const pts = [P(0.04, -0.7), P(-0.05, -0.72), P(-0.12, -0.6), P(-0.2, -0.4), P(-0.27, -0.2), P(-0.31, -0.03), P(-0.22, -0.05), P(-0.16, -0.01), P(-0.08, -0.04), P(-0.02, -0.3), P(0.02, -0.55)];
+    const gr = c.createLinearGradient(0, -0.7 * H, -0.3 * H, -0.03 * H); gr.addColorStop(0, L.cloth); gr.addColorStop(1, shade(L.cloth, 0.72));
+    shape(pts, gr, shade(L.cloth, 0.5));
+    c.strokeStyle = L.hi; c.lineWidth = lw(H, 0.008); c.beginPath(); c.moveTo(-0.31 * H, -0.03 * H); c.lineTo(-0.22 * H, -0.05 * H); c.lineTo(-0.16 * H, -0.01 * H); c.lineTo(-0.08 * H, -0.04 * H); c.stroke();
+    c.strokeStyle = 'rgba(90,80,60,0.35)'; c.lineWidth = lw(H, 0.004); for (const k of [0.3, 0.55]) { c.beginPath(); c.moveTo(-0.04 * H, -0.65 * H); c.quadraticCurveTo(-0.14 * H, -0.35 * H, -(0.12 + k * 0.2) * H, -0.05 * H); c.stroke(); }
+  } else if (g.id === 'bloodlust' || g.id === 'unbreak') {
+    const wolf = g.id === 'bloodlust', fur = wolf ? '#76726c' : '#c08a3e', dark = wolf ? '#3d3a36' : '#7a5222';
+    const pts = [P(0.05, -0.71), P(-0.06, -0.74), P(-0.13, -0.62), P(-0.17, -0.48)];
+    for (let i = 0; i <= 6; i++) pts.push(P(-0.17 + i * 0.03, -0.34 + (i % 2 ? 0.035 : 0)));
+    pts.push(P(0.02, -0.5));
+    shape(pts, fur, dark);
+    if (wolf) { c.strokeStyle = L.cloth; c.lineWidth = lw(H, 0.008); c.beginPath(); c.moveTo(-0.16 * H, -0.47 * H); c.quadraticCurveTo(-0.08 * H, -0.42 * H, 0.0, -0.36 * H); c.stroke(); }
+    c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = 1; for (let i = 0; i < 7; i++) line(c, (-0.13 + i * 0.022) * H, -0.6 * H, (-0.15 + i * 0.026) * H, -0.4 * H);
+    // the beast's head over the back of the shoulder: the wolf's ears and snout, or the lion's mane
+    const hx = -0.05 * H, hy = -0.76 * H;
+    if (wolf) {
+      shape([[hx - 0.03 * H, hy], [hx - 0.02 * H, hy - 0.05 * H], [hx, hy - 0.02 * H], [hx + 0.02 * H, hy - 0.05 * H], [hx + 0.03 * H, hy - 0.01 * H], [hx + 0.08 * H, hy + 0.01 * H], [hx + 0.03 * H, hy + 0.03 * H], [hx - 0.03 * H, hy + 0.03 * H]], fur, dark);
+      c.fillStyle = '#b91c1c'; c.beginPath(); c.arc(hx + 0.02 * H, hy, 0.005 * H, 0, TAU); c.fill();
+    } else {
+      for (let i = 0; i < 12; i++) { const a = Math.PI * 0.5 + i * 0.26; ribbon(c, [[hx + 0.02 * H, hy + 0.04 * H], [hx + 0.02 * H + Math.cos(a) * 0.06 * H, hy + 0.04 * H + Math.sin(a) * 0.06 * H]], 0.014 * H, i % 2 ? '#a8722e' : '#d9a24e'); }
+    }
+  }
+}
+// A gap guard: a polished steel piece with a gold rim over the gap, so it reads shut: the gorget, the manica, the wide belt, the couters, the knee guards.
+function paintGuard(c, p, H, lk) {
+  const d = p.d, w = d.w * H, h = d.h * H, x = d.x * H, y = d.y * H, M = POLISH, t = 0.016 * H;
+  const plate = (fn) => { fn(); c.fillStyle = metalGrad(c, x + w, y - h, x - w, y + h, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke(); fn(); c.strokeStyle = GOLD.lite; c.lineWidth = lw(H, 0.004); c.stroke(); };
+  if (d.id === 'slot-elbow' || d.id === 'slot-knee') {
+    const r = Math.max(w, h) * 0.62 + t * 0.4;
+    plate(() => { c.beginPath(); c.arc(x, y, r, 0, TAU); });
+    c.beginPath(); c.arc(x, y, r * 0.45, 0, TAU); c.fillStyle = GOLD.mid; c.fill(); c.strokeStyle = GOLD.edge; c.lineWidth = 1; c.stroke();
+  } else if (d.id === 'slot-neck') {
+    plate(() => { c.beginPath(); c.moveTo(x - w / 2 - t, y - h / 2 - t * 0.4); c.lineTo(x + w / 2 + t, y - h / 2 - t * 0.4); c.lineTo(x + w / 2 + t * 1.3, y + h / 2); c.quadraticCurveTo(x, y + h / 2 + t * 1.6, x - w / 2 - t * 1.3, y + h / 2); c.closePath(); });
+    c.strokeStyle = 'rgba(30,34,40,0.6)'; c.lineWidth = lw(H, 0.003); for (const k of [0.2, 0.55]) line(c, x - w / 2, y - h / 2 + h * k + t * 0.3, x + w / 2, y - h / 2 + h * k + t * 0.3);
+  } else plate(() => rrect(c, x - w / 2 - t * 0.7, y - h / 2 - t * 0.7, w + t * 1.4, h + t * 1.4, t * 0.6));
+  rivet(c, x - w * 0.3, y, H, M); rivet(c, x + w * 0.3, y, H, M);
+}
+// A worn piece's rarity: a faint glint now and then, in its colour, at its slot's place on the body (body units; the arms ride the far arm)
+const GLINT_AT = { helmet: [0.0, -0.9], chest: [0.07, -0.64], belt: [0.06, -0.47], legs: [0.1, -0.14], cloak: [-0.14, -0.5], arms: [0.03, 0.22] };
+function drawGlints(ctx, fm, H, lk) {
+  const S = TUNING.skin;
+  Object.entries(lk.gear).forEach(([slot, c], i) => {
+    const at = GLINT_AT[slot]; if (!at) return;
+    const k = Math.pow(Math.max(0, Math.sin((state.m / S.gearGlint + i * 0.37) * TAU)), 6) * S.gearGlintA;
+    if (k < 0.02) return;
+    ctx.save();
+    if (slot === 'arms' && fm.fr.armB) { const fr = fm.fr.armB; ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); }
+    glint(ctx, at[0] * H, at[1] * H, 0.035 * H, rarCol(c), k);
+    ctx.restore();
+  });
+}
+function glint(ctx, x, y, s, col, a) {
+  ctx.globalAlpha *= a; ctx.fillStyle = col;
+  ctx.beginPath(); ctx.moveTo(x, y - s); ctx.quadraticCurveTo(x, y, x + s * 0.5, y); ctx.quadraticCurveTo(x, y, x, y + s); ctx.quadraticCurveTo(x, y, x - s * 0.5, y); ctx.quadraticCurveTo(x, y, x, y - s); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, s * 0.12, 0, TAU); ctx.fill();
+}
+
+const PAINT = { head: paintHead, chest: paintChest, belly: paintBelly, armF: paintArm, armB: paintArm, legs: paintLegs, cloak: paintCloak };
+const GEAR_PAINT = { head: paintHeadGear, chest: paintChestGear, belly: paintBeltGear, armF: paintArmGear, armB: paintArmGear, legs: paintLegGear };
+function paintPart(c, p, H, lk) {
+  if (p.slot) { (p.guard ? paintGuard : paintSlot)(c, p, H, lk); return; }
+  PAINT[p.d.id](c, p, H, lk);
+  if (lk.gear && GEAR_PAINT[p.d.id]) GEAR_PAINT[p.d.id](c, p, H, lk);
+}
 // The part's sprite, repainted only when its look, scale, dents, cracks or damage change. Null without OffscreenCanvas (painted live).
 function spriteOf(E, p, H, lk) {
   if (!canSprite) return null;
   const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), d = p.d;
-  const key = `${Math.round(H * k)}|${lk.id}|${p.armour ? 1 : 0}|${p.dents}|${p.cracks.length}|${p.cut ? 1 : 0}|${Math.ceil(p.hp / TUNING.part.hp * 4)}`;
+  const key = `${Math.round(H * k)}|${lk.id}|${p.guard ? 'g' : ''}${p.armour ? 1 : 0}|${p.dents}|${p.cracks.length}|${p.cut ? 1 : 0}|${Math.ceil(p.hp / TUNING.part.hp * 4)}`;
   if (p.spr && p.spr.key === key) return p.spr;
-  const m = 0.03, b = p.slot ? [d.x - d.w / 2 - m, d.y - d.h / 2 - m, d.x + d.w / 2 + m, d.y + d.h / 2 + m] : BOX[d.id];
+  const m = p.guard ? 0.05 : 0.03, b = p.slot ? [d.x - d.w / 2 - m, d.y - d.h / 2 - m, d.x + d.w / 2 + m, d.y + d.h / 2 + m] : BOX[d.id];
   const x = b[0] * H, y = b[1] * H, cw = Math.ceil((b[2] - b[0]) * H * k), ch = Math.ceil((b[3] - b[1]) * H * k);
   const cv = new OffscreenCanvas(cw, ch), c = cv.getContext('2d');
   c.scale(k, k); c.translate(-x, -y); paintPart(c, p, H, lk);
@@ -2236,7 +2576,7 @@ function drawPart(ctx, E, p, H, lk, fr) {
 function drawSlots(ctx, E, F, H, fm, lk) {
   const slots = fm.parts.filter((q) => q.slot);
   for (const p of slots) drawPart(ctx, E, p, H, lk, p.d.frame ? fm.fr[p.d.frame] : null);
-  for (const p of slots) slotLight(ctx, F, p, H, fm);
+  for (const p of slots) if (!p.guard) slotLight(ctx, F, p, H, fm);
 }
 function slotLight(ctx, F, p, H, fm) {
   const d = p.d, fr = d.frame ? fm.fr[d.frame] : null;
@@ -2337,7 +2677,22 @@ function drawParma(ctx, H, k) {
   ctx.strokeStyle = 'rgba(255,231,176,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, r * 0.78, 0, 6.28); ctx.stroke();
   ctx.fillStyle = '#e6c866'; ctx.beginPath(); ctx.arc(0, 0, r * 0.24, 0, 6.28); ctx.fill(); ctx.strokeStyle = '#4a3410'; ctx.stroke();
 }
-const drawFoeShield = (ctx, H, k, lk) => (lk.id === 'hoplomachus' ? drawParma : drawScutum)(ctx, H, k);
+// his shield, with his shield piece: Thorns' spikes round the rim, or Iron Wall's tower shield (a scutum, far bigger)
+function drawFoeShield(ctx, H, k, lk) {
+  const g = lk.gear && lk.gear.shield, tower = g && g.id === 'ironwall', parma = lk.helm === 'hoplo' && !tower;
+  ctx.save();
+  if (tower) ctx.scale(1.25, 1.45);
+  if (g && g.id === 'thorns') {
+    const n = 10, w = 0.17 * H * k, h = 0.32 * H * k, r = 0.1 * H * k;
+    for (let i = 0; i < n; i++) {
+      const a = i * TAU / n, ex = parma ? Math.cos(a) * r : clamp(Math.cos(a) * w, -w / 2, w / 2), ey = parma ? Math.sin(a) * r : clamp(Math.sin(a) * h, -h / 2, h / 2);
+      spike(ctx, ex * 0.95, ey * 0.95, a, 0.035 * H * k, 0.02 * H * k, BRONZE, true);
+    }
+  }
+  (parma ? drawParma : drawScutum)(ctx, H, k);
+  if (g) gearGlint(ctx, 0.03 * H * k, -0.06 * H * k, 0.03 * H, g, 0.6);
+  ctx.restore();
+}
 // the retiarius's net, bundled and hanging from the belt at the back hip
 function drawBeltNet(ctx, H) {
   const x = -0.12 * H, y = -0.49 * H, w = 0.07 * H, h = 0.19 * H;
@@ -2379,6 +2734,28 @@ function drawWeapon(ctx, f, H) {
     ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 2;
     leaf(y0 + 0.04 * H, y0 + 0.04 * H + len, W.id === 'dagger' ? 0.018 * H : 0.026 * H);
   }
+  const g = f.look && f.look.gear.weapon;
+  if (!g) return;
+  if (W.id === 'spear') weaponGear(ctx, g, [0, y0 + len], [0, y0 + len + 0.12 * H], 0.026 * H, [0, y0 - 0.3 * H], H);
+  else if (W.id === 'axe') weaponGear(ctx, g, [0, y0 + len - 0.16 * H], [0, y0 + len], 0.016 * H, [0, y0 - 0.06 * H], H);
+  else weaponGear(ctx, g, [0, y0 + 0.04 * H], [0, y0 + 0.04 * H + len], W.id === 'dagger' ? 0.018 * H : 0.026 * H, [0, y0 - 0.055 * H], H);
+}
+// A weapon piece along the weapon's working part, from a to b (px), hw its half-width there, butt the end of the grip: the saw teeth, the sica's hook
+// (and its red grip), the spiked iron pommel.
+function weaponGear(ctx, g, a, b, hw, butt, H) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, nx = -uy, ny = ux, s = 0.014 * H;
+  if (g.id === 'serrated') {
+    for (let i = 0; i < 7; i++) for (const sd of [1, -1]) { const t = 0.12 + i * 0.11, px = a[0] + dx * t + nx * hw * sd * 0.85, py = a[1] + dy * t + ny * hw * sd * 0.85; spike(ctx, px, py, Math.atan2(ny * sd + uy * 0.7, nx * sd + ux * 0.7), s * 0.9, s * 0.8, IRON, true); }
+  } else if (g.id === 'haem') {
+    const hook = () => { ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.quadraticCurveTo(b[0] + ux * 0.025 * H - nx * 0.05 * H, b[1] + uy * 0.025 * H - ny * 0.05 * H, b[0] - ux * 0.045 * H - nx * 0.055 * H, b[1] - uy * 0.045 * H - ny * 0.055 * H); };
+    ctx.lineCap = 'round'; hook(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = s + 3; ctx.stroke(); hook(); ctx.strokeStyle = '#cfd6de'; ctx.lineWidth = s; ctx.stroke();
+    ctx.strokeStyle = '#7f1d1d'; ctx.lineWidth = s * 0.9;
+    for (const k of [0.02, 0.045]) { const cx = butt[0] + (a[0] - butt[0]) * 0.5 + ux * k * H * 0.3, cy = butt[1] + (a[1] - butt[1]) * 0.5 + uy * k * H * 0.3; line(ctx, cx + nx * hw, cy + ny * hw, cx - nx * hw, cy - ny * hw); }
+  } else if (g.id === 'heavy') {
+    for (let i = 0; i < 4; i++) { const an = Math.atan2(-uy, -ux) + (i - 1.5) * 0.9; spike(ctx, butt[0], butt[1], an, 0.034 * H, 0.014 * H, BLACK, true); }
+    disc(ctx, butt[0], butt[1], 0.022 * H, BLACK);
+  }
+  gearGlint(ctx, b[0] - ux * 0.04 * H, b[1] - uy * 0.04 * H, 0.03 * H, g, 0.45);
 }
 
 // who: 'you' or 'foe'. The foe also draws his weapon arm and club; yours is drawn in screen space by drawSwordArm. ga: overall alpha (Blur's ghost).
@@ -2431,6 +2808,7 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
   if (fall > 0) ctx.globalAlpha = 1 - fall * 0.5;
   // far arm and its shield, legs, tunic and belly, chest, head
   const sw = isFoe ? state.sw : null, bashing = sw && sw.pose === 'bash';
+  if (lk.gear && lk.gear.cloak) { if (!fm.cloak) fm.cloak = mkPart(CLOAK, false); drawPart(ctx, E, fm.cloak, H, lk, null); }
   drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
   if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk));
   drawPart(ctx, E, P('legs'), H, lk, null);
@@ -2438,6 +2816,7 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
   if (lk.net && !(sw && sw.pose === 'net' && sw.fin <= 0)) drawBeltNet(ctx, H);
   drawPart(ctx, E, P('chest'), H, lk, null);
   drawPart(ctx, E, P('head'), H, lk, null);
+  if (lk.gear) drawGlints(ctx, fm, H, lk);
   // the foe's weapon arm and club
   if (isFoe) {
     const fr = fm.fr.armF;
@@ -2464,6 +2843,30 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
   }
 }
 
+// Your sword arm's arms piece near the wrist (a bracer, barbs or ribbons) and its war paint on the upper arm, drawn with the arm each frame
+function liveArmGear(ctx, h, H, lk) {
+  const S = [h.sx, h.sy], El = [h.ex, h.ey], Hd = [h.hx, h.hy], g = lk.gear.arms;
+  const across = (a, b, t, half, col, wd) => { const q = lerp2(a, b, t), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * half, ny = dx / l * half; ctx.strokeStyle = col; ctx.lineWidth = wd; line(ctx, q[0] + nx, q[1] + ny, q[0] - nx, q[1] - ny); };
+  ctx.lineCap = 'butt';
+  if (g && g.id !== 'jugg') {
+    const L = FAM_LOOK[g.fam], a = lerp2(El, Hd, 0.55), b = lerp2(El, Hd, 0.85);
+    if (g.id === 'matador') for (const t of [0.55, 0.68, 0.81]) across(El, Hd, t, 0.045 * H, L.hi, 0.02 * H);
+    else {
+      ctx.lineCap = 'round'; ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.09 * H + 2; line(ctx, a[0], a[1], b[0], b[1]);
+      ctx.strokeStyle = g.id === 'riposte' ? L.metal.mid : L.cloth; ctx.lineWidth = 0.09 * H; line(ctx, a[0], a[1], b[0], b[1]);
+      ctx.strokeStyle = g.id === 'riposte' ? L.metal.hi : 'rgba(255,190,170,0.4)'; ctx.lineWidth = 0.015 * H; line(ctx, a[0], a[1] - 0.025 * H, b[0], b[1] - 0.025 * H);
+      if (g.id === 'rend') for (const t of [0.3, 0.7]) { const q = lerp2(a, b, t), an = Math.atan2(b[1] - a[1], b[0] - a[0]) + Math.PI / 2; spike(ctx, q[0] + Math.cos(an) * 0.04 * H, q[1] + Math.sin(an) * 0.04 * H, an, 0.03 * H, 0.012 * H, IRON, true); }
+    }
+    gearGlint(ctx, b[0], b[1] - 0.03 * H, 0.03 * H, g, 0.8);
+  }
+  (lk.paint || []).forEach((id, i) => {
+    const col = PAINT_COL[id], t0 = 0.3 + i * 0.12;
+    if (id === 'exec') { across(S, El, t0, 0.032 * H, col, 0.012 * H); across(S, El, t0 + 0.07, 0.032 * H, col, 0.012 * H); }
+    else if (id === 'whirl') { const q = lerp2(S, El, t0 + 0.05); ctx.strokeStyle = col; ctx.lineWidth = 0.008 * H; ctx.beginPath(); ctx.arc(q[0], q[1], 0.02 * H, 0, TAU * 0.85); ctx.stroke(); }
+    else if (id === 'breath') { ctx.fillStyle = col; for (let k = 0; k < 3; k++) { const q = lerp2(S, El, t0 + k * 0.06); ctx.beginPath(); ctx.arc(q[0], q[1], 0.008 * H, 0, TAU); ctx.fill(); } }
+    else if (id === 'disarm') { const dx = El[0] - S[0], dy = El[1] - S[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l; ctx.strokeStyle = col; ctx.lineWidth = 0.008 * H; ctx.beginPath(); for (let k = 0; k < 5; k++) { const q = lerp2(S, El, t0 + k * 0.04), o = (k % 2 ? 1 : -1) * 0.022 * H; ctx.lineTo(q[0] + nx * o, q[1] + ny * o); } ctx.stroke(); }
+  });
+}
 // Your weapon arm, in screen space: a gladius or dagger as a leaf blade (broad, tapering to a point), a spear's shaft and head, an axe or a mace.
 function drawSwordArm(ctx, E) {
   const h = state.hand, H = myH(E), locked = h.lock > 0, blade = myBlade(E), wid = state.me.weapon;
@@ -2474,11 +2877,20 @@ function drawSwordArm(ctx, E) {
     ctx.strokeStyle = 'rgba(125,227,255,0.35)'; ctx.lineWidth = 8; ctx.beginPath();
     state.trail.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.stroke();
   }
-  const lk = lookOf(state.you, false);
+  const lk = lookOf(state.you, false), G = lk.gear;
   limb(ctx, [[h.sx, h.sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
+  liveArmGear(ctx, h, H, lk);
   ctx.fillStyle = YOU.tunic; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(h.sx, h.sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke();
-  if (lk.pauldron) {
+  if ((G.arms && G.arms.id === 'jugg') || (G.chest && G.chest.id === 'titan')) {
+    // Juggernaut's iron pauldrons, or Titan's black shoulder: layered black lames and a spike over the weapon shoulder
+    for (let i = 2; i >= 0; i--) {
+      const r = (0.075 - i * 0.012) * H, cy = h.sy - 0.012 * H + i * 0.024 * H;
+      ctx.beginPath(); ctx.ellipse(h.sx, cy, r * 1.15, r * 0.7, 0, Math.PI, TAU); ctx.closePath();
+      ctx.fillStyle = metalGrad(ctx, h.sx + r, cy - r, h.sx - r, cy, BLACK); ctx.fill(); ctx.strokeStyle = BLACK.edge; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    spike(ctx, h.sx, h.sy - 0.06 * H, -Math.PI / 2, 0.04 * H, 0.018 * H, BLACK, true);
+  } else if (lk.pauldron) {
     // the brute's layered iron pauldron over the weapon shoulder
     for (let i = 2; i >= 0; i--) {
       const r = (0.07 - i * 0.012) * H, cy = h.sy - 0.01 * H + i * 0.022 * H;
@@ -2518,6 +2930,12 @@ function drawSwordArm(ctx, E) {
     ctx.fillStyle = steel; ctx.fill(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 2; ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(gx + bx * 6, gy + by * 6); ctx.lineTo(h.ux - bx * 6, h.uy - by * 6); ctx.stroke();
   }
+  if (G.weapon) {
+    const tip = [h.ux, h.uy], back = (k) => [h.ux - bx * k * H, h.uy - by * k * H];
+    if (wid === 'spear') weaponGear(ctx, G.weapon, back(0.13), tip, w * 1.1, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H);
+    else if (wid === 'axe') weaponGear(ctx, G.weapon, back(0.2), tip, 0.016 * H, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H);
+    else weaponGear(ctx, G.weapon, [gx, gy], tip, w, [h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H], H);
+  }
   if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(h.ux, h.uy, 6, 0, 6.28); ctx.fill(); }
   ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
   ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();
@@ -2542,24 +2960,38 @@ function drawSwordArm(ctx, E) {
 
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
 function drawShield(ctx, E) {
-  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint;
+  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, g = lookOf(state.you, false).gear.shield;
   if (sh.broken) return;
   const [hx, hy] = toScreen(Fy, ...shieldPos());
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
-  const r = lerp(0.11, 0.2, sh.up) * H, cx = hx, cy = hy;
+  const r = lerp(0.11, 0.2, sh.up) * H, cx = hx, cy = hy, tower = g && g.id === 'ironwall';
   limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
+  // Untouchable: no shield at all, an empty fist
+  if (noShield()) { ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(hx, hy, 0.042 * H, 0, TAU); ctx.fill(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke(); return; }
+  // the round bronze shield, or Iron Wall's tower shield, tall and square
+  const shape = (k) => (tower ? rrect(ctx, -r * 0.72 * k, -r * 1.2 * k, r * 1.44 * k, r * 2.4 * k, r * 0.2 * k) : (ctx.beginPath(), ctx.arc(0, 0, r * k, 0, TAU)));
   ctx.save(); ctx.translate(cx, cy);
-  const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
-  g.addColorStop(0, '#b9803a'); g.addColorStop(1, '#6d4519');
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.28); ctx.fillStyle = g; ctx.fill();
+  if (g && g.id === 'thorns') for (let i = 0; i < 10; i++) { const a = i * TAU / 10; spike(ctx, Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92, a, r * 0.32, r * 0.16, BRONZE, true); }
+  const gr = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, tower ? r * 1.3 : r);
+  gr.addColorStop(0, '#b9803a'); gr.addColorStop(1, '#6d4519');
+  shape(1); ctx.fillStyle = gr; ctx.fill();
   ctx.strokeStyle = sh.flash > 0 ? '#ffffff' : '#2a1c10'; ctx.lineWidth = 4; ctx.stroke();
-  ctx.strokeStyle = '#d6b04a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r * 0.82, 0, 6.28); ctx.stroke();
+  ctx.strokeStyle = '#d6b04a'; ctx.lineWidth = 3; shape(0.82); ctx.stroke();
+  if (tower) { ctx.lineWidth = 2; line(ctx, 0, -r * 0.95, 0, r * 0.95); for (const k of [-0.6, 0.6]) line(ctx, -r * 0.55, r * k, r * 0.55, r * k); }
   ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, 6.28); ctx.fill(); ctx.stroke();
+  if (g && g.id === 'thorns') spike(ctx, 0, 0, -0.6, r * 0.3, r * 0.16, BRONZE, true);
   const worn = shieldMax() - sh.hits;
   ctx.strokeStyle = '#1a120a'; ctx.lineWidth = 2;
   for (let i = 0; i < worn; i++) { const a = i * 1.7 + 0.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25); ctx.lineTo(Math.cos(a + 0.2) * r * 0.65, Math.sin(a + 0.2) * r * 0.65); ctx.lineTo(Math.cos(a - 0.1) * r * 0.95, Math.sin(a - 0.1) * r * 0.95); ctx.stroke(); }
-  if (sh.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${sh.flash / 0.25 * 0.5})`; ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.28); ctx.fill(); }
+  if (sh.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${sh.flash / 0.25 * 0.5})`; shape(1); ctx.fill(); }
+  if (g) gearGlint(ctx, r * 0.5, -r * 0.5, r * 0.4, g, 0.2);
   ctx.restore();
+}
+// a live piece's glint (the shield and the weapon are drawn each frame)
+function gearGlint(ctx, x, y, s, c, ph) {
+  const S = TUNING.skin, k = Math.pow(Math.max(0, Math.sin((state.m / S.gearGlint + ph) * TAU)), 6) * S.gearGlintA;
+  if (k < 0.02) return;
+  ctx.save(); glint(ctx, x, y, s, rarCol(c), k); ctx.restore();
 }
 
 // ----- the play screen: the left column, the walls, his cover and tell, the hint, the caption, the background -----
@@ -2777,19 +3209,32 @@ function drawDraft(ctx, E) {
   const n = d.cards.length, gap = 14, w = Math.min(210, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 108 + ex, h = Math.min(190, E.h - E.safe.bottom - y - 62), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
   const ready = d.t > D.delay;
   d.btns = d.cards.map((c, i) => {
-    const x = x0 + i * (w + gap), priced = i === d.priced, price = priceOf(c), short = priced && state.gold < price, col = c.duo ? DUO_GOLD : FAMS[c.fam].col;
+    const x = x0 + i * (w + gap), priced = i === d.priced, price = priceOf(c), short = priced && state.gold < price, col = c.duo ? DUO_GOLD : FAMS[c.fam].col, rc = rarCol(c), old = replaces(c);
     ctx.globalAlpha = !ready ? 0.6 : short ? 0.55 : 1;
-    E.roundRect(x, y, w, h, 14, priced ? '#2a2016' : '#221a2b', col);
-    if (c.duo || priced) E.roundRect(x + 3, y + 3, w - 6, h - 6, 11, null, priced ? 'rgba(255,210,74,0.55)' : DUO_GOLD);
-    E.text(tierName(c), x + w / 2, y + 14, { size: 10, weight: '800', color: c.duo ? DUO_GOLD : TIER_TINT[c.tier] });
-    const r = Math.min(24, h * 0.13);
+    // the border is the rarity's colour; the icon and the bottom line are the family's
+    E.roundRect(x, y, w, h, 14, priced ? '#2a2016' : '#221a2b', rc);
+    E.roundRect(x + 3, y + 3, w - 6, h - 6, 11, null, priced ? 'rgba(255,210,74,0.55)' : shade(rc, 0.6));
+    E.text(tierName(c), x + w / 2, y + 14, { size: fitSize(ctx, tierName(c), 10, w - 16), weight: '800', color: rc });
+    // the bottom lines, each 14 px or more: the price, the piece it replaces (on its own line, split in two when it is too wide), or the family
+    const bot = [], fits = (t, wt) => { ctx.font = `${wt} 14px system-ui, sans-serif`; return ctx.measureText(t).width <= w - 16; };
+    if (priced) {
+      const have = `${price} gold \u00b7 you have ${state.gold}`;
+      bot.push([short && fits(have, 800) ? have : `${price} gold`, short ? '#9aa4b2' : '#ffd24a', 800]);
+    }
+    if (old) {
+      const t = `replaces ${old.gear}`;
+      if (fits(t, 700)) bot.push([t, '#fb923c', 700]); else bot.push(['replaces', '#fb923c', 700], [old.gear, '#fb923c', 700]);
+    } else if (!priced) bot.push([c.duo ? c.duo.map((f) => FAMS[f].name).join(' + ') : `${FAMS[c.fam].name}${held[c.fam] ? ` \u00b7 you wear ${held[c.fam]}` : ''}`, col, 800]);
+    const bh = 8 + 16 * bot.length, r = Math.min(24, h * 0.13, Math.max(14, (h - 130 - bh) * 0.5));
     drawIcon(ctx, c.id, x + w / 2, y + 22 + r, r);
-    const ly = y + 34 + 2 * r;
-    E.text(c.name, x + w / 2, ly, { size: fitSize(ctx, c.name, 17, w - 16), weight: '800', color: '#f0e6cc' });
-    wrapPx(ctx, c.line, w - 18, 13, '600').slice(0, 3).forEach((s2, k) => E.text(s2, x + w / 2, ly + 21 + k * 15, { size: 13, color: '#cbd5e1' }));
-    const fam = c.duo ? c.duo.map((f) => FAMS[f].name).join(' + ') : `${FAMS[c.fam].name}${held[c.fam] ? ` · you hold ${held[c.fam]}` : ''}`;
-    if (priced) E.text(short ? `${price} gold · you have ${state.gold}` : `${price} gold`, x + w / 2, y + h - 13, { size: 13, weight: '800', color: short ? '#9aa4b2' : '#ffd24a' });
-    else E.text(fam, x + w / 2, y + h - 13, { size: fitSize(ctx, fam, 11, w - 16, '700'), weight: '700', color: col });
+    const ly = y + 34 + 2 * r, title = titleOf(c), sub = c.duo ? 'takes no slot' : c.fam === 'fin' ? 'war paint, takes no slot' : c.name;
+    E.text(title, x + w / 2, ly, { size: fitSize(ctx, title, 17, w - 16), weight: '800', color: '#f0e6cc' });
+    E.text(sub, x + w / 2, ly + 17, { size: fitSize(ctx, sub, 12, w - 16, '700'), weight: '700', color: col });
+    // the rule's line, a size smaller when three lines would meet the bottom lines
+    let fs = 13, ls = wrapPx(ctx, c.line, w - 18, fs, '600');
+    if (ly + 35 + (ls.length - 1) * 15 > y + h - bh - 6) { fs = 11; ls = wrapPx(ctx, c.line, w - 14, fs, '600'); }
+    ls.slice(0, 3).forEach((s2, k) => E.text(s2, x + w / 2, ly + 35 + k * (fs + 2), { size: fs, color: '#cbd5e1' }));
+    bot.forEach(([t, color, wt], k) => E.text(t, x + w / 2, y + h - 13 - (bot.length - 1 - k) * 16, { size: 14, weight: String(wt), color }));
     ctx.globalAlpha = 1;
     return { x, y, w, h, card: c };
   });
@@ -2799,22 +3244,27 @@ function drawDraft(ctx, E) {
   d.help = { x: E.w / 2 + 186, y: by - 24, w: 48, h: 48 };
   E.roundRect(d.help.x, d.help.y, 48, 48, 24, '#1f2937', '#c4b99a');
   E.text('?', d.help.x + 24, by, { size: 22, weight: '800', color: '#f0e6cc' });
-  if (d.helpOn) drawDealHelp(ctx, E, held);
+  if (d.helpOn) drawDealHelp(ctx, E, held, d.odds);
 }
+const ODDS_NAME = { set: 'Set', 3: 'Legendary', 2: 'Epic', 1: 'Rare', 0: 'Common' };
 // The "?": how the deal works, the families you hold, and each duo with what it needs
-function drawDealHelp(ctx, E, held) {
-  const duos = DECK.filter((c) => c.duo), w = Math.min(E.w - 32, 620), rh = 34, h = Math.min(E.h - 16, 132 + duos.length * rh), x = (E.w - w) / 2, y = (E.h - h) / 2;
+function drawDealHelp(ctx, E, held, odds = []) {
+  const duos = DECK.filter((c) => c.duo), w = Math.min(E.w - 32, 620), rh = 34, h = Math.min(E.h - 16, 166 + duos.length * rh), x = (E.w - w) / 2, y = (E.h - h) / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.7)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 16, '#221a2b', '#e6c866');
   E.text('HOW THE DEAL WORKS', E.w / 2, y + 18, { size: 14, weight: '800', color: '#c4b99a' });
-  const rules = [`Families you hold come ${TUNING.draft.pull}x as often; at most ${TUNING.draft.perFam} of one family a draft.`, 'The gold card is a tier up: keystones and duos come there.', 'A duo is dealt once you hold a card of both its families.'];
-  rules.forEach((t, i) => E.text(t, E.w / 2, y + 40 + i * 17, { size: fitSize(ctx, t, 13, w - 24, '600'), color: '#f0e6cc' }));
+  const ol = `The gold card: ${odds.map(([t, p]) => `${ODDS_NAME[t]} ${p}%`).join(' · ') || 'nothing left to deal'}`;
+  E.text(ol, E.w / 2, y + 40, { size: fitSize(ctx, ol, 15, w - 24), weight: '800', color: '#ffd24a' });
+  const rules = [`Families you wear come ${TUNING.draft.pull}x as often; at most ${TUNING.draft.perFam} of one family a draft.`, 'One piece a slot: a new piece replaces the one you wear there.', 'A set bonus is dealt while you wear a piece of both its families.'];
+  rules.forEach((t, i) => E.text(t, E.w / 2, y + 62 + i * 17, { size: fitSize(ctx, t, 13, w - 24, '600'), color: '#f0e6cc' }));
   const hl = Object.keys(FAMS).filter((f) => held[f]).map((f) => `${FAMS[f].name} ${held[f]}`).join('  ·  ');
-  E.text(`You hold: ${hl || 'no family yet'}`, E.w / 2, y + 96, { size: 14, weight: '800', color: '#86efac' });
+  E.text(`You wear: ${hl || 'no family yet'}`, E.w / 2, y + 118, { size: 14, weight: '800', color: '#86efac' });
+  const G = wornGear(), wl = SLOT_NAMES.filter((k) => G[k]).map((k) => `${k} ${G[k].gear}`).join(' · ');
+  if (wl) E.text(wl, E.w / 2, y + 136, { size: fitSize(ctx, wl, 12, w - 24, '600'), color: '#cbd5e1' });
   duos.forEach((c, i) => {
-    const ry = y + 124 + i * rh, ok = c.duo.every((f) => held[f]);
+    const ry = y + 158 + i * rh, ok = c.duo.every((f) => held[f]);
     drawIcon(ctx, c.id, x + 30, ry, 13);
-    E.text(c.name, x + 50, ry - 7, { size: 14, weight: '800', align: 'left', color: ok ? DUO_GOLD : '#9aa4b2' });
+    E.text(titleOf(c), x + 50, ry - 7, { size: 14, weight: '800', align: 'left', color: ok ? DUO_GOLD : '#9aa4b2' });
     E.text(`${c.duo.map((f) => FAMS[f].name).join(' + ')}${ok ? '  \u00b7  can be dealt' : ''}`, x + w - 14, ry - 7, { size: 12, weight: '700', align: 'right', color: ok ? '#86efac' : '#8a8f99' });
     E.text(c.line, x + 50, ry + 9, { size: fitSize(ctx, c.line, 12, w - 64, '600'), align: 'left', color: '#cbd5e1' });
   });
@@ -2895,8 +3345,8 @@ function armourIcon(ctx, parts, x, y, s) {
     ctx.beginPath();
     if (p.shape === 'circle') ctx.arc(cx, cy, p.r * s, 0, 6.28);
     else ctx.rect(cx - p.w * s / 2, cy - p.h * s / 2, p.w * s, p.h * s);
-    ctx.fillStyle = q.slot ? '#0b0705' : q.armour ? '#aab3bc' : '#b9835a'; ctx.fill();
-    ctx.strokeStyle = q.slot ? 'rgba(255,214,150,0.7)' : '#2a1c10'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = q.guard ? '#e6c866' : q.slot ? '#0b0705' : q.armour ? '#aab3bc' : '#b9835a'; ctx.fill();
+    ctx.strokeStyle = q.guard ? '#7a5a14' : q.slot ? 'rgba(255,214,150,0.7)' : '#2a1c10'; ctx.lineWidth = 1; ctx.stroke();
   }
   ctx.restore();
 }
@@ -2912,6 +3362,11 @@ function weaponIcon(ctx, d, x, y, s) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI / 2); ctx.translate(0, -ARM_LEN * s);
   drawWeapon(ctx, { weapon: d.weapon, mace: d.mace }, s); ctx.restore();
 }
+// his pieces that act for him (TUNING.foeGear) and what each does, shown red on his intro card; the rest are a look
+const FOE_TELL = {
+  thorns: () => `hitting his guard costs you ${TUNING.foeGear.thorns} stamina`, bloodlust: () => `a blow of his that lands gives him ${TUNING.foeGear.bloodlust} stamina`,
+  riposte: () => 'he counters a blow that hits his guard', unbreak: () => 'he shrugs off your first hit each bout',
+};
 // A rival's taunt: the noun of your origin, or your village on a revenge run.
 const tauntOf = (me) => (me.reason === 'revenge' ? 'I remember your village.' : `You again, little ${ORIGINS[me.origin].noun}?`);
 // the reason's thread on his card: the debt left, the notches on the wooden sword, or the crowd's banner (revenge climbs in Brutus's lines instead)
@@ -2957,8 +3412,8 @@ function wrapPx(ctx, t, w, size, weight = '600') {
 function drawIntro(ctx, E) {
   const d = state.foe, me = state.me, champ = d.champion, spar = bout().spar;
   const voice = d.rival ? tauntOf(me) : champ ? CHAMP_LINE[me.reason] : null, sub = champ ? CHAMP_TIE[me.reason] : spar ? 'Sparring: learn his tells.' : null;
-  const thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 140, tb = b + bodyH + (thread ? 32 : 6);
-  const w = Math.min(E.w - 32, 460), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const gear = (d.gear || []).map((id) => CARD[id]), thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 140 + ((d.guards || []).length ? 18 : 0), tb = b + bodyH + (thread ? 32 : 6);
+  const w = Math.min(E.w - 32, gear.length ? 640 : 460), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', d.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
   const of = `BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
@@ -2967,15 +3422,35 @@ function drawIntro(ctx, E) {
   E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40), weight: '800', color: '#f0e6cc' });
   if (sub) E.text(sub, cx, y + 72, { size: 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   const lx = x + 80, s = 96;
-  armourIcon(ctx, foeParts(makeRng(d.partSeed), d.set), lx, y + b + 100, s);
+  armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s);
   E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 12, weight: '800', color: '#aab3bc' });
-  E.text(`${d.set.slots} gaps open`, lx, y + b + 134, { size: 12, color: '#c4b99a' });
-  const rx = x + 164, rw = x + w - 22 - rx;
+  const ng = (d.guards || []).length;
+  E.text(`${d.set.slots - ng} gaps open${ng ? ` · ${ng} guarded` : ''}`, lx, y + b + 134, { size: fitSize(ctx, 'x 4 gaps open · 2 guarded', 12, 150, '400'), color: '#c4b99a' });
+  if (ng) { const gl = `${d.guards.map((id) => GUARDS[id].toUpperCase()).join(', ')}`; E.text(gl, lx, y + b + 150, { size: fitSize(ctx, gl, 12, 150), weight: '800', color: '#ffd24a' }); }
+  const rx = x + 164, rw = gear.length ? Math.max(170, w - 164 - 32 - 226) : x + w - 22 - rx;
   E.text(d.size.name, rx, y + b + 10, { size: 18, weight: '800', align: 'left', color: '#fde68a' });
   E.text(d.wname, rx, y + b + 36, { size: 18, weight: '800', align: 'left', color: '#f0e6cc' });
   weaponIcon(ctx, d, rx + rw - d.weapon.len * 100, y + b + 28, 100);
   wrapPx(ctx, WEAPON_TIP[d.weapon.id] + (d.shield ? ', carries a shield' : ''), rw, 12).slice(0, 2).forEach((t, i) => E.text(t, rx, y + b + 58 + i * 14, { size: 12, align: 'left', color: '#9aa4b2' }));
   statBars(ctx, E, d, rx, y + b + 96, rw, 20, 13);
+  // his gear in a third column, a tell: the pieces that act for him in red with what each does, the rest a look in grey (14 px, at most 9 or 10 lines)
+  if (gear.length) {
+    const gx = rx + rw + 16, gw = x + w - 16 - gx, maxL = Math.floor((bodyH - 8) / 16) + 1, rows = [];
+    for (const c of gear.filter((q) => FOE_TELL[q.id])) wrapPx(ctx, `${c.gear}: ${FOE_TELL[c.id]()}`, gw, 14, '700').forEach((t, i) => rows.push({ t, head: i ? '' : `${c.gear}:` }));
+    const look = gear.filter((q) => !FOE_TELL[q.id]).map((q) => q.gear);
+    if (look.length && rows.length < maxL) {
+      const ls = wrapPx(ctx, `Looks only: ${look.join(', ')}`, gw, 14, '700'), room = maxL - rows.length;
+      ls.slice(0, room).forEach((t, i) => { ctx.font = '700 14px system-ui, sans-serif'; while (i === room - 1 && ls.length > room && ctx.measureText(`${t}\u2026`).width > gw) t = t.slice(0, -1); rows.push({ t: i === room - 1 && ls.length > room ? `${t}\u2026` : t, head: '', dim: true }); });
+    }
+    rows.slice(0, maxL).forEach((r, i) => {
+      const ry = y + b + 8 + i * 16;
+      if (r.dim) { E.text(r.t, gx, ry, { size: 14, weight: '700', align: 'left', color: '#9aa4b2' }); return; }
+      ctx.font = '700 14px system-ui, sans-serif';
+      const hw = r.head ? ctx.measureText(r.head).width : 0;
+      if (r.head) E.text(r.head, gx, ry, { size: 14, weight: '700', align: 'left', color: '#f87171' });
+      E.text(r.head ? r.t.slice(r.head.length).trimStart() : r.t, gx + (r.head ? hw + 4 : 0), ry, { size: 14, weight: '700', align: 'left', color: '#e2e8f0' });
+    });
+  }
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
   const bl = `Old Brutus: “${brutusIntro()}”`;
   E.text(bl, cx, y + tb + 10, { size: fitSize(ctx, bl, 13, w - 28, '700'), weight: '700', color: '#fde68a' });
@@ -2992,7 +3467,7 @@ function miniCard(ctx, E, d, x, y, w, h, res) {
   E.text(d.name.length > 13 ? d.name.split(' ')[0].toUpperCase() : d.name.toUpperCase(), x + w / 2, y + 30, { size: 14, weight: '800', color: '#f0e6cc', alpha: a });
   E.text(`${d.size.id} \u00b7 ${d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name}`, x + w / 2, y + 47, { size: 10, weight: '700', color: '#fde68a', alpha: a });
   ctx.globalAlpha = a;
-  armourIcon(ctx, foeParts(makeRng(d.partSeed), d.set), x + w * 0.28, y + 104, 54);
+  armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), x + w * 0.28, y + 104, 54);
   statBars(ctx, E, d, x + w * 0.5, y + 70, w * 0.46, 15, 9);
   E.text(d.set.name, x + w * 0.72, y + 118, { size: 9, color: '#aab3bc', alpha: a });
   ctx.globalAlpha = 1;
@@ -3072,8 +3547,10 @@ function drawMeCard(ctx, E, me, x, y, w, h) {
   E.text(nm, tx, y + 156, { size: fitSize(ctx, nm, 16, tw), weight: '800', align: 'left', color: '#f0e6cc' });
   wrapPx(ctx, MY_WEAPON_JOB[me.weapon], tw, 12).slice(0, 3).forEach((t, i) => E.text(t, tx, y + 175 + i * 14, { size: 12, align: 'left', color: '#c4b99a' }));
 }
-function meMini(ctx, E, me, x, y, w, h) {
+function meMini(ctx, E, me, x, y, w, h, picks = []) {
   E.roundRect(x, y, w, h, 12, '#1d2a2a', '#4ade80');
+  // the set mark: each set bonus you wear, a small gold roundel under your armour
+  picks.filter((id) => CARD[id].duo).forEach((id, i) => drawIcon(ctx, id, x + 16 + i * 19, y + 117, 8));
   E.text(me.name.toUpperCase(), x + w / 2, y + 13, { size: 10, weight: '800', color: '#9fe3c6' });
   E.text(`TIER ${me.tier}`, x + w / 2, y + 30, { size: 14, weight: '800', color: TIER_COL[me.tier] });
   E.text(`${me.size} · ${weaponName(me)} · ♥ ${halvesText(me.halves)}`, x + w / 2, y + 47, { size: 10, weight: '700', color: '#fde68a' });
@@ -3334,7 +3811,7 @@ const play = {
       momGained: state.momGained, momSpent: state.momSpent, bleeds: state.bleeds, lamings: state.lamings };
     const me = state.me, champ = g[g.length - 1];
     // the champion who cut you down is remembered for the next run; a fall earlier only chalks your name on the wall
-    if (!won && state.results[g.length - 1] === 'lost') E.save.set('rival', rivalOf(champ));
+    if (!won && state.results[g.length - 1] === 'lost') { const gaps = { ...(champ.gaps || {}) }; for (const [k, v] of Object.entries(state.bout.gaps)) gaps[k] = (gaps[k] || 0) + v; E.save.set('rival', rivalOf({ ...champ, gaps })); }
     const wall = won ? E.save.get('wall', []) : E.save.set('wall', [{ name: me.name, bout: reached, female: me.female }, ...E.save.get('wall', [])].slice(0, 8));
     E.ledger.add('result', { ...r, won, reached, halves: state.hp, sizes: g.map((d) => d.size.id).join(''), weapons: g.map((d) => d.weapon.id).join(','), armour: g.map((d) => d.set.id[0]).join(''),
       stats: g.map((d) => `${d.str}${d.spd}${d.sta}`).join(','), champ: g[g.length - 1].name, lostTo: won ? '' : `${g[reached - 1].name} ${g[reached - 1].size.id} ${g[reached - 1].weapon.id}`,
@@ -3522,17 +3999,26 @@ const over = {
     this.btnMenu = E.button('Menu', E.w / 2 + 160, by, { w: 150, h: 48, size: 18, fill: '#334155' });
     if (this.details) { this.stats(ctx, E, top + 36, by - 32); return; }
     const n = g.length + 1, gap = 8, w = Math.min(150, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), h = 150, x0 = (E.w - (w * n + gap * (n - 1))) / 2, y0 = top + 36;
-    meMini(ctx, E, me, x0, y0, w, h);
+    meMini(ctx, E, me, x0, y0, w, h, p.picks);
     g.forEach((d, i) => miniCard(ctx, E, d, x0 + (i + 1) * (w + gap), y0, w, h, p.results[i] || null));
     let y = y0 + h + 14;
     // your upgrades, icon and name
     if (p.picks.length) {
-      ctx.font = '600 12px system-ui, sans-serif';
-      const items = p.picks.map((id) => CARD[id].name), ws = items.map((t) => ctx.measureText(t).width + 34), tw = ws.reduce((a2, v) => a2 + v, 0);
-      let x = E.w / 2 - tw / 2 + 40;
-      E.text('Upgrades:', x - 10, y, { size: 12, align: 'right', weight: '800', color: '#c4b99a' });
-      p.picks.forEach((id, i) => { drawIcon(ctx, id, x + 8, y, 8); E.text(items[i], x + 20, y, { size: 12, align: 'left', color: '#f0e6cc' }); x += ws[i]; });
-    } else E.text('No upgrades picked', E.w / 2, y, { size: 12, color: '#6b7280' });
+      // every piece as an icon, then as many names as fit at 14 px (highest rarity first: keystones, sets, epics, war paint), then "+N"
+      const n = p.picks.length, room = E.w - 32 - E.safe.left - E.safe.right, rank = (id) => (CARD[id].duo ? 2.5 : CARD[id].fam === 'fin' ? 1.5 : CARD[id].tier);
+      ctx.font = '800 14px system-ui, sans-serif';
+      const lw = ctx.measureText('Gear:').width + 8, ip = Math.min(22, (room - lw) / n), order = p.picks.map((id, i) => i).sort((a2, b2) => rank(p.picks[b2]) - rank(p.picks[a2]) || a2 - b2);
+      ctx.font = '600 14px system-ui, sans-serif';
+      const tr = room - lw - ip * n - 14, textOf = (k) => `${order.slice(0, k).map((i) => titleOf(CARD[p.picks[i]])).join(', ')}${k < n ? ` +${n - k}` : ''}`;
+      let k = n;
+      while (k > 0 && ctx.measureText(textOf(k)).width > tr) k--;
+      const txt = k ? textOf(k) : '', tw = txt ? ctx.measureText(txt).width + 14 : 0;
+      let x = E.w / 2 - (lw + ip * n + tw) / 2;
+      E.text('Gear:', x, y, { size: 14, align: 'left', weight: '800', color: '#c4b99a' });
+      x += lw;
+      p.picks.forEach((id, i) => drawIcon(ctx, id, x + ip * i + ip / 2, y, Math.min(8, ip / 2 - 1)));
+      if (txt) E.text(txt, x + ip * n + 14, y, { size: 14, align: 'left', color: '#f0e6cc' });
+    } else E.text('No gear picked', E.w / 2, y, { size: 14, color: '#9ca3af' });
     y += 18;
     // the run's gold: what is left (it resets with the run) and what the crowd's style earned, and the tent's wares
     const wn = p.wares.map((id) => WARES.find((q) => q.id === id).name.replace(' {weapon}', '')), gl = `Gold: ${p.gold} left of ${p.goldEarned} earned${wn.length ? `  \u00b7  bought: ${wn.join(', ')}` : ''}`;
@@ -3585,7 +4071,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 5,
+  saveVersion: 6,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -3600,6 +4086,12 @@ export const game = {
         const A = TUNING.me.armour[TUNING.me.wheels.armour[r.me.idx[4]][0]];
         data.run = { seed: r.seed, rack: 0, me: deriveMe({ ...r.me, plates: r.me.plates.slice(0, A.n + (A.arm ? 1 : 0)) }), rival: r.rival || null };
       } else data.run = null;
+    }
+    // v6 (v2 step 2, gear): the picks keep their card ids, so a saved run goes on as it was and its gear is derived from them (two pieces saved for one
+    // slot both stay until a new piece takes that slot); the rival starts with no gear of his own and no gaps counted
+    if (fromVersion < 6) {
+      for (const rv of [data.rival, data.run && data.run.rival]) if (rv) { rv.gaps = rv.gaps || {}; rv.gear = rv.gear || null; }
+      if (data.run && data.run.draft) data.run.draft.odds = data.run.draft.odds || [];
     }
     return data;
   },
