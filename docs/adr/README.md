@@ -38,3 +38,4 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0017](0017-scoped-cache-cleanup-and-passive-toasts.md) | Service workers clean up only their own game's channel; a toast without an action lets touches through | accepted |
 | [0018](0018-network-first-service-worker.md) | Service workers are network first, and games check for updates when they come back to the front | accepted |
 | [0019](0019-matched-menu-tabs.md) | The menu's TUNE and EXPORT tabs share one size and one top line | accepted |
+| [0020](0020-art-picks-in-game.md) | Pick art candidates inside the game: a candidates manifest, `E.art.src`, and an ART tab in the dev channel | accepted |
