@@ -371,10 +371,10 @@ const CLIENTS = {
   ola: { name: 'Ola', face: [0.3, 0.06, 0.4] },
   mina: { name: 'Mina', face: [0.04, 0, 0.4] },
   kai: { name: 'Kai', face: [0.46, 0, 0.42] },
-  // PRD v0.8 (Pack 16): `hair` and `glasses` only draw the stand-in face while the portraits are missing; `face` is a placeholder until the art lands
-  ines: { name: 'Ines', face: [0.3, 0.06, 0.4], hair: P.hairDark },
-  arlo: { name: 'Arlo', face: [0.3, 0.06, 0.4], hair: P.hairGrey },
-  rita: { name: 'Rita', face: [0.3, 0.06, 0.4], hair: P.hairGrey, glasses: true, react: { happy: ['A swallow always comes home. So does this shop. It\'s yours.'], neutral: ['Steady. Try again, I\'m not going anywhere.'], sad: ['Steady. Try again, I\'m not going anywhere.'] } },
+  // PRD v0.8 (Pack 16): `hair` and `glasses` only draw the stand-in face while a portrait fails to load; `face` is measured on the three moods (the head moves between them)
+  ines: { name: 'Ines', face: [0.27, 0.02, 0.52], hair: P.hairDark },
+  arlo: { name: 'Arlo', face: [0.35, 0, 0.45], hair: P.hairGrey },
+  rita: { name: 'Rita', face: [0.32, 0, 0.46], hair: P.hairGrey, glasses: true, react: { happy: ['A swallow always comes home. So does this shop. It\'s yours.'], neutral: ['Steady. Try again, I\'m not going anywhere.'], sad: ['Steady. Try again, I\'m not going anywhere.'] } },
 };
 const COLD_IDS = ['bram', 'theo', 'june', 'ola', 'mina', 'kai']; // the six faces of the cold open
 const CAST = {
@@ -394,12 +394,12 @@ const CAST_AT = {
   30: ['rita', 'One more piece, then. On me.'], // the finale, Swallow for Rita
 };
 const FINALE = 30; // the finale's index: it opens when every other stencil has a star, and Rita's card comes before it
-// ===== PACK 16: the one block to edit when the art chat's webps land (Ines, Arlo, Rita's two faces) =====
+// ===== PACK 16: Ines, Arlo and Rita's two faces. Landed 2026-10-14 (the flags are true, the rows below are measured). For a later pack of the same shape: =====
 // Until a client's flag is true its portraits are never requested (no 404) and a drawn stand-in face is used. When the files land:
 //   1. copy them into games/ink/assets/ (client-ines-happy|neutral|sad.webp, client-arlo-...webp, rita-proud.webp, rita-kind.webp);
 //   2. set the client's flag below to true, measure its PATCH and PATCH2 rows on the real portraits (Rita: only PATCH, her forearm), and its `face` crop in CLIENTS;
 //   3. list the files in PACK16 in sw.js and bump CACHE_VERSION.
-const PACK16 = { ines: false, arlo: false, rita: false };
+const PACK16 = { ines: true, arlo: true, rita: true }; // landed 2026-10-14 (art wiring)
 const packOf = (file) => (file.startsWith('client-ines-') ? 'ines' : file.startsWith('client-arlo-') ? 'arlo' : file.startsWith('rita-') ? 'rita' : null);
 const artReady = (file) => { const k = packOf(file); return !k || PACK16[k]; };
 // The portrait file of a client in a mood. Rita has two faces: proud (a happy mood, 4 or 5 stars) and kind (any other).
@@ -413,10 +413,10 @@ const PATCH = {
   ola: { happy: [0.52, 0.54, 0.2, 0.14, 0], neutral: [0.52, 0.54, 0.2, 0.14, 0], sad: [0.52, 0.54, 0.2, 0.14, 0] },
   mina: { happy: [0.58, 0.6, 0.17, 0.08, 0.12], neutral: [0.6, 0.6, 0.17, 0.07, 0.1], sad: [0.6, 0.6, 0.17, 0.07, 0.15] },
   kai: { happy: [0.45, 0.475, 0.26, 0.19, 0], neutral: [0.45, 0.475, 0.26, 0.19, 0], sad: [0.45, 0.475, 0.26, 0.19, 0] },
-  // Pack 16 placeholders, set on the drawn stand-in (shoulder, forearm, forearm); replace each with the measured row when the portraits land
-  ines: { happy: [0.7, 0.62, 0.2, 0.12, 0.15], neutral: [0.7, 0.62, 0.2, 0.12, 0.15], sad: [0.7, 0.62, 0.2, 0.12, 0.15] },
-  arlo: { happy: [0.5, 0.74, 0.22, 0.09, -0.2], neutral: [0.5, 0.74, 0.22, 0.09, -0.2], sad: [0.5, 0.74, 0.22, 0.09, -0.2] },
-  rita: { happy: [0.5, 0.78, 0.22, 0.1, -0.1], neutral: [0.5, 0.78, 0.22, 0.1, -0.1], sad: [0.5, 0.78, 0.22, 0.1, -0.1] },
+  // Pack 16, measured on the finals (Ines: the bare upper arm, leaning with it; Arlo and Rita: the forearm, rising to the elbow). The derived moods sit lower than their reference; Rita's rows are proud (happy) and kind (neutral, sad).
+  ines: { happy: [0.394, 0.605, 0.195, 0.176, 0.33], neutral: [0.391, 0.655, 0.195, 0.176, 0.33], sad: [0.394, 0.623, 0.195, 0.176, 0.33] },
+  arlo: { happy: [0.599, 0.676, 0.23, 0.09, -0.4], neutral: [0.603, 0.705, 0.23, 0.09, -0.4], sad: [0.595, 0.694, 0.23, 0.09, -0.4] },
+  rita: { happy: [0.443, 0.796, 0.24, 0.112, -0.42], neutral: [0.433, 0.814, 0.24, 0.112, -0.42], sad: [0.433, 0.814, 0.24, 0.112, -0.42] },
 };
 // The second patch on each portrait (PRD v0.8 A), where a returning client's earlier finished pieces sit small and faded: the same rows as PATCH, measured on the same art.
 // A client missing here has no clear second patch and shows no earlier pieces. Bram's and Theo's are the smallest (two pieces fit); Rita has none.
@@ -427,8 +427,8 @@ const PATCH2 = {
   ola: { happy: [0.36, 0.72, 0.1, 0.085, 0.1], neutral: [0.36, 0.72, 0.1, 0.085, 0.1], sad: [0.36, 0.72, 0.1, 0.085, 0.1] },
   mina: { happy: [0.33, 0.56, 0.18, 0.085, -0.08], neutral: [0.33, 0.56, 0.18, 0.085, -0.08], sad: [0.33, 0.56, 0.18, 0.085, -0.08] },
   kai: { happy: [0.38, 0.63, 0.24, 0.09, 0], neutral: [0.38, 0.63, 0.24, 0.09, 0], sad: [0.38, 0.63, 0.24, 0.09, 0] },
-  ines: { happy: [0.3, 0.62, 0.2, 0.12, -0.15], neutral: [0.3, 0.62, 0.2, 0.12, -0.15], sad: [0.3, 0.62, 0.2, 0.12, -0.15] }, // Pack 16 placeholders, as PATCH
-  arlo: { happy: [0.5, 0.9, 0.22, 0.07, -0.2], neutral: [0.5, 0.9, 0.22, 0.07, -0.2], sad: [0.5, 0.9, 0.22, 0.07, -0.2] },
+  ines: { happy: [0.319, 0.767, 0.143, 0.088, 0.33], neutral: [0.316, 0.817, 0.143, 0.088, 0.33], sad: [0.319, 0.785, 0.143, 0.088, 0.33] }, // Pack 16: below the main patch, above the elbow crease
+  arlo: { happy: [0.417, 0.733, 0.13, 0.062, -0.38], neutral: [0.421, 0.762, 0.13, 0.062, -0.38], sad: [0.413, 0.751, 0.13, 0.062, -0.38] }, // Pack 16: the wrist end of the forearm
 };
 const MOODS = ['happy', 'neutral', 'sad'];
 const REACT = { happy: ['I love it. Thank you.', 'It\'s perfect.'], neutral: ['It\'s... good. Thanks.'], sad: ['Oh. Well. It\'s done now.'] };
@@ -2609,15 +2609,21 @@ const over = {
 // Portraits (ADR-0015): looking at, never in play. Each is drawn once it has decoded; until then, or if it fails, a drawn face stands in.
 const IMGS = {};
 let ART = null; // E.art (ADR-0020): portraits load through ART.src, so a dev-channel pick can replace one
+function fetchImg(o, file) { // the new image replaces the old one only once it has decoded, so a pick swaps without a flash
+  const img = new Image();
+  const fb = `assets/${file}.webp`, u = ART ? ART.src(file, fb) : fb;
+  img.src = u === fb ? fb : decodeURIComponent(u); // E.art.src encodes the whole manifest value, slashes too, and Pack 16's candidates are "../../final/ink/x.png" paths: decode them (drop this once the engine encodes per segment)
+  const done = (ok) => { if (ok) { o.img = img; o.ok = true; } };
+  (img.decode ? img.decode() : Promise.reject()).then(() => done(true), () => done(img.complete && img.naturalWidth > 0));
+}
 function artImg(file) {
   let o = IMGS[file];
   if (o) return o;
   o = IMGS[file] = { img: new Image(), ok: false };
-  if (!artReady(file)) return o; // Pack 16 art that has not landed is never requested: the drawn stand-in shows
-  o.img.src = ART ? ART.src(file, `assets/${file}.webp`) : `assets/${file}.webp`;
-  (o.img.decode ? o.img.decode() : Promise.reject()).then(() => { o.ok = true; }, () => { o.ok = o.img.complete && o.img.naturalWidth > 0; });
+  if (artReady(file)) fetchImg(o, file); // Pack 16 art that has not landed is never requested: the drawn stand-in shows
   return o;
 }
+const reloadArt = () => { for (const [file, o] of Object.entries(IMGS)) if (artReady(file)) fetchImg(o, file); }; // the manifest arrived or a pick changed (ADR-0020)
 const portraitOf = (id, mood) => artImg(portraitFile(id, mood));
 const loadClient = (id) => { for (const m of MOODS) portraitOf(id, m); };
 
@@ -2918,7 +2924,7 @@ const folio = {
 export const game = {
   slug: 'ink',
   title: 'Ink',
-  init(E) { ART = E.art; loadTitleImage(); game.start = E.save.get('openSeen', false) ? 'menu' : 'story'; }, // a fresh save opens on the cold open
+  init(E) { ART = E.art; ART.on(reloadArt); loadTitleImage(); game.start = E.save.get('openSeen', false) ? 'menu' : 'story'; }, // a fresh save opens on the cold open
   saveVersion: 11,
   // v1 saved only best percentages: derive stars and the unlock from them. v3 kept bests per needle mode; v4 has one needle, so the dynamic bests become the bests
   // and every earlier best (all made with the classic needle) is dropped. Stars, clean and unlocks are kept.

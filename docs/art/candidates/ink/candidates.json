@@ -1,0 +1,8 @@
+{
+  "pack": "16",
+  "assets": {
+    "client-ines-happy": ["../../final/ink/client-ines-happy.png", "../../final/ink/client-ines-happy-alt.png"],
+    "client-arlo-happy": ["../../final/ink/client-arlo-happy.png", "../../final/ink/client-arlo-happy-alt.png"],
+    "rita-proud": ["../../final/ink/rita-proud.png", "../../final/ink/rita-proud-alt.png"]
+  }
+}

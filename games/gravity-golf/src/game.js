@@ -1587,7 +1587,7 @@ function loadArt() {
   ART.title = loadImage('title-gravity-golf');
   ART.ranks = RANKS.map((r) => loadImage(r.file));
   for (const b of BADGES) ART.medals.set(b.id, loadImage(b.file || `medal-${b.id}`));
-  ART.mc = { calm: loadImage('mission-control'), wow: loadImage('mission-control-wow') }; // Pack 12; the worried portrait (Pack 14) is drawn with brows until it lands
+  ART.mc = { calm: loadImage('mission-control'), wow: loadImage('mission-control-wow'), worried: loadImage('mission-control-worried') }; // Pack 12 and Pack 14; until the worried one decodes the turn card draws the calm portrait with brows
 }
 // A rank's silhouette for the ladder: the emblem's own shape in one dark colour, built once. Null without OffscreenCanvas (the disc is drawn live).
 function silhouette(o) {
@@ -3900,10 +3900,11 @@ function samPick(E, p) {
 }
 
 // Pack 12 portraits (webp in assets/), cropped to the window's own bounds. A headset glyph stands in until one has decoded, so the story never waits on a file.
-const MC_CROP = { calm: [24, 19, 208, 210], wow: [23, 22, 209, 191] }; // x, y, w, h in the 256 px file
-const samH = (w, wow) => { const c = MC_CROP[wow ? 'wow' : 'calm']; return (w * c[3]) / c[2]; };
+const MC_CROP = { calm: [24, 19, 208, 210], wow: [23, 22, 209, 191], worried: [25, 22, 205, 189] }; // x, y, w, h in the 256 px file
+const mcKey = (wow) => (wow === 'worried' ? 'worried' : wow ? 'wow' : 'calm'); // `wow` is a flag, or 'worried' for the turn card (Pack 14)
+const samH = (w, wow) => { const c = MC_CROP[mcKey(wow)]; return (w * c[3]) / c[2]; };
 function drawSam(ctx, x, y, w, wow) {
-  const k = wow ? 'wow' : 'calm', c = MC_CROP[k], h = samH(w, wow), o = ART.mc && ART.mc[k];
+  const k = mcKey(wow), c = MC_CROP[k], h = samH(w, wow), o = ART.mc && ART.mc[k];
   if (o && o.ok) {
     const f = o.img.naturalWidth / 256;
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
@@ -3928,7 +3929,7 @@ function rrPath(ctx, x, y, w, h, r) {
 // Sam standing on `bottom`, centred at cx, `w` wide; squashed or stretched about the feet (sx, sy), tilted (rot), faded (alpha). Returns the portrait's rect.
 const SAMR = { x: 0, y: 0, w: 0, h: 0 };
 function samAt(ctx, cx, bottom, w, wow, o = {}) {
-  const c = MC_CROP[wow ? 'wow' : 'calm'], h = (w * c[3]) / c[2];
+  const c = MC_CROP[mcKey(wow)], h = (w * c[3]) / c[2];
   ctx.save(); ctx.globalAlpha *= o.alpha ?? 1;
   ctx.translate(cx, bottom); if (o.rot) ctx.rotate(o.rot); ctx.scale(o.sx ?? 1, o.sy ?? 1);
   drawSam(ctx, -w / 2, -h, w, wow);
@@ -4122,17 +4123,19 @@ function sceneTurn(c) {
   const sw = g.w * 0.27, sh = g.h * 0.12, gap = (g.w - 3 * sw) / 4;
   for (let i = 0; i < 3; i++) screenPanel(ctx, g.x + gap + i * (sw + gap), g.y + g.h * 0.03, sw, sh, t * 0.5 + i * 1.7, i);
   ctx.globalAlpha = 1;
-  const w = Math.min(g.w * 0.84, g.h * 0.58), x = cx - w / 2, cc = MC_CROP.calm, ph = (w * cc[3]) / cc[2];
+  const wo = !!(ART.mc && ART.mc.worried && ART.mc.worried.ok), w = Math.min(g.w * 0.84, g.h * 0.58), x = cx - w / 2, cc = MC_CROP[wo ? 'worried' : 'calm'], ph = (w * cc[3]) / cc[2];
   const dy = mix(30, 0, ease.outQuad(seg(t, 0, 0.5))), top = g.y + g.h * 0.2 + 34 + dy;
   E.roundRect(x - 10, top - 34, w + 20, ph + 34 + 10, 12, '#0c1330', P.slate);
   for (let i = 0; i < 3; i++) { ctx.fillStyle = ['#ef4444', '#fbbf24', '#22c55e'][i]; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(x + 6 + i * 14, top - 17, 4, 0, PI2); ctx.fill(); }
   const flick = beat === 0 ? 0.35 + 0.5 * (Math.sin(t * 5) > 0.2 ? 1 : 0) : 1;
   for (let i = 0; i < 3; i++) { ctx.globalAlpha = i === 2 ? flick : 1; ctx.fillStyle = P.textDim; ctx.fillRect(x + w - 30 + i * 9, top - 11 - (6 + i * 4), 5, 6 + i * 4); }
   ctx.globalAlpha = 1;
-  drawSam(ctx, x, top, w, false);
-  const dim = beat === 0 ? 0.55 + 0.06 * Math.sin(t * 7) : mix(0.5, 0.3, seg(t, 0, 1.2));
-  E.roundRect(x, top, w, ph, w * 0.08, rgba('#020617', dim));
-  drawBrows(ctx, x, top, w, ph, beat === 0 ? 0 : ease.inOut(seg(t, 0, 0.8)), beat === 0 ? seg(t, 0.7, 1.2) : 1);
+  drawSam(ctx, x, top, w, wo ? 'worried' : false);
+  if (!wo) { // the stand-in: the calm portrait, dimmed, with a drawn brow
+    const dim = beat === 0 ? 0.55 + 0.06 * Math.sin(t * 7) : mix(0.5, 0.3, seg(t, 0, 1.2));
+    E.roundRect(x, top, w, ph, w * 0.08, rgba('#020617', dim));
+    drawBrows(ctx, x, top, w, ph, beat === 0 ? 0 : ease.inOut(seg(t, 0, 0.8)), beat === 0 ? seg(t, 0.7, 1.2) : 1);
+  }
   const mw = w * 0.4, mh = mw * 0.85, mx = x + w - mw, my = top + ph + 18, r = mw * 0.22;
   if (my + mh < g.y + g.h - 6) {
     E.roundRect(mx, my, mw, mh, 10, '#0c1330', P.slate);

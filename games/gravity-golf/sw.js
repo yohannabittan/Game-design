@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'gravity-golf-v33';
+const CACHE_VERSION = 'gravity-golf-v34';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'gravity-golf-v';
 const ASSETS = [
@@ -34,6 +34,7 @@ const ASSETS = [
   './assets/medal-untouched.webp',
   './assets/mission-control.webp',
   './assets/mission-control-wow.webp',
+  './assets/mission-control-worried.webp',
   './assets/rank-01-asteroid.webp',
   './assets/rank-02-moon.webp',
   './assets/rank-03-planet.webp',
