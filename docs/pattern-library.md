@@ -263,3 +263,26 @@ Rules for our games:
   - **Not for us:** the source's crude or medical weaknesses. Ours are comic and kind ("afraid of pigeons", "sneezes in sunlight").
 - **Modifier wheels** (the tabletop-style variant: armour class, +1, +2, -1, -2 to attack or defence). In the source format they decide hits. In ours they are **set before the fight and shown**, and they change the size of a skill window, never a die roll. For example: "Sand in your eyes: parry window -1", "Crowd loves you: +1 reach", "Old wound: left arm armour -1". The player always knows the modifiers before they act.
 
+
+### L9. Loot and draft tables (cascading rolls)
+
+**Source:** a short video on the Candlesan TikTok channel, by a developer who worked on the original World of Warcraft, on how to set up a loot drop system. It was shared by the designer on 2026-10-14. What follows is our summary, not a transcript.
+
+**Three common ways to roll loot, and how each one breaks:**
+1. **One big table and one roll.** Rarity comes from duplicate entries, for example six for a common, two for an epic and one for a legendary. It is hard to maintain: adding one item means renumbering everything.
+2. **One table with a weight per entry,** the code working out the ranges. Fine for a small game, but every change moves every rate:
+   - Adding three new commons dilutes the pool, so epics and legendaries drop less often.
+   - Disabling one item in a hotfix makes everything else, legendaries included, drop more often. Players get used to the higher rate, and re-enabling the item then feels like a nerf.
+3. **A rarity roll first, then a roll in that rarity's own table.** This is robust, because adding a common no longer touches the legendary rate. But a change to a rarity's own makeup (moving items between rarities, or junk items for salvage) still shifts things around it.
+
+**The recommendation: cascading rolls.**
+- Roll the rarest tier first at its own fixed chance (say, 2 percent for a legendary). Only on a miss, roll the next tier down at its chance, and so on until a tier hits. Then pull from that tier's table.
+- The number players care most about, the top-tier rate, is a constant that no content change can move.
+- This is a primer: a bigger game adds conditionals and nested tables on top.
+
+**Rules for our games:**
+- **Any draft or drop with tiers rolls its tiers top-down,** each tier at a fixed chance in TUNING, with the bottom tier as the fallback. Adding, removing or disabling cards inside a tier never changes any tier's chance.
+- **Show the tier odds where it fits** (the L8 principle: randomness you can see).
+- **Category before item.** When a deal also has categories (Arena's card families), roll the category before the item, so adding cards to one family doesn't change how often that family is dealt.
+- **Empty tiers fall through.** A tier with nothing left to deal (every keystone already taken) falls through to the next tier down. Its share is never spread across the other tiers.
+- **Seeded and in setup only** (ADR-0008), as every roll is.
