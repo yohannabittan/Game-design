@@ -17,8 +17,8 @@ import { makeRng, clamp, lerp, ease } from './engine.js';
 
 // ====== TUNING: every tunable number ======
 const TUNING = {
-  hearts: 3,               // drawn as hearts, counted in halves
-  heal: 1,                 // half hearts back for each foe felled
+  hearts: 3,               // the base for a medium fighter; health is counted in whole hearts, two to the base number (a medium shows 6)
+  heal: 1,                 // hearts back for each foe felled
   bouts: 5,                // opponents in the gauntlet
   resetDelay: 0.9,         // seconds after a foe falls before the next intro card
   swayRate: 1.3,           // radians per second of the foe's sway
@@ -77,7 +77,7 @@ const TUNING = {
     giantAt: 1.25, giantStep: 0.12, giantShake: 1.5, recoil: 0.14, shatter: 0.6,
     // a beast: its roar on the tell (gain), the sand its pounce sprays from its hind feet (motes), the bear's maul landing (a thud x, a shake px)
     roar: 0.12, sand: 22, maulThud: 1.7, maulShake: 4 },
-  foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, hp: 22, tierHp: 0.1, champHp: 1.15, dmgCap: 3, coverShield: 0.2, coverGuard: 0.1 },  // hp scaled by size and tier; dmgCap: most half hearts one blow takes; cover radii (H) with and without a shield
+  foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, hp: 22, tierHp: 0.1, champHp: 1.15, dmgCap: 3, coverShield: 0.2, coverGuard: 0.1 },  // hp scaled by size and tier; dmgCap: most hearts one blow takes; cover radii (H) with and without a shield
   cover: { dur: 3.2, slide: 0.07, jabTol: 0.8 },  // seconds the foe's guard stays on the part you hit; seconds to slide there; radians a jab may stray from the slit's axis
   step: { circle: [-0.05, 0.07], period: 3.4, tau: 0.16, lead: 0.5, dodge: 0.3, dodgeDur: 0.7, dodgeCool: 2.4 },  // footwork (H): a slow drift around his range (period s); lead: seconds before a move he steps to striking distance; his sidestep from a lunge
   // his stamina: base + per Stamina point; costs per move are in moves; block: paid when your blow meets his guard; winded: seconds with guard down at zero; combo: seconds winded after any combo
@@ -203,9 +203,10 @@ const TUNING = {
       medium: { name: 'MEDIUM', n: 2, regen: 0.92, score: 0.5 },
       heavy: { name: 'HEAVY', n: 3, regen: 0.82, score: 1, arm: true },
     },
-    plateMul: 0.5,                        // a hit on a plated part costs this share (a quarter heart instead of a half)
+    plateDiv: 2,                          // a hit on a plated part costs the hit divided by this, rounded up, so never part of a heart
     tiers: [['S', 13], ['A', 11], ['B', 9], ['C', 7], ['D', -1]],  // score = STR + SPD + STA + size + armour
-    underdog: 7, underdogHalves: 1,       // a score below this gets +1 half heart
+    underdog: 7, underdogHalves: 1,       // a score below this gets +1 heart
+    heartsPerBase: 2,                     // a size's base hearts times this is its whole hearts (a medium's 3 shows 6)
     // your weapon: reach = blade length, speed divides hand lag and recoil, dmg and cost multiply every blow, slash multiplies slash damage,
     // slot = slot-hit multiplier, slotDmg = what multiplies a slot hit in place of dmg (the dagger's slot hits are 4x a bare jab, so 1.33x the gladius's),
     // overBreak = dents at which an overhead breaks a plate (0: the usual armour.dents), mace = chance an axe is a mace
@@ -241,7 +242,9 @@ const TUNING = {
   story: { debt: 1000, debtPer: 200, chant: { gain: 0.08, step: 0.04, gap: 0.24, max: 5 } },
   // the one token per run: a Respin on your fighter card or a Reroll on a draft
   token: 1,
-  hint: { bouts: 2, dur: 10 },  // the in-play hint shows in this many bouts ever, for this many seconds of each
+  hint: { bouts: 2, dur: 10, heartDur: 6 },  // the in-play hint shows in this many bouts ever, for this many seconds of each; heartDur: the heart hint after your first fell
+  // your hearts on the HUD, one for each point of health: heart = spacing and size (px), perRow = most in a row (more start a second row), rowGap = px a second row pushes the rows below it down
+  hud: { heart: 19, size: 17, perRow: 9, rowGap: 18 },
   // footwork, in H. Yours: a tap of DODGE is the backstep (back x your Speed's dodge length), holding it keeps backing off at walkBack; a lunge's recovery
   // takes back up to pace of the ground you gave, over gainDur s, never past your mark; drift: idle for idle s (no swing, dodge or lunge) you drift back a pace per secs s. Speeds are H per second. close: nearest clear gap between the bodies.
   // room: the most each fighter can give ground before the wall (yours, his), trimmed to the screen; margin: px kept clear at the screen edge.
@@ -265,11 +268,11 @@ const TUNING = {
   // card effects. The tent's old commons: half hearts, multipliers, bare-hit damage, shield hits. The Wall: shove = paces a perfect block drives him, shoveStun = s stunned
   // at his wall, thorns = blocks that disarm him, thornsDur = s disarmed. Blood: bleed stacks per hit, vein = his wind-up x while he bleeds, bloodlust = stamina per stack
   // per tick, cruel = slot damage per stack. Dancer: sidestep = s winded, matador = s stunned, slip = jab x within slipWin s of a tell dodge, untouch = s all slots open.
-  // Brute: heavy = overhead dents x, brawler = pips per broken plate, jugg = blow cost x while lunging, titan = half hearts. Duos: cape = every nth stuns for capeStun s,
-  // butcher = stacks per broken plate, spiked = stacks per perfect block, hamWin = s after a tell dodge. fist = most half hearts a disarmed blow takes.
+  // Brute: heavy = smash dents x, brawler = Momentum per broken plate, jugg = blow cost x while lunging (rounded up), titan = hearts. Duos: cape = every nth stuns for capeStun s,
+  // butcher = stacks per broken plate, spiked = stacks per perfect block, hamWin = s after a tell dodge. fist = most hearts a disarmed blow takes. braced = Momentum per block that is not well-timed.
   // Trickster: misdir = slot hit x through your feint's opening, mind = extra pips per feint read, bait = his next blow's tell x after you drop a shield held
   // baitHold s (for baitWin s), bluff = s every slot opens after two feints within bluffWin s, puppet = every nth move of his is a feint, puppetHearts = the
-  // most half hearts you keep. Showman: flourish = favour, showboat = drains x, play = perfect block and read favour x, bread = half hearts thrown at breadAt
+  // most hearts you keep. Showman: flourish = favour, showboat = drains x, play = perfect block and read favour x, bread = hearts thrown at breadAt
   // favour (once a bout), encore = pips off a finisher at the top third, pleaser = slot hit x at the top third (it spends pleaserCost favour), aweAt =
   // favour at which he stands in awe for awe s before each exchange, darlingGold = the crowd's gold x. Duos: sucker = s after your feint an overhead staggers,
   // bloodSport = favour per stack per tick, salute = s every slot opens on a perfect block at the top third.
@@ -282,7 +285,7 @@ const TUNING = {
     misdir: 2, mind: 1, bait: 2, baitHold: 0.5, baitWin: 3, bluff: 1, bluffWin: 1.5, puppet: 3, puppetHearts: 4,
     flourish: 6, showboat: 0.5, play: 2, bread: 2, breadAt: 80, breadCoins: 3, mulMax: 4, encore: 1, pleaser: 3, pleaserCost: 30, aweAt: 90, awe: 0.7, darlingGold: 0.5,
     cape: 2, capeStun: 1, butcher: 2, spiked: 1, hamWin: 1, sucker: 1.2, bloodSport: 0.5, salute: 1,
-    fist: 1,
+    fist: 1, braced: 1,
   },
   // finishers: Momentum each costs; Execute works below this share of his health; Disarm's seconds; False Opening's winding (s); Showstopper's favour and awe (s)
   fin: { exec: 3, whirl: 2, breath: 2, disarm: 4, falseop: 3, showstop: 3, below: 0.5, disarmDur: 3, beastStun: 1, falseWind: 1.5, showFav: 30, showAwe: 1.5 },  // beastStun: a beast has no weapon, so a disarm stuns it this long
@@ -314,7 +317,7 @@ const TUNING = {
   // the City's pairs: the waiting foe drawn at scale x his size and alpha, his centre x from the screen's edge (in his H), his body's half width (body, in his H);
   // the fighters' frame slides left until the one fighting stays clear of him (room = H his wall gives the one fighting past his mark, fbody = his half width in
   // his H); taunt = s his bubble shows before he steps in; enter = s before the one who steps in may swing; hp = x each pair foe's health
-  pairs: { scale: 0.6, alpha: 0.6, x: 0.3, body: 0.2, room: 0.1, fbody: 0.22, taunt: 0.5, enter: 1.2, hp: 1, beastScale: 0.6, heal: 2 },  // beastScale: the waiting one's scale when a beast is in the pair; heal = half hearts back when the first of a pair falls
+  pairs: { scale: 0.6, alpha: 0.6, x: 0.3, body: 0.2, room: 0.1, fbody: 0.22, taunt: 0.5, enter: 1.2, hp: 1, beastScale: 0.6, heal: 2 },  // beastScale: the waiting one's scale when a beast is in the pair; heal = hearts back when the first of a pair falls
   // the crowd's favour, 0 to max, carried through the run: what each style event gives (a feint read, a perfect block, a slot hit, a laming, a bout with
   // no hits taken, two of your hits within comboWin s, a finisher), what turtling (his turtle read's measure) and backing off with no blow coming drain
   // per second; with nothing stylish for idle s the meter drains drain of itself per second (0.03: a high meter eases down, a low one barely moves); coins arc in from the stands at each step of favour; the Emperor's
@@ -507,7 +510,7 @@ const storyLine = (me) => `${me.name}, ${ORIGINS[me.origin].text}. Fights for: $
 // ground's two are the only power. The tailor's are looks: a tap on one you own steps through its styles (TAILOR), then off.
 const LUDUS = [
   { id: 'armoury', name: 'The Armoury', line: 'New weapons that can come up on your wheel', brutus: 'Steel is steel. How you hold it is everything.', items: [
-    { id: 'trident', name: 'Trident and net', line: 'A new weapon on your weapon wheel. Longest reach, slow. Your first perfect block each bout nets him and slows him.' },
+    { id: 'trident', name: 'Trident and net', line: 'A new weapon on your weapon wheel. Longest reach, slow. Your first well-timed block each bout nets him and slows him.' },
     { id: 'sica', name: 'The sica', line: 'A new weapon on your weapon wheel. A short curved blade: quick, and its slashes cut deep.' }] },
   { id: 'barracks', name: 'The Barracks', line: 'New fighters and new card families', brutus: 'New blood in the barracks. Make room.', items: [
     { id: 'sparta', name: 'A gladiatrix', line: 'A new fighter on your origin wheel: a Spartan woman. She starts with a Wall card.' },
@@ -516,7 +519,7 @@ const LUDUS = [
     { id: 'trick', name: 'The Trickster', line: 'New cards in your picks: feints and tricks to fool him.' },
     { id: 'show', name: 'The Showman', line: 'New cards in your picks: win the crowd, and it fights for you.' }] },
   { id: 'training', name: 'The Training Ground', line: 'A card to start with, and a bigger first pick', brutus: 'Sweat here, so you bleed less out there.', items: [
-    { id: 'slot', name: 'Start-card slot', line: 'Choose a card you have picked before. Every run starts with it.' },
+    { id: 'slot', name: 'Start card', line: 'Choose a card you have picked before. Every run starts with it.' },
     { id: 'fourth', name: 'A fourth card', line: 'Your first pick of each run shows 4 cards, not 3.' }] },
   { id: 'shrine', name: 'The Shrine', line: 'A new reason to fight', brutus: 'Every fighter needs a reason. Pick a good one.', items: [
     { id: 'promise', name: 'A promise', line: "A new reason on your reason wheel: free your sister from the champion's house." }] },
@@ -548,72 +551,132 @@ const FAMS = {
 };
 const SLOT_NAMES = ['helmet', 'shield', 'weapon', 'chest', 'arms', 'legs', 'cloak', 'belt'];
 const DECK = [
-  { id: 'riposte', fam: 'wall', tier: 0, slot: 'arms', gear: 'Bronze Bracers', name: 'Riposte', line: 'A perfect block gives a free counter jab', needs: 'shield' },
-  { id: 'shove', fam: 'wall', tier: 0, slot: 'chest', gear: 'Bronze Phalerae', name: 'Shield Shove', line: 'A perfect block shoves him; at his wall he is stunned 1 s', needs: 'shield' },
-  { id: 'braced', fam: 'wall', tier: 0, slot: 'helmet', gear: 'Bronze Crest', name: 'Braced', line: 'Every block gives 1 Momentum, not only perfect ones', needs: 'shield' },
-  { id: 'thorns', fam: 'wall', tier: 2, slot: 'shield', gear: 'Spiked Shield', name: 'Thorns', line: 'Each block dents his weapon; 3 dents disarm him', needs: 'shield' },
-  { id: 'standfast', fam: 'wall', tier: 1, slot: 'legs', gear: 'Bronze Boots', name: 'Stand Fast', line: 'With your back to the wall, every block is perfect', needs: 'shield' },
-  { id: 'ironwall', fam: 'wall', tier: 3, key: true, slot: 'shield', gear: 'Tower Shield', name: 'Iron Wall', line: 'Perfect window x2, each a free slot hit; but no dodge', needs: 'shield', bans: 'dodge' },
-  { id: 'serrated', fam: 'blood', tier: 0, slot: 'weapon', gear: 'Saw-toothed Blade', name: 'Serrated Edge', line: 'Slot hits make him bleed 1' },
-  { id: 'rend', fam: 'blood', tier: 0, slot: 'arms', gear: 'Barbed Bracers', name: 'Rend', line: 'A slash on a bare part makes him bleed 1' },
-  { id: 'vein', fam: 'blood', tier: 1, slot: 'helmet', gear: 'Blood Band', name: 'Open Vein', line: 'While he bleeds, his tells are 20% slower' },
-  { id: 'bloodlust', fam: 'blood', tier: 1, slot: 'cloak', gear: 'Wolf Pelt', name: 'Bloodlust', line: 'Each bleed tick gives you 2 stamina per stack' },
-  { id: 'cruel', fam: 'blood', tier: 2, slot: 'belt', gear: 'Hook Belt', name: 'Cruel Edge', line: 'Slot hits do +1 for each bleed on him' },
-  { id: 'haem', fam: 'blood', tier: 3, key: true, slot: 'weapon', gear: 'Hooked Sica', name: 'Haemorrhage', line: 'His bleed passes to the next foe; but bare hits do nothing' },
-  { id: 'sidestep', fam: 'dancer', tier: 0, slot: 'legs', gear: "Dancer's Sandals", name: 'Sidestep', line: 'A dodge in his tell makes him overcommit: winded', needs: 'dodge' },
-  { id: 'lightfeet', fam: 'dancer', tier: 0, slot: 'belt', gear: 'Ribbon Sash', name: 'Light Feet', line: 'A dodge in his tell gives back its stamina', needs: 'dodge' },
-  { id: 'blur', fam: 'dancer', tier: 1, slot: 'chest', gear: 'Ghost Silk', name: 'Blur', line: 'A backstep leaves a ghost he attacks instead', needs: 'dodge' },
-  { id: 'matador', fam: 'dancer', tier: 2, slot: 'arms', gear: "Matador's Ribbons", name: 'Matador', line: 'A dodged thrust or bash: he stumbles, stunned 1 s', needs: 'dodge' },
-  { id: 'slip', fam: 'dancer', tier: 1, slot: 'helmet', gear: 'Ribbon Band', name: 'Slip and Stab', line: 'A jab within 1 s of a tell dodge does 2x', needs: 'dodge' },
-  { id: 'untouch', fam: 'dancer', tier: 3, key: true, slot: 'cloak', gear: 'Flowing Cape', name: 'Untouchable', line: 'Free dodges; a tell dodge opens all slots 1 s; but no shield', needs: 'dodge', bans: 'shield' },
-  { id: 'heavy', fam: 'brute', tier: 0, slot: 'weapon', gear: 'Iron Pommel', name: 'Heavy Arm', line: 'Your overheads dent plates twice as much' },
-  { id: 'brawler', fam: 'brute', tier: 0, slot: 'belt', gear: 'Chain Belt', name: 'Brawler', line: 'Breaking a plate gives 2 Momentum' },
-  { id: 'breaker', fam: 'brute', tier: 2, slot: 'helmet', gear: 'Horned Cap', name: 'Plate Breaker', line: 'An overhead strips the plate it hits' },
-  { id: 'bones', fam: 'brute', tier: 1, slot: 'legs', gear: 'Spiked Boots', name: 'Bonebreaker', line: 'An overhead on a bare limb lames it at once' },
-  { id: 'jugg', fam: 'brute', tier: 1, slot: 'arms', gear: 'Iron Pauldrons', name: 'Juggernaut', line: 'Lunging, his blow costs half and does not stop you' },
-  { id: 'titan', fam: 'brute', tier: 3, key: true, slot: 'chest', gear: 'Black Plate', name: 'Titan', line: "+2 hearts; every overhead staggers him; but you can't dodge", bans: 'dodge' },
-  { id: 'myfeint', fam: 'trick', tier: 0, slot: 'helmet', gear: 'Dark Hood', name: 'Feint', line: 'Pull a lunge back fast: he guards, the far gap opens 0.6 s' },
-  { id: 'misdir', fam: 'trick', tier: 1, slot: 'weapon', gear: 'Blackened Blade', name: 'Misdirection', line: "A slot hit in your feint's opening does 2x" },
-  { id: 'mindreader', fam: 'trick', tier: 1, slot: 'chest', gear: 'Eye Amulet', name: 'Mind Reader', line: 'A feint read gives 2 Momentum' },
-  { id: 'bait', fam: 'trick', tier: 1, slot: 'shield', gear: 'Spiral Shield', name: 'Bait', line: 'Drop a held shield: his next blow has twice the tell', needs: 'shield' },
-  { id: 'unreadable', fam: 'trick', tier: 1, slot: 'legs', gear: 'Soft Boots', name: 'Unreadable', line: 'He never learns your feint' },
-  { id: 'bluff', fam: 'trick', tier: 2, slot: 'arms', gear: 'Knife Bracers', name: 'Double Bluff', line: 'Two feints within 1.5 s open every slot for 1 s' },
-  { id: 'puppet', fam: 'trick', tier: 3, key: true, slot: 'cloak', gear: "Puppeteer's Mantle", name: 'Puppeteer', line: 'Every 3rd move of his is a feint you see; but 2 hearts max' },
-  { id: 'flourish', fam: 'show', tier: 0, slot: 'weapon', gear: 'Gilded Sword', name: 'Flourish', line: 'Twirl your sword in a fast circle: the crowd cheers' },
-  { id: 'showboat', fam: 'show', tier: 0, slot: 'cloak', gear: 'Purple Cloak', name: 'Showboat', line: 'The crowd tires of you half as fast' },
-  { id: 'playcrowd', fam: 'show', tier: 1, slot: 'arms', gear: 'Gilt Armlets', name: 'Play to the Crowd', line: 'Perfect blocks and feint reads please the crowd 2x' },
-  { id: 'bread', fam: 'show', tier: 1, slot: 'belt', gear: 'Coin Belt', name: 'Bread and Circuses', line: 'At a near-full meter they throw you a heart, once a bout' },
-  { id: 'encore', fam: 'show', tier: 1, slot: 'legs', gear: 'Gilded Greaves', name: 'Encore', line: 'Crowd in the top third: finishers cost 1 pip less' },
-  { id: 'pleaser', fam: 'show', tier: 2, slot: 'helmet', gear: 'Plumed Helm', name: 'Crowd Pleaser', line: 'Crowd in the top third: a slot hit does 3x, spending 30' },
-  { id: 'darling', fam: 'show', tier: 3, key: true, slot: 'chest', gear: 'Gilded Harness', name: 'Darling of Rome', line: "The meter never drains; at its top he's awed; but gold x½" },
-  { id: 'exec', fam: 'fin', tier: 1, gear: 'Red Bar', name: 'Execute', line: '3 pips, him below half: your next slot hit fells him' },
-  { id: 'whirl', fam: 'fin', tier: 1, gear: 'Woad Spiral', name: 'Whirlwind', line: '2 pips: your next slash hits every slot it crosses' },
-  { id: 'breath', fam: 'fin', tier: 1, gear: 'Chalk Dots', name: 'Second Breath', line: '2 pips: refill all your stamina' },
-  { id: 'disarm', fam: 'fin', tier: 1, gear: 'Ochre Zigzag', name: 'Disarm', line: '4 pips: his weapon flies; 3 s of fists only' },
-  { id: 'falseop', fam: 'fin', tier: 1, gear: 'Violet Mask', name: 'False Opening', line: '3 pips: his next blow overcommits: it misses, he is winded' },
-  { id: 'showstop', fam: 'fin', tier: 1, gear: 'Gold Laurel', name: 'Showstopper', line: '3 pips: the crowd roars, and he stands in awe 1.5 s' },
-  { id: 'unbreak', fam: 'rare', tier: 2, slot: 'cloak', gear: 'Lion Pelt', name: 'Unbreakable', line: 'The first hit each bout is ignored' },
-  { id: 'cape', duo: ['dancer', 'wall'], tier: 2, name: "Matador's Cape", line: 'Every 2nd perfect block or tell dodge stuns him 1 s' },
-  { id: 'butcher', duo: ['brute', 'blood'], tier: 2, name: 'Butcher', line: 'A broken plate makes him bleed 2' },
-  { id: 'spiked', duo: ['wall', 'blood'], tier: 2, name: 'Spiked Boss', line: 'A perfect block makes him bleed 1', needs: 'shield' },
-  { id: 'hamstring', duo: ['dancer', 'brute'], tier: 2, name: 'Hamstring', line: 'A hit within 1 s of a tell dodge lames his legs', needs: 'dodge' },
-  { id: 'sucker', duo: ['trick', 'brute'], tier: 2, name: 'Sucker Punch', line: 'Your feint, then an overhead: he always staggers' },
-  { id: 'bloodsport', duo: ['show', 'blood'], tier: 2, name: 'Blood Sport', line: 'Each bleed tick pleases the crowd' },
-  { id: 'falsestep', duo: ['trick', 'dancer'], tier: 2, name: 'False Step', line: 'A dodge in his tell works as your feint: a gap opens', needs: 'dodge' },
-  { id: 'salute', duo: ['show', 'wall'], tier: 2, name: 'Salute', line: 'Crowd in the top third: a perfect block opens all slots 1 s', needs: 'shield' },
+  { id: 'riposte', fam: 'wall', tier: 0, slot: 'arms', gear: 'Bronze Bracers', name: 'Riposte', line: 'Block right as his blow lands, and you stab back for free.', needs: 'shield' },
+  { id: 'shove', fam: 'wall', tier: 0, slot: 'chest', gear: 'Bronze Phalerae', name: 'Shield Shove', line: "A block right as it lands shoves him back. Against the wall, he's stunned.", needs: 'shield' },
+  { id: 'braced', fam: 'wall', tier: 0, slot: 'helmet', gear: 'Bronze Crest', name: 'Braced', line: 'Every block earns Momentum, not just the well-timed ones.', needs: 'shield' },
+  { id: 'thorns', fam: 'wall', tier: 2, slot: 'shield', gear: 'Spiked Shield', name: 'Thorns', line: 'Each block chips his weapon. Three chips and he drops it.', needs: 'shield' },
+  { id: 'standfast', fam: 'wall', tier: 1, slot: 'legs', gear: 'Bronze Boots', name: 'Stand Fast', line: 'With your back to the wall, every block counts as perfectly timed.', needs: 'shield' },
+  { id: 'ironwall', fam: 'wall', tier: 3, key: true, slot: 'shield', gear: 'Tower Shield', name: 'Iron Wall', line: "Twice the time to time a block, and each one opens a gap. You can't dodge.", needs: 'shield', bans: 'dodge' },
+  { id: 'serrated', fam: 'blood', tier: 0, slot: 'weapon', gear: 'Saw-toothed Blade', name: 'Serrated Edge', line: 'A stab into a gap makes him bleed.' },
+  { id: 'rend', fam: 'blood', tier: 0, slot: 'arms', gear: 'Barbed Bracers', name: 'Rend', line: 'A slash where he has no armour makes him bleed.' },
+  { id: 'vein', fam: 'blood', tier: 1, slot: 'helmet', gear: 'Blood Band', name: 'Open Vein', line: 'While he bleeds, his wind-ups are slower and easier to read.' },
+  { id: 'bloodlust', fam: 'blood', tier: 1, slot: 'cloak', gear: 'Wolf Pelt', name: 'Bloodlust', line: 'While he bleeds, you get your stamina back faster.' },
+  { id: 'cruel', fam: 'blood', tier: 2, slot: 'belt', gear: 'Hook Belt', name: 'Cruel Edge', line: 'The more he bleeds, the harder your stabs into gaps hit.' },
+  { id: 'haem', fam: 'blood', tier: 3, key: true, slot: 'weapon', gear: 'Hooked Sica', name: 'Haemorrhage', line: 'His bleeding carries on to the next fighter. Hits on bare skin do nothing.' },
+  { id: 'sidestep', fam: 'dancer', tier: 0, slot: 'legs', gear: "Dancer's Sandals", name: 'Sidestep', line: 'Dodge during his wind-up and he stumbles, out of breath.', needs: 'dodge' },
+  { id: 'lightfeet', fam: 'dancer', tier: 0, slot: 'belt', gear: 'Ribbon Sash', name: 'Light Feet', line: 'Dodge during his wind-up and the dodge costs no stamina.', needs: 'dodge' },
+  { id: 'blur', fam: 'dancer', tier: 1, slot: 'chest', gear: 'Ghost Silk', name: 'Blur', line: 'Step back and he swings at a ghost of you.', needs: 'dodge' },
+  { id: 'matador', fam: 'dancer', tier: 2, slot: 'arms', gear: "Matador's Ribbons", name: 'Matador', line: 'Dodge a stab or a shield bash and he stumbles, stunned.', needs: 'dodge' },
+  { id: 'slip', fam: 'dancer', tier: 1, slot: 'helmet', gear: 'Ribbon Band', name: 'Slip and Stab', line: 'Dodge his wind-up, then stab quickly: double damage.', needs: 'dodge' },
+  { id: 'untouch', fam: 'dancer', tier: 3, key: true, slot: 'cloak', gear: 'Flowing Cape', name: 'Untouchable', line: 'Dodges are free, and a dodge during his wind-up opens every gap. No shield.', needs: 'dodge', bans: 'shield' },
+  { id: 'heavy', fam: 'brute', tier: 0, slot: 'weapon', gear: 'Iron Pommel', name: 'Heavy Arm', line: 'Your smashes from above break armour twice as fast.' },
+  { id: 'brawler', fam: 'brute', tier: 0, slot: 'belt', gear: 'Chain Belt', name: 'Brawler', line: 'Breaking a piece of his armour earns 2 Momentum.' },
+  { id: 'breaker', fam: 'brute', tier: 2, slot: 'helmet', gear: 'Horned Cap', name: 'Plate Breaker', line: 'A smash from above knocks off the armour it hits.' },
+  { id: 'bones', fam: 'brute', tier: 1, slot: 'legs', gear: 'Spiked Boots', name: 'Bonebreaker', line: 'A smash on a bare leg or arm cripples it at once.' },
+  { id: 'jugg', fam: 'brute', tier: 1, slot: 'arms', gear: 'Iron Pauldrons', name: 'Juggernaut', line: "Lunge through his blow: it hurts half as much and doesn't stop you." },
+  { id: 'titan', fam: 'brute', tier: 3, key: true, slot: 'chest', gear: 'Black Plate', name: 'Titan', line: `${TUNING.cards.titan} more hearts, and every smash from above staggers him. You can't dodge.`, bans: 'dodge' },
+  { id: 'myfeint', fam: 'trick', tier: 0, slot: 'helmet', gear: 'Dark Hood', name: 'Feint', line: 'Push to lunge, then pull back fast: he guards there, and the other side opens.' },
+  { id: 'misdir', fam: 'trick', tier: 1, slot: 'weapon', gear: 'Blackened Blade', name: 'Misdirection', line: 'Stab the gap your fake opened: double damage.' },
+  { id: 'mindreader', fam: 'trick', tier: 1, slot: 'chest', gear: 'Eye Amulet', name: 'Mind Reader', line: 'Spot his fake and earn 2 Momentum.' },
+  { id: 'bait', fam: 'trick', tier: 1, slot: 'shield', gear: 'Spiral Shield', name: 'Bait', line: 'Lower your shield on purpose: his next wind-up is twice as long.', needs: 'shield' },
+  { id: 'unreadable', fam: 'trick', tier: 1, slot: 'legs', gear: 'Soft Boots', name: 'Unreadable', line: 'He never gets used to your fakes.' },
+  { id: 'bluff', fam: 'trick', tier: 2, slot: 'arms', gear: 'Knife Bracers', name: 'Double Bluff', line: 'Fake twice in a row and every gap opens.' },
+  { id: 'puppet', fam: 'trick', tier: 3, key: true, slot: 'cloak', gear: "Puppeteer's Mantle", name: 'Puppeteer', line: `Every third move of his is a fake, and you see it coming. ${TUNING.cards.puppetHearts} hearts at most.` },
+  { id: 'flourish', fam: 'show', tier: 0, slot: 'weapon', gear: 'Gilded Sword', name: 'Flourish', line: 'Draw a fast circle with your sword thumb: the crowd cheers.' },
+  { id: 'showboat', fam: 'show', tier: 0, slot: 'cloak', gear: 'Purple Cloak', name: 'Showboat', line: 'The crowd gets bored of you half as fast.' },
+  { id: 'playcrowd', fam: 'show', tier: 1, slot: 'arms', gear: 'Gilt Armlets', name: 'Play to the Crowd', line: 'Well-timed blocks and spotting fakes please the crowd twice as much.' },
+  { id: 'bread', fam: 'show', tier: 1, slot: 'belt', gear: 'Coin Belt', name: 'Bread and Circuses', line: `With the crowd nearly full, they throw you ${TUNING.cards.bread} hearts, once a bout.` },
+  { id: 'encore', fam: 'show', tier: 1, slot: 'legs', gear: 'Gilded Greaves', name: 'Encore', line: 'With the crowd high, finishers cost 1 Momentum less.' },
+  { id: 'pleaser', fam: 'show', tier: 2, slot: 'helmet', gear: 'Plumed Helm', name: 'Crowd Pleaser', line: 'With the crowd high, a stab into a gap does triple damage, and uses some of the crowd.' },
+  { id: 'darling', fam: 'show', tier: 3, key: true, slot: 'chest', gear: 'Gilded Harness', name: 'Darling of Rome', line: 'The crowd never gets bored, and when full, he freezes in awe. Half gold.' },
+  { id: 'exec', fam: 'fin', tier: 1, gear: 'Red Bar', name: 'Execute', line: "3 Momentum, when he's below half health: your next stab into a gap finishes him." },
+  { id: 'whirl', fam: 'fin', tier: 1, gear: 'Woad Spiral', name: 'Whirlwind', line: '2 Momentum: your next slash hits every gap it crosses.' },
+  { id: 'breath', fam: 'fin', tier: 1, gear: 'Chalk Dots', name: 'Second Breath', line: '2 Momentum: all your stamina back.' },
+  { id: 'disarm', fam: 'fin', tier: 1, gear: 'Ochre Zigzag', name: 'Disarm', line: '4 Momentum: his weapon flies, and he fights with his fists for 3 seconds.' },
+  { id: 'falseop', fam: 'fin', tier: 1, gear: 'Violet Mask', name: 'False Opening', line: "3 Momentum: his next blow misses, and he's out of breath." },
+  { id: 'showstop', fam: 'fin', tier: 1, gear: 'Gold Laurel', name: 'Showstopper', line: '3 Momentum: the crowd roars, and he freezes in awe.' },
+  { id: 'unbreak', fam: 'rare', tier: 2, slot: 'cloak', gear: 'Lion Pelt', name: 'Unbreakable', line: 'The first hit you take in each fight does nothing.' },
+  { id: 'cape', duo: ['dancer', 'wall'], tier: 2, name: "Matador's Cape", line: 'Every second well-timed block or dodge stuns him.' },
+  { id: 'butcher', duo: ['brute', 'blood'], tier: 2, name: 'Butcher', line: 'Breaking his armour makes him bleed badly.' },
+  { id: 'spiked', duo: ['wall', 'blood'], tier: 2, name: 'Spiked Boss', line: 'A block right as his blow lands makes him bleed.', needs: 'shield' },
+  { id: 'hamstring', duo: ['dancer', 'brute'], tier: 2, name: 'Hamstring', line: 'Dodge his wind-up, then hit quickly: his legs go slow.', needs: 'dodge' },
+  { id: 'sucker', duo: ['trick', 'brute'], tier: 2, name: 'Sucker Punch', line: 'Fake, then smash from above: he always staggers.' },
+  { id: 'bloodsport', duo: ['show', 'blood'], tier: 2, name: 'Blood Sport', line: 'The crowd loves it while he bleeds.' },
+  { id: 'falsestep', duo: ['trick', 'dancer'], tier: 2, name: 'False Step', line: 'Dodging his wind-up works like a fake: a gap opens.', needs: 'dodge' },
+  { id: 'salute', duo: ['show', 'wall'], tier: 2, name: 'Salute', line: 'With the crowd high, a well-timed block opens every gap.', needs: 'shield' },
 ];
 for (const c of DECK) { c.fam = c.fam || 'duo'; c.ab = c.name.split(/[ ']/).filter((w) => /^[A-Z]/.test(w)).map((w) => w[0]).join('').slice(0, 2); }
 const CARD = Object.fromEntries(DECK.map((c) => [c.id, c]));
+// The exact numbers behind each card's plain line, shown on its "?" page (all from TUNING)
+const ord = (n) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
+const bleeds = (n) => `Bleeding ${n}: he loses ${TUNING.bleed.dmg * n} health a second for ${TUNING.bleed.dur} s.`;
+const topPct = () => Math.round(TUNING.crowd.bands[1] * 100);
+const CARD_NUMS = {
+  riposte: (T, C) => `The counter stab does ${T.attack.jab.dmg} damage.`,
+  shove: (T, C) => `He is pushed back ${C.shove} paces. At his wall he is stunned ${C.shoveStun} s.`,
+  braced: (T, C) => `${C.braced} Momentum for each block that is not well-timed.`,
+  standfast: () => 'Only with your back to your wall.',
+  thorns: (T, C) => `${C.thorns} chips and he drops it for ${C.thornsDur} s. A beast is stunned instead.`,
+  ironwall: (T) => `The well-timed window grows from ${T.shield.perfect} s to ${T.shield.perfect * 2} s. No dodging.`,
+  serrated: () => bleeds(TUNING.cards.serrated),
+  rend: () => bleeds(TUNING.cards.rend),
+  vein: (T, C) => `His wind-ups take ${Math.round((C.vein - 1) * 100)}% longer while he bleeds.`,
+  bloodlust: (T, C) => `${C.bloodlust} stamina for each bleeding, every second.`,
+  cruel: (T, C) => `+${C.cruel} damage for each bleeding on him.`,
+  haem: () => 'All his bleeding goes to the next fighter. A hit on bare skin does 0.',
+  sidestep: (T, C) => `He is out of breath for ${C.sidestep} s.`,
+  lightfeet: (T) => `The dodge's ${T.dodge.cost} stamina comes back.`,
+  blur: () => 'The ghost takes his next blow.',
+  slip: (T, C) => `A stab within ${C.slipWin} s of the dodge does ${C.slip}x damage.`,
+  matador: (T, C) => `He is stunned ${C.matador} s.`,
+  untouch: (T, C) => `Dodges cost nothing. Every gap opens for ${C.untouch} s. No shield.`,
+  heavy: (T, C) => `Smashes dent armour ${C.heavy}x as much. A piece breaks at ${T.armour.dents} dents.`,
+  brawler: (T, C) => `${C.brawler} Momentum for each piece you break.`,
+  breaker: () => 'The armour is gone at once, however few dents it had.',
+  bones: (T) => `A crippled leg moves at ${Math.round(T.lame.legs * 100)}% speed; a crippled arm swings ${Math.round(T.lame.arm * 100)}% slower.`,
+  jugg: (T, C) => `His blow costs ${C.jugg}x, rounded up, while you lunge.`,
+  titan: (T, C) => `+${C.titan} hearts. Every smash staggers him. No dodging.`,
+  myfeint: (T) => `The other gap opens for ${T.myFeint.open} s. A fake costs ${T.myFeint.cost} stamina.`,
+  misdir: (T, C) => `${C.misdir}x damage.`,
+  mindreader: (T, C) => `${T.mom.read + C.mind} Momentum for each fake you spot.`,
+  bait: (T, C) => `Hold the shield ${C.baitHold} s, then lower it. His next wind-up takes ${C.bait}x as long.`,
+  unreadable: (T) => `Without it he learns after ${T.myFeint.learn} fakes in ${T.myFeint.learnWin} s.`,
+  bluff: (T, C) => `Two fakes within ${C.bluffWin} s open every gap for ${C.bluff} s.`,
+  puppet: (T, C) => `One move in ${C.puppet} is a fake. Your hearts are capped at ${C.puppetHearts}.`,
+  flourish: (T, C) => `+${C.flourish} crowd, out of ${T.crowd.max}, for each circle.`,
+  showboat: (T, C) => `The crowd drains at ${C.showboat}x speed.`,
+  playcrowd: (T, C) => `${C.play}x crowd for each.`,
+  bread: (T, C) => `${C.bread} hearts when the crowd is past ${C.breadAt}%.`,
+  encore: (T, C) => `${C.encore} Momentum less, with the crowd past ${topPct()}%.`,
+  pleaser: (T, C) => `${C.pleaser}x damage, and it uses ${C.pleaserCost} crowd. With the crowd past ${topPct()}%.`,
+  darling: (T, C) => `At ${C.aweAt}% crowd he freezes ${C.awe} s before each exchange. Gold x${C.darlingGold}.`,
+  exec: (T) => `${T.fin.exec} Momentum. Below ${Math.round(T.fin.below * 100)}% of his health.`,
+  whirl: (T) => `${T.fin.whirl} Momentum, for one slash.`,
+  breath: (T) => `${T.fin.breath} Momentum.`,
+  disarm: (T, C) => `${T.fin.disarm} Momentum. Fists hit for ${C.fist} at most. A beast is stunned ${T.fin.beastStun} s.`,
+  falseop: (T) => `${T.fin.falseop} Momentum. His blow takes ${T.fin.falseWind} s to land, and misses.`,
+  showstop: (T) => `${T.fin.showstop} Momentum. The crowd gets +${T.fin.showFav}. He freezes ${T.fin.showAwe} s.`,
+  unbreak: () => 'Once in each fight.',
+  cape: (T, C) => `Every ${ord(C.cape)} one: he is stunned ${C.capeStun} s.`,
+  butcher: () => bleeds(TUNING.cards.butcher),
+  spiked: () => bleeds(TUNING.cards.spiked),
+  hamstring: (T, C) => `Hit within ${C.hamWin} s of the dodge.`,
+  sucker: (T, C) => `Smash within ${C.sucker} s of your fake.`,
+  bloodsport: (T, C) => `+${C.bloodSport} crowd for each bleeding, every second.`,
+  falsestep: (T) => `The gap opens for ${T.myFeint.open} s.`,
+  salute: (T, C) => `Every gap opens for ${C.salute} s, with the crowd past ${topPct()}%.`,
+};
+const cardNums = (c) => CARD_NUMS[c.id](TUNING, TUNING.cards);
 // The armourer's wares. Big ones, then the v1 commons, now sold cheap here.
 const WARES = [
   { id: 'plate', big: true, name: 'Iron plate', line: 'Your {part} is plated' },
   { id: 'whet', big: true, name: 'Whetstone', line: '+1 damage on every hit' },
-  { id: 'heart', big: true, name: 'A heart', line: '+1 heart to your max, filled' },
+  { id: 'heart', big: true, name: 'A heart', line: `+${TUNING.tent.heart} hearts to your max, filled` },
   { id: 'token', big: true, name: 'Lucky token', line: '+1 reroll for a draft' },
   { id: 'forge', big: true, name: 'Forged {weapon}', line: 'Your weapon hits 25% harder' },
-  { id: 'hide', name: 'Thick Hide', line: '+\u00bd heart' },
+  { id: 'hide', name: 'Thick Hide', line: `+${TUNING.cards.hide} heart to your max, filled` },
   { id: 'wind', name: 'Big Lungs', line: '+20% stamina' },
-  { id: 'wrist', name: 'Quick Wrist', line: 'jab recovery \u221220%' },
+  { id: 'wrist', name: 'Quick Wrist', line: 'quick stabs recover 20% faster' },
   { id: 'steady', name: 'Steady Shield', line: 'blocking costs 25% less' },
   { id: 'grip', name: 'Sandal Grip', line: 'steps 20% faster' },
   { id: 'feet', name: 'Quick Feet', line: 'steps 25% faster' },
@@ -625,7 +688,6 @@ const WARES = [
 // Rarity has a colour: the card's border and the glint on the worn piece. A set is gold.
 const TIERS = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'], TIER_TINT = ['#c4b99a', '#7dd3fc', '#c084fc', '#fb923c'], DUO_GOLD = '#ffd24a';
 const rarCol = (c) => (c.duo ? DUO_GOLD : TIER_TINT[c.tier]);
-const tierName = (c) => (c.duo ? 'SET BONUS' : c.fam === 'fin' ? `WAR PAINT \u00b7 ${TUNING.fin[c.id]} PIPS` : `${TIERS[c.tier]} \u00b7 ${c.slot.toUpperCase()}`);
 // the title a card shows: the piece's name, the war paint's pattern, or the set's name
 const titleOf = (c) => (c.duo ? `${c.name} set` : c.gear);
 // The gear worn: the last piece picked for each slot (a migrated run may still hold two for one slot; the later one shows).
@@ -783,12 +845,13 @@ function statTier(k, idx) {
   return { tier: O[clamp(O.indexOf('B') + tilt + prev, 0, O.length - 1)], tilt, prev, band };
 }
 // everything that follows from the wheels' landings
+// `halves` is the saved name for the whole-heart count (the save shape did not change in 5b)
 function deriveMe(me) {
   const M = TUNING.me, v = (k) => wheelList(k, me.idx)[me.idx[k]][0];
   const size = v(0), str = v(1), spd = v(2), sta = v(3), set = v(4), A = M.armour[set];
   const score = str + spd + sta + M.sizes[size].score + A.score;
   const tier = M.tiers.find((t) => score >= t[1])[0], underdog = score < M.underdog;
-  return { ...me, size, str, spd, sta, set, weapon: v(5), origin: v(6), reason: v(7), score, tier, underdog, halves: M.sizes[size].hearts * 2 + (underdog ? M.underdogHalves : 0) };
+  return { ...me, size, str, spd, sta, set, weapon: v(5), origin: v(6), reason: v(7), score, tier, underdog, halves: M.sizes[size].hearts * M.heartsPerBase + (underdog ? M.underdogHalves : 0) };
 }
 // The respin: wheel k rolled again with its own seeded stream, by its odds but never landing where it was. A new armour set re-rolls its plates.
 function respinMe(me, k, seed) {
@@ -1068,9 +1131,11 @@ function resumeRun(E, run) {
   newRound(E, run.seed, run.me, run.rival, run.arena);
   for (const k of RUN_KEYS) if (k in run) state[k] = run[k];
   state.results = (run.results || []).map((q) => q || undefined);
+  // a run saved before whole hearts can hold a half: round it up so no part-heart is drawn
+  state.hp = Math.ceil(state.hp); state.maxHp = Math.ceil(state.maxHp);
   state.rack = run.rack; state.you.parts = playerParts(state.me); state.stamina = state.staMax; state.favShown = state.fav;
   const d = run.draft;
-  if (d) state.draft = { grade: d.grade, tally: d.tally, gold: d.gold, cards: d.ids.map((id) => CARD[id]), priced: d.priced, odds: d.odds || [], t: 0, btns: [], reroll: null, help: null, helpOn: false, spoil: d.spoil || null };
+  if (d) state.draft = { grade: d.grade, tally: d.tally, gold: d.gold, cards: d.ids.map((id) => CARD[id]), priced: d.priced, odds: d.odds || [], t: 0, btns: [], reroll: null, help: null, helpOn: 0, spoil: d.spoil || null };
 }
 
 // ====== FIGHTER MODEL: layout, your body and sword arm, footwork, defence, the foe's body ======
@@ -2185,13 +2250,15 @@ function fell(E) {
   if (boutTally().taken === 0) favour(E, TUNING.crowd.clean);
   emit(E, 'fell');
 }
+// the pop for hearts gained: "+2 HEARTS"
+const heartsPop = (n) => `+${n} HEART${n === 1 ? '' : 'S'}`;
 // the first of a pair falls: the bout goes on, his partner taunts from the edge and steps in (stepIn, from the play scene's fall clock)
 function fellOne(E) {
   state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.swapping = false;
   pop(E.w * 0.62, E.h * 0.3, 'ONE DOWN', '#ffd24a', 26); shake(E, 8, 0.25); E.flash('#fff0b8', 0.08); fellJuice(E);
   E.audio.beep({ freq: 220, dur: 0.2, type: 'triangle', slide: 0.6, gain: 0.2 });
-  state.hp = Math.min(state.maxHp, state.hp + TUNING.pairs.heal); E.audio.play('coin');
-  const Fy = youF(E); pop(Fy.x, Fy.y - 1.1 * Fy.H, '+1 HEART', '#fca5a5', 24);
+  const was = state.hp; state.hp = Math.min(state.maxHp, state.hp + TUNING.pairs.heal); E.audio.play('coin');
+  if (state.hp > was) { const Fy = youF(E); pop(Fy.x, Fy.y - 1.1 * Fy.H, heartsPop(state.hp - was), '#fca5a5', 24); }
   emit(E, 'fell');
 }
 
@@ -2291,14 +2358,14 @@ function resolveSwing(E) {
     sparks(Fy.x + 0.2 * L.H, zy, Math.PI, 20); clangSound(E, 0); shake(E, 6, 0.2); E.haptic(30);
     pop(Fy.x, zy - 40, 'UNBREAKABLE', '#e879f9', 28); return;
   }
-  // a blow on one of your plates costs half as much (a quarter heart for a light blow)
-  // disarmed, he hits with his fists; Juggernaut: lunging through it, it costs half and you keep coming
+  // a blow on one of your plates costs half as much, rounded up so it never takes part of a heart
+  // disarmed, he hits with his fists; Juggernaut: lunging through it, it costs half (rounded up) and you keep coming
   const part = state.you.parts.find((q) => q.d.id === ZONE_PART[sw.zone.id]), plated = !!(part && part.armour), jugg = has('jugg') && (state.you.lungeK > 0.5 || driving());
-  const dmg = (state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg) * (plated ? TUNING.me.plateMul : 1) * (jugg ? TUNING.cards.jugg : 1);
+  const dmg = Math.ceil((state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg) / (plated ? TUNING.me.plateDiv : 1) * (jugg ? TUNING.cards.jugg : 1));
   sw.outcome = 'hit'; state.hp -= dmg; state.taken++; state.hurt = plated ? 0.25 : 0.4; if (sw.counter) state.counterHits++;
   if (pounce && !noPush()) { state.pushT = 0.3; pushYou(E); }
   // you recoil, and the heart that took it shatters on the HUD
-  state.you.a -= TUNING.juice.recoil; state.shatter = { i: Math.max(0, Math.floor(state.hp / 2)), t: TUNING.juice.shatter };
+  state.you.a -= TUNING.juice.recoil; state.shatter = { i: Math.max(0, Math.ceil(state.hp)), n: Math.min(dmg, Math.ceil(state.hp + dmg)), t: TUNING.juice.shatter };
   // his Bloodlust (the wolf pelt): a blow that lands gives him stamina
   if (foeHas('bloodlust')) { const f = state.foe; f.sta = Math.min(f.staMax, f.sta + TUNING.foeGear.bloodlust); pop(Ff.x, Ff.y - 1.2 * Ff.H, 'HE DRINKS', '#f87171', 15); }
   if (plated) { state.plateSaves++; part.clang = 0.25; const [px, py] = partCenter(Fy, state.you, part); sparks(px, py, Math.PI, 16); clangSound(E, 0); }
@@ -2322,7 +2389,7 @@ function feintRead(E, bx, by) {
   E.flash('#a78bfa', 0.12); E.haptic(30);
   const Ff = foeF(E); shimmer(Ff.x, Ff.y - 0.55 * Ff.H, TUNING.juice.readBurst); ring(Ff.x, Ff.y - 0.55 * Ff.H, 0.5 * Ff.H, '#c4b5fd'); ooh(E, 0.8);
   E.audio.beep({ freq: 660, dur: 0.12, type: 'triangle', gain: 0.12 }); E.audio.beep({ freq: 990, dur: 0.16, type: 'sine', gain: 0.1, delay: 0.08 });
-  if (state.caption && state.sw && state.sw.lesson) state.caption = { lines: ['Feint read! He spent his stamina on the fake.'], t: 2.2, max: 2.2, good: true };
+  if (state.caption && state.sw && state.sw.lesson) state.caption = { lines: ['Spotted his fake! He spent his stamina on it.'], t: 2.2, max: 2.2, good: true };
 }
 // Riposte: a perfect block sends a free jab into the first bare part he leaves (a body part before a slot), at the riposte's damage
 const counterJab = (E) => freeHit(E, 'COUNTER JAB', false);
@@ -2343,7 +2410,7 @@ function freeHit(E, label, slot) {
 const C_ = () => TUNING.cards;
 const HOOKS = {
   shove: { perfect: (E) => { for (let i = 0; i < C_().shove; i++) pushFoe(E); if (state.step.x >= walls(E).fore - 0.005) stunFoe(E, C_().shoveStun, 'STUNNED AT THE WALL'); } },
-  braced: { block: (E, c) => { if (!c.perfect) gainMom(E, 1); } },
+  braced: { block: (E, c) => { if (!c.perfect) gainMom(E, C_().braced); } },
   thorns: { block: (E, c) => {
     if (state.disarm > 0) return;
     state.dents++; const Ff = foeF(E);
@@ -2447,14 +2514,17 @@ function updateFinisher(E, dt) {
   if (!finBtn(E) || E.save.get('finHint', 0) || state.hintT > 0 || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
   E.save.set('finHint', 1); state.finHintT = TUNING.finBtn.hintDur;
 }
-// two more first-time hints, each shown once ever (stored in the save), one at a time: the crowd's first third, and a full Momentum with no war paint
+// three more first-time hints, each shown once ever (stored in the save), one at a time: the crowd's first third, a full Momentum with no war paint, and the
+// hearts after your first fell
 function updateHints(E) {
   if (state.hintT > 0 || state.finHintT > 0 || !finLive(E) || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
   const C = TUNING.crowd, M = TUNING.mom;
   if (state.fav >= C.bands[0] * C.max && !E.save.get('crowdHint', 0)) {
-    E.save.set('crowdHint', 1); state.hintT = C.hintDur; state.hintS = 'The crowd loves style: reads, perfect blocks, combos. A happy crowd pays more gold.';
+    E.save.set('crowdHint', 1); state.hintT = C.hintDur; state.hintS = 'The crowd loves style: spotting fakes, well-timed blocks, combos. A happy crowd pays more gold.';
   } else if (state.mom >= M.max && !E.save.get('momHint', 0) && !DECK.some((c) => c.fam === 'fin' && has(c.id))) {
     E.save.set('momHint', 1); state.hintT = M.hintDur; state.hintS = 'Momentum is full. War paint (finishers) spends it.';
+  } else if (state.felled > 0 && !E.save.get('heartHint', 0)) {
+    E.save.set('heartHint', 1); state.hintT = TUNING.hint.heartDur; state.hintS = `Each fell gives +${TUNING.heal} heart. Your hearts carry through the whole run.`;
   }
 }
 // a touch on the button: the arrow chip cycles to the other ready finisher, anywhere else on it fires the one shown
@@ -2478,7 +2548,7 @@ function castNet(E) {
   const N = TUNING.me.net, Ff = foeF(E);
   state.bout.net = true; state.foeNet = N.dur; state.netsCast++;
   // under the right HUD plate when he stands beneath it (the pop also drifts up 34 px)
-  const r = 16 + E.safe.right, under = Ff.x > E.w - r - 176 - 60, hudBot = 10 + E.safe.top + (state.picks.length ? HUD_ROW.shield : HUD_ROW.shield0) + 12 + 34 + 14;
+  const r = 16 + E.safe.right, under = Ff.x > E.w - r - 176 - 60, hudBot = 10 + E.safe.top + (state.picks.length ? hudRow().shield : hudRow().shield0) + 12 + 34 + 14;
   pop(Ff.x, Ff.y - 1.2 * Ff.H, 'NETTED!', '#e2e8f0', 22, under ? hudBot : 0); swooshSound(E); E.haptic(14);
 }
 const netMul = (k) => (state.foeNet > 0 ? k : 1);
@@ -2505,8 +2575,8 @@ function crowdDrain(E, dt) {
   if (state.fallT > 0 || state.endT > 0) return;
   state.favSum += state.fav * dt; state.favDur += dt;
   if (has('bread') && !state.bout.bread && state.fav >= C_().breadAt && state.hp < state.maxHp) {
-    state.bout.bread = true; state.hp = Math.min(state.maxHp, state.hp + C_().bread); coins(E, C_().breadCoins);
-    const Fy = youF(E); pop(Fy.x, Fy.y - 1.1 * Fy.H, 'THE CROWD THROWS BREAD: +1 HEART', '#fde68a', 18); E.haptic(15);
+    const was = state.hp; state.bout.bread = true; state.hp = Math.min(state.maxHp, state.hp + C_().bread); coins(E, C_().breadCoins);
+    const Fy = youF(E); pop(Fy.x, Fy.y - 1.1 * Fy.H, `THE CROWD THROWS BREAD: ${heartsPop(state.hp - was)}`, '#fde68a', 18); E.haptic(15);
   }
   if (state.winded > 0 || has('darling')) return;
   if (state.mem.turtle >= TUNING.read.turtle) favour(E, -C.turtle * k * dt);
@@ -2644,7 +2714,7 @@ function dealDraft(grade, salt = 0, not = []) {
 function boutGold() {
   const G = TUNING.gold, t = boutTally(), per = state.perfects - state.bout.perf, k = has('darling') ? C_().darlingGold : 1, c = (n) => Math.round(n * k);
   const raw = [G.fell, t.read * G.read, per * G.perfect, t.slot * G.slot, t.taken === 0 ? G.clean : 0];
-  const items = [['fell', G.fell], ['reads', c(raw[1])], ['perfects', c(raw[2])], ['slot hits', c(raw[3])], ['no hits', c(raw[4])]];
+  const items = [['fell', G.fell], ['fakes spotted', c(raw[1])], ['well-timed blocks', c(raw[2])], ['gap hits', c(raw[3])], ['no hits', c(raw[4])]];
   // the crowd pays a share of the bout's un-halved gold by its mood as the bout ends; the Darling's halving is applied to it once
   items.push(['crowd', c(raw.reduce((a, v) => a + v, 0) * TUNING.crowd.pay * state.fav / TUNING.crowd.max)]);
   const kept = items.filter((e) => e[1] > 0);
@@ -2652,7 +2722,7 @@ function boutGold() {
 }
 function openDraft(E) {
   const grade = state.grades[state.grades.length - 1] || 'C', deal = dealDraft(grade);
-  state.draft = { grade, tally: boutTally(), gold: state.lastGold, cards: deal.cards, priced: deal.priced, odds: deal.odds, t: 0, btns: [], reroll: null, help: null, helpOn: false, spoil: spoilOf() };
+  state.draft = { grade, tally: boutTally(), gold: state.lastGold, cards: deal.cards, priced: deal.priced, odds: deal.odds, t: 0, btns: [], reroll: null, help: null, helpOn: 0, spoil: spoilOf() };
   state.epicsSeen += deal.cards.filter((c) => c.tier >= 2).length;
   saveRun(E);
   const h = state.hand; h.down = false; h.id = -1; h.atk = null; state.sh.held = false; state.sh.hid = -1; state.dg.down = false;
@@ -3802,6 +3872,23 @@ function slotLight(ctx, F, p, H, fm) {
 // ----- the fighters on screen: his health bar, limbs, held kit and weapons, the whole body, your sword arm and shield -----
 // The right HUD's rows below the hearts (px from the top): Momentum pips, stamina, your cards, the shield (with and without cards)
 const HUD_ROW = { pips: 35, sta: 46, icons: 70, shield: 88, shield0: 66 };
+// the rows with a second row of hearts (more than hud.perRow of them) pushing each down
+const hudRow = () => {
+  const d = state.maxHp > TUNING.hud.perRow ? TUNING.hud.rowGap : 0;
+  return { pips: HUD_ROW.pips + d, sta: HUD_ROW.sta + d, icons: HUD_ROW.icons + d, shield: HUD_ROW.shield + d, shield0: HUD_ROW.shield0 + d };
+};
+// Heart i of your health, drawn on the right of the HUD: a row of up to hud.perRow, the rest on a second row under the first (px)
+function heartAt(E, i) {
+  const H = TUNING.hud, cols = Math.min(state.maxHp, H.perRow), c = i % H.perRow;
+  return [E.w - 16 - E.safe.right - 10 - (cols - 1 - c) * H.heart, 10 + E.safe.top + 14 + Math.floor(i / H.perRow) * H.rowGap];
+}
+function drawHeart(ctx, x, y, s, col) {
+  const u = s / 2;
+  ctx.beginPath(); ctx.moveTo(x, y + 0.95 * u);
+  ctx.bezierCurveTo(x - 1.35 * u, y - 0.05 * u, x - 0.85 * u, y - 1.05 * u, x, y - 0.4 * u);
+  ctx.bezierCurveTo(x + 0.85 * u, y - 1.05 * u, x + 1.35 * u, y - 0.05 * u, x, y + 0.95 * u);
+  ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = 'rgba(20,8,8,0.7)'; ctx.lineWidth = 1.2; ctx.stroke();
+}
 // Momentum: five pips under your hearts, gold when held, the next pip's gain flashing
 function drawPips(ctx, E, bx, bw, y) {
   const M = TUNING.mom, n = M.max, s = 5, gap = (bw - 2 * s) / (n - 1);
@@ -3815,14 +3902,14 @@ function drawPips(ctx, E, bx, bw, y) {
   // 14 px, clear of the foe's slot: a long name falls back to its short form
   const room = bx - 6 - (hudSlot(E).x1 + 4), w = armed || fc ? '800' : '700';
   ctx.font = `${w} 14px system-ui, sans-serif`;
-  let t = armed ? `${CARD[armed].name.toUpperCase()} ARMED` : fc ? 'finisher ready' : 'momentum';
+  let t = armed ? `${CARD[armed].name.toUpperCase()} ARMED` : fc ? 'finisher ready' : 'Momentum';
   if (ctx.measureText(t).width > room) t = armed ? 'ARMED' : fc ? 'ready' : t;
   E.text(t, bx - 6, y, { size: 14, align: 'right', color: armed || fc ? '#f5d0fe' : '#c4b99a', weight: w });
 }
 // The HUD's middle: between BOUT on the left and your hearts, stamina and shield on the right, so his bar never meets their labels.
 function hudSlot(E) {
-  const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right, nh = Math.ceil(state.maxHp / 2);
-  const x0 = l + 112, x1 = Math.min(E.w - r - 110 - 96, E.w - r - 23 - (nh - 1) * 26) - 10;
+  const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right, H = TUNING.hud;
+  const x0 = l + 112, x1 = Math.min(E.w - r - 110 - 96, E.w - r - 10 - (Math.min(state.maxHp, H.perRow) - 1) * H.heart - H.size / 2) - 10;
   return { top, x0, x1, cx: (x0 + x1) / 2, w: x1 - x0 };
 }
 // His name, health and stamina bars in the HUD slot, and under them his flag: OPEN! while winded, your riposte, or his short opening after a move.
@@ -3844,7 +3931,7 @@ function foeHealth(ctx, E) {
   state.bleed.forEach((t, i) => drop(ctx, x + w + 12 + i * 12, y + 8, 5, clamp((t - state.m) / 1, 0.35, 1)));
   Object.keys(LIMB).filter(lamed).forEach((id, i) => lameIcon(ctx, id, x - 14 - i * 21, y + 8));
   if (state.fallT > 0) return;
-  const t = wd ? 'OPEN!  winded: stab the glowing slots' : state.openAll > 0 ? 'ALL SLOTS OPEN' : state.disarm > 0 ? 'DISARMED: fists only' : state.riposte > 0 ? 'RIPOSTE x2' : state.open > 0 && !state.sw ? 'OPEN' : null;
+  const t = wd ? 'OPEN!  out of breath: stab the glowing gaps' : state.openAll > 0 ? 'ALL GAPS OPEN' : state.disarm > 0 ? 'DISARMED: fists only' : state.riposte > 0 ? 'RIPOSTE x2' : state.open > 0 && !state.sw ? 'OPEN' : null;
   if (!t) return;
   const size = fitSize(ctx, t, 15, S.w - 16), tw = ctx.measureText(t).width * size / 15, fy = y + h + 22, pulse = 0.5 + 0.5 * Math.sin(state.m * 10);
   E.roundRect(S.cx - tw / 2 - 8, fy - 11, tw + 16, 22, 8, 'rgba(20,14,8,0.85)', wd ? `rgba(255,210,74,${0.5 + 0.5 * pulse})` : null);
@@ -3914,7 +4001,7 @@ function warmPair(E) {
 function drawEdgeTag(ctx, E) {
   const f = state.edge, F = edgeF(E), [hx, hy] = f.beast ? toScreen(F, 0.12, -0.62) : toScreen(F, 0.03, -1.0), r = E.w - 10 - E.safe.right, bw = Math.min(90, 0.5 * F.H), bx = Math.min(hx - bw / 2, r - bw);
   // clear of the right HUD's rows (hearts to the shield bar)
-  const hud = 10 + E.safe.top + (state.picks.length ? HUD_ROW.shield : HUD_ROW.shield0) + 8, ny = Math.max(hy - 18, hud + 12), nm = f.name.split(/[ ,]/)[0].toUpperCase();
+  const hud = 10 + E.safe.top + (state.picks.length ? hudRow().shield : hudRow().shield0) + 8, ny = Math.max(hy - 18, hud + 12), nm = f.name.split(/[ ,]/)[0].toUpperCase();
   ctx.font = '800 14px system-ui, sans-serif';
   E.text(nm, Math.min(hx, r - ctx.measureText(nm).width / 2), ny, { size: 14, weight: '800', color: '#f0e6cc', alpha: 0.85 });
   ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(bx - 1, ny + 9, bw + 2, 7);
@@ -4281,7 +4368,7 @@ function drawSwordArm(ctx, E) {
     ctx.beginPath(); ctx.moveTo(h.ax, h.ay); ctx.lineTo(h.fx, h.fy); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(h.fx, h.fy, 7, 0, 6.28); ctx.fill();
   }
-  if (a && a.kind !== 'raise' && a.kind !== 'pull' && !locked) E.text(a.kind === 'over' ? 'OVERHEAD' : a.kind.toUpperCase(), h.hx, h.hy - 0.12 * H, { size: 11, color: '#e2e8f0', alpha: 0.7, weight: '700' });
+  if (a && a.kind !== 'raise' && a.kind !== 'pull' && !locked) E.text(a.kind === 'over' ? 'SMASH' : a.kind === 'jab' ? 'STAB' : a.kind.toUpperCase(), h.hx, h.hy - 0.12 * H, { size: 11, color: '#e2e8f0', alpha: 0.7, weight: '700' });
   if (locked) E.text('X', h.ux, h.uy - 22, { size: 22, color: '#ff8a7a', weight: '800' });
 }
 
@@ -4653,7 +4740,7 @@ function drawCaption(ctx, E) {
   ctx.globalAlpha = a;
   E.roundRect(x, y, w, h, 10, 'rgba(24,16,40,0.88)', c.good ? '#ffd24a' : '#a78bfa');
   c.lines.forEach((t, i) => E.text(t, E.w / 2, y + 5 + lh / 2 + i * lh, { size: i ? 13 : 16, weight: i ? '700' : '800', color: i ? '#ede9fe' : c.good ? '#ffd24a' : '#c4b5fd', alpha: a }));
-  if (state.sw && state.sw.lesson === 'slow') E.text('slow motion', x + w - 8, y - 8, { size: 10, align: 'right', color: '#a78bfa', alpha: a });
+  if (state.sw && state.sw.lesson === 'slow') E.text('slow motion', x + w - 8, y - 10, { size: 14, align: 'right', color: '#a78bfa', alpha: a });
   ctx.globalAlpha = 1;
 }
 
@@ -4755,18 +4842,18 @@ function drawDraft(ctx, E) {
   ctx.fillStyle = 'rgba(10,8,14,0.82)'; ctx.fillRect(0, 0, E.w, E.h);
   const d0 = state.gauntlet[state.rack], who = d0.pair ? `${d0.name.split(/[ ,]/)[0]} AND ${d0.pair.name.split(/[ ,]/)[0]}` : state.foe.name;
   E.text(`${who.toUpperCase()} FELLED  ·  BOUT ${state.rack + 1} OF ${state.gauntlet.length}`, E.w / 2, top, { size: 13, weight: '800', color: '#c4b99a' });
-  E.text(`GRADE ${d.grade}`, E.w / 2, top + 28, { size: 24, weight: '800', color: gc });
-  E.text(`${t.slot} slot hits · ${t.read} feints read · ${t.pun} punishes · ${t.taken} hits taken`, E.w / 2, top + 52, { size: 12, color: '#e2e8f0' });
+  E.text(`GRADE ${d.grade}`, E.w / 2, top + 24, { size: 24, weight: '800', color: gc });
+  E.text(`${t.slot} gap hits · ${t.read} fakes spotted · ${t.pun} punishes · ${t.taken} hits taken`, E.w / 2, top + 46, { size: 14, color: '#e2e8f0' });
   // his line stays left of the faint HUD's shield label under the overlay (wraps to two lines on a short, narrow screen)
   const bl = wrapPx(ctx, `Old Brutus: “${brutusWon()}”`, 2 * (E.w - 16 - E.safe.right - 110 - 6 - 72 - E.w / 2), 14, '700'), ex = (bl.length - 1) * 17;
-  bl.forEach((s2, k) => E.text(s2, E.w / 2, top + 72 + k * 17, { size: 14, weight: '700', color: '#fde68a' }));
+  bl.forEach((s2, k) => E.text(s2, E.w / 2, top + 64 + k * 17, { size: 14, weight: '700', color: '#fde68a' }));
   const o = D.odds[d.grade], pct = o.map((v) => Math.round(v / (o[0] + o[1]) * 100)), g = d.gold;
   // the style bonuses are the crowd's coins: what they threw is shown apart from the fell's purse
   const thrown = g ? g.items.filter((e) => e[0] !== 'fell') : [], tsum = thrown.reduce((a2, e) => a2 + e[1], 0);
   const gl = g ? `+${g.sum} gold (fell ${g.sum - tsum}${tsum ? `, the crowd threw ${tsum}: ${thrown.map((e) => `${e[0]} ${e[1]}`).join(', ')}` : ''})` : '', pl = `purse ${state.gold}  \u00b7  Grade ${d.grade}: Common ${pct[0]}% \u00b7 Rare ${pct[1]}%`;
   const one = gl ? `${gl}  \u00b7  ${pl}` : pl, gls = wrapPx(ctx, one, E.w - 32, 14, '700').length === 1 ? [one] : [...(gl ? wrapPx(ctx, gl, E.w - 32, 14, '700') : []), ...wrapPx(ctx, pl, E.w - 32, 14, '700')], gx = (gls.length - 1) * 17;
-  gls.forEach((s2, k) => E.text(s2, E.w / 2, top + 92 + ex + k * 17, { size: 14, weight: '700', color: '#fbbf24' }));
-  const n = d.cards.length, gap = 14, w = Math.min(210, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 108 + ex + gx, h = Math.min(190, E.h - E.safe.bottom - y - 62), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
+  gls.forEach((s2, k) => E.text(s2, E.w / 2, top + 84 + ex + k * 17, { size: 14, weight: '700', color: '#fbbf24' }));
+  const n = d.cards.length, gap = 14, w = Math.min(210, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 100 + ex + gx, h = Math.min(190, E.h - E.safe.bottom - y - 62), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
   const ready = d.t > D.delay;
   d.btns = d.cards.map((c, i) => {
     const x = x0 + i * (w + gap), priced = i === d.priced, price = priceOf(c), short = priced && state.gold < price, col = c.duo ? DUO_GOLD : FAMS[c.fam].col, rc = rarCol(c), old = replaces(c);
@@ -4774,30 +4861,30 @@ function drawDraft(ctx, E) {
     // the border is the rarity's colour; the icon and the bottom line are the family's
     E.roundRect(x, y, w, h, 14, priced ? '#2a2016' : '#221a2b', rc);
     E.roundRect(x + 3, y + 3, w - 6, h - 6, 11, null, priced ? 'rgba(255,210,74,0.55)' : shade(rc, 0.6));
-    // on a narrow card (the training ground's four) a line too wide for 14 px drops its second half: the slot, the pips' name, what you wear
-    const bot = [], fits = (t, wt) => { ctx.font = `${wt} 14px system-ui, sans-serif`; return ctx.measureText(t).width <= w - 16; }, either = (a, b, wt) => (fits(a, wt) ? a : b);
-    const tn = either(tierName(c), c.fam === 'fin' ? `${TUNING.fin[c.id]} PIPS` : c.duo ? 'SET BONUS' : TIERS[c.tier], 800);
-    E.text(tn, x + w / 2, y + 14, { size: fitSize(ctx, tn, 10, w - 16), weight: '800', color: rc });
-    // the bottom lines, each 14 px or more: the price, the piece it replaces (on its own line, "drops" when too wide, split in two after that), or the family
+    // everything on the face is 14 px or more. Top: the rarity, and the price (a coin and its gold) on the right. Then the icon if there is room, the effect's
+    // name, its plain line, and the footer: the piece, its slot and its family (a line too wide for a narrow card drops its family, then splits)
+    const fits = (t, wt) => { ctx.font = `${wt} 14px system-ui, sans-serif`; return ctx.measureText(t).width <= w - 12; };
+    const fam = (f) => FAMS[f].name.replace(/^The /, '');
+    const foot = c.duo ? `set bonus · ${c.duo.map(fam).join(' + ')}` : c.fam === 'fin' ? `${c.gear} · war paint` : `${c.gear} · ${c.slot} · ${fam(c.fam)}`;
+    const bot = [];
+    const lines = (t, color) => wrapPx(ctx, t, w - 12, 14, '700').forEach((q) => bot.push([q, color, 700]));
+    if (old) { const t = `replaces ${old.gear}`; if (fits(t, 700)) bot.push([t, '#fb923c', 700]); else if (fits(`drops ${old.gear}`, 700)) bot.push([`drops ${old.gear}`, '#fb923c', 700]); else lines(t, '#fb923c'); }
+    const opts = c.duo ? [foot, c.duo.map(fam).join(' + ')] : c.fam === 'fin' ? [foot, c.gear] : [foot, `${c.gear} \u00b7 ${c.slot}`, c.gear], at = opts.find((t) => fits(t, 700));
+    if (at) bot.push([at, col, 700]); else lines(opts[opts.length - 1], col);
+    const cl = cardLine(c), ls = wrapPx(ctx, cl, w - 12, 14, '600'), fy = y + h - 12 - (bot.length - 1) * 16;
+    // the icon takes what height is left between the plain line and the footer
+    const nsz = fitSize(ctx, c.name, 19, w - 12), nl = wrapPx(ctx, c.name, w - 12, nsz, '800'), xn = (nl.length - 1) * 16;
+    const slack = fy - 10 - (y + 36 + xn + 22 + (ls.length - 1) * 16 + 8), r = Math.min(22, slack / 2 - 2), ir = r >= 9 ? r : 0, ny = y + 36 + (ir ? 2 * ir + 4 : 0);
+    const rar = c.duo ? 'SET BONUS' : c.fam === 'fin' ? 'WAR PAINT' : c.key ? 'KEYSTONE' : TIERS[c.tier];
+    E.text(rar, x + 10, y + 14, { size: 14, weight: '800', align: 'left', color: rc });
     if (priced) {
-      const have = `${price} gold \u00b7 you have ${state.gold}`;
-      bot.push([short && fits(have, 800) ? have : `${price} gold`, short ? '#9aa4b2' : '#ffd24a', 800]);
+      E.text(`${price}`, x + w - 10, y + 14, { size: 14, weight: '800', align: 'right', color: short ? '#9aa4b2' : '#ffd24a' });
+      ctx.font = '800 14px system-ui, sans-serif'; drawCoin(ctx, x + w - 10 - ctx.measureText(`${price}`).width - 11, y + 14, 6);
     }
-    if (old) {
-      const t = `replaces ${old.gear}`;
-      if (fits(t, 700)) bot.push([t, '#fb923c', 700]); else if (fits(`drops ${old.gear}`, 700)) bot.push([`drops ${old.gear}`, '#fb923c', 700]); else bot.push(['replaces', '#fb923c', 700], [old.gear, '#fb923c', 700]);
-    } else if (!priced) bot.push([c.duo ? either(c.duo.map((f) => FAMS[f].name).join(' + '), c.duo.map((f) => FAMS[f].name.replace(/^The /, '')).join(' + '), 800) : either(`${FAMS[c.fam].name}${held[c.fam] ? ` \u00b7 you wear ${held[c.fam]}` : ''}`, FAMS[c.fam].name, 800), col, 800]);
-    const bh = 8 + 16 * bot.length, r = Math.min(24, h * 0.13, Math.max(14, (h - 130 - bh) * 0.5));
-    drawIcon(ctx, c.id, x + w / 2, y + 22 + r, r);
-    const ly = y + 34 + 2 * r, title = titleOf(c), sub = c.duo ? 'takes no slot' : c.fam === 'fin' ? either('war paint, takes no slot', 'war paint', 700) : c.key ? either(`${c.name} \u00b7 keystone`, c.name, 700) : c.name;
-    E.text(title, x + w / 2, ly, { size: fitSize(ctx, title, 17, w - 16), weight: '800', color: '#f0e6cc' });
-    E.text(sub, x + w / 2, ly + 17, { size: fitSize(ctx, sub, 12, w - 16, '700'), weight: '700', color: col });
-    // the rule's line, a size smaller when three lines would meet the bottom lines
-    const cl = cardLine(c);
-    let fs = 13, ls = wrapPx(ctx, cl, w - 18, fs, '600');
-    if (ly + 35 + (ls.length - 1) * 15 > y + h - bh - 6) { fs = 11; ls = wrapPx(ctx, cl, w - 14, fs, '600'); }
-    ls.slice(0, 3).forEach((s2, k) => E.text(s2, x + w / 2, ly + 35 + k * (fs + 2), { size: fs, color: '#cbd5e1' }));
-    bot.forEach(([t, color, wt], k) => E.text(t, x + w / 2, y + h - 13 - (bot.length - 1 - k) * 16, { size: 14, weight: String(wt), color }));
+    if (ir) drawIcon(ctx, c.id, x + w / 2, y + 28 + ir, ir);
+    nl.forEach((q, k) => E.text(q, x + w / 2, ny + k * 16, { size: nsz, weight: '800', color: '#f0e6cc' }));
+    ls.forEach((s2, k) => E.text(s2, x + w / 2, ny + xn + 22 + k * 16, { size: 14, weight: '600', color: '#cbd5e1' }));
+    bot.forEach(([t, color, wt], k) => E.text(t, x + w / 2, fy + k * 16, { size: 14, weight: String(wt), color }));
     ctx.globalAlpha = 1;
     return { x, y, w, h, card: c };
   });
@@ -4819,44 +4906,69 @@ function drawDraft(ctx, E) {
     ctx.globalAlpha = 1;
     d.spoilBtn = b;
   }
-  if (d.helpOn) drawDealHelp(ctx, E, held, d.odds);
+  if (d.helpOn === 1) drawCardHelp(ctx, E, d.cards); else if (d.helpOn) drawDealHelp(ctx, E, held, d.odds);
+}
+// The "?", first page: each card in this draft with its plain line and, under it, its exact numbers
+function drawCardHelp(ctx, E, cards) {
+  const w = Math.min(E.w - 32, 620), x = (E.w - w) / 2, tw = w - 72, rows = cards.map((c) => ({ c, ls: wrapPx(ctx, cardLine(c), tw, 14, '600'), ns: wrapPx(ctx, cardNums(c), tw, 14, '600') }));
+  const hs = rows.map((q) => 22 + 16 * (q.ls.length + q.ns.length)), h = Math.min(E.h - 16, 58 + hs.reduce((a2, b2) => a2 + b2, 0)), y = (E.h - h) / 2;
+  ctx.fillStyle = 'rgba(10,8,14,0.7)'; ctx.fillRect(0, 0, E.w, E.h);
+  E.roundRect(x, y, w, h, 16, '#221a2b', '#e6c866');
+  E.text('WHAT THESE CARDS DO', E.w / 2, y + 18, { size: 14, weight: '800', color: '#c4b99a' });
+  let ry = y + 34;
+  rows.forEach(({ c, ls, ns }, i) => {
+    drawIcon(ctx, c.id, x + 30, ry + 14, 13);
+    E.text(c.name, x + 54, ry + 8, { size: 14, weight: '800', align: 'left', color: c.duo ? DUO_GOLD : FAMS[c.fam].col });
+    ls.forEach((t, k) => E.text(t, x + 54, ry + 24 + k * 16, { size: 14, weight: '600', align: 'left', color: '#e2e8f0' }));
+    ns.forEach((t, k) => E.text(t, x + 54, ry + 24 + (ls.length + k) * 16, { size: 14, weight: '600', align: 'left', color: '#fde68a' }));
+    ry += hs[i];
+  });
+  E.text('Tap for how the deal works', E.w / 2, y + h - 14, { size: 14, weight: '800', color: '#ffd24a' });
 }
 const ODDS_NAME = { set: 'Set', 3: 'Legendary', 2: 'Epic', 1: 'Rare', 0: 'Common' };
 // The "?": how the deal works, the families you hold, and the duos with what each needs: the ones you can be dealt first, then those sharing a family you
 // wear, as many as fit the screen (the rest counted on the last line)
 function drawDealHelp(ctx, E, held, odds = []) {
-  const near = (c) => c.duo.filter((f) => held[f]).length, all = DECK.filter((c) => c.duo && cardOpen(state.me, c)).sort((a, b) => near(b) - near(a)), rh = 34;
-  const duos = all.slice(0, Math.max(1, Math.floor((E.h - 16 - 166) / rh))), more = all.length - duos.length;
-  const w = Math.min(E.w - 32, 620), h = Math.min(E.h - 16, 166 + duos.length * rh), x = (E.w - w) / 2, y = (E.h - h) / 2;
+  const near = (c) => c.duo.filter((f) => held[f]).length, all = DECK.filter((c) => c.duo && cardOpen(state.me, c)).sort((a, b) => near(b) - near(a));
+  const w = Math.min(E.w - 32, 620), G = wornGear(), wl = SLOT_NAMES.filter((k) => G[k]).map((k) => `${k} ${G[k].gear}`).join(' · ');
+  // the gear line wraps to up to three lines (the last clipped); each duo row is its name, then its line wrapped at 14 px
+  const wrapped = wl ? wrapPx(ctx, wl, w - 24, 14, '600') : [], gl = wrapped.length > 3 ? [...wrapped.slice(0, 2), clipLine(ctx, `${wrapped.slice(2).join(' ')}`, w - 24, 14, '600')] : wrapped;
+  const top = 136 + Math.max(0, gl.length - 1) * 16, avail = E.h - 16 - (top + 22 + 36), rows = [];
+  let used = 0;
+  for (const c of all) {
+    const ls = wrapPx(ctx, c.line, w - 64, 14, '600'), rh = 16 * (1 + ls.length) + 8;
+    if (rows.length && used + rh > avail) break;
+    rows.push({ c, ls, rh, ty: top + 22 + used }); used += rh;
+  }
+  const more = all.length - rows.length, last = rows[rows.length - 1], h = Math.min(E.h - 16, rows.length ? last.ty + 16 * last.ls.length + 8 + 28 : top + 40), y = (E.h - h) / 2, x = (E.w - w) / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.7)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 16, '#221a2b', '#e6c866');
   E.text('HOW THE DEAL WORKS', E.w / 2, y + 18, { size: 14, weight: '800', color: '#c4b99a' });
   const ol = `The gold card: ${odds.map(([t, p]) => `${ODDS_NAME[t]} ${p}%`).join(' · ') || 'nothing left to deal'}`;
   E.text(ol, E.w / 2, y + 40, { size: fitSize(ctx, ol, 15, w - 24), weight: '800', color: '#ffd24a' });
-  const rules = [`Families you wear come ${TUNING.draft.pull}x as often; at most ${TUNING.draft.perFam} of one family a draft.`, 'One piece a slot: a new piece replaces the one you wear there.', 'A set bonus is dealt while you wear a piece of both its families.'];
+  const rules = [`Families you wear come ${TUNING.draft.pull}x as often; at most ${TUNING.draft.perFam} of one family a draft.`, 'One piece per body part: a new piece replaces the old one.', 'A set bonus is dealt while you wear a piece of both its families.'];
   rules.forEach((t, i) => E.text(t, E.w / 2, y + 62 + i * 17, { size: fitSize(ctx, t, 13, w - 24, '600'), color: '#f0e6cc' }));
   const hl = Object.keys(FAMS).filter((f) => held[f]).map((f) => `${FAMS[f].name} ${held[f]}`).join('  ·  ');
   E.text(`You wear: ${hl || 'no family yet'}`, E.w / 2, y + 118, { size: 14, weight: '800', color: '#86efac' });
-  const G = wornGear(), wl = SLOT_NAMES.filter((k) => G[k]).map((k) => `${k} ${G[k].gear}`).join(' · ');
-  if (wl) E.text(wl, E.w / 2, y + 136, { size: fitSize(ctx, wl, 12, w - 24, '600'), color: '#cbd5e1' });
-  duos.forEach((c, i) => {
-    const ry = y + 158 + i * rh, ok = c.duo.every((f) => held[f]);
-    drawIcon(ctx, c.id, x + 30, ry, 13);
-    E.text(titleOf(c), x + 50, ry - 7, { size: 14, weight: '800', align: 'left', color: ok ? DUO_GOLD : '#9aa4b2' });
-    E.text(`${c.duo.map((f) => FAMS[f].name).join(' + ')}${ok ? '  \u00b7  can be dealt' : ''}`, x + w - 14, ry - 7, { size: 12, weight: '700', align: 'right', color: ok ? '#86efac' : '#8a8f99' });
-    E.text(c.line, x + 50, ry + 9, { size: fitSize(ctx, c.line, 12, w - 64, '600'), align: 'left', color: '#cbd5e1' });
+  gl.forEach((t, k) => E.text(t, E.w / 2, y + 136 + k * 16, { size: 14, weight: '600', color: '#cbd5e1' }));
+  rows.forEach(({ c, ls, ty }) => {
+    const ry = y + ty, ok = c.duo.every((f) => held[f]);
+    drawIcon(ctx, c.id, x + 30, ry + 8, 13);
+    E.text(titleOf(c), x + 50, ry, { size: 14, weight: '800', align: 'left', color: ok ? DUO_GOLD : '#9aa4b2' });
+    E.text(`${c.duo.map((f) => FAMS[f].name).join(' + ')}${ok ? '  \u00b7  can be dealt' : ''}`, x + w - 14, ry, { size: 14, weight: '700', align: 'right', color: ok ? '#86efac' : '#8a8f99' });
+    ls.forEach((t, k) => E.text(t, x + 50, ry + 16 + k * 16, { size: 14, weight: '600', align: 'left', color: '#cbd5e1' }));
   });
-  E.text(more ? `Tap to close  \u00b7  ${more} more sets` : 'Tap to close', E.w / 2, y + h - 10, { size: 12, weight: '800', color: '#ffd24a' });
+  E.text(more ? `Tap to close  \u00b7  ${more} more sets` : 'Tap to close', E.w / 2, y + h - 12, { size: 14, weight: '800', color: '#ffd24a' });
 }
 // A card whose rule needs his weapon reads differently when the next bout has a beast in it (a beast has no weapon to lose: it is stunned instead)
 const BEAST_LINE = {
-  disarm: '4 pips: his weapon flies; a beast is stunned 1 s',
-  thorns: 'Each block dents; 3 disarm him, or stun a beast 1 s',
-  matador: 'A dodged thrust, bash, pounce or shove: stunned 1 s',
-  heavy: 'No plates on a beast',
-  brawler: 'No plates on a beast',
-  breaker: 'No plates on a beast',
-  butcher: 'No plates on a beast',
+  disarm: `${TUNING.fin.disarm} Momentum: a beast has no weapon, so it is stunned instead.`,
+  thorns: `Each block chips. ${TUNING.cards.thorns} chips and a beast is stunned.`,
+  matador: 'Dodge a stab, bash, pounce or shove and he stumbles, stunned.',
+  heavy: 'A beast wears no armour.',
+  brawler: 'A beast wears no armour.',
+  breaker: 'A beast wears no armour.',
+  butcher: 'A beast wears no armour.',
 };
 function cardLine(c) {
   const d = state.gauntlet && state.gauntlet[state.draft || state.tent ? state.rack + 1 : state.rack];
@@ -4877,7 +4989,7 @@ function drawTent(ctx, E) {
     drawWare(ctx, wr.id, x + w / 2, y + 14 + r, r);
     const ly = y + 30 + 2 * r;
     E.text(wr.name, x + w / 2, ly, { size: fitSize(ctx, wr.name, 17, w - 16), weight: '800', color: '#f0e6cc' });
-    wrapPx(ctx, wr.line, w - 18, 13, '600').slice(0, 2).forEach((s2, k) => E.text(s2, x + w / 2, ly + 21 + k * 15, { size: 13, color: '#cbd5e1' }));
+    wrapPx(ctx, wr.line, w - 16, 14, '600').slice(0, 3).forEach((s2, k) => E.text(s2, x + w / 2, ly + 21 + k * 16, { size: 14, weight: '600', color: '#cbd5e1' }));
     E.text(wr.sold ? 'BOUGHT' : `${wr.price} gold`, x + w / 2, y + h - 14, { size: 14, weight: '800', color: wr.sold ? '#4ade80' : short ? '#9aa4b2' : '#ffd24a' });
     ctx.globalAlpha = 1;
     return { x, y, w, h, ware: wr };
@@ -4893,7 +5005,7 @@ function labLayout(E) {
   const cells = DECK.map((c, i) => ({ c, x: x0 + (i % cols) * (cw + gap), y: top + Math.floor(i / cols) * (ch + gap), w: cw, h: ch }));
   const by = Math.min(E.h - E.safe.bottom - 28, top + rows * (ch + gap) + 28), bw = Math.min(150, (E.w - 64) / 4);
   const btn = (k, i, label) => ({ k, label, x: E.w / 2 + (i - 1.5) * (bw + 10) - bw / 2, y: by - 22, w: bw, h: 44 });
-  return { cells, btns: [btn('mom', 0, state.labMom ? 'Full pips: on' : 'Full pips: off'), btn('gold', 1, '+100 gold'), btn('clear', 2, 'Clear'), btn('done', 3, 'Done')] };
+  return { cells, btns: [btn('mom', 0, state.labMom ? 'Full Momentum: on' : 'Full Momentum: off'), btn('gold', 1, '+100 gold'), btn('clear', 2, 'Clear'), btn('done', 3, 'Done')] };
 }
 function drawLab(ctx, E) {
   const L = labLayout(E);
@@ -4926,13 +5038,13 @@ function labTap(E, p) {
 function tokenButton(E, label, cx, cy, n, on = true, sub = null) {
   const left = n > 0, live = left && on, w = 170, h = 48, x = cx - w / 2, y = cy - h / 2;
   E.roundRect(x, y, w, h, 14, live ? '#7c3aed' : left ? '#3b2d55' : '#2a2a30', live ? '#c4b5fd' : 'rgba(160,160,170,0.35)');
-  E.text(label, cx, cy - 7, { size: 17, weight: '800', color: live ? '#ffffff' : '#8a8f99' });
-  E.text(sub || (left ? `${n} left` : 'used'), cx, cy + 12, { size: 11, weight: '700', color: live ? '#ede9fe' : '#6b7280' });
+  E.text(label, cx, cy - 8, { size: 17, weight: '800', color: live ? '#ffffff' : '#8a8f99' });
+  E.text(sub || (left ? `${n} left` : 'used'), cx, cy + 13, { size: 14, weight: '700', color: live ? '#ede9fe' : '#6b7280' });
   return { x, y, w, h, live };
 }
 
 // ----- fighter cards: the intro before each bout, and the row on the end card -----
-const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps range', axe: 'big overheads crack shields', dagger: 'rushes in, nets slow you' };
+const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps range', axe: 'big smashes crack shields', dagger: 'rushes in, nets slow you' };
 // A little body with his plates (grey) and open joint slots (dark), at scale s px per body unit, feet at (x, y).
 function armourIcon(ctx, parts, x, y, s) {
   ctx.save(); ctx.translate(x, y);
@@ -4963,7 +5075,7 @@ function weaponIcon(ctx, d, x, y, s) {
 const FOE_TELL = {
   thorns: () => `hitting his guard costs you ${TUNING.foeGear.thorns} stamina`, bloodlust: () => `a blow of his that lands gives him ${TUNING.foeGear.bloodlust} stamina`,
   riposte: () => 'he counters a blow that hits his guard', unbreak: () => 'he shrugs off your first hit each bout',
-  myfeint: () => `he feints ${TUNING.foeGear.hood}x as often`, mindreader: () => 'he learns your habits from the first exchange',
+  myfeint: () => `he fakes ${TUNING.foeGear.hood}x as often`, mindreader: () => 'he learns your habits from the first exchange',
 };
 // A rival's taunt: the noun of your origin, or your village on a revenge run.
 const tauntOf = (me) => (me.reason === 'revenge' ? 'I remember your village.' : me.reason === 'promise' ? 'Back for your sister again?' : `You again, little ${ORIGINS[me.origin].noun}?`);
@@ -5025,7 +5137,7 @@ function drawIntro(ctx, E) {
   if (state.edge) { drawPairIntro(ctx, E); return; }
   if (state.foe.beast) { drawBeastIntro(ctx, E); return; }
   const d = state.foe, me = state.me, champ = d.champion, spar = bout().spar;
-  const voice = d.rival ? tauntOf(me) : champ ? champLine(d, me.reason) : null, sub = champ ? champTie(d, me.reason) : spar ? 'Sparring: learn his tells.' : null;
+  const voice = d.rival ? tauntOf(me) : champ ? champLine(d, me.reason) : null, sub = champ ? champTie(d, me.reason) : spar ? 'Sparring: learn his wind-ups.' : null;
   const gear = (d.gear || []).map((id) => CARD[id]), thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 152 + ((d.guards || []).length ? 12 : 0), tb = b + bodyH + (thread ? 32 : 6);
   const second = state.rack === 0 && !voice;
   const w = Math.min(E.w - 32, gear.length ? 640 : 460), h = Math.min(E.h - 12, tb + 22 + (voice || second ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
@@ -5140,7 +5252,7 @@ function profLine(ctx, E, d, x, y, w, wrap = 0) {
 // A pairs bout's card: both foes side by side, the one who fights first on the left, each with his own health, armour, guarded gaps and gear (at 14 px)
 function drawPairIntro(ctx, E) {
   const a = state.foe, q = state.edge, me = state.me, d0 = state.gauntlet[state.rack], champ = a.champion;
-  const voice = d0.rival ? tauntOf(me) : champ ? champLine(a, me.reason) : null, sub = champ ? champTie(a, me.reason) : 'Pairs: when one is winded or down, the other steps in.';
+  const voice = d0.rival ? tauntOf(me) : champ ? champLine(a, me.reason) : null, sub = champ ? champTie(a, me.reason) : 'Pairs: when one is out of breath or down, the other steps in.';
   const thread = me.reason !== 'revenge', b = 88, cw = (Math.min(E.w - 32, 640) - 48) / 2, ex = profFits(ctx, a, cw - 88) && profFits(ctx, q, cw - 88) ? 0 : 16, bodyH = 150 + ex, tb = b + bodyH + (thread ? 32 : 6);
   const w = Math.min(E.w - 32, 640), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
@@ -5222,7 +5334,6 @@ const WHEELS = [
 ].map((wh, k) => ({ ...wh, k, list: (me) => wheelList(k, me.idx, me.open || []) }));
 const STAT_COLS = ['#8b2e2e', '#a8642e', '#9a8c32', '#5f8f3e', '#2f7d6d'];
 const shortOf = (e) => (typeof e[0] === 'number' ? `${e[0]}` : e[3] || (e[0].length > 1 ? e[2][0] : e[0]));
-const halvesText = (n) => `${Math.floor(n / 2)}${n % 2 ? '½' : ''}`;
 
 // ----- the wheel of fate (L8) -----
 // Each slice's start and end, in radians clockwise from the pointer, for these weights (slice size is the odds).
@@ -5307,8 +5418,8 @@ function pegsPassed(w, r0, r1) {
 }
 
 // what your weapon is for, in one line
-const MY_WEAPON_JOB = { gladius: 'all-rounder: quick jabs, fair reach', spear: 'long reach: jab from range; slashes are weak', axe: 'slow and heavy: overheads crack plates', dagger: 'short and fast: slot hits do 4x',
-  trident: 'longest reach, slow; a perfect block nets him', sica: 'short and quick: slashes cut deep' };
+const MY_WEAPON_JOB = { gladius: 'all-rounder: quick stabs, fair reach', spear: 'long reach: stab from range; slashes are weak', axe: 'slow and heavy: smashes break armour', dagger: 'short and fast: stabs into gaps do 4x',
+  trident: 'longest reach, slow; a well-timed block nets him', sica: 'short and quick: slashes cut deep' };
 // a weapon as the icon draws it: his table's, or your armoury weapon's drawn length
 const iconWeapon = (id) => TUNING.weapons.find((q) => q.id === id) || { id, len: TUNING.me.weapons[id].len };
 // Your card, in three columns under the story and your start card: your armour, your size, hearts and stats, then your tier and your weapon (its name on its own line, its job wrapped below).
@@ -5318,38 +5429,38 @@ function drawMeCard(ctx, E, me, x, y, w, h) {
   // a veteran: the stat they gained and their scar, in gold
   const vt = me.vid ? `VETERAN${me.up ? `  ·  +${TUNING.ludus.vetUp} ${WHEELS[me.up].title}` : ''}  ·  ${me.scar}` : null;
   if (vt) E.text(vt, cx, y + 16, { size: fitSize(ctx, vt, 14, w - 28), weight: '800', color: '#ffd24a' });
-  else E.text('YOUR FIGHTER', cx, y + 16, { size: 12, weight: '800', color: '#9fe3c6' });
+  else E.text('YOUR FIGHTER', cx, y + 16, { size: 14, weight: '800', color: '#9fe3c6' });
   const st = storyLine(me);
-  E.text(st, cx, y + 36, { size: fitSize(ctx, st, 15, w - 28), weight: '800', color: '#f0e6cc' });
+  E.text(st, cx, y + 36, { size: Math.max(14, fitSize(ctx, st, 15, w - 28)), weight: '800', color: '#f0e6cc' });
   const pk = `${noun[0].toUpperCase()}${noun.slice(1)}: starts with ${scs.length > 1 ? `${sc.name} + ${scs[1].name}` : `${sc.name} (${FAMS[sc.fam].name})`}`;
-  E.text(pk, cx, y + 56, { size: fitSize(ctx, pk, 13, w - 28, '700'), weight: '700', color: '#86efac' });
+  E.text(pk, cx, y + 56, { size: Math.max(14, fitSize(ctx, pk, 14, w - 28, '700')), weight: '700', color: '#86efac' });
   const lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
   armourIcon(ctx, playerParts(me), ax, y + 72 + s * 0.95, s);
-  E.text(`${A.name} ARMOUR`, ax, y + 180, { size: 11, weight: '800', color: '#aab3bc' });
-  if (me.plates.length) wrapPx(ctx, `plated: ${me.plates.map((q) => (q === 'armB' ? 'shield arm' : q)).join(', ')}`, lw, 10).forEach((t, i) => E.text(t, ax, y + 194 + i * 12, { size: 10, color: '#c4b99a' }));
+  E.text(`${A.name} ARMOUR`, ax, y + 174, { size: 14, weight: '800', color: '#aab3bc' });
+  if (me.plates.length) wrapPx(ctx, `plated: ${me.plates.map((q) => (q === 'armB' ? 'shield arm' : q)).join(', ')}`, lw, 14).forEach((t, i) => E.text(t, ax, y + 192 + i * 16, { size: 14, color: '#c4b99a' }));
   const mx = x + 18 + lw, mw = w * 0.36;
   E.text(S.name, mx, y + 84, { size: 20, weight: '800', align: 'left', color: '#fde68a' });
-  E.text(SIZE_TIP[me.size], mx, y + 103, { size: 12, align: 'left', color: '#9aa4b2' });
-  E.text(`♥ ${halvesText(me.halves)} hearts`, mx, y + 123, { size: 15, weight: '800', align: 'left', color: '#f87171' });
-  statBars(ctx, E, me, mx, y + 147, mw, 20, 13);
+  E.text(SIZE_TIP[me.size], mx, y + 103, { size: 14, align: 'left', color: '#9aa4b2' });
+  E.text(`♥ ${me.halves} hearts`, mx, y + 123, { size: 15, weight: '800', align: 'left', color: '#f87171' });
+  statBars(ctx, E, me, mx, y + 147, mw, 20, 14);
   // a veteran's gained point glows green on its bar
-  if (me.vid && me.up) { const v = me[['', 'str', 'spd', 'sta'][me.up]], seg = (mw - 13 * 2.6) / 5; ctx.fillStyle = '#4ade80'; ctx.fillRect(mx + 13 * 2.6 + (v - 1) * seg, y + 147 + (me.up - 1) * 20 - 13 * 0.35, seg - 3, 13 * 0.7); }
+  if (me.vid && me.up) { const v = me[['', 'str', 'spd', 'sta'][me.up]], seg = (mw - 14 * 2.6) / 5; ctx.fillStyle = '#4ade80'; ctx.fillRect(mx + 14 * 2.6 + (v - 1) * seg, y + 147 + (me.up - 1) * 20 - 14 * 0.35, seg - 3, 14 * 0.7); }
   const tx = mx + mw + 10, tw = x + w - 12 - tx, tc = TIER_COL[me.tier];
   ctx.strokeStyle = tc; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tx + 24, y + 96, 22, 0, 6.28); ctx.stroke();
   E.text(me.tier, tx + 24, y + 98, { size: 28, weight: '800', color: tc });
-  E.text('TIER', tx + 54, y + 88, { size: 11, weight: '800', align: 'left', color: '#c4b99a' });
-  if (me.underdog) E.text('Underdog!', tx + 54, y + 105, { size: 13, weight: '800', align: 'left', color: '#ffd24a', alpha: 0.75 + 0.25 * Math.sin(E.time * 6) });
+  E.text('TIER', tx + 54, y + 88, { size: 14, weight: '800', align: 'left', color: '#c4b99a' });
+  if (me.underdog) E.text('Underdog!', tx + 54, y + 105, { size: 14, weight: '800', align: 'left', color: '#ffd24a', alpha: 0.75 + 0.25 * Math.sin(E.time * 6) });
   const WI = iconWeapon(me.weapon), nm = weaponName(me);
   const ws = Math.min(110, (tw - 12) / (WI.len + 0.4));
-  weaponIcon(ctx, { weapon: WI, mace: me.mace }, tx + 4 + 0.3 * ws, y + 134, ws);
-  E.text(nm, tx, y + 156, { size: fitSize(ctx, nm, 16, tw), weight: '800', align: 'left', color: '#f0e6cc' });
-  wrapPx(ctx, MY_WEAPON_JOB[me.weapon], tw, 12).slice(0, 3).forEach((t, i) => E.text(t, tx, y + 175 + i * 14, { size: 12, align: 'left', color: '#c4b99a' }));
+  weaponIcon(ctx, { weapon: WI, mace: me.mace }, tx + 4 + 0.3 * ws, y + 130, ws);
+  E.text(nm, tx, y + 150, { size: fitSize(ctx, nm, 16, tw), weight: '800', align: 'left', color: '#f0e6cc' });
+  wrapPx(ctx, MY_WEAPON_JOB[me.weapon], tw, 14).slice(0, 4).forEach((t, i) => E.text(t, tx, y + 168 + i * 16, { size: 14, align: 'left', color: '#c4b99a' }));
 }
 function meMini(ctx, E, me, x, y, w, h, picks = []) {
   E.roundRect(x, y, w, h, 12, '#1d2a2a', '#4ade80');
   const cx = x + w / 2;
   E.text(clipLine(ctx, me.name.toUpperCase(), w - 10), cx, y + 12, { size: 14, weight: '800', color: '#9fe3c6' });
-  E.text(`TIER ${me.tier} \u2665${halvesText(me.halves)}`, cx, y + 27, { size: 14, weight: '800', color: TIER_COL[me.tier] });
+  E.text(`TIER ${me.tier} \u2665${me.halves}`, cx, y + 27, { size: 14, weight: '800', color: TIER_COL[me.tier] });
   E.text(TUNING.me.sizes[me.size].name, cx, y + 42, { size: 14, weight: '700', color: '#fde68a' });
   E.text(clipLine(ctx, weaponName(me).split(' & ')[0], w - 6), cx, y + 57, { size: 14, weight: '700', color: '#fde68a' });
   E.text(TUNING.me.armour[me.set].name, cx, y + 72, { size: 14, weight: '700', color: '#aab3bc' });
@@ -5991,7 +6102,7 @@ const roll = {
         const seg = Math.min(14, (w - 106) / 5);
         for (let q = 0; q < 5; q++) { ctx.fillStyle = q < e[0] ? '#e6c866' : 'rgba(255,255,255,0.12)'; ctx.fillRect(x + w - 10 - (5 - q) * seg + slide, y - 5, seg - 3, 10); }
       } else {
-        const v = n === 0 ? `${e[2]}  ♥${halvesText(M.sizes[e[0]].hearts * 2)}` : n === 5 ? weaponName(me) : e[2];
+        const v = n === 0 ? `${e[2]}  ♥${M.sizes[e[0]].hearts * M.heartsPerBase}` : n === 5 ? weaponName(me) : e[2];
         E.text(v, x + w - 10 + slide, y, { size: Math.max(14, fitSize(ctx, v, 15, w - 100)), weight: '800', align: 'right', color: isRare(n, e[0]) ? '#ffd24a' : '#f0e6cc' });
       }
     }
@@ -6025,7 +6136,7 @@ function initHand(E) {
 }
 
 const play = {
-  state, lay, foeF, youF, toScreen, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
+  state, lay, foeF, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize,
@@ -6196,8 +6307,8 @@ const play = {
     }
     const d = state.draft;
     if (d) {
-      if (d.helpOn) { d.helpOn = false; E.audio.play('tap'); return; }
-      if (d.help && E.hit(d.help, p)) { d.helpOn = true; E.audio.play('tap'); return; }
+      if (d.helpOn) { d.helpOn = d.helpOn >= 2 ? 0 : d.helpOn + 1; E.audio.play('tap'); return; }
+      if (d.help && E.hit(d.help, p)) { d.helpOn = 1; E.audio.play('tap'); return; }
       if (d.reroll && d.reroll.live && E.hit(d.reroll, p)) { rerollDraft(E); return; }
       if (d.spoilBtn && d.t > TUNING.draft.delay && E.hit(d.spoilBtn, p)) { swapSpoil(E); return; }
       const b = d.t > TUNING.draft.delay && d.btns.find((q) => E.hit(q, p)); if (b) pickCard(E, b.card); return;
@@ -6298,16 +6409,11 @@ const play = {
     drawCoin(ctx, l + 6, top + 53, 6);
     E.text(`${state.gold}`, l + 17, top + 53, { size: 14, align: 'left', weight: '800', color: '#fbbf24' });
     // a dark plate under the right column, so a tall foe's helmet passing behind it never hides a row
-    const H2 = HUD_ROW;
+    const H2 = hudRow();
     E.roundRect(E.w - r - 176, top - 6, 182, (state.picks.length ? H2.shield : H2.shield0) + 18, 8, 'rgba(18,12,22,0.72)', null);
-    // hearts in quarters: a plated hit takes a quarter
-    const nh = Math.ceil(state.maxHp / 2);
-    for (let i = 0; i < nh; i++) {
-      const hx = E.w - r - 10 - (nh - 1 - i) * 26, have = clamp((state.hp - i * 2) / 2, 0, 1);
-      E.text('\u2665', hx, top + 14, { size: 26, color: have >= 1 ? '#ef4444' : '#3b3f46' });
-      if (have > 0 && have < 1) { ctx.save(); ctx.beginPath(); ctx.rect(hx - 13, top - 4, 26 * have, 36); ctx.clip(); E.text('\u2665', hx, top + 14, { size: 26, color: '#ef4444' }); ctx.restore(); }
-    }
-    if (state.shatter) heartShatter(ctx, E.w - r - 10 - (nh - 1 - Math.min(nh - 1, state.shatter.i)) * 26, top + 14, 1 - state.shatter.t / TUNING.juice.shatter);
+    // one heart for each point of health, whole
+    for (let i = 0; i < state.maxHp; i++) { const [hx, hy] = heartAt(E, i); drawHeart(ctx, hx, hy, TUNING.hud.size, i < Math.ceil(state.hp) ? '#ef4444' : '#3b3f46'); }
+    if (state.shatter) for (let k = 0; k < state.shatter.n; k++) { const [hx, hy] = heartAt(E, Math.min(state.maxHp - 1, state.shatter.i + k)); heartShatter(ctx, hx, hy, 1 - state.shatter.t / TUNING.juice.shatter); }
     const bw = 110, bx = E.w - r - bw, sf = state.stamina / state.staMax;
     drawPips(ctx, E, bx, bw, top + H2.pips);
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(bx - 1, top + H2.sta - 1, bw + 2, 11);
@@ -6318,7 +6424,7 @@ const play = {
       // what the drive burns glows where it was, then fades
       if (state.burnT > 0 && state.burn > state.stamina) { ctx.globalAlpha = Math.min(1, 2 * state.burnT / TUNING.lunge.driveBurn); ctx.fillStyle = '#fde68a'; ctx.fillRect(bx + bw * sf, top + H2.sta, bw * (Math.min(state.burn, state.staMax) - state.stamina) / state.staMax, 9); ctx.globalAlpha = 1; }
     }
-    E.text(state.exhaust > 0 ? 'EXHAUSTED' : 'stamina', bx - 6, top + H2.sta + 6, { size: 10, align: 'right', color: state.exhaust > 0 ? '#fca5a5' : '#c4b99a', weight: state.exhaust > 0 ? '800' : '400' });
+    E.text(state.exhaust > 0 ? 'EXHAUSTED' : 'stamina', bx - 6, top + H2.sta + 6, { size: 14, align: 'right', color: state.exhaust > 0 ? '#fca5a5' : '#c4b99a', weight: state.exhaust > 0 ? '800' : '700' });
     // your upgrades, under the bars
     state.picks.forEach((id, i) => drawIcon(ctx, id, E.w - r - 9 - (state.picks.length - 1 - i) * 22, top + H2.icons, 9));
     const sy = top + (state.picks.length ? H2.shield : H2.shield0);
@@ -6327,7 +6433,7 @@ const play = {
       ctx.fillStyle = state.sh.broken || noShield() ? '#3b3f46' : i < state.sh.hits ? '#d6a24a' : '#3b3f46';
       ctx.fillRect(bx + i * (bw / nsh), sy, bw / nsh - 4, 7);
     }
-    E.text(noShield() ? 'no shield' : state.sh.broken ? 'shield broken' : 'shield', bx - 6, sy + 6, { size: 10, align: 'right', color: state.sh.broken || noShield() ? '#ef4444' : '#c4b99a' });
+    E.text(noShield() ? 'no shield' : state.sh.broken ? 'shield broken' : 'shield', bx - 6, sy + 6, { size: 14, align: 'right', color: state.sh.broken || noShield() ? '#ef4444' : '#c4b99a', weight: '700' });
     if (!state.draft && !state.tent) foeHealth(ctx, E);
     if (state.edge && !state.edge.down && !state.intro && !state.draft && !state.tent) drawEdgeTag(ctx, E);
     if (state.netT > 0) E.text('NETTED: slow hand, no lunge', bx + bw, sy + 34, { size: 11, align: 'right', color: '#e2e8f0', weight: '700' });
@@ -6459,11 +6565,11 @@ const over = {
   stats(ctx, E, y0, y1) {
     const p = this.p, w = Math.min(E.w - 32, 760), x = (E.w - w) / 2;
     const items = [
-      ['gap hits', `${p.gapHits}${p.isNew ? ' (new best!)' : ''}`], ['best', p.best], ['joint hits', p.slotHits], ['jabs', p.jabs], ['slashes', p.slashes], ['overheads', p.overheads],
-      ['lunges', p.lunges], ['clangs', p.clangs], ['plates broken', p.broken], ['blocks', `${p.blocks} (${p.perfects} perfect)`], ['backsteps', p.dodges], ['hits taken', p.taken],
-      ['stamina-outs', p.staOuts], ['counters', `${p.counters} (${p.counterHits} hit)`], ['feints', p.feints], ['feints read', `${p.feintsRead} (${p.switchReads} by a switch)`], ['feints bit', p.feintsBit], ['feints neither', p.feintsNone],
-      ['combos', p.combos], ['winded', p.windeds], ['punishes', p.punishes], ['bashed', `${p.bashHits}/${p.bashes}`], ['netted', `${p.netted}/${p.nets}`], ['felled', p.felled],
-      ['momentum', `${p.momGained} (${p.momSpent} spent)`], ['bleeds', p.bleeds], ['lamings', p.lamings],
+      ['gap hits', `${p.gapHits}${p.isNew ? ' (new best!)' : ''}`], ['best', p.best], ['joint hits', p.slotHits], ['stabs', p.jabs], ['slashes', p.slashes], ['smashes', p.overheads],
+      ['lunges', p.lunges], ['clangs', p.clangs], ['plates broken', p.broken], ['blocks', `${p.blocks} (${p.perfects} well-timed)`], ['backsteps', p.dodges], ['hits taken', p.taken],
+      ['out of stamina', p.staOuts], ['counters', `${p.counters} (${p.counterHits} hit)`], ['fakes', p.feints], ['fakes spotted', `${p.feintsRead} (${p.switchReads} by a switch)`], ['fooled by fakes', p.feintsBit], ['fakes neither', p.feintsNone],
+      ['combos', p.combos], ['out of breath', p.windeds], ['punishes', p.punishes], ['bashed', `${p.bashHits}/${p.bashes}`], ['netted', `${p.netted}/${p.nets}`], ['felled', p.felled],
+      ['momentum', `${p.momGained} (${p.momSpent} spent)`], ['bleeding', p.bleeds], ['cripples', p.lamings],
     ];
     const cols = 3, rows = Math.ceil(items.length / cols), lh = Math.min(22, (y1 - y0 - 16) / rows), cw = w / cols;
     E.roundRect(x, y0, w, rows * lh + 16, 12, 'rgba(34,26,43,0.85)', 'rgba(240,230,204,0.25)');
@@ -6537,8 +6643,8 @@ export const game = {
   experiments: [
     { key: 'hit.minSpeed', label: 'Min hit speed (px/s)', min: 200, max: 1200, step: 25 },
     { key: 'stamina.regen', label: 'Stamina regen (/s)', min: 10, max: 80, step: 2 },
-    { key: 'attack.over.cost', label: 'Overhead cost', min: 5, max: 60, step: 1 },
-    { key: 'shield.perfect', label: 'Perfect block window (s)', min: 0.05, max: 0.4, step: 0.01 },
+    { key: 'attack.over.cost', label: 'Smash cost', min: 5, max: 60, step: 1 },
+    { key: 'shield.perfect', label: 'Well-timed block window (s)', min: 0.05, max: 0.4, step: 0.01 },
     { key: 'shield.hits', label: 'Shield blocks to break', min: 1, max: 8, step: 1 },
     { key: 'shield.drain', label: 'Shield hold drain (/s)', min: 0, max: 30, step: 1 },
     { key: 'open.dur', label: 'Foe opening (s)', min: 0.3, max: 1.6, step: 0.1 },
