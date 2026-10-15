@@ -197,6 +197,34 @@ Two options each, about US$0.50 to 1. Into `docs/art/final/launch/`.
 Spec: `docs/games/gravity-golf/prd-v0.11.md` C2. Use `docs/art/final/gravity-golf/mission-control.png` as the reference image so Sam is the same person in the same frame.
 - `mission-control-worried.png`: Sam on the same video call, but the room dimmer and the screens behind showing a red "BUDGET REVIEW" glow (no readable text needed), Sam's brow worried, holding the mug with both hands, still kind. 512 x 512, same frame. Two options, about US$0.30.
 
+### Pack 15: Arena, the arenas and a fighter pilot (added 2026-10-15)
+
+Anchor: `docs/games/arena/style.md`; cast and places: `docs/games/arena/world.md`; rules for fighter art: `docs/adr/0021-cutout-fighter-art.md`. The designer: "the arenas should have art instead of stick men". Write `docs/art/candidates/arena/candidates.json` (ADR-0020) so options can be picked in the game.
+
+**A. Four backdrops** (opaque, 1536 x 768, landscape, behind the sand; the middle band where the fighters stand stays soft and low in contrast; no people in the foreground):
+
+| File | Arena | Look |
+| --- | --- | --- |
+| `arena-pit.png` | The Pit, Capua | a small rough provincial ring: a wooden fence, packed sand, a few rows of rough wooden stands, banners of cloth, late afternoon |
+| `arena-city.png` | The City arena, Pompeii | a stone amphitheatre: arches, colourful painted banners, Vesuvius faint in the distance |
+| `arena-colosseum.png` | The Colosseum, Rome | the vast Colosseum interior: tiers of arches, the canvas awning overhead, a crowd as soft shapes, golden light |
+| `arena-grand.png` | The Grand Games, Rome | the Colosseum dressed for the Emperor: gold and purple hangings, the imperial box at the top centre, rose petals in the air |
+
+**B. The fighter pilot: one cut-out kit** (transparent PNG; each part a separate image, in side view facing right, the same lighting and scale across all parts, painted to fill a plain rectangle-ish silhouette with rounded joint ends so the parts overlap cleanly when rotated; no armour painted on the body):
+
+| File | Part | Size |
+| --- | --- | --- |
+| `kit-base-head.png` | the head, bare, short dark hair, a determined face in profile | 256 x 256 |
+| `kit-base-torso.png` | the torso from neck to hips, bare-chested with a leather belt and a simple cloth kilt hanging from it | 384 x 512 |
+| `kit-base-upperarm.png` | the upper arm, shoulder end at the top | 160 x 320 |
+| `kit-base-forearm.png` | the forearm with the hand gripping (a fist with a hole for a hilt), elbow end at the top | 160 x 320 |
+| `kit-base-thigh.png` | the thigh, hip end at the top | 192 x 352 |
+| `kit-base-shin.png` | the shin with a sandalled foot pointing right, knee end at the top | 192 x 384 |
+| `kit-helmet-gallic.png` | a bronze gladiator helmet with a crest, to sit over the head | 256 x 256 |
+| `kit-shield-round.png` | a round bronze-rimmed wooden shield, face-on | 320 x 320 |
+
+Make the kit from one first image (the torso) as the reference for the rest. Make two options for the backdrops and one for each kit part (a kit is a set; swap the whole set if it doesn't hang together). About $3 to $4. Put everything into `docs/art/final/arena/`, and the second backdrop options as `-alt` files. In the handoff, list each part's joint points in pixels (for example the shoulder and elbow centres on the upper arm), so the builder can pin them to the rig.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
