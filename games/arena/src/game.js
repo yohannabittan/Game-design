@@ -164,10 +164,12 @@ const TUNING = {
       size: [['runt', 7, 'Runt'], ['lean', 22, 'Lean'], ['medium', 38, 'Medium'], ['big', 25, 'Big'], ['giant', 8, 'Giant']],
       stat: [[1, 8, 'Feeble'], [2, 20, 'Fair'], [3, 34, 'Solid'], [4, 26, 'Strong'], [5, 12, 'Mighty']],  // the B-tier wheel; statTiers holds every tier's weights
       armour: [['light', 35, 'Light'], ['medium', 45, 'Medium'], ['heavy', 20, 'Heavy']],
-      weapon: [['gladius', 35, 'Gladius', 'GL'], ['spear', 25, 'Spear', 'SP'], ['axe', 20, 'Axe/mace', 'AX'], ['dagger', 20, 'Dagger', 'DG']],
+      // the ludus's slices (LUDUS_LOCK) come last, and weigh nothing until they are bought, so a seed rolls as it did before them
+      weapon: [['gladius', 35, 'Gladius', 'GL'], ['spear', 25, 'Spear', 'SP'], ['axe', 20, 'Axe/mace', 'AX'], ['dagger', 20, 'Dagger', 'DG'], ['trident', 20, 'Trident', 'TR'], ['sica', 20, 'Sica', 'SI']],
       // flavour only: [value, weight, name, wheel label]
-      origin: [['gaul', 1, 'Gaul', 'GA'], ['thrace', 1, 'Thrace', 'TH'], ['numidia', 1, 'Numidia', 'NU'], ['capua', 1, 'Capua', 'CA'], ['ostia', 1, 'Ostia', 'OS'], ['alexandria', 1, 'Alexandria', 'AL']],
-      reason: [['freedom', 1, 'Freedom', 'F'], ['debt', 1, 'Debt', 'D'], ['revenge', 1, 'Revenge', 'R'], ['glory', 1, 'Glory', 'G']],
+      origin: [['gaul', 1, 'Gaul', 'GA'], ['thrace', 1, 'Thrace', 'TH'], ['numidia', 1, 'Numidia', 'NU'], ['capua', 1, 'Capua', 'CA'], ['ostia', 1, 'Ostia', 'OS'], ['alexandria', 1, 'Alexandria', 'AL'],
+        ['sparta', 1, 'Sparta', 'SP'], ['egypt', 1, 'Egypt', 'EG'], ['circus', 1, 'Circus', 'CI']],
+      reason: [['freedom', 1, 'Freedom', 'F'], ['debt', 1, 'Debt', 'D'], ['revenge', 1, 'Revenge', 'R'], ['glory', 1, 'Glory', 'G'], ['promise', 1, 'A promise', 'P']],
     },
     // the stat wheels' named tiers (L8): each tier's weights over Feeble to Mighty. A wheel starts at B; your band tilts it (steps per stat: Strength,
     // Speed, Stamina; up is toward S) and the stat wheel before it shifts it by chain[its result - 1]; the sum stays within D to S.
@@ -206,9 +208,20 @@ const TUNING = {
       spear: { name: 'SPEAR', reach: 1.35, speed: 0.85, dmg: 1, cost: 1, slash: 0.6, slot: 3, slotDmg: 1, overBreak: 0 },
       axe: { name: 'AXE', alt: 'MACE', reach: 0.9, speed: 0.75, dmg: 1.7, cost: 1.4, slash: 1, slot: 3, slotDmg: 1.7, overBreak: 2 },
       dagger: { name: 'DAGGER', reach: 0.65, speed: 1.4, dmg: 0.75, cost: 1, slash: 1, slot: 4, slotDmg: 1, overBreak: 0 },
+      // the ludus's armoury (len: the length drawn on your card, H). The trident: the longest reach and the slowest hand, weak slashes, its net cast by
+      // your first perfect block each bout (net). The sica: short and quick, its curved edge makes every slash cut deep.
+      trident: { name: 'TRIDENT & NET', reach: 1.5, speed: 0.8, dmg: 1, cost: 1.1, slash: 0.5, slot: 3, slotDmg: 1.15, overBreak: 0, net: true, len: 0.8 },
+      sica: { name: 'SICA', reach: 0.8, speed: 1.2, dmg: 1, cost: 1, slash: 1.6, slot: 3, slotDmg: 1, overBreak: 0, len: 0.3 },
     },
     mace: 0.5,
+    // your net (the trident): it holds him dur s, his wind-ups wind x longer, his footwork at step x its speed
+    net: { dur: 3, wind: 0.3, step: 0.5 },
   },
+  // fame, kept for good (E): a champion felled, an arena's first clear, the Emperor's thumbs up, and 1 for each goldPer gold left when a run ends
+  fame: { champ: 10, clear: 25, thumbUp: 10, goldPer: 50 },
+  // Brutus's ludus: each unlock's price in fame; the Wall of Champions keeps the newest wallMax fighters; a veteran gains vetUp on one stat
+  ludus: { price: { trident: 30, sica: 30, sparta: 25, egypt: 25, circus: 25, trick: 40, show: 40, slot: 60, fourth: 50, promise: 30, crest: 15, plume: 15, paint: 15, cloak: 20 },
+    wallMax: 30, vetUp: 1, vetCap: 4 },
   // your own feint (the Trickster's enabler). With the Feint worn a lunge commits, and only then does what its blade met land, once the thumb has stayed
   // within slack (arm lengths of hand travel) of its furthest reach for settle s, or hold s after it began. A lunge
   // pulled back under the lunge's start with the thumb still down before it commits, having reached depth of a full lunge and touched nothing, no sooner than
@@ -331,22 +344,22 @@ const CHAMPIONS = ['Flamma the Unbroken', 'Marcus the Red', 'Varro of Capua', 'A
 // Castor first and Pollux waiting.
 const NEW_CHAMPS = {
   twins: { name: 'Castor', pair: 'Pollux', title: 'Castor and Pollux, the Twins',
-    tie: { revenge: 'Their torches lit your village.', debt: "The moneylender's sons. They collect in pairs.", freedom: 'Freed together. They fight to stay that way.', glory: "Pompeii's darlings, both of them." },
-    line: { revenge: 'One of us lit the fire. Guess which.', debt: 'Two of us, one debt. Pay twice.', freedom: 'Free men fight in pairs. You fight alone.', glory: 'They came to see twins. Not you.' } },
+    tie: { revenge: 'Their torches lit your village.', debt: "The moneylender's sons. They collect in pairs.", freedom: 'Freed together. They fight to stay that way.', glory: "Pompeii's darlings, both of them.", promise: "Your sister serves at the Twins' table." },
+    line: { revenge: 'One of us lit the fire. Guess which.', debt: 'Two of us, one debt. Pay twice.', freedom: 'Free men fight in pairs. You fight alone.', glory: 'They came to see twins. Not you.', promise: 'She pours for both of us. Twice the work.' } },
   hermes: { name: 'Hermes the Swift',
-    tie: { revenge: 'He ran the torch from roof to roof.', debt: "He runs the moneylender's errands.", freedom: 'He ran his way free. Nobody catches him.', glory: 'The fastest blade in Pompeii.' },
-    line: { revenge: 'I was gone before the roofs fell.', debt: 'I collect. Quickly.', freedom: "You can't win freedom you can't catch.", glory: 'Blink, and you miss your own fall.' } },
+    tie: { revenge: 'He ran the torch from roof to roof.', debt: "He runs the moneylender's errands.", freedom: 'He ran his way free. Nobody catches him.', glory: 'The fastest blade in Pompeii.', promise: 'Your sister runs his errands now.' },
+    line: { revenge: 'I was gone before the roofs fell.', debt: 'I collect. Quickly.', freedom: "You can't win freedom you can't catch.", glory: 'Blink, and you miss your own fall.', promise: 'She runs for me now. Can you catch me?' } },
   aquila: { name: "Aquila, the Emperor's Blade",
-    tie: { revenge: "He carried the Emperor's torch.", debt: "The Emperor's purse. Your debt is in it.", freedom: "He holds the wooden sword, by the Emperor's leave.", glory: "Rome's own champion." },
-    line: { revenge: 'The Emperor ordered it. I obeyed.', debt: 'Your debt bought my armour.', freedom: 'The wooden sword is mine to give. I will not.', glory: 'Rome has one name. Mine.' } },
+    tie: { revenge: "He carried the Emperor's torch.", debt: "The Emperor's purse. Your debt is in it.", freedom: "He holds the wooden sword, by the Emperor's leave.", glory: "Rome's own champion.", promise: "Your sister serves in the Emperor's house." },
+    line: { revenge: 'The Emperor ordered it. I obeyed.', debt: 'Your debt bought my armour.', freedom: 'The wooden sword is mine to give. I will not.', glory: 'Rome has one name. Mine.', promise: 'Only the Emperor frees her. Not you.' } },
   // the Colosseum: the Beastmaster fights with his lion waiting at the edge (beast: it steps in when his health falls, TUNING.champs); the Huntress's
   // spear also throws a net (weapon: hers whatever the roll)
   carpophorus: { name: 'Carpophorus the Beastmaster', title: 'Carpophorus and his lion', beast: 'lion',
-    tie: { revenge: 'He came with the soldiers, and his cages.', debt: "He feeds the moneylender's beasts.", freedom: "A slave once. Now Rome's beasts obey him.", glory: 'Rome loves his lion more than any man.' },
-    line: { revenge: 'My lion was a cub that night. Look at him now.', debt: 'Your debt feeds my lion. Every day.', freedom: 'I tamed lions to be free. You are no lion.', glory: 'They came for my lion. Not for you.' } },
+    tie: { revenge: 'He came with the soldiers, and his cages.', debt: "He feeds the moneylender's beasts.", freedom: "A slave once. Now Rome's beasts obey him.", glory: 'Rome loves his lion more than any man.', promise: 'Your sister feeds his lions.' },
+    line: { revenge: 'My lion was a cub that night. Look at him now.', debt: 'Your debt feeds my lion. Every day.', freedom: 'I tamed lions to be free. You are no lion.', glory: 'They came for my lion. Not for you.', promise: 'She feeds my lion. He\'s grown fond of her.' } },
   mevia: { name: 'Mevia the Huntress', weapon: 'spear',
-    tie: { revenge: 'She netted the ones who ran from your village.', debt: 'The moneylender sends her after debtors who run.', freedom: 'She hunts runaways for the bounty.', glory: "The Colosseum's favourite huntress." },
-    line: { revenge: 'My net caught your village. It will catch you.', debt: 'Debtors run. I bring them back in a net.', freedom: 'Freedom? I bring runaways back for a living.', glory: 'Rome loves a hunt. Tonight, you are the prey.' } },
+    tie: { revenge: 'She netted the ones who ran from your village.', debt: 'The moneylender sends her after debtors who run.', freedom: 'She hunts runaways for the bounty.', glory: "The Colosseum's favourite huntress.", promise: 'She caught your sister when she ran.' },
+    line: { revenge: 'My net caught your village. It will catch you.', debt: 'Debtors run. I bring them back in a net.', freedom: 'Freedom? I bring runaways back for a living.', glory: 'Rome loves a hunt. Tonight, you are the prey.', promise: 'Your sister ran once. My net was faster.' } },
 };
 // The beasts: each kind's name, the epithets its card rolls from, and what its tells look like, in one line on its card.
 const BEASTS = {
@@ -379,24 +392,36 @@ const champLine = (d, r) => (NEW_CHAMPS[d.ck] ? NEW_CHAMPS[d.ck].line[r] : CHAMP
 const ORIGINS = {
   gaul: { text: 'a farmer from Gaul', noun: 'farmer' }, thrace: { text: 'a Thracian soldier', noun: 'soldier' }, numidia: { text: 'a Numidian horseman', noun: 'horseman' },
   capua: { text: 'a baker from Capua', noun: 'baker' }, ostia: { text: 'a sailor from Ostia', noun: 'sailor' }, alexandria: { text: 'a scribe from Alexandria', noun: 'scribe' },
+  // the barracks' three (the ludus): a gladiatrix is always a woman (rollMe gives her a woman's name)
+  sparta: { text: 'a gladiatrix from Sparta', noun: 'gladiatrix', female: true }, egypt: { text: 'a freed slave from Egypt', noun: 'freed slave' },
+  circus: { text: 'a chariot driver from the Circus', noun: 'charioteer' },
 };
-// A background deals a common of its family as its start card (the scribe's is the Trickster's one common, your own feint).
-const START_FAM = { soldier: 'wall', horseman: 'dancer', farmer: 'brute', sailor: 'blood', baker: 'show', scribe: 'trick' };
+// A background deals a common of its family as its start card (the scribe's is the Trickster's one common, your own feint). While the Trickster or the
+// Showman is shut in the ludus, the scribe and the baker start with a common of START_ALT's family instead.
+const START_FAM = { soldier: 'wall', horseman: 'dancer', farmer: 'brute', sailor: 'blood', baker: 'show', scribe: 'trick', gladiatrix: 'wall', 'freed slave': 'brute', charioteer: 'dancer' };
+const START_ALT = { show: 'brute', trick: 'wall' };
 const bg = () => ORIGINS[state.me.origin].noun;
 const MY_NAMES = [['Gaius', 'm'], ['Lucia', 'f'], ['Decimus', 'm'], ['Aurelia', 'f'], ['Brennus', 'm'], ['Tullia', 'f'], ['Nikandros', 'm'], ['Iuba', 'm']];
-const REASON_NAME = { freedom: 'Freedom', debt: 'Debt', revenge: 'Revenge', glory: 'Glory' };
+// a woman's name for a fighter whose origin needs one: the same roll, moved to the women's names
+function herName(pick) { const F = MY_NAMES.filter((n) => n[1] === 'f'); return F[Math.max(0, MY_NAMES.indexOf(pick)) % F.length]; }
+const REASON_NAME = { freedom: 'Freedom', debt: 'Debt', revenge: 'Revenge', glory: 'Glory', promise: 'A promise' };
 // Old Brutus, the lanista: three lines per reason, and which one he says at each moment (first intro, later intros, the champion's intro, after a fell, the end of a lost run).
 const BRUTUS = {
   freedom: { lines: ['Win the wooden sword and you walk out free.', "Free men don't lose to farmers. Get up.", 'One more, and the gate opens.'], first: 0, intro: 0, champ: 2, won: 0, lost: 1 },
   debt: { lines: ['Your family owes me. Every win pays.', "That one's worth a month of bread.", 'Lose, and the debt grows.'], first: 0, intro: 2, champ: 0, won: 1, lost: 2 },
   revenge: { lines: ["He burned your village. He's waiting at the end.", 'Keep your anger for the champion.', 'Not yet. Him last.'], first: 0, intro: 1, champ: 0, won: 2, lost: 1 },
   glory: { lines: ['Rome wants a name. Make it yours.', "Hear them? They're chanting for you.", 'Glory is loud. Be louder.'], first: 0, intro: 2, champ: 0, won: 1, lost: 2 },
+  // the shrine's reason (the ludus): a sister held in the champion's house
+  promise: { lines: ['You promised her. Keep it.', "She's waiting in his house. Don't make her wait.", 'One more, and you are at his door.'], first: 0, intro: 1, champ: 2, won: 1, lost: 0 },
 };
+// a promise climbs: Brutus after each fell
+const PROMISE_WON = ["One down. She'll hear of it.", 'Two. His house is closer.', 'Three. Tell her to be ready.', "Next is him. The key's on his belt."];
 const brutus = (me, moment) => { const B = BRUTUS[me.reason]; return B.lines[B[moment]]; };
 // his line for your background, said before your second bout
 const BRUTUS_BG = {
   farmer: 'You plough a field one row at a time. Same here.', soldier: 'Fight like you drilled, soldier. Shield first.', horseman: 'Light feet, horseman. Give him nothing to hit.',
   baker: 'Knead him like dough, baker!', sailor: 'Sea legs, sailor. Let him crash on you.', scribe: 'Read him like a scroll.',
+  gladiatrix: 'Sparta sent you. Show him why they fear it.', 'freed slave': "You've broken chains before. Break him.", charioteer: 'No horses here, charioteer. Steer him into the wall.',
 };
 // revenge climbs: his line before each bout, and after each fell
 const REVENGE = {
@@ -404,8 +429,9 @@ const REVENGE = {
   won: ["One down. He's still out there.", 'Good. Let it burn in you.', 'Two more. Keep the fire banked.', 'Next is him. Make him remember the village.'],
 };
 // The champion is tied to your reason: a line on his card, and what he says.
-const CHAMP_TIE = { revenge: 'He burned your village.', debt: "He's in the moneylender's pay.", freedom: 'A freed man, back for the money.', glory: "The crowd's darling." };
-const CHAMP_LINE = { revenge: 'I remember the fire. Do you?', debt: "Your family's debt is my purse.", freedom: 'I was free once. Gold brought me back.', glory: 'They will forget you by morning.' };
+const CHAMP_TIE = { revenge: 'He burned your village.', debt: "He's in the moneylender's pay.", freedom: 'A freed man, back for the money.', glory: "The crowd's darling.", promise: 'Your sister is a slave in his house.' };
+const CHAMP_LINE = { revenge: 'I remember the fire. Do you?', debt: "Your family's debt is my purse.", freedom: 'I was free once. Gold brought me back.', glory: 'They will forget you by morning.',
+  promise: 'Your sister? She sweeps my floor. Go home.' };
 const debtLeft = () => Math.max(0, TUNING.story.debt - TUNING.story.debtPer * state.felled);
 const denarii = (n) => n.toLocaleString('en-US');
 // Old Brutus before a bout: the arena's opening line first (his reason's first line under it, brutusReason), your background's line before bout 2,
@@ -424,6 +450,7 @@ function brutusWon() {
   if (me.reason === 'revenge') return REVENGE.won[Math.min(n, 4) - 1];
   if (me.reason === 'debt') return `That's ${denarii(TUNING.story.debtPer)} off. ${denarii(debtLeft())} denarii to go.`;
   if (me.reason === 'freedom') return `Another notch on the wooden sword. ${n} now.`;
+  if (me.reason === 'promise') return PROMISE_WON[Math.min(n, 4) - 1];
   return `Hear them? They chant ${me.name.toUpperCase()} louder now.`;
 }
 const EPILOGUE = {
@@ -431,6 +458,7 @@ const EPILOGUE = {
   debt: (n, f) => `The debt was paid. ${n} went home to ${f ? 'her' : 'his'} family.`,
   revenge: (n) => `The village was avenged. ${n} finally slept.`,
   glory: (n) => `Rome sang the name ${n} for a generation.`,
+  promise: (n, f) => `${n} kept the promise. ${f ? 'Her' : 'His'} sister walked out of the champion's house, free.`,
 };
 // The City's ending, one per reason: a chapter closed, Rome ahead.
 const CITY_END = {
@@ -438,6 +466,7 @@ const CITY_END = {
   debt: (n) => `Pompeii paid in silver. ${n}'s family ate meat that winter.`,
   revenge: (n) => `In Pompeii, ${n} learned who gave the order: Rome.`,
   glory: (n) => `Pompeii chanted ${n} until dawn. Rome heard it.`,
+  promise: (n) => `In Pompeii, ${n} learned where she had been sold: Rome.`,
 };
 // The Colosseum's ending, one per reason: Rome has seen you, and the Emperor's games are next.
 const ROME_END = {
@@ -445,6 +474,7 @@ const ROME_END = {
   debt: (n) => `The Colosseum paid ${n} in gold. The moneylender counted it twice.`,
   revenge: (n) => `In the Colosseum, ${n} heard the name at last: Aquila, the Emperor's Blade.`,
   glory: (n) => `Fifty thousand voices learned the name ${n}. The Emperor heard it too.`,
+  promise: (n) => `${n} saw her at last, among the Emperor's slaves. One more door.`,
 };
 // The Grand Games end on the Emperor's thumb: the true ending for your reason at a full meter, a cold nod, or thumbs down.
 const TRUE_END = {
@@ -452,6 +482,7 @@ const TRUE_END = {
   revenge: "Aquila burned your village on the Emperor's order. The Emperor looks away first.",
   freedom: 'The Emperor hands you the wooden sword. You are free.',
   glory: 'Rome chants your name. They will sing it for a hundred years.',
+  promise: 'The Emperor frees your sister. She runs to you across the sand.',
 };
 const THUMB_END = ['Free, but forgotten. You walk out to silence.', 'The Emperor nods. Rome will forget you by spring.'];
 // the crowd's band: 0 low, 1 middling, 2 full (the top third)
@@ -464,6 +495,42 @@ function endingOf(arenaId, me, fav) {
   return EPILOGUE[me.reason](me.name, me.female);
 }
 const storyLine = (me) => `${me.name}, ${ORIGINS[me.origin].text}. Fights for: ${REASON_NAME[me.reason]}.`;
+
+// Brutus's ludus (E): five stations, each unlock one tap for its price in fame (TUNING.ludus.price). Until bought, the armoury's weapons, the barracks'
+// origins and the shrine's reason weigh nothing on their wheels (LUDUS_LOCK), and the Trickster's and the Showman's cards are never dealt. The training
+// ground's two are the only power. The tailor's are looks: a tap on one you own steps through its styles (TAILOR), then off.
+const LUDUS = [
+  { id: 'armoury', name: 'The Armoury', line: 'New weapons for your wheel', brutus: 'Steel is steel. How you hold it is everything.', items: [
+    { id: 'trident', name: 'Trident and net', line: 'Longest reach, slow; a perfect block nets him' },
+    { id: 'sica', name: 'The sica', line: 'Short and quick: its slashes cut deep' }] },
+  { id: 'barracks', name: 'The Barracks', line: 'New origins and families', brutus: 'New blood in the barracks. Make room.', items: [
+    { id: 'sparta', name: 'A gladiatrix', line: 'An origin, from Sparta: starts with a Wall card' },
+    { id: 'egypt', name: 'A freed slave', line: 'An origin, from Egypt: starts with a Brute card' },
+    { id: 'circus', name: 'A chariot driver', line: 'An origin, from the Circus: starts with a Dancer card' },
+    { id: 'trick', name: 'The Trickster', line: 'Its pieces are dealt in your drafts' },
+    { id: 'show', name: 'The Showman', line: 'Its pieces are dealt in your drafts' }] },
+  { id: 'training', name: 'The Training Ground', line: 'A common or rare start card, a fourth card', brutus: 'Sweat here, so you bleed less out there.', items: [
+    { id: 'slot', name: 'Start-card slot', line: 'Start with a common or rare card you picked' },
+    { id: 'fourth', name: 'A fourth card', line: 'Your first draft of each run deals four' }] },
+  { id: 'shrine', name: 'The Shrine', line: 'A new reason to fight', brutus: 'Every fighter needs a reason. Pick a good one.', items: [
+    { id: 'promise', name: 'A promise', line: "Free your sister from the champion's house" }] },
+  { id: 'tailor', name: 'The Tailor', line: 'Your colours, for show only', brutus: 'Look good. Then fight better than you look.', items: [
+    { id: 'crest', name: 'A crest', line: 'A ridge across your head: tap to change it' },
+    { id: 'plume', name: 'A plume', line: 'Feathers on your head: tap to change them' },
+    { id: 'paint', name: 'Shield paint', line: 'Your shield painted: tap to change it' },
+    { id: 'cloak', name: 'A cloak', line: 'A cloak at your back: tap to change it' }] },
+];
+const LUDUS_ITEM = Object.fromEntries(LUDUS.flatMap((s) => s.items.map((q) => [q.id, { ...q, station: s.id }])));
+const LUDUS_LOCK = new Set(['trident', 'sica', 'sparta', 'egypt', 'circus', 'promise']);
+// the tailor's styles: [name, colour]
+const TAILOR = { crest: [['Bronze', '#c8963e'], ['Silver', '#d5dce4'], ['Gold', '#ffd24a']], plume: [['Red', '#c8372a'], ['White', '#efe6cf'], ['Black', '#2a2420']],
+  paint: [['Wings', '#efe6cf'], ['Bolt', '#ffd24a'], ['Sun', '#f97316']], cloak: [['Red', '#9b2f2f'], ['Blue', '#2f4a8a'], ['Green', '#2f6d3d']] };
+// a family the ludus shuts, and the families the war paints belong to; a fighter rolled before the ludus (no `open`) has every family open
+const FAM_LOCK = ['trick', 'show'], FIN_FAM = { falseop: 'trick', showstop: 'show' };
+const famOpen = (me, f) => !FAM_LOCK.includes(f) || !me || !me.open || me.open.includes(f);
+const cardOpen = (me, c) => (c.duo ? c.duo.every((f) => famOpen(me, f)) : famOpen(me, c.fam === 'fin' ? FIN_FAM[c.id] : c.fam));
+// a veteran's scar line, after the champion he felled
+const SCARS = [(c) => `Scarred by ${c}`, (c) => `${c}'s mark on the brow`, (c) => `A scar from ${c}`];
 
 // The deck: six families, each card one rule and one piece of gear (fam; tier = rarity: 0 common, 1 rare, 2 epic, 3 legendary; key = a keystone, the
 // legendary that names its price). slot: where the piece is worn (one piece a slot), gear: its name. needs: a card that is useless without your shield or
@@ -679,7 +746,8 @@ function platesFor(rng, set) {
   if (A.arm) plates.push('armB');
   return plates;
 }
-function rollMe(seed) {
+// open: what the ludus has opened (save key `ludus`), kept on the fighter so its wheels and its deal stay as rolled
+function rollMe(seed, open = []) {
   const rng = makeRng(seed ^ 0x2545f491), W = TUNING.me.wheels;
   const spin = (list) => pickW(rng, list.map((e, i) => [i, e[1]]));
   // each stat wheel is shaped by your band and the stat before it (wheelList), so they are spun in order
@@ -687,16 +755,18 @@ function rollMe(seed) {
   for (let k = 1; k <= 3; k++) idx.push(spin(wheelList(k, idx)));
   idx.push(spin(W.armour));
   const plates = platesFor(rng, W.armour[idx[4]][0]);
-  const origin = spin(W.origin), reason = spin(W.reason), [name, sex] = rng.pick(MY_NAMES);
+  const origin = spin(wheelList(6, idx, open)), reason = spin(wheelList(7, idx, open)), pick = rng.pick(MY_NAMES);
+  const [name, sex] = ORIGINS[W.origin[origin][0]].female && pick[1] !== 'f' ? herName(pick) : pick;
   // the weapon is rolled last, after the name, so adding the wheel did not change what a seed rolls for the rest; then your height inside your band
-  const weapon = spin(W.weapon), mace = rng.chance(TUNING.me.mace), cardRoll = rng.int(0, 9999), vary = rng.range(-1, 1);
+  const weapon = spin(wheelList(5, idx, open)), mace = rng.chance(TUNING.me.mace), cardRoll = rng.int(0, 9999), vary = rng.range(-1, 1);
   idx.push(weapon, origin, reason);
-  return deriveMe({ idx, plates, name, female: sex === 'f', mace, cardRoll, vary });
+  return deriveMe({ idx, plates, name, female: sex === 'f', mace, cardRoll, vary, open: open.slice() });
 }
-// Wheel k's slices for a fighter whose earlier wheels landed at idx: a stat wheel takes its tier's weights (TUNING.me.statTiers).
-function wheelList(k, idx) {
+// Wheel k's slices for a fighter whose earlier wheels landed at idx: a stat wheel takes its tier's weights (TUNING.me.statTiers); a slice the ludus has
+// not opened weighs nothing (open: the fighter's `open`, or null for the plain wheel).
+function wheelList(k, idx, open = null) {
   const W = TUNING.me.wheels, key = ME_WHEEL[k];
-  if (key !== 'stat') return W[key];
+  if (key !== 'stat') return open ? W[key].map((e) => (LUDUS_LOCK.has(e[0]) && !open.includes(e[0]) ? [e[0], 0, e[2], e[3]] : e)) : W[key];
   const w = TUNING.me.statTiers[statTier(k, idx).tier];
   return W.stat.map((e, i) => [e[0], w[i], e[2]]);
 }
@@ -716,10 +786,19 @@ function deriveMe(me) {
 }
 // The respin: wheel k rolled again with its own seeded stream, by its odds but never landing where it was. A new armour set re-rolls its plates.
 function respinMe(me, k, seed) {
-  const rng = makeRng((seed ^ 0x6c8e9cf5) + k * 7919), list = wheelList(k, me.idx);
+  const rng = makeRng((seed ^ 0x6c8e9cf5) + k * 7919), list = wheelList(k, me.idx, me.open || []);
   const idx = me.idx.slice();
   idx[k] = pickW(rng, list.map((e, j) => [j, j === me.idx[k] ? 0 : e[1]]));
-  return deriveMe({ ...me, idx, plates: k === 4 ? platesFor(rng, list[idx[k]][0]) : me.plates.slice(), mace: k === 5 ? rng.chance(TUNING.me.mace) : me.mace });
+  // a new origin that needs a woman's name moves yours to one
+  const nm = k === 6 && ORIGINS[list[idx[k]][0]].female && !me.female ? herName(MY_NAMES.find((n) => n[0] === me.name) || MY_NAMES[0]) : null;
+  return deriveMe({ ...me, idx, plates: k === 4 ? platesFor(rng, list[idx[k]][0]) : me.plates.slice(), mace: k === 5 ? rng.chance(TUNING.me.mace) : me.mace, ...(nm ? { name: nm[0], female: true } : {}) });
+}
+// A veteran from the Wall of Champions: the rolls they cleared their arena with, plus one point on the stat chosen when they were carved (TUNING.ludus.vetUp),
+// with their scar line; never more, however often they win again
+function vetMe(c, open = [], extra = '') {
+  const idx = c.me.idx.slice();
+  if (c.up) idx[c.up] = Math.min(TUNING.ludus.vetCap, idx[c.up] + TUNING.ludus.vetUp);
+  return deriveMe({ ...c.me, idx, plates: c.me.plates.slice(), open: open.slice(), extra, vid: c.id, up: c.up || 0, scar: c.scar });
 }
 // A fighter's size: his band's row at his scale (the band's, varied by vary x TUNING.sizeVary), with every effect read off the bands' rows at that
 // scale, a straight line between the two rows either side (and past the end rows). Your arm reach and hand lag follow the same way; hearts are by band.
@@ -903,12 +982,12 @@ function newRack(E) {
   state.pop = 1; state.fallT = 0; state.sw = null; state.move = null; state.plan = null; state.stun = 0; state.stagger = 0; state.kickA = 0; state.kickV = 0;
   state.winded = 0; state.windedMax = 1; state.retreat = 0; state.chase = 0; state.mood = { retreat: false };
   state.mem = { blocks: [], lunges: [], turtle: 0, feints: [] };
-  state.gapOpen = null; state.ownT = -9; state.recT = -9; state.baitT = 0; state.puppetN = 0; state.awed = false; state.lng = null;
+  state.gapOpen = null; state.ownT = -9; state.recT = -9; state.baitT = 0; state.puppetN = 0; state.awed = false; state.lng = null; state.foeNet = 0;
   state.swingIn = 1.2; state.intro = true; state.introT = 0; state.warm = false;
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
   settleFeint('none');
-  state.bout = { felled: false, shrugged: false, foeShrug: false, bread: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken };
+  state.bout = { felled: false, shrugged: false, foeShrug: false, bread: false, net: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken };
   state.open = 0; state.riposte = 0; state.slowT = 0; state.snapT = 0;
   Object.assign(state, { slowFx: 0, slowMul: 1, zoomT: 0, dropT: 0, ghostT: 0, ghostAt: -9, ghosts: [], paintT: 0, banner: null, shatter: null, steps: { foe: null, me: null } });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
@@ -934,7 +1013,7 @@ function newRound(E, seed, me0, rv, arenaId = 'pit') {
     gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
     feints: 0, feintsRead: 0, feintsBit: 0, feintsNone: 0, feintLive: false, plateSaves: 0, combos: 0, windeds: 0, punishes: 0, bashes: 0, bashHits: 0, nets: 0, netted: 0, zoneReads: 0, lungeReads: 0, turtleReads: 0, presses: 0, retreats: 0, moveCount: {},
     fx: [], pops: [], streaks: [], trail: [],
-    mom: 0, momT: 0, momGained: 0, momSpent: 0, lamings: 0, gold: 0, goldEarned: 0, lastGold: null, bought: [], rerolls: 0, tent: null, tentDone: false, lab: null, labMom: false, labUsed: 0, fins: [], wares: [], carry: 0, capCut: 0, ownFeints: 0, feintsLearned: 0, flourishes: 0, fl: { acc: 0, t: 0, ang: null, at: -9, fx: 0, fy: 0 }, armed: {}, openAll: 0, disarm: 0, flyW: 0, dents: 0, cape: 0, bleed: [], bleedT: 0, bleeds: 0, bleedDmg: 0,
+    mom: 0, momT: 0, momGained: 0, momSpent: 0, lamings: 0, gold: 0, goldEarned: 0, lastGold: null, bought: [], rerolls: 0, tent: null, tentDone: false, lab: null, labMom: false, labUsed: 0, fins: [], wares: [], carry: 0, capCut: 0, ownFeints: 0, feintsLearned: 0, flourishes: 0, netsCast: 0, foeNet: 0, fl: { acc: 0, t: 0, ang: null, at: -9, fx: 0, fy: 0 }, armed: {}, openAll: 0, disarm: 0, flyW: 0, dents: 0, cape: 0, bleed: [], bleedT: 0, bleeds: 0, bleedDmg: 0,
     you: { lunge: 0, lungeK: 0, a: 0, back: 0, hopY: 0, push: 0, parts: playerParts(me), fr: {} },
     foe: {}, edge: null, swapping: false, tauntT: 0, taunt: '',
     fav: 0, favStep: 0, favT: 0, favShown: 0, favM: 0, favSum: 0, favDur: 0, lastHitM: -9, opened: null, finSel: '', finHintT: 0,
@@ -942,21 +1021,36 @@ function newRound(E, seed, me0, rv, arenaId = 'pit') {
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, heldAt: -9, zy: -0.58, arm: 0, blocked: false, pressT: -9 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
   });
-  const sc = startCard(me);
-  if (sc) applyCard(sc);
+  for (const c of startCards(me)) applyCard(c);
+  // the ludus: the fourth card in the first draft (training ground), and the tailor's looks on you
+  const L = E.save.get('ludus', []);
+  state.fourth = L.includes('fourth'); state.tailor = tailorOf(E);
   const cr = makeRng(seed ^ 0x1234567);
   for (let i = 0; i < 70; i++) state.crowd.push({ x: cr.range(0, 1), y: cr.range(0, 1), r: cr.range(2, 4), c: cr.int(0, 3) });
 }
-// your background's start card: a common of its family, picked by the roll
+// your background's start card: a common of its family (or START_ALT's while the ludus shuts it), picked by the roll
 function startCard(me) {
-  const fam = START_FAM[ORIGINS[me.origin].noun], list = DECK.filter((c) => c.fam === fam && c.tier === 0);
+  const f0 = START_FAM[ORIGINS[me.origin].noun], fam = famOpen(me, f0) ? f0 : START_ALT[f0], list = DECK.filter((c) => c.fam === fam && c.tier === 0);
   return list[(me.cardRoll || 0) % list.length];
+}
+// every card a run starts with: the background's, then the training ground's slot (me.extra, a card picked before), which takes its slot if both need it
+function startCards(me) {
+  const sc = startCard(me), x = me.extra && CARD[me.extra];
+  if (!x || x.id === sc.id) return [sc];
+  return x.slot && x.slot === sc.slot ? [x] : [sc, x];
+}
+// the tailor's looks you wear: each one bought and switched on, its style's colour
+function tailorOf(E) {
+  const L = E.save.get('ludus', []), T = E.save.get('tailor', {}), out = {};
+  for (const k of Object.keys(TAILOR)) if (L.includes(k) && T[k] != null && T[k] >= 0 && TAILOR[k][T[k]]) out[k] = { i: T[k], col: TAILOR[k][T[k]][1] };
+  return out;
 }
 // The run is saved at the start of each bout (the run's counts, your fighter and the bout reached) and resumed there; the bout itself replays from its seed.
 const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token', 'tokenUsed', 'epicsSeen', 'switchReads', 'stepsIn', 'stepsOut', 'wallHits', 'foeWall', 'outReach', 'dodged', 'chases',
   'capCut', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
   'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
-  'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep'];
+  'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep',
+  'fourth', 'netsCast'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
@@ -1363,7 +1457,7 @@ function poseFoe(E, dt) {
 // Footwork: he drifts around the distance his weapon wants, steps to striking distance just before and while he attacks (and while open),
 // backs off when hurt (if this exchange's mood says so), and sidesteps your lunge once he has read it. No randomness here: the drift is a slow wave.
 function stepFoe(dt, E) {
-  const T = TUNING.step, st = state.step, f = state.foe, limp = lamed('legs') ? TUNING.lame.legs : 1, tau = T.tau * statMul('spdStep', f.spd) * f.size.step / limp;
+  const T = TUNING.step, st = state.step, f = state.foe, limp = (lamed('legs') ? TUNING.lame.legs : 1) * netMul(TUNING.me.net.step), tau = T.tau * statMul('spdStep', f.spd) * f.size.step / limp;
   st.dodgeT = Math.max(0, st.dodgeT - dt); st.dodgeCool = Math.max(0, st.dodgeCool - dt);
   const free = !state.sw && state.winded <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0 && !state.intro && state.endT <= 0;
   if (free && state.you.lungeK > 0.5 && st.dodgeCool <= 0 && (lungeRead() || f.spd >= 5)) {
@@ -1598,7 +1692,7 @@ function startBlow(E) {
   // Bait: the first blow he starts after you drop a held shield has twice the tell (never a counter)
   const bait = state.baitT > 0 && !mv.counter;
   if (bait) { state.baitT = 0; const Ff = foeF(E); pop(Ff.x, Ff.y - 1.25 * Ff.H, 'TAKES THE BAIT', '#c4b5fd', 18); }
-  const k = (1 + (lamed(f.beast ? 'legF' : 'armF') ? TUNING.lame.arm : 0) + (charge ? TUNING.lame.pounce : 0)) * (has('vein') && state.bleed.length ? TUNING.cards.vein : 1) * (bait ? C_().bait : 1);
+  const k = (1 + (lamed(f.beast ? 'legF' : 'armF') ? TUNING.lame.arm : 0) + (charge ? TUNING.lame.pounce : 0)) * (has('vein') && state.bleed.length ? TUNING.cards.vein : 1) * (bait ? C_().bait : 1) * netMul(1 + TUNING.me.net.wind);
   state.sw = {
     zone: ZONE[h.fake || h.zone], real: ZONE[h.zone], fake: h.fake ? ZONE[h.fake] : null, fakePose: h.fakePose, switchAt: (h.switchAt || 0) * k, switched: false,
     t: 0, wind: h.wind * k, dmg: h.dmg, pose: h.pose, kind: mv.kind, idx: mv.idx, n: mv.hits.length, counter: mv.counter, fin: 0, outcome: null, th0: f.th,
@@ -2305,8 +2399,19 @@ function finTouch(E, p) {
 }
 function emit(E, ev, ctx = {}) {
   crowdEvent(E, ev);
+  if (ev === 'perfect' && meWeapon().net && !state.bout.net) castNet(E);
   for (const id of new Set(state.picks)) { const h = HOOKS[id] && HOOKS[id][ev]; if (h) h(E, ctx); }
 }
+
+// the trident's net: your first perfect block each bout throws it over him; for TUNING.me.net.dur s his wind-ups and his footwork slow
+function castNet(E) {
+  const N = TUNING.me.net, Ff = foeF(E);
+  state.bout.net = true; state.foeNet = N.dur; state.netsCast++;
+  // under the right HUD plate when he stands beneath it (the pop also drifts up 34 px)
+  const r = 16 + E.safe.right, under = Ff.x > E.w - r - 176 - 60, hudBot = 10 + E.safe.top + (state.picks.length ? HUD_ROW.shield : HUD_ROW.shield0) + 12 + 34 + 14;
+  pop(Ff.x, Ff.y - 1.2 * Ff.H, 'NETTED!', '#e2e8f0', 22, under ? hudBot : 0); swooshSound(E); E.haptic(14);
+}
+const netMul = (k) => (state.foeNet > 0 ? k : 1);
 
 // ----- the crowd: favour for style (TUNING.crowd), carried through the run; coins arc in the first time it passes each step (favStep is the run's high-water) -----
 function favour(E, n) {
@@ -2423,10 +2528,10 @@ function heldFams() {
   return n;
 }
 // What can be dealt: each card once; never one your keystone makes useless (a dodge card without a dodge, a shield card without a shield), never a keystone
-// that takes away what your keystone lives on, and a set bonus only while you wear a piece of both its families.
+// that takes away what your keystone lives on, a set bonus only while you wear a piece of both its families, and nothing of a family the ludus shuts.
 function dealable() {
   const held = heldFams(), lost = (k) => (k === 'dodge' ? noDodge() : noShield());
-  return DECK.filter((c) => !has(c.id) && !(c.needs && lost(c.needs)) && !(c.bans && DECK.some((k) => k.key && has(k.id) && k.needs === c.bans))
+  return DECK.filter((c) => !has(c.id) && cardOpen(state.me, c) && !(c.needs && lost(c.needs)) && !(c.bans && DECK.some((k) => k.key && has(k.id) && k.needs === c.bans))
     && !(c.duo && !c.duo.every((f) => held[f])));
 }
 const priceOf = (c) => (c.duo ? TUNING.draft.duoPrice : TUNING.draft.price[c.tier]);
@@ -2449,11 +2554,12 @@ function cascadeOdds(left) {
 }
 // Three seeded cards, dealt when the draft opens (salt 0) or rerolled (salt n, never the cards just shown when the deck allows). Two are free: each one's
 // rarity (common or rare) by the grade's odds, then its family, then the piece. The third is priced and cascades. At most perFam cards of one family a draft.
+// The training ground's fourth card is a third free one, in the run's first draft.
 function dealDraft(grade, salt = 0, not = []) {
   const D = TUNING.draft, rng = makeRng((state.seed ^ 0x7f4a7c15) + state.rack * 104729 + salt * 15485863), all = dealable(), held = heldFams(), out = [];
-  const fresh = all.filter((c) => !not.includes(c)), pool = fresh.length >= D.deal ? fresh : all;
+  const deal = D.deal + (state.fourth && state.rack === 0 ? 1 : 0), fresh = all.filter((c) => !not.includes(c)), pool = fresh.length >= deal ? fresh : all;
   const room = (c) => famsOf(c).every((f) => out.filter((o) => famsOf(o).includes(f)).length < D.perFam);
-  for (let i = 0; i < D.deal - 1; i++) {
+  for (let i = 0; i < deal - 1; i++) {
     const left = pool.filter((c) => !c.duo && c.tier <= 1 && !out.includes(c) && room(c)), tiers = [0, 1].filter((t) => left.some((c) => c.tier === t));
     if (!tiers.length) break;
     const tier = pickW(rng, tiers.map((t) => [t, D.odds[grade][t]]));
@@ -2524,6 +2630,8 @@ function pickCard(E, c) {
   const d = state.draft;
   if (d && d.cards.indexOf(c) === d.priced) { if (state.gold < priceOf(c)) { E.audio.play('miss'); return; } state.gold -= priceOf(c); state.bought.push(c.id); E.audio.play('coin'); }
   applyCard(c);
+  // every card ever picked can fill the training ground's start-card slot
+  const seen = E.save.get('picked', []); if (!c.duo && !seen.includes(c.id)) E.save.set('picked', [...seen, c.id]);
   E.audio.play('tap'); E.haptic(15);
   state.draft = null;
   if (state.rack + 1 === TUNING.tent.after && !state.tentDone) { openTent(E); return; }
@@ -2573,10 +2681,10 @@ function sand(x, y, dir, n) {
 function ring(x, y, r, color) { state.fx.push({ k: 'r', x, y, r0: 10, r, life: 0.3, max: 0.3, c: color }); }
 // a new pop stacks above (or, at the HUD, below) a live one near it, so simultaneous texts never overlap
 let popTop = 80;
-function pop(x, y, s, color, size) {
+function pop(x, y, s, color, size, minY = 0) {
   const clash = (yy) => state.pops.find((q) => q.life > 0.5 * q.max && Math.abs(q.x - x) < 120 && Math.abs(q.y - yy) < (q.size + size) * 0.6);
   for (let n = 0, q; n < 6 && (q = clash(y)); n++) y = q.y - (q.size + size) * 0.6;
-  if (y < popTop) { y = popTop; for (let n = 0, q; n < 6 && (q = clash(y)); n++) y = q.y + (q.size + size) * 0.6; }
+  if (y < Math.max(popTop, minY)) { y = Math.max(popTop, minY); for (let n = 0, q; n < 6 && (q = clash(y)); n++) y = q.y + (q.size + size) * 0.6; }
   state.pops.push({ x, y, s, color, size, life: 0.8, max: 0.8 });
 }
 function plateBits(x, y, n) {
@@ -2746,6 +2854,9 @@ const GTYPE = {
   spear: { id: 'hoplomachus', helm: 'hoplo', bare: 'leather', metal: STEEL, trim: '#d6b04a', skin: '#c08a5c', hair: '#3a2414', tunic: '#38457a', hem: '#1f2748', crest: '#efe6cf', wrap: 'tunic' },
   axe: { id: 'brute', helm: 'open', bare: 'hair', beard: true, pauldron: true, metal: IRON, trim: '#8a7a5a', skin: '#a8714a', hair: '#1a120c', tunic: '#5a3b22', hem: '#2e1d10', wrap: 'loin' },
   dagger: { id: 'retiarius', helm: 'cap', bare: 'band', band: '#c9a43a', galerus: true, net: true, metal: STEEL, trim: '#d6b04a', skin: '#c99568', hair: '#4a2a14', tunic: '#b08c34', hem: '#6e561a', wrap: 'loin' },
+  // yours only (the ludus's armoury): the trident's net fighter, and the sica's Thracian with a plumed closed helm
+  trident: { id: 'retiarius', helm: 'cap', bare: 'band', band: '#c9a43a', galerus: true, net: true, metal: STEEL, trim: '#d6b04a', skin: '#c99568', hair: '#4a2a14', tunic: '#b08c34', hem: '#6e561a', wrap: 'loin' },
+  sica: { id: 'thraex', helm: 'hoplo', bare: 'leather', metal: STEEL, trim: '#c9a43a', skin: '#c08a5c', hair: '#2a1a10', tunic: '#7a2e5a', hem: '#4a1838', crest: '#c8372a', wrap: 'tunic' },
 };
 // Your metal follows your rolled armour set: bronze and leather, steel with bronze trim, polished steel with gold and a red crest.
 const MYLOOK = {
@@ -2777,11 +2888,14 @@ function withGear(lk, ids, id) {
   const gear = gearOf(ids), paint = ids.filter((q) => PAINT_COL[q]);
   return { ...lk, gear, paint, metal: (gear.chest && PLATE_METAL[gear.chest.id]) || lk.metal, id: `${id}|${Object.values(gear).map((c) => c.id).join('.')}|${paint.join('.')}` };
 }
-// Your look: the gladiator type of your rolled weapon, in your own colours (teal tunic) and the metal of your armour set, with the gear you wear.
-function myLook(me, ids = []) {
-  const G = GTYPE[me.weapon], A = MYLOOK[me.set];
-  return withGear({ ...G, metal: A.metal, trim: A.trim, skin: YOU.skin, hair: '#3a2414', tunic: YOU.tunic, hem: YOU.hem,
-    crest: A.crest || G.crest || YOU.crest, band: G.band ? YOU.crest : YOU.tunic, beard: G.beard && !me.female }, ids, `you-${me.set}-${me.weapon}${me.female ? 'f' : ''}`);
+// Your look: the gladiator type of your rolled weapon, in your own colours (teal tunic) and the metal of your armour set, with the gear you wear and the
+// tailor's looks (tailor: a crest, a plume, a shield paint and a cloak, each where no piece of gear is worn).
+function myLook(me, ids = [], tailor = {}) {
+  const G = GTYPE[me.weapon], A = MYLOOK[me.set], t = Object.entries(tailor).map(([k, v]) => `${k}${v.i}`).join('');
+  const lk = withGear({ ...G, metal: A.metal, trim: A.trim, skin: YOU.skin, hair: '#3a2414', tunic: YOU.tunic, hem: YOU.hem,
+    crest: A.crest || G.crest || YOU.crest, band: G.band ? YOU.crest : YOU.tunic, beard: G.beard && !me.female }, ids, `you-${me.set}-${me.weapon}${me.female ? 'f' : ''}-${t}`);
+  lk.tailor = tailor;
+  return lk;
 }
 // his look: his type's, with his gear (rolled once per bout); the Huntress carries her net at her belt
 const foeLook = (d) => withGear({ ...GTYPE[d.weapon.id], ...(TUNING.champs[d.ck] && TUNING.champs[d.ck].net ? { net: true } : {}) }, d.gear || [], GTYPE[d.weapon.id].id);
@@ -2789,7 +2903,7 @@ const foeLook = (d) => withGear({ ...GTYPE[d.weapon.id], ...(TUNING.champs[d.ck]
 function lookOf(fm, isFoe) {
   if (isFoe) return fm.look || GTYPE[fm.weapon.id];
   const sig = state.picks.join(',');
-  if (state.you.lookSig !== sig) { state.you.look = myLook(state.me, state.picks); state.you.lookSig = sig; }
+  if (state.you.lookSig !== sig) { state.you.look = myLook(state.me, state.picks, state.tailor || {}); state.you.lookSig = sig; }
   return state.you.look;
 }
 // What shows through each gap, and which sides the plate edges frame it from (top and bottom, or left and right).
@@ -3232,7 +3346,7 @@ function paintHeadGear(c, p, H, lk) {
     else if (id === 'showstop') for (let k = 0; k < 5; k++) { const a = Math.PI * (1.1 + k * 0.16); c.beginPath(); c.ellipse(x + Math.cos(a) * r * 0.78, y + Math.sin(a) * r * 0.78, r * 0.13, r * 0.06, a + 1.2, 0, TAU); c.fill(); }
     c.restore();
   });
-  if (!g) return;
+  if (!g) { if (lk.tailor) tailorHead(c, x, y, r, H, lk.tailor); return; }
   const L = FAM_LOOK[g.fam], M = L.metal;
   if (g.id === 'braced') {
     // a bronze crest ridge front to back, with a brush of gold horsehair
@@ -3405,13 +3519,39 @@ function paintLegGear(c, p, H, lk) {
     }
   });
 }
+// The tailor's looks on your head, where no helmet piece is worn: a metal crest ridge front to back, then a plume of three tall feathers on top
+function tailorHead(c, x, y, r, H, T) {
+  if (T.crest) {
+    const col = T.crest.col;
+    c.beginPath(); c.moveTo(x + r * 0.6, y - r * 0.78); c.quadraticCurveTo(x + r * 0.15, y - r * 1.7, x - r * 1.0, y - r * 0.5);
+    c.lineTo(x - r * 0.78, y - r * 0.42); c.quadraticCurveTo(x - r * 0.05, y - r * 1.3, x + r * 0.42, y - r * 0.7); c.closePath();
+    const gr = c.createLinearGradient(x, y - r * 1.6, x, y - r * 0.5); gr.addColorStop(0, shade(col, 1.35)); gr.addColorStop(1, shade(col, 0.62));
+    c.fillStyle = gr; c.fill(); c.strokeStyle = shade(col, 0.35); c.lineWidth = lw(H, 0.005); c.stroke();
+  }
+  if (T.plume) {
+    const col = T.plume.col, by = y - r * (T.crest ? 1.25 : 0.95);
+    for (let i = 0; i < 3; i++) {
+      c.save(); c.translate(x - r * (0.05 + i * 0.32), by); c.rotate(-0.25 - i * 0.3);
+      c.beginPath(); c.ellipse(0, -r * 0.5, r * 0.2, r * 0.58, 0, 0, TAU); c.fillStyle = i === 1 ? shade(col, 0.85) : col; c.fill();
+      c.strokeStyle = shade(col, 0.45); c.lineWidth = lw(H, 0.003); c.stroke(); line(c, 0, 0, 0, -r * 1.0);
+      c.restore();
+    }
+  }
+}
 // The cloak slot: drawn behind the whole body as its own sprite
 const CLOAK = { id: 'cloak', shape: 'rect', x: -0.1, y: -0.45, w: 0.2, h: 0.5 };
 function paintCloak(c, p, H, lk) {
-  const g = lk.gear.cloak; if (!g) return;
-  const L = FAM_LOOK[g.fam], P = (x, y) => [x * H, y * H];
+  const g = lk.gear.cloak, tc = lk.tailor && lk.tailor.cloak; if (!g && !tc) return;
+  const L = g ? FAM_LOOK[g.fam] : null, P = (x, y) => [x * H, y * H];
   const shape = (pts, fill, edge) => { c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]))); c.closePath(); c.fillStyle = fill; c.fill(); c.strokeStyle = edge; c.lineWidth = lw(H, 0.005); c.lineJoin = 'round'; c.stroke(); };
-  if (g.id === 'untouch') {
+  if (!g) {
+    // the tailor's cloak: plain wool from the shoulders to below the knee, a bronze brooch, two folds
+    const pts = [P(0.04, -0.7), P(-0.06, -0.72), P(-0.13, -0.6), P(-0.19, -0.4), P(-0.23, -0.2), P(-0.22, -0.12), P(-0.12, -0.13), P(-0.03, -0.15), P(0.01, -0.36), P(0.02, -0.55)];
+    const gr = c.createLinearGradient(0, -0.7 * H, -0.23 * H, -0.12 * H); gr.addColorStop(0, shade(tc.col, 1.15)); gr.addColorStop(1, shade(tc.col, 0.68));
+    shape(pts, gr, shade(tc.col, 0.45));
+    c.strokeStyle = 'rgba(0,0,0,0.28)'; c.lineWidth = lw(H, 0.004); for (const k of [0.3, 0.6]) { c.beginPath(); c.moveTo(-0.04 * H, -0.66 * H); c.quadraticCurveTo(-0.12 * H, -0.4 * H, -(0.08 + k * 0.16) * H, -0.13 * H); c.stroke(); }
+    disc(c, 0.01 * H, -0.68 * H, 0.016 * H, BRONZE);
+  } else if (g.id === 'untouch') {
     const pts = [P(0.04, -0.7), P(-0.05, -0.72), P(-0.12, -0.6), P(-0.2, -0.4), P(-0.27, -0.2), P(-0.31, -0.03), P(-0.22, -0.05), P(-0.16, -0.01), P(-0.08, -0.04), P(-0.02, -0.3), P(0.02, -0.55)];
     const gr = c.createLinearGradient(0, -0.7 * H, -0.3 * H, -0.03 * H); gr.addColorStop(0, L.cloth); gr.addColorStop(1, shade(L.cloth, 0.72));
     shape(pts, gr, shade(L.cloth, 0.5));
@@ -3767,7 +3907,17 @@ function drawWeapon(ctx, f, H) {
   const leaf = (y1, y2, w) => { ctx.beginPath(); ctx.moveTo(-w * 0.8, y1); ctx.lineTo(-w, y1 + (y2 - y1) * 0.3); ctx.lineTo(-w * 0.6, y1 + (y2 - y1) * 0.75); ctx.lineTo(0, y2); ctx.lineTo(w * 0.6, y1 + (y2 - y1) * 0.75); ctx.lineTo(w, y1 + (y2 - y1) * 0.3); ctx.lineTo(w * 0.8, y1); ctx.closePath(); ctx.fillStyle = '#d5dce4'; ctx.fill(); ctx.stroke(); };
   const pole = (a, b, w) => { ctx.fillStyle = '#7a5532'; ctx.fillRect(-w / 2, a, w, b - a); ctx.strokeRect(-w / 2, a, w, b - a); };
   if (W.id === 'spear') { pole(y0 - 0.3 * H, y0 + len, 0.02 * H); leaf(y0 + len, y0 + len + 0.12 * H, 0.026 * H); }
-  else if (W.id === 'axe') {
+  else if (W.id === 'trident') {
+    // the shaft, a crossbar and three barbed prongs
+    pole(y0 - 0.3 * H, y0 + len, 0.02 * H);
+    ctx.fillStyle = '#c3cbd3'; ctx.fillRect(-0.045 * H, y0 + len - 0.01 * H, 0.09 * H, 0.02 * H); ctx.strokeRect(-0.045 * H, y0 + len - 0.01 * H, 0.09 * H, 0.02 * H);
+    for (const k of [-0.035, 0, 0.035]) { ctx.beginPath(); ctx.moveTo(k * H - 0.006 * H, y0 + len); ctx.lineTo(k * H, y0 + len + (k ? 0.1 : 0.13) * H); ctx.lineTo(k * H + 0.006 * H, y0 + len); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  } else if (W.id === 'sica') {
+    // a short grip and a blade that bows forward like a crescent
+    ctx.fillStyle = '#3a2a1a'; ctx.fillRect(-0.012 * H, y0 - 0.05 * H, 0.024 * H, 0.08 * H);
+    ctx.beginPath(); ctx.moveTo(-0.014 * H, y0 + 0.03 * H); ctx.quadraticCurveTo(0.07 * H, y0 + 0.03 * H + len * 0.5, -0.01 * H, y0 + 0.03 * H + len);
+    ctx.quadraticCurveTo(0.03 * H, y0 + 0.03 * H + len * 0.5, 0.014 * H, y0 + 0.03 * H); ctx.closePath(); ctx.fillStyle = '#d5dce4'; ctx.fill(); ctx.stroke();
+  } else if (W.id === 'axe') {
     pole(y0 - 0.05 * H, y0 + len, 0.026 * H);
     if (f.mace) {
       ctx.fillStyle = '#4b5059'; ctx.beginPath(); ctx.arc(0, y0 + len, 0.06 * H, 0, 6.28); ctx.fill(); ctx.stroke();
@@ -3868,7 +4018,7 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
   if (fall > 0) ctx.globalAlpha = 1 - fall * 0.5;
   // far arm and its shield, legs, tunic and belly, chest, head
   const sw = live ? state.sw : null, bashing = sw && sw.pose === 'bash';
-  if (lk.gear && lk.gear.cloak) { if (!fm.cloak) fm.cloak = mkPart(CLOAK, false); drawPart(ctx, E, fm.cloak, H, lk, null); }
+  if (lk.gear && (lk.gear.cloak || (lk.tailor && lk.tailor.cloak))) { if (!fm.cloak) fm.cloak = mkPart(CLOAK, false); drawPart(ctx, E, fm.cloak, H, lk, null); }
   drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
   if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk));
   drawPart(ctx, E, P('legs'), H, lk, null);
@@ -3942,7 +4092,7 @@ function liveArmGear(ctx, h, H, lk) {
 // Your weapon arm, in screen space: a gladius or dagger as a leaf blade (broad, tapering to a point), a spear's shaft and head, an axe or a mace.
 function drawSwordArm(ctx, E) {
   const h = state.hand, H = myH(E), locked = h.lock > 0, blade = myBlade(E), wid = state.me.weapon;
-  const w = (wid === 'dagger' ? 0.026 : 0.034) * H, pole = wid === 'spear' || wid === 'axe';
+  const w = (wid === 'dagger' ? 0.026 : wid === 'sica' ? 0.03 : 0.034) * H, pole = wid === 'spear' || wid === 'axe' || wid === 'trident';
   const bx = h.bx, by = h.by, nx = -by, ny = bx;
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (state.trail.length > 1 && h.sp >= TUNING.hit.minSpeed) {
@@ -3983,6 +4133,12 @@ function drawSwordArm(ctx, E) {
       const hl = 0.13 * H, hx0 = h.ux - bx * hl, hy0 = h.uy - by * hl;
       shape([P(0, -0.6, hl, hx0, hy0), P(0.3, -1.1, hl, hx0, hy0), P(1, 0, hl, hx0, hy0), P(0.3, 1.1, hl, hx0, hy0), P(0, 0.6, hl, hx0, hy0)]);
       ctx.fillStyle = steel; ctx.fill(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 2; ctx.stroke();
+    } else if (wid === 'trident') {
+      // a crossbar behind the tip and three prongs: the middle one ends at the tip
+      const hl = 0.11 * H, cx0 = h.ux - bx * hl, cy0 = h.uy - by * hl, pw = 0.04 * H;
+      ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 0.016 * H + 2; line(ctx, cx0 - nx * pw, cy0 - ny * pw, cx0 + nx * pw, cy0 + ny * pw);
+      for (const k of [-1, 0, 1]) { const ex = h.ux - bx * (k ? 0.025 * H : 0) + nx * pw * k, ey = h.uy - by * (k ? 0.025 * H : 0) + ny * pw * k; ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 0.012 * H + 2; line(ctx, cx0 + nx * pw * k, cy0 + ny * pw * k, ex, ey); ctx.strokeStyle = steel; ctx.lineWidth = 0.012 * H; line(ctx, cx0 + nx * pw * k, cy0 + ny * pw * k, ex, ey); }
+      ctx.strokeStyle = steel; ctx.lineWidth = 0.016 * H; line(ctx, cx0 - nx * pw, cy0 - ny * pw, cx0 + nx * pw, cy0 + ny * pw);
     } else if (state.me.mace) {
       ctx.fillStyle = locked ? '#ff8a7a' : '#5b616b'; ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(h.ux - bx * 0.04 * H, h.uy - by * 0.04 * H, 0.055 * H, 0, TAU); ctx.fill(); ctx.stroke();
@@ -3998,13 +4154,15 @@ function drawSwordArm(ctx, E) {
     ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(h.hx - bx * 0.07 * H, h.hy - by * 0.07 * H); ctx.lineTo(h.hx + bx * 0.04 * H, h.hy + by * 0.04 * H); ctx.stroke();
     ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H, 5, 0, 6.28); ctx.fill();
     ctx.strokeStyle = '#c9a43a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(gx - nx * 0.05 * H, gy - ny * 0.05 * H); ctx.lineTo(gx + nx * 0.05 * H, gy + ny * 0.05 * H); ctx.stroke();
-    shape([P(0, -0.8), P(0.3, -1), P(0.72, -0.7), P(1, 0), P(0.72, 0.7), P(0.3, 1), P(0, 0.8)]);
+    // the sica's blade bows forward (its chord stays the straight blade the hits use); the others are a leaf
+    if (wid === 'sica') { const bow = (t) => Math.sin(Math.PI * t) * 2.4; shape([P(0, -0.8), ...[0.25, 0.5, 0.75].map((t) => P(t, bow(t) - 0.9 * (1 - t))), P(1, 0), ...[0.75, 0.5, 0.25].map((t) => P(t, bow(t) + 0.9 * (1 - t))), P(0, 0.8)]); }
+    else shape([P(0, -0.8), P(0.3, -1), P(0.72, -0.7), P(1, 0), P(0.72, 0.7), P(0.3, 1), P(0, 0.8)]);
     ctx.fillStyle = steel; ctx.fill(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 2; ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(gx + bx * 6, gy + by * 6); ctx.lineTo(h.ux - bx * 6, h.uy - by * 6); ctx.stroke();
   }
   if (G.weapon) {
     const tip = [h.ux, h.uy], back = (k) => [h.ux - bx * k * H, h.uy - by * k * H];
-    if (wid === 'spear') weaponGear(ctx, G.weapon, back(0.13), tip, w * 1.1, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H);
+    if (wid === 'spear' || wid === 'trident') weaponGear(ctx, G.weapon, back(0.13), tip, w * 1.1, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H);
     else if (wid === 'axe') weaponGear(ctx, G.weapon, back(0.2), tip, 0.016 * H, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H);
     else weaponGear(ctx, G.weapon, [gx, gy], tip, w, [h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H], H);
   }
@@ -4024,7 +4182,7 @@ function drawSwordArm(ctx, E) {
 
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
 function drawShield(ctx, E) {
-  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, g = lookOf(state.you, false).gear.shield;
+  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, lk = lookOf(state.you, false), g = lk.gear.shield, tp = !g && lk.tailor && lk.tailor.paint;
   if (sh.broken) return;
   const [hx, hy] = toScreen(Fy, ...shieldPos());
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
@@ -4042,6 +4200,7 @@ function drawShield(ctx, E) {
   ctx.strokeStyle = sh.flash > 0 ? '#ffffff' : '#2a1c10'; ctx.lineWidth = 4; ctx.stroke();
   ctx.strokeStyle = '#d6b04a'; ctx.lineWidth = 3; shape(0.82); ctx.stroke();
   if (tower) { ctx.lineWidth = 2; line(ctx, 0, -r * 0.95, 0, r * 0.95); for (const k of [-0.6, 0.6]) line(ctx, -r * 0.55, r * k, r * 0.55, r * k); }
+  if (tp) shieldPaint(ctx, r, tp);
   if (g && g.id === 'bait') { spiral(ctx, r * 0.8, FAM_LOOK.trick.hi); ctx.strokeStyle = '#2a1c10'; }
   ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, 6.28); ctx.fill(); ctx.stroke();
   if (g && g.id === 'thorns') spike(ctx, 0, 0, -0.6, r * 0.3, r * 0.16, BRONZE, true);
@@ -4050,6 +4209,21 @@ function drawShield(ctx, E) {
   for (let i = 0; i < worn; i++) { const a = i * 1.7 + 0.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25); ctx.lineTo(Math.cos(a + 0.2) * r * 0.65, Math.sin(a + 0.2) * r * 0.65); ctx.lineTo(Math.cos(a - 0.1) * r * 0.95, Math.sin(a - 0.1) * r * 0.95); ctx.stroke(); }
   if (sh.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${sh.flash / 0.25 * 0.5})`; shape(1); ctx.fill(); }
   if (g) gearGlint(ctx, r * 0.5, -r * 0.5, r * 0.4, g, 0.2);
+  ctx.restore();
+}
+// the tailor's shield paint, inside the rim: a pair of wings, a thunderbolt, or a sun's rays
+function shieldPaint(ctx, r, tp) {
+  ctx.save(); ctx.fillStyle = tp.col; ctx.strokeStyle = shade(tp.col, 0.45); ctx.lineWidth = 1.2; ctx.globalAlpha = 0.9;
+  if (tp.i === 0) for (const sd of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(sd * r * 0.2, 0); ctx.quadraticCurveTo(sd * r * 0.45, -r * 0.62, sd * r * 0.74, -r * 0.3);
+    for (let k = 0; k < 3; k++) ctx.lineTo(sd * r * (0.66 - k * 0.14), -r * (0.08 - k * 0.12)), ctx.lineTo(sd * r * (0.6 - k * 0.14), r * (0.08 + k * 0.1));
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (tp.i === 1) {
+    ctx.beginPath(); ctx.moveTo(r * 0.12, -r * 0.72); ctx.lineTo(-r * 0.3, r * 0.06); ctx.lineTo(-r * 0.02, r * 0.06); ctx.lineTo(-r * 0.16, r * 0.72); ctx.lineTo(r * 0.32, -r * 0.12); ctx.lineTo(r * 0.04, -r * 0.12); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else for (let k = 0; k < 12; k++) {
+    const a = k * TAU / 12, a2 = a + 0.13;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.3, Math.sin(a) * r * 0.3); ctx.lineTo(Math.cos(a + 0.065) * r * 0.74, Math.sin(a + 0.065) * r * 0.74); ctx.lineTo(Math.cos(a2) * r * 0.3, Math.sin(a2) * r * 0.3); ctx.closePath(); ctx.fill();
+  }
   ctx.restore();
 }
 // a live piece's glint (the shield and the weapon are drawn each frame)
@@ -4471,9 +4645,11 @@ function drawDraft(ctx, E) {
     // the border is the rarity's colour; the icon and the bottom line are the family's
     E.roundRect(x, y, w, h, 14, priced ? '#2a2016' : '#221a2b', rc);
     E.roundRect(x + 3, y + 3, w - 6, h - 6, 11, null, priced ? 'rgba(255,210,74,0.55)' : shade(rc, 0.6));
-    E.text(tierName(c), x + w / 2, y + 14, { size: fitSize(ctx, tierName(c), 10, w - 16), weight: '800', color: rc });
+    // on a narrow card (the training ground's four) a line too wide for 14 px drops its second half: the slot, the pips' name, what you wear
+    const bot = [], fits = (t, wt) => { ctx.font = `${wt} 14px system-ui, sans-serif`; return ctx.measureText(t).width <= w - 16; }, either = (a, b, wt) => (fits(a, wt) ? a : b);
+    const tn = either(tierName(c), c.fam === 'fin' ? `${TUNING.fin[c.id]} PIPS` : c.duo ? 'SET BONUS' : TIERS[c.tier], 800);
+    E.text(tn, x + w / 2, y + 14, { size: fitSize(ctx, tn, 10, w - 16), weight: '800', color: rc });
     // the bottom lines, each 14 px or more: the price, the piece it replaces (on its own line, "drops" when too wide, split in two after that), or the family
-    const bot = [], fits = (t, wt) => { ctx.font = `${wt} 14px system-ui, sans-serif`; return ctx.measureText(t).width <= w - 16; };
     if (priced) {
       const have = `${price} gold \u00b7 you have ${state.gold}`;
       bot.push([short && fits(have, 800) ? have : `${price} gold`, short ? '#9aa4b2' : '#ffd24a', 800]);
@@ -4481,10 +4657,10 @@ function drawDraft(ctx, E) {
     if (old) {
       const t = `replaces ${old.gear}`;
       if (fits(t, 700)) bot.push([t, '#fb923c', 700]); else if (fits(`drops ${old.gear}`, 700)) bot.push([`drops ${old.gear}`, '#fb923c', 700]); else bot.push(['replaces', '#fb923c', 700], [old.gear, '#fb923c', 700]);
-    } else if (!priced) bot.push([c.duo ? c.duo.map((f) => FAMS[f].name).join(' + ') : `${FAMS[c.fam].name}${held[c.fam] ? ` \u00b7 you wear ${held[c.fam]}` : ''}`, col, 800]);
+    } else if (!priced) bot.push([c.duo ? either(c.duo.map((f) => FAMS[f].name).join(' + '), c.duo.map((f) => FAMS[f].name.replace(/^The /, '')).join(' + '), 800) : either(`${FAMS[c.fam].name}${held[c.fam] ? ` \u00b7 you wear ${held[c.fam]}` : ''}`, FAMS[c.fam].name, 800), col, 800]);
     const bh = 8 + 16 * bot.length, r = Math.min(24, h * 0.13, Math.max(14, (h - 130 - bh) * 0.5));
     drawIcon(ctx, c.id, x + w / 2, y + 22 + r, r);
-    const ly = y + 34 + 2 * r, title = titleOf(c), sub = c.duo ? 'takes no slot' : c.fam === 'fin' ? 'war paint, takes no slot' : c.key ? `${c.name} \u00b7 keystone` : c.name;
+    const ly = y + 34 + 2 * r, title = titleOf(c), sub = c.duo ? 'takes no slot' : c.fam === 'fin' ? either('war paint, takes no slot', 'war paint', 700) : c.key ? either(`${c.name} \u00b7 keystone`, c.name, 700) : c.name;
     E.text(title, x + w / 2, ly, { size: fitSize(ctx, title, 17, w - 16), weight: '800', color: '#f0e6cc' });
     E.text(sub, x + w / 2, ly + 17, { size: fitSize(ctx, sub, 12, w - 16, '700'), weight: '700', color: col });
     // the rule's line, a size smaller when three lines would meet the bottom lines
@@ -4508,7 +4684,7 @@ const ODDS_NAME = { set: 'Set', 3: 'Legendary', 2: 'Epic', 1: 'Rare', 0: 'Common
 // The "?": how the deal works, the families you hold, and the duos with what each needs: the ones you can be dealt first, then those sharing a family you
 // wear, as many as fit the screen (the rest counted on the last line)
 function drawDealHelp(ctx, E, held, odds = []) {
-  const near = (c) => c.duo.filter((f) => held[f]).length, all = DECK.filter((c) => c.duo).sort((a, b) => near(b) - near(a)), rh = 34;
+  const near = (c) => c.duo.filter((f) => held[f]).length, all = DECK.filter((c) => c.duo && cardOpen(state.me, c)).sort((a, b) => near(b) - near(a)), rh = 34;
   const duos = all.slice(0, Math.max(1, Math.floor((E.h - 16 - 166) / rh))), more = all.length - duos.length;
   const w = Math.min(E.w - 32, 620), h = Math.min(E.h - 16, 166 + duos.length * rh), x = (E.w - w) / 2, y = (E.h - h) / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.7)'; ctx.fillRect(0, 0, E.w, E.h);
@@ -4649,7 +4825,7 @@ const FOE_TELL = {
   myfeint: () => `he feints ${TUNING.foeGear.hood}x as often`, mindreader: () => 'he learns your habits from the first exchange',
 };
 // A rival's taunt: the noun of your origin, or your village on a revenge run.
-const tauntOf = (me) => (me.reason === 'revenge' ? 'I remember your village.' : `You again, little ${ORIGINS[me.origin].noun}?`);
+const tauntOf = (me) => (me.reason === 'revenge' ? 'I remember your village.' : me.reason === 'promise' ? 'Back for your sister again?' : `You again, little ${ORIGINS[me.origin].noun}?`);
 // the reason's thread on his card: the debt left, the notches on the wooden sword, or the crowd's banner (revenge climbs in Brutus's lines instead)
 function drawThread(ctx, E, cx, cy, w) {
   const me = state.me, n = state.felled;
@@ -4660,6 +4836,13 @@ function drawThread(ctx, E, cx, cy, w) {
     const x0 = cx - (sw + 12 + ctx.measureText(t).width) / 2;
     woodSword(ctx, x0, cy, sw, n);
     E.text(t, x0 + sw + 12, cy, { size: 14, weight: '800', align: 'left', color: '#e6c866' });
+  } else if (me.reason === 'promise') {
+    // her door: a key, and the fights still between you and it
+    const left = Math.max(0, state.gauntlet.length - n), t = left > 1 ? `Your sister: ${left} fights to her door` : 'Your sister: the last door', kw = 30;
+    ctx.font = '800 14px system-ui, sans-serif';
+    const x0 = cx - (kw + 10 + ctx.measureText(t).width) / 2;
+    keyIcon(ctx, x0, cy, kw);
+    E.text(t, x0 + kw + 10, cy, { size: 14, weight: '800', align: 'left', color: '#c4b5fd' });
   } else if (me.reason === 'glory') {
     const k = chantN(), t = Array(k).fill(`${me.name.toUpperCase()}!`).join('  '), bw = w - 48, bh = 26;
     ctx.fillStyle = '#7f1d1d'; ctx.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
@@ -4667,6 +4850,13 @@ function drawThread(ctx, E, cx, cy, w) {
     for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx + sx * bw / 2, cy - bh / 2); ctx.lineTo(cx + sx * (bw / 2 + 12), cy - bh / 2); ctx.lineTo(cx + sx * (bw / 2 + 4), cy); ctx.lineTo(cx + sx * (bw / 2 + 12), cy + bh / 2); ctx.lineTo(cx + sx * bw / 2, cy + bh / 2); ctx.closePath(); ctx.fillStyle = '#5f1515'; ctx.fill(); }
     E.text(t, cx, cy + 1, { size: fitSize(ctx, t, 13 + 2 * (k - 1), bw - 16), weight: '800', color: '#fde68a' });
   }
+}
+// the key to her door, lying flat: a ring bow, the shaft and its bit
+function keyIcon(ctx, x, y, len) {
+  ctx.save(); ctx.strokeStyle = '#e6c866'; ctx.fillStyle = '#e6c866'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x + len * 0.15, y, len * 0.15, 0, TAU); ctx.stroke();
+  line(ctx, x + len * 0.3, y, x + len, y); ctx.fillRect(x + len * 0.78, y, len * 0.08, len * 0.22); ctx.fillRect(x + len * 0.92, y, len * 0.08, len * 0.16);
+  ctx.restore();
 }
 // the wooden sword of freedom, lying flat, with a notch for each fell
 function woodSword(ctx, x, y, len, n) {
@@ -4849,8 +5039,8 @@ function pairCol(ctx, E, f, x, y, w, tag, ex) {
   rows.slice(0, 2).forEach(([t, col], i) => T(clipLine(ctx, t, rw), y + 126 + i * 18, col));
 }
 // a line cut to w px at 14 px bold, with an ellipsis
-function clipLine(ctx, t, w) {
-  ctx.font = '700 14px system-ui, sans-serif';
+function clipLine(ctx, t, w, size = 14, weight = '700') {
+  ctx.font = `${weight} ${size}px system-ui, sans-serif`;
   if (ctx.measureText(t).width <= w) return t;
   while (t.length > 2 && ctx.measureText(`${t}\u2026`).width > w) t = t.slice(0, -1);
   return `${t.trimEnd()}\u2026`;
@@ -4885,10 +5075,10 @@ const WHEELS = [
   { title: 'SPEED' },
   { title: 'STAMINA' },
   { title: 'ARMOUR', cols: ['#8a7452', '#6f7c89', '#3f4a5a'] },
-  { title: 'WEAPON', cols: ['#9b2f2f', '#38457a', '#5a3b22', '#b08c34'] },
-  { title: 'ORIGIN', cols: ['#5f7a3a', '#7a3a3a', '#a07a3a', '#8c5a2e', '#2e5f7a', '#6a4a8c'] },
-  { title: 'REASON', cols: ['#2f7d6d', '#8a6a2a', '#8b2e2e', '#b8923a'] },
-].map((wh, k) => ({ ...wh, k, list: (me) => wheelList(k, me.idx) }));
+  { title: 'WEAPON', cols: ['#9b2f2f', '#38457a', '#5a3b22', '#b08c34', '#2e6a7a', '#7a2e5a'] },
+  { title: 'ORIGIN', cols: ['#5f7a3a', '#7a3a3a', '#a07a3a', '#8c5a2e', '#2e5f7a', '#6a4a8c', '#a8402e', '#b8923a', '#3a7a5f'] },
+  { title: 'REASON', cols: ['#2f7d6d', '#8a6a2a', '#8b2e2e', '#b8923a', '#6a4a8c'] },
+].map((wh, k) => ({ ...wh, k, list: (me) => wheelList(k, me.idx, me.open || []) }));
 const STAT_COLS = ['#8b2e2e', '#a8642e', '#9a8c32', '#5f8f3e', '#2f7d6d'];
 const shortOf = (e) => (typeof e[0] === 'number' ? `${e[0]}` : e[3] || (e[0].length > 1 ? e[2][0] : e[0]));
 const halvesText = (n) => `${Math.floor(n / 2)}${n % 2 ? '½' : ''}`;
@@ -4976,15 +5166,21 @@ function pegsPassed(w, r0, r1) {
 }
 
 // what your weapon is for, in one line
-const MY_WEAPON_JOB = { gladius: 'all-rounder: quick jabs, fair reach', spear: 'long reach: jab from range; slashes are weak', axe: 'slow and heavy: overheads crack plates', dagger: 'short and fast: slot hits do 4x' };
+const MY_WEAPON_JOB = { gladius: 'all-rounder: quick jabs, fair reach', spear: 'long reach: jab from range; slashes are weak', axe: 'slow and heavy: overheads crack plates', dagger: 'short and fast: slot hits do 4x',
+  trident: 'longest reach, slow; a perfect block nets him', sica: 'short and quick: slashes cut deep' };
+// a weapon as the icon draws it: his table's, or your armoury weapon's drawn length
+const iconWeapon = (id) => TUNING.weapons.find((q) => q.id === id) || { id, len: TUNING.me.weapons[id].len };
 // Your card, in three columns under the story and your start card: your armour, your size, hearts and stats, then your tier and your weapon (its name on its own line, its job wrapped below).
 function drawMeCard(ctx, E, me, x, y, w, h) {
-  const M = TUNING.me, S = M.sizes[me.size], A = M.armour[me.set], noun = ORIGINS[me.origin].noun, sc = startCard(me), cx = x + w / 2;
-  E.roundRect(x, y, w, h, 18, '#1d2a2a', '#4ade80');
-  E.text('YOUR FIGHTER', cx, y + 16, { size: 12, weight: '800', color: '#9fe3c6' });
+  const M = TUNING.me, S = M.sizes[me.size], A = M.armour[me.set], noun = ORIGINS[me.origin].noun, scs = startCards(me), sc = scs[0], cx = x + w / 2;
+  E.roundRect(x, y, w, h, 18, '#1d2a2a', me.vid ? '#ffd24a' : '#4ade80');
+  // a veteran: the stat they gained and their scar, in gold
+  const vt = me.vid ? `VETERAN${me.up ? `  ·  +${TUNING.ludus.vetUp} ${WHEELS[me.up].title}` : ''}  ·  ${me.scar}` : null;
+  if (vt) E.text(vt, cx, y + 16, { size: fitSize(ctx, vt, 14, w - 28), weight: '800', color: '#ffd24a' });
+  else E.text('YOUR FIGHTER', cx, y + 16, { size: 12, weight: '800', color: '#9fe3c6' });
   const st = storyLine(me);
   E.text(st, cx, y + 36, { size: fitSize(ctx, st, 15, w - 28), weight: '800', color: '#f0e6cc' });
-  const pk = `${noun[0].toUpperCase()}${noun.slice(1)}: starts with ${sc.name} (${FAMS[sc.fam].name})`;
+  const pk = `${noun[0].toUpperCase()}${noun.slice(1)}: starts with ${scs.length > 1 ? `${sc.name} + ${scs[1].name}` : `${sc.name} (${FAMS[sc.fam].name})`}`;
   E.text(pk, cx, y + 56, { size: fitSize(ctx, pk, 13, w - 28, '700'), weight: '700', color: '#86efac' });
   const lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
   armourIcon(ctx, playerParts(me), ax, y + 72 + s * 0.95, s);
@@ -4995,12 +5191,14 @@ function drawMeCard(ctx, E, me, x, y, w, h) {
   E.text(SIZE_TIP[me.size], mx, y + 103, { size: 12, align: 'left', color: '#9aa4b2' });
   E.text(`♥ ${halvesText(me.halves)} hearts`, mx, y + 123, { size: 15, weight: '800', align: 'left', color: '#f87171' });
   statBars(ctx, E, me, mx, y + 147, mw, 20, 13);
+  // a veteran's gained point glows green on its bar
+  if (me.vid && me.up) { const v = me[['', 'str', 'spd', 'sta'][me.up]], seg = (mw - 13 * 2.6) / 5; ctx.fillStyle = '#4ade80'; ctx.fillRect(mx + 13 * 2.6 + (v - 1) * seg, y + 147 + (me.up - 1) * 20 - 13 * 0.35, seg - 3, 13 * 0.7); }
   const tx = mx + mw + 10, tw = x + w - 12 - tx, tc = TIER_COL[me.tier];
   ctx.strokeStyle = tc; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tx + 24, y + 96, 22, 0, 6.28); ctx.stroke();
   E.text(me.tier, tx + 24, y + 98, { size: 28, weight: '800', color: tc });
   E.text('TIER', tx + 54, y + 88, { size: 11, weight: '800', align: 'left', color: '#c4b99a' });
   if (me.underdog) E.text('Underdog!', tx + 54, y + 105, { size: 13, weight: '800', align: 'left', color: '#ffd24a', alpha: 0.75 + 0.25 * Math.sin(E.time * 6) });
-  const WI = TUNING.weapons.find((q) => q.id === me.weapon), nm = weaponName(me);
+  const WI = iconWeapon(me.weapon), nm = weaponName(me);
   const ws = Math.min(110, (tw - 12) / (WI.len + 0.4));
   weaponIcon(ctx, { weapon: WI, mace: me.mace }, tx + 4 + 0.3 * ws, y + 134, ws);
   E.text(nm, tx, y + 156, { size: fitSize(ctx, nm, 16, tw), weight: '800', align: 'left', color: '#f0e6cc' });
@@ -5020,6 +5218,53 @@ function meMini(ctx, E, me, x, y, w, h, picks = []) {
   picks.filter((id) => CARD[id].duo).slice(0, 2).forEach((id, i) => drawIcon(ctx, id, i ? x + w - 16 : x + 16, y + h - 10, 7));
 }
 
+// ====== META: fame, the ludus, the Wall of Champions ======
+// A run's fame (TUNING.fame, E): a champion felled, the arena's first clear, the Emperor's thumbs up, and the gold left over; each with its reason
+function fameOf(won, first, thumbUp, gold) {
+  const F = TUNING.fame, g = Math.floor(gold / F.goldPer), items = [];
+  if (won) items.push(['champion', F.champ]);
+  if (first) items.push(['first clear', F.clear]);
+  if (thumbUp) items.push(['thumbs up', F.thumbUp]);
+  if (g > 0) items.push(['gold left', g]);
+  return { sum: items.reduce((a, e) => a + e[1], 0), items };
+}
+// A save from before fame (migrate sets fameCheck; the ledger is the engine's, so it is read here once): each cleared arena's first clear, each won run's
+// fame (a cleared arena with no win left in the ledger still counts its champion), its fighters on the Wall of Champions (the ledger kept no names, and
+// no rolls, so they cannot return as veterans), and every card picked in a recorded run for the start-card slot
+function fameFromLedger(E) {
+  const F = TUNING.fame, res = E.ledger.entries.filter((e) => e.k === 'result' && e.d), wins = res.filter((e) => e.d.won === true), cleared = E.save.get('arenas', 0);
+  let fame = cleared * F.clear + Math.max(0, cleared - wins.length) * F.champ;
+  for (const e of wins) fame += fameOf(true, false, e.d.arena === 'games' && e.d.thumb === 2, e.d.gold || 0).sum;
+  const champs = wins.slice().reverse().map((e) => {
+    const w = e.d.meWeapon === 'mace' ? 'axe' : e.d.meWeapon;
+    return { id: e.t, name: 'Nameless', female: false, origin: ORIGINS[e.d.origin] ? e.d.origin : null, weapon: TUNING.me.weapons[w] ? w : null, mace: e.d.meWeapon === 'mace', arena: ARENA[e.d.arena] ? e.d.arena : 'pit', me: null };
+  });
+  const picked = new Set(E.save.get('picked', []));
+  for (const e of res) for (const id of String(e.d.picks || '').split(',')) if (CARD[id] && !CARD[id].duo) picked.add(id);
+  E.save.set('fame', E.save.get('fame', 0) + fame);
+  E.save.set('champs', [...E.save.get('champs', []), ...champs].slice(0, TUNING.ludus.wallMax));
+  E.save.set('picked', [...picked]); E.save.set('fameCheck', 0);
+}
+// A won run carves its fighter on the Wall of Champions, newest first: their rolls as the wheels gave them (the tent's plates left off), the stat a veteran
+// gains (seeded, one that has room) and a scar line from the champion they felled. A veteran who wins again only moves their arena up.
+function carveChampion(E, me, arenaId, champName) {
+  const L = E.save.get('champs', []), at = (id) => ARENAS.findIndex((a) => a.id === id), old = me.vid != null ? L.find((c) => c.id === me.vid) : null;
+  if (old) { if (at(old.arena) < at(arenaId)) old.arena = arenaId; E.save.set('champs', L.slice()); return old; }
+  const rng = makeRng((state.seed ^ 0x5bd1e995) >>> 0), A = TUNING.me.armour[me.set], ups = [1, 2, 3].filter((k) => me.idx[k] < 4);
+  const c = { id: state.seed, name: me.name, female: me.female, origin: me.origin, weapon: me.weapon, mace: me.mace, arena: arenaId,
+    me: { idx: me.idx.slice(), plates: me.plates.slice(0, A.n + (A.arm ? 1 : 0)), name: me.name, female: me.female, mace: me.mace, cardRoll: me.cardRoll, vary: me.vary || 0 },
+    up: ups.length ? rng.pick(ups) : 0, scar: rng.pick(SCARS)(champName.split(/[ ,]/)[0]) };
+  E.save.set('champs', [c, ...L].slice(0, TUNING.ludus.wallMax));
+  return c;
+}
+// the arenas a Wall entry may fight in as a veteran: open, and above the one they cleared
+const vetArenas = (E, c) => (c && c.me ? ARENAS.map((a, i) => i).filter((i) => i > ARENAS.findIndex((a) => a.id === c.arena) && i <= openTo(E)) : []);
+// what the ludus has opened, and your start-card pick (the training ground's slot, a card you have picked before)
+const ludusOf = (E) => E.save.get('ludus', []);
+// only a common or a rare card, never a keystone or an epic: the slot is a small step
+const startable = (id) => { const c = CARD[id]; return !!c && !c.duo && !c.key && c.tier <= 1; };
+const startPick = (E) => { const id = E.save.get('startPick', ''), L = ludusOf(E); return L.includes('slot') && startable(id) && E.save.get('picked', []).includes(id) ? id : ''; };
+
 // ====== SCENES: menu, roll, play, over ======
 const portrait = (E) => E.h > E.w;
 function rotateCard(ctx, E) {
@@ -5036,7 +5281,8 @@ function rotateCard(ctx, E) {
 // Old Brutus's short intro, the menu's Story card
 const STORY = ['So. Another nobody from the pit.', 'I am Brutus. I make champions out of nobodies.', 'The wheels decide who you are, and what you fight for.',
   'Five bouts stand between you and the end of it. The last is the champion.', 'Win, and Rome remembers you. Fall, and I chalk your name on the wall.'];
-// The menu: the title, Play (Resume when a run was saved, with New run beside Story and Sound), the Story card, and the pit wall of the fallen.
+// The menu: the title and your fame, Play (Resume when a run was saved, with New run beside the Ludus, Story and Sound), the Story card, and two walls side by
+// side: the pit wall of the fallen and the Wall of Champions (a tap opens it).
 const menu = {
   enter(E) {
     this.btns = {}; this.story = false;
@@ -5045,24 +5291,36 @@ const menu = {
       if (E.ledger.entries.some((e) => e.k === 'result' && e.d && e.d.won === true)) E.save.set('arenas', Math.max(1, E.save.get('arenas', 0)));
       E.save.set('arenasCheck', 0);
     }
+    if (E.save.get('fameCheck', 0)) fameFromLedger(E);
   },
   render(ctx, E) {
     this.btns = {};
     if (portrait(E)) { rotateCard(ctx, E); return; }
-    const run = E.save.get('run', null), cx = E.w / 2, top = E.safe.top, bottom = E.h - E.safe.bottom;
-    E.text('ARENA', cx, top + Math.max(44, E.h * 0.15), { size: 44, weight: '800', color: '#e6c866' });
-    const py = top + E.h * 0.4, ry = py + 64, row = run ? ['new', 'story', 'sound'] : ['story', 'sound'], bw = 140, gap = 12;
+    const run = E.save.get('run', null), cx = E.w / 2, top = E.safe.top, bottom = E.h - E.safe.bottom, ty = top + Math.max(44, E.h * 0.15);
+    E.text('ARENA', cx, ty, { size: 44, weight: '800', color: '#e6c866' });
+    const fame = E.save.get('fame', 0), ft = `${fame} fame`;
+    ctx.font = '800 16px system-ui, sans-serif';
+    const fw = ctx.measureText(ft).width;
+    laurel(ctx, cx - fw / 2 - 12, ty + 36, 8); E.text(ft, cx + 6, ty + 36, { size: 16, weight: '800', color: '#ffd24a' });
+    const py = top + E.h * 0.4, ry = py + 64, row = run ? ['new', 'ludus', 'story', 'sound'] : ['ludus', 'story', 'sound'], gap = 12;
+    const bw = Math.min(140, (E.w - 32 - E.safe.left - E.safe.right - gap * (row.length - 1)) / row.length);
     this.btns.play = E.button(run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', cx, py, { w: 280, h: 56, size: 20 });
     row.forEach((k, i) => {
-      const x = cx + (i - (row.length - 1) / 2) * (bw + gap), label = k === 'new' ? 'New run' : k === 'story' ? 'Story' : E.audio.muted ? 'Sound: off' : 'Sound: on';
-      this.btns[k] = E.button(label, x, ry, { w: bw, h: 48, size: 16, fill: k === 'story' ? '#7c2d12' : '#1f2937' });
+      const x = cx + (i - (row.length - 1) / 2) * (bw + gap), label = k === 'new' ? 'New run' : k === 'ludus' ? 'The Ludus' : k === 'story' ? 'Story' : E.audio.muted ? 'Sound: off' : 'Sound: on';
+      this.btns[k] = E.button(label, x, ry, { w: bw, h: 48, size: 16, fill: k === 'story' ? '#7c2d12' : k === 'ludus' ? '#7a5a14' : '#1f2937' });
     });
-    // the pit wall: the last eight fallen, newest first, chalked on stone in two rows of four
-    const wall = E.save.get('wall', []).slice(0, 8), sw = Math.min(E.w - 40, 560), sx = cx - sw / 2, wy = Math.min(ry + 44, bottom - 82);
-    E.text('THE PIT WALL', cx, wy, { size: 13, weight: '800', color: '#c4b99a' });
-    E.roundRect(sx, wy + 10, sw, 56, 8, '#3a322c', '#5a4e44');
-    if (!wall.length) E.text('No names chalked here yet', cx, wy + 38, { size: 14, color: '#8a8f99' });
-    wall.forEach((q, i) => E.text(`${q.name} (${q.bout})`, sx + sw * ((i % 4) + 0.5) / 4, wy + 25 + Math.floor(i / 4) * 26, { size: 14, weight: '700', color: i === 0 ? '#ffffff' : '#d6d0c4', alpha: i === 0 ? 1 : 0.8 }));
+    // the pit wall: the last four fallen, newest first, chalked on stone; beside it the Wall of Champions, its newest names carved in gold
+    const sw = Math.min(E.w - 40, 620), sx = cx - sw / 2, wy = Math.min(ry + 44, bottom - 82), pw = (sw - 12) / 2, wall = E.save.get('wall', []).slice(0, 4), champs = E.save.get('champs', []);
+    E.text('THE PIT WALL', sx + pw / 2, wy, { size: 14, weight: '800', color: '#c4b99a' });
+    E.roundRect(sx, wy + 10, pw, 56, 8, '#3a322c', '#5a4e44');
+    if (!wall.length) E.text('No names chalked here yet', sx + pw / 2, wy + 38, { size: 14, color: '#8a8f99' });
+    wall.forEach((q, i) => E.text(clipLine(ctx, `${q.name} (${q.bout})`, pw / 2 - 8), sx + pw * ((i % 2) + 0.5) / 2, wy + 25 + Math.floor(i / 2) * 26, { size: 14, weight: '700', color: i === 0 ? '#ffffff' : '#d6d0c4', alpha: i === 0 ? 1 : 0.8 }));
+    const cx2 = sx + pw + 12;
+    E.text(`THE WALL OF CHAMPIONS${champs.length ? ` (${champs.length})` : ''}`, cx2 + pw / 2, wy, { size: 14, weight: '800', color: '#ffd24a' });
+    this.btns.champs = { x: cx2, y: wy + 10, w: pw, h: 56 };
+    E.roundRect(cx2, wy + 10, pw, 56, 8, '#3a2f22', '#ffd24a');
+    if (!champs.length) E.text('Fell a champion to be carved here', cx2 + pw / 2, wy + 38, { size: 14, color: '#c4b99a' });
+    champs.slice(0, 4).forEach((q, i) => E.text(clipLine(ctx, q.name, pw / 2 - 8), cx2 + pw * ((i % 2) + 0.5) / 2, wy + 25 + Math.floor(i / 2) * 26, { size: 14, weight: '800', color: '#fde68a' }));
     if (this.story) this.storyCard(ctx, E);
   },
   storyCard(ctx, E) {
@@ -5079,17 +5337,20 @@ const menu = {
     if (b.play && E.hit(b.play, p)) { E.audio.play('tap'); if (run) E.setScene('play', { resume: run }); else fresh(); }
     else if (b.new && E.hit(b.new, p)) { E.audio.play('tap'); E.save.set('run', null); fresh(); }
     else if (b.story && E.hit(b.story, p)) { this.story = true; E.audio.play('tap'); }
+    else if (b.ludus && E.hit(b.ludus, p)) { E.audio.play('tap'); E.setScene('ludus'); }
+    else if (b.champs && E.hit(b.champs, p)) { E.audio.play('tap'); E.setScene('champs'); }
     else if (b.sound && E.hit(b.sound, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
   },
 };
 
 // The arena picker, the ladder in order (principle 11: a card is its name, its state drawn, one line of twist and its champion). An open arena: its name
 // (with its place), its twist and its champion (your rival in red when one waits); cleared ones are gilded. The next locked arena: its champion's silhouette and
-// what opens it. A tap on a locked card says in one line what opens it; in the dev channel a second tap enters it.
+// what opens it. A tap on a locked card says in one line what opens it; in the dev channel a second tap enters it. With a veteran (from the Wall of
+// Champions) only the open arenas above the one they cleared can be picked; the rest are dimmed.
 const openTo = (E) => E.save.get('arenas', 0);
 function lockLine(i) { return `Fell the ${ARENAS[i - 1].who} champion to open`; }
 const pickArena = {
-  enter() { this.cards = []; this.back = null; this.dev = null; },
+  enter(E, params = {}) { this.cards = []; this.back = null; this.dev = null; this.vet = params.vet || null; },
   layout(E) {
     const n = ARENAS.length, gap = 12, top = E.safe.top + 58, w = Math.min(210, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n);
     const h = Math.min(250, E.h - top - 14 - E.safe.bottom), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
@@ -5097,12 +5358,13 @@ const pickArena = {
   },
   render(ctx, E) {
     if (portrait(E)) { this.cards = []; this.back = null; rotateCard(ctx, E); return; }
-    const top = E.safe.top, to = openTo(E), rivals = E.save.get('rivals', {});
-    E.text('CHOOSE YOUR ARENA', E.w / 2, top + 28, { size: 22, weight: '800', color: '#e6c866' });
+    const top = E.safe.top, to = openTo(E), rivals = E.save.get('rivals', {}), vet = this.vet, va = vet ? vetArenas(E, vet) : null;
+    const head = vet ? `WHERE WILL ${vet.name.toUpperCase()} FIGHT?` : 'CHOOSE YOUR ARENA';
+    E.text(head, E.w / 2, top + 28, { size: fitSize(ctx, head, 22, E.w - 260), weight: '800', color: vet ? '#ffd24a' : '#e6c866' });
     this.back = E.button('Back', 16 + E.safe.left + 44, top + 28, { w: 88, h: 44, size: 16, fill: '#1f2937' });
     this.cards = this.layout(E);
     for (const c of this.cards) {
-      const { a, i, x, y, w, h } = c, open = i <= to, cleared = i < to, next = !open && i === to, cx = x + w / 2;
+      const { a, i, x, y, w, h } = c, open = i <= to && (!va || va.includes(i)), cleared = i < to, next = !va && !open && i === to, cx = x + w / 2;
       E.roundRect(x, y, w, h, 14, open ? '#2a2016' : 'rgba(34,26,43,0.6)', cleared ? '#ffd24a' : open ? '#e6c866' : 'rgba(240,230,204,0.25)');
       ctx.globalAlpha = open ? 1 : 0.55;
       // the name carries its place ("The City arena, Pompeii"), wrapped onto up to three lines: one item
@@ -5113,21 +5375,24 @@ const pickArena = {
       silhouette(ctx, cx + (a.id === 'city' ? 12 : a.id === 'rome' ? 16 : 0), sy, sh, open ? '#6b5a44' : '#3a3242');
       if (a.id === 'city') silhouette(ctx, cx - 18, sy + 4, sh * 0.85, open ? '#4e4234' : '#2e2836');
       if (a.id === 'rome') lionSilhouette(ctx, cx - 14, sy, sh * 0.5, open ? '#8a7454' : '#2e2836');
-      if (!open) padlock(ctx, cx, sy - sh * 0.45, '#e6c866');
+      if (!open && !(va && i <= to)) padlock(ctx, cx, sy - sh * 0.45, '#e6c866');
       // open: the twist (white) and the champion (gold, or your rival in red); locked: what opens it
       const rv = rivals[a.id], wrap = (t) => wrapPx(ctx, t, w - 16, 14, '700').slice(0, 2);
+      const shut = va && i <= to ? (i <= ARENAS.findIndex((q) => q.id === vet.arena) ? `${vet.name.split(' ')[0]} cleared it` : 'Not open') : next ? lockLine(i) : 'Locked';
       const lines = open ? [...wrap(a.twist).map((t) => [t, '#f0e6cc']), ...wrap(rv ? `Rival: ${rv.name.split(/[ ,]/)[0]}` : a.champLabel).map((t) => [t, rv ? '#f87171' : '#fde68a'])]
-        : wrapPx(ctx, next ? lockLine(i) : 'Locked', w - 16, 14, '700').slice(0, 3).map((t) => [t, '#c4b99a']);
+        : wrapPx(ctx, shut, w - 16, 14, '700').slice(0, 3).map((t) => [t, '#c4b99a']);
       const ly = y + h - 14 - (lines.length - 1) * 18;
       lines.forEach(([t, col], k) => E.text(t, cx, ly + k * 18, { size: 14, weight: '700', color: col }));
     }
   },
   onTap(p, E) {
     if (portrait(E)) return;
-    if (this.back && E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    if (this.back && E.hit(this.back, p)) { E.audio.play('tap'); E.setScene(this.vet ? 'champs' : 'menu'); return; }
     const c = this.cards.find((q) => E.hit(q, p));
     if (!c) return;
-    const to = openTo(E), open = c.i <= to, start = () => { E.audio.play('tap'); E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0, arena: c.a.id }); };
+    const to = openTo(E), vet = this.vet, start = () => { E.audio.play('tap'); E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0, arena: c.a.id, vet }); };
+    if (vet) { if (vetArenas(E, vet).includes(c.i)) start(); else { E.audio.play('miss'); E.toast(`A veteran fights only above the arena they cleared`); } return; }
+    const open = c.i <= to;
     if (open) { start(); return; }
     E.audio.play('miss');
     if (E.channel !== 'release' && this.dev === c.i) { start(); return; }
@@ -5162,12 +5427,14 @@ function lionSilhouette(ctx, x, y, h, col) {
 }
 // a cleared arena's gilding: a gold laurel round its champion
 function laurel(ctx, x, y, r) {
-  ctx.save(); ctx.strokeStyle = '#ffd24a'; ctx.fillStyle = '#ffd24a'; ctx.lineWidth = 2.5;
+  // a small laurel (a badge beside a number) has leaves to its own size
+  const small = r < 20, lx2 = small ? r * 0.36 : 6, ly2 = small ? r * 0.17 : 3;
+  ctx.save(); ctx.strokeStyle = '#ffd24a'; ctx.fillStyle = '#ffd24a'; ctx.lineWidth = small ? 1.5 : 2.5;
   for (const sd of [-1, 1]) {
     ctx.beginPath(); ctx.arc(x, y, r, Math.PI / 2 + sd * 0.35, Math.PI / 2 + sd * 2.6, sd < 0); ctx.stroke();
     for (let i = 0; i < 6; i++) {
       const a = Math.PI / 2 + sd * (0.6 + i * 0.36), lx = x + Math.cos(a) * r, ly = y + Math.sin(a) * r;
-      ctx.beginPath(); ctx.ellipse(lx, ly, 6, 3, a + sd * 0.9, 0, 6.28); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(lx, ly, lx2, ly2, a + sd * 0.9, 0, 6.28); ctx.fill();
     }
   }
   ctx.restore();
@@ -5180,16 +5447,242 @@ function padlock(ctx, x, y, col) {
   ctx.restore();
 }
 
+// A page that scrolls: rects laid out in cols columns of rows rh tall from y0, shifted by the scroll, and the most it can scroll (the list stops at
+// the screen's safe bottom). A drag scrolls it; a tap is a tap (the engine tells them apart).
+function scrollGrid(E, n, y0, rh, cols, scroll) {
+  const gap = 10, L = 16 + E.safe.left, w = (E.w - 32 - E.safe.left - E.safe.right - gap * (cols - 1)) / cols, bot = E.h - E.safe.bottom - 8;
+  const rows = Math.ceil(n / cols), max = Math.max(0, rows * (rh + gap) - gap - (bot - y0));
+  const s = clamp(scroll, 0, max);
+  return { s, max, y0, bot, rects: Array.from({ length: n }, (_, i) => ({ x: L + (i % cols) * (w + gap), y: y0 + Math.floor(i / cols) * (rh + gap) - s, w, h: rh })) };
+}
+const SCROLLS = {
+  onPointerDown(p) { this.drag = { y: p.y, s: this.scroll }; },
+  onPointerMove(p) { if (this.drag) this.scroll = clamp(this.drag.s - (p.y - this.drag.y), 0, this.maxScroll || 0); },
+  onPointerUp() { this.drag = null; },
+};
+// a page's head: its title, Back, your fame at the right, and Brutus's line under it
+function pageHead(ctx, E, title, line) {
+  const top = E.safe.top, ft = `${E.save.get('fame', 0)} fame`, R = E.w - 16 - E.safe.right;
+  E.text(title, E.w / 2, top + 28, { size: fitSize(ctx, title, 22, E.w - 300), weight: '800', color: '#e6c866' });
+  const back = E.button('Back', 16 + E.safe.left + 44, top + 28, { w: 88, h: 44, size: 16, fill: '#1f2937' });
+  ctx.font = '800 16px system-ui, sans-serif';
+  laurel(ctx, R - ctx.measureText(ft).width - 18, top + 28, 8); E.text(ft, R, top + 28, { size: 16, weight: '800', align: 'right', color: '#ffd24a' });
+  if (line) { const t = `Old Brutus: “${line}”`; E.text(t, E.w / 2, top + 60, { size: fitSize(ctx, t, 14, E.w - 32, '700'), weight: '700', color: '#fde68a' }); }
+  return back;
+}
+// the ludus's courtyard behind its pages: a colonnade of arches over the sand
+function drawCourtyard(ctx, E) {
+  const g = ctx.createLinearGradient(0, 0, 0, E.h); g.addColorStop(0, '#1c1424'); g.addColorStop(0.62, '#2a2016'); g.addColorStop(0.63, '#5e4a2c'); g.addColorStop(1, '#3e3020');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, E.w, E.h);
+  ctx.save(); ctx.globalAlpha = 0.28; ctx.fillStyle = '#6b5a44'; ctx.strokeStyle = '#6b5a44'; ctx.lineWidth = 8;
+  const aw = 70, ay = E.h * 0.62, ah = E.h * 0.4;
+  for (let x = -20; x < E.w + aw; x += aw) { ctx.fillRect(x, ay - ah, 12, ah); ctx.beginPath(); ctx.arc(x + aw / 2 + 6, ay - ah, aw / 2 - 6, Math.PI, 0); ctx.stroke(); }
+  ctx.fillRect(0, ay - ah - aw / 2 - 10, E.w, 10);
+  ctx.restore();
+}
+// each station's mark, s px tall, centred at (x, y): a weapon rack, the barracks' roof and door, the training post, the shrine's temple, the tailor's plume
+function stationIcon(ctx, id, x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.strokeStyle = '#e6c866'; ctx.fillStyle = '#e6c866'; ctx.lineWidth = Math.max(2, s * 0.05); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const u = s / 2;
+  if (id === 'armoury') {
+    line(ctx, -u * 0.8, u * 0.8, u * 0.7, -u * 0.8); line(ctx, u * 0.8, u * 0.8, -u * 0.7, -u * 0.8);
+    for (const k of [-0.18, 0, 0.18]) line(ctx, u * 0.7 + k * u, -u * 0.8, u * 0.7 + k * u * 1.6, -u * 1.05);
+    line(ctx, -u * 0.55, -u * 0.55, -u * 0.85, -u * 0.25); line(ctx, -u, u * 0.95, u, u * 0.95);
+  } else if (id === 'barracks') {
+    ctx.beginPath(); ctx.moveTo(-u, -u * 0.15); ctx.lineTo(0, -u * 0.9); ctx.lineTo(u, -u * 0.15); ctx.stroke();
+    ctx.strokeRect(-u * 0.8, -u * 0.15, u * 1.6, u * 1.05); ctx.fillRect(-u * 0.2, u * 0.3, u * 0.4, u * 0.6);
+    for (const k of [-0.55, 0.35]) ctx.strokeRect(k * u, u * 0.05, u * 0.2, u * 0.2);
+  } else if (id === 'training') {
+    ctx.fillStyle = '#8a5a2b'; ctx.fillRect(-u * 0.12, -u * 0.6, u * 0.24, u * 1.55); ctx.fillRect(-u * 0.65, -u * 0.25, u * 1.3, u * 0.18);
+    ctx.fillStyle = '#e6c866'; ctx.beginPath(); ctx.arc(0, -u * 0.78, u * 0.24, 0, TAU); ctx.fill(); line(ctx, -u * 0.8, u * 0.95, u * 0.8, u * 0.95);
+  } else if (id === 'shrine') {
+    ctx.beginPath(); ctx.moveTo(-u, -u * 0.45); ctx.lineTo(0, -u * 0.95); ctx.lineTo(u, -u * 0.45); ctx.closePath(); ctx.stroke();
+    for (const k of [-0.75, -0.25, 0.25, 0.75]) line(ctx, k * u, -u * 0.35, k * u, u * 0.7);
+    ctx.fillRect(-u, u * 0.72, u * 2, u * 0.2);
+  } else {
+    for (const k of [-0.5, 0, 0.5]) { ctx.save(); ctx.rotate(k); ctx.beginPath(); ctx.ellipse(0, -u * 0.35, u * 0.22, u * 0.62, 0, 0, TAU); ctx.fillStyle = k ? '#c8372a' : '#efe6cf'; ctx.fill(); ctx.restore(); }
+    line(ctx, -u * 0.8, u * 0.85, u * 0.6, u * 0.25); ctx.beginPath(); ctx.arc(u * 0.68, u * 0.2, u * 0.08, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
+// an unlock's mark in a roundel of radius r: its weapon, a fighter's shape, its family's mark, the cards, her key, or the tailor's colour
+function unlockMark(ctx, q, x, y, r, style) {
+  const id = q.id;
+  ctx.save(); ctx.fillStyle = id === 'trident' || id === 'sica' ? '#d9cfb4' : '#1a1422'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.strokeStyle = '#e6c866'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+  if (id === 'trident') {
+    // a bold trident glyph (the drawn weapon's prongs are hairlines at this size)
+    ctx.save(); ctx.translate(x, y); ctx.rotate(0.55); ctx.strokeStyle = '#2a1d12'; ctx.fillStyle = '#2a1d12'; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2.5, r * 0.15);
+    line(ctx, 0, r * 0.8, 0, -r * 0.35); line(ctx, -r * 0.4, -r * 0.35, r * 0.4, -r * 0.35);
+    for (const k of [-0.4, 0, 0.4]) { line(ctx, k * r, -r * 0.35, k * r, -r * 0.62); ctx.beginPath(); ctx.moveTo(k * r - r * 0.13, -r * 0.55); ctx.lineTo(k * r, -r * 0.82); ctx.lineTo(k * r + r * 0.13, -r * 0.55); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+  } else if (id === 'sica') {
+    ctx.save(); ctx.beginPath(); ctx.arc(x, y, r - 1, 0, TAU); ctx.clip(); ctx.translate(x, y); ctx.rotate(-0.5);
+    weaponIcon(ctx, { weapon: iconWeapon(id) }, -r * 0.55, 0, r * 3.2); ctx.restore();
+  }
+  else if (FAMS[id]) { ctx.save(); ctx.translate(x, y); ctx.fillStyle = ctx.strokeStyle = FAMS[id].col; ctx.lineWidth = 2; famGlyph(ctx, id, r / 8); ctx.restore(); }
+  else if (q.station === 'barracks') silhouette(ctx, x - r * 0.05, y + r * 0.72, r * 1.35, '#c4b99a');
+  else if (id === 'slot' || id === 'fourth') {
+    const n = id === 'slot' ? 1 : 4, cw = r * 0.5, ch = r * 0.75;
+    for (let i = 0; i < n; i++) { const cx = x + (i - (n - 1) / 2) * cw * 0.6; ctx.fillStyle = i === n - 1 ? '#ffd24a' : '#c4b99a'; ctx.strokeStyle = '#1a1422'; ctx.lineWidth = 1.5; rrect(ctx, cx - cw / 2, y - ch / 2, cw, ch, 3); ctx.fill(); ctx.stroke(); }
+  } else if (id === 'promise') keyIcon(ctx, x - r * 0.6, y, r * 1.2);
+  else {
+    const k = Math.max(0, style), col = TAILOR[id][k][1];
+    ctx.save(); ctx.translate(x, y); ctx.fillStyle = col; ctx.strokeStyle = shade(col, 0.45); ctx.lineWidth = 1.5;
+    if (id === 'crest') { ctx.beginPath(); ctx.ellipse(0, r * 0.15, r * 0.6, r * 0.35, 0, Math.PI, 0); ctx.fill(); ctx.stroke(); }
+    else if (id === 'plume') { for (const a of [-0.4, 0, 0.4]) { ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.ellipse(0, -r * 0.1, r * 0.17, r * 0.55, 0, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore(); } }
+    else if (id === 'paint') { ctx.beginPath(); ctx.arc(0, 0, r * 0.66, 0, TAU); ctx.fillStyle = '#9a6a2f'; ctx.fill(); ctx.stroke(); shieldPaint(ctx, r * 0.66, { i: k, col }); }
+    else { ctx.beginPath(); ctx.moveTo(-r * 0.25, -r * 0.55); ctx.lineTo(r * 0.25, -r * 0.55); ctx.lineTo(r * 0.5, r * 0.55); ctx.lineTo(-r * 0.5, r * 0.55); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+  }
+}
+
+// Brutus's ludus (E): the courtyard's five stations in a row, each its mark, its name, one line and how much of it you have opened; a station's page,
+// its unlocks in two columns, each its mark, its name, one line, and its price (OPEN once bought, or the style you wear); one tap buys one, or steps a
+// tailor's look through its styles and off. The training ground's slot opens the cards you have picked before. Principle 11: three text items an element.
+const ludus = {
+  ...SCROLLS,
+  enter(E, params = {}) { this.st = params.station || null; this.pick = false; this.scroll = 0; this.maxScroll = 0; this.drag = null; this.cards = []; this.rows = []; this.back = null; },
+  render(ctx, E) {
+    this.cards = []; this.rows = []; this.back = null;
+    if (portrait(E)) { rotateCard(ctx, E); return; }
+    drawCourtyard(ctx, E);
+    if (this.pick) { this.drawPick(ctx, E); return; }
+    const S = LUDUS.find((q) => q.id === this.st);
+    if (S) { this.drawStation(ctx, E, S); return; }
+    this.back = pageHead(ctx, E, 'THE LUDUS', 'My school. Your fame pays for it.');
+    const L = ludusOf(E), n = LUDUS.length, gap = 10, top = E.safe.top + 80, w = Math.min(180, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n);
+    const h = Math.min(240, E.h - top - 12 - E.safe.bottom), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
+    LUDUS.forEach((S2, i) => {
+      const x = x0 + i * (w + gap), cx = x + w / 2, got = S2.items.filter((q) => L.includes(q.id)).length, all = got === S2.items.length, ih = Math.min(64, h * 0.28);
+      E.roundRect(x, top, w, h, 14, 'rgba(34,26,18,0.92)', all ? '#ffd24a' : '#e6c866');
+      stationIcon(ctx, S2.id, cx, top + 12 + ih / 2, ih);
+      // the name (wrapped, one item), its line (wrapped, one item), how much is open
+      let y = top + 26 + ih;
+      for (const t of wrapPx(ctx, S2.name.toUpperCase(), w - 12, 14, '800').slice(0, 3)) { E.text(t, cx, y, { size: 14, weight: '800', color: '#f0e6cc' }); y += 17; }
+      y += 6;
+      for (const t of wrapPx(ctx, S2.line, w - 14, 14, '600').slice(0, 3)) { E.text(t, cx, y, { size: 14, color: '#cbd5e1' }); y += 17; }
+      E.text(all ? 'All open' : `${got} of ${S2.items.length} open`, cx, top + h - 16, { size: 14, weight: '800', color: all ? '#ffd24a' : '#86efac' });
+      this.cards.push({ x, y: top, w, h, id: S2.id });
+    });
+  },
+  drawStation(ctx, E, S) {
+    this.back = pageHead(ctx, E, S.name.toUpperCase(), S.brutus);
+    const L = ludusOf(E), T = E.save.get('tailor', {}), fame = E.save.get('fame', 0), sp = startPick(E), cols = E.w >= 560 ? 2 : 1;
+    const G = scrollGrid(E, S.items.length, E.safe.top + 80, 72, cols, this.scroll);
+    this.scroll = G.s; this.maxScroll = G.max;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, G.y0 - 4, E.w, G.bot - G.y0 + 8); ctx.clip();
+    S.items.forEach((q0, i) => {
+      const q = LUDUS_ITEM[q0.id], r = G.rects[i], own = L.includes(q.id), price = TUNING.ludus.price[q.id], st = TAILOR[q.id] ? (T[q.id] != null ? T[q.id] : 0) : 0;
+      const tag = !own ? `${price} fame` : TAILOR[q.id] ? (st >= 0 ? TAILOR[q.id][st][0] : 'Off') : q.id === 'slot' ? (sp ? CARD[sp].name : 'None') : 'OPEN';
+      const tc = !own ? (fame >= price ? '#ffd24a' : '#9aa4b2') : TAILOR[q.id] || q.id === 'slot' ? '#c4b5fd' : '#4ade80';
+      E.roundRect(r.x, r.y, r.w, r.h, 12, own ? 'rgba(29,42,34,0.94)' : 'rgba(42,32,22,0.94)', own ? '#4ade80' : fame >= price ? '#e6c866' : 'rgba(240,230,204,0.3)');
+      unlockMark(ctx, q, r.x + 32, r.y + r.h / 2, 20, st);
+      ctx.font = '800 14px system-ui, sans-serif';
+      const tw = ctx.measureText(tag).width, nx = r.x + 62;
+      E.text(clipLine(ctx, q.name, r.w - 62 - tw - 22, 16, '800'), nx, r.y + 20, { size: 16, weight: '800', align: 'left', color: '#f0e6cc' });
+      E.text(tag, r.x + r.w - 12, r.y + 20, { size: 14, weight: '800', align: 'right', color: tc });
+      wrapPx(ctx, q.line, r.w - 74, 14, '600').slice(0, 2).forEach((t, k) => E.text(t, nx, r.y + 42 + k * 17, { size: 14, align: 'left', color: '#cbd5e1' }));
+      if (r.y + r.h > G.y0 && r.y < G.bot) this.rows.push({ ...r, q });
+    });
+    ctx.restore();
+  },
+  // the training ground's slot: the cards you have picked before (and none), one a tap
+  drawPick(ctx, E) {
+    this.back = pageHead(ctx, E, 'YOUR START CARD', 'Pick what you trust. You start every run with it.');
+    const ids = ['', ...E.save.get('picked', []).filter(startable)], sp = startPick(E), cols = Math.max(1, Math.floor((E.w - 32) / 190));
+    if (ids.length === 1) E.text('Pick cards in your drafts first: they wait here.', E.w / 2, E.safe.top + 96, { size: 14, weight: '700', color: '#c4b99a' });
+    const G = scrollGrid(E, ids.length, E.safe.top + (ids.length === 1 ? 120 : 80), 52, cols, this.scroll);
+    this.scroll = G.s; this.maxScroll = G.max;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, G.y0 - 4, E.w, G.bot - G.y0 + 8); ctx.clip();
+    ids.forEach((id, i) => {
+      const r = G.rects[i], on = id === sp, c = id ? CARD[id] : null;
+      E.roundRect(r.x, r.y, r.w, r.h, 10, on ? 'rgba(124,58,237,0.45)' : 'rgba(34,26,43,0.94)', on ? '#c4b5fd' : c ? FAMS[c.fam].col : '#c4b99a');
+      if (c) drawIcon(ctx, id, r.x + 26, r.y + r.h / 2, 15);
+      E.text(clipLine(ctx, c ? c.name : 'None', r.w - 60), r.x + (c ? 50 : r.w / 2), r.y + r.h / 2, { size: 14, weight: '800', align: c ? 'left' : 'center', color: on ? '#ffffff' : '#f0e6cc' });
+      if (r.y + r.h > G.y0 && r.y < G.bot) this.rows.push({ ...r, card: id });
+    });
+    ctx.restore();
+  },
+  buy(E, q, r) {
+    const L = ludusOf(E), price = TUNING.ludus.price[q.id], fame = E.save.get('fame', 0);
+    if (fame < price) { E.audio.play('miss'); E.toast(`${q.name} needs ${price} fame. You have ${fame}.`); return; }
+    E.save.set('fame', fame - price); E.save.set('ludus', [...L, q.id]);
+    if (TAILOR[q.id]) E.save.set('tailor', { ...E.save.get('tailor', {}), [q.id]: 0 });
+    E.audio.play('coin'); E.haptic(20);
+    E.particles.emit({ x: r.x + 32, y: r.y + r.h / 2, count: 30, speed: 240, life: 0.8, size: 4, color: '#ffd24a', gravity: 200 });
+  },
+  onTap(p, E) {
+    if (portrait(E)) return;
+    if (this.back && E.hit(this.back, p)) { E.audio.play('tap'); if (this.pick) this.pick = false; else if (this.st) this.st = null; else E.setScene('menu'); this.scroll = 0; return; }
+    if (this.pick) {
+      const r = this.rows.find((q) => E.hit(q, p)); if (!r) return;
+      E.save.set('startPick', r.card); E.audio.play('tap'); this.pick = false; this.scroll = 0; return;
+    }
+    if (!this.st) { const c = this.cards.find((q) => E.hit(q, p)); if (c) { E.audio.play('tap'); this.st = c.id; this.scroll = 0; } return; }
+    const r = this.rows.find((q) => E.hit(q, p)); if (!r) return;
+    const q = r.q;
+    if (!ludusOf(E).includes(q.id)) { this.buy(E, q, r); return; }
+    if (TAILOR[q.id]) {
+      const T = E.save.get('tailor', {}), n = TAILOR[q.id].length, cur = T[q.id] != null ? T[q.id] : 0;
+      E.save.set('tailor', { ...T, [q.id]: cur + 1 >= n ? -1 : cur + 1 }); E.audio.play('tap'); E.haptic(8);
+    } else if (q.id === 'slot') { this.pick = true; this.scroll = 0; E.audio.play('tap'); }
+    else E.audio.play('tap');
+  },
+};
+
+// The Wall of Champions (E): every fighter who cleared an arena, newest first, each a stone plaque: their name, origin and weapon, and the arena they
+// cleared. A plaque with an open arena above it is gilded: a tap starts a run with them as a veteran (the arena picker shows where they may fight).
+const champs = {
+  ...SCROLLS,
+  enter() { this.scroll = 0; this.maxScroll = 0; this.drag = null; this.rows = []; this.back = null; },
+  render(ctx, E) {
+    this.rows = []; this.back = null;
+    if (portrait(E)) { rotateCard(ctx, E); return; }
+    drawCourtyard(ctx, E);
+    this.back = pageHead(ctx, E, 'THE WALL OF CHAMPIONS', 'Every name here walked out of the sand.');
+    const L = E.save.get('champs', []), cols = E.w >= 560 ? 2 : 1;
+    if (!L.length) { E.text("No champion yet. Fell an arena's champion to be carved here.", E.w / 2, E.h / 2, { size: 16, weight: '700', color: '#c4b99a' }); return; }
+    const G = scrollGrid(E, L.length, E.safe.top + 80, 66, cols, this.scroll);
+    this.scroll = G.s; this.maxScroll = G.max;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, G.y0 - 4, E.w, G.bot - G.y0 + 8); ctx.clip();
+    L.forEach((c, i) => {
+      const r = G.rects[i], ok = vetArenas(E, c).length > 0, A = ARENA[c.arena] || ARENAS[0];
+      E.roundRect(r.x, r.y, r.w, r.h, 10, ok ? 'rgba(58,47,34,0.96)' : 'rgba(58,50,44,0.9)', ok ? '#ffd24a' : '#5a4e44');
+      laurel(ctx, r.x + 26, r.y + r.h / 2, 13);
+      const org = c.origin && ORIGINS[c.origin] ? ORIGINS[c.origin].text.replace(/^an? /, '') : null, wpn = c.weapon ? (c.weapon === 'axe' && c.mace ? 'Mace' : TUNING.me.wheels.weapon.find((e) => e[0] === c.weapon)[2].replace('Axe/mace', 'Axe')) : null;
+      // the weapon always shows: when origin and weapon do not fit, the place goes
+      ctx.font = '700 14px system-ui, sans-serif';
+      const whoOf = (o) => [o, wpn].filter(Boolean).join(' \u00b7 '), who = (ctx.measureText(whoOf(org)).width > r.w - 60 ? whoOf(org && org.replace(/ from .*$/, '')) : whoOf(org)) || 'A champion of the old days';
+      E.text(clipLine(ctx, c.name, r.w - 60, 16, '800'), r.x + 50, r.y + 17, { size: 16, weight: '800', align: 'left', color: '#fde68a' });
+      E.text(clipLine(ctx, who, r.w - 60), r.x + 50, r.y + 36, { size: 14, align: 'left', color: '#e2e8f0' });
+      E.text(clipLine(ctx, ok ? `${A.short} cleared · tap to fight again` : `${A.short} cleared`, r.w - 60), r.x + 50, r.y + 54, { size: 14, weight: '700', align: 'left', color: ok ? '#ffd24a' : '#c4b99a' });
+      if (r.y + r.h > G.y0 && r.y < G.bot) this.rows.push({ ...r, c, ok });
+    });
+    ctx.restore();
+  },
+  onTap(p, E) {
+    if (portrait(E)) return;
+    if (this.back && E.hit(this.back, p)) { E.audio.play('tap'); E.setScene('menu'); return; }
+    const r = this.rows.find((q) => E.hit(q, p)); if (!r) return;
+    if (r.ok) { E.audio.play('tap'); E.setScene('arenas', { vet: r.c }); return; }
+    E.audio.play('miss');
+    E.toast(!r.c.me ? 'From before the Wall: no rolls kept to fight with' : r.c.arena === 'games' ? 'They cleared the Grand Games: no arena above' : 'Open the arena above theirs first');
+  },
+};
+
 // The roll: one big wheel at a time, in the eight wheels' order, with progress pips above it, its odds and what reshaped them beside it, and your fighter's
 // card building on the right as each answer lands; then the card with the strip of small wheels (tap one, then Respin rolls it again with the run's one token) and Fight!. Each wheel: its slices grow and
 // shrink from the plain wheel (TUNING.me.roll.shape s, or wait when nothing changed), it spins (a tap spins it at once), a tap snaps it to its landing,
 // and the answer holds (a tap moves on). The landings were all decided by rollMe; the wheels only show them.
 const isRare = (k, v) => { const R = TUNING.me.rare[k === 0 ? 'size' : ME_WHEEL[k]]; return !!R && R.includes(v); };
 const roll = {
+  // a veteran (params.vet, from the Wall of Champions) keeps their rolls: no wheels, no respin, straight to their card
   enter(E, params) {
-    this.seed = params.seed; this.arena = params.arena || 'pit'; this.me = rollMe(this.seed); this.cardT = 0; this.landT = [];
+    const open = ludusOf(E), extra = startPick(E);
+    this.seed = params.seed; this.arena = params.arena || 'pit'; this.vet = params.vet || null; this.cardT = 0; this.landT = [];
+    this.me = this.vet ? vetMe(this.vet, open, extra) : { ...rollMe(this.seed, open), extra };
     this.btn = this.respinBtn = null; this.token = TUNING.token; this.used = ''; this.sel = -1; this.spin = null; this.prev = null;
-    this.at(0);
+    this.at(this.vet ? WHEELS.length : 0);
   },
   // wheel k, before its spin: its plain weights (a stat wheel's B tier) and the reshaped ones it spins on
   at(k) {
@@ -5273,7 +5766,7 @@ const roll = {
     drawMeCard(ctx, E, shown, x, y + (1 - k) * 30, w, h);
     ctx.globalAlpha = 1;
     const by = y + h - 32, pick = this.sel >= 0;
-    this.respinBtn = tokenButton(E, pick ? `Respin ${WHEELS[this.sel].title.toLowerCase()}` : 'Respin', x + 108, by, this.token, pick && !sp, this.token > 0 && !pick ? '1 left · tap a wheel' : null);
+    this.respinBtn = this.vet ? null : tokenButton(E, pick ? `Respin ${WHEELS[this.sel].title.toLowerCase()}` : 'Respin', x + 108, by, this.token, pick && !sp, this.token > 0 && !pick ? '1 left · tap a wheel' : null);
     this.btn = E.button('Fight!', x + w - 92, by, { w: 150, h: 48, size: 20, fill: '#b45309' });
   },
   drawWheels(ctx, E) {
@@ -5312,9 +5805,11 @@ const roll = {
     if (st && !why.length) why.push(['A plain wheel', null]);
     for (const [t, up] of why) for (const ln of wrapPx(ctx, t, lw, 14, '700').slice(0, 2)) { E.text(ln, x, y, { size: 14, weight: '700', align: 'left', color: up == null ? '#9aa4b2' : up ? '#86efac' : '#fca5a5' }); y += 17; }
     y += 6;
-    const tot = w.reduce((a, q) => a + q, 0), t0 = this.w0.reduce((a, q) => a + q, 0), t1 = this.w1.reduce((a, q) => a + q, 0), rh = Math.min(22, (L.bot - 40 - y) / list.length);
-    list.forEach((e, n) => {
-      const ry = y + n * rh, hit = landed && n === this.me.idx[k], pct = Math.round(w[n] / tot * 100), d = Math.round(this.w1[n] / t1 * 100) - Math.round(this.w0[n] / t0 * 100);
+    // a slice the ludus has not opened is not on the wheel, so not in its odds
+    const rows = list.map((e, n) => n).filter((n) => this.w1[n] > 0 || this.w0[n] > 0);
+    const tot = w.reduce((a, q) => a + q, 0), t0 = this.w0.reduce((a, q) => a + q, 0), t1 = this.w1.reduce((a, q) => a + q, 0), rh = Math.min(22, (L.bot - 40 - y) / rows.length);
+    rows.forEach((n, ri) => {
+      const e = list[n], ry = y + ri * rh, hit = landed && n === this.me.idx[k], pct = Math.round(w[n] / tot * 100), d = Math.round(this.w1[n] / t1 * 100) - Math.round(this.w0[n] / t0 * 100);
       if (hit) E.roundRect(x - 4, ry - rh / 2, lw + 4, rh, 6, 'rgba(255,210,74,0.18)', null);
       ctx.fillStyle = sliceCol(wh, n); ctx.fillRect(x, ry - 6, 12, 12);
       E.text(e[2], x + 18, ry, { size: 14, weight: hit ? '800' : '700', align: 'left', color: hit ? '#ffd24a' : '#e2e8f0' });
@@ -5352,7 +5847,7 @@ const roll = {
     if (this.btn && E.hit(this.btn, p)) { E.audio.play('tap'); E.setScene('play', { seed: this.seed, arena: this.arena, me: this.me, token: this.token, tokenUsed: this.used }); return; }
     if (this.respinBtn && this.respinBtn.live && E.hit(this.respinBtn, p)) { this.respin(E); return; }
     const S = this.strip(E);
-    if (this.token > 0 && p.y <= S.bottom + 4 && p.x >= S.x0 && p.x < S.x0 + S.cw * S.n) {
+    if (!this.vet && this.token > 0 && p.y <= S.bottom + 4 && p.x >= S.x0 && p.x < S.x0 + S.cw * S.n) {
       const j = Math.floor((p.x - S.x0) / S.cw);
       this.sel = this.sel === j ? -1 : j; E.audio.play('tap'); E.haptic(6);
     }
@@ -5375,7 +5870,7 @@ const play = {
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize,
-  ARENAS, rollGauntlet, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
+  ARENAS, rollGauntlet, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     if (params.resume) resumeRun(E, params.resume); else newRound(E, params.seed, params.me || rollMe(params.seed), undefined, params.arena);
     newRack(E); initHand(E);
@@ -5418,7 +5913,7 @@ const play = {
     state.riposte = Math.max(0, state.riposte - dt);
     if (state.open > 0) state.open -= dt;
     state.chase = Math.max(0, state.chase - dt);
-    state.momT = Math.max(0, state.momT - dt); state.openAll = Math.max(0, state.openAll - dt); state.baitT = Math.max(0, state.baitT - dt);
+    state.momT = Math.max(0, state.momT - dt); state.openAll = Math.max(0, state.openAll - dt); state.baitT = Math.max(0, state.baitT - dt); state.foeNet = Math.max(0, state.foeNet - dt);
     if (state.gapOpen && (state.gapOpen.t -= dt) <= 0) state.gapOpen = null; state.disarm = Math.max(0, state.disarm - dt); state.flyW = Math.max(0, state.flyW - dt);
     if (state.cover) {
       const c = state.cover, k = 1 - Math.exp(-dt / (TUNING.cover.slide * (lamed('armB') ? TUNING.lame.cover : 1)));
@@ -5491,16 +5986,21 @@ const play = {
     const ai = ARENAS.indexOf(arena()), was = E.save.get('arenas', 0), opened = won && ai + 1 > was ? ARENAS[ai + 1] || null : null;
     if (won && ai + 1 > was) E.save.set('arenas', ai + 1);
     const wall = won ? E.save.get('wall', []) : E.save.set('wall', [{ name: me.name, bout: reached, female: me.female }, ...E.save.get('wall', [])].slice(0, 8));
+    // fame for good, and a won run's fighter on the Wall of Champions
+    const thumbUp = won && state.arena === 'games' && bandOf(thumbFav()) === 2, fame = fameOf(won, won && ai + 1 > was, thumbUp, state.gold);
+    E.save.set('fame', E.save.get('fame', 0) + fame.sum);
+    if (won) carveChampion(E, me, state.arena, champ.name);
     E.ledger.add('result', { ...r, won, reached, halves: state.hp, sizes: g.map((d) => d.size.id[0]).join(''), profs: g.map((d) => d.prof).join(','), weapons: g.map((d) => d.weapon.id).join(','), armour: g.map((d) => d.set.id[0]).join(''),
       stats: g.map((d) => `${d.str}${d.spd}${d.sta}`).join(','), champ: g[g.length - 1].name, lostTo: won ? '' : `${g[reached - 1].name} ${g[reached - 1].size.id} ${g[reached - 1].weapon.id}`,
       moves: Object.entries(state.moveCount).map(([k, v]) => `${k}${v}`).join(','),
       meSize: me.size, meStats: `${me.str}${me.spd}${me.sta}`, meArmour: me.set, mePlates: me.plates.join(','), meTier: me.tier, underdog: me.underdog ? 1 : 0,
       grades: state.grades.join(''), picks: state.picks.join(','), stepsIn: state.stepsIn, stepsOut: state.stepsOut, wallHits: state.wallHits, foeWall: state.foeWall, outReach: state.outReach, dodged: state.dodged, chases: state.chases,
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
-      arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1 });
+      arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1,
+      meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast });
     E.setScene('over', { ...r, won, reached, gauntlet: g, me, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew,
       picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice(),
-      arena: state.arena, fav: state.arena === 'games' ? thumbFav() : state.fav, opened });
+      arena: state.arena, fav: state.arena === 'games' ? thumbFav() : state.fav, opened, fame });
   },
   // two thumbs: a touch that starts in the left third is the shield and dodge thumb (buttons only), one that starts on the finisher button is that button
   // alone (it never moves the sword hand), any other is the sword thumb
@@ -5574,6 +6074,7 @@ const play = {
     if (state.netT > 0) { const Fy = youF(E); drawNet(ctx, Fy.x, Fy.y - 0.55 * Fy.H, 0.32 * Fy.H * clamp(state.netT / 0.3, 0.6, 1)); }
     if (state.edge && !state.edge.down) drawEdge(ctx, E);
     drawFighter(ctx, E, foeF(E), state.foe, 'foe');
+    if (state.foeNet > 0 && state.fallT <= 0) { const Ff = foeF(E); drawNet(ctx, Ff.x, Ff.y - 0.5 * Ff.H, 0.36 * Ff.H * clamp(state.foeNet / 0.3, 0.6, 1)); }
     if (state.flyW > 0) flyingWeapon(ctx, E);
     drawGuard(ctx, E);
     drawZone(ctx, E);
@@ -5688,6 +6189,7 @@ const over = {
     if (p.rivalBeaten) E.text('Rival defeated!', E.w / 2, y + 54, { size: 16, weight: '800', color: '#f87171' });
     E.text(`${me.name}, ${ORIGINS[me.origin].text}.`, E.w / 2, y + h * 0.45, { size: 20, weight: '800', color: '#f0e6cc' });
     wrapPx(ctx, endingOf(p.arena, me, p.fav), w - 40, 17, '700').slice(0, 2).forEach((t, i) => E.text(t, E.w / 2, y + h * 0.45 + 32 + i * 22, { size: 17, weight: '700', color: '#fde68a' }));
+    if (p.fame && p.fame.sum) E.text(`+${p.fame.sum} fame`, E.w / 2, y + h - 46, { size: 18, weight: '800', color: '#ffd24a' });
     E.text('Tap to continue', E.w / 2, y + h - 22, { size: 14, weight: '800', color: '#ffd24a', alpha: this.t > 0.5 ? 0.6 + 0.4 * Math.sin(E.time * 4) : 0.3 });
   },
   // The Grand Games end on the Emperor's thumb: the imperial box, then his hand rises and the thumb turns by the crowd's meter (up and a roar, a cold
@@ -5725,6 +6227,7 @@ const over = {
       const head = b === 2 ? 'Thumbs up. The crowd roars.' : b === 1 ? 'A cold nod.' : 'Thumbs down. The crowd jeers.';
       E.text(head, cx, by + bh + 24, { size: 17, weight: '800', color: b === 2 ? '#ffd24a' : b === 1 ? '#e2e8f0' : '#fca5a5' });
       wrapPx(ctx, endingOf('games', p.me, p.fav), w - 40, 16, '700').slice(0, 2).forEach((s2, i) => E.text(s2, cx, by + bh + 50 + i * 20, { size: 16, weight: '700', color: '#fde68a' }));
+      if (p.fame && p.fame.sum) E.text(`+${p.fame.sum} fame`, cx + w / 2 - 20, y + h - 18, { size: 16, weight: '800', align: 'right', color: '#ffd24a' });
     }
     E.text('Tap to continue', cx, y + h - 18, { size: 14, weight: '800', color: '#ffd24a', alpha: t > T.tap ? 0.6 + 0.4 * Math.sin(E.time * 4) : 0.3 });
   },
@@ -5762,7 +6265,8 @@ const over = {
     } else E.text('No gear picked', E.w / 2, y, { size: 14, color: '#9ca3af' });
     y += 18;
     // the run's gold: what is left (it resets with the run) and what the crowd's style earned, and the tent's wares
-    const wn = p.wares.map((id) => WARES.find((q) => q.id === id).name.replace(' {weapon}', '')), gl = `Gold: ${p.gold} left of ${p.goldEarned} earned${wn.length ? `  \u00b7  bought: ${wn.join(', ')}` : ''}`;
+    const F = p.fame || { sum: 0, items: [] }, fl = F.sum ? `  \u00b7  +${F.sum} fame (${F.items.map((e) => `${e[0]} ${e[1]}`).join(', ')})` : '';
+    const wn = p.wares.map((id) => WARES.find((q) => q.id === id).name.replace(' {weapon}', '')), gl = `Gold: ${p.gold} left of ${p.goldEarned} earned${wn.length ? `  \u00b7  bought: ${wn.join(', ')}` : ''}${fl}`;
     const gls = wrapPx(ctx, gl, E.w - 32 - E.safe.left - E.safe.right, 14, '700');
     gls.forEach((t, k) => E.text(t, E.w / 2, y + k * 17, { size: 14, weight: '700', color: '#fbbf24' }));
     y += 17 * gls.length + 1;
@@ -5817,7 +6321,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 9,
+  saveVersion: 10,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -5857,6 +6361,10 @@ export const game = {
     }
     // v9 (v2 step 3.6, the finisher button): `finHint` is set once the button's first-time hint has been shown
     if (fromVersion < 9) data.finHint = 0;
+    // v10 (v2 step 4b, the meta): fame, the ludus's unlocks (a save from before keeps the Trickster and the Showman open), the tailor's styles, the
+    // start-card pick and the cards ever picked, the Wall of Champions; menu.enter reads the ledger once (fameCheck) for the fame of past wins and cleared
+    // arenas, their fighters on the Wall and their picks. A saved run's fighter has every family open, as before.
+    if (fromVersion < 10) Object.assign(data, { fame: 0, ludus: ['trick', 'show'], tailor: {}, startPick: '', picked: [], champs: [], fameCheck: 1 });
     return data;
   },
   TUNING,
@@ -5879,5 +6387,5 @@ export const game = {
     { label: 'Brutal', values: { ...STD, 'stamina.regen': 22, 'attack.over.cost': 34, 'shield.perfect': 0.1, 'shield.hits': 3, 'shield.drain': 12, 'open.dur': 0.6, 'swing.windup': 0.55, 'swing.gap': 1.3, 'counter.windup': 0.35, 'hit.minSpeed': 600, 'dodge.cost': 28 } },
   ],
   start: 'menu',
-  scenes: { menu, arenas: pickArena, roll, play, over },
+  scenes: { menu, arenas: pickArena, ludus, champs, roll, play, over },
 };

@@ -3,7 +3,7 @@
 ## The drive
 
 - **What you do:** fight a gauntlet of gladiators with a sword you aim.
-- **Why you do it:** the underdog's grit. The reason itself is rolled: freedom, a debt, revenge or glory.
+- **Why you do it:** the underdog's grit. The reason itself is rolled: freedom, a debt, revenge or glory (and, once the shrine opens it, a promise).
 - **For whom:** yourself, your family (the debt), your village (revenge), or Rome's memory (glory).
 - **How it ends:** beat the champion for the epilogue your reason earns. Or fall, and Old Brutus chalks your name on the pit wall.
 
@@ -62,10 +62,50 @@ A pair's partner taunts from the edge before he steps in: "Now, brother!" when t
 
 On the first card, his reason's opening line follows the arena's line.
 
+## The ludus (v2 step 4b)
+
+Old Brutus's school, opened with fame. His line on each page: the courtyard "My school. Your fame pays for it."; the armoury "Steel is steel. How you hold it is everything."; the barracks "New blood in the barracks. Make room."; the training ground "Sweat here, so you bleed less out there."; the shrine "Every fighter needs a reason. Pick a good one."; the tailor "Look good. Then fight better than you look."; the start-card page "Pick what you trust. You start every run with it."; the Wall of Champions "Every name here walked out of the sand."
+
+### The barracks' origins
+
+| Origin (on the card) | Background | Start card | Old Brutus, before bout 2 |
+| --- | --- | --- | --- |
+| a gladiatrix from Sparta (always a woman) | gladiatrix | a Wall common | "Sparta sent you. Show him why they fear it." |
+| a freed slave from Egypt | freed slave | a Brute common | "You've broken chains before. Break him." |
+| a chariot driver from the Circus | charioteer | a Dancer common | "No horses here, charioteer. Steer him into the wall." |
+
+### The shrine's reason: a promise
+
+Your sister is held in the champion's house. The thread on each foe's card is a key and "Your sister: n fights to her door" ("the last door" before the champion). A rival taunts: "Back for your sister again?"
+
+- **Old Brutus:** "You promised her. Keep it." / "She's waiting in his house. Don't make her wait." / "One more, and you are at his door."; after each fell: "One down. She'll hear of it." / "Two. His house is closer." / "Three. Tell her to be ready." / "Next is him. The key's on his belt."
+
+| Champion | Tie (on his card) | His line |
+| --- | --- | --- |
+| the Pit's four | "Your sister is a slave in his house." | "Your sister? She sweeps my floor. Go home." |
+| Castor and Pollux | "Your sister serves at the Twins' table." | "She pours for both of us. Twice the work." |
+| Hermes the Swift | "Your sister runs his errands now." | "She runs for me now. Can you catch me?" |
+| Carpophorus | "Your sister feeds his lions." | "She feeds my lion. He's grown fond of her." |
+| Mevia the Huntress | "She caught your sister when she ran." | "Your sister ran once. My net was faster." |
+| Aquila | "Your sister serves in the Emperor's house." | "Only the Emperor frees her. Not you." |
+
+| Arena | How a won run ends |
+| --- | --- |
+| The Pit | "[name] kept the promise. Her/His sister walked out of the champion's house, free." |
+| The City arena | "In Pompeii, [name] learned where she had been sold: Rome." |
+| The Colosseum | "[name] saw her at last, among the Emperor's slaves. One more door." |
+| The Grand Games (full meter) | "The Emperor frees your sister. She runs to you across the sand." |
+
+### The Wall of Champions and veterans
+
+Beside the pit wall: every fighter who cleared an arena, carved in gold. A veteran returns with a scar line after the champion they felled: "Scarred by [name]", "[name]'s mark on the brow", "A scar from [name]".
+
 ## Places and things
 
 - **The pit:** where every run starts.
-- **The wall of the pit:** the names of your last eight fallen fighters.
+- **The wall of the pit:** the names of your last fallen fighters (the menu shows four).
+- **The Wall of Champions:** every fighter who cleared an arena.
+- **The ludus:** Old Brutus's school: the armoury, the barracks, the training ground, the shrine and the tailor.
 - **The wooden sword:** the gladiator's freedom.
 
 ## Lines already written
