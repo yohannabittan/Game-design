@@ -657,3 +657,45 @@ Principle 16: every action sounds and shows.
   - a plain fighter can still fell the Pit champion;
   - text counts follow principle 11;
   - nothing overlaps at the three sizes.
+
+## Step 4c (locked 2026-10-15): the crowd pays, and losing still counts
+
+**From the export (`playtests/2026-10-15-city-4b.md`):**
+- Four City losses on the 4b build earned 0 fame between them.
+- The crowd never reached its top third.
+- No war paint was picked, so the Momentum went unused.
+- The ludus was not used.
+
+**The designer:** "Tbh I don't know what the crowd is or does." Then: "Yes go, make the crowd pay gold, and continue with the other improvements that make sense."
+
+**Why:** outside the Grand Games and the Showman's cards the crowd changes nothing, because its coins are cosmetic and gold comes from a fixed formula. Its meter has no label. The Momentum label is 10 px, which breaks principle 7.
+
+One Sonnet build, reviewed.
+
+- **The crowd pays gold.**
+  - When a bout ends, a new line, "crowd", joins the bout's gold. It is the bout's other gold times `TUNING.crowd.pay` (0.5) times the meter at the bout's end over its max, rounded. So a full crowd pays half again, and an empty one pays nothing.
+  - It shows on the grade card's gold list like the other lines, for example "crowd +12".
+  - The Darling of Rome's halving applies to it, as it does to the other style lines.
+  - The coins in the sand stay as they are. They are now honest, since the crowd's mood is what pays.
+- **The crowd is named.** The meter carries the word CROWD at 14 px beside it, in place of or beside the three heads, whichever fits clear of BOUT and the foe's bar at 667x375, 844x390 and 932x430.
+- **The crowd explains itself once.** The first time ever that the meter passes its first third, a one-line hint shows for about 6 s: "The crowd loves style: reads, perfect blocks, combos. A happy crowd pays more gold." It uses the finisher hint's look and placement rules, and is stored in the save as `crowdHint`, as the finisher hint is stored.
+- **The crowd is a little easier to win.** `TUNING.crowd.drain` goes from 0.03 to 0.02. The designer's playtest judges it.
+- **Losing still earns fame.** Each bout won earns `TUNING.fame.bout` (3) fame, in a run won or lost, the champion's bout included. It is a "bouts won" line on the fame list and on the stats page. A run lost at bout 4 earns 9.
+- **The Ludus shows when you can spend.** On the menu, The Ludus button carries a small gold dot while your fame buys at least one unlock you don't own. It is drawn on the canvas, with no new text.
+- **Momentum is readable.**
+  - Its label is 14 px, so it meets principle 7.
+  - The first time ever that Momentum is full while you hold no war paint, a one-line hint shows for about 6 s: "Momentum is full. War paint (finishers) spends it." It is stored as `momHint`.
+- **Saves:** `crowdHint` and `momHint` are new keys read with a default, as `finHint` is, so there is no `saveVersion` bump.
+- **Out of scope:**
+  - the spear fighters' strength;
+  - new cards;
+  - any change to how the crowd fills.
+- **Acceptance:**
+  - a scripted bout with the meter at 0, 50 and 100 gives a crowd line of 0, a quarter and a half of the other gold;
+  - Darling of Rome halves it;
+  - a lost run at bout 4 gives 9 fame plus gold left;
+  - the dot shows only when something is affordable;
+  - each hint shows once ever;
+  - nothing overlaps at the three sizes;
+  - `npm run smoke` passes;
+  - frame time is no worse than arena-v25.
