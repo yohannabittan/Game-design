@@ -217,11 +217,11 @@ const TUNING = {
     // your net (the trident): it holds him dur s, his wind-ups wind x longer, his footwork at step x its speed
     net: { dur: 3, wind: 0.3, step: 0.5 },
   },
-  // fame, kept for good (E): a champion felled, an arena's first clear, the Emperor's thumbs up, and 1 for each goldPer gold left when a run ends
-  fame: { champ: 10, clear: 25, thumbUp: 10, goldPer: 50 },
+  // fame, kept for good (E): a champion felled, an arena's first clear, the Emperor's thumbs up, bout fame for every bout won (a lost run too), and 1 for each goldPer gold left when a run ends
+  fame: { champ: 10, clear: 25, thumbUp: 10, goldPer: 50, bout: 3 },
   // Brutus's ludus: each unlock's price in fame; the Wall of Champions keeps the newest wallMax fighters; a veteran gains vetUp on one stat
   ludus: { price: { trident: 30, sica: 30, sparta: 25, egypt: 25, circus: 25, trick: 40, show: 40, slot: 60, fourth: 50, promise: 30, crest: 15, plume: 15, paint: 15, cloak: 20 },
-    wallMax: 30, vetUp: 1, vetCap: 4 },
+    wallMax: 30, vetUp: 1, vetCap: 4, dot: { r: 6, inset: 9 } },
   // your own feint (the Trickster's enabler). With the Feint worn a lunge commits, and only then does what its blade met land, once the thumb has stayed
   // within slack (arm lengths of hand travel) of its furthest reach for settle s, or hold s after it began. A lunge
   // pulled back under the lunge's start with the thumb still down before it commits, having reached depth of a full lunge and touched nothing, no sooner than
@@ -281,7 +281,7 @@ const TUNING = {
   // finishers: Momentum each costs; Execute works below this share of his health; Disarm's seconds; False Opening's winding (s); Showstopper's favour and awe (s)
   fin: { exec: 3, whirl: 2, breath: 2, disarm: 4, falseop: 3, showstop: 3, below: 0.5, disarmDur: 3, beastStun: 1, falseWind: 1.5, showFav: 30, showAwe: 1.5 },  // beastStun: a beast has no weapon, so a disarm stuns it this long
   // Momentum pips, per bout: the most you hold, what each event gives (a perfect block, a feint read, a dodge in his tell, a laming);
-  mom: { max: 5, perfect: 1, read: 1, dodge: 1, lame: 1 },
+  mom: { max: 5, perfect: 1, read: 1, dodge: 1, lame: 1, hintDur: 6 },
   // the finisher button, bottom right: its body w x h px (an arrow chip of arrow px joins it when two are ready), the touch area's extra px, and the first-time
   // hint's seconds on screen (it is shown once ever, stored in the save)
   finBtn: { w: 140, h: 50, arrow: 44, reach: 6, hintDur: 7 },
@@ -313,7 +313,7 @@ const TUNING = {
   // no hits taken, two of your hits within comboWin s, a finisher), what turtling (his turtle read's measure) and backing off with no blow coming drain
   // per second; with nothing stylish for idle s the meter drains drain of itself per second (0.03: a high meter eases down, a low one barely moves); coins arc in from the stands at each step of favour; the Emperor's
   // thumb reads the average of the meter over the champion's bout, by thirds (bands)
-  crowd: { max: 100, read: 5, perfect: 2.5, slot: 2.5, lame: 2.5, clean: 5, combo: 1, fin: 1, comboWin: 1, turtle: 4, back: 6, idle: 3, drain: 0.03, step: 20, coins: 5, coinCap: 15, bands: [1 / 3, 2 / 3] },
+  crowd: { max: 100, read: 5, perfect: 2.5, slot: 2.5, lame: 2.5, clean: 5, combo: 1, fin: 1, comboWin: 1, turtle: 4, back: 6, idle: 3, drain: 0.02, pay: 0.5, hintDur: 6, step: 20, coins: 5, coinCap: 15, bands: [1 / 3, 2 / 3] },
   // the Colosseum's champions: Carpophorus sends in his lion when his health falls to send x his own; Mevia's spear also throws a net (its weight)
   champs: { carpophorus: { send: 0.5 }, mevia: { net: 2.4 } },
   // the Emperor's thumb card: s the box takes to show, then the hand to rise, then the thumb to turn; s before a tap continues
@@ -1016,7 +1016,7 @@ function newRound(E, seed, me0, rv, arenaId = 'pit') {
     mom: 0, momT: 0, momGained: 0, momSpent: 0, lamings: 0, gold: 0, goldEarned: 0, lastGold: null, bought: [], rerolls: 0, tent: null, tentDone: false, lab: null, labMom: false, labUsed: 0, fins: [], wares: [], carry: 0, capCut: 0, ownFeints: 0, feintsLearned: 0, flourishes: 0, netsCast: 0, foeNet: 0, fl: { acc: 0, t: 0, ang: null, at: -9, fx: 0, fy: 0 }, armed: {}, openAll: 0, disarm: 0, flyW: 0, dents: 0, cape: 0, bleed: [], bleedT: 0, bleeds: 0, bleedDmg: 0,
     you: { lunge: 0, lungeK: 0, a: 0, back: 0, hopY: 0, push: 0, parts: playerParts(me), fr: {} },
     foe: {}, edge: null, swapping: false, tauntT: 0, taunt: '',
-    fav: 0, favStep: 0, favT: 0, favShown: 0, favM: 0, favSum: 0, favDur: 0, lastHitM: -9, opened: null, finSel: '', finHintT: 0,
+    fav: 0, favStep: 0, favT: 0, favShown: 0, favM: 0, favSum: 0, favDur: 0, lastHitM: -9, opened: null, finSel: '', finHintT: 0, hintT: 0, hintS: '',
     crowd: [],
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, heldAt: -9, zy: -0.58, arm: 0, blocked: false, pressT: -9 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
@@ -2384,8 +2384,19 @@ function fireFinisher(E, c) {
 // the button's first appearance ever shows a one-line hint, once (stored in the save)
 function updateFinisher(E, dt) {
   state.finHintT = Math.max(0, state.finHintT - dt);
-  if (!finBtn(E) || E.save.get('finHint', 0)) return;
+  state.hintT = Math.max(0, state.hintT - dt);
+  if (!finBtn(E) || E.save.get('finHint', 0) || state.hintT > 0 || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
   E.save.set('finHint', 1); state.finHintT = TUNING.finBtn.hintDur;
+}
+// two more first-time hints, each shown once ever (stored in the save), one at a time: the crowd's first third, and a full Momentum with no war paint
+function updateHints(E) {
+  if (state.hintT > 0 || state.finHintT > 0 || !finLive(E) || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
+  const C = TUNING.crowd, M = TUNING.mom;
+  if (state.fav >= C.bands[0] * C.max && !E.save.get('crowdHint', 0)) {
+    E.save.set('crowdHint', 1); state.hintT = C.hintDur; state.hintS = 'The crowd loves style: reads, perfect blocks, combos. A happy crowd pays more gold.';
+  } else if (state.mom >= M.max && !E.save.get('momHint', 0) && !DECK.some((c) => c.fam === 'fin' && has(c.id))) {
+    E.save.set('momHint', 1); state.hintT = M.hintDur; state.hintS = 'Momentum is full. War paint (finishers) spends it.';
+  }
 }
 // a touch on the button: the arrow chip cycles to the other ready finisher, anywhere else on it fires the one shown
 function finTouch(E, p) {
@@ -2570,11 +2581,15 @@ function dealDraft(grade, salt = 0, not = []) {
   for (const [t, k] of cascadeTiers(left)) if (!k || rng.chance(D.cascade[k])) { pick = famPick(rng, left.filter((c) => inTier(c, t)), held); break; }
   return { cards: pick ? [...out, pick] : out, priced: pick ? out.length : -1, odds: cascadeOdds(left).map(([t, p]) => [t, Math.round(p * 100)]) };
 }
-// the bout's gold: a fell, plus style (the crowd's coins, halved for the Darling of Rome)
+// the bout's gold: a fell, plus style (halved for the Darling of Rome), plus the crowd's share of both
 function boutGold() {
   const G = TUNING.gold, t = boutTally(), per = state.perfects - state.bout.perf, k = has('darling') ? C_().darlingGold : 1, c = (n) => Math.round(n * k);
-  const items = [['fell', G.fell], ['reads', c(t.read * G.read)], ['perfects', c(per * G.perfect)], ['slot hits', c(t.slot * G.slot)], ['no hits', c(t.taken === 0 ? G.clean : 0)]].filter((e) => e[1] > 0);
-  return { sum: items.reduce((a, e) => a + e[1], 0), items };
+  const raw = [G.fell, t.read * G.read, per * G.perfect, t.slot * G.slot, t.taken === 0 ? G.clean : 0];
+  const items = [['fell', G.fell], ['reads', c(raw[1])], ['perfects', c(raw[2])], ['slot hits', c(raw[3])], ['no hits', c(raw[4])]];
+  // the crowd pays a share of the bout's un-halved gold by its mood as the bout ends; the Darling's halving is applied to it once
+  items.push(['crowd', c(raw.reduce((a, v) => a + v, 0) * TUNING.crowd.pay * state.fav / TUNING.crowd.max)]);
+  const kept = items.filter((e) => e[1] > 0);
+  return { sum: kept.reduce((a, e) => a + e[1], 0), items: kept };
 }
 function openDraft(E) {
   const grade = state.grades[state.grades.length - 1] || 'C', deal = dealDraft(grade);
@@ -3714,8 +3729,12 @@ function drawPips(ctx, E, bx, bw, y) {
     ctx.strokeStyle = on ? '#fff0b8' : 'rgba(255,210,74,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
   }
   const armed = ['exec', 'whirl', 'falseop'].find((id) => state.armed[id]), fc = finReady();
-  const t = armed ? `${CARD[armed].name.toUpperCase()} ARMED` : fc ? 'finisher ready' : 'momentum';
-  E.text(t, bx - 6, y, { size: 10, align: 'right', color: armed || fc ? '#f5d0fe' : '#c4b99a', weight: armed || fc ? '800' : '400' });
+  // 14 px, clear of the foe's slot: a long name falls back to its short form
+  const room = bx - 6 - (hudSlot(E).x1 + 4), w = armed || fc ? '800' : '700';
+  ctx.font = `${w} 14px system-ui, sans-serif`;
+  let t = armed ? `${CARD[armed].name.toUpperCase()} ARMED` : fc ? 'finisher ready' : 'momentum';
+  if (ctx.measureText(t).width > room) t = armed ? 'ARMED' : fc ? 'ready' : t;
+  E.text(t, bx - 6, y, { size: 14, align: 'right', color: armed || fc ? '#f5d0fe' : '#c4b99a', weight: w });
 }
 // The HUD's middle: between BOUT on the left and your hearts, stamina and shield on the right, so his bar never meets their labels.
 function hudSlot(E) {
@@ -3749,16 +3768,19 @@ function foeHealth(ctx, E) {
   E.text(t, S.cx, fy, { size, weight: '800', color: '#ffd24a' });
 }
 
-// The crowd meter beside BOUT: three little heads, then the bar marked in thirds (the Emperor's thumb reads them), gold at the top third, flashing as it fills
+// The crowd meter under BOUT: a bar marked in thirds (the Emperor's thumb reads them) with the word CROWD written on it, gold at the top third,
+// flashing as it fills. It fills the HUD's left strip, which ends where the foe's slot (and his flag) begins.
 function drawCrowdMeter(ctx, E, x, y) {
-  const C = TUNING.crowd, k = clamp(state.favShown / C.max, 0, 1), band = bandOf(state.favShown), bx = x + 22, bw = 74, bh = 9;
-  ctx.fillStyle = '#c4b99a';
-  for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + 3 + i * 7, y + (i === 1 ? -1 : 1), 3, 0, 6.28); ctx.fill(); }
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx - 1, y - bh / 2 - 1, bw + 2, bh + 2);
-  ctx.fillStyle = band === 2 ? '#ffd24a' : band === 1 ? '#f59e0b' : '#b45309'; ctx.fillRect(bx, y - bh / 2, bw * k, bh);
-  if (state.favT > 0) { ctx.fillStyle = `rgba(255,255,255,${state.favT})`; ctx.fillRect(bx, y - bh / 2, bw * k, bh); }
-  ctx.fillStyle = 'rgba(240,230,204,0.7)';
-  for (const t of C.bands) ctx.fillRect(bx + bw * t - 1, y - bh / 2 - 2, 2, bh + 4);
+  const C = TUNING.crowd, k = clamp(state.favShown / C.max, 0, 1), band = bandOf(state.favShown), bw = hudSlot(E).x0 - 12 - x, bh = 17, by = y - bh / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 1, by - 1, bw + 2, bh + 2);
+  ctx.fillStyle = band === 2 ? '#ffd24a' : band === 1 ? '#f59e0b' : '#b45309'; ctx.fillRect(x, by, bw * k, bh);
+  if (state.favT > 0) { ctx.fillStyle = `rgba(255,255,255,${state.favT})`; ctx.fillRect(x, by, bw * k, bh); }
+  ctx.font = '800 14px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(20,12,4,0.9)'; ctx.strokeText('CROWD', x + 6, y + 1);
+  ctx.fillStyle = '#fff6dc'; ctx.fillText('CROWD', x + 6, y + 1);
+  ctx.fillStyle = 'rgba(240,230,204,0.85)';
+  for (const t of C.bands) { ctx.fillRect(x + bw * t - 1, by, 2, 5); ctx.fillRect(x + bw * t - 1, by + bh - 5, 2, 5); }
+  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(240,230,204,0.5)'; ctx.strokeRect(x - 0.5, by - 0.5, bw + 1, bh + 1);
 }
 function drawCoin(ctx, x, y, r) {
   ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#8a5a12'; ctx.lineWidth = 1.5;
@@ -4472,12 +4494,36 @@ function drawZoneLabel(ctx, E) {
 
 // A bottom-edge box whose right edge reaches the finisher button (or its first-time hint, which runs left of it) sits above it instead: returns the box's top y.
 function aboveFin(E, right, h, y) {
-  const b = finBtn(E);
-  if (!b) return y;
-  let left = b.x;
-  if (state.finHintT > 0) { E.ctx.font = `800 14px system-ui, sans-serif`; left = b.x + b.w - E.ctx.measureText('Tap to spend your Momentum.').width; }
+  const b = finBtn(E), hs = rightHints(E);
+  if (!b && !hs.length) return y;
+  const base = b ? b.y : E.h - 10 - E.safe.bottom - TUNING.finBtn.h;
+  let left = b ? b.x : Infinity, top = base;
+  for (const q of hs) { left = Math.min(left, q.px); top = Math.min(top, q.py); }
   if (right <= left - 8) return y;
-  return Math.min(y, b.y - 8 - h) - (state.finHintT > 0 ? 24 : 0);
+  return Math.min(y, top - 8 - h);
+}
+// The one-line hints at the bottom right, stacked up from the finisher button's slot: the button's own first-time hint (while the button shows) and the
+// crowd's or Momentum's (state.hintS). Each sits on a dark plate (px, py, pw, ph), is right-aligned to the screen's edge gutter and wraps to the room right of the left column.
+function rightHints(E) {
+  const out = [];
+  if ((state.finHintT <= 0 && state.hintT <= 0) || !finLive(E)) return out;
+  const b = finBtn(E), R = E.w - 16 - E.safe.right, room = R - (colRect(E).x + colRect(E).w + 12), ctx = E.ctx;
+  let y = (b ? b.y : E.h - 10 - E.safe.bottom - TUNING.finBtn.h) - 23;
+  ctx.font = '800 14px system-ui, sans-serif';
+  for (const [s, t] of [[b && state.finHintT > 0 ? 'Tap to spend your Momentum.' : '', state.finHintT], [state.hintT > 0 ? state.hintS : '', state.hintT]]) {
+    if (!s) continue;
+    const lines = wrapPx(ctx, s, room - 8, 14, '800'), tw = Math.max(...lines.map((l) => ctx.measureText(l).width)), ph = 18 * lines.length + 12;
+    out.push({ lines, x: R - tw, y, px: R - tw - 8, py: y - 18 * (lines.length - 1) - 15, pw: tw + 16, ph, a: clamp(t / 1.5, 0, 1) });
+    y -= ph + 6;
+  }
+  return out;
+}
+function drawRightHints(E) {
+  const ctx = E.ctx;
+  for (const q of rightHints(E)) {
+    ctx.globalAlpha = q.a; E.roundRect(q.px, q.py, q.pw, q.ph, 10, 'rgba(20,12,4,0.72)', null); ctx.globalAlpha = 1;
+    q.lines.forEach((l, i) => E.text(l, E.w - 16 - E.safe.right, q.y - 18 * (q.lines.length - 1 - i), { size: 14, align: 'right', weight: '800', color: '#fde68a', alpha: q.a }));
+  }
 }
 // The hint, in a player's first bouts ever: two short lines along the bottom, in the space right of the left thumb's column, fading out.
 function drawHint(ctx, E) {
@@ -4515,7 +4561,6 @@ function drawFinBtn(ctx, E) {
     ctx.beginPath(); ctx.moveTo(ax - 8, cy - 5); ctx.lineTo(ax + 8, cy - 5); ctx.moveTo(ax + 3, cy - 10); ctx.lineTo(ax + 8, cy - 5); ctx.lineTo(ax + 3, cy);
     ctx.moveTo(ax + 8, cy + 6); ctx.lineTo(ax - 8, cy + 6); ctx.moveTo(ax - 3, cy + 1); ctx.lineTo(ax - 8, cy + 6); ctx.lineTo(ax - 3, cy + 11); ctx.stroke();
   }
-  if (state.finHintT > 0) E.text('Tap to spend your Momentum.', b.x + b.w, b.y - 14, { size: 14, align: 'right', weight: '800', color: '#fde68a', alpha: clamp(state.finHintT / 1.5, 0, 1) });
 }
 // The lesson caption: a banner along the bottom edge, over the feet, so it never covers a zone band, its label or the foe's flags.
 function drawCaption(ctx, E) {
@@ -4635,9 +4680,10 @@ function drawDraft(ctx, E) {
   const o = D.odds[d.grade], pct = o.map((v) => Math.round(v / (o[0] + o[1]) * 100)), g = d.gold;
   // the style bonuses are the crowd's coins: what they threw is shown apart from the fell's purse
   const thrown = g ? g.items.filter((e) => e[0] !== 'fell') : [], tsum = thrown.reduce((a2, e) => a2 + e[1], 0);
-  const gl = `${g ? `+${g.sum} gold (fell ${g.sum - tsum}${tsum ? `, the crowd threw ${tsum}: ${thrown.map((e) => `${e[0]} ${e[1]}`).join(', ')}` : ''})  ·  ` : ''}purse ${state.gold}  ·  Grade ${d.grade}: Common ${pct[0]}% · Rare ${pct[1]}%`;
-  E.text(gl, E.w / 2, top + 92 + ex, { size: fitSize(ctx, gl, 12, E.w - 32, '700'), weight: '700', color: '#fbbf24' });
-  const n = d.cards.length, gap = 14, w = Math.min(210, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 108 + ex, h = Math.min(190, E.h - E.safe.bottom - y - 62), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
+  const gl = g ? `+${g.sum} gold (fell ${g.sum - tsum}${tsum ? `, the crowd threw ${tsum}: ${thrown.map((e) => `${e[0]} ${e[1]}`).join(', ')}` : ''})` : '', pl = `purse ${state.gold}  \u00b7  Grade ${d.grade}: Common ${pct[0]}% \u00b7 Rare ${pct[1]}%`;
+  const one = gl ? `${gl}  \u00b7  ${pl}` : pl, gls = wrapPx(ctx, one, E.w - 32, 14, '700').length === 1 ? [one] : [...(gl ? wrapPx(ctx, gl, E.w - 32, 14, '700') : []), ...wrapPx(ctx, pl, E.w - 32, 14, '700')], gx = (gls.length - 1) * 17;
+  gls.forEach((s2, k) => E.text(s2, E.w / 2, top + 92 + ex + k * 17, { size: 14, weight: '700', color: '#fbbf24' }));
+  const n = d.cards.length, gap = 14, w = Math.min(210, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 108 + ex + gx, h = Math.min(190, E.h - E.safe.bottom - y - 62), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
   const ready = d.t > D.delay;
   d.btns = d.cards.map((c, i) => {
     const x = x0 + i * (w + gap), priced = i === d.priced, price = priceOf(c), short = priced && state.gold < price, col = c.duo ? DUO_GOLD : FAMS[c.fam].col, rc = rarCol(c), old = replaces(c);
@@ -5219,9 +5265,10 @@ function meMini(ctx, E, me, x, y, w, h, picks = []) {
 }
 
 // ====== META: fame, the ludus, the Wall of Champions ======
-// A run's fame (TUNING.fame, E): a champion felled, the arena's first clear, the Emperor's thumbs up, and the gold left over; each with its reason
-function fameOf(won, first, thumbUp, gold) {
+// A run's fame (TUNING.fame, E): every bout won, a champion felled, the arena's first clear, the Emperor's thumbs up, and the gold left over; each with its reason
+function fameOf(won, first, thumbUp, gold, bouts = 0) {
   const F = TUNING.fame, g = Math.floor(gold / F.goldPer), items = [];
+  if (bouts > 0) items.push(['bouts won', bouts * F.bout]);
   if (won) items.push(['champion', F.champ]);
   if (first) items.push(['first clear', F.clear]);
   if (thumbUp) items.push(['thumbs up', F.thumbUp]);
@@ -5261,6 +5308,8 @@ function carveChampion(E, me, arenaId, champName) {
 const vetArenas = (E, c) => (c && c.me ? ARENAS.map((a, i) => i).filter((i) => i > ARENAS.findIndex((a) => a.id === c.arena) && i <= openTo(E)) : []);
 // what the ludus has opened, and your start-card pick (the training ground's slot, a card you have picked before)
 const ludusOf = (E) => E.save.get('ludus', []);
+// true while your fame buys at least one unlock you do not own (the menu's gold dot on The Ludus)
+const ludusBuys = (E) => { const L = ludusOf(E), fame = E.save.get('fame', 0); return LUDUS.some((st) => st.items.some((q) => !L.includes(q.id) && TUNING.ludus.price[q.id] <= fame)); };
 // only a common or a rare card, never a keystone or an epic: the slot is a small step
 const startable = (id) => { const c = CARD[id]; return !!c && !c.duo && !c.key && c.tier <= 1; };
 const startPick = (E) => { const id = E.save.get('startPick', ''), L = ludusOf(E); return L.includes('slot') && startable(id) && E.save.get('picked', []).includes(id) ? id : ''; };
@@ -5309,6 +5358,11 @@ const menu = {
       const x = cx + (i - (row.length - 1) / 2) * (bw + gap), label = k === 'new' ? 'New run' : k === 'ludus' ? 'The Ludus' : k === 'story' ? 'Story' : E.audio.muted ? 'Sound: off' : 'Sound: on';
       this.btns[k] = E.button(label, x, ry, { w: bw, h: 48, size: 16, fill: k === 'story' ? '#7c2d12' : k === 'ludus' ? '#7a5a14' : '#1f2937' });
     });
+    if (ludusBuys(E)) {
+      const D = TUNING.ludus.dot, b = this.btns.ludus, dx = b.x + b.w - D.inset, dy = b.y + D.inset;
+      ctx.fillStyle = '#ffd24a'; ctx.strokeStyle = '#3a2a08'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(dx, dy, D.r, 0, 6.28); ctx.fill(); ctx.stroke();
+    }
     // the pit wall: the last four fallen, newest first, chalked on stone; beside it the Wall of Champions, its newest names carved in gold
     const sw = Math.min(E.w - 40, 620), sx = cx - sw / 2, wy = Math.min(ry + 44, bottom - 82), pw = (sw - 12) / 2, wall = E.save.get('wall', []).slice(0, 4), champs = E.save.get('champs', []);
     E.text('THE PIT WALL', sx + pw / 2, wy, { size: 14, weight: '800', color: '#c4b99a' });
@@ -5933,6 +5987,7 @@ const play = {
     updatePair(E, dt);
     updateBleed(E, dt);
     updateFinisher(E, dt);
+    updateHints(E);
     updateDefence(dt, E);
     checkExhaust(E, dt);
     crowdDrain(E, dt);
@@ -5987,7 +6042,7 @@ const play = {
     if (won && ai + 1 > was) E.save.set('arenas', ai + 1);
     const wall = won ? E.save.get('wall', []) : E.save.set('wall', [{ name: me.name, bout: reached, female: me.female }, ...E.save.get('wall', [])].slice(0, 8));
     // fame for good, and a won run's fighter on the Wall of Champions
-    const thumbUp = won && state.arena === 'games' && bandOf(thumbFav()) === 2, fame = fameOf(won, won && ai + 1 > was, thumbUp, state.gold);
+    const thumbUp = won && state.arena === 'games' && bandOf(thumbFav()) === 2, fame = fameOf(won, won && ai + 1 > was, thumbUp, state.gold, state.results.filter((q) => q === 'felled').length);
     E.save.set('fame', E.save.get('fame', 0) + fame.sum);
     if (won) carveChampion(E, me, state.arena, champ.name);
     E.ledger.add('result', { ...r, won, reached, halves: state.hp, sizes: g.map((d) => d.size.id[0]).join(''), profs: g.map((d) => d.prof).join(','), weapons: g.map((d) => d.weapon.id).join(','), armour: g.map((d) => d.set.id[0]).join(''),
@@ -6168,6 +6223,7 @@ const play = {
     if (state.netT > 0) E.text('NETTED: slow hand, no lunge', bx + bw, sy + 34, { size: 11, align: 'right', color: '#e2e8f0', weight: '700' });
     if (state.hint && !state.intro && !state.caption) drawHint(ctx, E);
     drawFinBtn(ctx, E);
+    drawRightHints(E);
     if (state.intro) { drawIntro(ctx, E); if (E.channel !== 'release') { const t = labTab(E); E.roundRect(t.x, t.y, t.w, t.h, 10, '#1f2937', '#e879f9'); E.text('LAB', t.x + t.w / 2, t.y + t.h / 2, { size: 15, weight: '800', color: '#f5d0fe' }); } }
     if (state.lab) drawLab(ctx, E);
     if (state.draft) drawDraft(ctx, E);
