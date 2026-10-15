@@ -741,3 +741,97 @@ One Sonnet build, reviewed.
   - A scripted pair bout heals one heart at the first fell, capped at max, and the usual half heart at the second.
   - Every ludus line fits without clipping at the three sizes.
   - `npm run smoke` passes.
+
+## Step 5a (locked 2026-10-15): a longer lunge for stamina, and his weapon as spoils
+
+**The designer:**
+- "Sometimes with a short weapon I can't reach the other guy unless he lunges. I feel like I should be able to expend more stamina to lunge further."
+- "Maybe I should be able to get my enemy's weapon and switch to it."
+- Then, to the plan below: "Go for it."
+
+One Opus build (the lunge is feel-critical), reviewed.
+
+- **The drive (a longer lunge).**
+  - When a lunge has reached its full depth (`control.lungeFull`), keeping the sword thumb held out at or past that depth keeps you driving forward.
+    - It moves at `lunge.drive` H per second, about 0.6.
+    - It burns `lunge.driveCost` stamina per second, about 25.
+    - It goes up to `lunge.driveMax` H beyond the normal stride, about 0.3, so about twice the normal lunge.
+  - The drive ends when:
+    - the thumb comes back under the lunge's start, or lifts;
+    - the blade meets him (a hit, a clang or a plate);
+    - your stamina runs out;
+    - you reach his body.
+  - Everything else about the lunge stays:
+    - the recovery gives back the ground as now;
+    - he chases a lunge launched from beyond his reach, as now, so a missed long drive is still punished;
+    - a net still blocks lunges;
+    - Juggernaut counts a drive as lunging.
+  - With the Feint card worn, the drive begins only once the lunge has committed, so a drive is never read as a feint, and a feint never drives.
+  - **The look:** dust kicks from your back foot through the drive, and the stamina bar drains visibly.
+  - **The export:** `drives` (how many) and `driveDist` (total H driven).
+- **The spoils (his weapon).**
+  - On the grade card after a fell, when the fighter just felled carried a weapon different from yours, a button reads "Take his <weapon>" (for example "Take his spear").
+    - A tap swaps your weapon for his for the rest of the run: your fighter's look, moves and reach all change, as if the weapon wheel had rolled it.
+    - The button then reads "Keep your <weapon>", and a tap on it swaps back. The choice is final when you leave the card.
+    - The axe and the mace stay as he carried them.
+  - **No button when:**
+    - he was a beast;
+    - it is the run's last fell;
+    - his weapon matches yours.
+  - **Mevia's spear** is a plain spear in your hands. Her net is hers.
+  - **In a pair:** the button offers the weapon of the one who fell last.
+  - **Saves and the record:**
+    - the resumed run keeps the weapon taken;
+    - the Wall plaque and a veteran carry the weapon you won with;
+    - the export's `meWeapon` is the final weapon, and `spoils` counts the swaps kept.
+  - **Layout:** the button is at least 44 px, on the grade card, clear of the cards, Reroll and "?", at 667x375, 844x390 and 932x430.
+- **Out of scope:**
+  - picking up a dropped weapon during a fight;
+  - foes taking yours.
+- **Acceptance:**
+  - A scripted drive with a dagger reaches a foe at a distance a plain lunge cannot, and costs the stamina set.
+  - A drive stops on a clang.
+  - The Feint card's feint still works and never drives.
+  - A scripted spoils swap changes your weapon for the next bout and survives a resume.
+  - Nothing overlaps at the three sizes.
+  - `npm run smoke` passes.
+  - Frame time is no worse than arena-v27.
+
+## Step 5b (locked 2026-10-15): cards in plain words, and whole hearts
+
+**The designer:** "The cards can be confusing. Also the health, how does it work?" Then: "I wonder if we should have more hearts, and a hit can be 1-3 rather than halves." Then, to the plan below: "Go for it."
+
+One Sonnet build, after 5a lands, reviewed.
+
+- **Every card's line is the one in `card-copy-draft.md` (draft 1),** verbatim.
+  - **The card face:**
+    - the effect's name, large;
+    - the plain line;
+    - a small footer with the gear piece, its slot and its family (or "set bonus", or "war paint").
+  - The exact numbers move to each card's "?" help page.
+  - Any other player-facing text that uses the old words (slot, tell, pips, winded, lame, overhead) switches to the plain words in the draft's table, where it is a label the player reads, such as the lesson captions and hints. Pop words in the fight (STAB, SMASH!, OPEN!) stay.
+- **Whole hearts.**
+  - Health stays counted as now (the save and the numbers do not change), but each unit is drawn and named as a whole heart. So:
+    - a medium fighter shows 6 hearts, a runt 4 and a giant 9;
+    - a hit costs 1 to 3;
+    - a fell gives 1 back, and the first of a pair 2.
+  - **Plate:** a hit on a plated part costs half, rounded up, so it never takes part of a heart (`TUNING.me.plateMul` becomes that rule).
+  - Every line that counts hearts says the new number:
+    - Titan, "+4 hearts";
+    - Puppeteer, "4 hearts at most";
+    - Bread and Circuses, "+2 hearts";
+    - the tent's heart, "+2 hearts to your max, filled";
+    - the fighter card, "6 hearts".
+  - **The HUD hearts** get smaller so 9, plus Titan's 4, fit on one or two rows clear of the foe's bars at the three sizes.
+- **The rules said once.** After your first fell ever, a one-line hint: "+1 heart. Your hearts carry through the whole run." It is stored as `heartHint`, with the other hints' look and one-at-a-time rule.
+- **Small fixes from earlier reviews:**
+  - the "+1 HEART" pop shows only if a heart was actually gained;
+  - the tent's ware lines go to 14 px;
+  - the stamina and shield labels go to 14 px, or become icons if they cannot fit.
+- **Acceptance:**
+  - Every card shows the draft's line.
+  - No text under 14 px on the cards, the tent or the HUD.
+  - Hearts read whole everywhere: the HUD, the fighter card, the end card and the stats page.
+  - A plated 1-hit costs 1.
+  - Nothing overlaps at the three sizes.
+  - `npm run smoke` passes.
