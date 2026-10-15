@@ -603,3 +603,57 @@ Principle 16: every action sounds and shows.
 - `npm run smoke` passes.
 - Frame time is no worse than the 3a build.
 - **The designer's runs judge feel and difficulty.**
+
+## Step 3.6 (locked 2026-10-15): finishers you can fire, a crowd that has to be won
+
+**From the export (`playtests/2026-10-15-arenas.md`):**
+- Momentum spent was 0 in all 11 runs, so no finisher ever fired.
+- The crowd meter ended at 100 in both step 3.5 runs.
+
+**The designer:** "Yes, that." One Sonnet build, reviewed.
+
+- **The finisher button.**
+  - When you hold a finisher and have its pips, a glowing button with its name ("EXECUTE", "WHIRLWIND", "SECOND BREATH", "DISARM") appears at the bottom right of the screen, clear of the sword thumb's usual area and of the HUD. It is at least 44 px, with its pip cost shown.
+  - A tap fires it.
+  - With two ready, the costliest shows, and a small arrow on it cycles to the other.
+  - The first time it ever appears, there is a one-line hint: "Tap to spend your Momentum."
+  - The long press is removed, and so are its `mom.hold` and `mom.still`.
+- **The crowd has to be won.**
+  - Every fill amount is halved.
+  - A slow drain runs whenever nothing stylish has happened for 3 s, at about 1.5 per second (in TUNING).
+  - Coins still fire on new high-water steps.
+  - **The Emperor's thumb reads the meter during the Aquila bout:** the average of the meter over that bout, not the end value.
+  - **Aim:** a good run sits around 60 to 80, and only real style reaches the top third.
+- **Acceptance:**
+  - A scripted run fires each finisher by the button.
+  - The button never overlaps the HUD, the sword arm's rest or the left column at 667x375, 844x390 or 932x430.
+  - A seeded sample of crowd values over a scripted run with average style lands mid-meter.
+  - `npm run smoke` passes.
+
+## Step 4 (locked 2026-10-15): more content: fame, the ludus, the Wall, and two new families
+
+**The designer:** "I'm looking forward to more content."
+
+**Scope:** E (fame, Brutus's ludus, the Wall of Champions, veterans) as drafted, plus K's last two families, the Trickster and the Showman, with their keystones, their duos and one finisher each. It is built after step 3.6, in two Opus builds, each reviewed.
+
+- **4a, the families:**
+  - The Trickster (about 6 pieces), including "your own feint": pull a lunge back before it lands, and the slot opposite opens for 0.6 s.
+  - The Showman (about 6 pieces), which plays off the crowd meter.
+  - Their keystones (Puppeteer; Darling of Rome) and their duos with the existing four families: Sucker Punch, Blood Sport and two more of the builder's choosing.
+  - Both families follow the gear rules (slots, looks, rarity), use the card lab, and are dealt by the cascade.
+  - **The Trickster's feint gesture is the risky piece,** and is judged in the card lab first.
+- **4b, the meta:**
+  - **Fame** (E).
+  - **The ludus page** from the menu, with five stations:
+    - the armoury: the trident and net, and the sica, as new weapons on your wheel;
+    - the barracks: three new origins with backgrounds and start cards, and opening the Trickster and the Showman (new saves start with four families open);
+    - the training ground: a start-card slot and a fourth card in the first draft;
+    - the shrine: one new reason, *a promise*, with its thread and endings;
+    - the tailor: crests, plumes, shield paints and a cloak, all cosmetic.
+  - **The Wall of Champions,** with veterans (E).
+  - **Migrate:** a save's past wins and cleared arenas give their fame at once.
+- **Guard rails:**
+  - every unlock widens your choices or is cosmetic, apart from the two training-ground items;
+  - a plain fighter can still fell the Pit champion;
+  - text counts follow principle 11;
+  - nothing overlaps at the three sizes.
