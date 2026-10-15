@@ -699,3 +699,45 @@ One Sonnet build, reviewed.
   - nothing overlaps at the three sizes;
   - `npm run smoke` passes;
   - frame time is no worse than arena-v25.
+
+## Step 4d (locked 2026-10-15): a heart when one of a pair falls, and the ludus in plain words
+
+**The designer:** "Giants can be defeated, but I still haven't managed to win a double fight, which is a bit too rough. I should at least get some healing when a guy goes down." And: "I just went to the ludus. Sometimes upgrades are hard to understand. I chose the 4th card."
+
+One Sonnet build, reviewed.
+
+- **A heart when one of a pair falls.**
+  - When the first foe of a pair is felled (City pairs, the Twins, Hermes and his partner), you get one heart back (`TUNING.pairs.heal`, 2 half hearts), up to your max, with a "+1 HEART" pop over you and the heal sound.
+  - The bout's normal heal on the second fell stays as it is.
+  - The Beastmaster's lion counts as his partner, so felling either one first heals too.
+- **The ludus in plain words.** Each item's line says what changes in a run, as the player sees it. These lines replace the current ones:
+
+  | Item | Line |
+  | --- | --- |
+  | Trident and net | A new weapon on your weapon wheel. Longest reach, slow. Your first perfect block each bout nets him and slows him. |
+  | The sica | A new weapon on your weapon wheel. A short curved blade: quick, and its slashes cut deep. |
+  | A gladiatrix | A new fighter on your origin wheel: a Spartan woman. She starts with a Wall card. |
+  | A freed slave | A new fighter on your origin wheel, from Egypt. Starts with a Brute card. |
+  | A chariot driver | A new fighter on your origin wheel, from the Circus. Starts with a Dancer card. |
+  | The Trickster | New cards in your picks: feints and tricks to fool him. |
+  | The Showman | New cards in your picks: win the crowd, and it fights for you. |
+  | Start-card slot | Choose a card you have picked before. Every run starts with it. |
+  | A fourth card | Your first pick of each run shows 4 cards, not 3. |
+  | A promise | A new reason on your reason wheel: free your sister from the champion's house. |
+  | Crest, plume, shield paint, cloak | Looks only. Tap it once bought to change its style. |
+
+  - The station lines say the same in short:
+    - the armoury, "New weapons that can come up on your wheel";
+    - the barracks, "New fighters and new card families";
+    - the training ground, "A card to start with, and a bigger first pick";
+    - the shrine, "A new reason to fight";
+    - the tailor, "Looks only".
+  - An item's line may wrap to 3 lines at 14 px. The builder fits the rows at 667x375, 844x390 and 932x430.
+- **Out of scope:**
+  - pair foes' health;
+  - giants;
+  - finishers.
+- **Acceptance:**
+  - A scripted pair bout heals one heart at the first fell, capped at max, and the usual half heart at the second.
+  - Every ludus line fits without clipping at the three sizes.
+  - `npm run smoke` passes.
