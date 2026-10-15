@@ -221,7 +221,7 @@ const TUNING = {
   fame: { champ: 10, clear: 25, thumbUp: 10, goldPer: 50, bout: 3 },
   // Brutus's ludus: each unlock's price in fame; the Wall of Champions keeps the newest wallMax fighters; a veteran gains vetUp on one stat
   ludus: { price: { trident: 30, sica: 30, sparta: 25, egypt: 25, circus: 25, trick: 40, show: 40, slot: 60, fourth: 50, promise: 30, crest: 15, plume: 15, paint: 15, cloak: 20 },
-    wallMax: 30, vetUp: 1, vetCap: 4, dot: { r: 6, inset: 9 } },
+    wallMax: 30, vetUp: 1, vetCap: 4, dot: { r: 6, inset: 9 }, rowBase: 38, rowLine: 17, rowMin: 72, rowLines: 5, hubLines: 5, hubIcon: 36 },  // rowBase + rowLine x lines is an item's row height on a station page (at least rowMin, at most rowLines lines); the courtyard card's line shows hubLines lines, its icon hubIcon at least
   // your own feint (the Trickster's enabler). With the Feint worn a lunge commits, and only then does what its blade met land, once the thumb has stayed
   // within slack (arm lengths of hand travel) of its furthest reach for settle s, or hold s after it began. A lunge
   // pulled back under the lunge's start with the thumb still down before it commits, having reached depth of a full lunge and touched nothing, no sooner than
@@ -308,7 +308,7 @@ const TUNING = {
   // the City's pairs: the waiting foe drawn at scale x his size and alpha, his centre x from the screen's edge (in his H), his body's half width (body, in his H);
   // the fighters' frame slides left until the one fighting stays clear of him (room = H his wall gives the one fighting past his mark, fbody = his half width in
   // his H); taunt = s his bubble shows before he steps in; enter = s before the one who steps in may swing; hp = x each pair foe's health
-  pairs: { scale: 0.6, alpha: 0.6, x: 0.3, body: 0.2, room: 0.1, fbody: 0.22, taunt: 0.5, enter: 1.2, hp: 1, beastScale: 0.6 },  // beastScale: the waiting one's scale when a beast is in the pair
+  pairs: { scale: 0.6, alpha: 0.6, x: 0.3, body: 0.2, room: 0.1, fbody: 0.22, taunt: 0.5, enter: 1.2, hp: 1, beastScale: 0.6, heal: 2 },  // beastScale: the waiting one's scale when a beast is in the pair; heal = half hearts back when the first of a pair falls
   // the crowd's favour, 0 to max, carried through the run: what each style event gives (a feint read, a perfect block, a slot hit, a laming, a bout with
   // no hits taken, two of your hits within comboWin s, a finisher), what turtling (his turtle read's measure) and backing off with no blow coming drain
   // per second; with nothing stylish for idle s the meter drains drain of itself per second (0.03: a high meter eases down, a low one barely moves); coins arc in from the stands at each step of favour; the Emperor's
@@ -500,25 +500,25 @@ const storyLine = (me) => `${me.name}, ${ORIGINS[me.origin].text}. Fights for: $
 // origins and the shrine's reason weigh nothing on their wheels (LUDUS_LOCK), and the Trickster's and the Showman's cards are never dealt. The training
 // ground's two are the only power. The tailor's are looks: a tap on one you own steps through its styles (TAILOR), then off.
 const LUDUS = [
-  { id: 'armoury', name: 'The Armoury', line: 'New weapons for your wheel', brutus: 'Steel is steel. How you hold it is everything.', items: [
-    { id: 'trident', name: 'Trident and net', line: 'Longest reach, slow; a perfect block nets him' },
-    { id: 'sica', name: 'The sica', line: 'Short and quick: its slashes cut deep' }] },
-  { id: 'barracks', name: 'The Barracks', line: 'New origins and families', brutus: 'New blood in the barracks. Make room.', items: [
-    { id: 'sparta', name: 'A gladiatrix', line: 'An origin, from Sparta: starts with a Wall card' },
-    { id: 'egypt', name: 'A freed slave', line: 'An origin, from Egypt: starts with a Brute card' },
-    { id: 'circus', name: 'A chariot driver', line: 'An origin, from the Circus: starts with a Dancer card' },
-    { id: 'trick', name: 'The Trickster', line: 'Its pieces are dealt in your drafts' },
-    { id: 'show', name: 'The Showman', line: 'Its pieces are dealt in your drafts' }] },
-  { id: 'training', name: 'The Training Ground', line: 'A common or rare start card, a fourth card', brutus: 'Sweat here, so you bleed less out there.', items: [
-    { id: 'slot', name: 'Start-card slot', line: 'Start with a common or rare card you picked' },
-    { id: 'fourth', name: 'A fourth card', line: 'Your first draft of each run deals four' }] },
+  { id: 'armoury', name: 'The Armoury', line: 'New weapons that can come up on your wheel', brutus: 'Steel is steel. How you hold it is everything.', items: [
+    { id: 'trident', name: 'Trident and net', line: 'A new weapon on your weapon wheel. Longest reach, slow. Your first perfect block each bout nets him and slows him.' },
+    { id: 'sica', name: 'The sica', line: 'A new weapon on your weapon wheel. A short curved blade: quick, and its slashes cut deep.' }] },
+  { id: 'barracks', name: 'The Barracks', line: 'New fighters and new card families', brutus: 'New blood in the barracks. Make room.', items: [
+    { id: 'sparta', name: 'A gladiatrix', line: 'A new fighter on your origin wheel: a Spartan woman. She starts with a Wall card.' },
+    { id: 'egypt', name: 'A freed slave', line: 'A new fighter on your origin wheel, from Egypt. Starts with a Brute card.' },
+    { id: 'circus', name: 'A chariot driver', line: 'A new fighter on your origin wheel, from the Circus. Starts with a Dancer card.' },
+    { id: 'trick', name: 'The Trickster', line: 'New cards in your picks: feints and tricks to fool him.' },
+    { id: 'show', name: 'The Showman', line: 'New cards in your picks: win the crowd, and it fights for you.' }] },
+  { id: 'training', name: 'The Training Ground', line: 'A card to start with, and a bigger first pick', brutus: 'Sweat here, so you bleed less out there.', items: [
+    { id: 'slot', name: 'Start-card slot', line: 'Choose a card you have picked before. Every run starts with it.' },
+    { id: 'fourth', name: 'A fourth card', line: 'Your first pick of each run shows 4 cards, not 3.' }] },
   { id: 'shrine', name: 'The Shrine', line: 'A new reason to fight', brutus: 'Every fighter needs a reason. Pick a good one.', items: [
-    { id: 'promise', name: 'A promise', line: "Free your sister from the champion's house" }] },
-  { id: 'tailor', name: 'The Tailor', line: 'Your colours, for show only', brutus: 'Look good. Then fight better than you look.', items: [
-    { id: 'crest', name: 'A crest', line: 'A ridge across your head: tap to change it' },
-    { id: 'plume', name: 'A plume', line: 'Feathers on your head: tap to change them' },
-    { id: 'paint', name: 'Shield paint', line: 'Your shield painted: tap to change it' },
-    { id: 'cloak', name: 'A cloak', line: 'A cloak at your back: tap to change it' }] },
+    { id: 'promise', name: 'A promise', line: "A new reason on your reason wheel: free your sister from the champion's house." }] },
+  { id: 'tailor', name: 'The Tailor', line: 'Looks only', brutus: 'Look good. Then fight better than you look.', items: [
+    { id: 'crest', name: 'A crest', line: 'Looks only. Tap it once bought to change its style.' },
+    { id: 'plume', name: 'A plume', line: 'Looks only. Tap it once bought to change its style.' },
+    { id: 'paint', name: 'Shield paint', line: 'Looks only. Tap it once bought to change its style.' },
+    { id: 'cloak', name: 'A cloak', line: 'Looks only. Tap it once bought to change its style.' }] },
 ];
 const LUDUS_ITEM = Object.fromEntries(LUDUS.flatMap((s) => s.items.map((q) => [q.id, { ...q, station: s.id }])));
 const LUDUS_LOCK = new Set(['trident', 'sica', 'sparta', 'egypt', 'circus', 'promise']);
@@ -602,7 +602,7 @@ const CARD = Object.fromEntries(DECK.map((c) => [c.id, c]));
 const WARES = [
   { id: 'plate', big: true, name: 'Iron plate', line: 'Your {part} is plated' },
   { id: 'whet', big: true, name: 'Whetstone', line: '+1 damage on every hit' },
-  { id: 'heart', big: true, name: 'A heart', line: '+1 heart, and healed' },
+  { id: 'heart', big: true, name: 'A heart', line: '+1 heart to your max, filled' },
   { id: 'token', big: true, name: 'Lucky token', line: '+1 reroll for a draft' },
   { id: 'forge', big: true, name: 'Forged {weapon}', line: 'Your weapon hits 25% harder' },
   { id: 'hide', name: 'Thick Hide', line: '+\u00bd heart' },
@@ -2133,6 +2133,8 @@ function fellOne(E) {
   state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.swapping = false;
   pop(E.w * 0.62, E.h * 0.3, 'ONE DOWN', '#ffd24a', 26); shake(E, 8, 0.25); E.flash('#fff0b8', 0.08); fellJuice(E);
   E.audio.beep({ freq: 220, dur: 0.2, type: 'triangle', slide: 0.6, gain: 0.2 });
+  state.hp = Math.min(state.maxHp, state.hp + TUNING.pairs.heal); E.audio.play('coin');
+  const Fy = youF(E); pop(Fy.x, Fy.y - 1.1 * Fy.H, '+1 HEART', '#fca5a5', 24);
   emit(E, 'fell');
 }
 
@@ -5605,16 +5607,19 @@ const ludus = {
     if (S) { this.drawStation(ctx, E, S); return; }
     this.back = pageHead(ctx, E, 'THE LUDUS', 'My school. Your fame pays for it.');
     const L = ludusOf(E), n = LUDUS.length, gap = 10, top = E.safe.top + 80, w = Math.min(180, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n);
-    const h = Math.min(240, E.h - top - 12 - E.safe.bottom), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
+    const h = Math.min(240, E.h - top - 12 - E.safe.bottom), x0 = (E.w - (w * n + gap * (n - 1))) / 2, LT = TUNING.ludus;
+    const nameL = (S2) => wrapPx(ctx, S2.name.toUpperCase(), w - 12, 14, '800').slice(0, 3), lineL = (S2) => wrapPx(ctx, S2.line, w - 14, 14, '600').slice(0, LT.hubLines);
+    // the icon takes what the tallest name and line leave (name, gap, line, then the count at the foot)
+    const textH = Math.max(...LUDUS.map((S2) => (nameL(S2).length + lineL(S2).length) * 17 + 6)), ih = Math.max(LT.hubIcon, Math.min(64, h * 0.28, h - 26 - 16 - 22 - textH));
     LUDUS.forEach((S2, i) => {
-      const x = x0 + i * (w + gap), cx = x + w / 2, got = S2.items.filter((q) => L.includes(q.id)).length, all = got === S2.items.length, ih = Math.min(64, h * 0.28);
+      const x = x0 + i * (w + gap), cx = x + w / 2, got = S2.items.filter((q) => L.includes(q.id)).length, all = got === S2.items.length;
       E.roundRect(x, top, w, h, 14, 'rgba(34,26,18,0.92)', all ? '#ffd24a' : '#e6c866');
       stationIcon(ctx, S2.id, cx, top + 12 + ih / 2, ih);
       // the name (wrapped, one item), its line (wrapped, one item), how much is open
       let y = top + 26 + ih;
-      for (const t of wrapPx(ctx, S2.name.toUpperCase(), w - 12, 14, '800').slice(0, 3)) { E.text(t, cx, y, { size: 14, weight: '800', color: '#f0e6cc' }); y += 17; }
+      for (const t of nameL(S2)) { E.text(t, cx, y, { size: 14, weight: '800', color: '#f0e6cc' }); y += 17; }
       y += 6;
-      for (const t of wrapPx(ctx, S2.line, w - 14, 14, '600').slice(0, 3)) { E.text(t, cx, y, { size: 14, color: '#cbd5e1' }); y += 17; }
+      for (const t of lineL(S2)) { E.text(t, cx, y, { size: 14, color: '#cbd5e1' }); y += 17; }
       E.text(all ? 'All open' : `${got} of ${S2.items.length} open`, cx, top + h - 16, { size: 14, weight: '800', color: all ? '#ffd24a' : '#86efac' });
       this.cards.push({ x, y: top, w, h, id: S2.id });
     });
@@ -5622,7 +5627,9 @@ const ludus = {
   drawStation(ctx, E, S) {
     this.back = pageHead(ctx, E, S.name.toUpperCase(), S.brutus);
     const L = ludusOf(E), T = E.save.get('tailor', {}), fame = E.save.get('fame', 0), sp = startPick(E), cols = E.w >= 560 ? 2 : 1;
-    const G = scrollGrid(E, S.items.length, E.safe.top + 80, 72, cols, this.scroll);
+    const LT = TUNING.ludus, lw = (E.w - 32 - E.safe.left - E.safe.right - 10 * (cols - 1)) / cols - 74;
+    const rowLines = Math.max(...S.items.map((q) => Math.min(LT.rowLines, wrapPx(ctx, q.line, lw, 14, '600').length)));
+    const G = scrollGrid(E, S.items.length, E.safe.top + 80, Math.max(LT.rowMin, LT.rowBase + LT.rowLine * rowLines), cols, this.scroll);
     this.scroll = G.s; this.maxScroll = G.max;
     ctx.save(); ctx.beginPath(); ctx.rect(0, G.y0 - 4, E.w, G.bot - G.y0 + 8); ctx.clip();
     S.items.forEach((q0, i) => {
@@ -5635,7 +5642,7 @@ const ludus = {
       const tw = ctx.measureText(tag).width, nx = r.x + 62;
       E.text(clipLine(ctx, q.name, r.w - 62 - tw - 22, 16, '800'), nx, r.y + 20, { size: 16, weight: '800', align: 'left', color: '#f0e6cc' });
       E.text(tag, r.x + r.w - 12, r.y + 20, { size: 14, weight: '800', align: 'right', color: tc });
-      wrapPx(ctx, q.line, r.w - 74, 14, '600').slice(0, 2).forEach((t, k) => E.text(t, nx, r.y + 42 + k * 17, { size: 14, align: 'left', color: '#cbd5e1' }));
+      wrapPx(ctx, q.line, r.w - 74, 14, '600').slice(0, LT.rowLines).forEach((t, k) => E.text(t, nx, r.y + 42 + k * LT.rowLine, { size: 14, align: 'left', color: '#cbd5e1' }));
       if (r.y + r.h > G.y0 && r.y < G.bot) this.rows.push({ ...r, q });
     });
     ctx.restore();
