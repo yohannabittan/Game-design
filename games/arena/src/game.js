@@ -254,8 +254,10 @@ const TUNING = {
   // finishers: Momentum each costs; Execute works below this share of his health; Disarm's seconds
   fin: { exec: 3, whirl: 2, breath: 2, disarm: 4, below: 0.5, disarmDur: 3, beastStun: 1 },  // beastStun: a beast has no weapon, so a disarm stuns it this long
   // Momentum pips, per bout: the most you hold, what each event gives (a perfect block, a feint read, a dodge in his tell, a laming);
-  // a finisher fires on a long press of the sword thumb: held within slop px of where it landed for hold s, with no swing in the last still s
-  mom: { max: 5, perfect: 1, read: 1, dodge: 1, lame: 1, hold: 0.45, slop: 14, still: 0.3 },
+  mom: { max: 5, perfect: 1, read: 1, dodge: 1, lame: 1 },
+  // the finisher button, bottom right: its body w x h px (an arrow chip of arrow px joins it when two are ready), the touch area's extra px, and the first-time
+  // hint's seconds on screen (it is shown once ever, stored in the save)
+  finBtn: { w: 140, h: 50, arrow: 44, reach: 6, hintDur: 7 },
   // bleed on him: at most max stacks, each lasting dur s; every tick s each stack deals dmg
   bleed: { max: 5, dur: 6, tick: 1, dmg: 0.5 },
   // his gear (from the deck, one piece a slot): pieces per bout, the highest rarity each bout deals (a champion also wears one legendary). Four pieces act for
@@ -281,8 +283,9 @@ const TUNING = {
   pairs: { scale: 0.6, alpha: 0.6, x: 0.3, body: 0.2, room: 0.1, fbody: 0.22, taunt: 0.5, enter: 1.2, hp: 1, beastScale: 0.6 },  // beastScale: the waiting one's scale when a beast is in the pair
   // the crowd's favour, 0 to max, carried through the run: what each style event gives (a feint read, a perfect block, a slot hit, a laming, a bout with
   // no hits taken, two of your hits within comboWin s, a finisher), what turtling (his turtle read's measure) and backing off with no blow coming drain
-  // per second; coins arc in from the stands at each step of favour; the Emperor's thumb reads the meter by thirds (bands)
-  crowd: { max: 100, read: 10, perfect: 5, slot: 5, lame: 5, clean: 10, combo: 2, fin: 2, comboWin: 1, turtle: 4, back: 6, step: 20, coins: 5, coinCap: 15, bands: [1 / 3, 2 / 3] },
+  // per second; with nothing stylish for idle s the meter drains drain of itself per second (0.03: a high meter eases down, a low one barely moves); coins arc in from the stands at each step of favour; the Emperor's
+  // thumb reads the average of the meter over the champion's bout, by thirds (bands)
+  crowd: { max: 100, read: 5, perfect: 2.5, slot: 2.5, lame: 2.5, clean: 5, combo: 1, fin: 1, comboWin: 1, turtle: 4, back: 6, idle: 3, drain: 0.03, step: 20, coins: 5, coinCap: 15, bands: [1 / 3, 2 / 3] },
   // the Colosseum's champions: Carpophorus sends in his lion when his health falls to send x his own; Mevia's spear also throws a net (its weight)
   champs: { carpophorus: { send: 0.5 }, mevia: { net: 2.4 } },
   // the Emperor's thumb card: s the box takes to show, then the hand to rise, then the thumb to turn; s before a tap continues
@@ -879,6 +882,7 @@ function newRack(E) {
   // both fighters start each bout back on their marks
   Object.assign(state.foot, { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 });
   state.mom = 0; state.momT = 0; state.bleed = []; state.bleedT = 0; state.lastTellDodge = -9;
+  state.favM = state.m; state.favSum = 0; state.favDur = 0; state.finSel = '';
   state.armed = {}; state.openAll = 0; state.disarm = 0; state.flyW = 0; state.dents = 0; state.cape = 0;
   emit(E, 'start');
 }
@@ -900,7 +904,7 @@ function newRound(E, seed, me0, rv, arenaId = 'pit') {
     mom: 0, momT: 0, momGained: 0, momSpent: 0, lamings: 0, gold: 0, goldEarned: 0, lastGold: null, bought: [], rerolls: 0, tent: null, tentDone: false, lab: null, labMom: false, labUsed: 0, fins: [], wares: [], carry: 0, armed: {}, openAll: 0, disarm: 0, flyW: 0, dents: 0, cape: 0, bleed: [], bleedT: 0, bleeds: 0, bleedDmg: 0,
     you: { lunge: 0, lungeK: 0, a: 0, back: 0, hopY: 0, push: 0, parts: playerParts(me), fr: {} },
     foe: {}, edge: null, swapping: false, tauntT: 0, taunt: '',
-    fav: 0, favStep: 0, favT: 0, favShown: 0, lastHitM: -9, opened: null,
+    fav: 0, favStep: 0, favT: 0, favShown: 0, favM: 0, favSum: 0, favDur: 0, lastHitM: -9, opened: null, finSel: '', finHintT: 0,
     crowd: [],
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, zy: -0.58, arm: 0, blocked: false, pressT: -9 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
@@ -1132,7 +1136,6 @@ function updateAttack(E, dt) {
   const h = state.hand, T = TUNING, AT = T.attack, S = T.stamina, sh = state.sh;
   const live = h.down && h.lock <= 0 && !state.away && state.endT <= 0 && state.fallT <= 0;
   if (h.atk && (!live || h.sp < T.hit.minSpeed * 0.55)) h.atk = null;
-  if (live && h.sp >= T.hit.minSpeed) h.swingT = state.m;
   if (!h.atk && live && h.sp >= T.hit.minSpeed) {
     const spv = Math.hypot(h.vx, h.vy) || 1, ux = h.vx / spv, uy = h.vy / spv;
     // a jab is a push forward along the guard line, whatever the arm's aim
@@ -2122,19 +2125,27 @@ function disarmFoe(E, dur) {
 const perfectWin = () => TUNING.shield.perfect * (has('ironwall') ? 2 : 1);
 const atWall = (E) => state.foot.pos <= walls(E).back + 0.01;
 
-// ----- finishers: a long press on the sword thumb spends Momentum on the costliest one you hold and can use now -----
+// ----- finishers: the button at the bottom right spends Momentum on the costliest one you hold and can use now (an arrow on it cycles to the other) -----
 const FIN_OK = {
   exec: () => !state.armed.exec && state.foe.hp < state.foe.maxHp * TUNING.fin.below,
   whirl: () => !state.armed.whirl,
   breath: () => state.stamina < state.staMax || state.exhaust > 0,
   disarm: () => (state.foe.beast ? state.stun <= 0 : state.disarm <= 0),
 };
-function finReady() {
-  return DECK.filter((c) => c.fam === 'fin' && has(c.id) && TUNING.fin[c.id] <= state.mom && FIN_OK[c.id]()).sort((a, b) => TUNING.fin[b.id] - TUNING.fin[a.id])[0] || null;
+const finList = () => DECK.filter((c) => c.fam === 'fin' && has(c.id) && TUNING.fin[c.id] <= state.mom && FIN_OK[c.id]()).sort((a, b) => TUNING.fin[b.id] - TUNING.fin[a.id]);
+// the one the button shows: the costliest ready, unless the arrow picked the other
+function finReady() { const l = finList(); return l.find((c) => c.id === state.finSel) || l[0] || null; }
+function finLive(E) { return !state.intro && !state.draft && !state.tent && state.fallT <= 0 && state.endT <= 0 && !portrait(E); }
+// the button's rect (with the arrow chip's width when two are ready, `arrow` its left part), or null when nothing is ready
+function finBtn(E) {
+  const c = finLive(E) && finReady();
+  if (!c) return null;
+  const B = TUNING.finBtn, two = finList().length > 1, w = B.w + (two ? B.arrow : 0);
+  return { c, two, x: E.w - 16 - E.safe.right - w, y: E.h - 10 - E.safe.bottom - B.h, w, h: B.h, arrow: two ? B.arrow : 0 };
 }
 function fireFinisher(E, c) {
   const Fy = youF(E);
-  state.mom -= TUNING.fin[c.id]; state.momSpent += TUNING.fin[c.id]; state.fins.push(c.id);
+  state.mom -= TUNING.fin[c.id]; state.momSpent += TUNING.fin[c.id]; state.fins.push(c.id); state.finSel = ''; state.finHintT = 0;
   if (c.id === 'exec' || c.id === 'whirl') state.armed[c.id] = true;
   else if (c.id === 'breath') { state.stamina = state.staMax; state.exhaust = 0; }
   else if (c.id === 'disarm') disarmFoe(E, TUNING.fin.disarmDur);
@@ -2145,13 +2156,21 @@ function fireFinisher(E, c) {
   const J = TUNING.juice; state.paintT = J.paint; slowFx(J.finSlow, J.finMul); state.banner = { s: `${c.name.toUpperCase()}!`, t: J.banner };
   E.audio.beep({ freq: 330, dur: 0.18, type: 'sawtooth', slide: 2, gain: 0.1 }); E.audio.beep({ freq: 990, dur: 0.2, type: 'sine', gain: 0.08, delay: 0.1 });
 }
-// the sword thumb held still: once it has rested hold s, the press fires (once per press)
-function updateFinisher(E) {
-  const h = state.hand;
-  if (!h.down || h.moved || h.finDone || state.fallT > 0 || state.endT > 0 || state.m - h.pressT < TUNING.mom.hold || state.m - h.swingT < TUNING.mom.still) return;
-  h.finDone = true;
-  const c = finReady();
-  if (c) fireFinisher(E, c);
+// the button's first appearance ever shows a one-line hint, once (stored in the save)
+function updateFinisher(E, dt) {
+  state.finHintT = Math.max(0, state.finHintT - dt);
+  if (!finBtn(E) || E.save.get('finHint', 0)) return;
+  E.save.set('finHint', 1); state.finHintT = TUNING.finBtn.hintDur;
+}
+// a touch on the button: the arrow chip cycles to the other ready finisher, anywhere else on it fires the one shown
+function finTouch(E, p) {
+  const b = finBtn(E), r = TUNING.finBtn.reach;
+  if (!b || p.x < b.x - r || p.x > b.x + b.w + r || p.y < b.y - r || p.y > b.y + b.h + r) return false;
+  if (b.two && p.x < b.x + b.arrow) {
+    const l = finList(); state.finSel = l[(l.findIndex((q) => q.id === b.c.id) + 1) % l.length].id;
+    E.audio.play('tap'); E.haptic(8);
+  } else fireFinisher(E, b.c);
+  return true;
 }
 function emit(E, ev, ctx = {}) {
   crowdEvent(E, ev);
@@ -2162,7 +2181,7 @@ function emit(E, ev, ctx = {}) {
 function favour(E, n) {
   const C = TUNING.crowd;
   state.fav = clamp(state.fav + n, 0, C.max);
-  if (n > 0) state.favT = 0.5;
+  if (n > 0) { state.favT = 0.5; state.favM = state.m; }
   const step = Math.floor(state.fav / C.step);
   if (step > state.favStep) { coins(E, C.coins * (step - state.favStep)); state.favStep = step; }
 }
@@ -2172,13 +2191,19 @@ function crowdEvent(E, ev) {
   if (ev === 'read' || ev === 'perfect' || ev === 'slot' || ev === 'lame') favour(E, C[ev]);
   if (ev === 'slot' || ev === 'hit') { if (state.m - state.lastHitM <= C.comboWin) favour(E, C.combo); state.lastHitM = state.m; }
 }
-// what bores them, each frame of play: turtling (the measure his turtle read uses) and backing off with no blow of his coming
+// what bores them, each frame of play: turtling (the measure his turtle read uses), backing off with no blow of his coming, and any stretch of idle s
+// with nothing stylish (a fill resets it) that drains drain of what is held, a second
 function crowdDrain(E, dt) {
   const C = TUNING.crowd, sw = state.sw;
-  if (state.fallT > 0 || state.endT > 0 || state.winded > 0) return;
+  if (state.fallT > 0 || state.endT > 0) return;
+  state.favSum += state.fav * dt; state.favDur += dt;
+  if (state.winded > 0) return;
   if (state.mem.turtle >= TUNING.read.turtle) favour(E, -C.turtle * dt);
   if (state.dg.down && state.dg.t > TUNING.dodge.dur && !(sw && sw.fin <= 0)) favour(E, -C.back * dt);
+  if (state.m - state.favM > C.idle) favour(E, -C.drain * state.fav * dt);
 }
+// what the Emperor reads: the meter's average over the champion's bout (this bout's, as it ends), not where it stands at the end
+const thumbFav = () => (state.favDur > 0 ? state.favSum / state.favDur : state.fav);
 // a few coins thrown from the stands, arcing into the sand between the fighters (cosmetic)
 function coins(E, n) {
   const L = lay(E), y0 = E.h * 0.12;
@@ -3310,7 +3335,7 @@ function drawPips(ctx, E, bx, bw, y) {
     ctx.strokeStyle = on ? '#fff0b8' : 'rgba(255,210,74,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
   }
   const armed = ['exec', 'whirl'].find((id) => state.armed[id]), fc = finReady();
-  const t = armed ? `${CARD[armed].name.toUpperCase()} ARMED` : fc ? `hold: ${fc.name}` : 'momentum';
+  const t = armed ? `${CARD[armed].name.toUpperCase()} ARMED` : fc ? 'finisher ready' : 'momentum';
   E.text(t, bx - 6, y, { size: 10, align: 'right', color: armed || fc ? '#f5d0fe' : '#c4b99a', weight: armed || fc ? '800' : '400' });
 }
 // The HUD's middle: between BOUT on the left and your hearts, stamina and shield on the right, so his bar never meets their labels.
@@ -3725,14 +3750,6 @@ function drawSwordArm(ctx, E) {
     ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.beginPath(); ctx.moveTo(h.ax, h.ay); ctx.lineTo(h.fx, h.fy); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(h.fx, h.fy, 7, 0, 6.28); ctx.fill();
-    // a finisher you can fire: a violet ring round the thumb fills while it rests, wide enough to show past it
-    const fc = !h.moved && !h.finDone && finReady();
-    if (fc) {
-      const k = clamp(Math.min((state.m - h.pressT) / TUNING.mom.hold, (state.m - h.swingT) / TUNING.mom.still), 0, 1);
-      ctx.strokeStyle = 'rgba(232,121,249,0.35)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(h.ax, h.ay, 40, 0, TAU); ctx.stroke();
-      ctx.strokeStyle = '#e879f9'; ctx.beginPath(); ctx.arc(h.ax, h.ay, 40, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.stroke();
-      E.text(fc.name.toUpperCase(), h.ax, h.ay - 54, { size: 14, weight: '800', color: '#f5d0fe' });
-    }
   }
   if (a && a.kind !== 'raise' && !locked) E.text(a.kind === 'over' ? 'OVERHEAD' : a.kind.toUpperCase(), h.hx, h.hy - 0.12 * H, { size: 11, color: '#e2e8f0', alpha: 0.7, weight: '700' });
   if (locked) E.text('X', h.ux, h.uy - 22, { size: 22, color: '#ff8a7a', weight: '800' });
@@ -4011,19 +4028,58 @@ function drawZoneLabel(ctx, E) {
   E.text(z.t, x, z.y, { size: 18, weight: '800', color: z.color, alpha: z.alpha });
 }
 
+// A bottom-edge box whose right edge reaches the finisher button (or its first-time hint, which runs left of it) sits above it instead: returns the box's top y.
+function aboveFin(E, right, h, y) {
+  const b = finBtn(E);
+  if (!b) return y;
+  let left = b.x;
+  if (state.finHintT > 0) { E.ctx.font = `800 14px system-ui, sans-serif`; left = b.x + b.w - E.ctx.measureText('Tap to spend your Momentum.').width; }
+  if (right <= left - 8) return y;
+  return Math.min(y, b.y - 8 - h) - (state.finHintT > 0 ? 24 : 0);
+}
 // The hint, in a player's first bouts ever: two short lines along the bottom, in the space right of the left thumb's column, fading out.
 function drawHint(ctx, E) {
   const t = state.m - state.boutT0, D = TUNING.hint.dur;
   if (t > D) return;
-  const R = colRect(E), x0 = R.x + R.w + 12, cx = (x0 + E.w - E.safe.right - 12) / 2, a = clamp((D - t) / 1.5, 0, 1), y = E.h - 12 - E.safe.bottom;
+  let y = E.h - 12 - E.safe.bottom;
+  const R = colRect(E), x0 = R.x + R.w + 12, cx = (x0 + E.w - E.safe.right - 12) / 2, a = clamp((D - t) / 1.5, 0, 1);
   const lines = ['Left thumb: High / Mid / Low raise the shield  \u00b7  DODGE steps back', 'Right thumb: your weapon (like a trackpad; push far to lunge in)'];
+  ctx.font = '700 12px system-ui, sans-serif';
+  const hw = Math.max(...lines.map((s) => ctx.measureText(s).width)), hh = (lines.length - 1) * 17 + 14;
+  y = aboveFin(E, cx + hw / 2, hh, y + 7 - hh) + hh - 7;
   lines.forEach((s, i) => E.text(s, cx, y - (lines.length - 1 - i) * 17, { size: 12, color: '#f0e6cc', weight: '700', alpha: a }));
+}
+// The finisher button, bottom right, glowing violet: the finisher's name, its cost in pips, and (with two ready) an arrow chip that cycles to the other.
+// The first time it ever shows, a one-line hint sits above it.
+function drawFinBtn(ctx, E) {
+  const b = finBtn(E);
+  if (!b) return;
+  const pulse = 0.5 + 0.5 * Math.sin(state.m * 6), nx = b.x + b.arrow, nw = b.w - b.arrow, cy = b.y + b.h / 2, cost = TUNING.fin[b.c.id];
+  ctx.save();
+  ctx.shadowColor = '#e879f9'; ctx.shadowBlur = 8 + 10 * pulse;
+  E.roundRect(b.x, b.y, b.w, b.h, 12, 'rgba(62,20,80,0.92)', '#e879f9');
+  ctx.restore();
+  E.text(b.c.name.toUpperCase(), nx + nw / 2, b.y + 18, { size: 14, weight: '800', color: '#fdf4ff' });
+  const s = 5, gap = 14, x0 = nx + nw / 2 - (cost - 1) * gap / 2;
+  for (let i = 0; i < cost; i++) {
+    const x = x0 + i * gap, y = b.y + b.h - 15;
+    ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y); ctx.closePath();
+    ctx.fillStyle = '#ffd24a'; ctx.fill(); ctx.strokeStyle = '#fff0b8'; ctx.lineWidth = 1.2; ctx.stroke();
+  }
+  if (b.two) {
+    ctx.strokeStyle = 'rgba(232,121,249,0.6)'; ctx.lineWidth = 1.5; line(ctx, nx, b.y + 8, nx, b.y + b.h - 8);
+    const ax = b.x + b.arrow / 2;
+    ctx.strokeStyle = '#f5d0fe'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(ax - 8, cy - 5); ctx.lineTo(ax + 8, cy - 5); ctx.moveTo(ax + 3, cy - 10); ctx.lineTo(ax + 8, cy - 5); ctx.lineTo(ax + 3, cy);
+    ctx.moveTo(ax + 8, cy + 6); ctx.lineTo(ax - 8, cy + 6); ctx.moveTo(ax - 3, cy + 1); ctx.lineTo(ax - 8, cy + 6); ctx.lineTo(ax - 3, cy + 11); ctx.stroke();
+  }
+  if (state.finHintT > 0) E.text('Tap to spend your Momentum.', b.x + b.w, b.y - 14, { size: 14, align: 'right', weight: '800', color: '#fde68a', alpha: clamp(state.finHintT / 1.5, 0, 1) });
 }
 // The lesson caption: a banner along the bottom edge, over the feet, so it never covers a zone band, its label or the foe's flags.
 function drawCaption(ctx, E) {
   const c = state.caption;
   if (!c) return;
-  const a = clamp(c.t / 0.4, 0, 1) * clamp((c.max - c.t) / 0.15, 0, 1), w = Math.min(E.w - 220, 540), lh = 18, h = 10 + c.lines.length * lh, x = (E.w - w) / 2, y = E.h - E.safe.bottom - h - 4;
+  const a = clamp(c.t / 0.4, 0, 1) * clamp((c.max - c.t) / 0.15, 0, 1), w = Math.min(E.w - 220, 540), lh = 18, h = 10 + c.lines.length * lh, x = (E.w - w) / 2, y = aboveFin(E, x + w, h, E.h - E.safe.bottom - h - 4);
   ctx.globalAlpha = a;
   E.roundRect(x, y, w, h, 10, 'rgba(24,16,40,0.88)', c.good ? '#ffd24a' : '#a78bfa');
   c.lines.forEach((t, i) => E.text(t, E.w / 2, y + 5 + lh / 2 + i * lh, { size: i ? 13 : 16, weight: i ? '700' : '800', color: i ? '#ede9fe' : c.good ? '#ffd24a' : '#c4b5fd', alpha: a }));
@@ -5043,7 +5099,7 @@ function initHand(E) {
 const play = {
   state, lay, foeF, youF, toScreen, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
-  emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, lamed, applyCard, finReady, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
+  emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize,
   ARENAS, rollGauntlet, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
@@ -5105,7 +5161,7 @@ const play = {
     updateFoe(dt, E);
     updatePair(E, dt);
     updateBleed(E, dt);
-    updateFinisher(E);
+    updateFinisher(E, dt);
     updateDefence(dt, E);
     checkExhaust(E, dt);
     crowdDrain(E, dt);
@@ -5165,14 +5221,16 @@ const play = {
       meSize: me.size, meStats: `${me.str}${me.spd}${me.sta}`, meArmour: me.set, mePlates: me.plates.join(','), meTier: me.tier, underdog: me.underdog ? 1 : 0,
       grades: state.grades.join(''), picks: state.picks.join(','), stepsIn: state.stepsIn, stepsOut: state.stepsOut, wallHits: state.wallHits, foeWall: state.foeWall, outReach: state.outReach, dodged: state.dodged, chases: state.chases,
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
-      arena: state.arena, fav: Math.round(state.fav), thumb: won && state.arena === 'games' ? bandOf(state.fav) : -1 });
+      arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1 });
     E.setScene('over', { ...r, won, reached, gauntlet: g, me, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew,
       picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice(),
-      arena: state.arena, fav: state.fav, opened });
+      arena: state.arena, fav: state.arena === 'games' ? thumbFav() : state.fav, opened });
   },
-  // two thumbs: a touch that starts in the left third is the shield and dodge thumb (buttons only), any other is the sword thumb
+  // two thumbs: a touch that starts in the left third is the shield and dodge thumb (buttons only), one that starts on the finisher button is that button
+  // alone (it never moves the sword hand), any other is the sword thumb
   onPointerDown(p, E) {
     if (state.endT > 0 || portrait(E) || state.intro || state.draft || state.tent) return;
+    if (p.startX >= E.w / 3 && finTouch(E, p)) return;
     if (p.startX < E.w / 3) {
       const b = buttonAt(E, p);
       if (b && b.dodge) dodge(E, p.id);
@@ -5182,7 +5240,7 @@ const play = {
     const h = state.hand;
     if (h.down) return;
     h.down = true; h.id = p.id; h.fx = p.x; h.fy = p.y;
-    h.ax = p.x; h.ay = p.y; h.pressT = state.m; h.swingT = -9; h.moved = false; h.finDone = false;
+    h.ax = p.x; h.ay = p.y;
     if (h.lock <= 0) {
       [h.tgx, h.tgy] = guardPt(E);
       h.grip = 0; solveArm(E, 0);
@@ -5191,7 +5249,7 @@ const play = {
   },
   onPointerMove(p, E) {
     const h = state.hand;
-    if (h.down && h.id === p.id) { h.fx = p.x; h.fy = p.y; if (Math.hypot(p.x - h.ax, p.y - h.ay) > TUNING.mom.slop) h.moved = true; }
+    if (h.down && h.id === p.id) { h.fx = p.x; h.fy = p.y; }
   },
   onTap(p, E) {
     const tt = state.tent;
@@ -5332,6 +5390,7 @@ const play = {
     if (state.edge && !state.edge.down && !state.intro && !state.draft && !state.tent) drawEdgeTag(ctx, E);
     if (state.netT > 0) E.text('NETTED: slow hand, no lunge', bx + bw, sy + 34, { size: 11, align: 'right', color: '#e2e8f0', weight: '700' });
     if (state.hint && !state.intro && !state.caption) drawHint(ctx, E);
+    drawFinBtn(ctx, E);
     if (state.intro) { drawIntro(ctx, E); if (E.channel !== 'release') { const t = labTab(E); E.roundRect(t.x, t.y, t.w, t.h, 10, '#1f2937', '#e879f9'); E.text('LAB', t.x + t.w / 2, t.y + t.h / 2, { size: 15, weight: '800', color: '#f5d0fe' }); } }
     if (state.lab) drawLab(ctx, E);
     if (state.draft) drawDraft(ctx, E);
@@ -5482,7 +5541,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 8,
+  saveVersion: 9,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -5520,6 +5579,8 @@ export const game = {
       if (r && r.me && MAP[r.me.size]) { r.me.idx = r.me.idx.slice(); r.me.idx[0] += 1; r.me.vary = 0; r.me = deriveMe(r.me); }
       if (r) fix(r.rival);
     }
+    // v9 (v2 step 3.6, the finisher button): `finHint` is set once the button's first-time hint has been shown
+    if (fromVersion < 9) data.finHint = 0;
     return data;
   },
   TUNING,

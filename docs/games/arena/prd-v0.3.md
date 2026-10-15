@@ -620,7 +620,7 @@ Principle 16: every action sounds and shows.
   - The long press is removed, and so are its `mom.hold` and `mom.still`.
 - **The crowd has to be won.**
   - Every fill amount is halved.
-  - A slow drain runs whenever nothing stylish has happened for 3 s, at about 1.5 per second (in TUNING).
+  - A slow drain runs whenever nothing stylish has happened for 3 s, proportional to the meter: 3% of what it holds per second (`TUNING.crowd.drain` 0.03, in TUNING), so a high meter eases down and a low one barely moves (it replaces the first draft's flat 1.5 per second, which pinned the meter to 0 or 100).
   - Coins still fire on new high-water steps.
   - **The Emperor's thumb reads the meter during the Aquila bout:** the average of the meter over that bout, not the end value.
   - **Aim:** a good run sits around 60 to 80, and only real style reaches the top third.
