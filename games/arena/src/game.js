@@ -36,7 +36,13 @@ const TUNING = {
   // body unit as a fraction of screen height, feet line, clear gap between the bodies (fraction of width), half body width in H; fit = the largest scale
   // drawn at full frame: a bigger fighter (a Giant) shrinks the whole frame so his head stays as high as that scale's would, clear of the HUD
   fighter: { height: 0.72, floor: 0.92, gap: 0.2, body: 0.12, fit: 1.15 },
-  lunge: { stride: 0.3, cost: 10, tauIn: 0.06, tauOut: 0.14 },  // stride in H; extra stamina; seconds to step in and back
+  // stride in H; extra stamina; seconds to step in and back. The drive: a committed lunge held at full depth for driveDelay s presses on at drive H/s for
+  // driveCost stamina/s (and one jab's cost when it starts moving), up to driveMax H past the stride; it reaches full pace over driveRamp s, in stamping steps driveHz a second whose pace swings by
+  // driveSurge; the body leans driveLean rad into it, eases back over driveOut s, each stamp kicks driveSand grains; the stamina it burns glows for driveBurn s;
+  // each stamp: a thud at driveThud gain, a haptic of driveHaptic, driveDust puffs driveFoot H behind the foot
+  lunge: { stride: 0.3, cost: 10, tauIn: 0.06, tauOut: 0.14, drive: 0.6, driveCost: 25, driveMax: 0.3, driveDelay: 0.2, driveRamp: 0.1, driveHz: 6, driveSurge: 0.55,
+    driveLean: 0.13, driveOut: 0.2, driveSand: 8, driveBurn: 0.5,
+    driveThud: 0.45, driveHaptic: 6, driveFoot: 0.1, driveDust: 2 },
   lean: { base: 0.03, max: 0.21, beyond: 0.6, span: 0.2, fast: 0.7, tau: 0.06, back: 0.05 },  // radians (max = 12 degrees); aim distance (H) past which a fast slash leans, over span; fast = fraction of hit.mid
   dodge: { dur: 0.35, back: 0.32, hop: 0.1, cost: 12, cool: 0.2, drain: 14 },  // dur: a tap's sidestep; a hold stays back and drains stamina per second
   hit: { minSpeed: 400, mid: 950, cool: 0.2 },   // tip px/s: slash threshold, slash damage 2; seconds before a part can be hit again
@@ -357,7 +363,7 @@ const NEW_CHAMPS = {
   carpophorus: { name: 'Carpophorus the Beastmaster', title: 'Carpophorus and his lion', beast: 'lion',
     tie: { revenge: 'He came with the soldiers, and his cages.', debt: "He feeds the moneylender's beasts.", freedom: "A slave once. Now Rome's beasts obey him.", glory: 'Rome loves his lion more than any man.', promise: 'Your sister feeds his lions.' },
     line: { revenge: 'My lion was a cub that night. Look at him now.', debt: 'Your debt feeds my lion. Every day.', freedom: 'I tamed lions to be free. You are no lion.', glory: 'They came for my lion. Not for you.', promise: 'She feeds my lion. He\'s grown fond of her.' } },
-  mevia: { name: 'Mevia the Huntress', weapon: 'spear',
+  mevia: { name: 'Mevia the Huntress', weapon: 'spear', female: true,
     tie: { revenge: 'She netted the ones who ran from your village.', debt: 'The moneylender sends her after debtors who run.', freedom: 'She hunts runaways for the bounty.', glory: "The Colosseum's favourite huntress.", promise: 'She caught your sister when she ran.' },
     line: { revenge: 'My net caught your village. It will catch you.', debt: 'Debtors run. I bring them back in a net.', freedom: 'Freedom? I bring runaways back for a living.', glory: 'Rome loves a hunt. Tonight, you are the prey.', promise: 'Your sister ran once. My net was faster.' } },
 };
@@ -982,7 +988,7 @@ function newRack(E) {
   state.pop = 1; state.fallT = 0; state.sw = null; state.move = null; state.plan = null; state.stun = 0; state.stagger = 0; state.kickA = 0; state.kickV = 0;
   state.winded = 0; state.windedMax = 1; state.retreat = 0; state.chase = 0; state.mood = { retreat: false };
   state.mem = { blocks: [], lunges: [], turtle: 0, feints: [] };
-  state.gapOpen = null; state.ownT = -9; state.recT = -9; state.baitT = 0; state.puppetN = 0; state.awed = false; state.lng = null; state.foeNet = 0;
+  state.gapOpen = null; state.ownT = -9; state.recT = -9; state.baitT = 0; state.puppetN = 0; state.awed = false; state.lng = null; state.foeNet = 0; state.you.drive = 0; state.you.dk = 0; state.burnT = 0;
   state.swingIn = 1.2; state.intro = true; state.introT = 0; state.warm = false;
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
@@ -1014,7 +1020,7 @@ function newRound(E, seed, me0, rv, arenaId = 'pit') {
     feints: 0, feintsRead: 0, feintsBit: 0, feintsNone: 0, feintLive: false, plateSaves: 0, combos: 0, windeds: 0, punishes: 0, bashes: 0, bashHits: 0, nets: 0, netted: 0, zoneReads: 0, lungeReads: 0, turtleReads: 0, presses: 0, retreats: 0, moveCount: {},
     fx: [], pops: [], streaks: [], trail: [],
     mom: 0, momT: 0, momGained: 0, momSpent: 0, lamings: 0, gold: 0, goldEarned: 0, lastGold: null, bought: [], rerolls: 0, tent: null, tentDone: false, lab: null, labMom: false, labUsed: 0, fins: [], wares: [], carry: 0, capCut: 0, ownFeints: 0, feintsLearned: 0, flourishes: 0, netsCast: 0, foeNet: 0, fl: { acc: 0, t: 0, ang: null, at: -9, fx: 0, fy: 0 }, armed: {}, openAll: 0, disarm: 0, flyW: 0, dents: 0, cape: 0, bleed: [], bleedT: 0, bleeds: 0, bleedDmg: 0,
-    you: { lunge: 0, lungeK: 0, a: 0, back: 0, hopY: 0, push: 0, parts: playerParts(me), fr: {} },
+    you: { lunge: 0, lungeK: 0, drive: 0, dk: 0, a: 0, back: 0, hopY: 0, push: 0, parts: playerParts(me), fr: {} }, drives: 0, driveDist: 0, burn: 0, burnT: 0, spoils: 0, landM: -9,
     foe: {}, edge: null, swapping: false, tauntT: 0, taunt: '',
     fav: 0, favStep: 0, favT: 0, favShown: 0, favM: 0, favSum: 0, favDur: 0, lastHitM: -9, opened: null, finSel: '', finHintT: 0, hintT: 0, hintS: '',
     crowd: [],
@@ -1050,12 +1056,12 @@ const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token'
   'capCut', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
   'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
   'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep',
-  'fourth', 'netsCast'];
+  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
   const c = state.gauntlet[state.gauntlet.length - 1];
-  const d = state.draft, draft = d ? { grade: d.grade, tally: d.tally, gold: d.gold, ids: d.cards.map((q) => q.id), priced: d.priced, odds: d.odds } : null;
+  const d = state.draft, draft = d ? { grade: d.grade, tally: d.tally, gold: d.gold, ids: d.cards.map((q) => q.id), priced: d.priced, odds: d.odds, spoil: d.spoil || null } : null;
   E.save.set('run', JSON.parse(JSON.stringify({ seed: state.seed, arena: state.arena, rack, me: state.me, rival: c.rival ? rivalOf(c) : null, draft, ...Object.fromEntries(RUN_KEYS.map((k) => [k, state[k]])) })));
 }
 function resumeRun(E, run) {
@@ -1064,7 +1070,7 @@ function resumeRun(E, run) {
   state.results = (run.results || []).map((q) => q || undefined);
   state.rack = run.rack; state.you.parts = playerParts(state.me); state.stamina = state.staMax; state.favShown = state.fav;
   const d = run.draft;
-  if (d) state.draft = { grade: d.grade, tally: d.tally, gold: d.gold, cards: d.ids.map((id) => CARD[id]), priced: d.priced, odds: d.odds || [], t: 0, btns: [], reroll: null, help: null, helpOn: false };
+  if (d) state.draft = { grade: d.grade, tally: d.tally, gold: d.gold, cards: d.ids.map((id) => CARD[id]), priced: d.priced, odds: d.odds || [], t: 0, btns: [], reroll: null, help: null, helpOn: false, spoil: d.spoil || null };
 }
 
 // ====== FIGHTER MODEL: layout, your body and sword arm, footwork, defence, the foe's body ======
@@ -1112,7 +1118,7 @@ const gMin = (E) => -(E.w * TUNING.fighter.gap) / lay(E).H + TUNING.foot.close;
 // the gap between you now, in H, measured from where the marks put it
 const gapNow = () => state.step.x - state.foot.pos;
 // your body's place in the same units: your feet plus the lunge's stride; his reach is measured to it
-const bodyPos = () => state.foot.pos + state.you.lungeK * TUNING.lunge.stride * meSize().scale;
+const bodyPos = () => state.foot.pos + (state.you.lungeK * TUNING.lunge.stride + state.you.drive) * meSize().scale;
 const inReach = (extra = 0) => state.step.x - bodyPos() <= state.foe.strike + TUNING.foot.reach + extra;
 const myH = (E) => lay(E).H * meSize().scale;
 const myArm = (E) => TUNING.arm.len * myH(E) * meSize().arm;
@@ -1154,6 +1160,7 @@ function relOff() { const h = state.hand, G = TUNING.control.gain; return [(h.fx
 function poseYou(E, dt) {
   const L = { H: myH(E) }, y = state.you, D = TUNING.dodge, h = state.hand, sh = state.sh;
   const LU = TUNING.lunge;
+  state.burnT = Math.max(0, state.burnT - dt);
   // lunge: the thumb pushed far past the reach steps the gladiator in, up to a stride; he steps back when the hand relaxes or recoils
   let tk = 0;
   if (h.down && h.lock <= 0 && !state.away && state.exhaust <= 0 && state.endT <= 0 && state.fallT <= 0 && !(state.netT > 0 && TUNING.net.stuck)) {
@@ -1170,10 +1177,13 @@ function poseYou(E, dt) {
       }
       else { tk = 0; tiredPop(E); }
     } else if (tk < 0.05) endLunge(E, true);
-    if (state.lunging && state.lng) commitLunge(E, Math.hypot(ox, oy), tk, dt);
+    if (state.lunging && state.lng) { commitLunge(E, Math.hypot(ox, oy), tk, dt); drive(E, tk, dt); }
   } else endLunge(E);
   y.lungeK += (tk - y.lungeK) * (1 - Math.exp(-dt / (tk > y.lungeK ? LU.tauIn : LU.tauOut)));
-  y.lunge = y.lungeK * LU.stride * L.H;
+  const dOn = driving();
+  if (!state.lunging && y.drive > 0) { y.drive *= Math.exp(-dt / LU.driveOut); if (y.drive < 1e-3) y.drive = 0; }
+  y.dk += ((dOn ? 1 : 0) - y.dk) * (1 - Math.exp(-dt / (dOn ? LU.tauIn : LU.driveOut)));
+  y.lunge = (y.lungeK * LU.stride + y.drive) * L.H;
   const want = state.away ? 1 : 0;
   y.back += (want - y.back) * (1 - Math.exp(-dt / (want ? 0.05 : 0.14)));
   const u = state.dodgeT > 0 ? 1 - state.dodgeT / state.dodgeMax : 1;
@@ -1183,7 +1193,7 @@ function poseYou(E, dt) {
   // upright, sword leading; lean only on a fast slash whose aim lies past the straight arm's reach
   let leanT = LN.base;
   if (a && a.kind === 'slash' && h.down && h.lock <= 0 && h.sp >= TUNING.hit.mid * LN.fast) leanT += LN.max * clamp((Math.hypot(h.tgx - h.sx, h.tgy - h.sy) / L.H - LN.beyond) / LN.span, 0, 1);
-  leanT = Math.min(leanT, LN.max) - 0.22 * y.back;
+  leanT = Math.min(leanT, LN.max) + LU.driveLean * y.dk - 0.22 * y.back;
   y.a += (leanT - y.a) * (1 - Math.exp(-dt / (leanT > y.a ? LN.tau : LN.back)));
   sh.zy += (sh.zone.sy - sh.zy) * (1 - Math.exp(-dt / 0.05));
   sh.up += ((raised() ? 1 : 0) - sh.up) * (1 - Math.exp(-dt / (raised() ? 0.045 : 0.12)));
@@ -1200,6 +1210,52 @@ function endLunge(E, pulled) {
   const T = TUNING.foot, ft = state.foot;
   if (ft.pos >= 0) return;
   ft.tgt = Math.min(0, Math.max(ft.tgt, ft.pos) + T.pace); ft.v = T.pace / T.gainDur * gripMul(); state.stepsIn++;
+}
+// The drive: a committed lunge (never a feint still open) held at full depth presses on in short stamping steps, burning stamina. Drawn back under full
+// depth it holds its ground until the lunge ends; what the blade meets, an empty tank or his body ends it for good. The recovery gives the ground back.
+const driving = () => !!(state.lunging && state.lng && state.lng.dv && state.lng.dv.on && !state.lng.dEnd && state.lng.full >= TUNING.lunge.driveDelay);
+function drive(E, tk, dt) {
+  const LU = TUNING.lunge, L = state.lng, y = state.you;
+  if (!L.committed || L.dEnd) return;
+  // what the blade met, in the lunge or the push that launched it, ends it
+  if (L.hit || L.pend || state.landM > L.t0 - LU.driveDelay) { L.dEnd = true; return; }
+  // drawn back under full depth the body stops; going out again re-arms the drive
+  if (tk < 1) { L.full = 0; if (L.dv) { L.dv.on = false; L.dv.t = 0; } return; }
+  L.full = (L.full || 0) + dt;
+  if (L.full < LU.driveDelay) return;
+  const Fy = youF(E);
+  if (!L.dv) L.dv = { t: 0, ph: 0, on: false };
+  const D = L.dv, k = meSize().scale;
+  D.t += dt; D.ph += dt * LU.driveHz;
+  if (D.ph >= 1) { D.ph -= 1; stamp(E, Fy); }
+  let v = LU.drive * Math.min(1, D.t / LU.driveRamp) * (1 + LU.driveSurge * Math.sin(TAU * D.ph)) * dt;
+  // his body: stop a little short of it
+  const room = Math.min(LU.driveMax - y.drive, (state.step.x - bodyPos() - gMin(E)) / k);
+  if (v >= room) { v = Math.max(0, room); L.dEnd = true; }
+  const cost = LU.driveCost * dt, sta0 = state.stamina;
+  if (state.stamina <= cost) { v *= state.stamina / cost; state.stamina = 0; L.dEnd = true; } else state.stamina -= cost;
+  if (v > 0 && !D.on) {
+    // the body (re)starts moving: it carries the lunge's stab, its blade landing on what it reaches however slow the hand; a stab of its own pays a jab
+    D.on = true;
+    if (!L.counted) { L.counted = true; state.drives++; }
+    state.burn = sta0;
+    stamp(E, Fy);
+    const h = state.hand;
+    if (h.atk && !h.atk.done) h.atk.drive = true;
+    else {
+      const jc = TUNING.attack.jab.cost * meWeapon().cost;
+      h.atk = { kind: 'jab', tired: state.stamina <= 0, done: false, cost: jc, drive: true };
+      state.stamina = Math.max(0, state.stamina - jc);
+    }
+  }
+  y.drive += v; state.driveDist += v; state.lastAtk = state.m; state.burnT = LU.driveBurn;
+}
+const driveStab = (a) => !!a.drive && driving();
+// each step of the drive plants the back foot: a kick of sand behind you and a dull footfall
+function stamp(E, Fy) {
+  const LU = TUNING.lunge, x = Fy.x - LU.driveFoot * Fy.H;
+  sand(x, Fy.y, -1, LU.driveSand); dust(x, Fy.y, LU.driveDust);
+  thud(E, LU.driveThud); E.haptic(LU.driveHaptic);
 }
 // your sword tip's height in his body units (y down, his feet at 0)
 const tipLy = (E) => (state.foe && state.foe.size ? toLocal(foeF(E), state.hand.ux, state.hand.uy)[1] : 0);
@@ -1316,7 +1372,7 @@ function moveHand(E, dt) {
 function updateAttack(E, dt) {
   const h = state.hand, T = TUNING, AT = T.attack, S = T.stamina, sh = state.sh;
   const live = h.down && h.lock <= 0 && !state.away && state.endT <= 0 && state.fallT <= 0;
-  if (h.atk && (!live || (h.sp < T.hit.minSpeed * 0.55 && !lungeStab(h.atk)))) h.atk = null;
+  if (h.atk && (!live || (h.sp < T.hit.minSpeed * 0.55 && !lungeStab(h.atk) && !driveStab(h.atk)))) h.atk = null;
   if (!h.atk && live && h.sp >= T.hit.minSpeed) {
     const spv = Math.hypot(h.vx, h.vy) || 1, ux = h.vx / spv, uy = h.vy / spv;
     // a jab is a push forward along the guard line, whatever the arm's aim
@@ -1934,7 +1990,7 @@ function checkHits(E) {
   const h = state.hand, T = TUNING, a = h.atk;
   if (!a || a.done || h.lock > 0 || state.fallT > 0 || state.endT > 0 || state.away) return;
   const need = a.kind === 'jab' ? T.attack.jab.minSpeed : a.kind === 'over' ? T.attack.over.minSpeed : T.hit.minSpeed;
-  if (h.sp < need && !lungeStab(a)) return;
+  if (h.sp < need && !lungeStab(a) && !driveStab(a)) return;
   // a lunge that has not committed (the Feint worn) holds what its blade meets until it commits
   const F = foeF(E), fm = state.foe, jab = a.kind === 'jab', pad = (jab ? T.blade.jabPad : T.blade.pad) / F.H, held = state.lunging && state.lng && !state.lng.committed;
   const order = fm.parts.filter((p) => p.slot).concat(fm.parts.filter((p) => !p.slot));
@@ -1963,6 +2019,7 @@ function checkHits(E) {
 // what the blade met lands: a clang on a plate, his guard or a gap guard, or a hit (a jab along a slit, or into an opened gap, goes in for a slot hit)
 function land(E, a, { p, at, ang, sp, slit }) {
   if (state.lng && state.lunging) state.lng.hit = true;
+  state.landM = state.m;
   if (covered(p)) return bounce(E, p, at, ang, sp, a);
   return gapHit(E, p, at, ang, sp, a, p.slot && a.kind === 'jab' && (state.openAll > 0 || openNow(p) || slit));
 }
@@ -2236,7 +2293,7 @@ function resolveSwing(E) {
   }
   // a blow on one of your plates costs half as much (a quarter heart for a light blow)
   // disarmed, he hits with his fists; Juggernaut: lunging through it, it costs half and you keep coming
-  const part = state.you.parts.find((q) => q.d.id === ZONE_PART[sw.zone.id]), plated = !!(part && part.armour), jugg = has('jugg') && state.you.lungeK > 0.5;
+  const part = state.you.parts.find((q) => q.d.id === ZONE_PART[sw.zone.id]), plated = !!(part && part.armour), jugg = has('jugg') && (state.you.lungeK > 0.5 || driving());
   const dmg = (state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg) * (plated ? TUNING.me.plateMul : 1) * (jugg ? TUNING.cards.jugg : 1);
   sw.outcome = 'hit'; state.hp -= dmg; state.taken++; state.hurt = plated ? 0.25 : 0.4; if (sw.counter) state.counterHits++;
   if (pounce && !noPush()) { state.pushT = 0.3; pushYou(E); }
@@ -2595,11 +2652,34 @@ function boutGold() {
 }
 function openDraft(E) {
   const grade = state.grades[state.grades.length - 1] || 'C', deal = dealDraft(grade);
-  state.draft = { grade, tally: boutTally(), gold: state.lastGold, cards: deal.cards, priced: deal.priced, odds: deal.odds, t: 0, btns: [], reroll: null, help: null, helpOn: false };
+  state.draft = { grade, tally: boutTally(), gold: state.lastGold, cards: deal.cards, priced: deal.priced, odds: deal.odds, t: 0, btns: [], reroll: null, help: null, helpOn: false, spoil: spoilOf() };
   state.epicsSeen += deal.cards.filter((c) => c.tier >= 2).length;
   saveRun(E);
   const h = state.hand; h.down = false; h.id = -1; h.atk = null; state.sh.held = false; state.sh.hid = -1; state.dg.down = false;
   E.audio.play('coin');
+}
+// The spoils: the weapon of the fighter just felled (the last of a pair), when he is a man and it is not yours; an axe or a mace as he carried it, Mevia's
+// spear a plain spear. mine: what you carried, for the swap back.
+function spoilOf() {
+  const f = state.foe, me = state.me, w = f && !f.beast && f.weapon && f.weapon.id, mace = w === 'axe' && !!f.mace;
+  if (!w || !TUNING.me.weapons[w] || (w === me.weapon && (w !== 'axe' || mace === !!me.mace))) return null;
+  return { w, mace, mine: [me.weapon, !!me.mace], took: false, her: !!(NEW_CHAMPS[f.ck] && NEW_CHAMPS[f.ck].female) };
+}
+// your fighter with another weapon, as if the weapon wheel had landed on it
+function wield(me, w, mace) {
+  const idx = me.idx.slice();
+  idx[5] = TUNING.me.wheels.weapon.findIndex((e) => e[0] === w);
+  return deriveMe({ ...me, idx, mace });
+}
+const spoilName = (w, mace) => weaponName({ weapon: w, mace }).toLowerCase();
+// a tap takes his weapon, a second gives it back; the choice stands when you leave the card
+function swapSpoil(E) {
+  const S = state.draft.spoil;
+  S.took = !S.took;
+  state.me = S.took ? wield(state.me, S.w, S.mace) : wield(state.me, S.mine[0], S.mine[1]);
+  state.you.lookSig = null;
+  saveRun(E);
+  E.audio.play('tap'); clangSound(E, 0); E.haptic(15);
 }
 // a card joins your picks, and a piece takes its slot: whatever was worn there is gone. Titan's hearts come and go with it.
 function applyCard(c, on = true) {
@@ -2650,6 +2730,7 @@ function pickCard(E, c) {
   // every card ever picked can fill the training ground's start-card slot
   const seen = E.save.get('picked', []); if (!c.duo && !seen.includes(c.id)) E.save.set('picked', [...seen, c.id]);
   E.audio.play('tap'); E.haptic(15);
+  if (d && d.spoil && d.spoil.took) state.spoils++;
   state.draft = null;
   if (state.rack + 1 === TUNING.tent.after && !state.tentDone) { openTent(E); return; }
   state.rack++; newRack(E); poseFoe(E, 0.016);
@@ -2919,7 +3000,7 @@ const foeLook = (d) => withGear({ ...GTYPE[d.weapon.id], ...(TUNING.champs[d.ck]
 // yours is rebuilt only when your picks change
 function lookOf(fm, isFoe) {
   if (isFoe) return fm.look || GTYPE[fm.weapon.id];
-  const sig = state.picks.join(',');
+  const sig = `${state.picks.join(',')}|${state.me.weapon}${state.me.mace ? 'm' : ''}`;
   if (state.you.lookSig !== sig) { state.you.look = myLook(state.me, state.picks, state.tailor || {}); state.you.lookSig = sig; }
   return state.you.look;
 }
@@ -4726,6 +4807,18 @@ function drawDraft(ctx, E) {
   d.help = { x: E.w / 2 + 186, y: by - 24, w: 48, h: 48 };
   E.roundRect(d.help.x, d.help.y, 48, 48, 24, '#1f2937', '#c4b99a');
   E.text('?', d.help.x + 24, by, { size: 22, weight: '800', color: '#f0e6cc' });
+  // the spoils, left of "Pick one": take his weapon, or keep yours
+  d.spoilBtn = null;
+  if (d.spoil) {
+    const S = d.spoil, lab = S.took ? `Keep your ${spoilName(S.mine[0], S.mine[1])}` : `Take ${S.her ? 'her' : 'his'} ${spoilName(S.w, S.mace)}`;
+    const right = E.w / 2 - 116, left = E.safe.left + 12, fs = fitSize(ctx, lab, 16, right - left - 20), tw = (ctx.font = `800 ${fs}px system-ui, sans-serif`, ctx.measureText(lab).width);
+    const bw = Math.min(right - left, Math.max(120, tw + 24)), b = { x: right - bw, y: by - 22, w: bw, h: 44 };
+    ctx.globalAlpha = ready ? 1 : 0.5;
+    E.roundRect(b.x, b.y, b.w, b.h, 12, S.took ? '#3a2a14' : '#5a3a12', S.took ? '#c4b99a' : '#fbbf24');
+    E.text(lab, b.x + b.w / 2, by, { size: fs, weight: '800', color: S.took ? '#e2d6b8' : '#fde68a' });
+    ctx.globalAlpha = 1;
+    d.spoilBtn = b;
+  }
   if (d.helpOn) drawDealHelp(ctx, E, held, d.odds);
 }
 const ODDS_NAME = { set: 'Set', 3: 'Legendary', 2: 'Epic', 1: 'Rare', 0: 'Common' };
@@ -5295,10 +5388,15 @@ function fameFromLedger(E) {
   E.save.set('picked', [...picked]); E.save.set('fameCheck', 0);
 }
 // A won run carves its fighter on the Wall of Champions, newest first: their rolls as the wheels gave them (the tent's plates left off), the stat a veteran
-// gains (seeded, one that has room) and a scar line from the champion they felled. A veteran who wins again only moves their arena up.
+// gains (seeded, one that has room) and a scar line from the champion they felled.
 function carveChampion(E, me, arenaId, champName) {
   const L = E.save.get('champs', []), at = (id) => ARENAS.findIndex((a) => a.id === id), old = me.vid != null ? L.find((c) => c.id === me.vid) : null;
-  if (old) { if (at(old.arena) < at(arenaId)) old.arena = arenaId; E.save.set('champs', L.slice()); return old; }
+  // a veteran who wins again moves their arena up, and keeps the weapon they won with (the spoils)
+  if (old) {
+    if (at(old.arena) < at(arenaId)) old.arena = arenaId;
+    old.weapon = me.weapon; old.mace = me.mace; old.me.idx[5] = me.idx[5]; old.me.mace = me.mace;
+    E.save.set('champs', L.slice()); return old;
+  }
   const rng = makeRng((state.seed ^ 0x5bd1e995) >>> 0), A = TUNING.me.armour[me.set], ups = [1, 2, 3].filter((k) => me.idx[k] < 4);
   const c = { id: state.seed, name: me.name, female: me.female, origin: me.origin, weapon: me.weapon, mace: me.mace, arena: arenaId,
     me: { idx: me.idx.slice(), plates: me.plates.slice(0, A.n + (A.arm ? 1 : 0)), name: me.name, female: me.female, mace: me.mace, cardRoll: me.cardRoll, vary: me.vary || 0 },
@@ -5931,7 +6029,7 @@ const play = {
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize,
-  ARENAS, rollGauntlet, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
+  ARENAS, rollGauntlet, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     if (params.resume) resumeRun(E, params.resume); else newRound(E, params.seed, params.me || rollMe(params.seed), undefined, params.arena);
     newRack(E); initHand(E);
@@ -6059,7 +6157,7 @@ const play = {
       grades: state.grades.join(''), picks: state.picks.join(','), stepsIn: state.stepsIn, stepsOut: state.stepsOut, wallHits: state.wallHits, foeWall: state.foeWall, outReach: state.outReach, dodged: state.dodged, chases: state.chases,
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
       arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1,
-      meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast });
+      meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast, drives: state.drives, driveDist: Math.round(state.driveDist * 100) / 100, spoils: state.spoils });
     E.setScene('over', { ...r, won, reached, gauntlet: g, me, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew,
       picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice(),
       arena: state.arena, fav: state.arena === 'games' ? thumbFav() : state.fav, opened, fame });
@@ -6101,6 +6199,7 @@ const play = {
       if (d.helpOn) { d.helpOn = false; E.audio.play('tap'); return; }
       if (d.help && E.hit(d.help, p)) { d.helpOn = true; E.audio.play('tap'); return; }
       if (d.reroll && d.reroll.live && E.hit(d.reroll, p)) { rerollDraft(E); return; }
+      if (d.spoilBtn && d.t > TUNING.draft.delay && E.hit(d.spoilBtn, p)) { swapSpoil(E); return; }
       const b = d.t > TUNING.draft.delay && d.btns.find((q) => E.hit(q, p)); if (b) pickCard(E, b.card); return;
     }
     // the card lab (dev channel only): a LAB tab on the intro card opens it
@@ -6214,7 +6313,11 @@ const play = {
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(bx - 1, top + H2.sta - 1, bw + 2, 11);
     const flashOn = state.exhaust > 0 && Math.floor(state.m * 8) % 2 === 0;
     if (state.exhaust > 0) { ctx.fillStyle = flashOn ? '#ffffff' : '#ef4444'; ctx.fillRect(bx, top + H2.sta, bw * clamp(1 - state.exhaust / TS.exhaust, 0.05, 1), 9); }
-    else { ctx.fillStyle = sf < 0.25 ? '#f59e0b' : '#4ade80'; ctx.fillRect(bx, top + H2.sta, bw * sf, 9); }
+    else {
+      ctx.fillStyle = sf < 0.25 ? '#f59e0b' : '#4ade80'; ctx.fillRect(bx, top + H2.sta, bw * sf, 9);
+      // what the drive burns glows where it was, then fades
+      if (state.burnT > 0 && state.burn > state.stamina) { ctx.globalAlpha = Math.min(1, 2 * state.burnT / TUNING.lunge.driveBurn); ctx.fillStyle = '#fde68a'; ctx.fillRect(bx + bw * sf, top + H2.sta, bw * (Math.min(state.burn, state.staMax) - state.stamina) / state.staMax, 9); ctx.globalAlpha = 1; }
+    }
     E.text(state.exhaust > 0 ? 'EXHAUSTED' : 'stamina', bx - 6, top + H2.sta + 6, { size: 10, align: 'right', color: state.exhaust > 0 ? '#fca5a5' : '#c4b99a', weight: state.exhaust > 0 ? '800' : '400' });
     // your upgrades, under the bars
     state.picks.forEach((id, i) => drawIcon(ctx, id, E.w - r - 9 - (state.picks.length - 1 - i) * 22, top + H2.icons, 9));
