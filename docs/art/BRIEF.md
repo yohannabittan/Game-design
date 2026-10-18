@@ -225,6 +225,29 @@ Anchor: `docs/games/arena/style.md`; cast and places: `docs/games/arena/world.md
 
 Make the kit from one first image (the torso) as the reference for the rest. Make two options for the backdrops and one for each kit part (a kit is a set; swap the whole set if it doesn't hang together). About $3 to $4. Put everything into `docs/art/final/arena/`, and the second backdrop options as `-alt` files. In the handoff, list each part's joint points in pixels (for example the shoulder and elbow centres on the upper arm), so the builder can pin them to the rig.
 
+### Pack 17: Arena, the faces (added 2026-10-18)
+
+Anchor: `docs/games/arena/style.md`; cast and lines: `docs/games/arena/world.md`; spec: `docs/games/arena/prd-v0.3.md`, "Step 6". The designer: "It needs more art." Portraits are not hit-tested, so they follow ADR-0015 as is. Add them to `docs/art/candidates/arena/candidates.json` with Pack 15.
+
+Portraits, 768 x 1024, chest up, three-quarter view facing left (toward the player, who stands on the left), a plain warm sand-coloured background with a soft vignette, no text:
+
+| File | Who | Look |
+| --- | --- | --- |
+| `brutus.png` | Old Brutus, the lanista and your trainer | a grizzled ex-gladiator in his sixties, broken nose, cropped grey beard, a scarred forearm across his chest, a plain wool tunic; gruff and dry |
+| `brutus-proud.png` | Old Brutus, proud | the same man, a rare half-smile he is trying to hide |
+| `champ-marcus.png` | Marcus the Red | a red-haired murmillo, crested bronze helmet under his arm, mocking grin |
+| `champ-aurelius.png` | Aurelius the Golden | a handsome vain champion, gilded armour, golden laurel, smug |
+| `champ-flamma.png` | Flamma the Unbroken | a scarred veteran, many old wounds, calm and dangerous |
+| `champ-varro.png` | Varro of Capua | a huge local hero, shaved head, thick neck, heavy plate, confident |
+| `champ-twins.png` | Castor and Pollux, the Twins | two identical young men side by side, matching blue-trimmed armour, one smiling, one serious |
+| `champ-hermes.png` | Hermes the Swift | a lean wiry runner, winged motif on a light helmet, a sly look |
+| `champ-carpophorus.png` | Carpophorus the Beastmaster | a broad bearded beast handler in leather, a lion's head beside him at his hip, its mane in frame |
+| `champ-mevia.png` | Mevia the Huntress | a fierce woman hunter, braided hair, a net over one shoulder and a spear |
+| `champ-aquila.png` | Aquila, the Emperor's Blade | a tall immaculate champion in polished steel and a purple cloak, an eagle on the breastplate, cold |
+| `emperor.png` | the Emperor, in the imperial box | an older emperor in purple and gold with a laurel wreath, seated, one hand raised with the thumb hidden, unreadable |
+
+Generate `brutus.png` first and use it as the reference for `brutus-proud`. Make two options for Brutus, Marcus, Castor and Pollux and the Emperor, and one for each of the others. That is 16 images, about US$3 to 4. Finals go into `docs/art/final/arena/`.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.

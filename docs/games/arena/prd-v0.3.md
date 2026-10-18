@@ -854,3 +854,36 @@ One Sonnet build, after 5a lands, reviewed.
   - A seeded Colosseum gauntlet shows a young beast at bout 2 and a full one at bout 4.
   - The hint shows once.
   - `npm run smoke` passes.
+
+## Step 6 (locked 2026-10-18): the art, part 1
+
+**The designer:** "What's the next upgrade for arena? It needs more art."
+
+**The art (the art chat; see `docs/art/BRIEF.md`):**
+- **Pack 15** (four arena backdrops and the fighter pilot kit, ADR-0021).
+- **Pack 17**, the faces:
+  - Old Brutus, in two expressions;
+  - the nine champions;
+  - the Emperor.
+- About US$7 to 8 in all. The designer picks in the game's ART tab (ADR-0020).
+
+**The wiring (one Sonnet build, once the finals land, reviewed):**
+- **Backdrops:** each arena's backdrop is drawn behind the sand, scaled to cover, with a dark wash over the fight band, so the fighters and their tells always read first. The drawn arena stays as the fallback.
+- **Old Brutus's portrait** sits beside his line on every card that has one. The proud face shows on a won bout's card and on a won run's end card.
+- **A champion's portrait** sits on his intro card and on the end card that names him. A rival shows the same face.
+- **The Emperor** sits in the imperial box on the thumb card.
+- **The fighter kit pilot,** behind a dev-only switch in the ART tab, as ADR-0021 says:
+  - the player's base body, one helmet and one shield, pinned to the rig;
+  - the gaps, plates and tells drawn on top;
+  - the procedural look stays the default.
+- **Every image** goes through `E.art.src` with a drawn fallback, as WebP, and the folder stays within its budget.
+- **Acceptance:**
+  - every portrait and backdrop shows where it should, with alts pickable;
+  - the fight band's contrast stays low enough that the tells read (the designer's eye judges);
+  - nothing overlaps at 667x375, 844x390 and 932x430;
+  - `npm run smoke` passes;
+  - frame time is no worse than arena-v30.
+
+**Later, if the pilot is accepted:**
+- a kit for each gladiator type and the two beasts;
+- the painted gear pack (F), so each card's piece shows on the body.
