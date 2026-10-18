@@ -4,9 +4,9 @@
 // The engine owns: canvas + DPR, the loop, unified touch/mouse/keyboard input,
 // scenes, local save, a tiny synth for audio, haptics, seeded RNG, and juice
 // helpers (shake, particles, tweens), the dev/release channel (ADR-0016), and
-// the playtest ledger with its Export scene. Games should not touch the DOM.
-// The engine's own DOM: the toast, and one hidden textarea that the Export
-// scene uses as the select-all fallback for Copy.
+// the playtest ledger with its Export scene, and the dev-only art picker (ADR-0020).
+// Games should not touch the DOM. The engine's own DOM: the toast, and one hidden
+// textarea that the Export and Art scenes use as the select-all fallback for Copy.
 //
 // Coordinates: everything is in CSS pixels. engine.w / engine.h are the
 // current viewport size. Portrait phone is the primary target.
@@ -49,6 +49,7 @@ export const lerp = (a, b, t) => a + (b - a) * t;
 export const dist = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
 
 // ---------- Save (localStorage, namespaced, versioned) ----------
+const OWN_KEYS = ['__ledger', '__art'];
 class Save {
   constructor(slug, version, migrate, channel = 'dev') {
     // The release channel shares an origin with dev, so it gets its own key and the two never mix (ADR-0016).
@@ -61,11 +62,11 @@ class Save {
         const parsed = JSON.parse(raw);
         const from = parsed.__v || 1;
         this.data = parsed.data || {};
-        // __ledger belongs to the engine (ADR-0016): migrate never sees it and cannot drop it.
-        const ledger = this.data.__ledger;
-        delete this.data.__ledger;
+        // __ledger (ADR-0016) and __art (ADR-0020) belong to the engine: migrate never sees them and cannot drop them.
+        const own = {};
+        for (const k of OWN_KEYS) if (k in this.data) { own[k] = this.data[k]; delete this.data[k]; }
         if (from < version && migrate) this.data = migrate(this.data, from) || this.data;
-        if (ledger) this.data.__ledger = ledger;
+        Object.assign(this.data, own);
       }
     } catch (e) { this.data = {}; }
   }
@@ -73,7 +74,7 @@ class Save {
   set(k, v) { this.data[k] = v; this.flush(); return v; }
   update(k, fn, def) { return this.set(k, fn(this.get(k, def))); }
   flush() { try { localStorage.setItem(this.key, JSON.stringify({ __v: this.version, data: this.data })); } catch (e) {} }
-  reset() { const ledger = this.data.__ledger; this.data = {}; if (ledger) this.data.__ledger = ledger; this.flush(); }
+  reset() { const own = {}; for (const k of OWN_KEYS) if (k in this.data) own[k] = this.data[k]; this.data = own; this.flush(); }
 }
 
 // ---------- Audio (tiny synth, no asset files) ----------
@@ -170,6 +171,47 @@ class Ledger {
   }
 }
 
+// ---------- Art picks (dev channel only, ADR-0020) ----------
+// With each art pack the art chat writes docs/art/candidates/<slug>/candidates.json:
+//   { "pack": "13", "assets": { "daifuku-window": ["daifuku-window-A.png", "daifuku-window-B.png"] } }
+// In the dev channel the engine fetches it (no-store). The designer picks A, B ... on the ART screen; picks live under the engine-owned
+// `__art` key. A game routes its image loads through E.art.src(name, fallback) and reloads on E.art.on(fn) / E.art.version.
+// The release channel never fetches the manifest and always gets the fallback. Candidates are never in any service worker cache.
+class Art {
+  constructor(E) { this.E = E; this.manifest = null; this.version = 0; this.listeners = []; }
+  get dir() { return `../../docs/art/candidates/${this.E.game.slug}/`; }
+  get enabled() { return this.E.channel !== 'release'; }
+  load() {
+    if (!this.enabled || typeof fetch !== 'function') return;
+    fetch(`${this.dir}candidates.json`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((m) => {
+      const assets = {};
+      if (m && m.assets && typeof m.assets === 'object') for (const [k, v] of Object.entries(m.assets)) if (Array.isArray(v) && v.length) assets[k] = v.map(String);
+      if (!Object.keys(assets).length) return;
+      this.manifest = { pack: m.pack == null ? '' : String(m.pack), assets };
+      this._changed();
+    }).catch(() => {}); // a missing manifest is not an error: there are no candidates
+  }
+  get names() { return this.manifest ? Object.keys(this.manifest.assets) : []; }
+  has(name) { return this.enabled && !!(this.manifest && this.manifest.assets[name]); }
+  choice(name) { // index of the picked candidate, 0 (A) by default
+    const n = this.has(name) ? this.manifest.assets[name].length : 0, i = (this.E.save.get('__art', {}) || {})[name];
+    return Number.isInteger(i) && i >= 0 && i < n ? i : 0;
+  }
+  src(name, fallbackSrc) { return this.has(name) ? this.dir + encodeURIComponent(this.manifest.assets[name][this.choice(name)]) : fallbackSrc; }
+  pick(name, i) {
+    if (!this.has(name) || i === this.choice(name) || i < 0 || i >= this.manifest.assets[name].length) return;
+    this.E.save.update('__art', (a) => ({ ...a, [name]: i }), {});
+    this._changed();
+  }
+  on(fn) { this.listeners.push(fn); }
+  _changed() { this.version++; for (const fn of this.listeners) { try { fn(this); } catch (e) {} } }
+  letter(i) { return String.fromCharCode(65 + i); }
+  line() {
+    const pack = this.manifest && this.manifest.pack;
+    return `Art picks, ${this.E.game.slug}${pack ? ', pack ' + pack : ''}: ` + this.names.map((n) => `${n} ${this.letter(this.choice(n))}`).join(', ');
+  }
+}
+
 // ---------- Particles ----------
 class Particles {
   constructor() { this.list = []; }
@@ -215,6 +257,7 @@ export class Engine {
     this.releaseVersion = meta('release-version');
     this.save = new Save(game.slug, game.saveVersion || 1, game.migrate, this.channel);
     this.ledger = new Ledger(this.save);
+    this.art = new Art(this);
     this.audio = new Audio(this.save);
     this.particles = new Particles();
     this.rng = makeRng(Date.now() & 0xffffffff);
@@ -234,6 +277,8 @@ export class Engine {
     this.save.update('__opens', (n) => n + 1, 0); // also proves storage works on first launch
     this._setupTune();
     this._setupExport();
+    this._setupArt();
+    this.art.load();
     if (this.game.init) this.game.init(this);
     this.setScene(this.game.start || Object.keys(this.game.scenes)[0]);
     let last = performance.now();
@@ -268,17 +313,23 @@ export class Engine {
     if (this.scene && this.scene.render) this.scene.render(ctx, this);
     this.particles.render(ctx);
     ctx.restore();
-    this._tuneTab = this._exportTab = null;
+    this._tuneTab = this._exportTab = this._artTab = null;
     if (this.sceneName === 'menu') {
       if (this._tune && this._tuneShown) {
-        this._tuneTab = { x: this.w - 74 - this.safe.right, y: this.safe.top + 10, w: 64, h: 32 };
-        this.roundRect(this._tuneTab.x, this._tuneTab.y, 64, 32, 10, '#1f2937', '#475569');
-        this.text('TUNE', this._tuneTab.x + 32, this._tuneTab.y + 16, { size: 13, color: '#9aa4b2' });
+        this._tuneTab = { x: this.w - 82 - this.safe.right, y: this.safe.top + 4, w: 72, h: 44 };
+        this.roundRect(this._tuneTab.x, this._tuneTab.y, 72, 44, 10, '#1f2937', '#475569');
+        this.text('TUNE', this._tuneTab.x + 36, this._tuneTab.y + 22, { size: 14, color: '#9aa4b2' });
       }
-      // Top-left mirror of the TUNE tab, in both channels: a 72 x 44 target.
+      // Top-left mirror of the TUNE tab, in both channels: both are 72 x 44 on one line (ADR-0019).
       this._exportTab = { x: 10 + this.safe.left, y: this.safe.top + 4, w: 72, h: 44 };
       this.roundRect(this._exportTab.x, this._exportTab.y, 72, 44, 10, '#1f2937', '#475569');
       this.text('EXPORT', this._exportTab.x + 36, this._exportTab.y + 22, { size: 14, color: '#9aa4b2' });
+      // Dev channel only, and only while the manifest has candidates: the ART tab sits under EXPORT (ADR-0020).
+      if (this.art.enabled && this.art.names.length) {
+        this._artTab = { x: this._exportTab.x, y: this._exportTab.y + 52, w: 72, h: 44 };
+        this.roundRect(this._artTab.x, this._artTab.y, 72, 44, 10, '#1f2937', '#475569');
+        this.text('ART', this._artTab.x + 36, this._artTab.y + 22, { size: 14, color: '#9aa4b2' });
+      }
     }
     if (this._flash.t > 0) {
       ctx.globalAlpha = (this._flash.t / this._flash.dur) * 0.6;
@@ -406,10 +457,7 @@ export class Engine {
       enter(_, params) {
         this.from = (params && params.from) || 'menu';
         this.text = E.ledger.text(E); this.scroll = 0; this.drag = null; this.lines = null;
-        const ta = this.ta = document.createElement('textarea');
-        ta.readOnly = true; ta.value = this.text; ta.setAttribute('aria-hidden', 'true'); ta.tabIndex = -1;
-        ta.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;font:12px ui-monospace,Menlo,monospace;user-select:text;-webkit-user-select:text;';
-        document.body.appendChild(ta);
+        this.ta = E._copyBox(this.text);
       },
       exit() { if (this.ta) this.ta.remove(); this.ta = null; },
       body() { const top = E.safe.top + 60, bottom = E.h - E.safe.bottom - 92; return { x: 16 + E.safe.left, y: top, w: E.w - 32 - E.safe.left - E.safe.right, h: Math.max(60, bottom - top) }; },
@@ -448,24 +496,82 @@ export class Engine {
         if (this.back && E.hit(this.back, p)) E.setScene(this.from);
         else if (this.copyBtn && E.hit(this.copyBtn, p)) this.copy();
       },
-      // Clipboard API when the browser allows it, else select-all in the hidden textarea and execCommand; if even that
-      // fails the textarea is shown over the text so the tester can long-press and copy it themselves.
-      copy() {
-        const ta = this.ta, text = this.text;
-        const fallback = () => {
-          let ok = false;
-          try { ta.select(); ta.setSelectionRange(0, text.length); ok = document.execCommand('copy'); } catch (e) {}
-          if (!ok) {
-            const b = this.body();
-            ta.style.cssText = `position:fixed;left:${b.x - 8}px;top:${b.y - 8}px;width:${b.w + 16}px;height:${b.h + 16}px;box-sizing:border-box;margin:0;padding:8px;border:0;border-radius:10px;background:#0b0e14;color:#cbd5e1;font:12px/17px ui-monospace,Menlo,monospace;z-index:5;outline:none;resize:none;user-select:text;-webkit-user-select:text;`;
-            ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+      copy() { E._copyText(this.text, this.ta, this.body()); },
+    };
+  }
+  // The copy mechanism shared by Export and Art: a hidden read-only textarea, and a Copy that uses the clipboard API when the browser
+  // allows it, else select-all and execCommand; if even that fails the textarea is shown over `body` so the tester can long-press it.
+  _copyBox(text) {
+    const ta = document.createElement('textarea');
+    ta.readOnly = true; ta.value = text; ta.setAttribute('aria-hidden', 'true'); ta.tabIndex = -1;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;font:12px ui-monospace,Menlo,monospace;user-select:text;-webkit-user-select:text;';
+    document.body.appendChild(ta);
+    return ta;
+  }
+  _copyText(text, ta, b) {
+    const E = this;
+    ta.value = text;
+    const fallback = () => {
+      let ok = false;
+      try { ta.select(); ta.setSelectionRange(0, text.length); ok = document.execCommand('copy'); } catch (e) {}
+      if (!ok) {
+        ta.style.cssText = `position:fixed;left:${b.x - 8}px;top:${b.y - 8}px;width:${b.w + 16}px;height:${b.h + 16}px;box-sizing:border-box;margin:0;padding:8px;border:0;border-radius:10px;background:#0b0e14;color:#cbd5e1;font:12px/17px ui-monospace,Menlo,monospace;z-index:5;outline:none;resize:none;user-select:text;-webkit-user-select:text;`;
+        ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+      }
+      E.toast(ok ? 'Copied' : 'Text selected: long-press it and choose Copy');
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => E.toast('Copied'), fallback); return; }
+    } catch (e) {}
+    fallback();
+  }
+  // --- art scene: pick a candidate per asset (ADR-0020) ---
+  // Reached from the ART tab on the menu (dev channel, manifest has assets). One row per asset with lettered 44 px buttons,
+  // the pick highlighted, and Copy picks, which copies the one-line text for the art chat.
+  _setupArt() {
+    const E = this, ROW = 84;
+    this.game.scenes.__art = {
+      enter(_, params) {
+        this.from = (params && params.from) || 'menu'; this.scroll = 0; this.drag = null;
+        this.ta = E._copyBox(E.art.line());
+      },
+      exit() { if (this.ta) this.ta.remove(); this.ta = null; },
+      body() { const top = E.safe.top + 64, bottom = E.h - E.safe.bottom - 92; return { x: 16 + E.safe.left, y: top, w: E.w - 32 - E.safe.left - E.safe.right, h: Math.max(60, bottom - top) }; },
+      rows() {
+        const b = this.body();
+        return E.art.names.map((name, i) => {
+          const y = b.y + i * ROW - this.scroll, n = E.art.manifest.assets[name].length, gap = 10;
+          return { name, y, btns: Array.from({ length: n }, (_, j) => ({ j, x: b.x + j * (44 + gap), y: y + 30, w: 44, h: 44 })) };
+        });
+      },
+      render(ctx) {
+        const b = this.body(), rows = this.rows(), pack = E.art.manifest && E.art.manifest.pack;
+        E.text(pack ? `Art, pack ${pack}` : 'Art', E.w / 2, E.safe.top + 30, { size: 24, weight: '800' });
+        this.back = E.button('Back', 16 + E.safe.left + 42, E.safe.top + 30, { w: 84, h: 44, size: 15, fill: '#334155' });
+        this.copyBtn = E.button('Copy picks', E.w / 2, E.h - E.safe.bottom - 40, { w: Math.min(280, E.w * 0.7), h: 56, size: 20 });
+        const max = Math.max(0, E.art.names.length * ROW - b.h);
+        this.scroll = clamp(this.scroll, 0, max);
+        ctx.save(); ctx.beginPath(); ctx.rect(b.x - 8, b.y - 8, b.w + 16, b.h + 16); ctx.clip();
+        for (const r of rows) {
+          E.text(r.name, b.x, r.y + 12, { size: 16, align: 'left', color: '#e6e6e6' });
+          const cur = E.art.choice(r.name);
+          for (const t of r.btns) {
+            const on = t.j === cur;
+            E.roundRect(t.x, t.y, t.w, t.h, 10, on ? '#3b82f6' : '#1f2937', on ? null : '#475569');
+            E.text(E.art.letter(t.j), t.x + t.w / 2, t.y + t.h / 2, { size: 18, weight: '800', color: on ? '#fff' : '#cbd5e1' });
           }
-          E.toast(ok ? 'Copied' : 'Text selected: long-press it and choose Copy');
-        };
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => E.toast('Copied'), fallback); return; }
-        } catch (e) {}
-        fallback();
+        }
+        ctx.restore();
+      },
+      onPointerDown(p) { this.drag = { y: p.y, s: this.scroll }; },
+      onPointerMove(p) { if (this.drag) this.scroll = this.drag.s - (p.y - this.drag.y); },
+      onPointerUp() { this.drag = null; },
+      onTap(p) {
+        if (this.back && E.hit(this.back, p)) { E.setScene(this.from); return; }
+        if (this.copyBtn && E.hit(this.copyBtn, p)) { E._copyText(E.art.line(), this.ta, this.body()); return; }
+        const b = this.body();
+        if (p.y < b.y - 8 || p.y > b.y + b.h + 8) return;
+        for (const r of this.rows()) for (const t of r.btns) if (E.hit(t, p)) { E.art.pick(r.name, t.j); E.audio.play('tap'); return; }
       },
     };
   }
@@ -473,7 +579,7 @@ export class Engine {
   // both tabs; a game may set E.titleArea = { x, y, w, h } to say where its title really is. Returns true when the tap is consumed.
   _titleTap(p) {
     const a = this.titleArea || { x: 0, y: 0, w: this.w, h: this.safe.top + Math.max(110, this.h * 0.16) };
-    if (!this.hit(a, p) || (this._exportTab && this.hit(this._exportTab, p))) { this._titleTaps = []; return false; }
+    if (!this.hit(a, p) || (this._exportTab && this.hit(this._exportTab, p)) || (this._artTab && this.hit(this._artTab, p))) { this._titleTaps = []; return false; }
     const now = performance.now();
     this._titleTaps = this._titleTaps.filter((t) => now - t < 2000).concat(now);
     if (this._titleTaps.length < 5) return false;
@@ -545,6 +651,7 @@ export class Engine {
       if (p.cancelled) p.isTap = p.isSwipe = false;
       if (p.isTap && this._tune && this.sceneName === 'menu' && this._tuneTab && this.hit(this._tuneTab, p)) { this.setScene('tune'); return; }
       if (p.isTap && this.sceneName === 'menu' && this._exportTab && this.hit(this._exportTab, p)) { this.setScene('__export', { from: this.sceneName }); return; }
+      if (p.isTap && this.sceneName === 'menu' && this._artTab && this.hit(this._artTab, p)) { this.setScene('__art', { from: this.sceneName }); return; }
       if (p.isTap && this.channel === 'release' && this._tune && !this._tuneShown && this.sceneName === 'menu' && this._titleTap(p)) return;
       this.scene && this.scene.onPointerUp && this.scene.onPointerUp(p, this);
       if (p.isTap && this.scene && this.scene.onTap) this.scene.onTap(p, this);

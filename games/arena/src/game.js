@@ -329,6 +329,28 @@ const TUNING = {
   champs: { carpophorus: { send: 0.5 }, mevia: { net: 2.4 } },
   // the Emperor's thumb card: s the box takes to show, then the hand to rise, then the thumb to turn; s before a tap continues
   thumb: { box: 0.6, hand: 0.8, turn: 0.4, tap: 2.2 },
+  // Step 6, the art (ADR-0020, ADR-0021). Backdrops: each arena's image covers the screen behind the fighters, under a dark wash (alpha over the whole
+  // screen, then a band from band H above the floor down to the floor at bandA), so the fighters and their tells read first. Portraits: face = the px of
+  // a speaker's face beside his line (big for a headline), crop = the face's box in a portrait (fractions x0 y0 x1 y1), bust = a champion's on his card
+  // (w, h px, gap from the card's corner), box = the Emperor's crop in the imperial box.
+  art: { wash: 0.28, band: 1.15, bandA: 0.32, face: 30, faceBig: 40, faceCard: 26, gap: 4, cardDrop: 8, tight: 2, crop: [0.2, 0.02, 0.78, 0.46], bust: [60, 80, 10], epi: [96, 128], box: [0, 0.02, 1, 0.62] },
+  // The painted cut-out kit (dev-only pilot, a switch on the ART screen): Strength picks the muscle tier (lean up to lean, avg up to avg, the muscular
+  // parts above). Each part's joint centres a and b in its PNG (px of size; a tier's image is scaled by its own size), measured from the alpha, and w = the
+  // px across it that spans the rig's width (the part's hit width, so the drawn shape stays the hitbox). The torso runs from neck to belt (body units)
+  // and is cut at cut between the chest and belly sprites; the head maps its top and chin to head (body units, about the head circle); far = the
+  // shade of the far arm and leg; arm = your live arms' width (H).
+  kit: {
+    tier: { lean: 2, avg: 3 }, leg: 0.085, sw: [140, 44], icon: { plate: 0.8 },
+    torso: { size: [384, 512], a: [178, 0], b: [178, 298], w: 291 },
+    upperarm: { size: [160, 320], a: [80, 45], b: [66, 296], w: 97 },
+    forearm: { size: [160, 320], a: [86, 38], b: [75, 285], w: 97 },
+    thigh: { size: [192, 352], a: [100, 60], b: [94, 333], w: 88 },
+    shin: { size: [192, 384], a: [62, 45], b: [58, 322], w: 88 },
+    head: { size: [256, 256], a: [128, 0], b: [128, 222] },
+    helmet: { size: [256, 256], a: [128, 0], b: [128, 222] },
+    shield: { size: [320, 320], r: 160 },
+    neck: -0.745, belt: -0.49, cut: -0.51, top: -0.9, chin: -0.71, far: 0.22, arm: 0.075, shArm: 0.07,
+  },
 };
 
 // ====== DATA TABLES: the gauntlet, story lines, the upgrade deck, body parts, zones and poses ======
@@ -3006,6 +3028,173 @@ function swooshSound(E, gain = 0.12) { E.audio.noise({ dur: 0.16, gain }); E.aud
 const STRAW = ['#e6c866', '#d4b04a', '#f2dc90', '#b8923a'];
 const YOU = { skin: '#c58f5e', tunic: '#2f7d6d', hem: '#1d5448', crest: '#e6c866' };
 
+// ----- the art: images by name through E.art (ADR-0020), with the drawn look as every image's fallback; the kit pilot's switch on the ART screen -----
+// An image loads only when E.art has a candidate for its name (dev channel); otherwise the drawn look stays (release ships none yet). Each load and each
+// pick bumps artV, which the backdrop's and the sprites' cache keys carry, so they repaint once.
+let ART = null, artV = 0;
+const KIT = { on: false };
+const IMGS = new Map();
+function artImg(name) {
+  if (!ART || !ART.has(name)) return null;
+  const raw = ART.src(name, ''), src = raw ? decodeURIComponent(raw) : raw; // E.art.src encodes the whole manifest value, slashes too: decode it so a subfolder loads
+  let e = IMGS.get(name);
+  if (!e || e.src !== src) {
+    e = { src, im: new Image(), ok: false };
+    e.im.onload = () => { e.ok = true; artV++; };
+    e.im.src = src; IMGS.set(name, e);
+  }
+  return e.ok ? e.im : null;
+}
+const BACKDROP = { pit: 'arena-pit', city: 'arena-city', rome: 'arena-colosseum', games: 'arena-grand' };
+const champPic = (d) => (d && d.champion && !d.beast ? `champ-${d.ck || d.name.split(' ')[0].toLowerCase()}` : null);
+const kitOn = () => KIT.on && !!ART && ART.has('kit-base-torso');
+// The ART screen is the engine's; the game adds one 44 px switch at its top right for the kit pilot (default on, kept in the save as kitPilot).
+function kitSwitch(E) {
+  const sc = E.game.scenes.__art;
+  if (!sc || sc.kitSwitch) return;
+  const R = sc.render, T = sc.onTap, btn = () => ({ x: E.w - E.safe.right - 16 - TUNING.kit.sw[0], y: E.safe.top + 8, w: TUNING.kit.sw[0], h: TUNING.kit.sw[1] });
+  sc.kitSwitch = true;
+  sc.render = function (ctx) {
+    R.call(this, ctx);
+    const b = btn();
+    E.roundRect(b.x, b.y, b.w, b.h, 10, KIT.on ? '#3b82f6' : '#1f2937', KIT.on ? null : '#475569');
+    E.text(`KIT ${KIT.on ? 'ON' : 'OFF'}`, b.x + b.w / 2, b.y + b.h / 2, { size: 14, weight: '800', color: KIT.on ? '#fff' : '#cbd5e1' });
+  };
+  sc.onTap = function (p) {
+    if (E.hit(btn(), p)) { KIT.on = !KIT.on; E.save.set('kitPilot', KIT.on); artV++; E.audio.play('tap'); return; }
+    T.call(this, p);
+  };
+}
+// a portrait's crop (fractions x0 y0 x1 y1) at w x h px, cached at the screen's pixel ratio; null until it loads
+const PICS = new Map();
+function picSprite(E, name, crop, w, h) {
+  const im = artImg(name);
+  if (!im) return null;
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), key = `${name}|${crop.join(',')}|${w}|${h}|${k}|${artV}`;
+  let s = PICS.get(key);
+  if (!s) {
+    const sx = crop[0] * im.width, sy = crop[1] * im.height, sw = (crop[2] - crop[0]) * im.width, sh = (crop[3] - crop[1]) * im.height;
+    const cv = canSprite ? new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)) : null;
+    if (!cv) return { im, sx, sy, sw, sh };
+    const c = cv.getContext('2d');
+    c.imageSmoothingQuality = 'high'; c.drawImage(im, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    s = { im: cv, sx: 0, sy: 0, sw: cv.width, sh: cv.height };
+    if (PICS.size > 40) PICS.clear();
+    PICS.set(key, s);
+  }
+  return s;
+}
+// a portrait in a rounded frame at (x, y), w x h; false when it has not loaded (the caller keeps its drawn layout)
+function drawPic(ctx, E, name, crop, x, y, w, h, edge = '#e6c866') {
+  const s = picSprite(E, name, crop, w, h);
+  if (!s) return false;
+  ctx.save(); rrect(ctx, x, y, w, h, Math.min(w, h) * 0.16); ctx.clip();
+  ctx.drawImage(s.im, s.sx, s.sy, s.sw, s.sh, x, y, w, h); ctx.restore();
+  rrect(ctx, x, y, w, h, Math.min(w, h) * 0.16); ctx.strokeStyle = edge; ctx.lineWidth = 2; ctx.stroke();
+  return true;
+}
+// Lines someone says, centred on cx from y (lh apart); with that speaker's portrait loaded, his face (s px) sits just left of the block. Each line is
+// fitted to w px (less the face). Without the portrait it draws exactly as before. o.minTop: the face's top is kept at or below it (the block moves down);
+// returns the face's bottom, or null with no face.
+function sayLines(ctx, E, lines, cx, y, lh, w, o, pic, s = TUNING.art.face) {
+  const on = pic && artImg(pic), gap = on ? 8 : 0, fs = on ? s : 0, wt = o.weight || '700';
+  const sizes = lines.map((t) => (o.fit ? fitSize(ctx, t, o.size, w - fs - gap, wt) : o.size));
+  const { minTop, ...oo } = o;
+  if (!on) { lines.forEach((t, i) => E.text(t, cx, y + i * lh, { ...oo, size: sizes[i] })); return null; }
+  const tw = Math.max(...lines.map((t, i) => { ctx.font = `${wt} ${sizes[i]}px system-ui, sans-serif`; return ctx.measureText(t).width; }));
+  let mid = y + (lines.length - 1) * lh / 2;
+  if (minTop != null && mid - fs / 2 < minTop) { y += minTop - (mid - fs / 2); mid = y + (lines.length - 1) * lh / 2; }
+  const x0 = cx - (tw + fs + gap) / 2;
+  drawPic(ctx, E, pic, TUNING.art.crop, x0, mid - fs / 2, fs, fs, o.color || '#e6c866');
+  lines.forEach((t, i) => E.text(t, x0 + fs + gap + tw / 2, y + i * lh, { ...oo, size: sizes[i] }));
+  return { bottom: mid + fs / 2 };
+}
+const sayLine = (ctx, E, t, cx, y, w, o, pic, s) => sayLines(ctx, E, [t], cx, y, 0, w, o, pic, s);
+// Old Brutus's line on a bout card: his face (a card's size) kept TUNING.art.gap clear of the reason's banner above it; returns the y a line below
+// him must not go above (the card grows by TUNING.art.cardDrop with his face on, see cardGrow).
+const brutusFaceOn = () => !!artImg('brutus');
+const cardGrow = () => (brutusFaceOn() ? TUNING.art.cardDrop : 0);
+function brutusCardLine(ctx, E, cx, y, tb, w, thread, below) {
+  const A = TUNING.art, fb = sayLine(ctx, E, `Old Brutus: \u201c${brutusIntro()}\u201d`, cx, y + tb + 10, w - 28, { size: 14, fit: true, weight: '700', color: '#fde68a', minTop: y + tb + (thread ? A.gap - 3 : -3) }, 'brutus', A.faceCard);
+  return fb ? Math.max(below, fb.bottom + A.gap + 9) : below;
+}
+// The kit: a man's look with the kit on, his muscle tier by Strength and whether he is you (your helmet is the kit's); cached on the look
+function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean' : str <= T.avg ? 'avg' : ''; }
+function lookFor(fm, isFoe) {
+  const lk = lookOf(fm, isFoe);
+  if (!kitOn() || fm.beast) return lk;
+  const tier = kitTier(isFoe ? fm.str : state.me.str), key = `${tier}|${isFoe ? '' : 'y'}|${artV}`;
+  if (!lk.kitL || lk.kitL.key !== key) lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe }, id: `${lk.id}|kit${key}` } };
+  return lk.kitL.lk;
+}
+// a kit part's image for a tier: the tier's own when it has one, else the muscular base; with its joints scaled to the image's own size
+const KIT_TIERED = ['torso', 'upperarm', 'forearm', 'thigh', 'shin'];
+// (px: for the live arms and shield, the screen px its J.w is drawn at, so a copy scaled near that size is drawn each frame, not the full image)
+const KIT_LIVE = new Map();
+function kitPic(part, tier, px = 0) {
+  const t = tier && KIT_TIERED.includes(part) ? `kit-base-${part}-${tier}` : null;
+  const name = t && ART.has(t) ? t : part === 'helmet' ? 'kit-helmet-gallic' : part === 'shield' ? 'kit-shield-round' : `kit-base-${part}`, im = artImg(name);
+  if (!im) return null;
+  const J = TUNING.kit[part], P = { im, J, kx: im.width / J.size[0], ky: im.height / J.size[1] };
+  if (!px || !canSprite) return P;
+  const f = Math.min(1, 2 * px / ((J.w || J.size[0]) * P.kx)), key = `${name}|${Math.round(px)}|${artV}`;
+  let L = KIT_LIVE.get(key);
+  if (!L) {
+    const cv = new OffscreenCanvas(Math.max(1, Math.round(im.width * f)), Math.max(1, Math.round(im.height * f))), c = cv.getContext('2d');
+    c.imageSmoothingQuality = 'high'; c.drawImage(im, 0, 0, cv.width, cv.height);
+    if (KIT_LIVE.size > 24) KIT_LIVE.clear();
+    L = { im: cv, J, kx: cv.width / J.size[0], ky: cv.height / J.size[1] };
+    KIT_LIVE.set(key, L);
+  }
+  return L;
+}
+// Pin a kit image so its joint a lands on A and b on B (canvas px), w px across its J.w (0: the length's scale both ways)
+function drawSeg(c, P, A, B, w) {
+  const J = P.J, ax = J.a[0] * P.kx, ay = J.a[1] * P.ky, bx = J.b[0] * P.kx, by = J.b[1] * P.ky;
+  const L = Math.hypot(B[0] - A[0], B[1] - A[1]), l = Math.hypot(bx - ax, by - ay), sy = L / l, sx = w ? w / (J.w * P.kx) : sy;
+  c.save(); c.translate(A[0], A[1]); c.rotate(Math.atan2(B[1] - A[1], B[0] - A[0]) - Math.PI / 2); c.scale(sx, sy); c.rotate(Math.atan2(bx - ax, by - ay)); c.translate(-ax, -ay);
+  c.drawImage(P.im, 0, 0); c.restore();
+}
+// darken what is painted so far (the far leg, before the near one; the far arm's sprite)
+function farShade(c, H, b) { c.save(); c.globalCompositeOperation = 'source-atop'; c.fillStyle = `rgba(20,10,4,${TUNING.kit.far})`; c.fillRect(b[0] * H, b[1] * H, (b[2] - b[0]) * H, (b[3] - b[1]) * H); c.restore(); }
+// The kit under a part's sprite: the head, the torso cut into the chest and the belly, an arm's two halves in its frame, both legs. False when an image
+// has not loaded (the part is painted procedurally). The part's own painter runs after it, kit-aware: plates, gear and type looks on top, no skin.
+function kitBody(c, p, H, lk) {
+  const K = TUNING.kit, id = p.d.id, t = lk.kit.tier;
+  if (id === 'head') {
+    const P = kitPic('head');
+    if (!P) return false;
+    drawSeg(c, P, [p.d.x * H, K.top * H], [p.d.x * H, K.chin * H], 0);
+    return true;
+  }
+  if (id === 'chest' || id === 'belly') {
+    const P = kitPic('torso', t), B = BOX[id];
+    if (!P) return false;
+    c.save(); c.beginPath();
+    if (id === 'chest') c.rect(B[0] * H, B[1] * H, (B[2] - B[0]) * H, (K.cut - B[1]) * H); else c.rect(B[0] * H, K.cut * H, (B[2] - B[0]) * H, (B[3] - K.cut) * H);
+    c.clip(); drawSeg(c, P, [0, K.neck * H], [0, K.belt * H], PARTS[pidx('belly')].w * H); c.restore();
+    return true;
+  }
+  if (id === 'armF' || id === 'armB') {
+    const U = kitPic('upperarm', t), F = kitPic('forearm', t), w = p.d.w * H, el = ARM_LEN / 2 * H;
+    if (!U || !F) return false;
+    drawSeg(c, U, [0, 0], [0, el], w); drawSeg(c, F, [0, el], [0, ARM_LEN * H], w);
+    if (id === 'armB') farShade(c, H, BOX[id]);
+    return true;
+  }
+  if (id === 'legs') {
+    const T = kitPic('thigh', t), S = kitPic('shin', t), w = TUNING.kit.leg * H;
+    if (!T || !S) return false;
+    LEGS.forEach(([hip, knee, ank], i) => {
+      const P = (q) => [q[0] * H, q[1] * H];
+      drawSeg(c, T, P(hip), P(knee), w); drawSeg(c, S, P(knee), P(ank), w);
+      if (!i) farShade(c, H, BOX.legs);
+    });
+    return true;
+  }
+  return false;
+}
+
 // ----- drawing: one procedural body for both fighters -----
 function path(ctx, d, H, inset = 0) {
   ctx.beginPath();
@@ -3196,10 +3385,15 @@ function brim(c, x, y, rx, ry, M, H, dn) {
 }
 function paintHead(c, p, H, lk) {
   const d = p.d, x = d.x * H, y = d.y * H, r = d.r * H, M = lk.metal, dn = p.dents / TUNING.armour.dents;
-  c.fillStyle = skinGrad(c, 0.035 * H, 0, -0.025 * H, 0, shade(lk.skin, 0.85)); c.fillRect(-0.025 * H, -0.745 * H, 0.06 * H, 0.07 * H);
+  const K = lk.kit;
+  if (!K) { c.fillStyle = skinGrad(c, 0.035 * H, 0, -0.025 * H, 0, shade(lk.skin, 0.85)); c.fillRect(-0.025 * H, -0.745 * H, 0.06 * H, 0.07 * H); }
   const helm = p.armour ? lk.helm : null, closed = helm === 'murmillo' || helm === 'hoplo';
-  if (!closed) face(c, x, y, r, lk, H, !p.armour);
+  // the kit: the painted head is under this; your plated head wears the kit's helmet, his his type's drawn helmet
+  const kh = K && K.you && p.armour && kitPic('helmet');
+  if (kh) { drawSeg(c, kh, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0); wear(c, p, H, x, y - r * 0.3, r, () => { c.beginPath(); c.arc(x, y - r * 0.3, r * 0.9, 0, TAU); }); return; }
+  if (!closed && !K) face(c, x, y, r, lk, H, !p.armour);
   if (!p.armour) {
+    if (K) { tint(c, p, H); return; }
     if (lk.bare === 'leather') {
       c.beginPath(); c.arc(x, y, r * 1.05, Math.PI * 0.92, Math.PI * 2.04); c.closePath();
       const g = c.createLinearGradient(0, y - r, 0, y); g.addColorStop(0, LEATHER.lite); g.addColorStop(1, LEATHER.dark);
@@ -3277,6 +3471,7 @@ function pecs(c, x0, y0, w, h) {
 }
 function paintChest(c, p, H, lk) {
   const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, x1 = x0 + w, y1 = y0 + h, M = lk.metal;
+  if (!p.armour && lk.kit) { tint(c, p, H); return; }
   if (!p.armour) {
     path(c, d, H); c.fillStyle = skinGrad(c, x1, y0, x0, y1, lk.skin); c.fill();
     c.lineCap = 'round'; c.lineWidth = lw(H, 0.005); c.strokeStyle = shade(lk.skin, 0.55); pecs(c, x0, y0, w, h);
@@ -3331,8 +3526,9 @@ function belt(c, H) {
   c.fillStyle = bg; c.fillRect(0, y0 - h * 0.1, 0.04 * H, h * 1.2); c.strokeStyle = '#4a3410'; c.lineWidth = lw(H, 0.004); c.strokeRect(0.008 * H, y0 + h * 0.15, 0.024 * H, h * 0.7);
 }
 function paintBelly(c, p, H, lk) {
-  paintWrap(c, H, lk);
+  if (!lk.kit) paintWrap(c, H, lk);
   const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, M = lk.metal;
+  if (!p.armour && lk.kit) { tint(c, p, H); return; }
   if (!p.armour) {
     path(c, d, H); c.fillStyle = skinGrad(c, x0 + w, y0, x0, y0 + h, lk.skin); c.fill();
     c.strokeStyle = shade(lk.skin, 0.58); c.lineWidth = lw(H, 0.004); c.lineCap = 'round';
@@ -3358,7 +3554,8 @@ function paintBelly(c, p, H, lk) {
 
 function paintArm(c, p, H, lk) {
   const d = p.d, w = d.w * H, h = d.h * H, x0 = -w / 2, y0 = d.y * H - h / 2, M = lk.metal, front = d.id === 'armF', sk = front ? lk.skin : shade(lk.skin, 0.86);
-  if (!p.armour) {
+  if (lk.kit) { if (p.armour) paintManica(c, p, H, lk, w, h, x0, y0, M); }
+  else if (!p.armour) {
     rrect(c, x0, y0, w, h, w * 0.45); c.fillStyle = skinGrad(c, w / 2, 0, -w / 2, 0, sk); c.fill();
     c.strokeStyle = shade(lk.skin, 0.55); c.lineWidth = lw(H, 0.004); c.lineCap = 'round';
     c.beginPath(); c.moveTo(x0 + w * 0.72, y0 + h * 0.1); c.quadraticCurveTo(x0 + w * 1.0, y0 + h * 0.28, x0 + w * 0.7, y0 + h * 0.44); c.stroke();
@@ -3366,23 +3563,13 @@ function paintArm(c, p, H, lk) {
     line(c, x0 + w * 0.35, y0 + h * 0.5, x0 + w * 0.65, y0 + h * 0.52);
     rrect(c, x0, y0, w, h, w * 0.45); c.strokeStyle = '#3a2414'; c.lineWidth = lw(H, 0.006); c.stroke();
     c.fillStyle = LEATHER.mid; c.fillRect(x0 - 1, y0 + h * 0.82, w + 2, h * 0.09); c.strokeStyle = LEATHER.dark; c.lineWidth = 1; c.strokeRect(x0 - 1, y0 + h * 0.82, w + 2, h * 0.09);
-  } else {
-    // the manica: overlapping bands down the arm, a strap along the back
-    const dn = p.dents / TUNING.armour.dents, n = 6, bh = h / n;
-    for (let i = n - 1; i >= 0; i--) {
-      const by = y0 + i * bh, hh = i === n - 1 ? bh : bh * 1.3;
-      rrect(c, x0 - w * 0.06, by, w * 1.12, hh, hh * 0.35); c.fillStyle = metalGrad(c, w / 2, by, -w / 2, by + hh, M, dn); c.fill();
-      c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
-      c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = lw(H, 0.003); line(c, x0, by + 1.4, x0 + w, by + 1.4);
-    }
-    strap(c, x0 + w * 0.22, y0, x0 + w * 0.22, y0 + h, w * 0.16, H, false);
-    for (let i = 0; i < n; i++) rivet(c, x0 + w * 0.22, y0 + (i + 0.5) * bh, H, M);
-    wear(c, p, H, 0, d.y * H, w / 2, () => rrect(c, x0 - w * 0.06, y0, w * 1.12, h, 3));
-  }
+  } else paintManica(c, p, H, lk, w, h, x0, y0, M);
   const fy = ARM_LEN * H, fr = 0.042 * H, fg = c.createRadialGradient(fr * 0.3, fy - fr * 0.3, fr * 0.1, 0, fy, fr);
   fg.addColorStop(0, shade(sk, 1.15)); fg.addColorStop(1, shade(sk, 0.7));
-  c.fillStyle = fg; c.beginPath(); c.arc(0, fy, fr, 0, TAU); c.fill(); c.strokeStyle = '#2a1c10'; c.lineWidth = lw(H, 0.006); c.stroke();
-  c.strokeStyle = shade(lk.skin, 0.5); c.lineWidth = lw(H, 0.003); for (const k of [-0.4, 0, 0.4]) line(c, fr * k, fy + fr * 0.2, fr * k, fy + fr * 0.75);
+  if (!lk.kit) {
+    c.fillStyle = fg; c.beginPath(); c.arc(0, fy, fr, 0, TAU); c.fill(); c.strokeStyle = '#2a1c10'; c.lineWidth = lw(H, 0.006); c.stroke();
+    c.strokeStyle = shade(lk.skin, 0.5); c.lineWidth = lw(H, 0.003); for (const k of [-0.4, 0, 0.4]) line(c, fr * k, fy + fr * 0.2, fr * k, fy + fr * 0.75);
+  }
   if (!p.armour) tint(c, p, H);
   if (front && lk.pauldron) {
     // a heavy layered pauldron: iron on a plated arm, studded leather on a bare one
@@ -3404,6 +3591,19 @@ function paintArm(c, p, H, lk) {
   }
 }
 
+// the manica: overlapping bands down the arm, a strap along the back
+function paintManica(c, p, H, lk, w, h, x0, y0, M) {
+  const dn = p.dents / TUNING.armour.dents, n = 6, bh = h / n;
+  for (let i = n - 1; i >= 0; i--) {
+    const by = y0 + i * bh, hh = i === n - 1 ? bh : bh * 1.3;
+    rrect(c, x0 - w * 0.06, by, w * 1.12, hh, hh * 0.35); c.fillStyle = metalGrad(c, w / 2, by, -w / 2, by + hh, M, dn); c.fill();
+    c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = lw(H, 0.003); line(c, x0, by + 1.4, x0 + w, by + 1.4);
+  }
+  strap(c, x0 + w * 0.22, y0, x0 + w * 0.22, y0 + h, w * 0.16, H, false);
+  for (let i = 0; i < n; i++) rivet(c, x0 + w * 0.22, y0 + (i + 0.5) * bh, H, M);
+  wear(c, p, H, 0, p.d.y * H, w / 2, () => rrect(c, x0 - w * 0.06, y0, w * 1.12, h, 3));
+}
 // a leg as a tapered quad from a to b (widths in px), for plates and their clip
 function quad(c, a, b, wa, wb) {
   const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
@@ -3416,6 +3616,7 @@ function paintLegs(c, p, H, lk) {
   legs.forEach(([hip, knee, ank], i) => {
     const sk = i ? lk.skin : shade(lk.skin, 0.8);
     c.lineCap = 'round'; c.lineJoin = 'round';
+    if (!lk.kit) {
     c.strokeStyle = '#2a1c10'; c.lineWidth = TH + 2.5; line(c, hip[0], hip[1], knee[0], knee[1]); c.lineWidth = SH + 2.5; line(c, knee[0], knee[1], ank[0], ank[1]);
     c.strokeStyle = sk; c.lineWidth = TH; line(c, hip[0], hip[1], knee[0], knee[1]); c.lineWidth = SH; line(c, knee[0], knee[1], ank[0], ank[1]);
     c.strokeStyle = 'rgba(255,236,214,0.22)'; c.lineWidth = SH * 0.3;
@@ -3429,6 +3630,7 @@ function paintLegs(c, p, H, lk) {
     c.fillStyle = LEATHER.dark; c.fillRect(ank[0] - 0.03 * H, -0.01 * H, 0.09 * H, 0.01 * H);
     c.strokeStyle = LEATHER.mid; c.lineWidth = lw(H, 0.006);
     for (let k = 0; k < 3; k++) { const yy = ank[1] - 0.012 * H - k * 0.02 * H; line(c, ank[0] - SH * 0.45, yy, ank[0] + SH * 0.45, yy - 0.012 * H); }
+    }
     if (!p.armour) return;
     // thigh plates and a greave with a knee boss
     const thigh = () => { c.beginPath(); return quad(c, hip, knee, TH * 1.06, TH * 0.96); };
@@ -3801,6 +4003,7 @@ const PAINT = { head: paintHead, chest: paintChest, belly: paintBelly, armF: pai
 const GEAR_PAINT = { head: paintHeadGear, chest: paintChestGear, belly: paintBeltGear, armF: paintArmGear, armB: paintArmGear, legs: paintLegGear };
 function paintPart(c, p, H, lk) {
   if (p.slot) { (p.guard ? paintGuard : paintSlot)(c, p, H, lk); return; }
+  if (lk.kit && !kitBody(c, p, H, lk)) lk = lk.plain;
   PAINT[p.d.id](c, p, H, lk);
   if (lk.gear && GEAR_PAINT[p.d.id]) GEAR_PAINT[p.d.id](c, p, H, lk);
 }
@@ -3973,6 +4176,7 @@ function edgeSprite(E, f) {
   const F = edgeF(E, f), k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), [w, left] = edgeBox(f, F.H), h = 1.25 * F.H, feet = 1.12 * F.H;
   let key = Math.round(F.H * k);
   for (const p of f.parts) key = (key * 31 + (p.cut ? 1 : 0) + 2 * p.dents + 64 * p.cracks.length) % 2147483647;
+  if (kitOn() && !f.beast) key = `${key}|${lookFor(f, true).id}`;
   if (!f.spr || f.spr.key !== key) {
     const cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
     // painting poses him as he waits, so the one fighting keeps his own pose and frames
@@ -4001,7 +4205,7 @@ function warmPair(E) {
   state.warm = true;
   edgeSprite(E, state.foe); edgeSprite(E, e);
   if (e.beast) return;
-  const H = lay(E).H * e.size.scale, lk = lookOf(e, true);
+  const H = lay(E).H * e.size.scale, lk = lookFor(e, true);
   for (const p of e.parts) spriteOf(E, p, H, lk);
 }
 // The waiting foe's name and health over his head, and his taunt, the tell that he is about to step in: a bubble above them
@@ -4198,7 +4402,7 @@ function lameIcon(ctx, id, x, y) {
 // who: 'you', 'foe' (the one fighting, with every live state drawn on him) or 'edge' (a pair's foe waiting: his look and kit only)
 function drawFighter(ctx, E, F, fm, who, ga = 1) {
   if (fm.beast) { drawBeast(ctx, E, F, fm, who, ga); return; }
-  const H = F.H, L = lay(E), isFoe = who !== 'you', live = who === 'foe', lk = lookOf(fm, isFoe);
+  const H = F.H, L = lay(E), isFoe = who !== 'you', live = who === 'foe', lk = lookFor(fm, isFoe);
   const P = (id) => fm.parts.find((q) => q.d.id === id);
   const fall = live && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -4298,11 +4502,16 @@ function drawSwordArm(ctx, E) {
     ctx.strokeStyle = 'rgba(125,227,255,0.35)'; ctx.lineWidth = 8; ctx.beginPath();
     state.trail.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.stroke();
   }
-  const lk = lookOf(state.you, false), G = lk.gear;
-  limb(ctx, [[h.sx, h.sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
-  liveArmGear(ctx, h, H, lk);
-  ctx.fillStyle = YOU.tunic; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(h.sx, h.sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke();
+  const lk = lookFor(state.you, false), G = lk.gear;
+  // the kit: the painted upper arm now, the forearm and fist over the grip at the end (with the arm's gear on it)
+  const aw = TUNING.kit.arm * H, kpx = aw * Math.min(E.dpr || 1, TUNING.skin.maxDpr), kU = lk.kit && kitPic('upperarm', lk.kit.tier, kpx), kF = lk.kit && kitPic('forearm', lk.kit.tier, kpx), kit = kU && kF;
+  if (kit) drawSeg(ctx, kU, [h.sx, h.sy], [h.ex, h.ey], aw);
+  else {
+    limb(ctx, [[h.sx, h.sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
+    liveArmGear(ctx, h, H, lk);
+    ctx.fillStyle = YOU.tunic; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(h.sx, h.sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke();
+  }
   if ((G.arms && G.arms.id === 'jugg') || (G.chest && G.chest.id === 'titan')) {
     // Juggernaut's iron pauldrons, or Titan's black shoulder: layered black lames and a spike over the weapon shoulder
     for (let i = 2; i >= 0; i--) {
@@ -4366,8 +4575,11 @@ function drawSwordArm(ctx, E) {
     else weaponGear(ctx, G.weapon, [gx, gy], tip, w, [h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H], H);
   }
   if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(h.ux, h.uy, 6, 0, 6.28); ctx.fill(); }
-  ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
-  ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();
+  if (kit) { drawSeg(ctx, kF, [h.ex, h.ey], [h.hx, h.hy], aw); liveArmGear(ctx, h, H, lk); }
+  else {
+    ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
+    ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();
+  }
   if (h.down) {
     ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(h.ax, h.ay, 22, 0, 6.28); ctx.stroke();
@@ -4381,13 +4593,17 @@ function drawSwordArm(ctx, E) {
 
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
 function drawShield(ctx, E) {
-  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, lk = lookOf(state.you, false), g = lk.gear.shield, tp = !g && lk.tailor && lk.tailor.paint;
+  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, lk = lookFor(state.you, false), g = lk.gear.shield, tp = !g && lk.tailor && lk.tailor.paint;
   if (sh.broken) return;
   const [hx, hy] = toScreen(Fy, ...shieldPos());
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
   const r = lerp(0.11, 0.2, sh.up) * H, cx = hx, cy = hy, tower = g && g.id === 'ironwall';
-  limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
-  // Untouchable: no shield at all, an empty fist
+  const dk = Math.min(E.dpr || 1, TUNING.skin.maxDpr), apx = TUNING.kit.shArm * H * dk, kU = lk.kit && kitPic('upperarm', lk.kit.tier, apx), kF = lk.kit && kitPic('forearm', lk.kit.tier, apx);
+  const kit = kU && kF, kS = kit && !tower && kitPic('shield', '', 0.2 * H * dk);
+  if (kit) { const mx = (sx + hx) / 2, my = (sy + hy) / 2, aw = TUNING.kit.shArm * H; drawSeg(ctx, kU, [sx, sy], [mx, my], aw); drawSeg(ctx, kF, [mx, my], [hx, hy], aw); }
+  else limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
+  // Untouchable: no shield at all, an empty fist (the kit's forearm ends in one)
+  if (noShield() && kit) return;
   if (noShield()) { ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(hx, hy, 0.042 * H, 0, TAU); ctx.fill(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke(); return; }
   // the round bronze shield, or Iron Wall's tower shield, tall and square
   const shape = (k) => (tower ? rrect(ctx, -r * 0.72 * k, -r * 1.2 * k, r * 1.44 * k, r * 2.4 * k, r * 0.2 * k) : (ctx.beginPath(), ctx.arc(0, 0, r * k, 0, TAU)));
@@ -4395,13 +4611,16 @@ function drawShield(ctx, E) {
   if (g && g.id === 'thorns') for (let i = 0; i < 10; i++) { const a = i * TAU / 10; spike(ctx, Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92, a, r * 0.32, r * 0.16, BRONZE, true); }
   const gr = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, tower ? r * 1.3 : r);
   gr.addColorStop(0, '#b9803a'); gr.addColorStop(1, '#6d4519');
-  shape(1); ctx.fillStyle = gr; ctx.fill();
-  ctx.strokeStyle = sh.flash > 0 ? '#ffffff' : '#2a1c10'; ctx.lineWidth = 4; ctx.stroke();
-  ctx.strokeStyle = '#d6b04a'; ctx.lineWidth = 3; shape(0.82); ctx.stroke();
+  if (kS) { const s = r / TUNING.kit.shield.r; ctx.drawImage(kS.im, -kS.im.width / 2 * s / kS.kx, -kS.im.height / 2 * s / kS.ky, kS.im.width * s / kS.kx, kS.im.height * s / kS.ky); }
+  else {
+    shape(1); ctx.fillStyle = gr; ctx.fill();
+    ctx.strokeStyle = sh.flash > 0 ? '#ffffff' : '#2a1c10'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.strokeStyle = '#d6b04a'; ctx.lineWidth = 3; shape(0.82); ctx.stroke();
+  }
   if (tower) { ctx.lineWidth = 2; line(ctx, 0, -r * 0.95, 0, r * 0.95); for (const k of [-0.6, 0.6]) line(ctx, -r * 0.55, r * k, r * 0.55, r * k); }
   if (tp) shieldPaint(ctx, r, tp);
   if (g && g.id === 'bait') { spiral(ctx, r * 0.8, FAM_LOOK.trick.hi); ctx.strokeStyle = '#2a1c10'; }
-  ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, 6.28); ctx.fill(); ctx.stroke();
+  if (!kS) { ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, 6.28); ctx.fill(); ctx.stroke(); }
   if (g && g.id === 'thorns') spike(ctx, 0, 0, -0.6, r * 0.3, r * 0.16, BRONZE, true);
   const worn = shieldMax() - sh.hits;
   ctx.strokeStyle = '#1a120a'; ctx.lineWidth = 2;
@@ -4755,7 +4974,7 @@ function drawCaption(ctx, E) {
 let bgSpr = null;
 function drawBackground(ctx, E) {
   if (!canSprite) { paintBackground(ctx, E); return; }
-  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), m = 20, key = `${E.w}|${E.h}|${k}|${state.seed}`;
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), m = 20, bd = artImg(BACKDROP[arena().id]), key = `${E.w}|${E.h}|${k}|${state.seed}|${bd ? `${arena().id}${artV}` : ''}`;
   if (!bgSpr || bgSpr.key !== key) {
     const cv = new OffscreenCanvas(Math.ceil((E.w + 2 * m) * k), Math.ceil((E.h + 2 * m) * k)), c = cv.getContext('2d', { alpha: false });
     c.scale(k, k); c.translate(m, m); paintBackground(c, E);
@@ -4764,7 +4983,17 @@ function drawBackground(ctx, E) {
   ctx.drawImage(bgSpr.cv, -m, -m, bgSpr.cv.width / k, bgSpr.cv.height / k);
 }
 function paintBackground(ctx, E) {
-  const L = lay(E), sandTop = L.floor - 0.06 * L.H, wallTop = E.h * 0.2;
+  const L = lay(E), sandTop = L.floor - 0.06 * L.H, wallTop = E.h * 0.2, bd = artImg(BACKDROP[arena().id]);
+  // the arena's painted backdrop, scaled to cover, under a dark wash that deepens over the fight band
+  if (bd) {
+    const A = TUNING.art, s = Math.max((E.w + 40) / bd.width, (E.h + 40) / bd.height), w = bd.width * s, h = bd.height * s;
+    ctx.drawImage(bd, (E.w - w) / 2, E.h + 20 - h, w, h);
+    ctx.fillStyle = `rgba(16,10,14,${A.wash})`; ctx.fillRect(-20, -20, E.w + 40, E.h + 40);
+    const y0 = L.floor - A.band * L.H, g = ctx.createLinearGradient(0, y0, 0, L.floor);
+    g.addColorStop(0, 'rgba(16,10,14,0)'); g.addColorStop(0.35, `rgba(16,10,14,${A.bandA})`); g.addColorStop(1, `rgba(16,10,14,${A.bandA * 0.6})`);
+    ctx.fillStyle = g; ctx.fillRect(-20, y0, E.w + 40, L.floor - y0 + 20);
+    return;
+  }
   const sky = ctx.createLinearGradient(0, 0, 0, wallTop);
   sky.addColorStop(0, '#1a1420'); sky.addColorStop(1, '#3a2a28');
   ctx.fillStyle = sky; ctx.fillRect(-20, -20, E.w + 40, wallTop + 20);
@@ -4852,8 +5081,8 @@ function drawDraft(ctx, E) {
   E.text(`GRADE ${d.grade}`, E.w / 2, top + 24, { size: 24, weight: '800', color: gc });
   E.text(`${t.slot} gap hits · ${t.read} fakes spotted · ${t.pun} punishes · ${t.taken} hits taken`, E.w / 2, top + 46, { size: 14, color: '#e2e8f0' });
   // his line stays left of the faint HUD's shield label under the overlay (wraps to two lines on a short, narrow screen)
-  const bl = wrapPx(ctx, `Old Brutus: “${brutusWon()}”`, 2 * (E.w - 16 - E.safe.right - 110 - 6 - 72 - E.w / 2), 14, '700'), ex = (bl.length - 1) * 17;
-  bl.forEach((s2, k) => E.text(s2, E.w / 2, top + 64 + k * 17, { size: 14, weight: '700', color: '#fde68a' }));
+  const fw = artImg('brutus-proud') ? TUNING.art.face + 8 : 0, bl = wrapPx(ctx, `Old Brutus: “${brutusWon()}”`, 2 * (E.w - 16 - E.safe.right - 110 - 6 - 72 - E.w / 2) - fw, 14, '700'), ex = (bl.length - 1) * 17;
+  sayLines(ctx, E, bl, E.w / 2, top + 64, 17, E.w, { size: 14, weight: '700', color: '#fde68a' }, 'brutus-proud');
   const o = D.odds[d.grade], pct = o.map((v) => Math.round(v / (o[0] + o[1]) * 100)), g = d.gold;
   // the style bonuses are the crowd's coins: what they threw is shown apart from the fell's purse
   const thrown = g ? g.items.filter((e) => e[0] !== 'fell') : [], tsum = thrown.reduce((a2, e) => a2 + e[1], 0);
@@ -4986,7 +5215,7 @@ function drawTent(ctx, E) {
   const tt = state.tent, top = E.safe.top + 20, ready = tt.t > TUNING.draft.delay;
   ctx.fillStyle = 'rgba(10,8,14,0.86)'; ctx.fillRect(0, 0, E.w, E.h);
   E.text("THE ARMOURER'S TENT", E.w / 2, top, { size: 22, weight: '800', color: '#e6c866' });
-  E.text('Old Brutus: “Spend it here. Gold buys nothing in the sand.”', E.w / 2, top + 26, { size: 14, weight: '700', color: '#fde68a' });
+  sayLine(ctx, E, 'Old Brutus: “Spend it here. Gold buys nothing in the sand.”', E.w / 2, top + 26, E.w - 32, { size: 14, weight: '700', color: '#fde68a' }, 'brutus');
   E.text(`Your purse: ${state.gold} gold`, E.w / 2, top + 50, { size: 16, weight: '800', color: '#fbbf24' });
   const n = tt.wares.length, gap = 14, w = Math.min(200, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 68, h = Math.min(170, E.h - E.safe.bottom - y - 70), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
   tt.btns = tt.wares.map((wr, i) => {
@@ -5052,10 +5281,35 @@ function tokenButton(E, label, cx, cy, n, on = true, sub = null) {
 
 // ----- fighter cards: the intro before each bout, and the row on the end card -----
 const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps range', axe: 'big smashes crack shields', dagger: 'rushes in, nets slow you' };
-// A little body with his plates (grey) and open joint slots (dark), at scale s px per body unit, feet at (x, y).
-function armourIcon(ctx, parts, x, y, s) {
-  ctx.save(); ctx.translate(x, y);
+// A little body with his plates (grey) and open joint slots (dark), at scale s px per body unit, feet at (x, y). With the kit on and str given (his Strength),
+// the painted body of his muscle tier is the body (yours, with the kit's helmet on a plated head) and only the plates, guards and slots are drawn over it.
+function kitIcon(ctx, parts, s, str, you) {
+  const K = TUNING.kit, t = kitTier(str), head = parts.find((q) => q.d.id === 'head'), kh = you && head && head.armour && kitPic('helmet');
+  const Hd = kh || kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
+  if (!Hd || !T || !U || !F || !Th || !Sh) return false;
+  const hx = (head ? head.d.x : 0) * s;
+  LEGS.forEach(([hip, knee, ank]) => {
+    const P = (q) => [q[0] * s, q[1] * s];
+    drawSeg(ctx, Th, P(hip), P(knee), K.leg * s); drawSeg(ctx, Sh, P(knee), P(ank), K.leg * s);
+  });
+  drawSeg(ctx, T, [0, K.neck * s], [0, K.belt * s], PARTS[pidx('belly')].w * s);
+  drawSeg(ctx, Hd, [hx, K.top * s], [hx, K.chin * s], 0);
   for (const q of parts) {
+    const p = q.d;
+    if (p.id !== 'armF' && p.id !== 'armB') continue;
+    const j = p.joint, el = ARM_LEN / 2 * s, x0 = (j[0] + (p.id === 'armF' ? 0.11 : -0.11)) * s;
+    ctx.save(); ctx.translate(x0, j[1] * s);
+    drawSeg(ctx, U, [0, 0], [0, el], p.w * s); drawSeg(ctx, F, [0, el], [0, ARM_LEN * s], p.w * s);
+    ctx.restore();
+  }
+  return true;
+}
+function armourIcon(ctx, parts, x, y, s, str = 0, you = false) {
+  ctx.save(); ctx.translate(x, y);
+  const kit = str && kitOn() && kitIcon(ctx, parts, s, str, you), ga = ctx.globalAlpha;
+  for (const q of parts) {
+    if (kit && !q.armour && !q.slot && !q.guard) continue;
+    ctx.globalAlpha = kit && !q.slot ? ga * TUNING.kit.icon.plate : ga;
     const p = q.d, j = p.joint || (p.frame ? PARTS[pidx(p.frame)].joint : [0, 0]);
     const side = p.id === 'armF' || p.frame === 'armF' ? 0.11 : p.id === 'armB' ? -0.11 : 0, cx = (j[0] + p.x + side) * s, cy = (j[1] + p.y) * s;
     ctx.beginPath();
@@ -5138,6 +5392,12 @@ function wrapPx(ctx, t, w, size, weight = '600') {
   for (const word of t.split(' ')) { const l = out.length - 1; if (l >= 0 && ctx.measureText(`${out[l]} ${word}`).width <= w) out[l] += ` ${word}`; else out.push(word); }
   return out;
 }
+// a champion's portrait in his card's top-left corner, beside his name and tie; returns the width it takes (0 with no portrait), which the centred
+// title rows keep clear of on both sides
+function champBust(ctx, E, d, x, y) {
+  const pic = champPic(d), [bw, bh, g] = TUNING.art.bust;
+  return pic && drawPic(ctx, E, pic, [0, 0, 1, 1], x + g, y + g, bw, bh, '#ffd24a') ? bw + g : 0;
+}
 // His card before each bout, in rows that never meet: the bout, his name and (champion) his tie to your reason, his armour on the left, size, weapon,
 // its tip and stats on the right, your reason's thread, Brutus, what the champion or your rival says, and the tap.
 function drawIntro(ctx, E) {
@@ -5147,16 +5407,16 @@ function drawIntro(ctx, E) {
   const voice = d.rival ? tauntOf(me) : champ ? champLine(d, me.reason) : null, sub = champ ? champTie(d, me.reason) : spar ? 'Sparring: learn his wind-ups.' : null;
   const gear = (d.gear || []).map((id) => CARD[id]), thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 152 + ((d.guards || []).length ? 12 : 0), tb = b + bodyH + (thread ? 32 : 6);
   const second = state.rack === 0 && !voice;
-  const w = Math.min(E.w - 32, gear.length ? 640 : 460), h = Math.min(E.h - 12, tb + 22 + (voice || second ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const w = Math.min(E.w - 32, (gear.length ? 640 : 460) + (artImg('brutus') ? TUNING.art.face + 8 : 0)), h = Math.min(E.h - 12, tb + 22 + (voice || second ? 22 : 0) + 34 + cardGrow()), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', d.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
   const of = `BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
   E.text(d.rival ? `YOUR RIVAL  ·  THE CHAMPION  ·  ${of}` : champ ? `THE CHAMPION  ·  ${of}` : `${of}${spar ? '  ·  SPARRING' : ''}`, cx, y + 20, { size: 14, weight: '800', color: champ ? '#ffd24a' : '#c4b99a' });
-  const name = d.name.toUpperCase();
-  E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40), weight: '800', color: '#f0e6cc' });
-  if (sub) E.text(sub, cx, y + 72, { size: 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
+  const name = d.name.toUpperCase(), bw = champBust(ctx, E, d, x, y);
+  E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40 - 2 * bw), weight: '800', color: '#f0e6cc' });
+  if (sub) E.text(sub, cx, y + 72, { size: bw ? fitSize(ctx, sub, 15, w - 2 * bw - 16) : 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   const lx = x + 80, s = 96;
-  armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s);
+  armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s, d.str);
   E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 14, weight: '800', color: '#aab3bc' });
   const ng = (d.guards || []).length;
   E.text(ng ? `${d.set.slots - ng} open · ${ng} guarded` : `${d.set.slots} gaps open`, lx, y + b + 134, { size: 14, weight: '700', color: '#c4b99a' });
@@ -5192,10 +5452,9 @@ function drawIntro(ctx, E) {
     });
   }
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
-  const bl = `Old Brutus: “${brutusIntro()}”`;
-  E.text(bl, cx, y + tb + 10, { size: fitSize(ctx, bl, 14, w - 28, '700'), weight: '700', color: '#fde68a' });
-  if (voice) { const vl = `${d.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, y + tb + 33, { size: fitSize(ctx, vl, 15, w - 28), weight: '800', color: '#f87171' }); }
-  else if (second) { const sl = `“${brutusReason()}”`; E.text(sl, cx, y + tb + 31, { size: fitSize(ctx, sl, 14, w - 28, '700'), weight: '700', color: '#fde68a' }); }
+  const vy = brutusCardLine(ctx, E, cx, y, tb, w, thread, y + tb + (voice ? 33 : 31));
+  if (voice) { const vl = `${d.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, vy, { size: fitSize(ctx, vl, 15, w - 28), weight: '800', color: '#f87171' }); }
+  else if (second) { const sl = `“${brutusReason()}”`; E.text(sl, cx, vy, { size: fitSize(ctx, sl, 14, w - 28, '700'), weight: '700', color: '#fde68a' }); }
   const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
   E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
 }
@@ -5203,7 +5462,7 @@ function drawIntro(ctx, E) {
 // look, its profile and stats on the right, then the thread, Brutus and the tap.
 function drawBeastIntro(ctx, E) {
   const d = state.foe, me = state.me, thread = me.reason !== 'revenge', b = 88, bodyH = 160, tb = b + bodyH + (thread ? 32 : 6);
-  const w = Math.min(E.w - 32, 520), h = Math.min(E.h - 12, tb + 22 + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const w = Math.min(E.w - 32, 520 + (brutusFaceOn() ? TUNING.art.faceCard + 8 : 0)), h = Math.min(E.h - 12, tb + 22 + 34 + cardGrow()), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', '#fb923c');
   E.text(`BOUT ${state.rack + 1} OF ${state.gauntlet.length}  ·  A BEAST`, cx, y + 20, { size: 14, weight: '800', color: '#fb923c' });
@@ -5222,8 +5481,7 @@ function drawBeastIntro(ctx, E) {
   profLine(ctx, E, d, rx, py, rw, 17);
   statBars(ctx, E, d, rx, py + (two ? 40 : 26), rw, 19, 14);
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
-  const bl = `Old Brutus: “${brutusIntro()}”`;
-  E.text(bl, cx, y + tb + 10, { size: fitSize(ctx, bl, 14, w - 28, '700'), weight: '700', color: '#fde68a' });
+  brutusCardLine(ctx, E, cx, y, tb, w, thread, 0);
   const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
   E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
 }
@@ -5261,21 +5519,20 @@ function drawPairIntro(ctx, E) {
   const a = state.foe, q = state.edge, me = state.me, d0 = state.gauntlet[state.rack], champ = a.champion;
   const voice = d0.rival ? tauntOf(me) : champ ? champLine(a, me.reason) : null, sub = champ ? champTie(a, me.reason) : 'Pairs: when one is out of breath or down, the other steps in.';
   const thread = me.reason !== 'revenge', b = 88, cw = (Math.min(E.w - 32, 640) - 48) / 2, ex = profFits(ctx, a, cw - 88) && profFits(ctx, q, cw - 88) ? 0 : 16, bodyH = 150 + ex, tb = b + bodyH + (thread ? 32 : 6);
-  const w = Math.min(E.w - 32, 640), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const w = Math.min(E.w - 32, 640), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34 + cardGrow()), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', d0.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
   const of = `PAIRS  ·  BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
   E.text(d0.rival ? `YOUR RIVAL  ·  ${of}` : champ ? `THE CHAMPION  ·  ${of}` : of, cx, y + 20, { size: 14, weight: '800', color: champ ? '#ffd24a' : '#c4b99a' });
-  const name = (a.title || `${a.name} and ${q.name}`).toUpperCase();
-  E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 150), weight: '800', color: '#f0e6cc' });  // clear of the LAB tab
-  E.text(sub, cx, y + 72, { size: Math.max(14, fitSize(ctx, sub, 15, w - 28)), weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
+  const name = (a.title || `${a.name} and ${q.name}`).toUpperCase(), bw = champBust(ctx, E, a, x, y);
+  E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 150 - 2 * bw), weight: '800', color: '#f0e6cc' });  // clear of the LAB tab
+  E.text(sub, cx, y + 72, { size: Math.max(14, fitSize(ctx, sub, 15, w - 28 - 2 * bw)), weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   pairCol(ctx, E, a, x + 16, y + b, cw, 'FIGHTS FIRST', ex);
   pairCol(ctx, E, q, x + 32 + cw, y + b, cw, d0.sends ? 'STEPS IN AT HALF HEALTH' : 'WAITS AT THE EDGE', ex);
   ctx.fillStyle = 'rgba(240,230,204,0.18)'; ctx.fillRect(cx - 1, y + b, 2, bodyH - 6);
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
-  const bl = `Old Brutus: “${brutusIntro()}”`;
-  E.text(bl, cx, y + tb + 10, { size: Math.max(14, fitSize(ctx, bl, 14, w - 28, '700')), weight: '700', color: '#fde68a' });
-  if (voice) { const vl = `${a.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, y + tb + 33, { size: Math.max(14, fitSize(ctx, vl, 15, w - 28)), weight: '800', color: '#f87171' }); }
+  const vy = brutusCardLine(ctx, E, cx, y, tb, w, thread, y + tb + 33);
+  if (voice) { const vl = `${a.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, vy, { size: Math.max(14, fitSize(ctx, vl, 15, w - 28)), weight: '800', color: '#f87171' }); }
   E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? 0.6 + 0.4 * Math.sin(state.introT * 4) : 0.3 });
 }
 // one foe's column on the pairs card: who he is, his health, his armour and guards, his gear (the pieces that act for him in red)
@@ -5283,7 +5540,7 @@ function pairCol(ctx, E, f, x, y, w, tag, ex) {
   E.text(tag, x + w / 2, y + 6, { size: 14, weight: '800', color: '#c4b99a' });
   const nm = (f.beast ? beastTitle(f) : f.name).toUpperCase();
   E.text(nm, x + w / 2, y + 26, { size: Math.max(14, fitSize(ctx, nm, 18, w - 8)), weight: '800', color: f.champion ? '#ffd24a' : '#f0e6cc' });
-  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, f.parts, x + 40, y + 122 + ex / 2, 80);
+  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, f.parts, x + 40, y + 122 + ex / 2, 80, f.str);
   const rx = x + 84, rw = w - 88, ng = (f.guards || []).length, T = (t, yy, col = '#e2e8f0', wt = '700') => E.text(t, rx, yy, { size: 14, weight: wt, align: 'left', color: col });
   T(clipLine(ctx, f.beast ? `${f.size.name} · ${BEASTS[f.beast].name.toUpperCase()}` : `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
   profLine(ctx, E, f, rx, y + 69, rw, ex);
@@ -5442,7 +5699,7 @@ function drawMeCard(ctx, E, me, x, y, w, h) {
   const pk = `${noun[0].toUpperCase()}${noun.slice(1)}: starts with ${scs.length > 1 ? `${sc.name} + ${scs[1].name}` : `${sc.name} (${FAMS[sc.fam].name})`}`;
   E.text(pk, cx, y + 56, { size: Math.max(14, fitSize(ctx, pk, 14, w - 28, '700')), weight: '700', color: '#86efac' });
   const lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
-  armourIcon(ctx, playerParts(me), ax, y + 72 + s * 0.95, s);
+  armourIcon(ctx, playerParts(me), ax, y + 72 + s * 0.95, s, me.str, true);
   E.text(`${A.name} ARMOUR`, ax, y + 174, { size: 14, weight: '800', color: '#aab3bc' });
   if (me.plates.length) wrapPx(ctx, `plated: ${me.plates.map((q) => (q === 'armB' ? 'shield arm' : q)).join(', ')}`, lw, 14).forEach((t, i) => E.text(t, ax, y + 192 + i * 16, { size: 14, color: '#c4b99a' }));
   const mx = x + 18 + lw, mw = w * 0.36;
@@ -5599,7 +5856,7 @@ const menu = {
     ctx.fillStyle = 'rgba(10,8,14,0.82)'; ctx.fillRect(0, 0, E.w, E.h);
     const w = Math.min(E.w - 32, 560), lh = 24, h = 64 + STORY.length * lh + 34, x = (E.w - w) / 2, y = (E.h - h) / 2;
     E.roundRect(x, y, w, h, 18, '#221a2b', '#e6c866');
-    E.text('OLD BRUTUS, YOUR LANISTA', E.w / 2, y + 26, { size: 14, weight: '800', color: '#c4b99a' });
+    sayLine(ctx, E, 'OLD BRUTUS, YOUR LANISTA', E.w / 2, y + 26, w - 32, { size: 14, weight: '800', color: '#c4b99a' }, 'brutus', TUNING.art.faceBig);
     STORY.forEach((t, i) => E.text(t, E.w / 2, y + 58 + i * lh, { size: fitSize(ctx, t, 16, w - 32, '700'), weight: '700', color: i ? '#f0e6cc' : '#fde68a' }));
     E.text('Tap to close', E.w / 2, y + h - 20, { size: 14, weight: '800', color: '#ffd24a', alpha: 0.6 + 0.4 * Math.sin(E.time * 4) });
   },
@@ -5739,7 +5996,7 @@ function pageHead(ctx, E, title, line) {
   const back = E.button('Back', 16 + E.safe.left + 44, top + 28, { w: 88, h: 44, size: 16, fill: '#1f2937' });
   ctx.font = '800 16px system-ui, sans-serif';
   laurel(ctx, R - ctx.measureText(ft).width - 18, top + 28, 8); E.text(ft, R, top + 28, { size: 16, weight: '800', align: 'right', color: '#ffd24a' });
-  if (line) { const t = `Old Brutus: “${line}”`; E.text(t, E.w / 2, top + 60, { size: fitSize(ctx, t, 14, E.w - 32, '700'), weight: '700', color: '#fde68a' }); }
+  if (line) sayLine(ctx, E, `Old Brutus: “${line}”`, E.w / 2, top + 60, E.w - 32, { size: 14, fit: true, weight: '700', color: '#fde68a' }, 'brutus');
   return back;
 }
 // the ludus's courtyard behind its pages: a colonnade of arches over the sand
@@ -6466,8 +6723,12 @@ const over = {
     E.roundRect(x, y, w, h, 18, '#221a2b', '#ffd24a');
     E.text(`CHAMPION FELLED  \u00b7  ${ARENA[p.arena].name.toUpperCase()}`, E.w / 2, y + 30, { size: 15, weight: '800', color: '#ffd24a' });
     if (p.rivalBeaten) E.text('Rival defeated!', E.w / 2, y + 54, { size: 16, weight: '800', color: '#f87171' });
-    E.text(`${me.name}, ${ORIGINS[me.origin].text}.`, E.w / 2, y + h * 0.45, { size: 20, weight: '800', color: '#f0e6cc' });
-    wrapPx(ctx, endingOf(p.arena, me, p.fav), w - 40, 17, '700').slice(0, 2).forEach((t, i) => E.text(t, E.w / 2, y + h * 0.45 + 32 + i * 22, { size: 17, weight: '700', color: '#fde68a' }));
+    // a won run: Old Brutus, proud, on the left and the champion felled on the right, the lines between them
+    const [pw, ph] = TUNING.art.epi, py = y + (h - ph) / 2 + 8, champ = p.gauntlet[p.gauntlet.length - 1];
+    const bl = drawPic(ctx, E, 'brutus-proud', [0, 0, 1, 1], x + 14, py, pw, ph), br = champPic(champ) && drawPic(ctx, E, champPic(champ), [0, 0, 1, 1], x + w - 14 - pw, py, pw, ph, '#ffd24a');
+    const tw = bl || br ? w - 2 * (pw + 24) : w - 40, nl = `${me.name}, ${ORIGINS[me.origin].text}.`;
+    E.text(nl, E.w / 2, y + h * 0.45, { size: bl || br ? fitSize(ctx, nl, 20, tw) : 20, weight: '800', color: '#f0e6cc' });
+    wrapPx(ctx, endingOf(p.arena, me, p.fav), tw, 17, '700').slice(0, 2).forEach((t, i) => E.text(t, E.w / 2, y + h * 0.45 + 32 + i * 22, { size: 17, weight: '700', color: '#fde68a' }));
     if (p.fame && p.fame.sum) E.text(`+${p.fame.sum} fame`, E.w / 2, y + h - 46, { size: 18, weight: '800', color: '#ffd24a' });
     E.text('Tap to continue', E.w / 2, y + h - 22, { size: 14, weight: '800', color: '#ffd24a', alpha: this.t > 0.5 ? 0.6 + 0.4 * Math.sin(E.time * 4) : 0.3 });
   },
@@ -6482,14 +6743,19 @@ const over = {
     ctx.save(); ctx.globalAlpha = k;
     ctx.fillStyle = '#3a2a40'; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = '#d9c9a0'; ctx.fillRect(bx - 10, by - 6, 14, bh + 6); ctx.fillRect(bx + bw - 4, by - 6, 14, bh + 6); ctx.fillRect(bx - 14, by - 10, bw + 28, 8);
+    // the Emperor's portrait sits in the box when it has loaded (the drape and rail over his lap); else the drawn Emperor below
+    const emp = picSprite(E, 'emperor', TUNING.art.box, Math.round(bh * 1.25), bh);
+    if (emp) { ctx.save(); ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip(); ctx.drawImage(emp.im, emp.sx, emp.sy, emp.sw, emp.sh, cx - bh * 0.625, by, bh * 1.25, bh); ctx.restore(); }
     ctx.fillStyle = '#5b2160'; ctx.beginPath(); ctx.moveTo(bx, by + bh * 0.62);
     for (let i = 0; i <= 6; i++) ctx.quadraticCurveTo(bx + bw * (i - 0.5) / 6, by + bh * 0.82, bx + bw * i / 6, by + bh * 0.62);
     ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx, by + bh); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#e6c866'; ctx.fillRect(bx, by + bh * 0.6, bw, 3);
     const nod = b === 1 ? Math.sin(clamp((t - T.box - T.hand) / T.turn, 0, 1) * Math.PI) * 4 : 0, ex = cx, ey = by + bh * 0.3 + nod;
-    ctx.fillStyle = '#c9a27a'; ctx.beginPath(); ctx.arc(ex, ey, bh * 0.12, 0, 6.28); ctx.fill();
-    ctx.fillStyle = '#f2f0ea'; ctx.beginPath(); ctx.moveTo(ex - bh * 0.22, by + bh * 0.62); ctx.quadraticCurveTo(ex, ey + bh * 0.05, ex + bh * 0.22, by + bh * 0.62); ctx.fill();
-    ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ex, ey - bh * 0.02, bh * 0.13, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    if (!emp) {
+      ctx.fillStyle = '#c9a27a'; ctx.beginPath(); ctx.arc(ex, ey, bh * 0.12, 0, 6.28); ctx.fill();
+      ctx.fillStyle = '#f2f0ea'; ctx.beginPath(); ctx.moveTo(ex - bh * 0.22, by + bh * 0.62); ctx.quadraticCurveTo(ex, ey + bh * 0.05, ex + bh * 0.22, by + bh * 0.62); ctx.fill();
+      ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ex, ey - bh * 0.02, bh * 0.13, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    }
     ctx.restore();
     // the hand rises over the rail, a fist with the thumb out, and turns
     const kh = easeOut(clamp((t - T.box) / T.hand, 0, 1)), kt = easeOut(clamp((t - T.box - T.hand) / T.turn, 0, 1)), hx = cx + bw * 0.3, hy = by + bh * 0.9 - kh * bh * 0.45;
@@ -6515,7 +6781,7 @@ const over = {
     if (portrait(E)) { this.btnAgain = this.btnMenu = this.btnDetails = null; rotateCard(ctx, E); return; }
     if (this.page === 0) { this.btnAgain = this.btnMenu = this.btnDetails = null; if (p.arena === 'games') this.thumb(ctx, E); else this.epilogue(ctx, E); return; }
     const last = g[p.reached - 1], me = p.me, by = E.h - 30 - E.safe.bottom;
-    E.text(p.won ? 'CHAMPION FELLED' : `Cut down by ${last.beast ? `a ${last.name.toLowerCase()}` : last.name}`, E.w / 2, top, { size: 24, weight: '800', color: p.won ? '#ffd24a' : '#ef4444' });
+    sayLine(ctx, E, p.won ? 'CHAMPION FELLED' : `Cut down by ${last.beast ? `a ${last.name.toLowerCase()}` : last.name}`, E.w / 2, top, E.w - 32, { size: 24, weight: '800', color: p.won ? '#ffd24a' : '#ef4444' }, p.won ? null : champPic(last), TUNING.art.faceBig);
     E.text(`Reached bout ${p.reached} of ${g.length}${p.grades.length ? `  \u00b7  grades ${p.grades.join(' ')}` : ''}`, E.w / 2, top + 22, { size: 13, color: '#fbbf24' });
     this.btnDetails = E.button(this.details ? 'Hide details' : 'Details', E.w / 2 - 160, by, { w: 150, h: 48, size: 16, fill: '#1f2937' });
     this.btnAgain = E.button('Again', E.w / 2, by, { w: 150, h: 48, size: 18 });
@@ -6524,7 +6790,9 @@ const over = {
     const n = g.length + 1, gap = 8, w = Math.min(150, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), h = 150, x0 = (E.w - (w * n + gap * (n - 1))) / 2, y0 = top + 36;
     meMini(ctx, E, me, x0, y0, w, h, p.picks);
     g.forEach((d, i) => miniCard(ctx, E, d, x0 + (i + 1) * (w + gap), y0, w, h, p.results[i] || null));
-    let y = y0 + h + 14;
+    // with Old Brutus's face on the lost card the rows below the cards close up by tt px each, so it sits clear of the wall and the buttons
+    const tt = !p.won && brutusFaceOn() ? TUNING.art.tight : 0;
+    let y = y0 + h + 14 - 2 * tt;
     // your upgrades, icon and name
     if (p.picks.length) {
       // every piece as an icon, then as many names as fit at 14 px (highest rarity first: keystones, sets, epics, war paint), then "+N"
@@ -6542,25 +6810,28 @@ const over = {
       p.picks.forEach((id, i) => drawIcon(ctx, id, x + ip * i + ip / 2, y, Math.min(8, ip / 2 - 1)));
       if (txt) E.text(txt, x + ip * n + 14, y, { size: 14, align: 'left', color: '#f0e6cc' });
     } else E.text('No gear picked', E.w / 2, y, { size: 14, color: '#9ca3af' });
-    y += 18;
+    y += 18 - tt;
     // the run's gold: what is left (it resets with the run) and what the crowd's style earned, and the tent's wares
     const F = p.fame || { sum: 0, items: [] }, fl = F.sum ? `  \u00b7  +${F.sum} fame (${F.items.map((e) => `${e[0]} ${e[1]}`).join(', ')})` : '';
     const wn = p.wares.map((id) => WARES.find((q) => q.id === id).name.replace(' {weapon}', '')), gl = `Gold: ${p.gold} left of ${p.goldEarned} earned${wn.length ? `  \u00b7  bought: ${wn.join(', ')}` : ''}${fl}`;
     const gls = wrapPx(ctx, gl, E.w - 32 - E.safe.left - E.safe.right, 14, '700');
     gls.forEach((t, k) => E.text(t, E.w / 2, y + k * 17, { size: 14, weight: '700', color: '#fbbf24' }));
-    y += 17 * gls.length + 1;
+    y += 17 * gls.length + 1 - tt / 2;
     if (!p.won) {
       const her = me.female ? 'her' : 'his';
       E.text(`${me.name} fell in bout ${p.reached}. Old Brutus chalked ${her} name on the wall of the pit.`, E.w / 2, y, { size: 13, weight: '700', color: '#f0e6cc' });
-      y += 18;
+      y += 18 - tt;
       // the pit wall: the last eight fallen, newest first, chalked on stone
       const names = p.wall.slice(0, 8), sw = Math.min(E.w - 40, 120 * names.length + 20), sx = (E.w - sw) / 2;
       ctx.font = '700 12px system-ui, sans-serif';
       while (names.length > 1 && names.reduce((a2, q) => a2 + ctx.measureText(`${q.name} (${q.bout})`).width + 26, 0) > sw - 20) names.pop();
-      E.roundRect(sx, y - 2, sw, 24, 6, '#3a322c', '#5a4e44');
-      names.forEach((q, i) => E.text(`${q.name} (${q.bout})`, sx + 10 + (sw - 20) * (i + 0.5) / names.length, y + 10, { size: 12, weight: '700', color: i === 0 ? '#ffffff' : '#d6d0c4', alpha: i === 0 ? 1 : 0.75 }));
-      y += 32;
-      E.text(`Old Brutus: \u201c${brutus(me, 'lost')}\u201d`, E.w / 2, y, { size: 13, weight: '700', color: '#fde68a' });
+      const ph = 24 - tt;
+      E.roundRect(sx, y - 2, sw, ph, 6, '#3a322c', '#5a4e44');
+      names.forEach((q, i) => E.text(`${q.name} (${q.bout})`, sx + 10 + (sw - 20) * (i + 0.5) / names.length, y - 2 + ph / 2, { size: 12, weight: '700', color: i === 0 ? '#ffffff' : '#d6d0c4', alpha: i === 0 ? 1 : 0.75 }));
+      // Brutus's line: centred between the wall and the buttons, his face as big as the room allows (TUNING.art.faceCard at most) with TUNING.art.gap clear (and the frame's 1 px)
+      const wallEnd = y - 2 + ph, room = by - 24 - wallEnd, fs = Math.max(16, Math.min(TUNING.art.faceCard, room - 2 * (TUNING.art.gap + 1)));
+      y = brutusFaceOn() ? wallEnd + room / 2 : y + 32;
+      sayLine(ctx, E, `Old Brutus: \u201c${brutus(me, 'lost')}\u201d`, E.w / 2, y, E.w - 32, { size: 14, weight: '700', color: '#fde68a' }, 'brutus', fs);
       y += 16;
     } else {
       const ending = endingOf(p.arena, me, p.fav);
@@ -6666,5 +6937,13 @@ export const game = {
     { label: 'Brutal', values: { ...STD, 'stamina.regen': 22, 'attack.over.cost': 34, 'shield.perfect': 0.1, 'shield.hits': 3, 'shield.drain': 12, 'open.dur': 0.6, 'swing.windup': 0.55, 'swing.gap': 1.3, 'counter.windup': 0.35, 'hit.minSpeed': 600, 'dodge.cost': 28 } },
   ],
   start: 'menu',
+  // the art (step 6): E.art where the engine has it (ADR-0020); without it every image keeps its drawn fallback
+  init(E) {
+    ART = E.art || null;
+    if (!ART) return;
+    KIT.on = ART.enabled && !!E.save.get('kitPilot', true);
+    ART.on(() => { artV++; });
+    kitSwitch(E);
+  },
   scenes: { menu, arenas: pickArena, ludus, champs, roll, play, over },
 };
