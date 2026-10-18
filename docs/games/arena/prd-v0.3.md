@@ -835,3 +835,22 @@ One Sonnet build, after 5a lands, reviewed.
   - A plated 1-hit costs 1.
   - Nothing overlaps at the three sizes.
   - `npm run smoke` passes.
+
+## Step 5c (locked 2026-10-18): a young beast first, and the drive said once
+
+**From the export (`playtests/2026-10-18-city-win-colosseum.md`):** three of five Colosseum runs ended at the bout 2 beast, which is always full size. The drive was barely used, since nothing says it exists.
+
+**The designer:** "Go." One Sonnet build, reviewed.
+
+- **A young beast in bout 2.**
+  - The Colosseum's first beast bout (bout 2) brings a young one: a young lion or a young bear.
+  - Its size band is one step smaller than its kind's (`TUNING.beastYoung` 1 step): the lion big to medium, the bear giant to big. It is drawn at that size, and its stats follow that band, as for a man.
+  - Its name on the intro card reads "Young lion" or "Young bear".
+  - Bout 4's beast and Carpophorus's lion stay full size.
+  - The seed rolls as before for everything else.
+- **The drive said once.** The first time ever that a lunge misses (meets nothing), a one-line hint: "Keep holding a lunge to drive further." It is stored as `driveHint`, and follows the other hints' look and one-at-a-time rule.
+- **Small fix:** the "?" page's "1 more sets" reads "1 more set" when there is one.
+- **Acceptance:**
+  - A seeded Colosseum gauntlet shows a young beast at bout 2 and a full one at bout 4.
+  - The hint shows once.
+  - `npm run smoke` passes.
