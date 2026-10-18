@@ -1,0 +1,86 @@
+{
+ "pack": "15, 17",
+ "assets": {
+  "arena-pit": [
+   "arena-pit-A.webp",
+   "arena-pit-B.webp"
+  ],
+  "arena-city": [
+   "arena-city-A.webp",
+   "arena-city-B.webp"
+  ],
+  "arena-colosseum": [
+   "arena-colosseum-A.webp",
+   "arena-colosseum-B.webp"
+  ],
+  "arena-grand": [
+   "arena-grand-A.webp",
+   "arena-grand-B.webp"
+  ],
+  "kit-base-head": [
+   "kit-base-head-A.png"
+  ],
+  "kit-base-torso": [
+   "kit-base-torso-A.png"
+  ],
+  "kit-base-upperarm": [
+   "kit-base-upperarm-A.png"
+  ],
+  "kit-base-forearm": [
+   "kit-base-forearm-A.png"
+  ],
+  "kit-base-thigh": [
+   "kit-base-thigh-A.png"
+  ],
+  "kit-base-shin": [
+   "kit-base-shin-A.png"
+  ],
+  "kit-helmet-gallic": [
+   "kit-helmet-gallic-A.png"
+  ],
+  "kit-shield-round": [
+   "kit-shield-round-A.png"
+  ],
+  "brutus": [
+   "brutus-A.webp",
+   "brutus-B.webp"
+  ],
+  "brutus-proud": [
+   "brutus-proud-A.webp",
+   "brutus-proud-B.webp"
+  ],
+  "champ-marcus": [
+   "champ-marcus-A.webp",
+   "champ-marcus-B.webp"
+  ],
+  "champ-aurelius": [
+   "champ-aurelius-A.webp"
+  ],
+  "champ-flamma": [
+   "champ-flamma-A.webp"
+  ],
+  "champ-varro": [
+   "champ-varro-A.webp"
+  ],
+  "champ-twins": [
+   "champ-twins-A.webp",
+   "champ-twins-B.webp"
+  ],
+  "champ-hermes": [
+   "champ-hermes-A.webp"
+  ],
+  "champ-carpophorus": [
+   "champ-carpophorus-A.webp"
+  ],
+  "champ-mevia": [
+   "champ-mevia-A.webp"
+  ],
+  "champ-aquila": [
+   "champ-aquila-A.webp"
+  ],
+  "emperor": [
+   "emperor-A.webp",
+   "emperor-B.webp"
+  ]
+ }
+}
