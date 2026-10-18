@@ -248,6 +248,24 @@ Portraits, 768 x 1024, chest up, three-quarter view facing left (toward the play
 
 Generate `brutus.png` first and use it as the reference for `brutus-proud`. Make two options for Brutus, Marcus, Castor and Pollux and the Emperor, and one for each of the others. That is 16 images, about US$3 to 4. Finals go into `docs/art/final/arena/`.
 
+### Pack 18: Arena, the muscle tiers (added 2026-10-18)
+
+Spec: `docs/games/arena/prd-v0.3.md`, "Step 6 addition: Strength shows in the muscles". The designer wants a fighter's Strength to show in the art: lean, average or muscular.
+
+Use the delivered kit parts (`docs/art/candidates/arena/kit-base-*-A.png`, the muscular tier) as the reference for each image. Each new part must keep exactly the same canvas size, pose, outline weight, lighting, skin tone and joint positions as its muscular reference, so it swaps in place on the rig. Only the muscle changes:
+- **lean:** wiry and thin, little muscle definition, a narrower silhouette inside the same joint ends;
+- **avg:** fit and ordinary, light definition.
+
+| Files | Part |
+| --- | --- |
+| `kit-base-torso-lean.png`, `kit-base-torso-avg.png` | the torso, with the same belt and kilt |
+| `kit-base-upperarm-lean.png`, `kit-base-upperarm-avg.png` | the upper arm |
+| `kit-base-forearm-lean.png`, `kit-base-forearm-avg.png` | the forearm, with the same bracer and fist |
+| `kit-base-thigh-lean.png`, `kit-base-thigh-avg.png` | the thigh, with the same kilt edge |
+| `kit-base-shin-lean.png`, `kit-base-shin-avg.png` | the shin, with the same sandal |
+
+That is 10 images, one option each (the reference keeps them consistent), about US$2. Add them to `docs/art/candidates/arena/candidates.json` as their own assets, with `-A` files as before, and add a row to `sheet-kit.png` (or a new `sheet-kit-tiers.png`) showing lean, avg and muscular side by side for each part.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.

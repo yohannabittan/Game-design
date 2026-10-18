@@ -888,19 +888,20 @@ One Sonnet build, after 5a lands, reviewed.
 - a kit for each gladiator type and the two beasts;
 - the painted gear pack (F), so each card's piece shows on the body.
 
-### Step 6 addition (locked 2026-10-18): Strength shapes the body
+### Step 6 addition (locked 2026-10-18): Strength shows in the muscles
 
-**The designer**, on the delivered art: "Maybe we should consider making the body parts more or less strong depending on the strength wheel."
+**The designer**, on the delivered art: "Maybe we should consider making the body parts more or less strong depending on the strength wheel." Then: "I meant, instead of the widths, having art with different muscle density."
 
-- **The rule:** a fighter's Strength (1 to 5) sets how broad the body is.
-  - The torso, upper arms, forearms, thighs and shins are drawn wider at higher Strength: `TUNING.fighter.bulk` from about 0.85x at Strength 1 to about 1.2x at 5, width only, never length.
-  - It applies to you and to every man you fight, so you can read his strength at a glance.
-  - It applies on the procedural rig and on the painted kit alike, where each part's image is stretched in width only.
-- **The hit geometry follows the drawing** (principle 14): a broad fighter's limbs and plates are a little bigger to hit. That is the natural trade of brawn. Gaps (joint slots) keep their size, so the skill of a gap hit does not change.
-- Beasts and sizes keep their own rules. Bulk multiplies on top of the size band's scale.
+- **Three muscle tiers of the painted kit,** chosen by Strength (thresholds in TUNING):
+  - Strength 1 and 2: lean;
+  - Strength 3: average;
+  - Strength 4 and 5: muscular (the delivered kit).
+- **Which parts:** the torso, upper arm, forearm, thigh and shin each come in the three tiers. The game looks for `kit-base-<part>-lean` and `kit-base-<part>-avg`, and falls back to the muscular part until they exist. The head, helmet and shield have no tiers.
+- **When the kit switch is on,** it is drawn on every man, you and your foes (not the beasts), each by his own Strength. So you read a foe's strength at a glance.
+- **Nothing about the shapes or the hit geometry changes:** widths stay as they are.
+- **The art:** Pack 18 (`docs/art/BRIEF.md`), the lean and average versions of the five parts, made from the delivered muscular parts as references.
 - **Acceptance:**
-  - Strength 1 and 5 fighters of the same size side by side read clearly different.
-  - The parts still meet at the joints.
-  - A scripted hit test confirms the drawn width and the hit width agree.
+  - With the art in, Strength 1, 3 and 5 fighters side by side read clearly different.
+  - The parts meet at the joints in every tier.
 
-**How it is built:** one Opus build rather than the Sonnet one planned, since pinning the painted kit to the rig with no joint points from the art chat is fiddly visual work. About $12 to $15. The art came in at about $2.64, so the art spend is $37.67 of $80.
+**How it is built:** one Opus build rather than the Sonnet one planned, since pinning the painted kit to the rig with no joint points from the art chat is fiddly visual work. About $12 to $15. Packs 15 and 17 came in at about $2.64, so the art spend is $37.67 of $80.
