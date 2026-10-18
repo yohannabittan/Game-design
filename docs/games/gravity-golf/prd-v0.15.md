@@ -1,6 +1,6 @@
 # Gravity Golf PRD v0.15: every stroke counts, and the Labyrinth
 
-Status: draft 2, 2026-10-18, for the designer. It builds on v0.14 with A2.
+Status: locked 2026-10-18 by the designer ("Go for gg"), all at once. It builds on v0.14 with A2.
 
 **Draft 2, the designer:**
 - "I think you should be able to return to tee for an extra stroke, and that you can only retry from zero strokes after sinking it, on the score screen."
