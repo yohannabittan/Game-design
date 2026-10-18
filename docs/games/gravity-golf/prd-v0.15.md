@@ -22,6 +22,8 @@ Status: locked 2026-10-18 by the designer ("Go for gg"), all at once. It builds 
   - The button reads "Tee +1".
 - **A fresh start from 0 strokes is only on the score screen,** after you have sunk the hole: the end card's Retry, as now.
 - **Leaving for the menu keeps the count.** An unfinished hole's strokes are saved and still there when you come back, so quitting is never a free restart (the simplest way to keep the rule whole).
+- **Coming back to an unfinished hole** puts the ball on the tee with its saved strokes plus the Tee +1 penalty, so leaving is never a free tee (review round, 2026-10-18).
+- **A chase catch** sends the ball to the tee with the strokes kept and no penalty: the catch already costs the strokes played and the time.
 - **The HUD shows the strokes so far,** and the end card adds "(including 2 tee penalties)" when there were any.
 - **Blind tries:** the same rule, with their own count.
 - **Runs (the full-run counter):** unchanged, since a run already counts every stroke. "Tee +1" adds its stroke there too.
