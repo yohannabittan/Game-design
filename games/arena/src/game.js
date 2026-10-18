@@ -152,6 +152,8 @@ const TUNING = {
   },
   // a beast's bout: the frame shrinks (never under min) until the beast, at its home plus room H, needs the frame to slide left by at most slide H
   beastFit: { room: 0.1, slide: 0.1, min: 0.7 },
+  // a young beast (the Colosseum's arenas.rome.young bouts): its band this many steps smaller than its kind's, drawn at that size, its stats following that band
+  beastYoung: 1,
   armourSets: [
     { id: 'light', name: 'LIGHT', plates: [1, 1], helmet: false, slots: 3 },
     { id: 'medium', name: 'MEDIUM', plates: [2, 3], helmet: false, slots: 4 },
@@ -242,7 +244,7 @@ const TUNING = {
   story: { debt: 1000, debtPer: 200, chant: { gain: 0.08, step: 0.04, gap: 0.24, max: 5 } },
   // the one token per run: a Respin on your fighter card or a Reroll on a draft
   token: 1,
-  hint: { bouts: 2, dur: 10, heartDur: 6 },  // the in-play hint shows in this many bouts ever, for this many seconds of each; heartDur: the heart hint after your first fell
+  hint: { bouts: 2, dur: 10, heartDur: 6, driveDur: 6 },  // the in-play hint shows in this many bouts ever, for this many seconds of each; heartDur, driveDur: the heart hint after your first fell, the drive hint after your first missed lunge
   // your hearts on the HUD, one for each point of health: heart = spacing and size (px), perRow = most in a row (more start a second row), rowGap = px a second row pushes the rows below it down
   hud: { heart: 19, size: 17, perRow: 9, rowGap: 18 },
   // footwork, in H. Yours: a tap of DODGE is the backstep (back x your Speed's dodge length), holding it keeps backing off at walkBack; a lunge's recovery
@@ -311,7 +313,7 @@ const TUNING = {
   arenas: {
     pit: { shift: 0, feint: 1, guard: [0, 0], gear: 0, ring: 0.7, pairs: 99 },
     city: { shift: 0.4, feint: 1.15, guard: [0.1, 0.05], gear: 0, ring: 1, pairs: 2 },
-    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99, beasts: [1, 3] },  // beasts: the bouts (0-based) a beast fights
+    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99, beasts: [1, 3], young: [1] },  // beasts: the bouts (0-based) a beast fights; young: those of them that bring a young one
     games: { shift: 0.9, feint: 1.35, guard: [0.2, 0.1], gear: 1, ring: 1, pairs: 99 },
   },
   // the City's pairs: the waiting foe drawn at scale x his size and alpha, his centre x from the screen's edge (in his H), his body's half width (body, in his H);
@@ -376,7 +378,7 @@ const BEASTS = {
   bear: { name: 'Bear', epithets: ['of Dacia', 'the Mountain', 'of the North', 'the Grey-Muzzled', 'the Broad-Backed', 'of Britannia'], tell: 'Rears up, then mauls. Lowers its head, then shoves.' },
 };
 // a beast's name on its card: "A LION, THE GOLDEN" or "A BEAR OF DACIA"
-const beastTitle = (d) => `A ${BEASTS[d.beast].name}${d.epithet.startsWith('of ') ? ' ' : ', '}${d.epithet}`;
+const beastTitle = (d) => `A ${d.name}${d.epithet.startsWith('of ') ? ' ' : ', '}${d.epithet}`;
 // The ladder: one run is one arena. rows = which gauntlet rows its bouts roll from (the Grand Games skip the sparring partner); champs = its champion pool;
 // who = how its champion is named on the next arena's lock. Its numbers are TUNING.arenas.
 const ARENAS = [
@@ -952,9 +954,10 @@ function profileOf(d) {
 // rule holds), a seeded epithet. Its "weapon" is its kind's numbers (TUNING.beasts) and its hide is no armour: no plates, no shield, no gear, no guard.
 const beastWeapon = (kind) => ({ ...TUNING.beasts[kind], id: kind, name: 'CLAWS', len: 0, combo: [1, 1], shield: 0, drain: 0 });
 const beastSet = (kind) => ({ id: 'beast', name: 'HIDE', plates: [0, 0], helmet: false, slots: BEAST_BODY[kind].slots.length });
-function rollBeast(rng, tier, kind, A, at) {
-  const B = TUNING.beasts[kind], size = sizeOf(B.band, rng.range(-1, 1)), st = rollStats(rng, tier, size, A, B.prof);
-  return { tier, at, name: BEASTS[kind].name, ck: null, title: null, pair: null, champion: false, beast: kind, epithet: rng.pick(BEASTS[kind].epithets), size, prof: st.prof,
+function rollBeast(rng, tier, kind, A, at, young = false) {
+  const B = TUNING.beasts[kind], band = young ? TUNING.sizes[Math.max(0, TUNING.sizes.indexOf(BAND(B.band)) - TUNING.beastYoung)].id : B.band;
+  const size = sizeOf(band, rng.range(-1, 1)), st = rollStats(rng, tier, size, A, B.prof);
+  return { tier, at, name: young ? `Young ${BEASTS[kind].name.toLowerCase()}` : BEASTS[kind].name, young, ck: null, title: null, pair: null, champion: false, beast: kind, epithet: rng.pick(BEASTS[kind].epithets), size, prof: st.prof,
     weapon: beastWeapon(kind), set: beastSet(kind), str: st.v[0], spd: st.v[1], sta: st.v[2], shield: false, mace: false, partSeed: (rng() * 2 ** 32) >>> 0 };
 }
 // a fighter from a saved rival record, on the rolled one's place (a beast, the Beastmaster's lion, from its own)
@@ -985,7 +988,7 @@ function rollGauntlet(seed, rival, A = ARENAS[0]) {
   });
   // the Colosseum: its beast bouts are a lion or a bear (on their own stream), and the Beastmaster's lion waits at the edge as his partner
   const br = makeRng(seed ^ 0x1f83d9ab), AT = TUNING.arenas[A.id];
-  for (const i of AT.beasts || []) if (g[i]) g[i] = rollBeast(br, g[i].tier, br.pick(Object.keys(BEASTS)), A, i);
+  for (const i of AT.beasts || []) if (g[i]) g[i] = rollBeast(br, g[i].tier, br.pick(Object.keys(BEASTS)), A, i, (AT.young || []).includes(i));
   g.forEach((d, i) => { const C = NEW_CHAMPS[d.ck]; if (C && C.beast) { d.pair = rollBeast(pr, d.tier, C.beast, A, i); d.sends = true; } });
   const c = g[g.length - 1], rv = rival && fromRival(c, rival);
   if (rv) {
@@ -1077,7 +1080,7 @@ function newRound(E, seed, me0, rv, arenaId = 'pit') {
     picks: [], grades: [], draft: null, token: TUNING.token, tokenUsed: '', epicsSeen: 0, switchReads: 0, hint: false, boutT0: 0, stepsIn: 0, stepsOut: 0, wallHits: 0, foeWall: 0, outReach: 0, dodged: 0, chases: 0, shrugs: 0, rivalBeaten: 0,
     foot: { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 },
     seed, arena: A.id, rng: makeRng(seed ^ 0x9e3779b9), gauntlet: rollGauntlet(seed, rival, A), results: [], rack: 0, m: 0, stop: 0, kickA: 0, kickV: 0,
-    hp: me.halves, endT: 0, dodgeT: 0, dodgeMax: TUNING.dodge.dur, dodgeCool: 0, away: false, dodgeM: -9, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, slotHits: 0, dg: { down: false, id: -1, t: 0 },
+    hp: me.halves, endT: 0, dodgeT: 0, dodgeMax: TUNING.dodge.dur, dodgeCool: 0, away: false, dodgeM: -9, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, lungeMiss: false, slotHits: 0, dg: { down: false, id: -1, t: 0 },
     stamina: M.staMax[me.sta - 1], lastAtk: -9, riposte: 0, open: 0, netT: 0, pushT: 0,
     gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
     feints: 0, feintsRead: 0, feintsBit: 0, feintsNone: 0, feintLive: false, plateSaves: 0, combos: 0, windeds: 0, punishes: 0, bashes: 0, bashHits: 0, nets: 0, netted: 0, zoneReads: 0, lungeReads: 0, turtleReads: 0, presses: 0, retreats: 0, moveCount: {},
@@ -1271,7 +1274,9 @@ function endLunge(E, pulled) {
   if (!state.lunging) return;
   state.lunging = false;
   // pulled back with the thumb down it may be a feint; anything else lands what the blade met
-  if (!(pulled && ownFeint(E)) && state.lng && !state.lng.committed) commit(E);
+  const feint = pulled && ownFeint(E);
+  if (!feint && state.lng && !state.lng.committed) commit(E);
+  if (!feint && state.lng && !state.lng.hit && state.landM < state.lng.t0 && state.endT <= 0 && state.fallT <= 0 && !E.save.get('driveHint', 0)) state.lungeMiss = true;
   const T = TUNING.foot, ft = state.foot;
   if (ft.pos >= 0) return;
   ft.tgt = Math.min(0, Math.max(ft.tgt, ft.pos) + T.pace); ft.v = T.pace / T.gainDur * gripMul(); state.stepsIn++;
@@ -2514,8 +2519,8 @@ function updateFinisher(E, dt) {
   if (!finBtn(E) || E.save.get('finHint', 0) || state.hintT > 0 || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
   E.save.set('finHint', 1); state.finHintT = TUNING.finBtn.hintDur;
 }
-// three more first-time hints, each shown once ever (stored in the save), one at a time: the crowd's first third, a full Momentum with no war paint, and the
-// hearts after your first fell
+// four more first-time hints, each shown once ever (stored in the save), one at a time: the crowd's first third, a full Momentum with no war paint, the
+// hearts after your first fell, and the drive after your first lunge that met nothing (state.lungeMiss, set in endLunge)
 function updateHints(E) {
   if (state.hintT > 0 || state.finHintT > 0 || !finLive(E) || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
   const C = TUNING.crowd, M = TUNING.mom;
@@ -2525,6 +2530,8 @@ function updateHints(E) {
     E.save.set('momHint', 1); state.hintT = M.hintDur; state.hintS = 'Momentum is full. War paint (finishers) spends it.';
   } else if (state.felled > 0 && !E.save.get('heartHint', 0)) {
     E.save.set('heartHint', 1); state.hintT = TUNING.hint.heartDur; state.hintS = `Each fell gives +${TUNING.heal} heart. Your hearts carry through the whole run.`;
+  } else if (state.lungeMiss && !E.save.get('driveHint', 0)) {
+    E.save.set('driveHint', 1); state.lungeMiss = false; state.hintT = TUNING.hint.driveDur; state.hintS = 'Keep holding a lunge to drive further.';
   }
 }
 // a touch on the button: the arrow chip cycles to the other ready finisher, anywhere else on it fires the one shown
@@ -4958,7 +4965,7 @@ function drawDealHelp(ctx, E, held, odds = []) {
     E.text(`${c.duo.map((f) => FAMS[f].name).join(' + ')}${ok ? '  \u00b7  can be dealt' : ''}`, x + w - 14, ry, { size: 14, weight: '700', align: 'right', color: ok ? '#86efac' : '#8a8f99' });
     ls.forEach((t, k) => E.text(t, x + 50, ry + 16 + k * 16, { size: 14, weight: '600', align: 'left', color: '#cbd5e1' }));
   });
-  E.text(more ? `Tap to close  \u00b7  ${more} more sets` : 'Tap to close', E.w / 2, y + h - 12, { size: 14, weight: '800', color: '#ffd24a' });
+  E.text(more ? `Tap to close  \u00b7  ${more} more set${more === 1 ? '' : 's'}` : 'Tap to close', E.w / 2, y + h - 12, { size: 14, weight: '800', color: '#ffd24a' });
 }
 // A card whose rule needs his weapon reads differently when the next bout has a beast in it (a beast has no weapon to lose: it is stunned instead)
 const BEAST_LINE = {
