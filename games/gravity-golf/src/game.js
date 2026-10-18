@@ -10,8 +10,8 @@ const TUNING = {
   designH: 640,          // Design space height
   ballR: 9,              // Ball radius
   holeR: 18,             // Hole radius, ball centre must be inside
-  sinkSpeed: 380,        // Max speed (units per second) at which the ball can sink
-  captureR: 44,          // Within this distance of the hole centre the cup pulls the ball
+  sinkSpeed: 320,        // Max speed (units per second) at which the ball can sink (PRD v0.15 B: was 380)
+  captureR: 32,          // Within this distance of the hole centre the cup pulls the ball (PRD v0.15 B: was 44, so a near miss no longer drops)
   captureStrength: 900,  // Constant acceleration toward the hole centre inside captureR
   friction: 0.28,        // Fraction of speed kept per second on the open field
   stopSpeed: 50,         // Below this speed the ball is at rest
@@ -73,8 +73,9 @@ const TUNING = {
     openDur: [3.6, 3.4, 3.8], turnDur: [3.4, 2.8], endDur: [3.4, 3.8, 4.2, 4.4], // Scene lengths: the cold open, the turn, the ending
     turnHole: 25, midHole: 17, endHole: 29, // Hole indices: the turn opens before hole 26, hole 18 has the midpoint line, hole 30 ends it
     // The end card's Mission Control block. Each [short, tall] pair is the value at a 667 px and an 844 px tall screen (linear between), so the block fits
-    // at 375 x 667: the offsets are those of the card's rows from the shot count, and the portrait's width.
-    card: { k: [667, 844], par: [30, 40], rules: [52, 68], stars: [94, 120], line: [136, 178], best: [164, 214], second: [68, 80], blind: [128, 148], portrait: [44, 68], pad: 14, gap: 10, factGap: 6, lineH: 18, below: 6, bestGap: 14 },
+    // at 375 x 667: the offsets are those of the card's rows from the shot count, and the portrait's width. `tees` (PRD v0.15 A): with tee
+    // penalties, their line takes the par row's place and every row below moves down by this much.
+    card: { k: [667, 844], tees: [22, 26], par: [30, 40], rules: [52, 68], stars: [94, 120], line: [136, 178], best: [164, 214], second: [68, 80], blind: [128, 148], portrait: [44, 68], pad: 14, gap: 10, factGap: 6, lineH: 18, below: 6, bestGap: 14 },
   },
   previewFullHoles: 3,   // Holes 1 to this show the full preview
   previewFullSeconds: 2.0,   // Length of the full preview in simulated seconds
@@ -90,12 +91,15 @@ const TUNING = {
 
   // Builder additions, not in the PRD tables.
   barW: 8,               // Rotating bar thickness
+  segW: 14,              // PRD v0.15 C: an angled wall's width (unless it sets `w`)
+  segMinW: 8,            // and its least width, so a ball at speedMax (under 12 units a step) can never cross its middle line in one step
   sunRearm: 30,          // A sun touch counts again only once the ball has left its surface by this much (30: a ball the planet presses back into a sun pays once)
   cometRearm: 9,         // A comet kicks the ball again only once the ball has left its surface by this much
-  hudH: 48,              // HUD stack height below the safe top (screen px); Retry sits below it, the field below both
-  hudGap: 6,             // Gap between Retry and the field's edge wall (screen px)
+  hudH: 48,              // HUD stack height below the safe top (screen px); Tee +1 sits below it, the field below both
+  hudGap: 6,             // Gap between Tee +1 and the field's edge wall (screen px)
   borderW: 8,            // Drawn thickness of the edge walls, kept on screen by view()
-  retryW: 96,            // Retry button size (screen px): a circular arrow and the word, so it reads as a button at rest
+  retryW: 96,            // Tee +1 button size (screen px; the v0.14 Retry): a circular arrow and the word, so it reads as a button at rest
+  teePenalty: 1,         // PRD v0.15 A: strokes Tee +1 adds when it puts the ball back on the tee (the strokes so far are kept)
   retryH: 44,
   bounceEventSpeed: 40,  // Impact speed below this is a slide, not a hit (no sound)
   sinkTime: 0.45,        // Seconds the ball takes to drop into the hole before the card
@@ -259,6 +263,7 @@ const TUNING = {
         { field: '#120c22', nebula: ['#7a3560', '#5a3a7a', '#6b2f4f'], core: '#f2b94b' },
         { field: '#04161b', nebula: ['#0e4a57', '#123f5c', '#0b3a46'], deep: '#010509' }, // deep teal; `deep` is the dark between galaxies the stars thin into
         { field: '#0b0a2c', nebula: ['#26237a', '#312a8a', '#1c2466'] }, // deep indigo: Sector 8, the burst's light behind
+        { field: '#0b1322', nebula: ['#22324f', '#2a3958', '#1b2944'], lattice: '#64748b' }, // slate night: Sector 9, the Labyrinth; `lattice` is the far walls' slate
       ],
       // Three meanings: green is the goal, purple is gravity, orange is danger and full power.
       green: '#22c55e', greenLight: '#bbf7d0', ink: '#04110a', // ink is the text on green
@@ -315,6 +320,7 @@ const TUNING = {
       { name: 'Galactic Core', stars: 1.6, warmChance: 0.45, nebulae: [1, 2], nebAlpha: [0.1, 0.16], nebR: [60, 100], core: true },
       { name: 'Beyond the Core', stars: 0.55, warmChance: 0.05, nebulae: [0, 1], nebAlpha: [0.12, 0.2], nebR: [70, 120], deep: true },
       { name: 'The Burst', stars: 0.9, warmChance: 0.03, nebulae: [0, 1], nebAlpha: [0.12, 0.2], nebR: [70, 120], speed: true },
+      { name: 'The Labyrinth', stars: 0.75, warmChance: 0.06, nebulae: [0, 1], nebAlpha: [0.12, 0.2], nebR: [70, 120], lattice: true, maze: true }, // PRD v0.15 D; maze: the hole-select tiles show a small maze
     ],
     meteors: {
       period: 6,           // Seconds between showers
@@ -346,6 +352,7 @@ const TUNING = {
     },
     core: { x: 0.5, dy: 50, r: 330, alpha: 0.1 }, // The galaxy's core: one wide golden glow rising from below the bottom edge (sector 6)
     speed: { angle: Math.PI / 2, len: [5, 11] }, // Sector 8: every star a short streak in one direction (radians, 0 is right), its length in star radii, as if by speed
+    lattice: { cell: 40, n: 16, cells: [1, 3], alpha: 0.13, width: 1.5 }, // Sector 9: far-off walls in the sky, n grid-aligned runs of 1 to 3 cells on a cell-unit grid, seeded per hole, faint and thin beside the real walls
     deep: { from: 0.75, to: 0.05, alpha: 0.7 }, // Sector 7: the dark between galaxies, a wash over the far stars from this share of the height (none) up to that one (full alpha), so the field thins toward the top
     planet: {
       lowMass: 0.75,       // Below this: plain with a few craters
@@ -415,11 +422,11 @@ const TUNING = {
       seam: 0.13,
     },
     ghost: { dotR: 1.3, every: 2 }, // The last shot's ghost: dot radius, and one dot per this many trail samples
-    retry: { pad: 14, icon: 7, iconW: 2.2, head: 4.5, gap: 9 }, // The HUD Retry button: left padding, arrow radius, line width, arrowhead size, gap to the word (screen px)
+    retry: { pad: 14, icon: 7, iconW: 2.2, head: 4.5, gap: 9 }, // The HUD Tee +1 button: left padding, arrow radius, line width, arrowhead size, gap to the word (screen px)
     hint: { text: 'Drag anywhere away from the ball to aim, release to shoot.', fade: 0.5, y: 0.14, pad: 14, lineH: 20, margin: 28 }, // The first-run hint: on a fresh save until the first release, then it fades (seconds; y as a fraction of the field's height from its top)
     further: { text: 'Drag further', time: 1.2, dy: 30 }, // A release inside the dead zone: this call-out above the ball for `time` seconds (dy in design units)
     stuckShots: 3, // Shots from a planet (or sun) that end on the same one before the 'More power to leave the planet (sun)' toast, once per hole
-    hudRun: { line1: 12, line2: 32 }, // The run counter and the landed mark, left of Retry: baselines below the HUD (screen px)
+    hudRun: { line1: 12, line2: 32 }, // The run counter and the landed mark, left of Tee +1: baselines below the HUD (screen px)
     trail: {
       minSpeed: 90,           // Below this the trail drains
       speedRef: 700,          // Speed at which the trail is at full strength
@@ -443,7 +450,7 @@ const TUNING = {
       glowIdle: 0.12, glowMax: 0.75, glowRate: 12, // Per second, easing toward the sinkable state
       flagH: 26, flagW: 13, flagRate: 3.2, flagWave: 1.4,
     },
-    tile: { number: 14, icon: 37, iconR: 10, sunR: 7, stars: 10, starR: 5.5, bhReach: 1.45, bandX: 1.4, bandY: 0.7, bandGlowW: 0.9, bandCoreW: 0.28, bandGlowAlpha: 0.25, bandGlowPulse: 0.1, bandGlowRate: 3 }, // Offsets from the tile top (stars from the bottom), design px; bhReach: a badge black hole's ring in icon radii; bandX, bandY: a chase tile's slanted band, half its run and rise in icon radii; bandGlowW, bandCoreW: the glow's and the core's width in icon radii; bandGlowAlpha, bandGlowPulse, bandGlowRate: the glow's alpha, how far it breathes and how fast (rad/s)
+    tile: { number: 14, icon: 37, iconR: 10, sunR: 7, stars: 10, starR: 5.5, bhReach: 1.45, bandX: 1.4, bandY: 0.7, bandGlowW: 0.9, bandCoreW: 0.28, bandGlowAlpha: 0.25, bandGlowPulse: 0.1, bandGlowRate: 3, mazeW: 1.8, mazeCup: 2.6 }, // Offsets from the tile top (stars from the bottom), design px; bhReach: a badge black hole's ring in icon radii; bandX, bandY: a chase tile's slanted band, half its run and rise in icon radii; bandGlowW, bandCoreW: the glow's and the core's width in icon radii; bandGlowAlpha, bandGlowPulse, bandGlowRate: the glow's alpha, how far it breathes and how fast (rad/s); mazeW, mazeCup: a Labyrinth tile's wall width and cup radius
     menu: { titleGap: 26, tabBottom: 42, missionsW: 150, rowGap: 12 }, // Title sits titleGap below the engine's TUNE tab (safe top + 42)
     missions: { top: 64, headH: 32, rowH: 92, rowGap: 6, medalR: 40, bottom: 156, backW: 200, backH: 52, scrollBar: 3, margin: 16, lineH: 17, toastBand: 96 }, // rowH for a one-line condition; each extra line adds lineH. Back sits above toastBand: the engine's toast (24 px up, two lines) takes taps while it shows
     swatch: { size: 46, gap: 10, perRow: 6, headH: 26, rowGap: 10, ring: 3, ballR: 13 }, // The Skins block on the missions screen (swatches at least 44 px)
@@ -555,7 +562,8 @@ TUNING.bg = TUNING.art.palette.space; // the engine reads TUNING.bg for the lett
 
 // Hole data. Coordinates are design space; the four field edges are walls added by the physics.
 //   stars: { three, two }: three is the fewest strokes proved in the harness; two is par, shown on the card.
-//   walls: axis-aligned rectangles { x, y, w, h }.
+//   walls: axis-aligned rectangles { x, y, w, h }, or angled walls { type: 'seg', a: { x, y }, b: { x, y }, w? } (PRD v0.15 C): a bar of
+//     width w (segW, at least segMinW) from a to b with round ends; the ball bounces off it with wallBounce, as off a rectangle.
 //   planets: { x, y, r, mass }; mass 1.0 is standard, up to 1.5 on bosses if the escape rule holds; mass 0 is a bumper.
 //   suns: { x, y, r, mass?, reach? }: pull like a planet of mass `mass` (sunMass) with the distance floored at sunPullR, within
 //     `reach` (sunReach) of the surface, fading smoothly to nothing at sunFade times that ring's radius; a touch costs
@@ -569,7 +577,7 @@ TUNING.bg = TUNING.art.palette.space; // the engine reads TUNING.bg for the lett
 //   chase: { dir?, speed? }: the gamma chase (PRD v0.14 B). A straight front across the whole field, at right angles to `dir` (degrees:
 //     0 right, 90 down, 270 up; chaseDir), starts at the field corner furthest behind and sweeps at `speed` (chaseSpeed) units per second
 //     on its own clock, which starts at the first release and runs on while aiming. When it passes the ball's centre, moving or at
-//     rest, the hole restarts as Retry does. A sink ends it.
+//     rest, the ball goes back to the tee as Tee +1 does, its strokes kept and no penalty (PRD v0.15 A). A sink ends it.
 //   movers, all on the hole clock (restarts at 0 whenever the ball comes to rest):
 //     { type: 'slide', w, h, a: { x, y }, b: { x, y }, period? }: a wall easing from a to b and back (period defaults to moverPeriod).
 //     { type: 'bar', x, y, len, phase }: a bar of length len spinning about its centre at barAngularSpeed; phase is its angle (radians) at clock 0.
@@ -633,8 +641,9 @@ const LEVELS = [
     // v0.3: the sun sits at (86, 492), 184 from the planet centre (v0.2: 158) and 46 from the left edge, so no slot opens between them. Soft shots (15 to 75 px, every 0.5 degrees and 1 px) charge two penalties in 4227 and three in 404, never four (v0.2 at (100, 470): 5788 and 249; v8 at (61, 469): 2279, 207 and 2 of four). The remaining doubles and triples are balls the planet presses back into the sun's underside.
     // v0.5 (PRD v0.5 B, suns have mass): the old sun 78 from the tee pulled every soft shot in, so it moves to (100, 405), r 30, beside the near-side lane, and the cup to (245, 225). three: drag (-108, 82), the far side round the planet, 0 bounces: 13.7 degrees and 122.6 px to full power (neighbours at least 13.6 degrees and 26.6 px); noisy human 97.5 percent. One clean one-shot sink goes up the near side (of 89). two: (34, 106) rests on the planet's top at (209.4, 295.0), then (-69, 95).
     // v18 (sun reach): a sun now pulls only within sunReach (12) of its surface, fading out by 1.2 times that ring, so the v0.5 layout stays and the route is re-found: drag (-89, 80), 0 bounces, passes the planet at 52: 15.45 degrees and 103.2 px to full power (neighbours at least 14.0 degrees and 46.4 px); noisy human 100 percent. Soft tee misses (15 to 75 px) touching the sun: 32.8 percent, twice 0.6 percent (v15 42.0 and 3.6, v17 99.0 and 21.8). two: (-46, 39) rests on the planet, then (-3, 90).
+    // PRD v0.15 B (cup 44 to 32 capture radius): the cup now sits at (247, 233), the v0.5 cup above having been (245, 225).
     name: "Solar Flare", boss: false, stars: { three: 1, two: 3 },
-    ball: { x: 90, y: 570 }, hole: { x: 245, y: 225 },
+    ball: { x: 90, y: 570 }, hole: { x: 247, y: 233 },
     walls: [{ x: 0, y: 300, w: 70, h: 22 }], planets: [{ x: 190, y: 340, r: 40, mass: 1 }], suns: [{ x: 100, y: 405, r: 30 }], movers: [],
   },
   {
@@ -642,7 +651,7 @@ const LEVELS = [
     // v0.3: a half-sunk floor bumper right of the tee closes the floor-bank ace (an 18 degree cluster around drag (-84, -86)): one-shot sinks that bank off the floor first fell from 320 to 2 (widest 1 degree), all one-shot sinks from 536 to 283; the widest aim cluster is now the route's own bumper bank (8.5 degrees at full power).
     // v0.5 (PRD v0.5 D0): the cup moves down from (299, 404) to (299, 440), so the bumper bank arrives slower and the route meets the window rule: (-109, 64) sinks over 6.75 degrees and 123.4 px to full power (neighbours at least 6.6 degrees and 26.1 px); v0.4's (-120, 72) had 14.6 px. two: (-111, 54) rests at (308.1, 491.3), then (-5, 39).
     name: "Pinball", boss: false, stars: { three: 1, two: 2 },
-    ball: { x: 122, y: 592 }, hole: { x: 299, y: 440 },
+    ball: { x: 122, y: 592 }, hole: { x: 303, y: 437 },
     walls: [{ x: 0, y: 399, w: 175, h: 22 }], planets: [{ x: 171, y: 527, r: 36, mass: 0 }, { x: 91, y: 151, r: 31, mass: 0 }, { x: 240, y: 247, r: 28, mass: 0 }, { x: 150, y: 640, r: 24, mass: 0 }], suns: [], movers: [],
   },
   {
@@ -801,22 +810,25 @@ const LEVELS = [
   {
     // Tests reading two slow comets with a black hole behind them: the planet is the staging post, the black hole swallows any soft or wide shot from it, and the comets knock a ball that leaves at the wrong moment into the black hole or away. v0.10 tightening: the release window was 0.20 to 2.04 s of the 2.4 s cycle (77 percent); comet 0 now starts 0.2 s later (r 20) and comet 1 0.1 s earlier (r 20), both shifted along their lines, and the cup moved from (106, 213) to (90, 220), which also narrows the aim window. three: (65, 0) lands on the planet's top at (238.0, 439.0) (any drag from (60, 0) to (70, 2) rests within 6 px of it), then (98, 110) released at clock 1.8: it sinks for release clocks 1.43 to 2.28 of the 2.4 s cycle (32 percent of the clocks, a first-to-last span of 35 percent, the longest unbroken run 0.7 s, 29 percent; otherwise a comet or the black hole takes it). Allowing any aim and power, some shot sinks on 55 percent of clocks (longest run 39 percent). It passes the planet at 14.0 and the black hole at 59.7 from the horizon; sinks over 4.70 degrees of aim (-1.70 / +3.00) and 122.8 px to full power (neighbours at least 4.70 degrees and 25.6 px); noisy human 74.5 percent. Two walls close the untimed routes: a floor under the first comet (x 0 to 125, y 328 to 341) shuts the left strip and the lower left off from the cup lane, so every way up to the cup crosses both comets through the door at x 125 and over, and a fin hanging from the top at x 150 to 172 stops the black hole's right-hand slingshot from entering the cup's side. --two-shot finds no fully untimed route (74 rests; the only untimed second shots start from two rests a first shot reaches on 1 of 8 clocks: the right edge near (351, 371) and the left edge at (16, 177), both timed first shots). Sweep at clocks 0, 1.0, 1.8 and 2.2: 0 straight sinks, 0 any-bounce one-shot sinks of 20160. Escape: 0 timeouts. two (3 strokes): (65, 0), a hop (0, 15) that re-times the clock, then (98, 110) at 1.8.
     // v0.8 A (hole 29, content shard on Sonnet, fix round on Sonnet, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot at merge, noisy human).
+    // PRD v0.15 B (cup 44 to 32 capture radius): the cup now sits at (82, 208), not (90, 220) as above.
     name: "Drift Gate", boss: false, stars: {three: 2, two: 3},
-    ball: {x: 331, y: 608}, hole: {x: 90, y: 220},
+    ball: {x: 331, y: 608}, hole: {x: 82, y: 208},
     walls: [{x: 150, y: 0, w: 22, h: 256}, {x: 0, y: 328, w: 125, h: 13}], planets: [{x: 238, y: 481, r: 33, mass: 0.87}], suns: [], blackholes: [{x: 224, y: 296, reach: 115}], movers: [{type: "comet", a: {x: 155, y: 297.2}, b: {x: -13, y: 259.2}, period: 2.4, r: 20}, {type: "comet", a: {x: 123.4, y: 379.9}, b: {x: 277.4, y: 376.9}, period: 2.4, r: 20}],
   },
   {
     // Tests the sector (boss, sector 6): a comet gate, a chute landing, a timed door and the core's pull. Nudge left past the comet onto the low planet, shoot up the chute onto the high planet, then wait for the door in the fin and fire through it; the high planet and the black hole bend it into the cup. three: (39, -22.5) at clock 0.3 crosses the comet lane and lands on the low planet at (82.4, 525.8) (the comet spoils clocks of about 0.75 to 1.1 of its 1.5 s cycle); (-2.7, 78) at any clock rises through the chute and lands under the high planet at (111.1, 323.0); (-87, 38) at clock 1.6 goes through the door gap: it sinks for releases from about 0.9 to 2.45 s of the door's 4 s cycle (40 percent), 19.60 degrees and 29.5 px at 1.6 (84.9 to 114.4 px), neighbours at least 19.05 degrees and 26.5 px. The fin (x 212) runs from y 100 to the floor, close enough to the black hole that nothing passes between, so the cup's pocket opens only through the door gap (y 280 to 340); the door overlaps the fin by 30 when shut and is open under half its cycle at any height, so every shot into the pocket is timed. The pocket floor is raised to y 370 so no ball rests in it. Sun 1.2 (heavier than both planets at 0.5, lighter than the black hole at 1.4) guards the right of the cup; the moon circles a slate bumper top left on the door's 4 s period and only guards overhit shots. No v0.7 badge on the route. Noisy human: last shot 96.0 percent, whole route 29.5 percent. Sweep at clocks 0, 0.3 and 1.6: 0 straight sinks, 0 any-bounce aces. two: (39, -22.5) at 0.3, (-2.7, 78), (0, -20), (-87, 38) at 1.6. Known find: the full-power tee shot (122.7, 32.9) still loops onto the high planet at most clocks, but every second shot from there is timed by the door (a timed two-stroke expert find). Two-shot: 217 tee-reachable rests, 0 with an untimed second shot.
     // v0.8 A (hole 30, content shard on Opus, retry round on Opus, proven with tools/sim-golf.mjs: --three, --windows, --sweep, --escape, --two-shot at merge, noisy human).
+    // PRD v0.15 B (cup 44 to 32 capture radius): the cup now sits at (266, 273), not (269, 273).
     name: "Sagittarius", boss: true, stars: {three: 3, two: 4},
-    ball: {x: 205, y: 480}, hole: {x: 269, y: 273},
+    ball: {x: 205, y: 480}, hole: {x: 266, y: 273},
     walls: [{x: 0, y: 420, w: 30, h: 22}, {x: 110, y: 420, w: 250, h: 22}, {x: 212, y: 100, w: 14, h: 180}, {x: 212, y: 340, w: 14, h: 80}, {x: 226, y: 370, w: 134, h: 50}], planets: [{x: 90, y: 560, r: 26, mass: 0.5}, {x: 110, y: 288, r: 26, mass: 0.5}, {x: 90, y: 110, r: 24, mass: 0}], suns: [{x: 320, y: 340, r: 22, mass: 1.2, reach: 30}], blackholes: [{x: 265, y: 199}], movers: [{type: "comet", a: {x: 150, y: 660}, b: {x: 150, y: 470}, period: 1.5, r: 10}, {type: "moon", parent: 2, orbitR: 52, period: 4, r: 10, mass: 0.3, phase: 0}, {type: "slide", w: 14, h: 100, a: {x: 212, y: 250}, b: {x: 212, y: 340}, period: 4}],
   },
   {
     // Teaches the magnetar's push (sector 7 opener): shoot up the left of the wall and the ring kicks the ball right, over to the cup. three: drag (-3, 72) at clock 1.25 (kicked at (189.8, 298.1) after 1.13 s); with --nokick it rests at (191.2, 264.3). Sinks on 42.5% of release clocks (0.90 to 1.58 s of the 1.6 s cycle), aim window 34.7 deg, 22.5 px; 0 sinks within 3 deg of the straight line (60-shot sweep at 6 clocks). two: hop (40, 40), then (0, 80).
     // PRD v0.14 A2 (hole 31 re-authored for the stronger push and weaker pull: star (63, 414) with a 1.6 s cycle, tee (180, 533), cup (302, 131), wall (219, 350)).
+    // PRD v0.15 B (cup 44 to 32 capture radius): the cup now sits at (305, 130), not (302, 131).
     name: "Repulse", boss: false, stars: {three: 1, two: 2},
-    ball: {x: 180, y: 533}, hole: {x: 302, y: 131},
+    ball: {x: 180, y: 533}, hole: {x: 305, y: 130},
     walls: [{x: 219, y: 350, w: 141, h: 22}], planets: [], suns: [{x: 63, y: 414, r: 22, mass: 1.2, reach: 26, burst: {period: 1.6, phase: 0, speed: 192, maxR: 330}}], blackholes: [], movers: [],
   },
   {
@@ -852,8 +864,9 @@ const LEVELS = [
   {
     // Teaches the gamma chase (sector 8 opener): land on the planet's top, then go straight up before the front arrives. three: (-30, 60) then (-0.7, 82); margin 3.4 s with 3 s of aim; the two-star route via the planet's foot keeps 0.7 s.
     // v0.14 B (hole 36, built with the mechanic layer on Opus: lean checks --three, --windows, the margin rule, 60-shot line sweep).
+    // PRD v0.15 B (cup 44 to 32 capture radius): the cup now sits at (180, 124), not (180, 110).
     name: "First Light", boss: false, stars: {three: 2, two: 3},
-    ball: {x: 180, y: 520}, hole: {x: 180, y: 110},
+    ball: {x: 180, y: 520}, hole: {x: 180, y: 124},
     walls: [], planets: [{x: 180, y: 320, r: 42, mass: 1}], suns: [], blackholes: [], movers: [], chase: {dir: 270, speed: 36},
   },
   {
@@ -885,10 +898,71 @@ const LEVELS = [
     ball: {x: 330, y: 470}, hole: {x: 80, y: 110},
     walls: [{x: 215, y: 190, w: 145, h: 22}], planets: [{x: 130, y: 390, r: 40, mass: 1}], suns: [{x: 225, y: 295, r: 26}], blackholes: [{x: 120, y: 240}], movers: [], chase: {dir: 245, speed: 50},
   },
+  {
+    // Teaches the door (Sector 9, the Labyrinth, tutorial): the cup sits in a walled pocket whose one opening faces the top edge, away
+    // from the tee, and an angled wall shuts the lower field off but for a gap on the left. Go through the gap onto the planet, then bank
+    // off the top edge down through the door. three: drag (109, 79) goes through the gap and lands on the planet's upper right at
+    // (98.6, 162.0) (nudged by a pixel, 9 of 9 routes still finish), then (-72, 115) banks once off the top edge into the cup: 10.70
+    // degrees of aim and 109.2 px to full power (neighbours at least 10.20 degrees and 39.5 px); --three 36 of 36. One stroke never sinks:
+    // 0 of 20160 tee shots at any bounce (--sweep). two (3 strokes): (109, 79), a nudge (20, 0) along the planet, then (-72, 115).
+    // Escape: every surface point reaches 282 or more, 0 timeouts. PRD v0.15 D (hole 41, built with the mechanic layer on Opus: lean checks).
+    name: "The Door", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 250, y: 570}, hole: {x: 250, y: 140},
+    walls: [{type: 'seg', a: {x: 75, y: 360}, b: {x: 360, y: 300}, w: 14}, {x: 196, y: 70, w: 14, h: 120}, {x: 290, y: 70, w: 14, h: 120}, {x: 196, y: 176, w: 108, h: 14}],
+    planets: [{x: 90, y: 200, r: 30, mass: 1}], suns: [], blackholes: [], movers: [],
+  },
+  {
+    // Corridor (Sector 9, the Labyrinth): a tall corridor bends right under a low ceiling, and a light planet sits in the bend's alcove. Shoot
+    // nearly straight up; the planet's pull carries the ball round the corner at the right speed (too soft and it falls into the planet, too hard and
+    // it overshoots against the ceiling). three: drag (-22, 127) passes the planet 17 units off its surface with 0 bounces and rests at (226.1, 117.6)
+    // in the arm, then (-50, -26) sinks along it. One stroke never sinks: 0 of 20160 tee shots at any bounce (--sweep). Shot 1 rests in the arm over
+    // 3.35 degrees of aim and 123 to 133 px of drag (tight by design: the bend is the lesson); the last shot has 36.6 degrees and 26 to 79 px
+    // (neighbours at least 35.8 degrees and 51.5 px); --three 18 of 18 at 60 fps and jitter, shot 1 nudged by a pixel 9 of 9.
+    name: "Corridor", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 60, y: 545}, hole: {x: 315, y: 164},
+    walls: [{x: 132, y: 315, w: 228, h: 325}, {x: 203, y: 215, w: 157, h: 100}, {x: 0, y: 87, w: 360, h: 14}],
+    planets: [{x: 158, y: 269, r: 26, mass: 0.3}], suns: [], blackholes: [], movers: [],
+  },
+  {
+    // Two Rooms (Sector 9, the Labyrinth): the cup's room (top) is reached only through a door in the middle room's ceiling, and the middle room only
+    // through a door in its floor, the two doors side by side so no line runs through both. Shoot up through the lower door at a slant and let the
+    // ball glide to rest on the room's right side, then shoot back up and left through the upper door into the cup. three: drag (-36, 72) rests at
+    // (196.5, 317.0) with 0 bounces (5.7 degrees of aim and 69.5 to 96 px of drag keep it in the room's right half), then (38, 58) goes through the
+    // upper door and sinks with 0 bounces: 8.85 degrees of aim and 48.8 to 102.3 px of drag (neighbours at least 8.75 degrees and 51.5 px);
+    // --three 18 of 18 at 60 fps and jitter, shot 1 nudged by a pixel 9 of 9. One stroke never sinks: 0 of 20160 tee shots at any bounce (--sweep).
+    // No hazards on the hole, so every rest is clear.
+    name: "Two Rooms", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 60, y: 590}, hole: {x: 85, y: 150},
+    walls: [{x: 0, y: 40, w: 360, h: 14}, {x: 0, y: 230, w: 118, h: 14}, {x: 166, y: 230, w: 194, h: 14}, {x: 0, y: 410, w: 124, h: 14}, {x: 172, y: 410, w: 188, h: 14}],
+    planets: [], suns: [], blackholes: [], movers: [],
+  },
+  {
+    // Teaches timing at a door (Sector 9): a wall across the middle has one 50-wide gap, shut by a sliding door that opens for about a second of each 2.6. Rest in the bay under the gap, wait for it to open, then hit hard through it so the ball banks off the angled
+    // deflector and runs left into the cup. three: drag (-54, 25) rests at (255.4, 499.5); then (5, 150) at hole clock 1.0 (full power, the door open 0.5 to 1.4 s after the rest) goes up through the gap, bounces once off the deflector and sinks: 7.30 degrees of aim and 128.5 px to full power (neighbours at least 7.20 degrees and 21.4 px);
+    // --three 18 of 18 at 60 fps plus jitter, shot 1 nudged by a pixel 9 of 9. One stroke never sinks: 0 of 20160 tee shots at clocks 0.5, 0.9, 1.3 and 1.7 (--sweep). two (3 strokes): any rest in the bay, then (5, 150) from near it at an open clock.
+    // PRD v0.15 D (hole 44, content shard on Sonnet: lean checks line sweep, --three, --windows).
+    name: "Sliding Door", boss: false, stars: {three: 2, two: 3},
+    ball: {x: 60, y: 590}, hole: {x: 80, y: 150},
+    walls: [{x: 0, y: 322, w: 230, h: 16}, {x: 280, y: 322, w: 80, h: 16}, {type: 'seg', a: {x: 222, y: 110}, b: {x: 302, y: 190}, w: 14}],
+    planets: [], suns: [], blackholes: [], movers: [{type: "slide", w: 70, h: 16, a: {x: 225, y: 322}, b: {x: 140, y: 322}, period: 2.6}],
+  },
+  {
+    // Boss: the Minotaur's maze (Sector 9). A walled room holds a sun and the cup (top right); its one door faces the bottom, and a stub wall splits the bay below it, leaving a low passage. Shoot up the right side into the bay, slide left through the passage to rest under the door, then
+    // hit hard straight up: the ball enters, the sun's pull bends it round its top and into the cup (passing 22.5 from the sun's surface; a touch costs a stroke). three: drag (0, 26) rests at (316.0, 537.8), then (56, 0) rests at (115.8, 537.8), then (-4, 128) sinks with 0 bounces: 10.35 degrees of aim and 29.5 px to full power
+    // (neighbours at least 10.15 degrees and 27.5 px; boss rule 3 and 15); --three 18 of 18 at 60 fps plus jitter, shots 1 and 2 nudged by a pixel 9 of 9 each. One stroke never sinks: 0 of 20160 tee shots (--sweep). two (4 strokes): one more tap to settle the rest under the door.
+    // PRD v0.15 D (hole 45, content shard on Sonnet: lean checks line sweep, --three, --windows).
+    name: "Minotaur", boss: true, stars: {three: 3, two: 4},
+    ball: {x: 316, y: 610}, hole: {x: 258, y: 240},
+    walls: [{x: 16, y: 100, w: 14, h: 474}, {x: 330, y: 100, w: 14, h: 474}, {x: 16, y: 100, w: 328, h: 14}, {x: 16, y: 560, w: 262, h: 14},
+      {x: 70, y: 190, w: 14, h: 280}, {x: 290, y: 190, w: 14, h: 280}, {x: 70, y: 190, w: 234, h: 14}, {x: 136, y: 456, w: 168, h: 14},
+      {x: 215, y: 470, w: 14, h: 50}, {x: 190, y: 114, w: 14, h: 76}, {x: 30, y: 340, w: 40, h: 14}],
+    planets: [], suns: [{x: 180, y: 325, r: 22, mass: 1.5, reach: 70}], blackholes: [], movers: [],
+  },
 ];
 // Clamps a hole to the size and mass limits and fills the optional fields; also applied by tools/sim-golf.mjs to a shard's JSON.
 function prepareLevel(lv) {
   lv.blackholes = lv.blackholes || [];
+  for (const w of lv.walls) if (w.type === 'seg') w.w = Math.max(w.w === undefined ? T.segW : w.w, T.segMinW);
   for (const p of lv.planets) p.r = Math.max(p.r, T.planetMinR);
   for (const h of lv.blackholes) { if (h.r === undefined) h.r = T.holeR2; if (h.mass === undefined) h.mass = T.bhMass; }
   for (const s of lv.suns) if (s.burst) s.burst = { period: T.magnetPeriod, phase: 0, speed: T.magnetSpeed, maxR: T.magnetMaxR, ...s.burst };
@@ -983,6 +1057,19 @@ function bounceRect(b, r, sx, sy) {
     else if (ny < 0) b.y = r.y - T.ballR; else b.y = r.y + r.h + T.ballR;
   }
   hit(b, nx, ny, sx, sy);
+}
+
+// An angled wall (PRD v0.15 C) is a still capsule: the ball bounces off the nearest point of its segment.
+function bounceSeg(b, s) {
+  const ax = s.a.x, ay = s.a.y, dx = s.b.x - ax, dy = s.b.y - ay;
+  const t = clamp(((b.x - ax) * dx + (b.y - ay) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  if (circleOut(b, ax + dx * t, ay + dy * t, s.w / 2)) hit(b, N.x, N.y, 0, 0);
+}
+// The distance from (x, y) to a wall's surface (0 inside a rectangle; negative inside an angled wall).
+function wallGap(r, x, y) {
+  if (r.type !== 'seg') return Math.hypot(x - clamp(x, r.x, r.x + r.w), y - clamp(y, r.y, r.y + r.h));
+  const ax = r.a.x, ay = r.a.y, dx = r.b.x - ax, dy = r.b.y - ay, t = clamp(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  return Math.hypot(x - ax - dx * t, y - ay - dy * t) - r.w / 2;
 }
 
 // The bar is a capsule: the ball bounces off the nearest point of the segment, which moves with the spin.
@@ -1156,7 +1243,7 @@ function stepBall(lv, b, clock) {
   b.x += b.vx * STEP; b.y += b.vy * STEP;
 
   // At speedMax the ball moves under 12 units a step, less than any surface is deep, so it cannot skip one.
-  for (const r of lv.walls) bounceRect(b, r, 0, 0);
+  for (const r of lv.walls) if (r.type === 'seg') bounceSeg(b, r); else bounceRect(b, r, 0, 0);
   for (let i = 0; i < lv.movers.length; i++) {
     const m = lv.movers[i];
     if (m.type === 'slide') { const r = slideAt(m, clock); bounceRect(b, r, r.vx, r.vy); }
@@ -1260,7 +1347,7 @@ function kesslerMark(lv, b, seen) {
   const R = T.ballR + 1e-4, nw = lv.walls.length;
   for (let i = 0; i < nw; i++) {
     const r = lv.walls[i];
-    if (!seen[i] && Math.hypot(b.x - clamp(b.x, r.x, r.x + r.w), b.y - clamp(b.y, r.y, r.y + r.h)) <= R) seen[i] = 1;
+    if (!seen[i] && wallGap(r, b.x, b.y) <= R) seen[i] = 1;
   }
   if (b.x <= R) seen[nw] = 1;
   if (b.x >= T.designW - R) seen[nw + 1] = 1;
@@ -1273,7 +1360,7 @@ function kesslerMark(lv, b, seen) {
 // The gap between the ball's edge and the nearest solid surface (walls, field edges, planets, suns, moons).
 function surfaceGap(lv, b, clock) {
   let m = Math.min(b.x, b.y, T.designW - b.x, T.designH - b.y);
-  for (const r of lv.walls) m = Math.min(m, Math.hypot(b.x - clamp(b.x, r.x, r.x + r.w), b.y - clamp(b.y, r.y, r.y + r.h)));
+  for (const r of lv.walls) m = Math.min(m, wallGap(r, b.x, b.y));
   for (const p of lv.planets) m = Math.min(m, dist(b.x, b.y, p.x, p.y) - p.r);
   for (const s of lv.suns) m = Math.min(m, dist(b.x, b.y, s.x, s.y) - s.r);
   for (const mv of lv.movers) if (mv.type === 'moon') { const c = moonAt(lv, mv, clock); m = Math.min(m, dist(b.x, b.y, c.x, c.y) - mv.r); }
@@ -1355,7 +1442,7 @@ function inRing(lv, b) {
 
 // ---------- Helpers ----------
 
-// The design space plus its edge walls is fitted to the screen below the HUD and the Retry button, so all four walls are
+// The design space plus its edge walls is fitted to the screen below the HUD and the Tee +1 button, so all four walls are
 // always visible and nothing on the field sits under the HUD.
 const VIEW = { s: 1, ox: 0, oy: 0 }; // reused: callers read it at once
 function view(E) {
@@ -1398,8 +1485,8 @@ const NO_DASH = [], ORBIT_DASH = [3, 7];
 // Each badge is a skill act, checked when a hole is finished; `holes` are 0-based LEVELS indices. Kinds:
 //   three: three stars on every listed hole; threeAny: on any hole; threeAll: on every hole in LEVELS; ace: a listed hole in one;
 //   touchdown: a sinking shot played from a rest on a planet or moon; untouched: finish a hole that has a sun without touching it;
-//   runNoLand, runStrokes: a full run, every hole in LEVELS in order from hole 1, going on with Next. A retried attempt's strokes
-//   and rests count toward the run (a retry on hole 1 starts it again); leaving for the menu ends it.
+//   runNoLand, runStrokes: a full run, every hole in LEVELS in order from hole 1, going on with Next. Every stroke of the
+//   attempt counts toward the run, Tee +1's too, and so do its rests; leaving for the menu ends it.
 const BADGE_TIERS = ['Meteorite', 'Moon', 'Planet', 'Star', 'Black Hole'];
 const BADGES = [
   { id: 'first-orbit', tier: 0, name: 'First Orbit', text: 'Three stars on any hole', kind: 'threeAny' },
@@ -1812,7 +1899,7 @@ function buildSky(ctx, key, sector) {
       g: radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.45, rgba(c, 0.45), 1, rgba(c, 0)]),
     };
   });
-  const s = { key, sec, pal, layers, flare, neb, streaks: null, shower: -1, streakG: null, whale: null, suns: null, core: null, deep: null };
+  const s = { key, sec, pal, layers, flare, neb, streaks: null, shower: -1, streakG: null, whale: null, suns: null, core: null, deep: null, lattice: null };
   if (sec.meteors) {
     s.streaks = Array.from({ length: A.meteors.count }, () => ({ x: 0, y: 0, c: 0, s: 0, len: 0 }));
     s.streakG = linear(ctx, 0, 0, 1, 0, [0, rgba(pal.streak, 0), 1, rgba(pal.streak, 1)]);
@@ -1820,6 +1907,14 @@ function buildSky(ctx, key, sector) {
   if (sec.whale) s.whale = whalePath();
   if (sec.sunrise) s.suns = pal.suns.map((c) => radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(c, 1), 0.35, rgba(c, 0.5), 1, rgba(c, 0)]));
   if (sec.core) s.core = radial(ctx, 0, 0, 0, 0, 0, 1, [0, rgba(pal.core, 1), 0.3, rgba(pal.core, 0.45), 1, rgba(pal.core, 0)]);
+  if (sec.lattice) {
+    const L = A.lattice, nx = Math.floor(T.designW / L.cell), ny = Math.floor(T.designH / L.cell);
+    s.lattice = new Path2D();
+    for (let i = 0; i < L.n; i++) {
+      const x = rng.int(0, nx) * L.cell, y = rng.int(0, ny) * L.cell, len = rng.int(...L.cells) * L.cell, h = rng() < 0.5;
+      s.lattice.moveTo(x, y); s.lattice.lineTo(h ? x + len : x, h ? y : y + len);
+    }
+  }
   if (sec.deep) s.deep = linear(ctx, 0, T.designH * A.deep.from, 0, T.designH * A.deep.to, [0, rgba(pal.deep, 0), 1, rgba(pal.deep, A.deep.alpha)]);
   SKY.set(key, s);
   return s;
@@ -1887,6 +1982,7 @@ function drawField(ctx, key, sector, ox, oy, t) {
   ctx.fillRect(0, 0, T.designW, T.designH);
   if (s.suns) drawSunrise(ctx, s);
   if (s.core) drawCore(ctx, s);
+  if (s.lattice) { ctx.globalAlpha = A.lattice.alpha; ctx.strokeStyle = s.pal.lattice; ctx.lineWidth = A.lattice.width; ctx.lineCap = 'square'; ctx.stroke(s.lattice); ctx.lineCap = 'butt'; }
   for (let i = 0; i < s.neb.length; i++) {
     const n = s.neb[i];
     ctx.save(); ctx.translate(n.x, n.y); ctx.scale(n.r, n.r);
@@ -1971,7 +2067,20 @@ function drawSlab(ctx, x, y, w, h) {
     else { drawBolt(ctx, x + w / 2, y + m / 2, A.metal.boltR); drawBolt(ctx, x + w / 2, y + h - m / 2, A.metal.boltR); }
   }
 }
-function drawWall(ctx, r) { drawSlab(ctx, r.x, r.y, r.w, r.h); }
+function drawWall(ctx, r) { if (r.type === 'seg') drawSeg(ctx, r); else drawSlab(ctx, r.x, r.y, r.w, r.h); }
+// An angled wall (PRD v0.15 C): the slab's slate as a round-ended bar, lit along its upper-left edge, a bolt at each end.
+function drawSeg(ctx, r) {
+  const M = A.metal, dx = r.b.x - r.a.x, dy = r.b.y - r.a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, k = nx + ny > 0 ? -1 : 1; // k: the normal toward the light
+  const ox = nx * k * (r.w / 2 - M.bevel), oy = ny * k * (r.w / 2 - M.bevel);
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(r.a.x, r.a.y); ctx.lineTo(r.b.x, r.b.y);
+  ctx.strokeStyle = P.slateDark; ctx.lineWidth = r.w; ctx.stroke();
+  ctx.strokeStyle = P.slate; ctx.lineWidth = r.w - 2 * M.bevel; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(r.a.x + ox, r.a.y + oy); ctx.lineTo(r.b.x + ox, r.b.y + oy);
+  ctx.strokeStyle = P.slateLight; ctx.lineWidth = M.bevel; ctx.stroke();
+  if (r.w >= M.boltMin) { drawBolt(ctx, r.a.x, r.a.y, M.boltR); drawBolt(ctx, r.b.x, r.b.y, M.boltR); }
+  ctx.lineCap = 'butt';
+}
 
 // The groove a sliding wall runs in, the length of its travel.
 function drawRail(ctx, m) {
@@ -2402,7 +2511,8 @@ function iconOf(lv) {
   let k = ICON.get(lv);
   if (!k) {
     k = { kind: 'slab', obj: null, moon: lv.movers.find((m) => m.type === 'moon') || null };
-    if (lv.chase) k.kind = 'chase';
+    if (A.sectors[sectorOf(LEVELS.indexOf(lv))].maze) { k.kind = 'maze'; k.moon = null; }
+    else if (lv.chase) k.kind = 'chase';
     else if (lv.suns.some((s) => s.burst)) k.kind = 'magnetar';
     else if (lv.blackholes.length) k.kind = 'bh';
     else if (lv.movers.some((m) => m.type === 'comet')) k.kind = 'comet';
@@ -2416,7 +2526,15 @@ function iconOf(lv) {
 
 function drawBadge(ctx, lv, cx, cy, t) {
   const k = iconOf(lv), tl = A.tile, r = tl.iconR;
-  if (k.kind === 'chase') { // a slanted bright band: the gamma chase's front
+  if (k.kind === 'maze') { // the Labyrinth (PRD v0.15 D): a small walled maze round a green cup
+    const u = r / 2;
+    ctx.strokeStyle = P.slateLight; ctx.lineWidth = tl.mazeW; ctx.lineCap = 'square';
+    ctx.beginPath();
+    for (const [x0, y0, x1, y1] of MAZE_ICON) { ctx.moveTo(cx + x0 * u, cy + y0 * u); ctx.lineTo(cx + x1 * u, cy + y1 * u); }
+    ctx.stroke(); ctx.lineCap = 'butt';
+    ctx.fillStyle = P.green; ctx.beginPath(); ctx.arc(cx, cy, tl.mazeCup, 0, PI2); ctx.fill();
+    if (lv.boss) drawBossHalo(ctx, cx, cy, r);
+  } else if (k.kind === 'chase') { // a slanted bright band: the gamma chase's front
     const x0 = cx - r * tl.bandX, y0 = cy + r * tl.bandY, x1 = cx + r * tl.bandX, y1 = cy - r * tl.bandY;
     ctx.lineCap = 'round';
     ctx.strokeStyle = P.chaseHalo; ctx.lineWidth = r * tl.bandGlowW; ctx.globalAlpha = tl.bandGlowAlpha + tl.bandGlowPulse * Math.sin(t * tl.bandGlowRate);
@@ -2454,6 +2572,8 @@ function drawBadge(ctx, lv, cx, cy, t) {
   if (k.moon) drawPlanet(ctx, cx + r * 1.35, cy - r * 0.95, r * 0.36, k.moon, k.moon.mass, lv.boss);
 }
 
+// The maze tile's walls in half icon radii from the centre: an outer square with a gap at the top left, and an inner room open at the top.
+const MAZE_ICON = [[-2, -2, -1, -2], [0, -2, 2, -2], [2, -2, 2, 2], [2, 2, -2, 2], [-2, 2, -2, -2], [-1, -1, -1, 1], [-1, 1, 1, 1], [1, 1, 1, -1]];
 const BADGE_MAG = { x: 0, y: 0, r: 0, burst: { period: 2, phase: 0 } }; // a tile's magnetar: its cycle runs on the menu's clock
 const BADGE_BH = { x: 0, y: 0, r: 0, reach: 0 }, BADGE_COMET = { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, period: 1, r: 0 };
 
@@ -2470,7 +2590,7 @@ function loadHole(idx) {
   const lv = LEVELS[idx];
   S.idx = idx; S.lv = lv;
   S.ball = newBall(lv.ball.x, lv.ball.y);
-  S.strokes = 0;
+  S.strokes = 0; S.tees = 0; // tees: the Tee +1 penalties among the strokes (PRD v0.15 A)
   S.phase = 'aim';       // aim | fly | sink | swallow | caught (by the gamma chase, before the restart)
   S.from = { x: lv.ball.x, y: lv.ball.y, on: -1, onA: 0, planet: false, pi: -1 }; // where the current shot started (the last rest); pi: the planet it sat on
   S.restPlanet = false;  // the ball rests on a planet or moon (for Touchdown and Never Landed)
@@ -2568,7 +2688,7 @@ function returnToLastRest() {
   comeToRest();
 }
 
-// The gamma chase's front has passed the ball: the white flash and the line, then the same restart as Retry (PRD v0.14 B).
+// The gamma chase's front has passed the ball: the white flash and the line, then back to the tee as Tee +1 does, with no penalty (PRD v0.14 B, v0.15 A).
 function caught(E) {
   S.partT = partClock(); S.phase = 'caught'; S.swT = 0;
   S.aim = null; S.key.on = false;
@@ -2588,6 +2708,7 @@ function earn(E, id) {
 
 function finishHole(E) {
   const strokes = S.strokes, lv = S.lv, id = String(S.idx), stars = starsFor(strokes, lv.stars);
+  saveVisit(E, 0, 0); // a finished hole starts again from 0 (the end card's Retry)
   const prev = E.save.get('best', {})[id], rankBefore = rankFor(starTotal(E.save.get('stars', {}), E.save.get('blind', {})));
   const fourthNew = S.blind && strokes <= lv.stars.three && !E.save.get('blind', {})[id]; // PRD v0.9: the fourth star, saved with the rest and never lost
   if (fourthNew) E.save.update('blind', (b) => ({ ...b, [id]: true }), {});
@@ -2601,7 +2722,7 @@ function finishHole(E) {
   const ev = { touchdown: S.from.planet, untouched: lv.suns.length > 0 && S.ball.sunHits === 0,
     runDone: inRun && !hasNext, runStrokes: RUN.strokes, runLanded: RUN.landed,
     strokes, three: lv.stars.three, dark: SINK.dark, great: SINK.great, slow: SINK.slow, long: S.time >= T.badges.heatMinutes * 60, kessler: S.kzLeft === 0 };
-  E.ledger.add('hole', { hole: S.idx + 1, blind: S.blind, strokes, stars, swallows: S.swallows, sun: S.ball.sunHits, landed: S.lands > 0, time: S.time, run: inRun });
+  E.ledger.add('hole', { hole: S.idx + 1, blind: S.blind, strokes, tees: S.tees, stars, swallows: S.swallows, sun: S.ball.sunHits, landed: S.lands > 0, time: S.time, run: inRun });
   E.save.update('prog', (g) => {
     const o = { ...g, lands: (g.lands || 0) + S.lands };
     if (lv.suns.length) o.sunBest = Math.min(g.sunBest === undefined ? Infinity : g.sunBest, S.ball.sunHits);
@@ -2616,7 +2737,7 @@ function finishHole(E) {
   const fresh = [...PENDING.splice(0), ...now].sort((a, b) => badgeById(b).tier - badgeById(a).tier); // earned in flight, then on this hole; the rarest ticket first
   const rankAfter = rankFor(starTotal(E.save.get('stars', {}), E.save.get('blind', {})));
   const owned = !!E.save.get('blind', {})[id], has3 = E.save.get('stars', {})[id] >= 3;
-  const card = { hole: S.idx, name: lv.name, boss: lv.boss, strokes, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh,
+  const card = { hole: S.idx, name: lv.name, boss: lv.boss, strokes, tees: S.tees, three: lv.stars.three, par: lv.stars.two, stars, best, hasNext, badges: fresh,
     blind: S.blind, fourth: owned, fourthNew, has3, rankUp: rankAfter > rankBefore ? { from: rankBefore, to: rankAfter } : null };
   // The ending plays once, before the card, after the first finished hole once hole 30 is cleared (a veteran who cleared it earlier sees it after their next finish).
   E.setScene(!E.save.get('endSeen', false) && E.save.get('best', {})[T.story.endHole] !== undefined ? 'ending' : 'over', card);
@@ -2950,23 +3071,37 @@ function sinkFx(E) {
   E.tween(J.sinkRingTime, (k) => { FX.sink = k; }, ease.outCubic);
 }
 
-// Retry is instant for the game (a gamma chase catch restarts through it too, `from` 'chase'); only the picture fades: the old ball dissolves where it lay, the ball at the tee fades in.
-function retry(E, from = 'hud') {
-  const gx = S.ball.x, gy = S.ball.y, had = S.strokes > 0;
+// Tee +1 (PRD v0.15 A): the HUD button puts the ball back on the tee for teePenalty strokes, the strokes so far kept (the run counts them
+// at the finish). A gamma chase catch goes back the same way with no penalty (`from` 'chase'). Instant for the game; only the picture
+// fades: the old ball dissolves where it lay, the ball at the tee fades in.
+const teeOpen = () => S.phase === 'aim' && dist(S.ball.x, S.ball.y, S.lv.ball.x, S.lv.ball.y) > T.ballR; // the button works once the ball is off the tee
+function backToTee(E, from = 'tee') {
+  const gx = S.ball.x, gy = S.ball.y, sunHits = S.ball.sunHits, keep = { strokes: S.strokes, tees: S.tees, time: S.time, swallows: S.swallows, lands: S.lands };
   E.ledger.add('retry', { hole: S.idx + 1, strokes: S.strokes, time: S.time, from });
   const moved = dist(gx, gy, S.lv.ball.x, S.lv.ball.y) > T.ballR;
-  if (RUN.on && S.idx === 0) { RUN.strokes = 0; RUN.landed = false; RUN.landedOn = -1; } // a retry on hole 1 starts the run again
-  else if (RUN.on) RUN.strokes += S.strokes;                            // elsewhere the abandoned attempt still counts
   loadHole(S.idx); resetFx();
+  Object.assign(S, keep);
+  S.ball.sunHits = sunHits; // Untouched reads the hole's sun touches, so no tee brings the badge back
+  if (from === 'tee') { S.strokes += T.teePenalty; S.tees++; }
   E.audio.play('tap', J.retryTapVol);
   if (moved) {
     FX.ghost = true; FX.gx = gx; FX.gy = gy; FX.retry = 0;
     E.tween(J.retryFade, (k) => { FX.retry = k; }, ease.outQuad, () => { FX.ghost = false; });
   }
-  if (had) popShots(E);
+  if (from === 'tee') popShots(E);
 }
 
-// The Retry button: a circular arrow and the word on a raised slate pill, so it reads as a button whenever the ball rests.
+// PRD v0.15 A, E: an unfinished hole's strokes and tee penalties, saved per hole (`visit`), normal and Expert tries apart, so leaving is
+// never a free restart: the hole opens on them again. The play scene writes them whenever they change; a finish sets them to 0.
+const visitOf = (E, idx) => ({ strokes: 0, tees: 0, blind: 0, blindTees: 0, ...E.save.get('visit', {})[idx] });
+function saveVisit(E, strokes, tees) {
+  const id = String(S.idx), h = visitOf(E, S.idx);
+  S.vN = strokes; S.vT = tees;
+  if (S.blind) { h.blind = strokes; h.blindTees = tees; } else { h.strokes = strokes; h.tees = tees; }
+  E.save.update('visit', (v) => ({ ...v, [id]: h }), {});
+}
+
+// The Tee +1 button: a circular arrow and the word on a raised slate pill, so it reads as a button whenever it works.
 function retryButton(ctx, E, cx, cy, o) {
   const R = A.retry, x = cx - o.w / 2, y = cy - o.h / 2, ix = x + R.pad + R.icon;
   E.roundRect(x, y, o.w, o.h, A.line.button, o.fill, o.edge);
@@ -2974,7 +3109,7 @@ function retryButton(ctx, E, cx, cy, o) {
   ctx.beginPath(); ctx.arc(ix, cy, R.icon, -0.35 * Math.PI, 1.35 * Math.PI); ctx.stroke();
   const ax = ix + R.icon * Math.cos(-0.35 * Math.PI), ay = cy + R.icon * Math.sin(-0.35 * Math.PI); // arrowhead at the open end
   ctx.beginPath(); ctx.moveTo(ax + R.head, ay - R.head * 0.2); ctx.lineTo(ax - R.head * 0.35, ay - R.head); ctx.lineTo(ax - R.head * 0.2, ay + R.head * 0.55); ctx.closePath(); ctx.fill();
-  E.text('Retry', ix + R.icon + R.gap, cy, o === BTN.retryOn ? TX.btnL : TX.btnOffL);
+  E.text(`Tee +${T.teePenalty}`, ix + R.icon + R.gap, cy, o === BTN.retryOn ? TX.btnL : TX.btnOffL);
   return { x, y, w: o.w, h: o.h };
 }
 
@@ -3408,10 +3543,19 @@ const play = {
     const idx = clamp((params && params.hole) || 0, 0, LEVELS.length - 1);
     const goOn = !!(params && params.run && RUN.on && RUN.next === idx); // Next, or the card's Retry, carries a run on
     if (!goOn) endRun(E, false);
-    if (idx === 0 && !goOn) { RUN.on = true; RUN.next = 0; RUN.strokes = 0; RUN.landed = false; RUN.landedOn = -1; } // hole 1 starts a full run
+    if (idx === 0 && !goOn) { // hole 1 starts a full run, which counts from 0: no old strokes of the holes it plays
+      RUN.on = true; RUN.next = 0; RUN.strokes = 0; RUN.landed = false; RUN.landedOn = -1;
+      E.save.set('visit', {});
+    }
     applySkins(E);
     loadHole(idx);
     S.blind = !!(params && params.blind) && E.save.get('stars', {})[idx] >= 3; // only a three-starred hole can be tried blind
+    const vs = visitOf(E, idx); // an unfinished attempt goes on where it was left (PRD v0.15 A)
+    S.strokes = S.vN = S.blind ? vs.blind : vs.strokes; S.tees = S.vT = S.blind ? vs.blindTees : vs.tees;
+    if (S.strokes > 0) { // coming back to an unfinished hole costs the Tee +1 too, so leaving is never a free tee
+      S.strokes += T.teePenalty; S.tees++;
+      saveVisit(E, S.strokes, S.tees);
+    }
     resetFx();
     FX.hint = E.save.get('hintSeen', false) ? 0 : 1; // a fresh save: the hint stays until the first release
     FX.hintT = 0; FX.further = 1;
@@ -3424,6 +3568,7 @@ const play = {
   },
 
   update(dt, E) {
+    if (S.phase !== 'sink' && (S.strokes !== S.vN || S.tees !== S.vT)) saveVisit(E, S.strokes, S.tees);
     fxUpdate(dt);
     S.time += dt; FX.hintT += dt; if (FX.further < 1) FX.further = Math.min(1, FX.further + dt / A.further.time);
     if (S.phase === 'aim') {
@@ -3433,7 +3578,7 @@ const play = {
     }
     if (S.phase === 'caught') {
       S.swT += dt;
-      if (S.swT >= J.caughtTime) retry(E, 'chase');
+      if (S.swT >= J.caughtTime) backToTee(E, 'chase');
       return;
     }
     if (S.phase === 'sink') {
@@ -3468,7 +3613,7 @@ const play = {
       if (!r && S.steps * STEP >= T.maxFlightSeconds) r = 'rest';
       if (S.chaseOn) S.chaseT = S.chaseT0 + S.steps * STEP;
       if (r !== 'sink' && S.chaseOn && chaseLeft(S.lv.chase, b.x, b.y, S.chaseT) <= 0) { caught(E); break; }
-      if (r === 'sink') { sinkFlags(b); S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: b.x, y: b.y }; sinkFx(E); }
+      if (r === 'sink') { sinkFlags(b); S.phase = 'sink'; S.sinkT = 0; S.sinkFrom = { x: b.x, y: b.y }; saveVisit(E, 0, 0); sinkFx(E); } // the hole is done: closing the app during the sink leaves no stale count
       else if (r === 'swallow') {
         S.phase = 'swallow'; S.swT = 0; S.swX = b.x; S.swY = b.y; S.swBh = b.bh;
         S.strokes += T.bhPenalty; S.swallows++; swallowFx(E, b.bh);
@@ -3568,7 +3713,7 @@ const play = {
     E.text(lv.name, E.w / 2, top + 10, TX.valueC);
     E.text('PAR', E.w - 16, top - 9, TX.labelR);
     E.text(FX.hudPar, E.w - 16, top + 10, TX.valueGoalR);
-    S.retryRect = retryButton(ctx, E, E.w - 16 - T.retryW / 2, E.safe.top + T.hudH + T.retryH / 2, S.phase === 'aim' ? BTN.retryOn : BTN.retryOff);
+    S.retryRect = retryButton(ctx, E, E.w - 16 - T.retryW / 2, E.safe.top + T.hudH + T.retryH / 2, teeOpen() ? BTN.retryOn : BTN.retryOff);
     if (S.blind) {
       const G = T.blind.tag, gy = E.safe.top + T.hudH + G.y;
       E.roundRect(E.w / 2 - G.w / 2, gy - G.h / 2, G.w, G.h, G.h / 2, P.slateDark, T.blind.col);
@@ -3593,12 +3738,12 @@ const play = {
 
   onPointerDown(p, E) {
     if (S.phase !== 'aim' || S.aim) return;
-    if (S.retryRect && E.hit(S.retryRect, p)) return; // a touch on Retry never starts an aim
+    if (S.retryRect && E.hit(S.retryRect, p)) return; // a touch on Tee +1 never starts an aim
     S.aim = { id: p.id, sx: p.x, sy: p.y, x: p.x, y: p.y }; // anywhere, the ball included (v0.5: a press on the ball aims too)
     dragStartFx(E);
   },
   onTap(p, E) {
-    if (S.phase === 'aim' && S.retryRect && E.hit(S.retryRect, p)) retry(E);
+    if (teeOpen() && S.retryRect && E.hit(S.retryRect, p)) backToTee(E);
   },
   onPointerMove(p) {
     if (S.aim && S.aim.id === p.id) { S.aim.x = p.x; S.aim.y = p.y; }
@@ -3663,12 +3808,14 @@ const over = {
   lay(ctx, E, pw) {
     const key = `${E.w}:${E.h}`;
     if (this.Lkey === key) return this.L;
+    const tk = this.p.tees > 0 ? 1 : 0;
     const C = T.story.card, k = clamp((E.h - C.k[0]) / (C.k[1] - C.k[0]), 0, 1), f = (r) => lerp(r[0], r[1], k), y0 = E.h * 0.24, mc = this.mc;
     const size = Math.round(f(C.portrait)), iw = pw - 2 * C.pad, tw = iw - size - C.gap;
     const ll = wrapText(ctx, `mc:${tw}:${mc.line}`, mc.line, tw), fs = [TY.sm, TY.sm - 1, TY.sm - 2].find((z, n, a) => !mc.fact || n === a.length - 1 || wrapText(ctx, `mcf:${iw}:${z}:${mc.fact}`, mc.fact, iw, z).length <= 2), // the fact steps down in size until it fits two lines
       fl = mc.fact ? wrapText(ctx, `mcf:${iw}:${fs}:${mc.fact}`, mc.fact, iw, fs) : [];
     const rowH = Math.max(size, ll.length * C.lineH), L = this.L || (this.L = {});
-    L.par = y0 + f(C.par); L.rules = y0 + f(C.rules); L.stars = y0 + f(C.stars); L.line = y0 + f(C.line); L.best = y0 + f(C.best);
+    const dy = tk * f(C.tees);
+    L.tee = y0 + f(C.par); L.par = L.tee + dy; L.rules = y0 + f(C.rules) + dy; L.stars = y0 + f(C.stars) + dy; L.line = y0 + f(C.line) + dy; L.best = y0 + f(C.best) + dy;
     L.second = f(C.second); L.blind = f(C.blind);
     L.size = size; L.ll = ll; L.fl = fl; L.fs = fs; L.rowH = rowH; L.mcTop = L.best + C.bestGap;
     L.by = Math.max(E.h * 0.68, L.mcTop + rowH + (fl.length ? C.factGap + fl.length * C.lineH : 0) + C.below + BTN.primary.h / 2);
@@ -3701,6 +3848,7 @@ const over = {
     ctx.save(); ctx.translate(cx, E.h * 0.24); ctx.scale(nk, nk);
     E.text(shots(p.strokes), 0, 0, TX.big);
     ctx.restore();
+    if (p.tees > 0) E.text(`(including ${p.tees} tee ${p.tees === 1 ? 'penalty' : 'penalties'})`, cx, L.tee, TX.sm);
     E.text(`Par ${p.par}`, cx, L.par, TX.dim);
     E.text(`3 stars: ${shots(p.three)}   2 stars: ${shots(p.par)}`, cx, L.rules, TX.sm);
     const BL = T.blind, four = p.has3 || p.blind; // a three-starred hole shows the fourth star's slot beside the three
@@ -3801,7 +3949,8 @@ const SAM = {
     ['Two suns. Still nobody home.', "They keep asking what we've found.", "I'm not giving up on you."],
     ['This is it, Lumen.', 'Make every shot count.', "Whatever's there, we find it together."],
     ['Stay close to it, Lumen.', 'A magnetar! Ride the push.', 'Our new friend is fast.'], // PRD v0.14 D: holes 31 to 35
-    ['Run, Lumen, run!', "That light's catching up!", "Don't stop to admire it."], // PRD v0.14 D: Sector 8, holes 36 on
+    ['Run, Lumen, run!', "That light's catching up!", "Don't stop to admire it."], // PRD v0.14 D: Sector 8, holes 36 to 40
+    ['Find the way in, Lumen.', 'Patience. One room at a time.', 'Who builds walls in space?'], // PRD v0.15 D: Sector 9, the Labyrinth, holes 41 on
   ],
   mid: 'When I was a kid, I waved at the sky every night.',
   show: 'No guide lines? Show-off.',
@@ -3811,9 +3960,10 @@ const SECTOR_LOG = [
   'Log: rocks and starlight. No life.', 'Log: gas and dust. No life. Yet.', 'Log: ice and rock at speed. No life.',
   'Log: dark and quiet. No life.', 'Log: two suns, warm planets. Still no life.', 'Log: crowded, bright, loud. Listening...',
   'Log: following the signal. It went this way.', 'Log: a star exploded far behind us. Its light is coming. Run.',
+  'Log: walls out here. Someone built them.',
 ];
 // The Probe Log: every fact is true (checked against a general reference). Keys: first, the body kinds (`burst` is the magnetar, `chase`
-// the gamma chase), s1 to s7 (sectors), r2 to r16 (ranks).
+// the gamma chase), s1 to s8 (sectors), r2 to r16 (ranks).
 const FACTS = [
   { k: 'first', t: 'Voyager 2 used gravity assists to visit all four giant planets.' },
   { k: 'planet', t: "Planets don't shine; they reflect their star's light." },
@@ -3831,6 +3981,7 @@ const FACTS = [
   { k: 's5', t: "Our galaxy's centre holds a black hole of four million Suns." },
   { k: 's6', t: 'The space between galaxies is emptier than any vacuum we can make.' },
   { k: 's7', t: 'In seconds, a gamma-ray burst can release more energy than our Sun will in its whole life.' },
+  { k: 's8', t: 'Galaxies gather in vast walls and filaments around empty voids: the cosmic web.' },
   { k: 'r2', t: 'Ganymede, a moon of Jupiter, is wider than Mercury.' },
   { k: 'r3', t: 'Earth is the only planet known to have life. So far.' },
   { k: 'r4', t: 'All the other planets could fit inside Jupiter.' },
@@ -4422,7 +4573,7 @@ const V01_PAR = [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
 export const game = {
   slug: 'gravity-golf',
   title: 'Gravity Golf',
-  saveVersion: 11,
+  saveVersion: 12,
   // v1 was the skeleton demo, where `best` was a number; v2 keeps best strokes per hole in a map;
   // v3 adds `unlocked`, rebuilt from the holes already cleared; v4 stores stars per hole, because v0.2 judges stars
   // by per-hole thresholds on re-authored holes: stars won under v0.1 pars are kept as they were; v5 adds badges and the skin choice;
@@ -4437,7 +4588,9 @@ export const game = {
   // line), `sectorsSeen` (how many sectors' first logs have shown: the highest sector number, from 1), `log` (collected Probe Log keys, in order) and
   // `catchUp` (the one "Probe Log updated" line still owed). A save with a cleared hole has seen the open and the sectors up to its highest
   // cleared hole, and has its log filled at once with what those holes and its rank have earned (owing one catch-up line); a save with a hole past
-  // hole 26 cleared has seen the turn; `endSeen` stays false, even with hole 30 cleared, so the ending plays once after the next finished hole.
+  // hole 26 cleared has seen the turn; `endSeen` stays false, even with hole 30 cleared, so the ending plays once after the next finished hole;
+  // v12 adds `visit` (PRD v0.15 A, E): per hole, the strokes and tee penalties of an unfinished attempt, normal (`strokes`, `tees`) and Expert
+  // (`blind`, `blindTees`) apart; every hole's are set to 0.
   migrate(data, fromVersion) {
     if (typeof data.best !== 'object' || data.best === null) delete data.best;
     if (data.unlocked === undefined) {
@@ -4470,6 +4623,7 @@ export const game = {
       data.sectorsSeen = cleared.length ? sectorOf(Math.max(...cleared)) + 1 : 0; data.catchUp = data.log.length > 0;
     }
     if (fromVersion < 8) data.rankSeen = Math.max(1, rankFor(starTotal(data.stars)) - 1);
+    if (fromVersion < 12) { data.visit = {}; for (let i = 0; i < LEVELS.length; i++) data.visit[i] = { strokes: 0, tees: 0, blind: 0, blindTees: 0 }; }
     return data;
   },
   TUNING,
@@ -4496,7 +4650,7 @@ export const game = {
     { key: 'bhFade', label: 'Black hole fade (x reach)', min: 1.2, max: 2, step: 0.05 },
   ],
   // Read by tools/sim-golf.mjs so the simulator runs the real physics.
-  sim: { levels: LEVELS, prepareLevel, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt, sunRestR, chaseLeft,
+  sim: { levels: LEVELS, prepareLevel, wallGap, stepBall, launchFromDrag, launchVel, newBall, carry, inSweep, moonAt, barAt, slideAt, cometAt, sunRestR, chaseLeft,
     FW, watchStart, watchPre, watchPost, sinkFlags, kesslerMark, lagrangeAt, restPull },
   start: 'menu',
   scenes: { menu, play, over, missions, story, turn, ending, log: probeLog },

@@ -7,7 +7,7 @@
 //   node tools/sim-golf.mjs <hole.json> --escape                               escape sweep and 1500 chained random shots (PRD v0.2 D);
 //                                                                              black holes have no surface: swallows are counted
 //                                                                              a sun's surface also needs 30 of 360 directions that reach its rest radius
-//   node tools/sim-golf.mjs <hole.json> --three DX,DY[,CLOCK][/DX,DY[,CLOCK]...]  verify a three-star route (30/60/144 fps, jitter)
+//   node tools/sim-golf.mjs <hole.json> --three DX,DY[,CLOCK][/DX,DY[,CLOCK]...]  verify a three-star route (30/60/144 fps, jitter; --fps N: N fps and jitter)
 //   node tools/sim-golf.mjs <hole.json> --two-shot [--step-deg 2 --step-px 6 --clocks 8 --cell 10 --workers N]
 //                                                                              untimed two-shot sinks from every tee-reachable rest
 //   node tools/sim-golf.mjs <hole.json> --windows DX,DY[,CLOCK][/...]          the power-window rule (PRD v0.4 C) on a route's last shot
@@ -21,6 +21,9 @@
 // and their cycles count as moving parts for release clocks. --nokick turns the kick off (magnetKick 0) to show a route needs the push.
 // The gamma chase (PRD v0.14 B, a hole's `chase`) is in every command: its clock starts at the first release, runs on while aiming
 // (--aim seconds before each later shot), and a ball its front reaches, moving or at rest, is CAUGHT: the hole restarts, a miss.
+// Angled walls (PRD v0.15 C, a wall { type: 'seg', a, b, w }) are in every command, through the game's own stepBall and wallGap.
+// Tee +1 (PRD v0.15 A): in a --three or --windows route the word `tee` is the HUD's Tee +1: the ball goes back to the tee for teePenalty
+// strokes and the chase, if any, starts again at the next release, as in the game (a chase catch is still a miss in a route).
 // Exit code 0 when every check run passes, 1 when one fails, 2 on a usage error.
 
 import { readFileSync } from 'node:fs';
@@ -59,6 +62,7 @@ if (flag('--index')) {
   for (const k of ['walls', 'planets', 'suns', 'movers', 'blackholes']) lv[k] = lv[k] || [];
   for (const k of ['name', 'ball', 'hole', 'stars']) if (lv[k] === undefined) die(`hole.json is missing "${k}"`);
   for (const m of lv.movers) if (!['slide', 'bar', 'moon', 'comet'].includes(m.type)) die(`unknown mover type "${m.type}"`);
+  for (const w of lv.walls) if (w.type === 'seg' ? !(w.a && w.b && Number.isFinite(w.a.x + w.a.y + w.b.x + w.b.y) && (w.w === undefined || w.w > 0)) : !Number.isFinite(w.x + w.y + w.w + w.h)) die('a wall needs x, y, w, h, or type \'seg\' with a: {x, y}, b: {x, y} and w > 0');
   for (const m of lv.movers) if (m.type === 'moon' && !lv.planets[m.parent]) die(`moon parent ${m.parent} is not a planet index`);
   for (const m of lv.movers) if (m.type === 'comet' && !(m.a && m.b && Number.isFinite(m.a.x + m.a.y + m.b.x + m.b.y) && m.period > 0)) die('a comet needs a: {x, y}, b: {x, y} and period > 0');
   for (const h of lv.blackholes) if (!Number.isFinite(h.x + h.y)) die('a black hole needs x and y');
@@ -117,25 +121,35 @@ function teeShot(dx, dy, clock0 = 0, dts = null) {
 const aimS = Number(value('--aim') ?? 3);
 if (!(aimS >= 0)) die('--aim must be a number of seconds, 0 or more');
 const chaseNext = (c, r) => c + r.seconds + (r.swallowed ? T.juice.swallowTime : 0) + aimS;
-// Plays shots ({ dx, dy, c }) from the tee, each from where the previous one rests (a swallowed shot plays on from its last rest).
-// On a chase hole the front runs from the first release with aimS of aiming before each later shot; a catch, in flight or while
-// aiming, ends the route as 'caught'. `margin` is the least time the front was behind the ball over the route (seconds).
+// A route: shots separated by '/', each DX,DY[,CLOCK], or `tee` for Tee +1 (PRD v0.15 A). The last one must be a shot.
+function parseRoute(str, name) {
+  const route = String(str).split('/').map((sh) => { if (sh.trim() === 'tee') return { tee: true }; const [dx, dy, c = 0] = nums(sh, `${name} shot`, 2); return { dx, dy, c }; });
+  if (route[route.length - 1].tee) die(`${name}: the route must end with a shot, not tee`);
+  route.forEach((sh, n) => { if (!sh.tee && !sim.launchFromDrag(sh.dx, sh.dy)) die(`shot ${n + 1} of the route is inside the dead zone (shorter than dragDead)`); });
+  return route;
+}
+const routeText = (route) => route.map((sh) => (sh.tee ? 'Tee +1' : `(${sh.dx},${sh.dy})${sh.c ? ` at clock ${sh.c}` : ''}`)).join(' then ');
+// Plays shots ({ dx, dy, c }, or { tee } for Tee +1) from the tee, each from where the previous one rests (a swallowed shot plays on from
+// its last rest). On a chase hole the front runs from the first release (the first after a Tee +1 too) with aimS of aiming before each later
+// shot; a catch, in flight or while aiming, ends the route as 'caught'. `margin` is the least time the front was behind the ball (seconds).
 function playRoute(shots, dts) {
-  let b = sim.newBall(lv.ball.x, lv.ball.y), strokes = 0, last = null, c = 0, margin = Infinity, chase0 = 0;
+  let b = sim.newBall(lv.ball.x, lv.ball.y), strokes = 0, last = null, c = 0, margin = Infinity, chase0 = 0, fresh = true;
   for (let n = 0; n < shots.length; n++) {
-    const sh = shots[n], l = sim.launchFromDrag(sh.dx, sh.dy);
+    const sh = shots[n];
+    if (sh.tee) { b = sim.newBall(lv.ball.x, lv.ball.y); strokes += T.teePenalty; c = 0; fresh = true; continue; }
+    const l = sim.launchFromDrag(sh.dx, sh.dy);
     if (!l) return { res: 'dead zone', strokes };
     sim.carry(lv, b, sh.c);
-    if (lv.chase && n > 0) {
+    if (lv.chase && !fresh) {
       const k = sim.chaseLeft(lv.chase, b.x, b.y, c); margin = Math.min(margin, k);
       if (k <= 0) return { res: 'caught', strokes, last, ball: b, margin, aimCaught: true };
     }
-    chase0 = c;
+    chase0 = c; fresh = false;
     last = flight(b, l, sh.c, dts, lv.chase ? c : -1); strokes += 1 + last.penalties;
     if (lv.chase) { margin = Math.min(margin, last.left); c = chaseNext(c, last); }
     if (last.res === 'sink' || last.res === 'timeout' || last.res === 'caught') break;
   }
-  return { res: last.res, strokes, last, ball: b, margin, chase0 };
+  return { res: last && !fresh ? last.res : 'rest', strokes, last, ball: b, margin, chase0, fresh };
 }
 const sinks = (dx, dy, clock0 = 0, dts = null) => { const r = teeShot(dx, dy, clock0, dts); return !!r && r.res === 'sink'; };
 
@@ -152,7 +166,7 @@ const EPS = 0.01;
 function overlap(x, y, clock = 0, skipPlanet = -1, skipMover = -1) {
   const R = T.ballR - EPS;
   if (x < R || y < R || x > T.designW - R || y > T.designH - R) return 'border';
-  for (const w of lv.walls) if (rectDist(x, y, w) < R) return 'wall';
+  for (const w of lv.walls) if (sim.wallGap(w, x, y) < R) return 'wall';
   for (let i = 0; i < lv.planets.length; i++) { const p = lv.planets[i]; if (i !== skipPlanet && Math.hypot(x - p.x, y - p.y) < p.r + R) return `planet ${i}`; }
   for (const s of lv.suns) if (Math.hypot(x - s.x, y - s.y) < s.r + R) return 'sun';
   for (let i = 0; i < lv.blackholes.length; i++) { const h = lv.blackholes[i]; if (Math.hypot(x - h.x, y - h.y) < h.r) return `black hole ${i}`; }
@@ -175,7 +189,11 @@ function hitWhileAiming(x, y, seconds = 10, skipMover = -1) {
 
 let failed = false;
 const fail = (msg) => { failed = true; console.log(`FAIL ${msg}`); };
-const fpsModes = () => { const rng = makeRng(hashString(lv.name) + 1); return [['30 fps', () => 1 / 30], ['60 fps', () => 1 / 60], ['144 fps', () => 1 / 144], ['jitter', () => 1 / 144 + rng() * (1 / 20 - 1 / 144)]]; };
+// --three and its margins run at 30, 60 and 144 fps and with jittery frames, or with --fps N at N fps and jittery frames only (the lean check).
+const fpsModes = () => {
+  const rng = makeRng(hashString(lv.name) + 1), jitter = ['jitter', () => 1 / 144 + rng() * (1 / 20 - 1 / 144)], one = Number(value('--fps'));
+  return one > 0 ? [[`${one} fps`, () => 1 / one], jitter] : [['30 fps', () => 1 / 30], ['60 fps', () => 1 / 60], ['144 fps', () => 1 / 144], jitter];
+};
 const clockArg = Number(value('--clock') ?? 0);
 if (!Number.isFinite(clockArg) || clockArg < 0) die('--clock must be a number of seconds, 0 or more');
 
@@ -192,7 +210,7 @@ if (teeBad) fail(`the tee overlaps ${teeBad}`);
 {
   const tx = lv.ball.x, ty = lv.ball.y, cx = lv.hole.x, cy = lv.hole.y, len = Math.hypot(cx - tx, cy - ty);
   let blocked = false;
-  for (let s = 0; s <= len && !blocked; s += 1) { const x = tx + ((cx - tx) * s) / len, y = ty + ((cy - ty) * s) / len; blocked = lv.walls.some((w) => rectDist(x, y, w) < T.ballR); }
+  for (let s = 0; s <= len && !blocked; s += 1) { const x = tx + ((cx - tx) * s) / len, y = ty + ((cy - ty) * s) / len; blocked = lv.walls.some((w) => sim.wallGap(w, x, y) < T.ballR); }
   lv.blackholes.forEach((h, i) => { if (!blocked && segDist(h.x, h.y, tx, ty, cx, cy) < h.r + T.ballR) fail(`black hole ${i} is on the straight tee-to-cup line and no wall blocks it`); });
   lv.movers.forEach((m, i) => {
     if (m.type !== 'comet') return;
@@ -321,12 +339,11 @@ if (flag('--escape')) {
 
 if (flag('--three')) {
   ran.any = true;
-  // A route is one or more shots separated by '/', each DX,DY[,CLOCK], each played from where the previous one rests.
-  const route = String(value('--three')).split('/').map((sh) => { const [dx, dy, c = 0] = nums(sh, '--three shot', 2); return { dx, dy, c }; });
-  route.forEach((sh, n) => { if (!sim.launchFromDrag(sh.dx, sh.dy)) die(`shot ${n + 1} of the route is inside the dead zone (shorter than dragDead)`); });
+  // A route is one or more shots separated by '/', each DX,DY[,CLOCK] (or `tee`), each played from where the previous one rests.
+  const route = parseRoute(value('--three'), '--three');
   const play = playRoute;
   const good = (r) => r.res === 'sink' && r.strokes <= lv.stars.three;
-  const text = route.map((sh) => `(${sh.dx},${sh.dy})${sh.c ? ` at clock ${sh.c}` : ''}`).join(' then ');
+  const text = routeText(route);
   let ok = 0, tot = 0; const misses = [];
   const nudged = (k, i, j) => route.map((sh, n) => (n === k ? { ...sh, dx: sh.dx + i, dy: sh.dy + j } : sh));
   const k = route.length - 1;
@@ -342,9 +359,10 @@ if (flag('--three')) {
       `${ref.res === 'caught' ? ` (CAUGHT${ref.aimCaught ? ' while aiming' : ''})` : ''}; ${margins.join(', ')}`);
   }
   console.log(`three-star route ${text}: ${ok} of ${tot} sink within ${lv.stars.three} stroke${lv.stars.three > 1 ? 's' : ''} ` +
-    `(the ${route.length > 1 ? 'last shot' : 'drag'} and its 8 whole-pixel neighbours at 30, 60, 144 fps and jittery frames); ` +
+    `(the ${route.length > 1 ? 'last shot' : 'drag'} and its 8 whole-pixel neighbours at ${fpsModes().map((m) => m[0]).join(', ')}); ` +
     `reference: ${ref.res} in ${ref.strokes} strokes${ref.last ? `, last flight ${ref.last.seconds.toFixed(2)} s, ${ref.last.hits} bounces, closest pass ${bodies.map((o, n) => `${o.label} ${f1(ref.last.minSurf[n])}`).join(', ') || '-'}` : ''}`);
   for (let n = 0; n < route.length - 1; n++) {
+    if (route[n].tee) { console.log(`  step ${n + 1} is Tee +1: back to the tee for ${T.teePenalty} stroke${T.teePenalty === 1 ? '' : 's'}`); continue; }
     let fin = 0; const r0 = play(route.slice(0, n + 1), null);
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) if (good(play(nudged(n, i, j), null))) fin++;
     console.log(`  shot ${n + 1} ${r0.res === 'caught' ? 'is caught at' : r0.last && r0.last.swallowed ? 'is swallowed and returns to' : 'rests at'} (${f1(r0.ball.x)}, ${f1(r0.ball.y)})${r0.ball.on >= 0 ? ' riding a moon' : ''}; ` +
@@ -450,14 +468,14 @@ if (flag('--windows')) {
   // along its aim (0.5 px steps, up to full power at dragMax: a longer drag is the same shot). So that a lucky line through a
   // ragged sink region does not pass, the drag's 8 whole-pixel neighbours must meet the rule too. Sun and swallow penalties and
   // a chase catch count as a miss.
-  const route = String(value('--windows')).split('/').map((sh) => { const [dx, dy, c = 0] = nums(sh, '--windows shot', 2); return { dx, dy, c }; });
+  const route = parseRoute(value('--windows'), '--windows');
   const needPx = lv.boss ? 15 : 20, needDeg = lv.boss ? 3 : 4;
   let b0 = sim.newBall(lv.ball.x, lv.ball.y), cLast = 0;
   if (route.length > 1) {
     const r = playRoute(route.slice(0, -1), null);
     if (r.res !== 'rest') die(`an earlier shot of the route ends in ${r.res}`);
-    b0 = r.ball; cLast = lv.chase ? chaseNext(r.chase0, r.last) : 0;
-    if (lv.chase && sim.chaseLeft(lv.chase, b0.x, b0.y, cLast) <= 0) die('the chase front reaches the last shot\'s rest while aiming');
+    b0 = r.ball; cLast = lv.chase && !r.fresh ? chaseNext(r.chase0, r.last) : 0; // after a Tee +1 the last shot is the chase's first release
+    if (lv.chase && !r.fresh && sim.chaseLeft(lv.chase, b0.x, b0.y, cLast) <= 0) die('the chase front reaches the last shot\'s rest while aiming');
   }
   const last = route[route.length - 1];
   const sinksAt = (L, a) => {
