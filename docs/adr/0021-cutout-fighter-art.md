@@ -1,7 +1,7 @@
 # ADR-0021: Painted cut-out art on a hit-tested rig (Arena pilot)
 
 - **Date:** 2026-10-15
-- **Status:** proposed (a pilot; accepted or dropped after the designer sees it in game)
+- **Status:** accepted 2026-10-18. The designer, on the pilot's screenshots: "It looks like there's still some art missing, like sometimes you show the stick man." So the kit becomes the default, and more kits follow (Pack 19).
 - **Scope:** Arena; `docs/art/BRIEF.md`; amends ADR-0015's rule "images are never for things you play with" for this case only
 
 ## Context

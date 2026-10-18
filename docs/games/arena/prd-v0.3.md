@@ -905,3 +905,23 @@ One Sonnet build, after 5a lands, reviewed.
   - The parts meet at the joints in every tier.
 
 **How it is built:** one Opus build rather than the Sonnet one planned, since pinning the painted kit to the rig with no joint points from the art chat is fiddly visual work. About $12 to $15. Packs 15 and 17 came in at about $2.64, so the art spend is $37.67 of $80.
+
+### Step 6 review round (locked 2026-10-18)
+
+**The designer:** "It looks like there's still some art missing, like sometimes you show the stick man." And: "OK to update the engine."
+- Arena's engine is refreshed from the skeleton (ADR-0006), which gives it E.art (ADR-0020).
+- **The painted kit is the default,** and the switch stays for comparison. It is also used for the small figures on the cards. ADR-0021 is accepted.
+
+## Step 6b (locked 2026-10-18): the beasts and the gear, painted
+
+- **Art Pack 19:** the lion and bear as cut-out kits; three more helmets (murmillo, Thracian, secutor); the retiarius's shoulder guard; two shields (scutum, parma); chest, arm and leg plates; leg wraps.
+- **The wiring (one Sonnet build, after the pack lands):**
+  - the beasts are drawn from their kits, pinned to the beast rig, with their tells and gaps on top;
+  - each man's helmet, shield, plates and wraps are painted pieces chosen by his gear and type, over the kit, in the places the drawn ones sit;
+  - a broken plate is no longer drawn;
+  - the drawn look stays as the fallback for anything missing.
+- **Acceptance:**
+  - no drawn body, helmet, shield or plate shows when the art is present;
+  - the hit geometry is unchanged;
+  - `npm run smoke` passes;
+  - frame time is within 10% of arena-v31.

@@ -266,6 +266,37 @@ Use the delivered kit parts (`docs/art/candidates/arena/kit-base-*-A.png`, the m
 
 That is 10 images, one option each (the reference keeps them consistent), about US$2. Add them to `docs/art/candidates/arena/candidates.json` as their own assets, with `-A` files as before, and add a row to `sheet-kit.png` (or a new `sheet-kit-tiers.png`) showing lean, avg and muscular side by side for each part.
 
+### Pack 19: Arena, the beasts and the gear (added 2026-10-18)
+
+Anchor: `docs/games/arena/style.md`; rules: `docs/adr/0021-cutout-fighter-art.md` (accepted 2026-10-18); spec: `docs/games/arena/prd-v0.3.md`, "Step 6b". The designer, on the pilot: "It looks like there's still some art missing, like sometimes you show the stick man." Use the delivered kit (`docs/art/candidates/arena/kit-*-A.png`) as the style and scale reference. Every part is a transparent PNG, side view facing right, with the same lighting and outline weight. Add every asset to `docs/art/candidates/arena/candidates.json`, and make one contact sheet, `sheet-beasts-gear.png`.
+
+**A. The two beasts, cut-out kits** (each part separate, rounded joint ends so parts overlap when rotated; no blood):
+
+| Files | Part | Size |
+| --- | --- | --- |
+| `beast-lion-body.png`, `beast-bear-body.png` | the body from shoulders to rump, no legs, no head (the lion's tail separate) | 640 x 384 |
+| `beast-lion-head.png` (with the mane), `beast-bear-head.png` | the head in profile, neck end at the left | 320 x 320 |
+| `beast-lion-upperleg.png`, `beast-bear-upperleg.png` | an upper leg, body end at the top | 160 x 288 |
+| `beast-lion-lowerleg.png`, `beast-bear-lowerleg.png` | a lower leg with the paw pointing right, knee end at the top | 160 x 288 |
+| `beast-lion-tail.png` | the lion's tail with its tuft, root end at the left | 320 x 160 |
+
+**B. Gear, to be drawn over the kit:**
+
+| Files | Piece | Size |
+| --- | --- | --- |
+| `kit-helmet-murmillo.png` | a broad-brimmed bronze helmet with a fish crest and a grille visor | 256 x 256 |
+| `kit-helmet-thraex.png` | a Thracian helmet with a griffin crest and a tall plume | 256 x 256 |
+| `kit-helmet-secutor.png` | a smooth round egg-shaped helmet with two small eye holes | 256 x 256 |
+| `kit-galerus.png` | a retiarius's tall shoulder guard, worn on the left shoulder | 192 x 256 |
+| `kit-shield-scutum.png` | a tall curved rectangular shield, red with a bronze boss, side-on | 224 x 448 |
+| `kit-shield-parma.png` | a small round buckler, face-on | 224 x 224 |
+| `kit-plate-chest.png` | a bronze chest plate to sit over the torso | 320 x 320 |
+| `kit-plate-manica.png` | a segmented arm guard (manica) over a forearm | 160 x 320 |
+| `kit-plate-greave.png` | a tall bronze greave over a shin | 192 x 384 |
+| `kit-wrap-trousers.png` | padded cloth leg wraps over a thigh, for the gladiator types who wear them | 192 x 352 |
+
+That is 19 images, one option each, using the kit as the reference, about US$5 to 6. Put them in `docs/art/candidates/arena/` with `-A` files, as Pack 15.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
