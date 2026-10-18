@@ -1,5 +1,5 @@
 {
- "pack": "15, 17",
+ "pack": "15, 17, 18",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -81,6 +81,36 @@
   "emperor": [
    "emperor-A.webp",
    "emperor-B.webp"
+  ],
+  "kit-base-torso-lean": [
+   "kit-base-torso-lean-A.png"
+  ],
+  "kit-base-torso-avg": [
+   "kit-base-torso-avg-A.png"
+  ],
+  "kit-base-upperarm-lean": [
+   "kit-base-upperarm-lean-A.png"
+  ],
+  "kit-base-upperarm-avg": [
+   "kit-base-upperarm-avg-A.png"
+  ],
+  "kit-base-forearm-lean": [
+   "kit-base-forearm-lean-A.png"
+  ],
+  "kit-base-forearm-avg": [
+   "kit-base-forearm-avg-A.png"
+  ],
+  "kit-base-thigh-lean": [
+   "kit-base-thigh-lean-A.png"
+  ],
+  "kit-base-thigh-avg": [
+   "kit-base-thigh-avg-A.png"
+  ],
+  "kit-base-shin-lean": [
+   "kit-base-shin-lean-A.png"
+  ],
+  "kit-base-shin-avg": [
+   "kit-base-shin-avg-A.png"
   ]
  }
 }
