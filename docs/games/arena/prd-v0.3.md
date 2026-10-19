@@ -915,6 +915,9 @@ One Sonnet build, after 5a lands, reviewed.
 ## Step 6b (locked 2026-10-18): the beasts and the gear, painted
 
 - **Art Pack 19:** the lion and bear as cut-out kits; three more helmets (murmillo, Thracian, secutor); the retiarius's shoulder guard; two shields (scutum, parma); chest, arm and leg plates; leg wraps.
+- **The limbs facing the wrong way** (the designer: "it was arms and legs in the fight facing the wrong way"). In the same build:
+  - check every painted arm and leg part through the swing, the guard, the dodge, the backstep, the drive and the fall, for you and for a foe facing left;
+  - flip or re-pivot any part whose fist, bracer, knee or foot points backward, so a foot always points the way the body faces and a fist always closes toward the hilt.
 - **The wiring (one Sonnet build, after the pack lands):**
   - the beasts are drawn from their kits, pinned to the beast rig, with their tells and gaps on top;
   - each man's helmet, shield, plates and wraps are painted pieces chosen by his gear and type, over the kit, in the places the drawn ones sit;

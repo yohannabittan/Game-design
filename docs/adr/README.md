@@ -40,3 +40,4 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0019](0019-matched-menu-tabs.md) | The menu's TUNE and EXPORT tabs share one size and one top line | accepted |
 | [0020](0020-art-picks-in-game.md) | Pick art candidates inside the game: a candidates manifest, `E.art.src`, and an ART tab in the dev channel | accepted |
 | [0021](0021-cutout-fighter-art.md) | Painted cut-out art on a hit-tested rig (Arena pilot) | accepted |
+| [0022](0022-art-picks-show-the-art.md) | The ART tab shows the art (thumbnails, plain names, hold to enlarge) | accepted |
