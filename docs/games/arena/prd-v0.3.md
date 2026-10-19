@@ -983,3 +983,24 @@ One Sonnet build, reviewed. Nothing is lost: every number that leaves a screen i
 - Nothing that moved is lost: each is on "?", Details or a card.
 - Nothing overlaps at 667x375, 844x390 and 932x430.
 - `npm run smoke` passes.
+
+## Step 7b (locked 2026-10-19): closing the distance
+
+**The designer:** "I just played the mace and had a hard time crossing the distance." Then: "Go."
+
+**The export:** the mace run had 38 lunges and 0 drives, against a spear foe who keeps range. Across all runs the drive is barely used, since it waits for 0.2 s at full depth.
+
+One Sonnet build, after step 6b lands, reviewed.
+
+- **Out of reach, a lunge drives at once.** When a lunge starts with the foe beyond your plain lunge's reach, the drive needs no hold delay: holding the thumb out keeps driving from the moment the lunge reaches full depth. Within reach, the 0.2 s delay stays, so close fighting is unchanged. The rule is `TUNING.lunge.driveNear` (0.2) and `driveFar` (0).
+- **No idle drift back while he is out of your reach.** The idle drift (`TUNING.foot.drift`) applies only while he is within his striking distance plus reach. Out of reach, you hold your ground.
+- **Unchanged:**
+  - the drive's speed, cost and maximum;
+  - his chase after a missed lunge from beyond his reach;
+  - the Feint card's rules (a drive never starts before the lunge commits);
+  - the net.
+- **Acceptance:**
+  - A scripted mace lunge at a spear foe beyond reach drives without the delay.
+  - A close lunge is identical to HEAD frame for frame.
+  - With no input, your foot holds its place while he is out of reach, and drifts as before when he is close.
+  - `npm run smoke` passes.
