@@ -184,6 +184,24 @@
   ],
   "kit-wrap-trousers": [
    "kit-wrap-trousers-A.png"
+  ],
+  "beast-lion-body-young": [
+   "beast-lion-body-B.png"
+  ],
+  "beast-lion-upperleg-young": [
+   "beast-lion-upperleg-B.png"
+  ],
+  "beast-lion-lowerleg-young": [
+   "beast-lion-lowerleg-B.png"
+  ],
+  "beast-bear-body-young": [
+   "beast-bear-body-B.png"
+  ],
+  "beast-bear-upperleg-young": [
+   "beast-bear-upperleg-B.png"
+  ],
+  "beast-bear-lowerleg-young": [
+   "beast-bear-lowerleg-B.png"
   ]
  }
 }
