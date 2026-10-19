@@ -36,11 +36,11 @@ const TUNING = {
   // body unit as a fraction of screen height, feet line, clear gap between the bodies (fraction of width), half body width in H; fit = the largest scale
   // drawn at full frame: a bigger fighter (a Giant) shrinks the whole frame so his head stays as high as that scale's would, clear of the HUD
   fighter: { height: 0.72, floor: 0.92, gap: 0.2, body: 0.12, fit: 1.15 },
-  // stride in H; extra stamina; seconds to step in and back. The drive: a committed lunge held at full depth for driveDelay s presses on at drive H/s for
+  // stride in H; extra stamina; seconds to step in and back. The drive: a committed lunge held at full depth for driveNear s (driveFar s when the foe stands beyond your plain lunge's reach as it starts) presses on at drive H/s for
   // driveCost stamina/s (and one jab's cost when it starts moving), up to driveMax H past the stride; it reaches full pace over driveRamp s, in stamping steps driveHz a second whose pace swings by
   // driveSurge; the body leans driveLean rad into it, eases back over driveOut s, each stamp kicks driveSand grains; the stamina it burns glows for driveBurn s;
   // each stamp: a thud at driveThud gain, a haptic of driveHaptic, driveDust puffs driveFoot H behind the foot
-  lunge: { stride: 0.3, cost: 10, tauIn: 0.06, tauOut: 0.14, drive: 0.6, driveCost: 25, driveMax: 0.3, driveDelay: 0.2, driveRamp: 0.1, driveHz: 6, driveSurge: 0.55,
+  lunge: { stride: 0.3, cost: 10, tauIn: 0.06, tauOut: 0.14, drive: 0.6, driveCost: 25, driveMax: 0.3, driveNear: 0.2, driveFar: 0, driveRamp: 0.1, driveHz: 6, driveSurge: 0.55,
     driveLean: 0.13, driveOut: 0.2, driveSand: 8, driveBurn: 0.5,
     driveThud: 0.45, driveHaptic: 6, driveFoot: 0.1, driveDust: 2 },
   lean: { base: 0.03, max: 0.21, beyond: 0.6, span: 0.2, fast: 0.7, tau: 0.06, back: 0.05 },  // radians (max = 12 degrees); aim distance (H) past which a fast slash leans, over span; fast = fraction of hit.mid
@@ -341,15 +341,57 @@ const TUNING = {
   // shade of the far arm and leg; arm = your live arms' width (H).
   kit: {
     tier: { lean: 2, avg: 3 }, leg: 0.085, sw: [140, 44], icon: { plate: 0.8 },
-    torso: { size: [384, 512], a: [178, 0], b: [178, 298], w: 291 },
+    // A part whose image comes on a wider canvas (the muscular torso and shin, HANDOFF-arena-kit-muscle) uses its wide joints, pinned by the top axis;
+    // k = how much wider that painted torso is than the others (the chest plate widens with it).
+    torso: { size: [384, 512], a: [178, 0], b: [178, 298], w: 291, k: 1, wide: { size: [488, 512], a: [228, 0], b: [228, 298], w: 291, k: 1.3 } },
     upperarm: { size: [160, 320], a: [80, 45], b: [66, 296], w: 97 },
     forearm: { size: [160, 320], a: [86, 38], b: [75, 285], w: 97 },
     thigh: { size: [192, 352], a: [100, 60], b: [94, 333], w: 88 },
-    shin: { size: [192, 384], a: [62, 45], b: [58, 322], w: 88 },
+    shin: { size: [192, 384], a: [62, 45], b: [58, 322], w: 88, wide: { size: [272, 384], a: [103, 45], b: [99, 322], w: 88 } },
     head: { size: [256, 256], a: [128, 0], b: [128, 222] },
-    helmet: { size: [256, 256], a: [128, 0], b: [128, 222] },
-    shield: { size: [320, 320], r: 160 },
+    // Step 6b, the painted gear (Pack 19), each piece's joints in its own PNG: a helmet's top and chin line (a closed one hides the head under it); the
+    // chest plate from the neck to the belt (abs: the row the belly's plate starts at; w: the px across that spans the torso); the manica from the elbow
+    // to `to` of the forearm, the greave from `from` to `to` of the shin, the wrap down the thigh; the galerus's box in the shield arm's frame (H); a
+    // shield's rim radius r or, for the scutum, its half height h (px), drawn at the drawn shield's size.
+    helm: {
+      gallic: { size: [256, 256], a: [128, 0], b: [128, 222] },
+      murmillo: { size: [256, 256], a: [120, 10], b: [120, 205], closed: true },
+      thraex: { size: [256, 256], a: [115, 10], b: [115, 205], closed: true },
+      secutor: { size: [256, 256], a: [128, -60], b: [128, 203], closed: true },
+    },
+    plate: { size: [320, 320], a: [160, 0], b: [160, 300], w: 270, abs: 150 },
+    manica: { size: [160, 320], a: [72, 10], b: [60, 305], w: 125, to: 0.86 },
+    greave: { size: [192, 384], a: [97, 10], b: [105, 350], w: 105, from: 0.05, to: 0.95 },
+    wrap: { size: [192, 352], a: [92, 30], b: [86, 330], w: 114 },
+    galerus: { size: [192, 256], box: [-0.105, -0.17, 0.045, 0.03] },
+    shields: { round: { size: [320, 320], r: 160 }, parma: { size: [224, 224], r: 112 }, scutum: { size: [224, 448], h: 224 } },
     neck: -0.745, belt: -0.49, cut: -0.51, top: -0.9, chin: -0.71, far: 0.22, arm: 0.075, shArm: 0.07,
+    // your painted shield: a scutum's half height and half width per its rim radius r
+    tall: [1.2, 0.6],
+    // your sword arm's halves are mirrored only past this much elbow bend (the elbow's offset per upper arm length) or hilt angle (its sine across the
+    // forearm), so they never flicker when straight
+    flip: [0.08, 0.2],
+    // a part drawn live each frame is drawn from a copy this many times its size on screen (headroom for the rig's stretch, little to downscale)
+    live: 1.25,
+  },
+  // his shield (H x its scale): a round one's radius, a scutum's half height, Iron Wall's tower stretch (x, y)
+  foeShield: { r: 0.1, h: 0.16, tower: [1.25, 1.45] },
+  // Step 6b, the beasts painted from their kits (Pack 19; a young beast takes the -young parts where they exist), in its own body units: the body's box
+  // (x0 y0 x1 y1; the PNG faces left, so it is mirrored), the head's eye (px) pinned at eyeAt from the head's centre at u body units per px, each leg
+  // bone's joints a and b (px; the upper leg is cut at row clip, under the knee), w = the px across that spans the leg's hit width, the lion's tail from
+  // its root to its tuft; head hinge and lip (px) pin the roar's jaw to the painted muzzle; far = the shade of the far legs, leg = the copies' width
+  // in body units, gape = the painted jaw's opening per unit of the pose's jaw (rad), pawBand = how far the toe must point back or ahead (its forward share) before a lower leg is mirrored.
+  beastArt: {
+    lion: {
+      body: { size: [640, 384], box: [-0.38, -0.44, 0.16, -0.12] }, head: { size: [320, 320], eye: [245, 121], u: 0.00094, hinge: [255, 172], lip: [303, 187] },
+      upper: { size: [160, 288], a: [72, 40], b: [86, 232], w: 69, clip: 250 }, lower: { size: [160, 288], a: [70, 40], b: [80, 286], w: 95 },
+      tail: { size: [320, 160], a: [8, 78], b: [300, 80], root: [-0.33, -0.33] },
+    },
+    bear: {
+      body: { size: [640, 384], box: [-0.4, -0.48, 0.15, -0.15] }, head: { size: [320, 320], eye: [215, 108], u: 0.00088, hinge: [238, 160], lip: [296, 172] },
+      upper: { size: [160, 288], a: [88, 40], b: [78, 232], w: 105, clip: 250 }, lower: { size: [160, 288], a: [57, 40], b: [75, 286], w: 95 },
+    },
+    eyeAt: [0.02, -0.018], far: 0.28, leg: 0.08, pawBand: 0.2, gape: 1.1,
   },
 };
 
@@ -1262,7 +1304,7 @@ function poseYou(E, dt) {
         state.stamina -= lc; state.lastAtk = state.m; state.lunging = true; state.lunges++; state.mem.lunges.push(state.m); swooshSound(E, 0.1);
         const Fy = youF(E); dust(Fy.x - 0.1 * Fy.H, Fy.y, TUNING.juice.lungeDust);
         if (gapNow() > state.foe.strike + TUNING.foot.reach) chaseIn();
-        state.lng = { t0: state.m, pk: tk, d: 0, at: 0, near: 0, committed: !has('myfeint'), hit: false, ly: tipLy(E) };
+        state.lng = { t0: state.m, pk: tk, d: 0, at: 0, near: 0, committed: !has('myfeint'), hit: false, ly: tipLy(E), dd: beyondLunge(E) ? LU.driveFar : LU.driveNear };
         if (h.atk && !h.atk.done) h.atk.lunge = true;
       }
       else { tk = 0; tiredPop(E); }
@@ -1305,16 +1347,16 @@ function endLunge(E, pulled) {
 }
 // The drive: a committed lunge (never a feint still open) held at full depth presses on in short stamping steps, burning stamina. Drawn back under full
 // depth it holds its ground until the lunge ends; what the blade meets, an empty tank or his body ends it for good. The recovery gives the ground back.
-const driving = () => !!(state.lunging && state.lng && state.lng.dv && state.lng.dv.on && !state.lng.dEnd && state.lng.full >= TUNING.lunge.driveDelay);
+const driving = () => !!(state.lunging && state.lng && state.lng.dv && state.lng.dv.on && !state.lng.dEnd && state.lng.full >= state.lng.dd);
 function drive(E, tk, dt) {
   const LU = TUNING.lunge, L = state.lng, y = state.you;
   if (!L.committed || L.dEnd) return;
   // what the blade met, in the lunge or the push that launched it, ends it
-  if (L.hit || L.pend || state.landM > L.t0 - LU.driveDelay) { L.dEnd = true; return; }
+  if (L.hit || L.pend || state.landM > L.t0 - LU.driveNear) { L.dEnd = true; return; }
   // drawn back under full depth the body stops; going out again re-arms the drive
   if (tk < 1) { L.full = 0; if (L.dv) { L.dv.on = false; L.dv.t = 0; } return; }
   L.full = (L.full || 0) + dt;
-  if (L.full < LU.driveDelay) return;
+  if (L.full < L.dd) return;
   const Fy = youF(E);
   if (!L.dv) L.dv = { t: 0, ph: 0, on: false };
   const D = L.dv, k = meSize().scale;
@@ -1341,6 +1383,12 @@ function drive(E, tk, dt) {
     }
   }
   y.drive += v; state.driveDist += v; state.lastAtk = state.m; state.burnT = LU.driveBurn;
+}
+// Is he beyond what your plain lunge reaches? The clear air between the two fronts against the stride, your shoulder's lead and the arm and blade
+// past it. A drive from beyond it starts at once (driveFar); within it the hold (driveNear) stays.
+function beyondLunge(E) {
+  const L = lay(E), B = TUNING.fighter.body, clear = (L.x1 - L.x0) + gapNow() * L.H - 2 * B * L.H;
+  return clear > (TUNING.lunge.stride + SHOULDER[0] - B) * myH(E) + myArm(E) + myBlade(E);
 }
 const driveStab = (a) => !!a.drive && driving();
 // each step of the drive plants the back foot: a kick of sand behind you and a dull footfall
@@ -1516,8 +1564,9 @@ function stepYou(E, dt) {
   const T = TUNING.foot, ft = state.foot, dg = state.dg, k = gripMul(), wl = walls(E), hi = Math.max(wl.back, state.step.x - gMin(E));
   const holding = dg.down && dg.t > TUNING.dodge.dur;
   if (holding) ft.tgt -= T.walkBack * k * dt;
-  // idle (no swing, dodge or lunge for drift.idle s): drift back toward your mark, a pace per drift.secs
-  else if (ft.tgt < 0 && !dg.down && !state.away && !state.lunging && !state.hand.atk && state.m - state.lastAtk > T.drift.idle) {
+  // idle (no swing, dodge or lunge for drift.idle s) with him within his striking distance and reach: drift back toward your mark, a pace per drift.secs;
+  // out of his reach you hold your ground
+  else if (ft.tgt < 0 && !dg.down && !state.away && !state.lunging && !state.hand.atk && state.m - state.lastAtk > T.drift.idle && inReach()) {
     const rate = T.pace / T.drift.secs;
     ft.tgt = Math.min(0, ft.tgt + rate * dt); ft.v = Math.max(ft.v, rate);
   }
@@ -3042,13 +3091,17 @@ const KIT = { on: false };
 const IMGS = new Map();
 function artImg(name) {
   if (!ART || !ART.has(name)) return null;
-  const raw = ART.src(name, ''), src = raw ? decodeURIComponent(raw) : raw; // E.art.src encodes the whole manifest value, slashes too: decode it so a subfolder loads
   let e = IMGS.get(name);
+  // the name's file is looked up again only when a load or a pick has bumped artV (images are asked for many times a frame)
+  if (e && e.v === artV) return e.ok ? e.im : null;
+  const raw = ART.src(name, ''), src = raw ? decodeURIComponent(raw) : raw; // E.art.src encodes the whole manifest value, slashes too: decode it so a subfolder loads
   if (!e || e.src !== src) {
-    e = { src, im: new Image(), ok: false };
-    e.im.onload = () => { e.ok = true; artV++; };
-    e.im.src = src; IMGS.set(name, e);
+    e = { src, im: new Image(), ok: false, v: artV };
+    const en = e;
+    en.im.onload = () => { en.ok = true; artV++; };
+    en.im.src = src; IMGS.set(name, en);
   }
+  e.v = artV;
   return e.ok ? e.im : null;
 }
 const BACKDROP = { pit: 'arena-pit', city: 'arena-city', rome: 'arena-colosseum', games: 'arena-grand' };
@@ -3081,7 +3134,14 @@ const ART_NAMES = {
   'champ-varro': 'Varro of Capua', 'champ-twins': 'Castor and Pollux', 'champ-hermes': 'Hermes the Swift', 'champ-carpophorus': 'Carpophorus the Beastmaster',
   'champ-mevia': 'Mevia the Huntress', 'champ-aquila': "Aquila, the Emperor's Blade", emperor: 'The Emperor',
   'kit-base-head': 'Head', 'kit-helmet-gallic': 'Gallic helmet', 'kit-shield-round': 'Round shield',
+  'kit-helmet-murmillo': 'Murmillo helmet', 'kit-helmet-thraex': 'Thracian helmet', 'kit-helmet-secutor': 'Secutor helmet', 'kit-galerus': 'Shoulder guard (galerus)',
+  'kit-shield-scutum': 'Tall shield (scutum)', 'kit-shield-parma': 'Small round shield (parma)', 'kit-plate-chest': 'Chest plate', 'kit-plate-manica': 'Arm guard (manica)',
+  'kit-plate-greave': 'Greave', 'kit-wrap-trousers': 'Leg wraps',
+  'beast-lion-head': 'Lion, head', 'beast-lion-tail': 'Lion, tail', 'beast-bear-head': 'Bear, head',
 };
+for (const [k, n] of [['lion', 'Lion'], ['bear', 'Bear']]) for (const [part, pn] of [['body', 'body'], ['upperleg', 'upper leg'], ['lowerleg', 'lower leg']]) {
+  ART_NAMES[`beast-${k}-${part}`] = `${n}, ${pn}`; ART_NAMES[`beast-${k}-${part}-young`] = `Young ${k}, ${pn}`;
+}
 for (const [k, n] of [['torso', 'Torso'], ['upperarm', 'Upper arm'], ['forearm', 'Forearm'], ['thigh', 'Thigh'], ['shin', 'Shin']]) {
   ART_NAMES[`kit-base-${k}`] = `${n}, muscular`; ART_NAMES[`kit-base-${k}-lean`] = `${n}, lean`; ART_NAMES[`kit-base-${k}-avg`] = `${n}, average`;
 }
@@ -3139,76 +3199,104 @@ function brutusCardLine(ctx, E, cx, y, tb, w, thread, below) {
   const A = TUNING.art, fb = sayLine(ctx, E, `Old Brutus: \u201c${brutusIntro()}\u201d`, cx, y + tb + 10, w - 28, { size: 14, fit: true, weight: '700', color: '#fde68a', minTop: y + tb + (thread ? A.gap - 3 : -3) }, 'brutus', A.faceCard);
   return fb ? Math.max(below, fb.bottom + A.gap + 9) : below;
 }
-// The kit: a man's look with the kit on, his muscle tier by Strength and whether he is you (your helmet is the kit's); cached on the look
+// The kit: a man's look with the kit on, his muscle tier by Strength, whether he is you, and his painted pieces (step 6b: his type's helmet and shield,
+// the leg wraps of the types that wear them), all in the look's id, so his sprites repaint only when one of them changes; cached on the look
+const KIT_HELM = { murmillo: 'murmillo', hoplo: 'thraex', open: 'secutor', cap: 'gallic' };
+const KIT_SHIELD = { murmillo: 'scutum', hoplo: 'parma', open: 'round', cap: 'round' };
+const KIT_WRAP = { hoplo: true };
+const KIT_GEAR = { plate: 'kit-plate-chest', manica: 'kit-plate-manica', greave: 'kit-plate-greave', wrap: 'kit-wrap-trousers', galerus: 'kit-galerus' };
 function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean' : str <= T.avg ? 'avg' : ''; }
 function lookFor(fm, isFoe) {
   const lk = lookOf(fm, isFoe);
   if (!kitOn() || fm.beast) return lk;
   const tier = kitTier(isFoe ? fm.str : state.me.str), key = `${tier}|${isFoe ? '' : 'y'}|${artV}`;
-  if (!lk.kitL || lk.kitL.key !== key) lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe }, id: `${lk.id}|kit${key}` } };
+  if (!lk.kitL || lk.kitL.key !== key) {
+    const helm = KIT_HELM[lk.helm] || 'gallic', shield = KIT_SHIELD[lk.helm] || 'round', wrap = !!KIT_WRAP[lk.helm];
+    lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe, helm, shield, wrap }, id: `${lk.id}|kit${key}|${helm}.${shield}${wrap ? '.wrap' : ''}` } };
+  }
   return lk.kitL.lk;
 }
-// a kit part's image for a tier: the tier's own when it has one, else the muscular base; with its joints scaled to the image's own size
+// An image by name with its joints J (px of J.size: an image at another size scales them; one on J.wide's wider canvas takes J.wide). px > 0: a copy
+// scaled near px across J.w (or its width), cached, for a part drawn live each frame rather than the full image; dark shades that copy (a far leg).
 const KIT_TIERED = ['torso', 'upperarm', 'forearm', 'thigh', 'shin'];
-// (px: for the live arms and shield, the screen px its J.w is drawn at, so a copy scaled near that size is drawn each frame, not the full image)
 const KIT_LIVE = new Map();
-function kitPic(part, tier, px = 0) {
-  const t = tier && KIT_TIERED.includes(part) ? `kit-base-${part}-${tier}` : null;
-  const name = t && ART.has(t) ? t : part === 'helmet' ? 'kit-helmet-gallic' : part === 'shield' ? 'kit-shield-round' : `kit-base-${part}`, im = artImg(name);
+function artPic(name, J0, px = 0, dark = 0) {
+  const im = artImg(name);
   if (!im) return null;
-  const J = TUNING.kit[part], P = { im, J, kx: im.width / J.size[0], ky: im.height / J.size[1] };
-  if (!px || !canSprite) return P;
-  const f = Math.min(1, 2 * px / ((J.w || J.size[0]) * P.kx)), key = `${name}|${Math.round(px)}|${artV}`;
+  const J = J0.wide && im.width === J0.wide.size[0] ? J0.wide : J0, sz = J.size;
+  if (!px || !canSprite) return { im, J, kx: im.width / sz[0], ky: im.height / sz[1] };
+  const f = Math.min(1, TUNING.kit.live * px / ((J.w || sz[0]) * im.width / sz[0])), key = `${name}|${Math.round(px)}|${dark}|${artV}`;
   let L = KIT_LIVE.get(key);
   if (!L) {
     const cv = new OffscreenCanvas(Math.max(1, Math.round(im.width * f)), Math.max(1, Math.round(im.height * f))), c = cv.getContext('2d');
     c.imageSmoothingQuality = 'high'; c.drawImage(im, 0, 0, cv.width, cv.height);
-    if (KIT_LIVE.size > 24) KIT_LIVE.clear();
-    L = { im: cv, J, kx: cv.width / J.size[0], ky: cv.height / J.size[1] };
+    if (dark) { c.globalCompositeOperation = 'source-atop'; c.fillStyle = `rgba(20,10,4,${dark})`; c.fillRect(0, 0, cv.width, cv.height); }
+    if (KIT_LIVE.size > 48) KIT_LIVE.clear();
+    L = { im: cv, J, kx: cv.width / sz[0], ky: cv.height / sz[1] };
     KIT_LIVE.set(key, L);
   }
   return L;
 }
-// Pin a kit image so its joint a lands on A and b on B (canvas px), w px across its J.w (0: the length's scale both ways)
-function drawSeg(c, P, A, B, w) {
-  const J = P.J, ax = J.a[0] * P.kx, ay = J.a[1] * P.ky, bx = J.b[0] * P.kx, by = J.b[1] * P.ky;
+// a kit part's image for a tier: the tier's own when it has one, else the muscular base
+function kitPic(part, tier, px = 0) {
+  const t = tier && KIT_TIERED.includes(part) ? `kit-base-${part}-${tier}` : null;
+  return artPic(t && ART && ART.has(t) ? t : `kit-base-${part}`, TUNING.kit[part], px);
+}
+const helmPic = (lk) => artPic(`kit-helmet-${lk.kit.helm}`, TUNING.kit.helm[lk.kit.helm]);
+const gearPic = (piece, px = 0) => artPic(KIT_GEAR[piece], TUNING.kit[piece], px);
+const shieldPic = (kind, px = 0) => artPic(`kit-shield-${kind}`, TUNING.kit.shields[kind], px);
+// Pin a kit image so its joint a lands on A and b on B (canvas px), w px across its J.w (0: the length's scale both ways). flip mirrors the image across
+// its own width first (the joints with it); J.clip draws only its rows above that one.
+function drawSeg(c, P, A, B, w, flip = false) {
+  const J = P.J, iw = P.im.width, ax = (flip ? J.size[0] - J.a[0] : J.a[0]) * P.kx, bx = (flip ? J.size[0] - J.b[0] : J.b[0]) * P.kx, ay = J.a[1] * P.ky, by = J.b[1] * P.ky;
   const L = Math.hypot(B[0] - A[0], B[1] - A[1]), l = Math.hypot(bx - ax, by - ay), sy = L / l, sx = w ? w / (J.w * P.kx) : sy;
   c.save(); c.translate(A[0], A[1]); c.rotate(Math.atan2(B[1] - A[1], B[0] - A[0]) - Math.PI / 2); c.scale(sx, sy); c.rotate(Math.atan2(bx - ax, by - ay)); c.translate(-ax, -ay);
-  c.drawImage(P.im, 0, 0); c.restore();
+  if (flip) { c.translate(iw, 0); c.scale(-1, 1); }
+  if (J.clip) { const ch = Math.round(J.clip * P.ky); c.drawImage(P.im, 0, 0, iw, ch, 0, 0, iw, ch); } else c.drawImage(P.im, 0, 0);
+  c.restore();
 }
 // darken what is painted so far (the far leg, before the near one; the far arm's sprite)
 function farShade(c, H, b) { c.save(); c.globalCompositeOperation = 'source-atop'; c.fillStyle = `rgba(20,10,4,${TUNING.kit.far})`; c.fillRect(b[0] * H, b[1] * H, (b[2] - b[0]) * H, (b[3] - b[1]) * H); c.restore(); }
-// The kit under a part's sprite: the head, the torso cut into the chest and the belly, an arm's two halves in its frame, both legs. False when an image
-// has not loaded (the part is painted procedurally). The part's own painter runs after it, kit-aware: plates, gear and type looks on top, no skin.
+// The kit under a part's sprite: the head (none under a closed helmet), the torso cut into the chest and the belly, an arm's two halves in its frame,
+// both legs; with the painted plates of the plated parts (the chest plate, its lower half on the belly, the manica, the greaves) and the wraps of the
+// types that wear them, so the far arm and leg are shaded with theirs. False when a body image has not loaded (the part is painted procedurally). The
+// part's own painter runs after it, kit-aware: the drawn plates only where a plate's image is missing, then the gear and type looks, no skin.
 function kitBody(c, p, H, lk) {
   const K = TUNING.kit, id = p.d.id, t = lk.kit.tier;
   if (id === 'head') {
-    const P = kitPic('head');
+    const P = kitPic('head'), hp = p.armour && helmPic(lk);
     if (!P) return false;
-    drawSeg(c, P, [p.d.x * H, K.top * H], [p.d.x * H, K.chin * H], 0);
+    if (!(hp && hp.J.closed)) drawSeg(c, P, [p.d.x * H, K.top * H], [p.d.x * H, K.chin * H], 0);
     return true;
   }
   if (id === 'chest' || id === 'belly') {
-    const P = kitPic('torso', t), B = BOX[id];
+    const P = kitPic('torso', t), B = BOX[id], PL = p.armour && gearPic('plate'), w = PARTS[pidx('belly')].w * H;
     if (!P) return false;
     c.save(); c.beginPath();
     if (id === 'chest') c.rect(B[0] * H, B[1] * H, (B[2] - B[0]) * H, (K.cut - B[1]) * H); else c.rect(B[0] * H, K.cut * H, (B[2] - B[0]) * H, (B[3] - K.cut) * H);
-    c.clip(); drawSeg(c, P, [0, K.neck * H], [0, K.belt * H], PARTS[pidx('belly')].w * H); c.restore();
+    c.clip(); drawSeg(c, P, [0, K.neck * H], [0, K.belt * H], w);
+    if (PL && id === 'chest') drawSeg(c, PL, [0, K.neck * H], [0, K.belt * H], w * P.J.k);
+    // the belly's plate: the chest plate's lower half, from the waist to the belly's foot
+    else if (PL) drawSeg(c, { ...PL, J: { ...PL.J, a: [PL.J.a[0], PL.J.abs], b: PL.J.size.slice() } }, [0, K.cut * H], [0, (p.d.y + p.d.h / 2) * H], w * P.J.k);
+    c.restore();
     return true;
   }
   if (id === 'armF' || id === 'armB') {
-    const U = kitPic('upperarm', t), F = kitPic('forearm', t), w = p.d.w * H, el = ARM_LEN / 2 * H;
+    const U = kitPic('upperarm', t), F = kitPic('forearm', t), w = p.d.w * H, el = ARM_LEN / 2 * H, M = p.armour && gearPic('manica');
     if (!U || !F) return false;
     drawSeg(c, U, [0, 0], [0, el], w); drawSeg(c, F, [0, el], [0, ARM_LEN * H], w);
+    if (M) drawSeg(c, M, [0, el], [0, el + (ARM_LEN * H - el) * M.J.to], w);
     if (id === 'armB') farShade(c, H, BOX[id]);
     return true;
   }
   if (id === 'legs') {
-    const T = kitPic('thigh', t), S = kitPic('shin', t), w = TUNING.kit.leg * H;
+    const T = kitPic('thigh', t), S = kitPic('shin', t), w = TUNING.kit.leg * H, Wr = lk.kit.wrap && gearPic('wrap'), G = p.armour && gearPic('greave');
     if (!T || !S) return false;
     LEGS.forEach(([hip, knee, ank], i) => {
       const P = (q) => [q[0] * H, q[1] * H];
       drawSeg(c, T, P(hip), P(knee), w); drawSeg(c, S, P(knee), P(ank), w);
+      if (Wr) drawSeg(c, Wr, P(hip), P(knee), w);
+      if (G) drawSeg(c, G, P(lerp2(knee, ank, G.J.from)), P(lerp2(knee, ank, G.J.to)), w);
       if (!i) farShade(c, H, BOX.legs);
     });
     return true;
@@ -3294,7 +3382,7 @@ function lookOf(fm, isFoe) {
 // What shows through each gap, and which sides the plate edges frame it from (top and bottom, or left and right).
 const SLOT_ART = { 'slot-neck': ['skin', 'tb'], 'slot-armpit': ['linen', 'lr'], 'slot-waist': ['linen', 'tb'], 'slot-elbow': ['skin', 'tb'], 'slot-knee': ['skin', 'tb'] };
 // Sprite bounds in body units (arms in their own frame): room for crests, straps, the fist and the shoulder guards.
-const BOX = { head: [-0.17, -1.05, 0.18, -0.66], chest: [-0.15, -0.74, 0.16, -0.5], belly: [-0.19, -0.54, 0.19, -0.24], armF: [-0.14, -0.2, 0.12, 0.42], armB: [-0.14, -0.2, 0.12, 0.42], legs: [-0.21, -0.43, 0.25, 0.04], cloak: [-0.34, -0.86, 0.14, 0.01] };
+const BOX = { head: [-0.17, -1.05, 0.18, -0.66], chest: [-0.17, -0.74, 0.17, -0.5], belly: [-0.19, -0.54, 0.19, -0.24], armF: [-0.14, -0.2, 0.12, 0.42], armB: [-0.14, -0.2, 0.12, 0.42], legs: [-0.21, -0.43, 0.25, 0.04], cloak: [-0.34, -0.86, 0.14, 0.01] };
 const LEGS = [[[-0.02, -0.37], [-0.07, -0.19], [-0.12, -0.02]], [[0.02, -0.37], [0.09, -0.2], [0.12, -0.02]]];
 const canSprite = typeof OffscreenCanvas === 'function';
 
@@ -3409,8 +3497,8 @@ function paintHead(c, p, H, lk) {
   const K = lk.kit;
   if (!K) { c.fillStyle = skinGrad(c, 0.035 * H, 0, -0.025 * H, 0, shade(lk.skin, 0.85)); c.fillRect(-0.025 * H, -0.745 * H, 0.06 * H, 0.07 * H); }
   const helm = p.armour ? lk.helm : null, closed = helm === 'murmillo' || helm === 'hoplo';
-  // the kit: the painted head is under this; your plated head wears the kit's helmet, his his type's drawn helmet
-  const kh = K && K.you && p.armour && kitPic('helmet');
+  // the kit: the painted head is under this (none under a closed helmet); a plated head wears his type's painted helmet
+  const kh = K && p.armour && helmPic(lk);
   if (kh) { drawSeg(c, kh, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0); wear(c, p, H, x, y - r * 0.3, r, () => { c.beginPath(); c.arc(x, y - r * 0.3, r * 0.9, 0, TAU); }); return; }
   if (!closed && !K) face(c, x, y, r, lk, H, !p.armour);
   if (!p.armour) {
@@ -3493,6 +3581,8 @@ function pecs(c, x0, y0, w, h) {
 function paintChest(c, p, H, lk) {
   const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, x1 = x0 + w, y1 = y0 + h, M = lk.metal;
   if (!p.armour && lk.kit) { tint(c, p, H); return; }
+  // the kit's painted plate is under this: only its dents and cracks go on it
+  if (lk.kit && gearPic('plate')) { wear(c, p, H, (x0 + x1) / 2, (y0 + y1) / 2, Math.min(w, h) / 2, () => cuirass(c, x0, y0, x1, y1)); return; }
   if (!p.armour) {
     path(c, d, H); c.fillStyle = skinGrad(c, x1, y0, x0, y1, lk.skin); c.fill();
     c.lineCap = 'round'; c.lineWidth = lw(H, 0.005); c.strokeStyle = shade(lk.skin, 0.55); pecs(c, x0, y0, w, h);
@@ -3550,7 +3640,8 @@ function paintBelly(c, p, H, lk) {
   if (!lk.kit) paintWrap(c, H, lk);
   const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, M = lk.metal;
   if (!p.armour && lk.kit) { tint(c, p, H); return; }
-  if (!p.armour) {
+  if (lk.kit && gearPic('plate')) wear(c, p, H, x0 + w / 2, y0 + h / 2, Math.min(w, h) / 2, () => rrect(c, x0, y0, w, h, 2));
+  else if (!p.armour) {
     path(c, d, H); c.fillStyle = skinGrad(c, x0 + w, y0, x0, y0 + h, lk.skin); c.fill();
     c.strokeStyle = shade(lk.skin, 0.58); c.lineWidth = lw(H, 0.004); c.lineCap = 'round';
     line(c, x0 + w * 0.52, y0 + h * 0.3, x0 + w * 0.52, y0 + h * 0.9);
@@ -3575,7 +3666,7 @@ function paintBelly(c, p, H, lk) {
 
 function paintArm(c, p, H, lk) {
   const d = p.d, w = d.w * H, h = d.h * H, x0 = -w / 2, y0 = d.y * H - h / 2, M = lk.metal, front = d.id === 'armF', sk = front ? lk.skin : shade(lk.skin, 0.86);
-  if (lk.kit) { if (p.armour) paintManica(c, p, H, lk, w, h, x0, y0, M); }
+  if (lk.kit) { if (p.armour) { if (gearPic('manica')) wear(c, p, H, 0, (ARM_LEN * 0.75) * H, w / 2, () => rrect(c, x0, ARM_LEN / 2 * H, w, ARM_LEN / 2 * H, 3)); else paintManica(c, p, H, lk, w, h, x0, y0, M); } }
   else if (!p.armour) {
     rrect(c, x0, y0, w, h, w * 0.45); c.fillStyle = skinGrad(c, w / 2, 0, -w / 2, 0, sk); c.fill();
     c.strokeStyle = shade(lk.skin, 0.55); c.lineWidth = lw(H, 0.004); c.lineCap = 'round';
@@ -3603,7 +3694,9 @@ function paintArm(c, p, H, lk) {
       for (const k of [-0.5, 0, 0.5]) rivet(c, w * 0.9 * k, py - 0.012 * H, H, P || IRON);
     }
   }
-  if (!front && lk.galerus) {
+  const gal = !front && lk.galerus && lk.kit && gearPic('galerus');
+  if (gal) { const b = TUNING.kit.galerus.box; c.drawImage(gal.im, b[0] * H, b[1] * H, (b[2] - b[0]) * H, (b[3] - b[1]) * H); }
+  else if (!front && lk.galerus) {
     // the galerus: a flared shoulder guard rising beside the head
     const g = (i) => { c.beginPath(); c.moveTo(-w * 0.2 + i, 0.04 * H - i); c.lineTo(-w * 1.0 + i, -0.02 * H); c.quadraticCurveTo(-w * 1.25 + i, -0.12 * H + i, -w * 0.9 + i, -0.16 * H + i); c.lineTo(w * 0.35 - i, -0.11 * H + i); c.lineTo(w * 0.6 - i, 0.03 * H - i); c.closePath(); };
     g(0); c.fillStyle = metalGrad(c, w, -0.16 * H, -w, 0.04 * H, BRONZE); c.fill();
@@ -3652,7 +3745,7 @@ function paintLegs(c, p, H, lk) {
     c.strokeStyle = LEATHER.mid; c.lineWidth = lw(H, 0.006);
     for (let k = 0; k < 3; k++) { const yy = ank[1] - 0.012 * H - k * 0.02 * H; line(c, ank[0] - SH * 0.45, yy, ank[0] + SH * 0.45, yy - 0.012 * H); }
     }
-    if (!p.armour) return;
+    if (!p.armour || (lk.kit && gearPic('greave'))) return;
     // thigh plates and a greave with a knee boss
     const thigh = () => { c.beginPath(); return quad(c, hip, knee, TH * 1.06, TH * 0.96); };
     const greave = () => { c.beginPath(); return quad(c, [knee[0] + (ank[0] - knee[0]) * 0.05, knee[1] + (ank[1] - knee[1]) * 0.05], [ank[0] + (knee[0] - ank[0]) * 0.1, ank[1] + (knee[1] - ank[1]) * 0.1], SH * 1.35, SH * 1.1); };
@@ -4198,7 +4291,7 @@ function edgeSprite(E, f) {
   const F = edgeF(E, f), k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), [w, left] = edgeBox(f, F.H), h = 1.25 * F.H, feet = 1.12 * F.H;
   let key = Math.round(F.H * k);
   for (const p of f.parts) key = (key * 31 + (p.cut ? 1 : 0) + 2 * p.dents + 64 * p.cracks.length) % 2147483647;
-  if (kitOn() && !f.beast) key = `${key}|${lookFor(f, true).id}`;
+  if (kitOn()) key = `${key}|${f.beast ? `${f.beast}${f.young ? 'y' : ''}|${artV}` : lookFor(f, true).id}`;
   if (!f.spr || f.spr.key !== key) {
     const cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
     // painting poses him as he waits, so the one fighting keeps his own pose and frames
@@ -4290,10 +4383,12 @@ function spiral(ctx, r, col) {
   ctx.stroke();
 }
 // his shield, with his shield piece: Thorns' spikes round the rim, Iron Wall's tower shield (a scutum, far bigger), or Bait's spiral
-function drawFoeShield(ctx, H, k, lk) {
-  const g = lk.gear && lk.gear.shield, tower = g && g.id === 'ironwall', parma = lk.helm === 'hoplo' && !tower;
+// With the kit his type's painted shield (Iron Wall's tower: the scutum, bigger) is drawn at the drawn one's size; dk: the sprites' pixel ratio.
+function drawFoeShield(ctx, H, k, lk, dk = 1) {
+  const g = lk.gear && lk.gear.shield, tower = g && g.id === 'ironwall', kind = lk.kit ? (tower ? 'scutum' : lk.kit.shield) : null;
+  const SC = TUNING.foeShield, im = kind && shieldPic(kind, (kind === 'scutum' ? SC.h : SC.r * 2) * H * k * dk * (tower ? SC.tower[1] : 1)), parma = im ? kind !== 'scutum' : lk.helm === 'hoplo' && !tower;
   ctx.save();
-  if (tower) ctx.scale(1.25, 1.45);
+  if (tower) ctx.scale(SC.tower[0], SC.tower[1]);
   if (g && g.id === 'thorns') {
     const n = 10, w = 0.17 * H * k, h = 0.32 * H * k, r = 0.1 * H * k;
     for (let i = 0; i < n; i++) {
@@ -4301,7 +4396,8 @@ function drawFoeShield(ctx, H, k, lk) {
       spike(ctx, ex * 0.95, ey * 0.95, a, 0.035 * H * k, 0.02 * H * k, BRONZE, true);
     }
   }
-  (parma ? drawParma : drawScutum)(ctx, H, k);
+  if (im) { const J = im.J, s = (kind === 'scutum' ? SC.h / J.h : SC.r / J.r) * H * k, w = J.size[0] * s, h = J.size[1] * s; ctx.drawImage(im.im, -w / 2, -h / 2, w, h); }
+  else (parma ? drawParma : drawScutum)(ctx, H, k);
   if (g && g.id === 'bait') spiral(ctx, (parma ? 0.1 : 0.085) * H * k, FAM_LOOK.trick.hi);
   if (g) gearGlint(ctx, 0.03 * H * k, -0.06 * H * k, 0.03 * H, g, 0.6);
   ctx.restore();
@@ -4445,7 +4541,7 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
   const sw = live ? state.sw : null, bashing = sw && sw.pose === 'bash';
   if (lk.gear && (lk.gear.cloak || (lk.tailor && lk.tailor.cloak))) { if (!fm.cloak) fm.cloak = mkPart(CLOAK, false); drawPart(ctx, E, fm.cloak, H, lk, null); }
   drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
-  if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk));
+  if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk, Math.min(E.dpr || 1, TUNING.skin.maxDpr)));
   drawPart(ctx, E, P('legs'), H, lk, null);
   drawPart(ctx, E, P('belly'), H, lk, null);
   if (lk.net && !(sw && sw.pose === 'net' && sw.fin <= 0)) drawBeltNet(ctx, H);
@@ -4465,7 +4561,7 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
     ctx.restore();
     if (live && sw && sw.puppet && sw.fin <= 0) puppetStrings(ctx, fm, H);
     drawSlots(ctx, E, F, H, fm, lk, live);
-    if (fm.shield && bashing) { ctx.save(); ctx.translate((0.2 + 0.1 * (sw.fin > 0 ? 1 : clamp(sw.t / sw.wind, 0, 1))) * H, -0.52 * H); drawFoeShield(ctx, H, 1, lk); ctx.restore(); }
+    if (fm.shield && bashing) { ctx.save(); ctx.translate((0.2 + 0.1 * (sw.fin > 0 ? 1 : clamp(sw.t / sw.wind, 0, 1))) * H, -0.52 * H); drawFoeShield(ctx, H, 1, lk, Math.min(E.dpr || 1, TUNING.skin.maxDpr)); ctx.restore(); }
     markLamed(ctx, fm, H);
   }
   ctx.globalAlpha = 1;
@@ -4527,7 +4623,16 @@ function drawSwordArm(ctx, E) {
   const lk = lookFor(state.you, false), G = lk.gear;
   // the kit: the painted upper arm now, the forearm and fist over the grip at the end (with the arm's gear on it)
   const aw = TUNING.kit.arm * H, kpx = aw * Math.min(E.dpr || 1, TUNING.skin.maxDpr), kU = lk.kit && kitPic('upperarm', lk.kit.tier, kpx), kF = lk.kit && kitPic('forearm', lk.kit.tier, kpx), kit = kU && kF;
-  if (kit) drawSeg(ctx, kU, [h.sx, h.sy], [h.ex, h.ey], aw);
+  // The PNGs face right, their back (-x) to the rear. The arm bends wherever the finger leads, so each half is mirrored when it would face the wrong
+  // way: the upper arm's back to the outside of the elbow, the fist's fingers toward the hilt (kept as they were when the arm is straight or the blade
+  // runs along the forearm, so they never flicker).
+  if (kit) {
+    const lu = Math.hypot(h.ex - h.sx, h.ey - h.sy) || 1, lf = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, F = TUNING.kit.flip;
+    const u = (-(h.ey - h.sy) * (h.ex - (h.sx + h.hx) / 2) + (h.ex - h.sx) * (h.ey - (h.sy + h.hy) / 2)) / (lu * lu), f = (-(h.hy - h.ey) * bx + (h.hx - h.ex) * by) / lf;
+    if (Math.abs(u) > F[0]) h.flipU = u < 0;
+    if (Math.abs(f) > F[1]) h.flipF = f < 0;
+    drawSeg(ctx, kU, [h.sx, h.sy], [h.ex, h.ey], aw, !!h.flipU);
+  }
   else {
     limb(ctx, [[h.sx, h.sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
     liveArmGear(ctx, h, H, lk);
@@ -4597,7 +4702,7 @@ function drawSwordArm(ctx, E) {
     else weaponGear(ctx, G.weapon, [gx, gy], tip, w, [h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H], H);
   }
   if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(h.ux, h.uy, 6, 0, 6.28); ctx.fill(); }
-  if (kit) { drawSeg(ctx, kF, [h.ex, h.ey], [h.hx, h.hy], aw); liveArmGear(ctx, h, H, lk); }
+  if (kit) { drawSeg(ctx, kF, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF); liveArmGear(ctx, h, H, lk); }
   else {
     ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
     ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();
@@ -4621,25 +4726,31 @@ function drawShield(ctx, E) {
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
   const r = lerp(0.11, 0.2, sh.up) * H, cx = hx, cy = hy, tower = g && g.id === 'ironwall';
   const dk = Math.min(E.dpr || 1, TUNING.skin.maxDpr), apx = TUNING.kit.shArm * H * dk, kU = lk.kit && kitPic('upperarm', lk.kit.tier, apx), kF = lk.kit && kitPic('forearm', lk.kit.tier, apx);
-  const kit = kU && kF, kS = kit && !tower && kitPic('shield', '', 0.2 * H * dk);
-  if (kit) { const mx = (sx + hx) / 2, my = (sy + hy) / 2, aw = TUNING.kit.shArm * H; drawSeg(ctx, kU, [sx, sy], [mx, my], aw); drawSeg(ctx, kF, [mx, my], [hx, hy], aw); }
-  else limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
+  // the kit: your type's painted shield (Iron Wall's tower: the scutum at the tower's size), the manica on a plated shield arm
+  const kind = lk.kit && (tower ? 'scutum' : lk.kit.shield), TL = TUNING.kit.tall, rm = 0.2 * H * dk;
+  const kit = kU && kF, kS = kit && shieldPic(kind, kind === 'scutum' ? rm * TL[1] * 2 : rm * 2), tall = tower || (kS && kind === 'scutum');
+  if (kit) {
+    const mx = (sx + hx) / 2, my = (sy + hy) / 2, aw = TUNING.kit.shArm * H, arm = state.you.parts.find((q) => q.d.id === 'armB'), M = arm && arm.armour && gearPic('manica', aw * dk);
+    drawSeg(ctx, kU, [sx, sy], [mx, my], aw); drawSeg(ctx, kF, [mx, my], [hx, hy], aw);
+    if (M) drawSeg(ctx, M, [mx, my], lerp2([mx, my], [hx, hy], M.J.to), aw);
+  } else limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
   // Untouchable: no shield at all, an empty fist (the kit's forearm ends in one)
   if (noShield() && kit) return;
   if (noShield()) { ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(hx, hy, 0.042 * H, 0, TAU); ctx.fill(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke(); return; }
   // the round bronze shield, or Iron Wall's tower shield, tall and square
-  const shape = (k) => (tower ? rrect(ctx, -r * 0.72 * k, -r * 1.2 * k, r * 1.44 * k, r * 2.4 * k, r * 0.2 * k) : (ctx.beginPath(), ctx.arc(0, 0, r * k, 0, TAU)));
+  const tw = tower ? 0.72 : TL[1], th = tower ? 1.2 : TL[0];
+  const shape = (k) => (tall ? rrect(ctx, -r * tw * k, -r * th * k, r * tw * 2 * k, r * th * 2 * k, r * 0.2 * k) : (ctx.beginPath(), ctx.arc(0, 0, r * k, 0, TAU)));
   ctx.save(); ctx.translate(cx, cy);
-  if (g && g.id === 'thorns') for (let i = 0; i < 10; i++) { const a = i * TAU / 10; spike(ctx, Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92, a, r * 0.32, r * 0.16, BRONZE, true); }
+  if (g && g.id === 'thorns') for (let i = 0; i < 10; i++) { const a = i * TAU / 10, ex = tall ? clamp(Math.cos(a) * r * tw * 2, -r * tw, r * tw) : Math.cos(a) * r * 0.92, ey = tall ? clamp(Math.sin(a) * r * th * 2, -r * th, r * th) : Math.sin(a) * r * 0.92; spike(ctx, ex, ey, a, r * 0.32, r * 0.16, BRONZE, true); }
   const gr = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, tower ? r * 1.3 : r);
   gr.addColorStop(0, '#b9803a'); gr.addColorStop(1, '#6d4519');
-  if (kS) { const s = r / TUNING.kit.shield.r; ctx.drawImage(kS.im, -kS.im.width / 2 * s / kS.kx, -kS.im.height / 2 * s / kS.ky, kS.im.width * s / kS.kx, kS.im.height * s / kS.ky); }
+  if (kS) { const J = kS.J, s = kind === 'scutum' ? r * th / J.h : r / J.r, w = J.size[0] * s, h = J.size[1] * s; ctx.drawImage(kS.im, -w / 2, -h / 2, w, h); }
   else {
     shape(1); ctx.fillStyle = gr; ctx.fill();
     ctx.strokeStyle = sh.flash > 0 ? '#ffffff' : '#2a1c10'; ctx.lineWidth = 4; ctx.stroke();
     ctx.strokeStyle = '#d6b04a'; ctx.lineWidth = 3; shape(0.82); ctx.stroke();
   }
-  if (tower) { ctx.lineWidth = 2; line(ctx, 0, -r * 0.95, 0, r * 0.95); for (const k of [-0.6, 0.6]) line(ctx, -r * 0.55, r * k, r * 0.55, r * k); }
+  if (tower && !kS) { ctx.lineWidth = 2; line(ctx, 0, -r * 0.95, 0, r * 0.95); for (const k of [-0.6, 0.6]) line(ctx, -r * 0.55, r * k, r * 0.55, r * k); }
   if (tp) shieldPaint(ctx, r, tp);
   if (g && g.id === 'bait') { spiral(ctx, r * 0.8, FAM_LOOK.trick.hi); ctx.strokeStyle = '#2a1c10'; }
   if (!kS) { ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, 6.28); ctx.fill(); ctx.stroke(); }
@@ -4713,6 +4824,88 @@ function beastMarks(ctx, fm, p, H) {
   if (p.flash > 0) { path(ctx, p.d, H); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,240,200,${0.6 * p.flash / 0.16})`; ctx.fill(); }
   ctx.restore();
 }
+// A beast's face in its head frame: the jaw opening on a roar (a dark mouth with two fangs under the muzzle), then the muzzle, nose and eye; over the
+// painted head (painted) the roar is a dark wedge hinged at the painted mouth's corner (`hinge`, `lip`), then only the tell's glint and brow.
+function beastFace(ctx, H, hx, hy, q, C, lion, live, painted) {
+  // the jaw, open by q.jaw: a dark mouth with two fangs under the muzzle; over the painted head the mouth is a wedge pinned to its muzzle
+  const ja = (painted ? TUNING.beastArt.gape : 0.55) * q.jaw;
+  if (ja > 0.02 && painted) {
+    const A = TUNING.beastArt[lion ? 'lion' : 'bear'].head, EA = TUNING.beastArt.eyeAt, s = A.u * H, ox = hx + EA[0] * H - A.eye[0] * s, oy = hy + EA[1] * H - A.eye[1] * s;
+    const jx = ox + A.hinge[0] * s, jy = oy + A.hinge[1] * s, lx = ox + A.lip[0] * s - jx, ly = oy + A.lip[1] * s - jy, ca = Math.cos(ja), sa = Math.sin(ja);
+    const dx = lx * ca - ly * sa, dy = lx * sa + ly * ca;
+    ctx.fillStyle = '#4a0e0a'; ctx.beginPath(); ctx.moveTo(jx, jy); ctx.lineTo(jx + lx, jy + ly); ctx.lineTo(jx + dx, jy + dy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff8e8'; ctx.beginPath(); ctx.moveTo(jx + lx * 0.9, jy + ly * 0.9); ctx.lineTo(jx + lx * 0.9 + 0.012 * H * sa, jy + ly * 0.9 + 0.016 * H); ctx.lineTo(jx + lx * 0.7, jy + ly * 0.7); ctx.fill();
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(jx, jy); ctx.lineTo(jx + dx, jy + dy); ctx.stroke();
+  } else if (ja > 0.02) {
+    const jx = hx + 0.01 * H, jy = hy + 0.035 * H;
+    ctx.save(); ctx.translate(jx, jy); ctx.rotate(ja);
+    ctx.fillStyle = '#5a1410'; ctx.beginPath(); ctx.moveTo(0, -0.02 * H); ctx.lineTo(0.085 * H, -0.02 * H); ctx.lineTo(0.075 * H, 0.012 * H); ctx.lineTo(0, 0.012 * H); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C.light; ctx.beginPath(); ctx.moveTo(0, 0.004 * H); ctx.lineTo(0.08 * H, 0.004 * H); ctx.lineTo(0.07 * H, 0.022 * H); ctx.lineTo(0.005 * H, 0.024 * H); ctx.closePath(); ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = '#fff8e8'; for (const fx of [0.06, 0.035]) { ctx.beginPath(); ctx.moveTo(fx * H, 0.004 * H); ctx.lineTo((fx + 0.008) * H, -0.012 * H); ctx.lineTo((fx + 0.016) * H, 0.004 * H); ctx.fill(); }
+    ctx.restore();
+  }
+  if (!painted) {
+    ctx.fillStyle = C.light; ctx.beginPath();
+    if (lion) ctx.ellipse(hx + 0.05 * H, hy + 0.025 * H, 0.045 * H, 0.032 * H, 0, 0, TAU); else ctx.ellipse(hx + 0.065 * H, hy + 0.02 * H, 0.05 * H, 0.03 * H, 0.1, 0, TAU);
+    ctx.fill(); ctx.strokeStyle = C.line; ctx.stroke();
+    ctx.fillStyle = C.nose; ctx.beginPath(); ctx.arc(hx + (lion ? 0.086 : 0.108) * H, hy + 0.01 * H, (lion ? 0.012 : 0.015) * H, 0, TAU); ctx.fill();
+  }
+  // the eye, a brow drawn down over it in a tell (the painted head has its own eye: only the tell's gold glint goes on it)
+  const EA = TUNING.beastArt.eyeAt, ex = hx + EA[0] * H, ey = hy + EA[1] * H, tell = live && state.sw && state.sw.fin <= 0;
+  if (!painted) { ctx.fillStyle = '#1a0f08'; ctx.beginPath(); ctx.arc(ex, ey, 0.01 * H, 0, TAU); ctx.fill(); }
+  if (!painted || tell) { ctx.fillStyle = tell ? '#ffd24a' : '#f6e7c8'; ctx.beginPath(); ctx.arc(ex + 0.003 * H, ey - 0.003 * H, 0.0035 * H, 0, TAU); ctx.fill(); }
+  if (tell) { ctx.strokeStyle = C.line; ctx.lineWidth = 2; line(ctx, ex - 0.018 * H, ey - 0.02 * H, ex + 0.016 * H, ey - 0.008 * H); }
+}
+// the lion's tail tip (its body frame), lashing faster as q.tail rises
+function tailTip(q) { const ph = state.m * (1.6 + 1.6 * q.tail); return [-0.43 + 0.02 * Math.sin(ph), -0.47 + 0.03 * Math.cos(ph * 0.8)]; }
+// The beast's painted kit (step 6b): each part's image by name (a young beast's -young part where there is one), copies scaled near their size on
+// screen, the far legs' shaded; null until every one has loaded, and the drawn beast stays.
+function beastKit(E, fm, H) {
+  if (!kitOn() || !ART.has(`beast-${fm.beast}-body`)) return null;
+  const A = TUNING.beastArt[fm.beast], dk = Math.min(E.dpr || 1, TUNING.skin.maxDpr), dark = TUNING.beastArt.far, lw = TUNING.beastArt.leg * H * dk;
+  const nm = (part) => { const n = `beast-${fm.beast}-${part}`; return fm.young && ART.has(`${n}-young`) ? `${n}-young` : n; };
+  const K = {
+    body: artPic(nm('body'), A.body, (A.body.box[2] - A.body.box[0]) * H * dk), head: artPic(nm('head'), A.head, A.head.size[0] * A.head.u * H * dk),
+    up: artPic(nm('upperleg'), A.upper, lw), lo: artPic(nm('lowerleg'), A.lower, lw), upD: artPic(nm('upperleg'), A.upper, lw, dark), loD: artPic(nm('lowerleg'), A.lower, lw, dark),
+    tail: A.tail ? artPic(nm('tail'), A.tail, A.tail.size[0] * A.head.u * H * dk) : null,
+  };
+  return K.body && K.head && K.up && K.lo && K.upD && K.loD && (!A.tail || K.tail) ? K : null;
+}
+// The painted beast, drawn from its pose like the drawn one and in the same order: the far legs (shaded), the tail and the body (mirrored: its PNG
+// faces left), the near hind leg, the head pinned by its eye with the tells on it, the near foreleg; each part's cuts and flash on top.
+function beastPainted(ctx, fm, H, K, q, live, C, P, fw, hw) {
+  const A = TUNING.beastArt[fm.beast], fr = fm.fr, lg = fm.lg, lion = fm.beast === 'lion';
+  // the copies are at the screen's pixel ratio, so an unsmoothed draw stays clean and costs far less than a smoothed one
+  ctx.imageSmoothingEnabled = false;
+  const paw = fm.paw || (fm.paw = [false, false, false, false]);
+  const leg = (i, w, dark) => {
+    const [a, k, f] = lg[i], S = (p) => [p[0] * H, p[1] * H], kk = S(k), ff = S(f);
+    drawSeg(ctx, dark ? K.upD : K.up, S(a), kk, w * H);
+    // The paw points the way the beast faces: the PNG's toes (+x) point ahead by the bone's drop share, so the lower leg is mirrored when they point
+    // back, past a dead band so a paw swinging through the knee's height never pops.
+    const t = (ff[1] - kk[1]) / (Math.hypot(ff[0] - kk[0], ff[1] - kk[1]) || 1);
+    if (Math.abs(t) > TUNING.beastArt.pawBand) paw[i] = t < 0;
+    drawSeg(ctx, dark ? K.loD : K.lo, kk, ff, w * H, paw[i]);
+  };
+  leg(1, fw, true); leg(3, hw, true);
+  ctx.save(); inFrame(ctx, fr.body, H);
+  if (K.tail) { const [tx, ty] = tailTip(q); drawSeg(ctx, K.tail, [A.tail.root[0] * H, A.tail.root[1] * H], [tx * H, ty * H], 0); }
+  const B = A.body.box;
+  ctx.save(); ctx.scale(-1, 1); ctx.drawImage(K.body.im, -B[2] * H, B[1] * H, (B[2] - B[0]) * H, (B[3] - B[1]) * H); ctx.restore();
+  ctx.restore();
+  beastMarks(ctx, fm, P('chest'), H); beastMarks(ctx, fm, P('belly'), H);
+  leg(2, hw, false);
+  beastMarks(ctx, fm, P('legs'), H);
+  ctx.save(); inFrame(ctx, fr.head, H);
+  const hd = P('head').d, hx = hd.x * H, hy = hd.y * H, s = A.head.u * H, EA = TUNING.beastArt.eyeAt;
+  ctx.drawImage(K.head.im, hx + EA[0] * H - A.head.eye[0] * s, hy + EA[1] * H - A.head.eye[1] * s, A.head.size[0] * s, A.head.size[1] * s);
+  beastFace(ctx, H, hx, hy, q, C, lion, live, true);
+  ctx.restore();
+  beastMarks(ctx, fm, P('head'), H);
+  leg(0, fw, false);
+  beastMarks(ctx, fm, P('legF'), H);
+  ctx.imageSmoothingEnabled = true;
+}
 function drawBeast(ctx, E, F, fm, who, ga = 1) {
   const H = F.H, live = who === 'foe', lion = fm.beast === 'lion', C = BEAST_COL[fm.beast], fr = fm.fr, lg = fm.lg, q = fm.bq || beastRestQ();
   if (!fr || !lg || !fr.body) return;
@@ -4729,66 +4922,52 @@ function drawBeast(ctx, E, F, fm, who, ga = 1) {
   const sc = live && state.pop < 1 ? 0.85 + 0.15 * (1 - state.pop) : 1;
   ctx.scale(sc, sc);
   ctx.globalAlpha = ga * (live && state.pop < 1 ? 1 - state.pop * 0.7 : 1) * (1 - fall * 0.5);
-  const fw = lion ? 0.06 : 0.075, hw = lion ? 0.065 : 0.08;
-  beastLeg(ctx, lg[1], H, fw, C.dark, C.line); beastLeg(ctx, lg[3], H, hw, C.dark, C.line);
-  // the body: tail, torso with its shaded belly and lit back, a bear's fur
-  ctx.save(); inFrame(ctx, fr.body, H);
-  if (lion) {
-    const ph = state.m * (1.6 + 1.6 * q.tail), tx = -0.43 + 0.02 * Math.sin(ph), ty = -0.47 + 0.03 * Math.cos(ph * 0.8);
-    ctx.lineCap = 'round'; ctx.strokeStyle = C.line; ctx.lineWidth = 0.018 * H + 3; ctx.beginPath(); ctx.moveTo(-0.33 * H, -0.33 * H); ctx.quadraticCurveTo(-0.45 * H, -0.3 * H, tx * H, ty * H); ctx.stroke();
-    ctx.strokeStyle = C.body; ctx.lineWidth = 0.018 * H; ctx.stroke();
-    ctx.fillStyle = C.mane; ctx.beginPath(); ctx.ellipse(tx * H, ty * H, 0.022 * H, 0.03 * H, 0.4, 0, TAU); ctx.fill();
-  } else { ctx.fillStyle = C.dark; ctx.beginPath(); ctx.ellipse(-0.35 * H, -0.35 * H, 0.03 * H, 0.022 * H, 0, 0, TAU); ctx.fill(); }
-  beastTorso(ctx, lion, H); ctx.fillStyle = C.body; ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.stroke();
-  ctx.save(); beastTorso(ctx, lion, H); ctx.clip();
-  ctx.fillStyle = 'rgba(40,22,8,0.3)'; ctx.fillRect(-0.4 * H, -0.27 * H, 0.6 * H, 0.1 * H);
-  ctx.fillStyle = 'rgba(255,236,200,0.16)'; ctx.fillRect(-0.4 * H, -0.47 * H, 0.6 * H, 0.08 * H);
-  if (!lion) { ctx.strokeStyle = 'rgba(20,12,6,0.4)'; ctx.lineWidth = 1.2; for (let i = 0; i < 9; i++) { const x = (-0.3 + i * 0.05) * H, y = (-0.4 + (i % 3) * 0.05) * H; line(ctx, x, y, x - 0.015 * H, y + 0.03 * H); } }
-  ctx.restore();
-  ctx.restore();
-  beastMarks(ctx, fm, P('chest'), H); beastMarks(ctx, fm, P('belly'), H);
-  // the near hind leg, its haunch over the hip
-  const [ha] = lg[2];
-  beastLeg(ctx, lg[2], H, hw, C.body, C.line);
-  ctx.fillStyle = C.body; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(ha[0] * H, (ha[1] + 0.03) * H, 0.075 * H, 0.085 * H, -0.3, 0, TAU); ctx.fill(); ctx.stroke();
-  beastMarks(ctx, fm, P('legs'), H);
-  // the head: the lion's mane behind it, ears, the muzzle and its nose, an eye, the jaw opening on a roar
-  ctx.save(); inFrame(ctx, fr.head, H);
-  const hd = P('head').d, hx = hd.x * H, hy = hd.y * H, r = hd.r * H;
-  if (lion) {
-    ctx.fillStyle = C.mane; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5; ctx.beginPath();
-    // the mane: a shaggy ring round the head that hangs down over the chest
-    for (let i = 0; i < 22; i++) { const a = i * TAU / 22, rr = (i % 2 ? 0.1 : 0.128) * H * (Math.sin(a) > 0 ? 1.12 : 1); ctx.lineTo(hx - 0.045 * H + Math.cos(a) * rr, hy + 0.01 * H + Math.sin(a) * rr); }
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = C.maneHi; ctx.beginPath(); ctx.arc(hx - 0.04 * H, hy + 0.005 * H, 0.085 * H, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(60,30,10,0.55)'; ctx.lineWidth = 1.3; for (let i = 0; i < 7; i++) { const a = 0.6 + i * 0.55; line(ctx, hx - 0.045 * H + Math.cos(a) * 0.07 * H, hy + Math.sin(a) * 0.07 * H, hx - 0.045 * H + Math.cos(a) * 0.11 * H, hy + Math.sin(a) * 0.11 * H); }
-  } else for (const [ex, ey] of [[-0.035, -0.06], [-0.005, -0.068]]) { ctx.fillStyle = C.dark; ctx.beginPath(); ctx.arc(hx + ex * H, hy + ey * H, 0.022 * H, 0, TAU); ctx.fill(); }
-  ctx.fillStyle = C.body; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5;
-  if (lion) { ctx.beginPath(); ctx.arc(hx - 0.025 * H, hy - 0.06 * H, 0.02 * H, 0, TAU); ctx.fill(); ctx.stroke(); }
-  ctx.beginPath(); ctx.arc(hx, hy, r * (lion ? 0.95 : 0.9), 0, TAU); ctx.fill(); ctx.stroke();
-  // the jaw, open by q.jaw: a dark mouth with two fangs under the muzzle
-  const jx = hx + 0.01 * H, jy = hy + 0.035 * H, ja = 0.55 * q.jaw;
-  if (ja > 0.02) {
-    ctx.save(); ctx.translate(jx, jy); ctx.rotate(ja);
-    ctx.fillStyle = '#5a1410'; ctx.beginPath(); ctx.moveTo(0, -0.02 * H); ctx.lineTo(0.085 * H, -0.02 * H); ctx.lineTo(0.075 * H, 0.012 * H); ctx.lineTo(0, 0.012 * H); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = C.light; ctx.beginPath(); ctx.moveTo(0, 0.004 * H); ctx.lineTo(0.08 * H, 0.004 * H); ctx.lineTo(0.07 * H, 0.022 * H); ctx.lineTo(0.005 * H, 0.024 * H); ctx.closePath(); ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 1.2; ctx.stroke();
-    ctx.fillStyle = '#fff8e8'; for (const fx of [0.06, 0.035]) { ctx.beginPath(); ctx.moveTo(fx * H, 0.004 * H); ctx.lineTo((fx + 0.008) * H, -0.012 * H); ctx.lineTo((fx + 0.016) * H, 0.004 * H); ctx.fill(); }
+  const fw = lion ? 0.06 : 0.075, hw = lion ? 0.065 : 0.08, K = beastKit(E, fm, H);
+  if (K) beastPainted(ctx, fm, H, K, q, live, C, P, fw, hw);
+  else {
+    beastLeg(ctx, lg[1], H, fw, C.dark, C.line); beastLeg(ctx, lg[3], H, hw, C.dark, C.line);
+    // the body: tail, torso with its shaded belly and lit back, a bear's fur
+    ctx.save(); inFrame(ctx, fr.body, H);
+    if (lion) {
+      const [tx, ty] = tailTip(q);
+      ctx.lineCap = 'round'; ctx.strokeStyle = C.line; ctx.lineWidth = 0.018 * H + 3; ctx.beginPath(); ctx.moveTo(-0.33 * H, -0.33 * H); ctx.quadraticCurveTo(-0.45 * H, -0.3 * H, tx * H, ty * H); ctx.stroke();
+      ctx.strokeStyle = C.body; ctx.lineWidth = 0.018 * H; ctx.stroke();
+      ctx.fillStyle = C.mane; ctx.beginPath(); ctx.ellipse(tx * H, ty * H, 0.022 * H, 0.03 * H, 0.4, 0, TAU); ctx.fill();
+    } else { ctx.fillStyle = C.dark; ctx.beginPath(); ctx.ellipse(-0.35 * H, -0.35 * H, 0.03 * H, 0.022 * H, 0, 0, TAU); ctx.fill(); }
+    beastTorso(ctx, lion, H); ctx.fillStyle = C.body; ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.stroke();
+    ctx.save(); beastTorso(ctx, lion, H); ctx.clip();
+    ctx.fillStyle = 'rgba(40,22,8,0.3)'; ctx.fillRect(-0.4 * H, -0.27 * H, 0.6 * H, 0.1 * H);
+    ctx.fillStyle = 'rgba(255,236,200,0.16)'; ctx.fillRect(-0.4 * H, -0.47 * H, 0.6 * H, 0.08 * H);
+    if (!lion) { ctx.strokeStyle = 'rgba(20,12,6,0.4)'; ctx.lineWidth = 1.2; for (let i = 0; i < 9; i++) { const x = (-0.3 + i * 0.05) * H, y = (-0.4 + (i % 3) * 0.05) * H; line(ctx, x, y, x - 0.015 * H, y + 0.03 * H); } }
     ctx.restore();
+    ctx.restore();
+    beastMarks(ctx, fm, P('chest'), H); beastMarks(ctx, fm, P('belly'), H);
+    // the near hind leg, its haunch over the hip
+    const [ha] = lg[2];
+    beastLeg(ctx, lg[2], H, hw, C.body, C.line);
+    ctx.fillStyle = C.body; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(ha[0] * H, (ha[1] + 0.03) * H, 0.075 * H, 0.085 * H, -0.3, 0, TAU); ctx.fill(); ctx.stroke();
+    beastMarks(ctx, fm, P('legs'), H);
+    // the head: the lion's mane behind it, ears, the muzzle and its nose, an eye, the jaw opening on a roar
+    ctx.save(); inFrame(ctx, fr.head, H);
+    const hd = P('head').d, hx = hd.x * H, hy = hd.y * H, r = hd.r * H;
+    if (lion) {
+      ctx.fillStyle = C.mane; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5; ctx.beginPath();
+      // the mane: a shaggy ring round the head that hangs down over the chest
+      for (let i = 0; i < 22; i++) { const a = i * TAU / 22, rr = (i % 2 ? 0.1 : 0.128) * H * (Math.sin(a) > 0 ? 1.12 : 1); ctx.lineTo(hx - 0.045 * H + Math.cos(a) * rr, hy + 0.01 * H + Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = C.maneHi; ctx.beginPath(); ctx.arc(hx - 0.04 * H, hy + 0.005 * H, 0.085 * H, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(60,30,10,0.55)'; ctx.lineWidth = 1.3; for (let i = 0; i < 7; i++) { const a = 0.6 + i * 0.55; line(ctx, hx - 0.045 * H + Math.cos(a) * 0.07 * H, hy + Math.sin(a) * 0.07 * H, hx - 0.045 * H + Math.cos(a) * 0.11 * H, hy + Math.sin(a) * 0.11 * H); }
+    } else for (const [ex, ey] of [[-0.035, -0.06], [-0.005, -0.068]]) { ctx.fillStyle = C.dark; ctx.beginPath(); ctx.arc(hx + ex * H, hy + ey * H, 0.022 * H, 0, TAU); ctx.fill(); }
+    ctx.fillStyle = C.body; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5;
+    if (lion) { ctx.beginPath(); ctx.arc(hx - 0.025 * H, hy - 0.06 * H, 0.02 * H, 0, TAU); ctx.fill(); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(hx, hy, r * (lion ? 0.95 : 0.9), 0, TAU); ctx.fill(); ctx.stroke();
+    beastFace(ctx, H, hx, hy, q, C, lion, live, false);
+    ctx.restore();
+    beastMarks(ctx, fm, P('head'), H);
+    // the near foreleg over the chest, a red cross on a lamed leg, then the gaps and their light
+    beastLeg(ctx, lg[0], H, fw, C.body, C.line);
+    beastMarks(ctx, fm, P('legF'), H);
   }
-  ctx.fillStyle = C.light; ctx.beginPath();
-  if (lion) ctx.ellipse(hx + 0.05 * H, hy + 0.025 * H, 0.045 * H, 0.032 * H, 0, 0, TAU); else ctx.ellipse(hx + 0.065 * H, hy + 0.02 * H, 0.05 * H, 0.03 * H, 0.1, 0, TAU);
-  ctx.fill(); ctx.strokeStyle = C.line; ctx.stroke();
-  ctx.fillStyle = C.nose; ctx.beginPath(); ctx.arc(hx + (lion ? 0.086 : 0.108) * H, hy + 0.01 * H, (lion ? 0.012 : 0.015) * H, 0, TAU); ctx.fill();
-  // the eye, a brow drawn down over it in a tell
-  const ex = hx + 0.02 * H, ey = hy - 0.018 * H, tell = live && state.sw && state.sw.fin <= 0;
-  ctx.fillStyle = '#1a0f08'; ctx.beginPath(); ctx.arc(ex, ey, 0.01 * H, 0, TAU); ctx.fill();
-  ctx.fillStyle = tell ? '#ffd24a' : '#f6e7c8'; ctx.beginPath(); ctx.arc(ex + 0.003 * H, ey - 0.003 * H, 0.0035 * H, 0, TAU); ctx.fill();
-  if (tell) { ctx.strokeStyle = C.line; ctx.lineWidth = 2; line(ctx, ex - 0.018 * H, ey - 0.02 * H, ex + 0.016 * H, ey - 0.008 * H); }
-  ctx.restore();
-  beastMarks(ctx, fm, P('head'), H);
-  // the near foreleg over the chest, a red cross on a lamed leg, then the gaps and their light
-  beastLeg(ctx, lg[0], H, fw, C.body, C.line);
-  beastMarks(ctx, fm, P('legF'), H);
   markLamed(ctx, fm, H);
   for (const p of fm.parts) if (p.slot) { ctx.save(); inFrame(ctx, fr[p.d.frame], H); beastSlot(ctx, p, H); ctx.restore(); }
   if (live) for (const p of fm.parts) if (p.slot) slotLight(ctx, F, p, H, fm);
@@ -5330,10 +5509,11 @@ function tokenButton(E, label, cx, cy, n, on = true, sub = null) {
 // ----- fighter cards: the intro before each bout, and the row on the end card -----
 const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps range', axe: 'big smashes crack shields', dagger: 'rushes in, nets slow you' };
 // A little body with his plates (grey) and open joint slots (dark), at scale s px per body unit, feet at (x, y). With the kit on and str given (his Strength),
-// the painted body of his muscle tier is the body (yours, with the kit's helmet on a plated head) and only the plates, guards and slots are drawn over it.
-function kitIcon(ctx, parts, s, str, you) {
-  const K = TUNING.kit, t = kitTier(str), head = parts.find((q) => q.d.id === 'head'), kh = you && head && head.armour && kitPic('helmet');
-  const Hd = kh || kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
+// the painted body of his muscle tier is the body (a plated head in his type's painted helmet, gm: his GTYPE's helm) and only the plates, guards and
+// slots are drawn over it.
+function kitIcon(ctx, parts, s, str, gm) {
+  const K = TUNING.kit, t = kitTier(str), head = parts.find((q) => q.d.id === 'head'), hk = KIT_HELM[gm] || 'gallic';
+  const kh = head && head.armour && artPic(`kit-helmet-${hk}`, K.helm[hk]), Hd = kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
   if (!Hd || !T || !U || !F || !Th || !Sh) return false;
   const hx = (head ? head.d.x : 0) * s;
   LEGS.forEach(([hip, knee, ank]) => {
@@ -5341,7 +5521,8 @@ function kitIcon(ctx, parts, s, str, you) {
     drawSeg(ctx, Th, P(hip), P(knee), K.leg * s); drawSeg(ctx, Sh, P(knee), P(ank), K.leg * s);
   });
   drawSeg(ctx, T, [0, K.neck * s], [0, K.belt * s], PARTS[pidx('belly')].w * s);
-  drawSeg(ctx, Hd, [hx, K.top * s], [hx, K.chin * s], 0);
+  if (!(kh && kh.J.closed)) drawSeg(ctx, Hd, [hx, K.top * s], [hx, K.chin * s], 0);
+  if (kh) drawSeg(ctx, kh, [hx, K.top * s], [hx, K.chin * s], 0);
   for (const q of parts) {
     const p = q.d;
     if (p.id !== 'armF' && p.id !== 'armB') continue;
@@ -5352,9 +5533,9 @@ function kitIcon(ctx, parts, s, str, you) {
   }
   return true;
 }
-function armourIcon(ctx, parts, x, y, s, str = 0, you = false) {
+function armourIcon(ctx, parts, x, y, s, str = 0, gm = null) {
   ctx.save(); ctx.translate(x, y);
-  const kit = str && kitOn() && kitIcon(ctx, parts, s, str, you), ga = ctx.globalAlpha;
+  const kit = str && kitOn() && kitIcon(ctx, parts, s, str, gm), ga = ctx.globalAlpha;
   for (const q of parts) {
     if (kit && !q.armour && !q.slot && !q.guard) continue;
     ctx.globalAlpha = kit && !q.slot ? ga * TUNING.kit.icon.plate : ga;
@@ -5464,7 +5645,7 @@ function drawIntro(ctx, E) {
   E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40 - 2 * bw), weight: '800', color: '#f0e6cc' });
   if (sub) E.text(sub, cx, y + 72, { size: bw ? fitSize(ctx, sub, 15, w - 2 * bw - 16) : 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   const lx = x + 80, s = 96;
-  armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s, d.str);
+  armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s, d.str, GTYPE[d.weapon.id].helm);
   E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 14, weight: '800', color: '#aab3bc' });
   const ng = (d.guards || []).length;
   E.text(ng ? `${d.set.slots - ng} open · ${ng} guarded` : `${d.set.slots} gaps open`, lx, y + b + 134, { size: 14, weight: '700', color: '#c4b99a' });
@@ -5535,7 +5716,7 @@ function drawBeastIntro(ctx, E) {
 }
 // a beast drawn small at rest on its card, w px from nose to tail, its feet at (x, y); its gaps show as on the sand
 function beastIcon(ctx, E, d, x, y, w) {
-  const B = TUNING.beasts[d.beast], s = w / (B.front + B.back + 0.08), ic = d.icon || (d.icon = { beast: d.beast, parts: beastParts(d.beast) });
+  const B = TUNING.beasts[d.beast], s = w / (B.front + B.back + 0.08), ic = d.icon || (d.icon = { beast: d.beast, young: d.young, parts: beastParts(d.beast) });
   beastRest(ic);
   drawBeast(ctx, E, { x: x - (B.back - B.front) / 2 * s, y, a: 0, dir: -1, H: s }, ic, 'edge');
 }
@@ -5588,7 +5769,7 @@ function pairCol(ctx, E, f, x, y, w, tag, ex) {
   E.text(tag, x + w / 2, y + 6, { size: 14, weight: '800', color: '#c4b99a' });
   const nm = (f.beast ? beastTitle(f) : f.name).toUpperCase();
   E.text(nm, x + w / 2, y + 26, { size: Math.max(14, fitSize(ctx, nm, 18, w - 8)), weight: '800', color: f.champion ? '#ffd24a' : '#f0e6cc' });
-  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, f.parts, x + 40, y + 122 + ex / 2, 80, f.str);
+  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, f.parts, x + 40, y + 122 + ex / 2, 80, f.str, GTYPE[f.weapon.id].helm);
   const rx = x + 84, rw = w - 88, ng = (f.guards || []).length, T = (t, yy, col = '#e2e8f0', wt = '700') => E.text(t, rx, yy, { size: 14, weight: wt, align: 'left', color: col });
   T(clipLine(ctx, f.beast ? `${f.size.name} · ${BEASTS[f.beast].name.toUpperCase()}` : `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
   profLine(ctx, E, f, rx, y + 69, rw, ex);
@@ -5747,7 +5928,7 @@ function drawMeCard(ctx, E, me, x, y, w, h) {
   const pk = `${noun[0].toUpperCase()}${noun.slice(1)}: starts with ${scs.length > 1 ? `${sc.name} + ${scs[1].name}` : `${sc.name} (${FAMS[sc.fam].name})`}`;
   E.text(pk, cx, y + 56, { size: Math.max(14, fitSize(ctx, pk, 14, w - 28, '700')), weight: '700', color: '#86efac' });
   const lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
-  armourIcon(ctx, playerParts(me), ax, y + 72 + s * 0.95, s, me.str, true);
+  armourIcon(ctx, playerParts(me), ax, y + 72 + s * 0.95, s, me.str, GTYPE[me.weapon].helm);
   E.text(`${A.name} ARMOUR`, ax, y + 174, { size: 14, weight: '800', color: '#aab3bc' });
   if (me.plates.length) wrapPx(ctx, `plated: ${me.plates.map((q) => (q === 'armB' ? 'shield arm' : q)).join(', ')}`, lw, 14).forEach((t, i) => E.text(t, ax, y + 192 + i * 16, { size: 14, color: '#c4b99a' }));
   const mx = x + 18 + lw, mw = w * 0.36;
