@@ -113,10 +113,12 @@
    "kit-base-shin-avg-A.png"
   ],
   "beast-lion-body": [
-   "beast-lion-body-A.png"
+   "beast-lion-body-A.png",
+   "beast-lion-body-B.png"
   ],
   "beast-bear-body": [
-   "beast-bear-body-A.png"
+   "beast-bear-body-A.png",
+   "beast-bear-body-B.png"
   ],
   "beast-lion-head": [
    "beast-lion-head-A.png"
@@ -125,16 +127,20 @@
    "beast-bear-head-A.png"
   ],
   "beast-lion-upperleg": [
-   "beast-lion-upperleg-A.png"
+   "beast-lion-upperleg-A.png",
+   "beast-lion-upperleg-B.png"
   ],
   "beast-bear-upperleg": [
-   "beast-bear-upperleg-A.png"
+   "beast-bear-upperleg-A.png",
+   "beast-bear-upperleg-B.png"
   ],
   "beast-lion-lowerleg": [
-   "beast-lion-lowerleg-A.png"
+   "beast-lion-lowerleg-A.png",
+   "beast-lion-lowerleg-B.png"
   ],
   "beast-bear-lowerleg": [
-   "beast-bear-lowerleg-A.png"
+   "beast-bear-lowerleg-A.png",
+   "beast-bear-lowerleg-B.png"
   ],
   "beast-lion-tail": [
    "beast-lion-tail-A.png"
