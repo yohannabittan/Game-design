@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'ink-v32';
+const CACHE_VERSION = 'ink-v33';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'ink-v';
 // PACK16: the art chat's second batch (PRD v0.8), landed with ink-v32.

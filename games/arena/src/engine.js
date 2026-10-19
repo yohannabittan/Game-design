@@ -197,7 +197,12 @@ class Art {
     const n = this.has(name) ? this.manifest.assets[name].length : 0, i = (this.E.save.get('__art', {}) || {})[name];
     return Number.isInteger(i) && i >= 0 && i < n ? i : 0;
   }
-  src(name, fallbackSrc) { return this.has(name) ? this.dir + encodeURIComponent(this.manifest.assets[name][this.choice(name)]) : fallbackSrc; }
+  // Encoded per path segment, so a manifest value like "../../final/ink/x.png" keeps its slashes (ADR-0022).
+  url(name, i) { const f = this.has(name) ? this.manifest.assets[name][i] : null; return f == null ? '' : this.dir + f.split('/').map(encodeURIComponent).join('/'); }
+  src(name, fallbackSrc) { return this.has(name) ? this.url(name, this.choice(name)) : fallbackSrc; }
+  // Plain words for the ART tab. A game may replace it: E.art.label = (name) => 'Colosseum backdrop' (ADR-0022).
+  label(name) { return String(name).replace(/-+/g, ' '); }
+  _title(name) { let s = ''; try { s = this.label(name); } catch (e) {} return typeof s === 'string' && s.trim() ? s.trim() : Art.prototype.label.call(this, name); }
   pick(name, i) {
     if (!this.has(name) || i === this.choice(name) || i < 0 || i >= this.manifest.assets[name].length) return;
     this.E.save.update('__art', (a) => ({ ...a, [name]: i }), {});
@@ -525,53 +530,162 @@ export class Engine {
     } catch (e) {}
     fallback();
   }
-  // --- art scene: pick a candidate per asset (ADR-0020) ---
-  // Reached from the ART tab on the menu (dev channel, manifest has assets). One row per asset with lettered 44 px buttons,
-  // the pick highlighted, and Copy picks, which copies the one-line text for the art chat.
+  // --- art scene: pick a candidate per asset (ADR-0020, ADR-0022) ---
+  // Reached from the ART tab on the menu (dev channel, manifest has assets). Each asset is a row of candidate thumbnails
+  // (aspect kept, about 72 px tall, letter under each, the pick outlined in gold); a tap picks, a hold enlarges. Assets with
+  // choices come first, single-candidate assets follow under "Only one option". Thumbnails load lazily, a few at a time, and are
+  // kept as small canvases so a pack of 40 big PNGs stays light. Copy picks copies the one-line text for the art chat.
   _setupArt() {
-    const E = this, ROW = 84;
+    const E = this, TH = 72, GAP = 10, HOLD = 0.35, GOLD = '#fbbf24', MAXLOAD = 4;
     this.game.scenes.__art = {
       enter(_, params) {
-        this.from = (params && params.from) || 'menu'; this.scroll = 0; this.drag = null;
+        this.from = (params && params.from) || 'menu'; this.scroll = 0; this.press = null; this.hold = null; this.big = null; this.scrolled = false;
+        this.thumbs = new Map(); this.inflight = 0; this.rev = 0; this.lay = null;
         this.ta = E._copyBox(E.art.line());
       },
-      exit() { if (this.ta) this.ta.remove(); this.ta = null; },
-      body() { const top = E.safe.top + 64, bottom = E.h - E.safe.bottom - 92; return { x: 16 + E.safe.left, y: top, w: E.w - 32 - E.safe.left - E.safe.right, h: Math.max(60, bottom - top) }; },
-      rows() {
+      exit() {
+        if (this.ta) this.ta.remove();
+        this.ta = null; this.thumbs = null; this.big = null; this.hold = null; this.press = null;
+      },
+      compact() { return E.h < 460; },
+      body() {
+        const top = E.safe.top + 64, bottom = E.h - E.safe.bottom - (this.compact() ? 64 : 92);
+        return { x: 16 + E.safe.left, y: top, w: E.w - 32 - E.safe.left - E.safe.right, h: Math.max(60, bottom - top) };
+      },
+      thumb(name, j) { // { state: idle | loading | ok | bad, c: canvas, aspect }
+        const url = E.art.url(name, j);
+        let t = this.thumbs.get(url);
+        if (!t) { t = { url, state: 'idle' }; this.thumbs.set(url, t); }
+        return t;
+      },
+      pump(vis) { // start loads for visible thumbnails, at most MAXLOAD in flight
+        for (const t of vis) {
+          if (this.inflight >= MAXLOAD) return;
+          if (t.state !== 'idle') continue;
+          t.state = 'loading'; this.inflight++;
+          const img = new Image(), scene = this, thumbs = this.thumbs;
+          const end = () => { if (scene.thumbs === thumbs) scene.inflight--; };
+          img.onload = () => {
+            end();
+            if (!img.naturalWidth) { t.state = 'bad'; return; }
+            const k = Math.min(1, Math.ceil(TH * Math.min(E.dpr || 1, 3)) / img.naturalHeight, 640 / img.naturalWidth);
+            const c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            t.c = c; t.aspect = img.naturalWidth / img.naturalHeight; t.state = 'ok'; scene.rev++;
+          };
+          img.onerror = () => { end(); t.state = 'bad'; };
+          img.src = t.url;
+        }
+      },
+      layout() { // sections, rows and cells in content coordinates (y from 0); rebuilt only when its inputs change, never for scroll
+        const sf = E.safe, key = `${E.w}|${E.h}|${sf.top}|${sf.bottom}|${sf.left}|${sf.right}|${this.rev}|${E.art.names.length}`;
+        if (this.lay && this.lay.key === key && this.lay.manifest === E.art.manifest) return this.lay;
+        const b = this.body(), items = [], multi = [], single = [];
+        for (const name of E.art.names) (E.art.manifest.assets[name].length > 1 ? multi : single).push(name);
+        let y = 0;
+        const section = (text, names, choose) => {
+          if (!names.length) return;
+          items.push({ head: text, y }); y += 30;
+          for (const name of names) {
+            const row = { name, y, cells: [], choose }, n = E.art.manifest.assets[name].length;
+            let x = 0, cy = 28;
+            for (let j = 0; j < n; j++) {
+              const t = this.thumb(name, j), a = t.state === 'ok' ? t.aspect : 4 / 3; // an unloaded slot is held at 4:3 so rows do not jump
+              let w = TH * a, h = TH;
+              if (w > b.w) { w = b.w; h = Math.max(44, w / a); }
+              const sw = Math.max(w, 44); // the slot is the hit box; the image is centred in it
+              if (x > 0 && x + sw > b.w) { x = 0; cy += TH + 28; }
+              row.cells.push({ j, t, x, y: cy, w, h, sw });
+              x += sw + GAP;
+            }
+            row.h = cy + TH + 24 + 12; y += row.h; items.push(row);
+          }
+        };
+        section('Choices', multi, true);
+        section('Only one option', single, false);
+        return (this.lay = { items, total: y, key, manifest: E.art.manifest });
+      },
+      at(p) { // the cell under a point, if the point is inside the body
         const b = this.body();
-        return E.art.names.map((name, i) => {
-          const y = b.y + i * ROW - this.scroll, n = E.art.manifest.assets[name].length, gap = 10;
-          return { name, y, btns: Array.from({ length: n }, (_, j) => ({ j, x: b.x + j * (44 + gap), y: y + 30, w: 44, h: 44 })) };
-        });
+        if (p.x < b.x || p.x > b.x + b.w || p.y < b.y || p.y > b.y + b.h) return null;
+        for (const r of this.layout().items) {
+          if (!r.cells) continue;
+          for (const c of r.cells) {
+            const x = b.x + c.x, y = b.y + r.y + c.y - this.scroll;
+            if (p.x >= x && p.x <= x + c.sw && p.y >= y && p.y <= y + c.h + 24) return { name: r.name, j: c.j, row: r };
+          }
+        }
+        return null;
+      },
+      update() {
+        const pr = this.press;
+        if (!pr || this.hold || !pr.hit) return;
+        if (pr.moved || Math.hypot(pr.p.x - pr.p.startX, pr.p.y - pr.p.startY) >= 12) { pr.hit = null; return; }
+        if (E.time - pr.t >= HOLD) {
+          this.hold = pr.hit; E.haptic(10);
+          const url = E.art.url(pr.hit.name, pr.hit.j), big = { img: new Image(), ok: false };
+          big.img.onload = () => { big.ok = true; }; big.img.src = url; this.big = big;
+        }
       },
       render(ctx) {
-        const b = this.body(), rows = this.rows(), pack = E.art.manifest && E.art.manifest.pack;
+        const b = this.body(), pack = E.art.manifest && E.art.manifest.pack, L = this.layout(), cp = this.compact();
         E.text(pack ? `Art, pack ${pack}` : 'Art', E.w / 2, E.safe.top + 30, { size: 24, weight: '800' });
         this.back = E.button('Back', 16 + E.safe.left + 42, E.safe.top + 30, { w: 84, h: 44, size: 15, fill: '#334155' });
-        this.copyBtn = E.button('Copy picks', E.w / 2, E.h - E.safe.bottom - 40, { w: Math.min(280, E.w * 0.7), h: 56, size: 20 });
-        const max = Math.max(0, E.art.names.length * ROW - b.h);
+        this.copyBtn = E.button('Copy picks', E.w / 2, E.h - E.safe.bottom - (cp ? 28 : 40), { w: Math.min(280, E.w * 0.7), h: cp ? 44 : 56, size: cp ? 18 : 20 });
+        const max = Math.max(0, L.total - b.h);
         this.scroll = clamp(this.scroll, 0, max);
-        ctx.save(); ctx.beginPath(); ctx.rect(b.x - 8, b.y - 8, b.w + 16, b.h + 16); ctx.clip();
-        for (const r of rows) {
-          E.text(r.name, b.x, r.y + 12, { size: 16, align: 'left', color: '#e6e6e6' });
+        const vis = [];
+        ctx.save(); ctx.beginPath(); ctx.rect(b.x - 8, b.y - 4, b.w + 16, b.h + 8); ctx.clip();
+        for (const r of L.items) {
+          const ry = b.y + r.y - this.scroll;
+          if (r.head) { if (ry > b.y - 30 && ry < b.y + b.h) E.text(r.head, b.x, ry + 14, { size: 14, weight: '800', align: 'left', color: '#9aa4b2' }); continue; }
+          if (ry + r.h < b.y - 4 || ry > b.y + b.h + 4) continue;
+          E.text(E.art._title(r.name), b.x, ry + 12, { size: 16, weight: '700', align: 'left', color: '#e6e6e6' });
           const cur = E.art.choice(r.name);
-          for (const t of r.btns) {
-            const on = t.j === cur;
-            E.roundRect(t.x, t.y, t.w, t.h, 10, on ? '#3b82f6' : '#1f2937', on ? null : '#475569');
-            E.text(E.art.letter(t.j), t.x + t.w / 2, t.y + t.h / 2, { size: 18, weight: '800', color: on ? '#fff' : '#cbd5e1' });
+          for (const c of r.cells) {
+            const x = b.x + c.x + (c.sw - c.w) / 2, y = ry + c.y, on = r.choose && c.j === cur, t = c.t;
+            if (y + c.h > b.y - 80 && y < b.y + b.h + 80) vis.push(t);
+            E.roundRect(x, y, c.w, c.h, 8, '#111827');
+            if (t.state === 'ok') { ctx.save(); ctx.clip(); ctx.drawImage(t.c, x, y, c.w, c.h); ctx.restore(); }
+            else E.text(t.state === 'bad' ? 'No image' : '...', x + c.w / 2, y + c.h / 2, { size: 14, color: '#64748b' });
+            E.roundRect(x - 1, y - 1, c.w + 2, c.h + 2, 9, null, on ? GOLD : '#475569');
+            if (on) { ctx.lineWidth = 3; ctx.stroke(); }
+            if (r.choose) E.text(E.art.letter(c.j), x + c.w / 2, y + c.h + 13, { size: 16, weight: '800', color: on ? GOLD : '#cbd5e1' });
           }
         }
         ctx.restore();
+        if (max > 0) E.roundRect(b.x + b.w + 6, b.y + (b.h - 30) * (this.scroll / max), 3, 30, 2, '#475569');
+        this.pump(vis);
+        if (this.hold) this.drawBig(ctx);
       },
-      onPointerDown(p) { this.drag = { y: p.y, s: this.scroll }; },
-      onPointerMove(p) { if (this.drag) this.scroll = this.drag.s - (p.y - this.drag.y); },
-      onPointerUp() { this.drag = null; },
+      drawBig(ctx) {
+        const h = this.hold, big = this.big, t = this.thumb(h.name, h.j);
+        ctx.save(); ctx.globalAlpha = 0.88; ctx.fillStyle = '#05070b'; ctx.fillRect(0, 0, E.w, E.h); ctx.restore();
+        const src = big && big.ok ? big.img : t.state === 'ok' ? t.c : null;
+        const sw = src ? (src.naturalWidth || src.width) : 0, sh = src ? (src.naturalHeight || src.height) : 0;
+        const capW = E.w - 24 - E.safe.left - E.safe.right, capH = E.h - 24 - E.safe.top - E.safe.bottom - 64;
+        const k = src ? Math.min(capW / sw, capH / sh) : 0, w = sw * k, hh = sh * k, x = (E.w - w) / 2, y = E.safe.top + 12 + (capH - hh) / 2;
+        if (src) { E.roundRect(x - 4, y - 4, w + 8, hh + 8, 10, '#111827'); ctx.drawImage(src, x, y, w, hh); }
+        else E.text(t.state === 'bad' ? 'No image' : 'Loading', E.w / 2, E.h / 2, { size: 16, color: '#9aa4b2' });
+        const multi = E.art.manifest.assets[h.name].length > 1;
+        ctx.fillStyle = '#05070b'; ctx.fillRect(0, E.h - E.safe.bottom - 58, E.w, E.safe.bottom + 58);
+        E.text(`${E.art._title(h.name)}${multi ? ', ' + E.art.letter(h.j) : ''}`, E.w / 2, E.h - E.safe.bottom - 30, { size: 18, weight: '800', color: '#fff' });
+      },
+      onPointerDown(p) { this.press = { p, t: E.time, hit: this.at(p), y: p.y, s: this.scroll, moved: false }; this.scrolled = false; },
+      onPointerMove(p) {
+        const pr = this.press;
+        if (!pr || this.hold) return;
+        if (Math.abs(p.y - pr.y) > 6) pr.moved = true;
+        if (pr.moved) this.scroll = pr.s - (p.y - pr.y);
+      },
+      onPointerUp() { this.scrolled = !!(this.press && this.press.moved); this.press = null; this.hold = null; this.big = null; },
       onTap(p) {
         if (this.back && E.hit(this.back, p)) { E.setScene(this.from); return; }
         if (this.copyBtn && E.hit(this.copyBtn, p)) { E._copyText(E.art.line(), this.ta, this.body()); return; }
-        const b = this.body();
-        if (p.y < b.y - 8 || p.y > b.y + b.h + 8) return;
-        for (const r of this.rows()) for (const t of r.btns) if (E.hit(t, p)) { E.art.pick(r.name, t.j); E.audio.play('tap'); return; }
+        if (this.scrolled) return;
+        const h = this.at(p);
+        if (h && h.row.choose) { E.art.pick(h.name, h.j); E.audio.play('tap'); }
       },
     };
   }

@@ -25,3 +25,12 @@ ADR-0020's ART tab lists each asset by its file name, with A, B and C buttons. A
 - The designer picks by eye, in the game, without the contact sheet.
 - Each game's local decode workaround becomes a harmless no-op. The next build of each game may remove it.
 - The engine change is copied into Launch, Ink and Arena, with their `CACHE_VERSION` bumped.
+
+## Build notes (2026-10-19)
+
+- `E.art.label` is a plain method that a game replaces by assignment; a falsy or non-string result falls back to dashes-as-spaces. `E.art.url(name, i)` is new and public; `src` uses it.
+- The path fix encodes per segment (`split('/')`), so subfolder values keep their slashes. A game's own `decodeURIComponent` of the result is a no-op for ordinary names.
+- Thumbnails are drawn into small canvases (at most 72 px x dpr tall) and the full image is dropped, so 40 large PNGs stay light. The full image loads only for a hold, one at a time.
+- Hold threshold is 0.35 s, the engine's tap limit, so a press is either a pick or an enlarge, never both. A drag scrolls and never picks.
+- Single-candidate rows show no letter or outline and a tap does nothing; a hold still enlarges.
+- Each thumbnail sits in a slot of max(width, 44) px with the image centred, and the slot is the hit box, so narrow neighbours (kit limbs) never steal each other's taps. An unloaded slot is held at 4:3 (the manifest carries no aspect) so rows do not jump as images arrive. `layout()` is cached and rebuilt only when the viewport, the safe area, the manifest or a thumbnail's loaded aspect changes, never for scroll.
