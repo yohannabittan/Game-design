@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18",
+ "pack": "15, 17, 18, 19",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -111,6 +111,63 @@
   ],
   "kit-base-shin-avg": [
    "kit-base-shin-avg-A.png"
+  ],
+  "beast-lion-body": [
+   "beast-lion-body-A.png"
+  ],
+  "beast-bear-body": [
+   "beast-bear-body-A.png"
+  ],
+  "beast-lion-head": [
+   "beast-lion-head-A.png"
+  ],
+  "beast-bear-head": [
+   "beast-bear-head-A.png"
+  ],
+  "beast-lion-upperleg": [
+   "beast-lion-upperleg-A.png"
+  ],
+  "beast-bear-upperleg": [
+   "beast-bear-upperleg-A.png"
+  ],
+  "beast-lion-lowerleg": [
+   "beast-lion-lowerleg-A.png"
+  ],
+  "beast-bear-lowerleg": [
+   "beast-bear-lowerleg-A.png"
+  ],
+  "beast-lion-tail": [
+   "beast-lion-tail-A.png"
+  ],
+  "kit-helmet-murmillo": [
+   "kit-helmet-murmillo-A.png"
+  ],
+  "kit-helmet-thraex": [
+   "kit-helmet-thraex-A.png"
+  ],
+  "kit-helmet-secutor": [
+   "kit-helmet-secutor-A.png"
+  ],
+  "kit-galerus": [
+   "kit-galerus-A.png"
+  ],
+  "kit-shield-scutum": [
+   "kit-shield-scutum-A.png"
+  ],
+  "kit-shield-parma": [
+   "kit-shield-parma-A.png"
+  ],
+  "kit-plate-chest": [
+   "kit-plate-chest-A.png"
+  ],
+  "kit-plate-manica": [
+   "kit-plate-manica-A.png"
+  ],
+  "kit-plate-greave": [
+   "kit-plate-greave-A.png"
+  ],
+  "kit-wrap-trousers": [
+   "kit-wrap-trousers-A.png"
   ]
  }
 }
