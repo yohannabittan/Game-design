@@ -925,3 +925,58 @@ One Sonnet build, after 5a lands, reviewed.
   - the hit geometry is unchanged;
   - `npm run smoke` passes;
   - frame time is within 10% of arena-v31.
+
+## Step 7 (locked 2026-10-19): less on screen
+
+**The designer:** "I think there's still too much information on screen in Arena." Then, to the plan below: "Yeah, clean it up, but also at the end of the fight or at the end of the run it's crazy full."
+
+One Sonnet build, reviewed. Nothing is lost: every number that leaves a screen is still on the "?" page, the Details page or the cards between bouts.
+
+### The fight (HUD)
+
+| Now | After |
+| --- | --- |
+| The foe's line, "VERUS MEDIUM · AXE" | his name only (his size and weapon are on his intro card) |
+| His health and stamina bars | kept |
+| Your hearts | kept |
+| The words "momentum", "stamina", "shield" | gone; the bars stay, and a one-time hint in the first run names each (`hudHint`, with the other hints' one-at-a-time rule) |
+| Your gear icons under your bars | gone from the fight (on the "?" page and the grade card) |
+| The gold count under BOUT | gone from the fight (on the grade card and at the tent) |
+| BOUT and the CROWD bar | kept, a little smaller |
+| "hold: back off" under DODGE | shown in your first run only |
+| A pop word on every hit | only for the big moments: a gap hit, a perfect block, a fake spotted, a fell, a finisher, damage of 2 or more, and a plate breaking. An ordinary hit or clang gets its flash and sound, no word. |
+| "OPEN! winded: stab the glowing slots" | "OPEN!" only, after the first run |
+
+"First run" means until the first run ends (`firstRunDone`, a save key with a default).
+
+### After a fell (the grade card)
+
+- **Kept:** the header ("VERUS FELLED · BOUT 1 OF 5"), the grade, Brutus's line (one line where it fits), "+62 gold", the cards, "Take his X", Reroll and "?".
+- **Moved to "?":**
+  - the stats line (gap hits, fakes spotted, punishes, hits taken);
+  - the gold's breakdown;
+  - the purse;
+  - the deal odds ("Grade C: Common 75% · Rare 25%").
+- **The gold line** reads "+62 gold · purse 80".
+
+### At the end of a run (the end card)
+
+- **Kept:**
+  - the headline ("Cut down by Flamma the Unbroken", or the win's line);
+  - the champion's or your portrait;
+  - one summary line ("Reached bout 5 of 5 · +12 fame");
+  - Brutus's line;
+  - Again, Menu and Details.
+- **Moved to Details:**
+  - the six-column fighter grid;
+  - "No gear picked";
+  - the gold left and earned;
+  - the wall sentence;
+  - the rival pills.
+
+### Acceptance
+
+- Count the text items on the HUD, the grade card and the end card, before and after, in the changelog (principle 11). Each must drop by at least a third.
+- Nothing that moved is lost: each is on "?", Details or a card.
+- Nothing overlaps at 667x375, 844x390 and 932x430.
+- `npm run smoke` passes.
