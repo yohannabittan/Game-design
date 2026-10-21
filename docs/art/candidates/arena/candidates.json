@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18, 19",
+ "pack": "15, 17, 18, 19, 20",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -202,6 +202,141 @@
   ],
   "beast-bear-lowerleg-young": [
    "beast-bear-lowerleg-B.png"
+  ],
+  "kit-base-upperarm-seg": [
+   "kit-base-upperarm-seg-A.png"
+  ],
+  "kit-base-upperarm-lean-seg": [
+   "kit-base-upperarm-lean-seg-A.png"
+  ],
+  "kit-base-upperarm-avg-seg": [
+   "kit-base-upperarm-avg-seg-A.png"
+  ],
+  "kit-base-thigh-seg": [
+   "kit-base-thigh-seg-A.png"
+  ],
+  "kit-base-thigh-lean-seg": [
+   "kit-base-thigh-lean-seg-A.png"
+  ],
+  "kit-base-thigh-avg-seg": [
+   "kit-base-thigh-avg-seg-A.png"
+  ],
+  "beast-lion-upperleg-seg": [
+   "beast-lion-upperleg-seg-A.png"
+  ],
+  "beast-lion-upperleg-young-seg": [
+   "beast-lion-upperleg-young-seg-A.png"
+  ],
+  "beast-bear-upperleg-seg": [
+   "beast-bear-upperleg-seg-A.png"
+  ],
+  "beast-bear-upperleg-young-seg": [
+   "beast-bear-upperleg-young-seg-A.png"
+  ],
+  "gear-bronze-bracers": [
+   "gear-bronze-bracers-A.png"
+  ],
+  "gear-barbed-bracers": [
+   "gear-barbed-bracers-A.png"
+  ],
+  "gear-matador-ribbons": [
+   "gear-matador-ribbons-A.png"
+  ],
+  "gear-iron-pauldrons": [
+   "gear-iron-pauldrons-A.png"
+  ],
+  "gear-knife-bracers": [
+   "gear-knife-bracers-A.png"
+  ],
+  "gear-gilt-armlets": [
+   "gear-gilt-armlets-A.png"
+  ],
+  "gear-bronze-crest": [
+   "gear-bronze-crest-A.png"
+  ],
+  "gear-blood-band": [
+   "gear-blood-band-A.png"
+  ],
+  "gear-ribbon-band": [
+   "gear-ribbon-band-A.png"
+  ],
+  "gear-horned-cap": [
+   "gear-horned-cap-A.png"
+  ],
+  "gear-dark-hood": [
+   "gear-dark-hood-A.png"
+  ],
+  "gear-plumed-helm": [
+   "gear-plumed-helm-A.png"
+  ],
+  "gear-bronze-phalerae": [
+   "gear-bronze-phalerae-A.png"
+  ],
+  "gear-ghost-silk": [
+   "gear-ghost-silk-A.png"
+  ],
+  "gear-black-plate": [
+   "gear-black-plate-A.png"
+  ],
+  "gear-eye-amulet": [
+   "gear-eye-amulet-A.png"
+  ],
+  "gear-gilded-harness": [
+   "gear-gilded-harness-A.png"
+  ],
+  "gear-bronze-boots": [
+   "gear-bronze-boots-A.png"
+  ],
+  "gear-dancers-sandals": [
+   "gear-dancers-sandals-A.png"
+  ],
+  "gear-spiked-boots": [
+   "gear-spiked-boots-A.png"
+  ],
+  "gear-soft-boots": [
+   "gear-soft-boots-A.png"
+  ],
+  "gear-gilded-greaves": [
+   "gear-gilded-greaves-A.png"
+  ],
+  "gear-hook-belt": [
+   "gear-hook-belt-A.png"
+  ],
+  "gear-ribbon-sash": [
+   "gear-ribbon-sash-A.png"
+  ],
+  "gear-chain-belt": [
+   "gear-chain-belt-A.png"
+  ],
+  "gear-coin-belt": [
+   "gear-coin-belt-A.png"
+  ],
+  "gear-wolf-pelt": [
+   "gear-wolf-pelt-A.png"
+  ],
+  "gear-flowing-cape": [
+   "gear-flowing-cape-A.png"
+  ],
+  "gear-puppeteers-mantle": [
+   "gear-puppeteers-mantle-A.png"
+  ],
+  "gear-purple-cloak": [
+   "gear-purple-cloak-A.png"
+  ],
+  "gear-lion-pelt": [
+   "gear-lion-pelt-A.png"
+  ],
+  "gear-spiked-shield": [
+   "gear-spiked-shield-A.png"
+  ],
+  "gear-tower-shield": [
+   "gear-tower-shield-A.png"
+  ],
+  "gear-spiral-shield": [
+   "gear-spiral-shield-A.png"
+  ],
+  "kit-net-draped": [
+   "kit-net-draped-A.png"
   ]
  }
 }
