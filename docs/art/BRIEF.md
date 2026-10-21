@@ -297,6 +297,35 @@ Anchor: `docs/games/arena/style.md`; rules: `docs/adr/0021-cutout-fighter-art.md
 
 That is 19 images, one option each, using the kit as the reference, about US$5 to 6. Put them in `docs/art/candidates/arena/` with `-A` files, as Pack 15.
 
+### Pack 20: Arena, one-segment limbs and the card gear (added 2026-10-21)
+
+Spec: `docs/games/arena/prd-v0.3.md`, "Step 6c". The designer: "Upper limb and lower limb are copies, but the art was expecting just one limb segment, so it ends up looking like upper lower upper lower, which is very weird." And: "Yes, barbed bracer needs art."
+
+**A. One-segment limbs.** The delivered `kit-base-upperarm*`, `kit-base-thigh*` and `beast-*-upperleg*` images each show a whole limb. The game joins an upper and a lower segment at the elbow or knee, so each must be **one segment only**: from the shoulder (or hip) to the elbow (or knee), with a rounded joint end at both ends, no hand, no knee cap at the bottom, no paw. Keep the canvas size, outline, lighting, skin or fur and tier of the delivered image, so it swaps in place.
+
+| Files | Segment |
+| --- | --- |
+| `kit-base-upperarm-seg.png`, `-lean-seg`, `-avg-seg` | shoulder to elbow, each muscle tier (the plain name is the muscular tier) |
+| `kit-base-thigh-seg.png`, `-lean-seg`, `-avg-seg` | hip to knee, the kilt edge at the top as now |
+| `beast-lion-upperleg-seg.png`, `beast-lion-upperleg-young-seg.png` | shoulder or hip to knee |
+| `beast-bear-upperleg-seg.png`, `beast-bear-upperleg-young-seg.png` | the same |
+
+**B. The card gear,** each a transparent piece in side view facing right, painted to sit over the kit part it covers. Use the kit (`kit-base-*-A.png`) as the scale and style reference.
+
+| Slot | Files (`gear-<id>.png`) | Covers |
+| --- | --- | --- |
+| arms | `gear-bronze-bracers`, `gear-barbed-bracers`, `gear-matador-ribbons`, `gear-iron-pauldrons`, `gear-knife-bracers`, `gear-gilt-armlets` | the forearm (pauldrons: the shoulder) |
+| head | `gear-bronze-crest`, `gear-blood-band`, `gear-ribbon-band`, `gear-horned-cap`, `gear-dark-hood`, `gear-plumed-helm` | the head (bands round the brow) |
+| chest | `gear-bronze-phalerae`, `gear-ghost-silk`, `gear-black-plate`, `gear-eye-amulet`, `gear-gilded-harness` | the torso |
+| legs | `gear-bronze-boots`, `gear-dancers-sandals`, `gear-spiked-boots`, `gear-soft-boots`, `gear-gilded-greaves` | the shin and foot |
+| belt | `gear-hook-belt`, `gear-ribbon-sash`, `gear-chain-belt`, `gear-coin-belt` | the waist |
+| cloak | `gear-wolf-pelt`, `gear-flowing-cape`, `gear-puppeteers-mantle`, `gear-purple-cloak`, `gear-lion-pelt` | hanging from the shoulders behind the body |
+| shield face | `gear-spiked-shield`, `gear-tower-shield`, `gear-spiral-shield` | the round or tall shield, face-on |
+
+**C. The net:** `kit-net-draped.png`, a retiarius's weighted net as if thrown over a figure, transparent, 512 x 512.
+
+That is 10 + 34 + 1 = 45 images, one option each, using the references above, about US$9 to 10. Add them all to `docs/art/candidates/arena/candidates.json` with `-A` files, and make one contact sheet per section.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.

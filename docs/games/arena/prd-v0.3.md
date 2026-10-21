@@ -1004,3 +1004,43 @@ One Sonnet build, after step 6b lands, reviewed.
   - A close lunge is identical to HEAD frame for frame.
   - With no input, your foot holds its place while he is out of reach, and drifts as before when he is close.
   - `npm run smoke` passes.
+
+## Step 6c (locked 2026-10-21): the painted fighter, fixed, and the card gear painted
+
+**The designer**, on a screenshot of a Colosseum bout:
+- "Upper limb and lower limb are copies, but the art was expecting just one limb segment, so it ends up looking like upper lower upper lower, which is very weird."
+- "The helmet is smaller than the head."
+- "The legs of the lion are also upper lower, and they also don't connect to the right points on the body."
+- "Yes, barbed bracer needs art."
+- "The shape behind my guy is a problem."
+
+### 6c-1, fixes now (one Opus build, reviewed)
+
+- **The doubled limbs, a stopgap until Pack 20 lands:**
+  - each upper-segment image (upper arm, thigh, a beast's upper leg) is drawn cropped to its own segment, from the joint at the top to just above the elbow or knee, measured per image and tier into TUNING;
+  - the lower segment (forearm with fist, shin with foot, a beast's lower leg with paw) draws its own segment;
+  - no part repeats a hand, knee or paw;
+  - when the Pack 20 one-segment parts exist (`*-seg` assets), they are used uncropped.
+- **The helmet fits the head:** every painted helmet is scaled to cover the painted head (its brim wider than the skull, the face showing through the opening as drawn), for every head size and size band.
+- **The beasts' legs attach to the body:** each leg's top pivot is pinned to the painted body's shoulder or hip (measured per body image, adult and young), so the legs stand under the body, not beside it.
+- **The shape behind the fighter:** find what draws the grey shape behind the back of a painted man (the galerus, a cloak, a pelt, or a left-over procedural part) and fix it. The galerus sits on the left shoulder in bronze, a cloak hangs from the shoulders behind the body, and anything that has no painted version is not drawn behind a painted body.
+
+### 6c-2, art Pack 20, then one wiring build
+
+- **One-segment limbs:** the upper arm and the thigh for each muscle tier (lean, average, muscular), and the lion's and the bear's upper legs (young and grown). Each is a single segment with rounded joint ends, on the same canvas and in the same style as its delivered set.
+- **The card gear:** every piece a card puts on your body, in six slots. Each is a painted transparent piece to sit over the kit:
+  - arms: Bronze Bracers, Barbed Bracers, Matador's Ribbons, Iron Pauldrons, Knife Bracers, Gilt Armlets;
+  - head: Bronze Crest, Blood Band, Ribbon Band, Horned Cap, Dark Hood, Plumed Helm;
+  - chest: Bronze Phalerae, Ghost Silk, Black Plate, Eye Amulet, Gilded Harness;
+  - legs: Bronze Boots, Dancer's Sandals, Spiked Boots, Soft Boots, Gilded Greaves;
+  - belt: Hook Belt, Ribbon Sash, Chain Belt, Coin Belt;
+  - cloak: Wolf Pelt, Flowing Cape, Puppeteer's Mantle, Purple Cloak, Lion Pelt;
+  - shield faces: Spiked Shield, Tower Shield, Spiral Shield.
+- **The retiarius's net,** painted, to drape over a netted foe in place of the drawn round grid.
+- **Weapons and war paint** stay drawn by the game, since the weapon is what you aim with.
+- **Acceptance (wiring):**
+  - no flat-drawn card gear shows on a painted man when its art is present;
+  - the hit geometry is unchanged;
+  - nothing doubles at a joint;
+  - `npm run smoke` passes;
+  - frame time is within 10% of arena-v34.
