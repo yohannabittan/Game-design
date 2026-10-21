@@ -326,6 +326,15 @@ Spec: `docs/games/arena/prd-v0.3.md`, "Step 6c". The designer: "Upper limb and l
 
 That is 10 + 34 + 1 = 45 images, one option each, using the references above, about US$9 to 10. Add them all to `docs/art/candidates/arena/candidates.json` with `-A` files, and make one contact sheet per section.
 
+### Pack 20b: Arena, four touch-ups (added 2026-10-21)
+
+From the Pack 20 review:
+- `beast-bear-upperleg-seg.png` and `beast-bear-upperleg-young-seg.png` came out orange or red against the bears' brown bodies. Repaint both in the bear's own browns, matching `beast-bear-body-A.png` (grown) and `beast-bear-body-B.png` (young). Keep the canvas, shape and joint ends. The game holds them back until then.
+- `kit-base-upperarm-lean-seg.png` and `kit-base-upperarm-avg-seg.png` are a little redder than their torsos. Match the skin tone of `kit-base-torso-lean-A.png` and `kit-base-torso-avg-A.png`.
+- `gear-bronze-bracers.png` and `gear-eye-amulet.png` read faintly at game size. Repaint with stronger shapes and contrast: thicker bronze bands, and a bigger amulet with a bright eye.
+
+That is 6 images, one option each, about US$1.50. They replace the `-A` files in `docs/art/candidates/arena/`.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
