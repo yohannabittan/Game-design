@@ -353,11 +353,13 @@ const TUNING = {
     // chest plate from the neck to the belt (abs: the row the belly's plate starts at; w: the px across that spans the torso); the manica from the elbow
     // to `to` of the forearm, the greave from `from` to `to` of the shin, the wrap down the thigh; the galerus's box in the shield arm's frame (H); a
     // shield's rim radius r or, for the scutum, its half height h (px), drawn at the drawn shield's size.
+    // Step 6c: each helmet's a and b pin it to the head's top and chin scaled to cover the painted head (the bowl over the hair, the brim wider
+    // than the skull, an open helmet's brim at the brow so the face shows under it), measured on the head drawn under it.
     helm: {
-      gallic: { size: [256, 256], a: [128, 0], b: [128, 222] },
-      murmillo: { size: [256, 256], a: [120, 10], b: [120, 205], closed: true },
-      thraex: { size: [256, 256], a: [115, 10], b: [115, 205], closed: true },
-      secutor: { size: [256, 256], a: [128, -60], b: [128, 203], closed: true },
+      gallic: { size: [256, 256], a: [126, 55], b: [126, 226] },
+      murmillo: { size: [256, 256], a: [130, 48], b: [130, 232], closed: true },
+      thraex: { size: [256, 256], a: [120, 52], b: [120, 238], closed: true },
+      secutor: { size: [256, 256], a: [131, 10], b: [131, 232], closed: true },
     },
     plate: { size: [320, 320], a: [160, 0], b: [160, 300], w: 270, abs: 150 },
     manica: { size: [160, 320], a: [72, 10], b: [60, 305], w: 125, to: 0.86 },
@@ -373,6 +375,20 @@ const TUNING = {
     flip: [0.08, 0.2],
     // a part drawn live each frame is drawn from a copy this many times its size on screen (headroom for the rig's stretch, little to downscale)
     live: 1.25,
+    // Step 6c, a stopgap until the one-segment parts (`<name>-seg`, Pack 20, drawn whole with the part's joints) land: each delivered upper
+    // segment shows a whole limb, so it is drawn cropped to its own segment, by its file: a the shoulder or hip, b the elbow or knee (pinned to
+    // the rig's), clip the last row drawn (just above the knee cap; just under the elbow crease, under the forearm's top). A beast's are in
+    // TUNING.beastArt.crop.
+    crop: {
+      'kit-base-upperarm-A': { a: [80, 45], b: [75, 170], clip: 176 }, 'kit-base-upperarm-B': { a: [80, 45], b: [80, 172], clip: 178 },
+      'kit-base-upperarm-avg-A': { a: [81, 45], b: [89, 176], clip: 182 }, 'kit-base-upperarm-lean-A': { a: [81, 45], b: [86, 174], clip: 180 },
+      'kit-base-upperarm-lean-B': { a: [80, 45], b: [84, 148], clip: 154 },
+      'kit-base-thigh-A': { a: [100, 60], b: [101, 205], clip: 192 }, 'kit-base-thigh-B': { a: [100, 60], b: [100, 190], clip: 178 },
+      'kit-base-thigh-avg-A': { a: [100, 60], b: [98, 200], clip: 188 }, 'kit-base-thigh-lean-A': { a: [100, 60], b: [100, 192], clip: 180 },
+      'kit-base-thigh-lean-B': { a: [95, 60], b: [89, 194], clip: 184 },
+      // the muscular torso is painted with both upper arms hanging at its sides: below row trim[0] only columns trim[1] to trim[2] are drawn
+      'kit-base-torso-A': { trim: [150, 100, 335] },
+    },
   },
   // his shield (H x its scale): a round one's radius, a scutum's half height, Iron Wall's tower stretch (x, y)
   foeShield: { r: 0.1, h: 0.16, tower: [1.25, 1.45] },
@@ -392,6 +408,17 @@ const TUNING = {
       upper: { size: [160, 288], a: [88, 40], b: [78, 232], w: 105, clip: 250 }, lower: { size: [160, 288], a: [57, 40], b: [75, 286], w: 95 },
     },
     eyeAt: [0.02, -0.018], far: 0.28, leg: 0.08, pawBand: 0.2, gape: 1.1,
+    // Step 6c: each upper leg cropped to its own segment by its file (as TUNING.kit.crop: a the shoulder or hip, b the elbow or knee, clip the last
+    // row, above the paw's leg), and each body's painted shoulder and hip (px in its left-facing PNG), where the near legs' tops are pinned; the far
+    // legs' keep the rig's offset from the near ones (BEAST_BODY sh, hp)
+    crop: {
+      'beast-lion-upperleg-A': { a: [73, 40], b: [75, 136], clip: 146 }, 'beast-lion-upperleg-B': { a: [78, 40], b: [72, 140], clip: 150 },
+      'beast-bear-upperleg-A': { a: [88, 40], b: [60, 130], clip: 140 }, 'beast-bear-upperleg-B': { a: [80, 40], b: [80, 150], clip: 160 },
+    },
+    pin: {
+      'beast-lion-body-A': [[90, 190], [510, 180]], 'beast-lion-body-B': [[130, 200], [520, 170]],
+      'beast-bear-body-A': [[170, 190], [520, 180]], 'beast-bear-body-B': [[190, 200], [540, 190]],
+    },
   },
 };
 
@@ -3204,6 +3231,9 @@ function brutusCardLine(ctx, E, cx, y, tb, w, thread, below) {
 const KIT_HELM = { murmillo: 'murmillo', hoplo: 'thraex', open: 'secutor', cap: 'gallic' };
 const KIT_SHIELD = { murmillo: 'scutum', hoplo: 'parma', open: 'round', cap: 'round' };
 const KIT_WRAP = { hoplo: true };
+// Step 6c: the pelts have no painted piece yet (Pack 20), and drawn flat behind a painted body they read as a stray grey shape, so a painted man
+// wears none; the cloth cloaks hang from his shoulders behind him as drawn
+const KIT_UNPAINTED = new Set(['bloodlust', 'unbreak']);
 const KIT_GEAR = { plate: 'kit-plate-chest', manica: 'kit-plate-manica', greave: 'kit-plate-greave', wrap: 'kit-wrap-trousers', galerus: 'kit-galerus' };
 function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean' : str <= T.avg ? 'avg' : ''; }
 function lookFor(fm, isFoe) {
@@ -3220,10 +3250,13 @@ function lookFor(fm, isFoe) {
 // scaled near px across J.w (or its width), cached, for a part drawn live each frame rather than the full image; dark shades that copy (a far leg).
 const KIT_TIERED = ['torso', 'upperarm', 'forearm', 'thigh', 'shin'];
 const KIT_LIVE = new Map();
+// the file a name loads now, without its folder and extension (kit-base-thigh-A): the key of the joints measured per image
+function artStem(name) { const e = IMGS.get(name); return e && e.src ? e.src.replace(/^.*\//, '').replace(/\.\w+$/, '') : ''; }
 function artPic(name, J0, px = 0, dark = 0) {
   const im = artImg(name);
   if (!im) return null;
-  const J = J0.wide && im.width === J0.wide.size[0] ? J0.wide : J0, sz = J.size;
+  const st = artStem(name), C = TUNING.kit.crop[st] || TUNING.beastArt.crop[st], J1 = J0.wide && im.width === J0.wide.size[0] ? J0.wide : J0;
+  const J = C ? { ...J1, ...C } : J1, sz = J.size;
   if (!px || !canSprite) return { im, J, kx: im.width / sz[0], ky: im.height / sz[1] };
   const f = Math.min(1, TUNING.kit.live * px / ((J.w || sz[0]) * im.width / sz[0])), key = `${name}|${Math.round(px)}|${dark}|${artV}`;
   let L = KIT_LIVE.get(key);
@@ -3237,10 +3270,10 @@ function artPic(name, J0, px = 0, dark = 0) {
   }
   return L;
 }
-// a kit part's image for a tier: the tier's own when it has one, else the muscular base
+// a kit part's image for a tier: the tier's own when it has one, else the muscular base; its one-segment part (-seg) first when there is one
 function kitPic(part, tier, px = 0) {
-  const t = tier && KIT_TIERED.includes(part) ? `kit-base-${part}-${tier}` : null;
-  return artPic(t && ART && ART.has(t) ? t : `kit-base-${part}`, TUNING.kit[part], px);
+  const t = tier && KIT_TIERED.includes(part) ? `kit-base-${part}-${tier}` : null, n = t && ART && ART.has(t) ? t : `kit-base-${part}`;
+  return artPic(ART && ART.has(`${n}-seg`) ? `${n}-seg` : n, TUNING.kit[part], px);
 }
 const helmPic = (lk) => artPic(`kit-helmet-${lk.kit.helm}`, TUNING.kit.helm[lk.kit.helm]);
 const gearPic = (piece, px = 0) => artPic(KIT_GEAR[piece], TUNING.kit[piece], px);
@@ -3254,6 +3287,17 @@ function drawSeg(c, P, A, B, w, flip = false) {
   if (flip) { c.translate(iw, 0); c.scale(-1, 1); }
   if (J.clip) { const ch = Math.round(J.clip * P.ky); c.drawImage(P.im, 0, 0, iw, ch, 0, 0, iw, ch); } else c.drawImage(P.im, 0, 0);
   c.restore();
+}
+// The torso pinned from y0 to y1, w across. One painted with its upper arms hanging at its sides (J.trim: below row r, only columns x0 to x1) has
+// them cut off, since the arms are drawn as their own parts.
+function kitTorso(c, P, y0, y1, w) {
+  const J = P.J, T = J.trim;
+  if (T) {
+    const sx = w / J.w, yr = y0 + (T[0] - J.a[1]) * (y1 - y0) / (J.b[1] - J.a[1]), big = 4 * (Math.abs(y1 - y0) + w);
+    c.save(); c.beginPath(); c.rect(-big, yr - big, 2 * big, big); c.rect((T[1] - J.a[0]) * sx, yr, (T[2] - T[1]) * sx, big); c.clip();
+  }
+  drawSeg(c, P, [0, y0], [0, y1], w);
+  if (T) c.restore();
 }
 // darken what is painted so far (the far leg, before the near one; the far arm's sprite)
 function farShade(c, H, b) { c.save(); c.globalCompositeOperation = 'source-atop'; c.fillStyle = `rgba(20,10,4,${TUNING.kit.far})`; c.fillRect(b[0] * H, b[1] * H, (b[2] - b[0]) * H, (b[3] - b[1]) * H); c.restore(); }
@@ -3274,7 +3318,7 @@ function kitBody(c, p, H, lk) {
     if (!P) return false;
     c.save(); c.beginPath();
     if (id === 'chest') c.rect(B[0] * H, B[1] * H, (B[2] - B[0]) * H, (K.cut - B[1]) * H); else c.rect(B[0] * H, K.cut * H, (B[2] - B[0]) * H, (B[3] - K.cut) * H);
-    c.clip(); drawSeg(c, P, [0, K.neck * H], [0, K.belt * H], w);
+    c.clip(); kitTorso(c, P, K.neck * H, K.belt * H, w);
     if (PL && id === 'chest') drawSeg(c, PL, [0, K.neck * H], [0, K.belt * H], w * P.J.k);
     // the belly's plate: the chest plate's lower half, from the waist to the belly's foot
     else if (PL) drawSeg(c, { ...PL, J: { ...PL.J, a: [PL.J.a[0], PL.J.abs], b: PL.J.size.slice() } }, [0, K.cut * H], [0, (p.d.y + p.d.h / 2) * H], w * P.J.k);
@@ -4539,7 +4583,7 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
   if (fall > 0) ctx.globalAlpha = 1 - fall * 0.5;
   // far arm and its shield, legs, tunic and belly, chest, head
   const sw = live ? state.sw : null, bashing = sw && sw.pose === 'bash';
-  if (lk.gear && (lk.gear.cloak || (lk.tailor && lk.tailor.cloak))) { if (!fm.cloak) fm.cloak = mkPart(CLOAK, false); drawPart(ctx, E, fm.cloak, H, lk, null); }
+  if (lk.gear && (lk.gear.cloak ? !(lk.kit && KIT_UNPAINTED.has(lk.gear.cloak.id)) : lk.tailor && lk.tailor.cloak)) { if (!fm.cloak) fm.cloak = mkPart(CLOAK, false); drawPart(ctx, E, fm.cloak, H, lk, null); }
   drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
   if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk, Math.min(E.dpr || 1, TUNING.skin.maxDpr)));
   drawPart(ctx, E, P('legs'), H, lk, null);
@@ -4863,11 +4907,13 @@ function tailTip(q) { const ph = state.m * (1.6 + 1.6 * q.tail); return [-0.43 +
 function beastKit(E, fm, H) {
   if (!kitOn() || !ART.has(`beast-${fm.beast}-body`)) return null;
   const A = TUNING.beastArt[fm.beast], dk = Math.min(E.dpr || 1, TUNING.skin.maxDpr), dark = TUNING.beastArt.far, lw = TUNING.beastArt.leg * H * dk;
-  const nm = (part) => { const n = `beast-${fm.beast}-${part}`; return fm.young && ART.has(`${n}-young`) ? `${n}-young` : n; };
+  const nm = (part) => { const b = `beast-${fm.beast}-${part}`, n = fm.young && ART.has(`${b}-young`) ? `${b}-young` : b; return ART.has(`${n}-seg`) ? `${n}-seg` : n; };
+  // a one-segment upper leg is drawn whole
+  const U = nm('upperleg').endsWith('-seg') ? { ...A.upper, clip: 0 } : A.upper;
   const K = {
     body: artPic(nm('body'), A.body, (A.body.box[2] - A.body.box[0]) * H * dk), head: artPic(nm('head'), A.head, A.head.size[0] * A.head.u * H * dk),
-    up: artPic(nm('upperleg'), A.upper, lw), lo: artPic(nm('lowerleg'), A.lower, lw), upD: artPic(nm('upperleg'), A.upper, lw, dark), loD: artPic(nm('lowerleg'), A.lower, lw, dark),
-    tail: A.tail ? artPic(nm('tail'), A.tail, A.tail.size[0] * A.head.u * H * dk) : null,
+    up: artPic(nm('upperleg'), U, lw), lo: artPic(nm('lowerleg'), A.lower, lw), upD: artPic(nm('upperleg'), U, lw, dark), loD: artPic(nm('lowerleg'), A.lower, lw, dark),
+    tail: A.tail ? artPic(nm('tail'), A.tail, A.tail.size[0] * A.head.u * H * dk) : null, pin: TUNING.beastArt.pin[artStem(nm('body'))] || null,
   };
   return K.body && K.head && K.up && K.lo && K.upD && K.loD && (!A.tail || K.tail) ? K : null;
 }
@@ -4877,10 +4923,17 @@ function beastPainted(ctx, fm, H, K, q, live, C, P, fw, hw) {
   const A = TUNING.beastArt[fm.beast], fr = fm.fr, lg = fm.lg, lion = fm.beast === 'lion';
   // the copies are at the screen's pixel ratio, so an unsmoothed draw stays clean and costs far less than a smoothed one
   ctx.imageSmoothingEnabled = false;
-  const paw = fm.paw || (fm.paw = [false, false, false, false]);
+  const paw = fm.paw || (fm.paw = [false, false, false, false]), B = A.body.box, BB = BEAST_BODY[fm.beast], bf = fr.body, bc = Math.cos(bf.rot), bs = Math.sin(bf.rot);
+  // each leg's top on the painted body's shoulder or hip (body units, in the body's frame), the far one at the rig's offset from the near one
+  const top = (i) => {
+    if (!K.pin) return lg[i][0];
+    const q = K.pin[i < 2 ? 0 : 1], R = i < 2 ? BB.sh : BB.hp, far = i % 2, sz = A.body.size;
+    const x = B[2] - q[0] * (B[2] - B[0]) / sz[0] + (far ? R[1][0] - R[0][0] : 0), y = B[1] + q[1] * (B[3] - B[1]) / sz[1] + (far ? R[1][1] - R[0][1] : 0);
+    return [bf.ox + x * bc - y * bs, bf.oy + x * bs + y * bc];
+  };
   const leg = (i, w, dark) => {
-    const [a, k, f] = lg[i], S = (p) => [p[0] * H, p[1] * H], kk = S(k), ff = S(f);
-    drawSeg(ctx, dark ? K.upD : K.up, S(a), kk, w * H);
+    const [, k, f] = lg[i], S = (p) => [p[0] * H, p[1] * H], kk = S(k), ff = S(f);
+    drawSeg(ctx, dark ? K.upD : K.up, S(top(i)), kk, w * H);
     // The paw points the way the beast faces: the PNG's toes (+x) point ahead by the bone's drop share, so the lower leg is mirrored when they point
     // back, past a dead band so a paw swinging through the knee's height never pops.
     const t = (ff[1] - kk[1]) / (Math.hypot(ff[0] - kk[0], ff[1] - kk[1]) || 1);
@@ -4890,7 +4943,6 @@ function beastPainted(ctx, fm, H, K, q, live, C, P, fw, hw) {
   leg(1, fw, true); leg(3, hw, true);
   ctx.save(); inFrame(ctx, fr.body, H);
   if (K.tail) { const [tx, ty] = tailTip(q); drawSeg(ctx, K.tail, [A.tail.root[0] * H, A.tail.root[1] * H], [tx * H, ty * H], 0); }
-  const B = A.body.box;
   ctx.save(); ctx.scale(-1, 1); ctx.drawImage(K.body.im, -B[2] * H, B[1] * H, (B[2] - B[0]) * H, (B[3] - B[1]) * H); ctx.restore();
   ctx.restore();
   beastMarks(ctx, fm, P('chest'), H); beastMarks(ctx, fm, P('belly'), H);
@@ -5520,7 +5572,7 @@ function kitIcon(ctx, parts, s, str, gm) {
     const P = (q) => [q[0] * s, q[1] * s];
     drawSeg(ctx, Th, P(hip), P(knee), K.leg * s); drawSeg(ctx, Sh, P(knee), P(ank), K.leg * s);
   });
-  drawSeg(ctx, T, [0, K.neck * s], [0, K.belt * s], PARTS[pidx('belly')].w * s);
+  kitTorso(ctx, T, K.neck * s, K.belt * s, PARTS[pidx('belly')].w * s);
   if (!(kh && kh.J.closed)) drawSeg(ctx, Hd, [hx, K.top * s], [hx, K.chin * s], 0);
   if (kh) drawSeg(ctx, kh, [hx, K.top * s], [hx, K.chin * s], 0);
   for (const q of parts) {
