@@ -1160,3 +1160,43 @@ One Sonnet build, after step 6b lands, reviewed.
   - The same frames for a foe.
   - No flat grey piece at your shoulder.
   - `npm run smoke` passes.
+
+## Step 8b (locked 2026-10-24): a clean bout is an A, and fake cards only with Feint
+
+**The designer**, on a v37 grade card ("YOUNG BEAR FELLED · GRADE B · 0 hits · 2 good moves", with Double Bluff offered for 45 gold beside Feint): "The epic card here, I am unsure how I can achieve what it says."
+
+**Why:**
+- A bout with no hits taken grades B when it has few good moves. Against a beast there are fewer moves to make. The export's first graded runs show 1 to 4 good moves in most bouts (`goods=3,1,4,1` and `2,2,7,2`).
+- Double Bluff, Misdirection and Unreadable work only with your own fake, which is the Feint card (`has('myfeint')`). They can be dealt without it, so a player can pay 45 gold for a card that does nothing.
+
+**The grade,** replacing the Step 8 table:
+
+| Grade | Hits taken | Good moves |
+| --- | --- | --- |
+| S | 0 | 3 or more |
+| A | 0 | any |
+| A | 2 or fewer | 4 or more |
+| B | 4 or fewer | any |
+| C | more than 4 | |
+
+A pair bout still allows one more hit at each grade. The numbers stay in `TUNING.grade`. The "?" page's next-grade line follows the new table, for example: "A: no hits, or at most 2 hits and 4 good moves."
+
+**The fake cards:**
+- Double Bluff, Misdirection and Unreadable are dealt only while you wear Feint, in the same way a shield card needs a shield. Add a `needs: 'feint'` to each and extend `dealable`'s check.
+- Their lines name the card that makes the fake:
+  - Double Bluff: "Feint twice in a row and every gap opens."
+  - Misdirection: "Stab the gap your Feint opened: double damage."
+  - Unreadable: "He never gets used to your Feints."
+- A run in progress that already holds one of them without Feint keeps it; it is not removed.
+
+**Acceptance:**
+- The grade cases:
+  - 0 hits and 2 good moves grades A;
+  - 0 hits and 3 good moves grades S;
+  - 2 hits and 4 good moves grades A;
+  - 3 hits and 9 good moves grades B;
+  - 5 hits grades C;
+  - a pair bout with 3 hits and 4 good moves grades A.
+- 200 seeded deals without Feint never hold Double Bluff, Misdirection or Unreadable.
+- With Feint, those cards are dealt.
+- `npm run smoke` passes.
