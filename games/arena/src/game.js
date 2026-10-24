@@ -256,9 +256,9 @@ const TUNING = {
   // the left column: width as a fraction of screen width (never under minW), gap between buttons, top of the column below the safe top, DODGE height (fraction of screen height, never under dodgeMinH), touch reach past a drawn edge, and how much of the way the fighters' frame slides toward the middle of the space the column leaves
   col: { frac: 0.22, minW: 96, gap: 6, top: 70, dodgeFrac: 0.17, dodgeMinH: 64, reach: 8, frame: 0.75 },
   foot: { pace: 0.14, drift: { idle: 0.6, secs: 1.5 }, gainDur: 0.16, back: 0.2, walkBack: 0.42, close: 0.1, room: [0.6, 0.7], margin: 22, foeV: 0.75, commit: 0.3, reach: 0.12, push: 0.5, wallMsg: 0.9, give: 0.02, chase: 1.0, chaseV: 1.6, chaseSwing: 0.5 },
-  // the bout's grade: each grade allows up to `taken` hits this bout (a pair bout allows `pair` more) with at least `good` good moves (gap hits, fakes read,
-  // punishes, perfect blocks, swings dodged, limbs lamed)
-  grade: { S: { taken: 0, good: 5 }, A: { taken: 2, good: 5 }, B: { taken: 4, good: 2 }, pair: 1 },
+  // the bout's grade: a grade is met by any of its rungs, each allowing up to `taken` hits this bout (a pair bout allows `pair` more) with at least `good`
+  // good moves (gap hits, fakes read, punishes, perfect blocks, swings dodged, limbs lamed)
+  grade: { S: [{ taken: 0, good: 3 }], A: [{ taken: 0, good: 0 }, { taken: 2, good: 4 }], B: [{ taken: 4, good: 0 }], pair: 1 },
   // the draft: cards dealt (the last is priced), weights per grade for the free cards (common, rare), the pull on a family you wear, at most perFam cards of
   // one family a draft; the priced slot's cascade, each tier's own chance (a set bonus you qualify for, else a legendary, else an epic, else a rare);
   // prices by rarity (common, rare, epic, legendary) and a set's; delay before a pick counts (s)
@@ -700,7 +700,7 @@ const SCARS = [(c) => `Scarred by ${c}`, (c) => `${c}'s mark on the brow`, (c) =
 
 // The deck: six families, each card one rule and one piece of gear (fam; tier = rarity: 0 common, 1 rare, 2 epic, 3 legendary; key = a keystone, the
 // legendary that names its price). slot: where the piece is worn (one piece a slot), gear: its name. needs: a card that is useless without your shield or
-// your dodge; bans: what a keystone takes away. Finishers are war paint (TUNING.fin) and a duo is a set bonus; neither takes a slot.
+// your dodge, or your Feint; bans: what a keystone takes away. Finishers are war paint (TUNING.fin) and a duo is a set bonus; neither takes a slot.
 const FAMS = {
   wall: { name: 'The Wall', col: '#7dd3fc' }, blood: { name: 'Blood', col: '#f87171' }, dancer: { name: 'The Dancer', col: '#86efac' }, brute: { name: 'The Brute', col: '#fbbf24' },
   trick: { name: 'The Trickster', col: '#a78bfa' }, show: { name: 'The Showman', col: '#f472b6' },
@@ -733,11 +733,11 @@ const DECK = [
   { id: 'jugg', fam: 'brute', tier: 1, slot: 'arms', gear: 'Iron Pauldrons', name: 'Juggernaut', line: "Lunge through his blow: it hurts half as much and doesn't stop you." },
   { id: 'titan', fam: 'brute', tier: 3, key: true, slot: 'chest', gear: 'Black Plate', name: 'Titan', line: `${TUNING.cards.titan} more hearts, and every smash from above staggers him. You can't dodge.`, bans: 'dodge' },
   { id: 'myfeint', fam: 'trick', tier: 0, slot: 'helmet', gear: 'Dark Hood', name: 'Feint', line: 'Push to lunge, then pull back fast: he guards there, and the other side opens.' },
-  { id: 'misdir', fam: 'trick', tier: 1, slot: 'weapon', gear: 'Blackened Blade', name: 'Misdirection', line: 'Stab the gap your fake opened: double damage.' },
+  { id: 'misdir', fam: 'trick', tier: 1, slot: 'weapon', gear: 'Blackened Blade', name: 'Misdirection', line: 'Stab the gap your Feint opened: double damage.', needs: 'feint' },
   { id: 'mindreader', fam: 'trick', tier: 1, slot: 'chest', gear: 'Eye Amulet', name: 'Mind Reader', line: 'Spot his fake and earn 2 Momentum.' },
   { id: 'bait', fam: 'trick', tier: 1, slot: 'shield', gear: 'Spiral Shield', name: 'Bait', line: 'Lower your shield on purpose: his next wind-up is twice as long.', needs: 'shield' },
-  { id: 'unreadable', fam: 'trick', tier: 1, slot: 'legs', gear: 'Soft Boots', name: 'Unreadable', line: 'He never gets used to your fakes.' },
-  { id: 'bluff', fam: 'trick', tier: 2, slot: 'arms', gear: 'Knife Bracers', name: 'Double Bluff', line: 'Fake twice in a row and every gap opens.' },
+  { id: 'unreadable', fam: 'trick', tier: 1, slot: 'legs', gear: 'Soft Boots', name: 'Unreadable', line: 'He never gets used to your Feints.', needs: 'feint' },
+  { id: 'bluff', fam: 'trick', tier: 2, slot: 'arms', gear: 'Knife Bracers', name: 'Double Bluff', line: 'Feint twice in a row and every gap opens.', needs: 'feint' },
   { id: 'puppet', fam: 'trick', tier: 3, key: true, slot: 'cloak', gear: "Puppeteer's Mantle", name: 'Puppeteer', line: `Every third move of his is a fake, and you see it coming. ${TUNING.cards.puppetHearts} hearts at most.` },
   { id: 'flourish', fam: 'show', tier: 0, slot: 'weapon', gear: 'Gilded Sword', name: 'Flourish', line: 'Draw a fast circle with your sword thumb: the crowd cheers.' },
   { id: 'showboat', fam: 'show', tier: 0, slot: 'cloak', gear: 'Purple Cloak', name: 'Showboat', line: 'The crowd gets bored of you half as fast.' },
@@ -2830,11 +2830,11 @@ function boutTally() {
   t.good = t.slot + t.read + t.pun + t.perf + t.dodge + t.lame;
   return t;
 }
-// The hits a grade allows in this bout (a pair bout allows one more)
-const hitsAllowed = (g) => TUNING.grade[g].taken + (state.gauntlet[state.rack].pair ? TUNING.grade.pair : 0);
+// The hits a rung allows in this bout (a pair bout allows one more)
+const hitsAllowed = (r) => r.taken + (state.gauntlet[state.rack].pair ? TUNING.grade.pair : 0);
 function gradeBout() {
-  const G = TUNING.grade, t = boutTally();
-  for (const g of ['S', 'A', 'B']) if (t.taken <= hitsAllowed(g) && t.good >= G[g].good) return g;
+  const t = boutTally();
+  for (const g of ['S', 'A', 'B']) if (TUNING.grade[g].some((r) => t.taken <= hitsAllowed(r) && t.good >= r.good)) return g;
   return 'C';
 }
 // The families you wear, counted: each piece for its family, war paint for its own (a set bonus is worn by no family)
@@ -2847,7 +2847,7 @@ function heldFams() {
 // What can be dealt: each card once; never one your keystone makes useless (a dodge card without a dodge, a shield card without a shield), never a keystone
 // that takes away what your keystone lives on, a set bonus only while you wear a piece of both its families, and nothing of a family the ludus shuts.
 function dealable() {
-  const held = heldFams(), lost = (k) => (k === 'dodge' ? noDodge() : noShield());
+  const held = heldFams(), lost = (k) => (k === 'dodge' ? noDodge() : k === 'feint' ? !has('myfeint') : noShield());
   return DECK.filter((c) => !has(c.id) && cardOpen(state.me, c) && !(c.needs && lost(c.needs)) && !(c.bans && DECK.some((k) => k.key && has(k.id) && k.needs === c.bans))
     && !(c.duo && !c.duo.every((f) => held[f])));
 }
@@ -5600,8 +5600,8 @@ function drawCardHelp(ctx, E, cards) {
 function nextUp(g) {
   const up = { C: 'B', B: 'A', A: 'S' }[g];
   if (!up) return '';
-  const n = hitsAllowed(up);
-  return `${up}: at most ${n} hit${n === 1 ? '' : 's'} and ${TUNING.grade[up].good} good moves.`;
+  const rung = (r) => { const n = hitsAllowed(r), h = n ? `at most ${n} hit${n === 1 ? '' : 's'}` : 'no hits'; return r.good ? `${h} and ${r.good} good moves` : h; };
+  return `${up}: ${TUNING.grade[up].map(rung).join(', or ')}.`;
 }
 // The "?", third page: what the grade card used to carry: the bout's counts, the gold and where it came from, the purse, the deal's odds, your gear and
 // what the fight's bars are called
