@@ -335,6 +335,52 @@ From the Pack 20 review:
 
 That is 6 images, one option each, about US$1.50. They replace the `-A` files in `docs/art/candidates/arena/`.
 
+### Pack 21: Arena, whole limbs cut in two, and legless beast bodies (added 2026-10-24)
+
+The designer, after playing v36: "Still we have issues with the upper lower limb situation, and with the way the animals' limbs attach to their bodies."
+
+**Why the last two fixes did not work:**
+- The upper and lower halves of each limb come from **different paintings**. The Pack 20 one-segment upper arms are smooth, glossy tubes, thicker than the detailed forearms they join, so every arm reads as two mismatched pieces.
+- The lion and bear body images have their **shoulders, haunches and leg tops painted on**, so the separate legs pinned over them double up.
+
+**The fix is the cut-out method:** paint each limb **once, whole and straight**, then cut that one painting in two at the elbow or knee, so both halves always match.
+
+**A. Fighters.** For each muscle tier, paint one whole arm and one whole leg:
+- in side view, hanging straight down;
+- in the same style, skin tone, outline and lighting as that tier's torso (`kit-base-torso-lean-A.png`, `kit-base-torso-avg-A.png`, `kit-base-torso-A.png` for muscular);
+- **arm:** from the shoulder to a clenched fist, with a leather wristband;
+- **leg:** from the hip, with the kilt's edge at the top as now, to a sandalled foot.
+
+Then **cut each painting at the elbow or knee** in code (PIL), into two files:
+- each half keeps a **rounded joint end** about 24 px past the cut, masked as a half-disc, so the two halves overlap at the joint and a bent elbow shows no gap;
+- the upper half ends in a rounded elbow or knee, with no hand and no foot;
+- the lower half starts with a rounded elbow or knee.
+
+| Files | Canvas | What |
+| --- | --- | --- |
+| `kit-arm-up-{lean,avg,mus}.png` | 160 x 288 | shoulder to elbow |
+| `kit-arm-lo-{lean,avg,mus}.png` | 160 x 288 | elbow to fist |
+| `kit-leg-up-{lean,avg,mus}.png` | 192 x 320 | hip to knee |
+| `kit-leg-lo-{lean,avg,mus}.png` | 192 x 352 | knee to sandalled foot |
+
+**B. Beasts**, grown and young, lion and bear. Paint each in the same style, fur colours and size as its body now (`beast-lion-body-A.png`, `beast-bear-body-A.png`, and their `-B` for the young):
+- **The torso without legs:** the body in side view facing left, head off as now, with the legs ending at the body's outline. The shoulder and haunch stay as rounded muscle, but no leg hangs below the belly line. Canvas 640 x 384.
+- **One whole foreleg and one whole hind leg,** each straight down, from the top of the shoulder or haunch to the paw. Cut each at the knee into an upper and a lower half, with the same overlapping round ends as A. The upper half's top is a rounded shoulder or haunch cap, so it sits over the torso's edge.
+
+| Files | Canvas |
+| --- | --- |
+| `beast-{lion,bear}-torso.png`, `beast-{lion,bear}-torso-young.png` | 640 x 384 |
+| `beast-{lion,bear}-fore-up.png`, `-fore-lo`, `-hind-up`, `-hind-lo`, each also `-young` | 160 x 288 |
+
+**C. The handoff,** `docs/art/HANDOFF-arena-limbs.md`, lists for every file, in px:
+- the top joint point and the bottom joint point (shoulder or hip, elbow or knee; the knee and the wrist or ankle on a lower half);
+- the width across at the middle;
+- for each torso, the shoulder and hip points where the near legs' tops sit.
+
+That is 6 whole fighter limbs and 12 beast paintings (4 torsos and 8 whole legs). Make **two options** of each whole limb and torso, A and B: about 36 paintings at medium quality, **about US$7 to 9**. Cut them into their halves (64 files: 48 halves and 16 torsos). Add all of them to `docs/art/candidates/arena/candidates.json`, and make one contact sheet, `sheet-limbs-whole.png`. On the sheet, show each limb's two halves both joined straight and bent at 90 degrees, so a seam or a mismatch shows before the game does.
+
+**This replaces Pack 20b's bear legs and arm-tone items.** Pack 20b's Bronze Bracers and Eye Amulet still stand.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.

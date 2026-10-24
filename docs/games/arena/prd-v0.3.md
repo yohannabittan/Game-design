@@ -1044,3 +1044,68 @@ One Sonnet build, after step 6b lands, reviewed.
   - nothing doubles at a joint;
   - `npm run smoke` passes;
   - frame time is within 10% of arena-v34.
+
+## Step 8 (locked 2026-10-24): a grade that counts what you did well
+
+**The designer**, after a long session in Rome: "I feel like I just played some great bouts but got low scores for them."
+
+**Why:** the grade counts only thrusts into a gap, feints read and hits on a winded foe. Perfect blocks, dodged swings and lamed limbs count for nothing, and one or two hits taken caps a bout at B or C. In the export's last ten runs, 21 of the 22 grades are B or C. One run had 5 perfect blocks, 4 lamings and 2 dodged swings over four bouts, and was graded C, C, B, C.
+
+- **Good moves this bout:** the sum of:
+  - thrusts into a gap (`slotHits`);
+  - feints read;
+  - hits on a winded foe (`punishes`);
+  - perfect blocks;
+  - swings dodged (`dodged`, not dodge presses);
+  - limbs lamed.
+- **The grade,** from the hits you took this bout and the good moves:
+
+  | Grade | Hits taken | Good moves |
+  | --- | --- | --- |
+  | S | 0 | 5 or more |
+  | A | 2 or fewer | 5 or more |
+  | B | 4 or fewer | 2 or more |
+  | C | anything else | |
+
+  A pair bout allows one more hit at each grade. All the numbers are in `TUNING.grade`.
+- **On the grade card,** the grade's line says why, in a few words: `GRADE B · 3 hits · 6 good moves`. Nothing else is added to the card.
+- **On the "?" page,** one line says what the next grade up needs. For example: "A: at most 2 hits and 5 good moves." There is no such line after an S.
+- **Unchanged:**
+  - the draft odds per grade;
+  - the gold;
+  - the fame;
+  - everything else on the card.
+- **Telemetry:** the run's result line gains `goods=` with each bout's good moves, in order (for example `goods=6,4,7`).
+- **The save:** no shape change. A run resumed from an older save counts the new moves from zero for the bout in progress.
+- **Acceptance:**
+  - A scripted bout with 3 hits taken, 2 perfect blocks, 2 lamings and 1 dodged swing grades B.
+  - The same bout with 1 hit taken grades A.
+  - The same bout as a pair bout with 3 hits taken grades A.
+  - A bout with no hits taken and 5 good moves grades S.
+  - At 667x375, 844x390 and 932x430, the grade line fits on one line and clears the header and Brutus's line.
+  - `npm run smoke` passes.
+
+## Step 6d (locked 2026-10-24): whole limbs cut in two, and legless beast bodies
+
+**The designer**, after v36: "Still we have issues with the upper lower limb situation, and with the way the animals' limbs attach to their bodies."
+
+**The cause**, seen on rendered frames of v36:
+- Each limb's two halves come from different paintings. The Pack 20 one-segment upper arms are smooth glossy tubes beside detailed forearms.
+- Turning the one-segment art off barely changes the frames.
+- The beasts' body images have the shoulders, haunches and leg tops painted on, so the pinned legs double them.
+
+**The art (Pack 21 in `docs/art/BRIEF.md`):**
+- Each limb is painted once, whole, and cut at the joint into two halves with overlapping round ends.
+- Each beast has a torso painted without legs, and whole legs cut the same way.
+
+**The wiring build, once the pack is picked:**
+- Draw the fighters' arms and legs from the `kit-arm-*` and `kit-leg-*` halves, per tier.
+- Draw the beasts from `beast-*-torso` and the `fore` and `hind` halves:
+  - each near leg's upper half over the torso's edge, its top at the torso's shoulder or hip point from the handoff;
+  - the far legs behind the torso, shaded.
+- Retire the old pieces, `-seg` parts, crops, `SEG_HOLD` and pins, once the new set covers every tier and beast.
+- **Acceptance:**
+  - On rendered frames (each tier in guard, swing and stride, and each beast at rest, in the tell and striking), each limb reads as one limb, with one elbow or knee and no seam.
+  - No beast leg doubles a painted haunch or shoulder.
+  - The hit geometry is unchanged.
+  - `npm run smoke` passes.
