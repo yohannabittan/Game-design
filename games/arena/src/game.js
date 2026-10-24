@@ -422,7 +422,7 @@ const TUNING = {
       'gear-blood-band': { size: [256, 256], a: [140, -20], b: [140, 250] },
       'gear-ribbon-band': { size: [256, 256], a: [130, 0], b: [130, 280] },
       'gear-horned-cap': { size: [256, 256], a: [130, 55], b: [130, 285], helm: true, bare: 95 },
-      'gear-dark-hood': { size: [256, 256], a: [130, 20], b: [130, 225] },
+      'gear-dark-hood': { size: [256, 256], a: [130, 20], b: [130, 225], cover: true },
       'gear-plumed-helm': { size: [256, 256], a: [125, 50], b: [125, 240], helm: true, bare: 95 },
       'gear-bronze-phalerae': { size: [384, 384], a: [160, 25], b: [160, 375], w: 300, at: [0, -0.745, -0.49], bare: 70, flip: true },
       'gear-ghost-silk': { size: [384, 384], a: [200, 0], b: [200, 384], w: 380, at: [0, -0.74, -0.45] },
@@ -3987,7 +3987,15 @@ function paintHeadGear(c, p, H, lk) {
   if (!g) { if (lk.tailor) tailorHead(c, x, y, r, H, lk.tailor); return; }
   // the painted piece (a helmet that stood in for a plated head's is already on it)
   const G = gearArt(lk, 'helmet');
-  if (G) { if (!(p.armour && G.J.helm)) wearSeg(c, G, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0, !p.armour && !lk.kit.you); return; }
+  if (G) {
+    if (p.armour && G.J.helm) return;
+    // a head piece that is not a helmet: none over a closed helmet (nor a hood over any); a band is tied under an open helmet's brim, so the helmet goes back on over it
+    const hp = p.armour && helmPic(lk);
+    if (hp && (hp.J.closed || G.J.cover)) return;
+    wearSeg(c, G, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0, !p.armour && !lk.kit.you);
+    if (hp) drawSeg(c, hp, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0);
+    return;
+  }
   const L = FAM_LOOK[g.fam], M = L.metal;
   if (g.id === 'braced') {
     // a bronze crest ridge front to back, with a brush of gold horsehair
@@ -4856,8 +4864,8 @@ function drawSwordArm(ctx, E) {
       ctx.fillStyle = metalGrad(ctx, h.sx + r, cy - r, h.sx - r, cy, BLACK); ctx.fill(); ctx.strokeStyle = BLACK.edge; ctx.lineWidth = 1.5; ctx.stroke();
     }
     spike(ctx, h.sx, h.sy - 0.06 * H, -Math.PI / 2, 0.04 * H, 0.018 * H, BLACK, true);
-  } else if (lk.pauldron) {
-    // the brute's layered iron pauldron over the weapon shoulder
+  } else if (lk.pauldron && !lk.kit) {
+    // the brute's layered iron pauldron over the weapon shoulder (not on a painted man, who has no painted one)
     for (let i = 2; i >= 0; i--) {
       const r = (0.07 - i * 0.012) * H, cy = h.sy - 0.01 * H + i * 0.022 * H;
       ctx.beginPath(); ctx.ellipse(h.sx, cy, r * 1.15, r * 0.7, 0, Math.PI, TAU); ctx.closePath();
