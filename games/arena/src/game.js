@@ -256,8 +256,9 @@ const TUNING = {
   // the left column: width as a fraction of screen width (never under minW), gap between buttons, top of the column below the safe top, DODGE height (fraction of screen height, never under dodgeMinH), touch reach past a drawn edge, and how much of the way the fighters' frame slides toward the middle of the space the column leaves
   col: { frac: 0.22, minW: 96, gap: 6, top: 70, dodgeFrac: 0.17, dodgeMinH: 64, reach: 8, frame: 0.75 },
   foot: { pace: 0.14, drift: { idle: 0.6, secs: 1.5 }, gainDur: 0.16, back: 0.2, walkBack: 0.42, close: 0.1, room: [0.6, 0.7], margin: 22, foeV: 0.75, commit: 0.3, reach: 0.12, push: 0.5, wallMsg: 0.9, give: 0.02, chase: 1.0, chaseV: 1.6, chaseSwing: 0.5 },
-  // the bout's grade: S needs no hits taken and reads + punishes of at least S.skill; A and B allow up to taken hits with slot hits + reads + punishes of at least skill
-  grade: { S: { taken: 0, skill: 2 }, A: { taken: 1, skill: 3 }, B: { taken: 3, skill: 1 } },
+  // the bout's grade: each grade allows up to `taken` hits this bout (a pair bout allows `pair` more) with at least `good` good moves (gap hits, fakes read,
+  // punishes, perfect blocks, swings dodged, limbs lamed)
+  grade: { S: { taken: 0, good: 5 }, A: { taken: 2, good: 5 }, B: { taken: 4, good: 2 }, pair: 1 },
   // the draft: cards dealt (the last is priced), weights per grade for the free cards (common, rare), the pull on a family you wear, at most perFam cards of
   // one family a draft; the priced slot's cascade, each tier's own chance (a set bonus you qualify for, else a legendary, else an epic, else a rare);
   // prices by rarity (common, rare, epic, legendary) and a set's; delay before a pick counts (s)
@@ -1206,7 +1207,7 @@ function newRack(E) {
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
   settleFeint('none');
-  state.bout = { felled: false, shrugged: false, foeShrug: false, bread: false, net: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken };
+  state.bout = { felled: false, shrugged: false, foeShrug: false, bread: false, net: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken, dodge: state.dodged, lame: state.lamings };
   state.open = 0; state.riposte = 0; state.slowT = 0; state.snapT = 0;
   Object.assign(state, { slowFx: 0, slowMul: 1, zoomT: 0, dropT: 0, ghostT: 0, ghostAt: -9, ghosts: [], paintT: 0, banner: null, shatter: null, steps: { foe: null, me: null } });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
@@ -1224,7 +1225,7 @@ function newRound(E, seed, me0, rv, arenaId = 'pit') {
   const M = TUNING.me, me = { ...me0, plates: me0.plates.slice() }, A = ARENA[arenaId] || ARENAS[0], rival = rv !== undefined ? rv : E.save.get('rivals', {})[A.id] || null;
   Object.assign(state, {
     me, maxHp: me.halves, staMax: M.staMax[me.sta - 1], lessons: E.save.get('feintLesson', 0), caption: null, slowT: 0,
-    picks: [], grades: [], draft: null, token: TUNING.token, tokenUsed: '', epicsSeen: 0, switchReads: 0, hint: false, boutT0: 0, stepsIn: 0, stepsOut: 0, wallHits: 0, foeWall: 0, outReach: 0, dodged: 0, chases: 0, shrugs: 0, rivalBeaten: 0,
+    picks: [], grades: [], goods: [], draft: null, token: TUNING.token, tokenUsed: '', epicsSeen: 0, switchReads: 0, hint: false, boutT0: 0, stepsIn: 0, stepsOut: 0, wallHits: 0, foeWall: 0, outReach: 0, dodged: 0, chases: 0, shrugs: 0, rivalBeaten: 0,
     foot: { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 },
     seed, arena: A.id, rng: makeRng(seed ^ 0x9e3779b9), gauntlet: rollGauntlet(seed, rival, A), results: [], rack: 0, m: 0, stop: 0, kickA: 0, kickV: 0,
     hp: me.halves, endT: 0, dodgeT: 0, dodgeMax: TUNING.dodge.dur, dodgeCool: 0, away: false, dodgeM: -9, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, lungeMiss: false, slotHits: 0, dg: { down: false, id: -1, t: 0 },
@@ -2403,7 +2404,7 @@ function fell(E) {
   if (state.edge && !state.edge.down) { fellOne(E); return; }
   state.felled++; state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.results[state.rack] = 'felled';
   state.hp = Math.min(state.maxHp, state.hp + TUNING.heal);
-  state.grades.push(gradeBout());
+  state.grades.push(gradeBout()); state.goods.push(boutTally().good);
   state.lastGold = boutGold(); state.gold += state.lastGold.sum; state.goldEarned += state.lastGold.sum;
   if (state.gauntlet[state.rack].rival) { state.rivalBeaten = 1; clearRival(E); pop(E.w * 0.62, E.h * 0.42, 'Rival defeated!', '#f87171', 30); }
   pop(E.w * 0.62, E.h * 0.3, 'FOE DOWN', '#ffd24a', 28); shake(E, 10, 0.3); E.flash('#fff0b8', 0.1); E.audio.play('coin'); fellJuice(E);
@@ -2818,13 +2819,15 @@ function updateBleed(E, dt) {
 // The bout's grade from what this bout added to the run's counts.
 function boutTally() {
   const b = state.bout;
-  return { slot: state.slotHits - b.slot, read: state.feintsRead - b.read, pun: state.punishes - b.pun, taken: state.taken - b.taken };
+  const t = { slot: state.slotHits - b.slot, read: state.feintsRead - b.read, pun: state.punishes - b.pun, taken: state.taken - b.taken, perf: state.perfects - b.perf, dodge: state.dodged - b.dodge, lame: state.lamings - b.lame };
+  t.good = t.slot + t.read + t.pun + t.perf + t.dodge + t.lame;
+  return t;
 }
+// The hits a grade allows in this bout (a pair bout allows one more)
+const hitsAllowed = (g) => TUNING.grade[g].taken + (state.gauntlet[state.rack].pair ? TUNING.grade.pair : 0);
 function gradeBout() {
-  const G = TUNING.grade, t = boutTally(), skill = t.slot + t.read + t.pun;
-  if (t.taken <= G.S.taken && t.read + t.pun >= G.S.skill) return 'S';
-  if (t.taken <= G.A.taken && skill >= G.A.skill) return 'A';
-  if (t.taken <= G.B.taken && skill >= G.B.skill) return 'B';
+  const G = TUNING.grade, t = boutTally();
+  for (const g of ['S', 'A', 'B']) if (t.taken <= hitsAllowed(g) && t.good >= G[g].good) return g;
   return 'C';
 }
 // The families you wear, counted: each piece for its family, war paint for its own (a set bonus is worn by no family)
@@ -5460,7 +5463,12 @@ function drawDraft(ctx, E) {
   ctx.fillStyle = 'rgba(10,8,14,0.82)'; ctx.fillRect(0, 0, E.w, E.h);
   const d0 = state.gauntlet[state.rack], who = d0.pair ? `${d0.name.split(/[ ,]/)[0]} AND ${d0.pair.name.split(/[ ,]/)[0]}` : state.foe.name;
   E.text(`${who.toUpperCase()} FELLED  ·  BOUT ${state.rack + 1} OF ${state.gauntlet.length}`, E.w / 2, top, { size: 14, weight: '800', color: '#c4b99a' });
-  E.text(`GRADE ${d.grade}`, E.w / 2, top + 24, { size: 24, weight: '800', color: gc });
+  // the grade, then why in a few words on the same line: "GRADE B · 3 hits · 6 good moves"
+  const why = d.tally.good == null ? '' : `  \u00b7  ${d.tally.taken} hit${d.tally.taken === 1 ? '' : 's'}  \u00b7  ${d.tally.good} good move${d.tally.good === 1 ? '' : 's'}`;
+  ctx.font = '800 24px system-ui, sans-serif'; const gw = ctx.measureText(`GRADE ${d.grade}`).width;
+  ctx.font = '700 14px system-ui, sans-serif'; const ww = ctx.measureText(why).width, gx = (E.w - gw - ww) / 2;
+  E.text(`GRADE ${d.grade}`, gx, top + 24, { size: 24, weight: '800', color: gc, align: 'left' });
+  if (why) E.text(why, gx + gw, top + 24, { size: 14, weight: '700', color: '#c4b99a', align: 'left' });
   // his line on one line where it fits (the stats, the gold's breakdown, the purse and the deal's odds are on the "?")
   const fw = artImg('brutus-proud') ? TUNING.art.face + 8 : 0, bl = wrapPx(ctx, `Old Brutus: “${brutusWon()}”`, E.w - 32 - E.safe.left - E.safe.right - fw, 14, '700'), ex = (bl.length - 1) * 17;
   sayLines(ctx, E, bl, E.w / 2, top + 50, 17, E.w, { size: 14, weight: '700', color: '#fde68a' }, 'brutus-proud');
@@ -5538,6 +5546,13 @@ function drawCardHelp(ctx, E, cards) {
   });
   E.text('Tap for how the deal works', E.w / 2, y + h - 14, { size: 14, weight: '800', color: '#ffd24a' });
 }
+// What the next grade up needs, for the "?" page; nothing after an S
+function nextUp(g) {
+  const up = { C: 'B', B: 'A', A: 'S' }[g];
+  if (!up) return '';
+  const n = hitsAllowed(up);
+  return `${up}: at most ${n} hit${n === 1 ? '' : 's'} and ${TUNING.grade[up].good} good moves.`;
+}
 // The "?", third page: what the grade card used to carry: the bout's counts, the gold and where it came from, the purse, the deal's odds, your gear and
 // what the fight's bars are called
 function drawBoutHelp(ctx, E, d) {
@@ -5547,6 +5562,7 @@ function drawBoutHelp(ctx, E, d) {
     [`${t.slot} gap hits  \u00b7  ${t.read} fakes spotted  \u00b7  ${t.pun} punishes  \u00b7  ${t.taken} hits taken`, '#e2e8f0'],
     ...(g ? [[`+${g.sum} gold (fell ${g.sum - tsum}${tsum ? `, the crowd threw ${tsum}: ${thrown.map((e) => `${e[0]} ${e[1]}`).join(', ')}` : ''})`, '#fbbf24']] : []),
     [`Purse ${state.gold}  \u00b7  Grade ${d.grade}: Common ${pct[0]}% \u00b7 Rare ${pct[1]}%`, '#fbbf24'],
+    ...(nextUp(d.grade) ? [[nextUp(d.grade), '#fde68a']] : []),
     [`Reroll: ${state.token > 0 ? `${state.token} left` : 'used'}`, '#c4b5fd'],
   ].flatMap(([q, col]) => wrapPx(ctx, q, tw, 14, '700').map((l) => [l, col]));
   const bars = wrapPx(ctx, 'The bars under your hearts: gold diamonds are Momentum, green is stamina, tan is your shield.', tw, 14, '600');
@@ -6813,7 +6829,7 @@ const play = {
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize,
-  ARENAS, rollGauntlet, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
+  ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     if (params.resume) resumeRun(E, params.resume); else newRound(E, params.seed, params.me || rollMe(params.seed), undefined, params.arena);
     newRack(E); initHand(E);
@@ -6938,7 +6954,7 @@ const play = {
       stats: g.map((d) => `${d.str}${d.spd}${d.sta}`).join(','), champ: g[g.length - 1].name, lostTo: won ? '' : `${g[reached - 1].name} ${g[reached - 1].size.id} ${g[reached - 1].weapon.id}`,
       moves: Object.entries(state.moveCount).map(([k, v]) => `${k}${v}`).join(','),
       meSize: me.size, meStats: `${me.str}${me.spd}${me.sta}`, meArmour: me.set, mePlates: me.plates.join(','), meTier: me.tier, underdog: me.underdog ? 1 : 0,
-      grades: state.grades.join(''), picks: state.picks.join(','), stepsIn: state.stepsIn, stepsOut: state.stepsOut, wallHits: state.wallHits, foeWall: state.foeWall, outReach: state.outReach, dodged: state.dodged, chases: state.chases,
+      grades: state.grades.join(''), goods: state.goods.join(','), picks: state.picks.join(','), stepsIn: state.stepsIn, stepsOut: state.stepsOut, wallHits: state.wallHits, foeWall: state.foeWall, outReach: state.outReach, dodged: state.dodged, chases: state.chases,
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
       arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1,
       meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast, drives: state.drives, driveDist: Math.round(state.driveDist * 100) / 100, spoils: state.spoils });
