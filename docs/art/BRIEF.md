@@ -345,9 +345,9 @@ The designer, after playing v36: "Still we have issues with the upper lower limb
 
 **The fix is the cut-out method:** paint each limb **once, whole and straight**, then cut that one painting in two at the elbow or knee, so both halves always match.
 
-**A. Fighters.** For each muscle tier, paint one whole arm and one whole leg:
+**A. Fighters, lean and average tiers only.** The designer says the muscular tier's limbs now look right, so it is left as it is. For the lean and the average tier, paint one whole arm and one whole leg:
 - in side view, hanging straight down;
-- in the same style, skin tone, outline and lighting as that tier's torso (`kit-base-torso-lean-A.png`, `kit-base-torso-avg-A.png`, `kit-base-torso-A.png` for muscular);
+- in the same style, skin tone, outline and lighting as that tier's torso (`kit-base-torso-lean-A.png`, `kit-base-torso-avg-A.png`);
 - **arm:** from the shoulder to a clenched fist, with a leather wristband;
 - **leg:** from the hip, with the kilt's edge at the top as now, to a sandalled foot.
 
@@ -358,10 +358,10 @@ Then **cut each painting at the elbow or knee** in code (PIL), into two files:
 
 | Files | Canvas | What |
 | --- | --- | --- |
-| `kit-arm-up-{lean,avg,mus}.png` | 160 x 288 | shoulder to elbow |
-| `kit-arm-lo-{lean,avg,mus}.png` | 160 x 288 | elbow to fist |
-| `kit-leg-up-{lean,avg,mus}.png` | 192 x 320 | hip to knee |
-| `kit-leg-lo-{lean,avg,mus}.png` | 192 x 352 | knee to sandalled foot |
+| `kit-arm-up-{lean,avg}.png` | 160 x 288 | shoulder to elbow |
+| `kit-arm-lo-{lean,avg}.png` | 160 x 288 | elbow to fist |
+| `kit-leg-up-{lean,avg}.png` | 192 x 320 | hip to knee |
+| `kit-leg-lo-{lean,avg}.png` | 192 x 352 | knee to sandalled foot |
 
 **B. Beasts**, grown and young, lion and bear. Paint each in the same style, fur colours and size as its body now (`beast-lion-body-A.png`, `beast-bear-body-A.png`, and their `-B` for the young):
 - **The torso without legs:** the body in side view facing left, head off as now, with the legs ending at the body's outline. The shoulder and haunch stay as rounded muscle, but no leg hangs below the belly line. Canvas 640 x 384.
@@ -377,7 +377,7 @@ Then **cut each painting at the elbow or knee** in code (PIL), into two files:
 - the width across at the middle;
 - for each torso, the shoulder and hip points where the near legs' tops sit.
 
-That is 6 whole fighter limbs and 12 beast paintings (4 torsos and 8 whole legs). Make **two options** of each whole limb and torso, A and B: about 36 paintings at medium quality, **about US$7 to 9**. Cut them into their halves (64 files: 48 halves and 16 torsos). Add all of them to `docs/art/candidates/arena/candidates.json`, and make one contact sheet, `sheet-limbs-whole.png`. On the sheet, show each limb's two halves both joined straight and bent at 90 degrees, so a seam or a mismatch shows before the game does.
+That is 4 whole fighter limbs and 12 beast paintings (4 torsos and 8 whole legs). Make **two options** of each whole limb and torso, A and B: 32 paintings at medium quality, **about US$6 to 8**. Cut them into their halves (56 files: 48 halves and 8 torsos). Add all of them to `docs/art/candidates/arena/candidates.json`, and make one contact sheet, `sheet-limbs-whole.png`. On the sheet, show each limb's two halves both joined straight and bent at 90 degrees, so a seam or a mismatch shows before the game does.
 
 **This replaces Pack 20b's bear legs and arm-tone items.** Pack 20b's Bronze Bracers and Eye Amulet still stand.
 

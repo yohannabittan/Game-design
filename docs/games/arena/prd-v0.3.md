@@ -1109,3 +1109,37 @@ One Sonnet build, after step 6b lands, reviewed.
   - No beast leg doubles a painted haunch or shoulder.
   - The hit geometry is unchanged.
   - `npm run smoke` passes.
+
+## Step 6e (locked 2026-10-24): the fighter card painted, his gear placed, his chest facing him
+
+**The designer**, on screenshots of v36:
+- "Ok, you fixed the upper lower limb." That is the muscular tier. The lean and average arms are still the glossy tubes, for Pack 21.
+- "In the character sheet, overlaying the grey blocks makes it look bad."
+- "The way we're overlaying the items on the face looks weird, and the chest is facing the wrong way."
+
+**Seen on rendered frames of v36:**
+- The card's figure (`armourIcon` over `kitIcon`) draws each plated part as a flat grey box or circle at 0.8 alpha (`TUNING.kit.icon.plate`), over the painted body and face.
+- On a foe, flat drawn pieces sit over the painted body:
+  - a pale dashed box at the face or neck;
+  - grey metal bands across his raised forearm, which pass in front of his face when his arm is up.
+- The designer sees his torso facing the wrong way.
+
+**The fixes:**
+- **The fighter card:** with the kit on, the figure shows no flat boxes or circles. A plated part shows its painted piece, as in the fight:
+  - the helmet;
+  - the chest plate;
+  - the manica;
+  - the greaves.
+
+  The "plated:" line under it stays.
+- **His gear:** nothing flat-drawn sits on a painted foe where a painted piece exists, or where none is meant. Find each flat piece still drawn over a painted foe (the pale box at the face or neck, the grey bands on the arm) and remove it, or replace it with its painted piece in its proper place.
+
+  The hit geometry stays as it is. The gaps you aim at still show where a gap is, as a painted man shows them now in the fight.
+- **His chest:** a foe's torso, chest gear and arms face the way his head faces (towards you), on every tier and size band. Check whether the torso image is mirrored with the rest of him, and fix whatever is not.
+- **Acceptance:**
+  - Rendered frames of the card for each armour set (light, medium, heavy) and each tier.
+  - Rendered frames of six geared foes (the six gear families), each at rest and with his weapon arm raised.
+  - Rendered frames of a foe of each tier, side by side with you, showing his chest facing you.
+  - No flat grey or white shape on a painted body or face, in any of these frames.
+  - The hit geometry is unchanged.
+  - `npm run smoke` passes.
