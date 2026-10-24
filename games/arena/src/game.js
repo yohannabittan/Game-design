@@ -3197,8 +3197,8 @@ const STRAW = ['#e6c866', '#d4b04a', '#f2dc90', '#b8923a'];
 const YOU = { skin: '#c58f5e', tunic: '#2f7d6d', hem: '#1d5448', crest: '#e6c866' };
 
 // ----- the art: images by name through E.art (ADR-0020), with the drawn look as every image's fallback; the kit pilot's switch on the ART screen -----
-// An image loads only when E.art has a candidate for its name (dev channel); otherwise the drawn look stays (release ships none yet). Each load and each
-// pick bumps artV, which the backdrop's and the sprites' cache keys carry, so they repaint once.
+// An image loads when E.art has a candidate for its name (dev channel) or, in the release channel, when its name is in SHIPPED; otherwise the drawn look
+// stays. Each load and each pick bumps artV, which the backdrop's and the sprites' cache keys carry, so they repaint once.
 let ART = null, artV = 0;
 const KIT = { on: false };
 const IMGS = new Map();
@@ -3221,10 +3221,37 @@ function artImg(name) {
 // picked at; the ART screen lists only the upper half, and none of the parts the halves and torsos retired.
 const LO_HALF = /^(kit-(arm|leg)|beast-(lion|bear)-(fore|hind))-lo(-|$)/;
 const upHalf = (n) => n.replace(/-lo(?=-|$)/, '-up');
+// The painted art the release channel ships (the A pick of each, docs/art/final/arena/<name>), one games/arena/assets/<name>.webp each. The release channel
+// has no candidates (ADR-0020), so this stands in for E.art there; the retired parts (see RETIRED) are left out. A name added here needs its file and an
+// entry in sw.js.
+const SHIPPED = new Set([
+  // backdrops, faces and portraits
+  'arena-pit arena-city arena-colosseum arena-grand brutus brutus-proud champ-marcus champ-aurelius champ-flamma champ-varro champ-twins ',
+  'champ-hermes champ-carpophorus champ-mevia champ-aquila emperor ',
+  // the men: muscular parts, lean and average limb halves, helmets, shields, plates, the net
+  'kit-base-head kit-base-torso kit-base-forearm kit-base-shin kit-helmet-gallic kit-shield-round kit-base-torso-lean kit-base-torso-avg ',
+  'kit-helmet-murmillo kit-helmet-thraex kit-helmet-secutor kit-galerus kit-shield-scutum kit-shield-parma kit-plate-chest kit-plate-manica ',
+  'kit-plate-greave kit-wrap-trousers kit-base-upperarm-seg kit-base-thigh-seg kit-net-draped kit-arm-up-lean kit-arm-lo-lean kit-leg-up-lean ',
+  'kit-leg-lo-lean kit-arm-up-avg kit-arm-lo-avg kit-leg-up-avg kit-leg-lo-avg ',
+  // the beasts
+  'beast-lion-head beast-bear-head beast-lion-tail beast-lion-fore-up beast-lion-fore-lo beast-lion-hind-up beast-lion-hind-lo ',
+  'beast-lion-fore-up-young beast-lion-fore-lo-young beast-lion-hind-up-young beast-lion-hind-lo-young beast-bear-fore-up beast-bear-fore-lo ',
+  'beast-bear-hind-up beast-bear-hind-lo beast-bear-fore-up-young beast-bear-fore-lo-young beast-bear-hind-up-young beast-bear-hind-lo-young ',
+  'beast-lion-torso beast-lion-torso-young beast-bear-torso beast-bear-torso-young ',
+  // the card gear
+  'gear-bronze-bracers gear-barbed-bracers gear-matador-ribbons gear-iron-pauldrons gear-knife-bracers gear-gilt-armlets gear-bronze-crest ',
+  'gear-blood-band gear-ribbon-band gear-horned-cap gear-dark-hood gear-plumed-helm gear-bronze-phalerae gear-ghost-silk gear-black-plate ',
+  'gear-eye-amulet gear-gilded-harness gear-bronze-boots gear-dancers-sandals gear-spiked-boots gear-soft-boots gear-gilded-greaves ',
+  'gear-hook-belt gear-ribbon-sash gear-chain-belt gear-coin-belt gear-wolf-pelt gear-flowing-cape gear-puppeteers-mantle gear-purple-cloak ',
+  'gear-lion-pelt gear-spiked-shield gear-tower-shield gear-spiral-shield'
+].join('').split(' '));
+const shippedSrc = (name) => `assets/${name}.webp`;
+// the art the game asks: E.art in the dev channel (candidates and the designer's picks), the shipped A picks in release
+const shippedArt = { enabled: true, has: (n) => SHIPPED.has(n), choice: () => 0, url: shippedSrc, src: shippedSrc, on() {} };
 const RETIRED = /^(kit-base-(upperarm|forearm|thigh|shin)-(lean|avg)(-seg)?|kit-base-thigh-seg|beast-(lion|bear)-(body|upperleg|lowerleg)(-young)?(-seg)?|beast-(lion|bear)-upperleg-young-seg)$/;
 function artSrc(name) {
   const u = LO_HALF.test(name) && ART.has(upHalf(name)) ? upHalf(name) : null;
-  return (u && ART.url(name, ART.choice(u))) || ART.src(name, '');
+  return (u && ART.url(name, ART.choice(u))) || ART.src(name, shippedSrc(name));
 }
 function artTabNames(E) {
   const A = E.art, all = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(A), 'names').get;
@@ -3355,8 +3382,8 @@ function lookFor(fm, isFoe) {
 // An image by name with its joints J (px of J.size: an image at another size scales them; one on J.wide's wider canvas takes J.wide). px > 0: a copy
 // scaled near px across J.w (or its width), cached, for a part drawn live each frame rather than the full image; dark shades that copy (a far leg).
 const KIT_LIVE = new Map();
-// the file a name loads now, without its folder and extension (kit-base-thigh-A): the key of the joints measured per image
-function artStem(name) { const e = IMGS.get(name); return e && e.src ? e.src.replace(/^.*\//, '').replace(/\.\w+$/, '') : ''; }
+// the file a name loads now, without its folder and extension (kit-base-thigh-A): the key of the joints measured per image; a shipped file is the A pick
+function artStem(name) { const e = IMGS.get(name); return e && e.src ? e.src.replace(/^.*\//, '').replace(/\.\w+$/, '') + (e.src.startsWith('assets/') ? '-A' : '') : ''; }
 // a limb half's joints by file (TUNING.kit.half, TUNING.beastArt.half), its shared width w over its limb's wk
 function halfJ(st) {
   const T = TUNING.kit.half[st] ? TUNING.kit.half : TUNING.beastArt.half[st] ? TUNING.beastArt.half : null;
@@ -3365,7 +3392,7 @@ function halfJ(st) {
 function artPic(name, J0, px = 0, dark = 0) {
   const im = artImg(name);
   if (!im) return null;
-  const st = artStem(name), C = TUNING.kit.crop[st] || halfJ(st), J1 = J0.wide && im.width === J0.wide.size[0] ? J0.wide : J0;
+  const st = artStem(name), C = TUNING.kit.crop[st] || halfJ(st), J1 = J0.wide && Math.abs(im.width / im.height - J0.wide.size[0] / J0.wide.size[1]) < 0.03 ? J0.wide : J0; // a wide canvas is told by its shape: a shipped file is scaled down
   const J = C ? { ...J1, ...C } : J1, sz = J.size;
   if (!px || !canSprite) return { im, J, kx: im.width / sz[0], ky: im.height / sz[1] };
   const f = Math.min(1, TUNING.kit.live * px / ((J.w || sz[0]) * im.width / sz[0])), key = `${name}|${Math.round(px)}|${dark}|${artV}`;
@@ -7495,9 +7522,9 @@ export const game = {
   start: 'menu',
   // the art (step 6): E.art where the engine has it (ADR-0020); without it every image keeps its drawn fallback
   init(E) {
-    ART = E.art || null;
+    ART = E.art ? (E.art.enabled ? E.art : shippedArt) : null;
     if (!ART) return;
-    KIT.on = ART.enabled && !!E.save.get('kitPilot', true);
+    KIT.on = E.art.enabled ? !!E.save.get('kitPilot', true) : true;
     ART.on(() => { artV++; });
     E.art.label = artLabel;
     artTabNames(E);
