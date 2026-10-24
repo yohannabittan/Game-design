@@ -11,13 +11,21 @@ The friendlies play the **release channel** (ADR-0016) at `https://yohannabittan
 
 | # | Game | Blocker | Needs |
 | --- | --- | --- | --- |
-| 1 | Arena | **No painted art in release.** The release channel never loads art candidates (ADR-0020); all 132 Arena assets are still candidates (31 MB), with none in `docs/art/final/arena/` or `games/arena/assets/`. A release Arena today shows the drawn fallback figures. | The designer's picks from the ART tab (or "ship what the dev build shows now"). Then a finals build copies the picks, compressed, into `games/arena/assets/` and loads them in both channels. |
-| 2 | Arena | The black band at the bottom of the screen. | The designer: the home-screen app or Safari? Does rotating the phone fix it? Then an engine re-measure fix (skeleton plus an ADR, copied into the games). |
+| 1 | Arena | **Done 2026-10-24 (arena-v42):** the A picks ship in `games/arena/assets/`. Was: **No painted art in release.** The release channel never loads art candidates (ADR-0020); all 132 Arena assets are still candidates (31 MB), with none in `docs/art/final/arena/` or `games/arena/assets/`. A release Arena today shows the drawn fallback figures. | The designer's picks from the ART tab (or "ship what the dev build shows now"). Then a finals build copies the picks, compressed, into `games/arena/assets/` and loads them in both channels. |
+| 2 | Arena | **Dropped:** rotating the phone fixes it, and the designer is fine with that. Was: the black band at the bottom of the screen. | The designer: the home-screen app or Safari? Does rotating the phone fix it? Then an engine re-measure fix (skeleton plus an ADR, copied into the games). |
 | 3 | Gravity Golf | The "Read it" holes against Expert mode. | The designer: option 1 (remove "Read it" and keep the 0.2 s line everywhere; Expert is the only blind mode) or option 2 (keep it and make Expert stricter). |
-| 4 | All | The launcher is a plain list. | One build: on `release/index.html`, a line on adding a game to the home screen and a line on sending feedback (tap EXPORT on a game's menu and send it to the designer, with a few words). |
+| 4 | All | **Becomes the feedback build (see below).** The launcher is a plain list. | One build: on `release/index.html`, a line on adding a game to the home screen and a line on sending feedback (tap EXPORT on a game's menu and send it to the designer, with a few words). |
 | 5 | All | The release gate. | `tools/release.sh v1.6`. Smoke the release builds at phone sizes. A quick look at each game's first run in release (no TUNE, no ART tab, no dev text). |
 
 ## Feedback from friendlies
+
+**Proposed 2026-10-24, waiting on the designer:** feedback is gathered inside the games (one engine change, with an ADR, copied into all six):
+- opt-in anonymous play stats on first launch;
+- a Feedback button on each menu (fun 1 to 5, what confused you, would you play again, free text);
+- one prompt after a friend's first full run or third visit.
+
+Both would post to a Google Form the designer owns, landing in a Sheet. The designer chooses between stats plus button, or button only, and where the data goes. Until then, the fallback below stands.
+
 
 - Each friend plays, then sends the EXPORT text and a few lines (`templates/playtest-external.md`: what they played, what was fun, where they got stuck, what confused them, would they play again).
 - The designer forwards it into this session. It is filed under `docs/playtests-external/YYYY-MM-DD-<name>-<slug>.md`.
