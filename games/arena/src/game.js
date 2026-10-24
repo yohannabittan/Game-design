@@ -341,7 +341,9 @@ const TUNING = {
   // and is cut at cut between the chest and belly sprites; the head maps its top and chin to head (body units, about the head circle); far = the
   // shade of the far arm and leg; arm = your live arms' width (H).
   kit: {
-    tier: { lean: 2, avg: 3 }, leg: 0.085, sw: [140, 44], icon: { plate: 0.8 },
+    tier: { lean: 2, avg: 3 }, leg: 0.085, sw: [140, 44],
+    // a card's painted figure: its sprite's box (body units, feet at 0), room for a crest above and the sandals below
+    iconBox: [-0.45, -1.2, 0.45, 0.12],
     // A part whose image comes on a wider canvas (the muscular torso and shin, HANDOFF-arena-kit-muscle) uses its wide joints, pinned by the top axis;
     // k = how much wider that painted torso is than the others (the chest plate widens with it).
     torso: { size: [384, 512], a: [178, 0], b: [178, 298], w: 291, k: 1, wide: { size: [488, 512], a: [228, 0], b: [228, 298], w: 291, k: 1.3 } },
@@ -362,7 +364,9 @@ const TUNING = {
       thraex: { size: [256, 256], a: [120, 52], b: [120, 238], closed: true },
       secutor: { size: [256, 256], a: [131, 10], b: [131, 232], closed: true },
     },
-    plate: { size: [320, 320], a: [160, 0], b: [160, 300], w: 270, abs: 150 },
+    plate: { size: [320, 320], a: [160, 0], b: [160, 300], w: 270, abs: 150, flip: true },
+    // Step 6e: a guarded gap on a painted man is shut by a band of the chest plate's riveted rim: its centre column and rows (px of plate.size)
+    guard: { x: 160, y: [284, 312] },
     manica: { size: [160, 320], a: [72, 10], b: [60, 305], w: 125, to: 0.86 },
     greave: { size: [192, 384], a: [97, 10], b: [105, 350], w: 105, from: 0.05, to: 0.95 },
     wrap: { size: [192, 352], a: [92, 30], b: [86, 330], w: 114 },
@@ -389,6 +393,9 @@ const TUNING = {
       'kit-base-thigh-lean-B': { a: [95, 60], b: [89, 194], clip: 184 },
       // the muscular torso is painted with both upper arms hanging at its sides: below row trim[0] only columns trim[1] to trim[2] are drawn
       'kit-base-torso-A': { trim: [150, 100, 335] },
+      // Step 6e: these torsos are painted turned to their left (the sternum and neck left of centre, the right flank showing), against the head
+      // and limbs painted facing right, so they are drawn mirrored to face where the head faces
+      'kit-base-torso-B': { flip: true }, 'kit-base-torso-lean-A': { flip: true }, 'kit-base-torso-lean-B': { flip: true }, 'kit-base-torso-avg-A': { flip: true },
       // Step 6c-2, the Pack 20 one-segment parts, drawn whole: a the shoulder or hip, b the elbow or knee (their ends run on under the forearm's or
       // shin's top), w the px across that spans the rig's width
       'kit-base-upperarm-seg-A': { a: [107, 50], b: [30, 294] }, 'kit-base-upperarm-lean-seg-A': { a: [82, 45], b: [31, 294] },
@@ -400,7 +407,7 @@ const TUNING = {
     // across that spans the part's width (none: drawn in its own shape). arms: at = two heights in the arm's frame (H from the shoulder: the forearm
     // runs from ARM_LEN / 2 to the fist at ARM_LEN), so they follow your live arm too (up: there it sits upright on the shoulder, as the drawn one);
     // helmet: a and b the head's top and chin, as a helmet (helm: it covers the skull and stands in for a plated head's painted helmet); chest: at =
-    // x, then the top and bottom height (body units); legs: at = fractions from the knee to the ankle (flip: painted facing left); belt: at = x0, x1
+    // x, then the top and bottom height (body units; flip: painted turned to his left, so mirrored to face where his head faces); legs: at = fractions from the knee to the ankle (flip: painted facing left); belt: at = x0, x1
     // and the height of the waist; cloak: at = the shoulder point, the hem point and the width (body units), behind the body; shield: its rim radius
     // r or, for the tower, its half height h. bare: on an unplated part of his, a piece that would read as a plate shows only its rows above this
     // one (a helmet's crest or horns, a cuirass's collar and straps), so you never aim at a plate that is not there; yours is worn whole.
@@ -417,11 +424,11 @@ const TUNING = {
       'gear-horned-cap': { size: [256, 256], a: [130, 55], b: [130, 285], helm: true, bare: 95 },
       'gear-dark-hood': { size: [256, 256], a: [130, 20], b: [130, 225] },
       'gear-plumed-helm': { size: [256, 256], a: [125, 50], b: [125, 240], helm: true, bare: 95 },
-      'gear-bronze-phalerae': { size: [384, 384], a: [160, 25], b: [160, 375], w: 300, at: [0, -0.745, -0.49], bare: 70 },
+      'gear-bronze-phalerae': { size: [384, 384], a: [160, 25], b: [160, 375], w: 300, at: [0, -0.745, -0.49], bare: 70, flip: true },
       'gear-ghost-silk': { size: [384, 384], a: [200, 0], b: [200, 384], w: 380, at: [0, -0.74, -0.45] },
-      'gear-black-plate': { size: [384, 384], a: [190, 12], b: [190, 372], w: 300, at: [0, -0.745, -0.48], bare: 95 },
+      'gear-black-plate': { size: [384, 384], a: [190, 12], b: [190, 372], w: 300, at: [0, -0.745, -0.48], bare: 95, flip: true },
       'gear-eye-amulet': { size: [128, 160], a: [64, 0], b: [64, 160], at: [0.03, -0.745, -0.6] },
-      'gear-gilded-harness': { size: [384, 384], a: [192, 20], b: [192, 355], w: 340, at: [0, -0.745, -0.49] },
+      'gear-gilded-harness': { size: [384, 384], a: [192, 20], b: [192, 355], w: 340, at: [0, -0.745, -0.49], flip: true },
       'gear-bronze-boots': { size: [192, 384], a: [62, 82], b: [58, 262], at: [0.38, 1] },
       'gear-dancers-sandals': { size: [192, 384], a: [62, 55], b: [66, 288], at: [0.1, 1] },
       'gear-spiked-boots': { size: [192, 384], a: [48, 88], b: [50, 262], at: [0.35, 1] },
@@ -3369,16 +3376,23 @@ function drawSeg(c, P, A, B, w, flip = false) {
   if (J.clip) { const ch = Math.round(J.clip * P.ky); c.drawImage(P.im, 0, 0, iw, ch, 0, 0, iw, ch); } else c.drawImage(P.im, 0, 0);
   c.restore();
 }
-// The torso pinned from y0 to y1, w across. One painted with its upper arms hanging at its sides (J.trim: below row r, only columns x0 to x1) has
-// them cut off, since the arms are drawn as their own parts.
+// The torso pinned from y0 to y1, w across, mirrored when painted turned to his left (J.flip). One painted with its upper arms hanging at its sides
+// (J.trim: below row r, only columns x0 to x1) has them cut off, since the arms are drawn as their own parts.
 function kitTorso(c, P, y0, y1, w) {
-  const J = P.J, T = J.trim;
+  const J = P.J, T = J.trim, f = !!J.flip;
   if (T) {
-    const sx = w / J.w, yr = y0 + (T[0] - J.a[1]) * (y1 - y0) / (J.b[1] - J.a[1]), big = 4 * (Math.abs(y1 - y0) + w);
-    c.save(); c.beginPath(); c.rect(-big, yr - big, 2 * big, big); c.rect((T[1] - J.a[0]) * sx, yr, (T[2] - T[1]) * sx, big); c.clip();
+    const sx = w / J.w, yr = y0 + (T[0] - J.a[1]) * (y1 - y0) / (J.b[1] - J.a[1]), big = 4 * (Math.abs(y1 - y0) + w), x0 = f ? J.a[0] - T[2] : T[1] - J.a[0];
+    c.save(); c.beginPath(); c.rect(-big, yr - big, 2 * big, big); c.rect(x0 * sx, yr, (T[2] - T[1]) * sx, big); c.clip();
   }
-  drawSeg(c, P, [0, y0], [0, y1], w);
+  drawSeg(c, P, [0, y0], [0, y1], w, f);
   if (T) c.restore();
+}
+// The chest plate on the torso, w across: the whole plate from the neck to the belt, or (lower, the belly's) its lower half from the waist to y1;
+// mirrored with the torso when painted turned to his left
+function torsoPlate(c, PL, H, w, lower, y1) {
+  const K = TUNING.kit, J = PL.J;
+  if (lower) drawSeg(c, { ...PL, J: { ...J, a: [J.a[0], J.abs], b: [J.b[0], J.size[1]] } }, [0, K.cut * H], [0, y1], w, !!J.flip);
+  else drawSeg(c, PL, [0, K.neck * H], [0, K.belt * H], w, !!J.flip);
 }
 // darken what is painted so far (the far leg, before the near one; the far arm's sprite)
 function farShade(c, H, b) { c.save(); c.globalCompositeOperation = 'source-atop'; c.fillStyle = `rgba(20,10,4,${TUNING.kit.far})`; c.fillRect(b[0] * H, b[1] * H, (b[2] - b[0]) * H, (b[3] - b[1]) * H); c.restore(); }
@@ -3401,9 +3415,7 @@ function kitBody(c, p, H, lk) {
     c.save(); c.beginPath();
     if (id === 'chest') c.rect(B[0] * H, B[1] * H, (B[2] - B[0]) * H, (K.cut - B[1]) * H); else c.rect(B[0] * H, K.cut * H, (B[2] - B[0]) * H, (B[3] - K.cut) * H);
     c.clip(); kitTorso(c, P, K.neck * H, K.belt * H, w);
-    if (PL && id === 'chest') drawSeg(c, PL, [0, K.neck * H], [0, K.belt * H], w * P.J.k);
-    // the belly's plate: the chest plate's lower half, from the waist to the belly's foot
-    else if (PL) drawSeg(c, { ...PL, J: { ...PL.J, a: [PL.J.a[0], PL.J.abs], b: PL.J.size.slice() } }, [0, K.cut * H], [0, (p.d.y + p.d.h / 2) * H], w * P.J.k);
+    if (PL) torsoPlate(c, PL, H, w * P.J.k, id === 'belly', (p.d.y + p.d.h / 2) * H);
     // the chest piece, drawn whole into both halves so it runs on across the cut
     const G = gearArt(lk, 'chest'), A = G && G.J.at;
     if (G) wearSeg(c, G, [A[0] * H, A[1] * H], [A[0] * H, A[2] * H], w * P.J.k, !p.armour && !lk.kit.you);
@@ -3816,7 +3828,8 @@ function paintArm(c, p, H, lk) {
     c.strokeStyle = shade(lk.skin, 0.5); c.lineWidth = lw(H, 0.003); for (const k of [-0.4, 0, 0.4]) line(c, fr * k, fy + fr * 0.2, fr * k, fy + fr * 0.75);
   }
   if (!p.armour) tint(c, p, H);
-  if (front && lk.pauldron) {
+  // (not on a painted man, who has no painted one: drawn lames over his painted shoulder cross his face when his arm is up)
+  if (front && lk.pauldron && !lk.kit) {
     // a heavy layered pauldron: iron on a plated arm, studded leather on a bare one
     const P = p.armour ? M : null;
     for (let i = 2; i >= 0; i--) {
@@ -3902,6 +3915,7 @@ function paintLegs(c, p, H, lk) {
 
 // A joint slot is where two plates don't meet: their edges frame it, padding or skin shows inside in shadow, with a warm rim.
 function paintSlot(c, p, H, lk) {
+  if (lk.kit && kitPic('head')) { kitSlot(c, p, H); return; }
   const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, [under, lips] = SLOT_ART[d.id], M = lk.metal, tb = lips === 'tb';
   c.fillStyle = under === 'skin' ? shade(lk.skin, 0.85) : LINEN.mid; c.fillRect(x0, y0, w, h);
   c.save(); c.beginPath(); c.rect(x0, y0, w, h); c.clip();
@@ -4222,6 +4236,7 @@ function paintCloak(c, p, H, lk) {
 }
 // A gap guard: a polished steel piece with a gold rim over the gap, so it reads shut: the gorget, the manica, the wide belt, the couters, the knee guards.
 function paintGuard(c, p, H, lk) {
+  if (lk.kit && kitPic('head') && kitGuard(c, p, H)) return;
   const d = p.d, w = d.w * H, h = d.h * H, x = d.x * H, y = d.y * H, M = POLISH, t = 0.016 * H;
   const plate = (fn) => { fn(); c.fillStyle = metalGrad(c, x + w, y - h, x - w, y + h, M); c.fill(); c.strokeStyle = M.edge; c.lineWidth = lw(H, 0.006); c.stroke(); fn(); c.strokeStyle = GOLD.lite; c.lineWidth = lw(H, 0.004); c.stroke(); };
   if (d.id === 'slot-elbow' || d.id === 'slot-knee') {
@@ -4233,6 +4248,33 @@ function paintGuard(c, p, H, lk) {
     c.strokeStyle = 'rgba(30,34,40,0.6)'; c.lineWidth = lw(H, 0.003); for (const k of [0.2, 0.55]) line(c, x - w / 2, y - h / 2 + h * k + t * 0.3, x + w / 2, y - h / 2 + h * k + t * 0.3);
   } else plate(() => rrect(c, x - w / 2 - t * 0.7, y - h / 2 - t * 0.7, w + t * 1.4, h + t * 1.4, t * 0.6));
   rivet(c, x - w * 0.3, y, H, M); rivet(c, x + w * 0.3, y, H, M);
+}
+// Step 6e, on a painted man (and his card): a gap is a dark opening on the painted body with a warm rim, no drawn padding, strap or metal lips;
+// a guarded gap is shut by a band of the painted chest plate's riveted rim (TUNING.kit.guard) laid along the gap's lips, cut to its shape
+function kitSlot(c, p, H) {
+  const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, tb = SLOT_ART[d.id][1] === 'tb';
+  const g = tb ? c.createLinearGradient(0, y0, 0, y0 + h) : c.createLinearGradient(x0, 0, x0 + w, 0);
+  g.addColorStop(0, 'rgba(48,16,6,0.8)'); g.addColorStop(0.5, 'rgba(6,3,2,0.95)'); g.addColorStop(1, 'rgba(48,16,6,0.8)');
+  rrect(c, x0, y0, w, h, Math.min(w, h) * 0.45); c.fillStyle = g; c.fill();
+  c.strokeStyle = 'rgba(255,170,90,0.85)'; c.lineWidth = Math.max(1, 0.005 * H); c.stroke();
+}
+function kitGuard(c, p, H) {
+  const PL = gearPic('plate');
+  if (!PL) return false;
+  const G = TUNING.kit.guard, d = p.d, t = 0.016 * H, tb = SLOT_ART[d.id][1] === 'tb', w = d.w * H + 2 * t, h = d.h * H + 1.4 * t;
+  const [bw, bh] = tb ? [w, h] : [h, w], sh = G.y[1] - G.y[0], sw = Math.min(sh * bw / bh, 2 * G.x - 40);
+  // the gorget flares over the collarbones, the others are rounded bands
+  const shape = () => {
+    if (d.id !== 'slot-neck') { rrect(c, -bw / 2, -bh / 2, bw, bh, bh * 0.35); return; }
+    c.beginPath(); c.moveTo(-bw / 2, -bh / 2); c.lineTo(bw / 2, -bh / 2); c.lineTo(bw / 2 + t * 0.3, bh / 2 - t * 0.6); c.quadraticCurveTo(0, bh / 2 + t, -bw / 2 - t * 0.3, bh / 2 - t * 0.6); c.closePath();
+  };
+  c.save(); c.translate(d.x * H, d.y * H); if (!tb) c.rotate(Math.PI / 2);
+  c.save(); shape(); c.clip();
+  c.drawImage(PL.im, (G.x - sw / 2) * PL.kx, G.y[0] * PL.ky, sw * PL.kx, sh * PL.ky, -bw / 2, -bh / 2 - t * 0.2, bw, bh + t * 1.2);
+  c.restore();
+  shape(); c.strokeStyle = BRONZE.edge; c.lineWidth = lw(H, 0.005); c.stroke();
+  c.restore();
+  return true;
 }
 // A worn piece's rarity: a faint glint now and then, in its colour, at its slot's place on the body (body units; the arms ride the far arm)
 const GLINT_AT = { helmet: [0.0, -0.9], chest: [0.07, -0.64], belt: [0.06, -0.47], legs: [0.1, -0.14], cloak: [-0.14, -0.5], arms: [0.03, 0.22] };
@@ -5704,19 +5746,29 @@ function tokenButton(E, label, cx, cy, n, on = true, sub = null) {
 
 // ----- fighter cards: the intro before each bout, and the row on the end card -----
 const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps range', axe: 'big smashes crack shields', dagger: 'rushes in, nets slow you' };
-// A little body with his plates (grey) and open joint slots (dark), at scale s px per body unit, feet at (x, y). With the kit on and str given (his Strength),
-// the painted body of his muscle tier is the body (a plated head in his type's painted helmet, gm: his GTYPE's helm) and only the plates, guards and
-// slots are drawn over it.
+// A little body with his plates (grey) and open joint slots (dark), at scale s px per body unit, feet at (x, y). With the kit on and str given (his
+// Strength), the painted body of his muscle tier is the body, and each plated part wears its painted piece as in the fight (step 6e): a plated head
+// his type's painted helmet (gm: his GTYPE's helm), the chest plate (its lower half on a plated belly), the manica, the greaves; his gaps and guards
+// are painted as a painted man's (kitSlot, kitGuard). No flat box or circle is drawn over the painted body.
 function kitIcon(ctx, parts, s, str, gm) {
-  const K = TUNING.kit, t = kitTier(str), head = parts.find((q) => q.d.id === 'head'), hk = KIT_HELM[gm] || 'gallic';
-  const kh = head && head.armour && artPic(`kit-helmet-${hk}`, K.helm[hk]), Hd = kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
+  const K = TUNING.kit, t = kitTier(str), on = (id) => parts.some((q) => q.d.id === id && q.armour), head = parts.find((q) => q.d.id === 'head'), hk = KIT_HELM[gm] || 'gallic';
+  const kh = on('head') && artPic(`kit-helmet-${hk}`, K.helm[hk]), Hd = kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
   if (!Hd || !T || !U || !F || !Th || !Sh) return false;
-  const hx = (head ? head.d.x : 0) * s;
+  const hx = (head ? head.d.x : 0) * s, G = on('legs') && gearPic('greave'), PL = gearPic('plate'), M = gearPic('manica'), B = PARTS[pidx('belly')], bw = B.w * s;
   LEGS.forEach(([hip, knee, ank]) => {
     const P = (q) => [q[0] * s, q[1] * s];
     drawSeg(ctx, Th, P(hip), P(knee), K.leg * s); drawSeg(ctx, Sh, P(knee), P(ank), K.leg * s);
+    if (G) drawSeg(ctx, G, P(lerp2(knee, ank, G.J.from)), P(lerp2(knee, ank, G.J.to)), K.leg * s);
   });
-  kitTorso(ctx, T, K.neck * s, K.belt * s, PARTS[pidx('belly')].w * s);
+  kitTorso(ctx, T, K.neck * s, K.belt * s, bw);
+  // the plate cut at the waist as the fight cuts it into the chest's and the belly's sprites
+  for (const id of PL ? ['chest', 'belly'] : []) {
+    if (!on(id)) continue;
+    const big = 4 * s, cut = K.cut * s;
+    ctx.save(); ctx.beginPath(); if (id === 'chest') ctx.rect(-big, cut - big, 2 * big, big); else ctx.rect(-big, cut, 2 * big, big); ctx.clip();
+    torsoPlate(ctx, PL, s, bw * T.J.k, id === 'belly', (B.y + B.h / 2) * s);
+    ctx.restore();
+  }
   if (!(kh && kh.J.closed)) drawSeg(ctx, Hd, [hx, K.top * s], [hx, K.chin * s], 0);
   if (kh) drawSeg(ctx, kh, [hx, K.top * s], [hx, K.chin * s], 0);
   for (const q of parts) {
@@ -5725,16 +5777,42 @@ function kitIcon(ctx, parts, s, str, gm) {
     const j = p.joint, el = ARM_LEN / 2 * s, x0 = (j[0] + (p.id === 'armF' ? 0.11 : -0.11)) * s;
     ctx.save(); ctx.translate(x0, j[1] * s);
     drawSeg(ctx, U, [0, 0], [0, el], p.w * s); drawSeg(ctx, F, [0, el], [0, ARM_LEN * s], p.w * s);
+    if (q.armour && M) drawSeg(ctx, M, [0, el], [0, el + (ARM_LEN * s - el) * M.J.to], p.w * s);
+    ctx.restore();
+  }
+  for (const q of parts) {
+    if (!q.slot) continue;
+    const j = q.d.frame ? PARTS[pidx(q.d.frame)].joint : [0, 0];
+    ctx.save(); ctx.translate((j[0] + (q.d.frame === 'armF' ? 0.11 : 0)) * s, j[1] * s);
+    if (!q.guard) kitSlot(ctx, q, s); else if (!kitGuard(ctx, q, s)) paintGuard(ctx, q, s, {});
     ctx.restore();
   }
   return true;
 }
-function armourIcon(ctx, parts, x, y, s, str = 0, gm = null) {
+// the painted figure, painted once into a sprite per look, size, screen and art version, so a card blits it each frame; null until its art loads
+const ICONS = new Map();
+function kitIconSprite(E, parts, s, str, gm) {
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), B = TUNING.kit.iconBox;
+  const key = `${s}|${kitTier(str)}|${gm}|${k}|${artV}|${parts.map((q) => `${q.d.id}${q.armour ? 1 : 0}${q.guard ? 'g' : ''}`).join(',')}`;
+  let sp = ICONS.get(key);
+  if (!sp) {
+    const x = B[0] * s, y = B[1] * s, w = (B[2] - B[0]) * s, h = (B[3] - B[1]) * s, cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
+    c.imageSmoothingQuality = 'high'; c.scale(k, k); c.translate(-x, -y);
+    if (!kitIcon(c, parts, s, str, gm)) return null;
+    sp = { cv, x, y, w, h };
+    if (ICONS.size > 24) ICONS.clear();
+    ICONS.set(key, sp);
+  }
+  return sp;
+}
+function armourIcon(ctx, E, parts, x, y, s, str = 0, gm = null) {
   ctx.save(); ctx.translate(x, y);
-  const kit = str && kitOn() && kitIcon(ctx, parts, s, str, gm), ga = ctx.globalAlpha;
+  if (str && kitOn()) {
+    const sp = canSprite && kitIconSprite(E, parts, s, str, gm);
+    if (sp) ctx.drawImage(sp.cv, sp.x, sp.y, sp.w, sp.h);
+    if (sp || (!canSprite && kitIcon(ctx, parts, s, str, gm))) { ctx.restore(); return; }
+  }
   for (const q of parts) {
-    if (kit && !q.armour && !q.slot && !q.guard) continue;
-    ctx.globalAlpha = kit && !q.slot ? ga * TUNING.kit.icon.plate : ga;
     const p = q.d, j = p.joint || (p.frame ? PARTS[pidx(p.frame)].joint : [0, 0]);
     const side = p.id === 'armF' || p.frame === 'armF' ? 0.11 : p.id === 'armB' ? -0.11 : 0, cx = (j[0] + p.x + side) * s, cy = (j[1] + p.y) * s;
     ctx.beginPath();
@@ -5841,7 +5919,7 @@ function drawIntro(ctx, E) {
   E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40 - 2 * bw), weight: '800', color: '#f0e6cc' });
   if (sub) E.text(sub, cx, y + 72, { size: bw ? fitSize(ctx, sub, 15, w - 2 * bw - 16) : 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   const lx = x + 80, s = 96;
-  armourIcon(ctx, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s, d.str, GTYPE[d.weapon.id].helm);
+  armourIcon(ctx, E, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s, d.str, GTYPE[d.weapon.id].helm);
   E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 14, weight: '800', color: '#aab3bc' });
   const ng = (d.guards || []).length;
   E.text(ng ? `${d.set.slots - ng} open · ${ng} guarded` : `${d.set.slots} gaps open`, lx, y + b + 134, { size: 14, weight: '700', color: '#c4b99a' });
@@ -5965,7 +6043,7 @@ function pairCol(ctx, E, f, x, y, w, tag, ex) {
   E.text(tag, x + w / 2, y + 6, { size: 14, weight: '800', color: '#c4b99a' });
   const nm = (f.beast ? beastTitle(f) : f.name).toUpperCase();
   E.text(nm, x + w / 2, y + 26, { size: Math.max(14, fitSize(ctx, nm, 18, w - 8)), weight: '800', color: f.champion ? '#ffd24a' : '#f0e6cc' });
-  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, f.parts, x + 40, y + 122 + ex / 2, 80, f.str, GTYPE[f.weapon.id].helm);
+  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, E, f.parts, x + 40, y + 122 + ex / 2, 80, f.str, GTYPE[f.weapon.id].helm);
   const rx = x + 84, rw = w - 88, ng = (f.guards || []).length, T = (t, yy, col = '#e2e8f0', wt = '700') => E.text(t, rx, yy, { size: 14, weight: wt, align: 'left', color: col });
   T(clipLine(ctx, f.beast ? `${f.size.name} · ${BEASTS[f.beast].name.toUpperCase()}` : `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
   profLine(ctx, E, f, rx, y + 69, rw, ex);
@@ -6124,7 +6202,7 @@ function drawMeCard(ctx, E, me, x, y, w, h) {
   const pk = `${noun[0].toUpperCase()}${noun.slice(1)}: starts with ${scs.length > 1 ? `${sc.name} + ${scs[1].name}` : `${sc.name} (${FAMS[sc.fam].name})`}`;
   E.text(pk, cx, y + 56, { size: Math.max(14, fitSize(ctx, pk, 14, w - 28, '700')), weight: '700', color: '#86efac' });
   const lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
-  armourIcon(ctx, playerParts(me), ax, y + 72 + s * 0.95, s, me.str, GTYPE[me.weapon].helm);
+  armourIcon(ctx, E, playerParts(me), ax, y + 72 + s * 0.95, s, me.str, GTYPE[me.weapon].helm);
   E.text(`${A.name} ARMOUR`, ax, y + 174, { size: 14, weight: '800', color: '#aab3bc' });
   if (me.plates.length) wrapPx(ctx, `plated: ${me.plates.map((q) => (q === 'armB' ? 'shield arm' : q)).join(', ')}`, lw, 14).forEach((t, i) => E.text(t, ax, y + 192 + i * 16, { size: 14, color: '#c4b99a' }));
   const mx = x + 18 + lw, mw = w * 0.36;
