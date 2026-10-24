@@ -1143,3 +1143,20 @@ One Sonnet build, after step 6b lands, reviewed.
   - No flat grey or white shape on a painted body or face, in any of these frames.
   - The hit geometry is unchanged.
   - `npm run smoke` passes.
+
+### Step 6e-2 (locked 2026-10-24): what still shows on v38
+
+**The designer**, on a v38 screenshot of themselves (a secutor helmet and the Blood Band, axe raised, against a young lion): "Better, but still a couple of display issues. You can see the bandana on this helmet."
+
+**The fixes:**
+- **Head gear and a closed helmet:**
+  - A head piece that is not a helmet (Blood Band, Ribbon Band, Dark Hood) is not drawn over a closed helmet.
+  - Over an open helmet it sits under the helmet's brim, or is hidden when it would cover the helmet.
+  - A head piece that stands in for the helmet (`helm: true`) behaves as now.
+- **Your sword arm's flat pauldron:** the grey stacked plates drawn at your shoulder go on a painted man, as they already have on his.
+- **The pink stroke:** a thin pink line runs from your raised forearm towards your shoulder. Find what draws it. If it is a flat leftover on a painted body, remove it; if it is a meant cue, report what it is and leave it.
+- **Acceptance:**
+  - Rendered frames of you in each helmet (gallic, murmillo, thraex, secutor) with each non-helmet head piece, at rest and with the weapon arm raised.
+  - The same frames for a foe.
+  - No flat grey piece at your shoulder.
+  - `npm run smoke` passes.
