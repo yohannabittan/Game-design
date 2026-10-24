@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18, 19, 20",
+ "pack": "15, 17, 18, 19, 20, 21",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -337,6 +337,118 @@
   ],
   "kit-net-draped": [
    "kit-net-draped-A.png"
+  ],
+  "kit-arm-up-lean": [
+   "kit-arm-up-lean-A.png",
+   "kit-arm-up-lean-B.png"
+  ],
+  "kit-arm-lo-lean": [
+   "kit-arm-lo-lean-A.png",
+   "kit-arm-lo-lean-B.png"
+  ],
+  "kit-leg-up-lean": [
+   "kit-leg-up-lean-A.png",
+   "kit-leg-up-lean-B.png"
+  ],
+  "kit-leg-lo-lean": [
+   "kit-leg-lo-lean-A.png",
+   "kit-leg-lo-lean-B.png"
+  ],
+  "kit-arm-up-avg": [
+   "kit-arm-up-avg-A.png",
+   "kit-arm-up-avg-B.png"
+  ],
+  "kit-arm-lo-avg": [
+   "kit-arm-lo-avg-A.png",
+   "kit-arm-lo-avg-B.png"
+  ],
+  "kit-leg-up-avg": [
+   "kit-leg-up-avg-A.png",
+   "kit-leg-up-avg-B.png"
+  ],
+  "kit-leg-lo-avg": [
+   "kit-leg-lo-avg-A.png",
+   "kit-leg-lo-avg-B.png"
+  ],
+  "beast-lion-fore-up": [
+   "beast-lion-fore-up-A.png",
+   "beast-lion-fore-up-B.png"
+  ],
+  "beast-lion-fore-lo": [
+   "beast-lion-fore-lo-A.png",
+   "beast-lion-fore-lo-B.png"
+  ],
+  "beast-lion-hind-up": [
+   "beast-lion-hind-up-A.png",
+   "beast-lion-hind-up-B.png"
+  ],
+  "beast-lion-hind-lo": [
+   "beast-lion-hind-lo-A.png",
+   "beast-lion-hind-lo-B.png"
+  ],
+  "beast-lion-fore-up-young": [
+   "beast-lion-fore-up-young-A.png",
+   "beast-lion-fore-up-young-B.png"
+  ],
+  "beast-lion-fore-lo-young": [
+   "beast-lion-fore-lo-young-A.png",
+   "beast-lion-fore-lo-young-B.png"
+  ],
+  "beast-lion-hind-up-young": [
+   "beast-lion-hind-up-young-A.png",
+   "beast-lion-hind-up-young-B.png"
+  ],
+  "beast-lion-hind-lo-young": [
+   "beast-lion-hind-lo-young-A.png",
+   "beast-lion-hind-lo-young-B.png"
+  ],
+  "beast-bear-fore-up": [
+   "beast-bear-fore-up-A.png",
+   "beast-bear-fore-up-B.png"
+  ],
+  "beast-bear-fore-lo": [
+   "beast-bear-fore-lo-A.png",
+   "beast-bear-fore-lo-B.png"
+  ],
+  "beast-bear-hind-up": [
+   "beast-bear-hind-up-A.png",
+   "beast-bear-hind-up-B.png"
+  ],
+  "beast-bear-hind-lo": [
+   "beast-bear-hind-lo-A.png",
+   "beast-bear-hind-lo-B.png"
+  ],
+  "beast-bear-fore-up-young": [
+   "beast-bear-fore-up-young-A.png",
+   "beast-bear-fore-up-young-B.png"
+  ],
+  "beast-bear-fore-lo-young": [
+   "beast-bear-fore-lo-young-A.png",
+   "beast-bear-fore-lo-young-B.png"
+  ],
+  "beast-bear-hind-up-young": [
+   "beast-bear-hind-up-young-A.png",
+   "beast-bear-hind-up-young-B.png"
+  ],
+  "beast-bear-hind-lo-young": [
+   "beast-bear-hind-lo-young-A.png",
+   "beast-bear-hind-lo-young-B.png"
+  ],
+  "beast-lion-torso": [
+   "beast-lion-torso-A.png",
+   "beast-lion-torso-B.png"
+  ],
+  "beast-lion-torso-young": [
+   "beast-lion-torso-young-A.png",
+   "beast-lion-torso-young-B.png"
+  ],
+  "beast-bear-torso": [
+   "beast-bear-torso-A.png",
+   "beast-bear-torso-B.png"
+  ],
+  "beast-bear-torso-young": [
+   "beast-bear-torso-young-A.png",
+   "beast-bear-torso-young-B.png"
   ]
  }
 }
