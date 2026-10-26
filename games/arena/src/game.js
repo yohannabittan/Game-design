@@ -65,18 +65,21 @@ const TUNING = {
   counter: { windup: 0.55 },  // only an overhead clang (or any clang on a shield-bearer) brings a counter
   open: { dur: 1.1 },      // seconds the foe is open after each of his moves
   shield: { dur: 0.6, perfect: 0.25, hits: 6, cool: 0.25, stagger: 1.0, riposte: 1.0, riposteMul: 2, drain: 3, slow: 0.45 },  // drain: stamina per second of hold
-  // juice (principle 16). Hit-stops (s) and straw per damage; shake = x every shake, shakeOn = 0 turns shake off (the engine does not expose the system's
-  // reduced motion). A slot hit: its hit-stop, sparks and ring (px). A fell: s of slow motion at fellMul game speed, the camera punching in by fellZoom
+  // juice (principle 16). Hit-stops (s); shake = x every shake, shakeOn = 0 turns shake off (the engine does not expose the system's
+  // reduced motion). A slot hit: its hit-stop and ring (px). A fell: s of slow motion at fellMul game speed, the camera punching in by fellZoom
   // over zoomIn s, dust as he drops (dropAt s after, dropDust motes). A perfect block: its white ring (px) and tiny shake (px). A feint read: the violet
   // burst off him. A lunge: dust at your back foot. A dodge: s of ghost trail, one ghost each ghostEvery s, sand scuff motes. A finisher: s of slow motion
   // at finMul, the banner's s, the war paint's glow s. A Giant (scale giantAt and up) thuds each giantStep H he walks, with a shake (px). Getting hit:
   // your recoil (radians of lean back) and the heart's shatter (s).
-  juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, strawPerDmg: 14, shake: 0.5, shakeOn: 1,
-    slotStop: 0.06, slotSpark: 18, slotRing: 34, fellSlow: 1, fellMul: 0.35, fellZoom: 0.06, zoomIn: 0.2, dropAt: 0.35, dropDust: 18,
+  juice: { stop1: 0.04, stop2: 0.07, stop3: 0.1, stopBreak: 0.05, stopClang: 0.03, shake: 0.5, shakeOn: 1,
+    slotStop: 0.06, slotRing: 34, fellSlow: 1, fellMul: 0.35, fellZoom: 0.06, zoomIn: 0.2, dropAt: 0.35, dropDust: 18,
     perfRing: 150, perfShake: 2, readBurst: 28, lungeDust: 7, ghost: 0.22, ghostEvery: 0.05, scuff: 7, finSlow: 0.35, finMul: 0.4, banner: 0.9, paint: 1.2,
     giantAt: 1.25, giantStep: 0.12, giantShake: 1.5, recoil: 0.14, shatter: 0.6,
     // a beast: its roar on the tell (gain), the sand its pounce sprays from its hind feet (motes), the bear's maul landing (a thud x, a shake px)
-    roar: 0.12, sand: 22, maulThud: 1.7, maulShake: 4 },
+    roar: 0.12, sand: 22, maulThud: 1.7, maulShake: 4,
+    // blood from a hit on bare skin or in a gap (a plate or a block throws sparks): drops, plus perDmg a heart of damage, at most max; a slot hit's extra,
+    // a limb downed; the drops' speed (px/s) and spread (radians) along the blow, and the red flash's radius (px)
+    blood: { drops: 8, perDmg: 6, max: 34, slot: 14, down: 26, speed: 330, spread: 1.1, flash: 20 } },
   foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, hp: 22, tierHp: 0.1, champHp: 1.15, dmgCap: 3, coverShield: 0.2, coverGuard: 0.1 },  // hp scaled by size and tier; dmgCap: most hearts one blow takes; cover radii (H) with and without a shield
   cover: { dur: 3.2, slide: 0.07, jabTol: 0.8 },  // seconds the foe's guard stays on the part you hit; seconds to slide there; radians a jab may stray from the slit's axis
   step: { circle: [-0.05, 0.07], period: 3.4, tau: 0.16, lead: 0.5, dodge: 0.3, dodgeDur: 0.7, dodgeCool: 2.4 },  // footwork (H): a slow drift around his range (period s); lead: seconds before a move he steps to striking distance; his sidestep from a lunge
@@ -257,12 +260,13 @@ const TUNING = {
   col: { frac: 0.22, minW: 96, gap: 6, top: 70, dodgeFrac: 0.17, dodgeMinH: 64, reach: 8, frame: 0.75 },
   foot: { pace: 0.14, drift: { idle: 0.6, secs: 1.5 }, gainDur: 0.16, back: 0.2, walkBack: 0.42, close: 0.1, room: [0.6, 0.7], margin: 22, foeV: 0.75, commit: 0.3, reach: 0.12, push: 0.5, wallMsg: 0.9, give: 0.02, chase: 1.0, chaseV: 1.6, chaseSwing: 0.5 },
   // the bout's grade: a grade is met by any of its rungs, each allowing up to `taken` hits this bout (a pair bout allows `pair` more) with at least `good`
-  // good moves (gap hits, fakes read, punishes, perfect blocks, swings dodged, limbs lamed)
-  grade: { S: [{ taken: 0, good: 3 }], A: [{ taken: 0, good: 0 }, { taken: 2, good: 4 }], B: [{ taken: 4, good: 0 }], pair: 1 },
-  // the draft: cards dealt (the last is priced), weights per grade for the free cards (common, rare), the pull on a family you wear, at most perFam cards of
-  // one family a draft; the priced slot's cascade, each tier's own chance (a set bonus you qualify for, else a legendary, else an epic, else a rare);
+  // good moves (gap hits, fakes read, punishes, perfect blocks, swings dodged, limbs lamed, shield bashes that land)
+  grade: { S: [{ taken: 0, good: 3 }], A: [{ taken: 2, good: 4 }], B: [{ taken: 4, good: 0 }], pair: 1 },
+  // the draft: cards dealt (the last is priced), weights per grade for the free cards (common, rare), how many free cards a grade makes sure are rare, the
+  // pull on a family you wear, at most perFam cards of one family a draft; the priced slot's cascade, each tier's own chance (a set bonus you qualify for,
+  // else a legendary, else an epic, else a rare);
   // prices by rarity (common, rare, epic, legendary) and a set's; delay before a pick counts (s)
-  draft: { deal: 3, odds: { S: [20, 80], A: [35, 65], B: [55, 45], C: [75, 25] }, pull: 3, perFam: 2, cascade: { set: 0.6, legend: 0.15, epic: 0.3 }, price: [0, 30, 45, 60], duoPrice: 50, delay: 0.45 },
+  draft: { deal: 3, odds: { S: [0, 100], A: [35, 65], B: [55, 45], C: [75, 25] }, sure: { A: 1 }, pull: 3, perFam: 2, cascade: { set: 0.6, legend: 0.15, epic: 0.3 }, price: [0, 30, 45, 60], duoPrice: 50, delay: 0.45 },
   // gold, per run: a fell, each feint read, perfect block and slot hit in the bout, and a bout with no hits taken
   gold: { fell: 20, read: 4, perfect: 2, slot: 2, clean: 15 },
   // the armourer's tent, once a run after bout `after`: big wares and cheap ones (the old commons) shown, each ware's price; forge = your weapon's damage x
@@ -1234,7 +1238,7 @@ function newRack(E) {
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
   settleFeint('none');
-  state.bout = { felled: false, shrugged: false, foeShrug: false, bread: false, net: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken, dodge: state.dodged, lame: state.lamings };
+  state.bout = { felled: false, shrugged: false, foeShrug: false, bread: false, net: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken, dodge: state.dodged, lame: state.lamings, bash: state.bashHits };
   state.open = 0; state.riposte = 0; state.slowT = 0; state.snapT = 0;
   Object.assign(state, { slowFx: 0, slowMul: 1, zoomT: 0, dropT: 0, ghostT: 0, ghostAt: -9, ghosts: [], paintT: 0, banner: null, shatter: null, steps: { foe: null, me: null } });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
@@ -2380,9 +2384,7 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   if (!slot && kind === 'over' && LIMB[p.d.id] && has('bones')) p.hp = 0;
   if (!slot && !numb) { p.hp -= dmg * wm; p.gashes.push({ a: [at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], b: [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl], t: state.m }); }
   const big = dealt >= 3;
-  const n = Math.min(60, J.strawPerDmg * dealt);
-  straw(at.x, at.y, ang + Math.PI / 2, 2.6, 260 + dealt * 50, n >> 1);
-  straw(at.x, at.y, ang - Math.PI / 2, 2.6, 260 + dealt * 50, n >> 1);
+  blood(at.x, at.y, ang, Math.min(J.blood.max, J.blood.drops + J.blood.perDmg * dealt));
   dust(at.x, at.y, 3 + dealt * 3);
   sliceSound(E, big);
   // a word only for the big moments: a gap hit, an Execute, damage of 2 or more (an ordinary hit gets its flash and sound)
@@ -2391,8 +2393,8 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   shake(E, 2 + Math.min(dealt, 5) * 2.5, 0.1); E.haptic(10 + Math.min(dealt, 5) * 8);
   if (big) E.flash('#fff0b8', 0.07);
   let stop = dealt >= 3 ? J.stop3 : dealt >= 2 ? J.stop2 : J.stop1;
-  // a gap hit: a short hit-stop, a bright spark in the gap and a deeper hit
-  if (thrust) { stop = Math.max(stop, J.slotStop); sparks(at.x, at.y, ang + Math.PI, J.slotSpark); ring(at.x, at.y, J.slotRing, '#ffffff'); slotSound(E); }
+  // a gap hit: a short hit-stop, more blood from the gap with a red ring, and a deeper hit
+  if (thrust) { stop = Math.max(stop, J.slotStop); blood(at.x, at.y, ang, J.blood.slot); ring(at.x, at.y, J.slotRing, '#ef4444'); slotSound(E); }
   if (!slot && p.hp <= 0) { disable(E, p, at, ang); stop += 0.04; }
   emit(E, thrust ? 'slot' : 'hit', { p, kind, at, ang });
   if (kind === 'over') emit(E, 'over', { p, at });
@@ -2410,7 +2412,7 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
 
 function disable(E, p, at, ang) {
   p.cut = true;
-  straw(at.x, at.y, ang + Math.PI / 2, 3, 360, 22); straw(at.x, at.y, ang - Math.PI / 2, 3, 360, 22);
+  blood(at.x, at.y, ang, TUNING.juice.blood.down);
   pop(at.x, at.y - 44, 'DOWN', '#ff9f43', 20);
   E.audio.beep({ freq: 90, dur: 0.22, type: 'sine', slide: 0.4, gain: 0.3 });
   if (p.d.id === 'head') {
@@ -2556,6 +2558,7 @@ function resolveSwing(E) {
   // his Bloodlust (the wolf pelt): a blow that lands gives him stamina
   if (foeHas('bloodlust')) { const f = state.foe; f.sta = Math.min(f.staMax, f.sta + TUNING.foeGear.bloodlust); pop(Ff.x, Ff.y - 1.2 * Ff.H, 'HE DRINKS', '#f87171', 15); }
   if (plated) { state.plateSaves++; part.clang = 0.25; const [px, py] = partCenter(Fy, state.you, part); sparks(px, py, Math.PI, 16); clangSound(E, 0); }
+  else if (part) { const [px, py] = partCenter(Fy, state.you, part); blood(px, py, Math.PI, Math.min(TUNING.juice.blood.max, TUNING.juice.blood.drops + TUNING.juice.blood.perDmg * dmg)); }
   E.flash('#ff2a2a', plated ? 0.15 : 0.3); shake(E, 12 + 4 * sw.dmg, 0.35); E.haptic(50 + 20 * sw.dmg);
   E.audio.play('boom'); E.audio.play('lose', 0.5);
   // his ordinary blow gets its flash and sound; a word for a fake that fooled you, Juggernaut, or 2 or more hearts actually lost
@@ -2846,8 +2849,8 @@ function updateBleed(E, dt) {
 // The bout's grade from what this bout added to the run's counts.
 function boutTally() {
   const b = state.bout;
-  const t = { slot: state.slotHits - b.slot, read: state.feintsRead - b.read, pun: state.punishes - b.pun, taken: state.taken - b.taken, perf: state.perfects - b.perf, dodge: state.dodged - b.dodge, lame: state.lamings - b.lame };
-  t.good = t.slot + t.read + t.pun + t.perf + t.dodge + t.lame;
+  const t = { slot: state.slotHits - b.slot, read: state.feintsRead - b.read, pun: state.punishes - b.pun, taken: state.taken - b.taken, perf: state.perfects - b.perf, dodge: state.dodged - b.dodge, lame: state.lamings - b.lame, bash: state.bashHits - b.bash };
+  t.good = t.slot + t.read + t.pun + t.perf + t.dodge + t.lame + t.bash;
   return t;
 }
 // The hits a rung allows in this bout (a pair bout allows one more)
@@ -2890,8 +2893,8 @@ function cascadeOdds(left) {
   return cascadeTiers(left).map(([t, k]) => { const p = k ? rest * TUNING.draft.cascade[k] : rest; rest -= p; return [t, p]; }).filter((e) => e[1] > 0);
 }
 // Three seeded cards, dealt when the draft opens (salt 0) or rerolled (salt n, never the cards just shown when the deck allows). Two are free: each one's
-// rarity (common or rare) by the grade's odds, then its family, then the piece. The third is priced and cascades. At most perFam cards of one family a draft.
-// The training ground's fourth card is a third free one, in the run's first draft.
+// rarity (common or rare) by the grade's odds (the first `sure` of them rare), then its family, then the piece. The third is priced and cascades. At most
+// perFam cards of one family a draft. The training ground's fourth card is a third free one, in the run's first draft.
 function dealDraft(grade, salt = 0, not = []) {
   const D = TUNING.draft, rng = makeRng((state.seed ^ 0x7f4a7c15) + state.rack * 104729 + salt * 15485863), all = dealable(), held = heldFams(), out = [];
   const deal = D.deal + (state.fourth && state.rack === 0 ? 1 : 0), fresh = all.filter((c) => !not.includes(c)), pool = fresh.length >= deal ? fresh : all;
@@ -2899,7 +2902,7 @@ function dealDraft(grade, salt = 0, not = []) {
   for (let i = 0; i < deal - 1; i++) {
     const left = pool.filter((c) => !c.duo && c.tier <= 1 && !out.includes(c) && room(c)), tiers = [0, 1].filter((t) => left.some((c) => c.tier === t));
     if (!tiers.length) break;
-    const tier = pickW(rng, tiers.map((t) => [t, D.odds[grade][t]]));
+    const tier = i < (D.sure[grade] || 0) && tiers.includes(1) ? 1 : pickW(rng, tiers.map((t) => [t, D.odds[grade][t]]));
     out.push(famPick(rng, left.filter((c) => c.tier === tier), held));
   }
   const left = pool.filter((c) => !out.includes(c) && room(c));
@@ -3015,12 +3018,15 @@ function rerollDraft(E) {
 
 // ====== JUICE: particles and sounds ======
 // ----- particles -----
-function straw(x, y, ang, spread, speed, n) {
+// a spray of red drops along the blow (ang) that fall, and a small red flash where it landed
+const BLOOD = ['#b91c1c', '#dc2626', '#7f1d1d'];
+function blood(x, y, ang, n) {
+  const B = TUNING.juice.blood;
   for (let i = 0; i < n; i++) {
-    const a = ang + (Math.random() - 0.5) * spread;
-    const s = speed * (0.35 + Math.random() * 0.9);
-    state.fx.push({ k: 's', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 60, g: 650, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 14, len: 8 + Math.random() * 12, life: 0.7 + Math.random() * 0.5, max: 1.1, c: STRAW[Math.random() * 4 | 0] });
+    const a = ang + (Math.random() - 0.5) * B.spread, s = B.speed * (0.35 + Math.random() * 0.9);
+    state.fx.push({ k: 'b', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 90, g: 950, r: 1.5 + Math.random() * 2.5, life: 0.4 + Math.random() * 0.35, max: 0.75, c: BLOOD[i % 3] });
   }
+  state.fx.push({ k: 'h', x, y, r: B.flash, life: 0.14, max: 0.14 });
 }
 function sparks(x, y, ang, n) {
   for (let i = 0; i < n; i++) {
@@ -3193,7 +3199,6 @@ function crowdVerdict(E, band) {
 function swooshSound(E, gain = 0.12) { E.audio.noise({ dur: 0.16, gain }); E.audio.beep({ freq: 700, dur: 0.14, type: 'sine', slide: 0.3, gain: gain * 0.4 }); }
 
 // ====== DRAWING: the fighters, the arena, the HUD, cards and wheels ======
-const STRAW = ['#e6c866', '#d4b04a', '#f2dc90', '#b8923a'];
 const YOU = { skin: '#c58f5e', tunic: '#2f7d6d', hem: '#1d5448', crest: '#e6c866' };
 
 // ----- the art: images by name through E.art (ADR-0020), with the drawn look as every image's fallback; the kit pilot's switch on the ART screen -----
@@ -4735,16 +4740,51 @@ function drawWeapon(ctx, f, H) {
   }
   const g = f.look && f.look.gear.weapon;
   if (!g) return;
-  if (W.id === 'spear') weaponGear(ctx, g, [0, y0 + len], [0, y0 + len + 0.12 * H], 0.026 * H, [0, y0 - 0.3 * H], H);
-  else if (W.id === 'axe') weaponGear(ctx, g, [0, y0 + len - 0.16 * H], [0, y0 + len], 0.016 * H, [0, y0 - 0.06 * H], H);
-  else weaponGear(ctx, g, [0, y0 + 0.04 * H], [0, y0 + 0.04 * H + len], W.id === 'dagger' ? 0.018 * H : 0.026 * H, [0, y0 - 0.055 * H], H);
+  // the cutting edges (the saw teeth's lines) follow each blade or head as drawn above, never the shaft
+  const sides = (y1, l, w) => [1, -1].map((sd) => Array.from({ length: 9 }, (_, i) => { const t = 0.05 + i * 0.1; return [sd * w * halfAt(LEAF, t), y1 + l * t]; }));
+  const quad = (p0, c, p1) => Array.from({ length: 9 }, (_, i) => { const t = 0.08 + i * 0.105, u = 1 - t; return [u * u * p0[0] + 2 * u * t * c[0] + t * t * p1[0], u * u * p0[1] + 2 * u * t * c[1] + t * t * p1[1]]; });
+  const top = y0 + len, sy = y0 + 0.03 * H, hy = top - 0.05 * H;
+  const edges = W.id === 'spear' ? sides(top, 0.12 * H, 0.026 * H)
+    : W.id === 'trident' ? [-1, 1].map((k) => [[k * 0.041 * H, top + 0.01 * H], [k * 0.035 * H, top + 0.1 * H]])
+    : W.id === 'sica' ? [quad([-0.014 * H, sy], [0.07 * H, sy + len * 0.5], [-0.01 * H, sy + len]), quad([0.014 * H, sy], [0.03 * H, sy + len * 0.5], [-0.01 * H, sy + len])]
+    : W.id === 'axe' && f.mace ? [ringPts(0, top, 0.06 * H)]
+    : W.id === 'axe' ? [quad([-0.12 * H, hy - 0.09 * H], [-0.15 * H, hy + 0.02 * H], [-0.12 * H, hy + 0.11 * H])]
+    : sides(y0 + 0.04 * H, len, W.id === 'dagger' ? 0.018 * H : 0.026 * H);
+  if (W.id === 'spear') weaponGear(ctx, g, [0, top], [0, top + 0.12 * H], 0.026 * H, [0, y0 - 0.3 * H], H, edges);
+  else if (W.id === 'axe') weaponGear(ctx, g, [0, top - 0.16 * H], [0, top], 0.016 * H, [0, y0 - 0.06 * H], H, edges);
+  else weaponGear(ctx, g, [0, y0 + 0.04 * H], [0, y0 + 0.04 * H + len], W.id === 'dagger' ? 0.018 * H : 0.026 * H, [0, y0 - 0.055 * H], H, edges);
 }
-// A weapon piece along the weapon's working part, from a to b (px), hw its half-width there, butt the end of the grip: the saw teeth, the sica's hook
-// (and its red grip), the spiked iron pommel, the blackened blade, the gilded one with its ribbon.
-function weaponGear(ctx, g, a, b, hw, butt, H) {
+// A blade's outline as [t, half-width] corners from the hilt (0) to the point (1), and its half-width at t
+const LEAF = [[0, 0.8], [0.3, 1], [0.72, 0.7], [1, 0]], SPEARHEAD = [[0, 0.6], [0.3, 1.1], [1, 0]];
+// how far your sica's blade bows forward of its chord at t, in blade widths
+const sicaBow = (t) => Math.sin(Math.PI * t) * 2.4;
+function halfAt(pr, t) {
+  for (let i = 1; i < pr.length; i++) if (t <= pr[i][0]) { const [t0, w0] = pr[i - 1], [t1, w1] = pr[i]; return w0 + (w1 - w0) * (t - t0) / (t1 - t0); }
+  return pr[pr.length - 1][1];
+}
+// a closed ring of points round (x, y), the edge of a round head; its teeth point out from its centre
+function ringPts(x, y, r) { const pts = Array.from({ length: 17 }, (_, i) => [x + Math.cos(i * TAU / 16) * r, y + Math.sin(i * TAU / 16) * r]); pts.c = [x, y]; return pts; }
+// Saw teeth spaced evenly along one cutting edge (points in px), each pointing out from the weapon's axis (a, along u), or from the edge's centre c,
+// raked toward the point
+function sawTeeth(ctx, pts, a, ux, uy, H) {
+  const seg = pts.slice(1).map((q, i) => Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1])), L = seg.reduce((x, y) => x + y, 0), n = Math.max(2, Math.floor(L / (0.022 * H))), s = 0.014 * H;
+  for (let k = 0; k < n; k++) {
+    let d = (k + 0.5) * L / n, i = 0;
+    while (i < seg.length - 1 && d > seg[i]) d -= seg[i++];
+    const p = lerp2(pts[i], pts[i + 1], seg[i] ? d / seg[i] : 0), tx = (pts[i + 1][0] - pts[i][0]) / (seg[i] || 1), ty = (pts[i + 1][1] - pts[i][1]) / (seg[i] || 1);
+    const o = pts.c || [a[0] + ux * ((p[0] - a[0]) * ux + (p[1] - a[1]) * uy), a[1] + uy * ((p[0] - a[0]) * ux + (p[1] - a[1]) * uy)];
+    let nx = -ty, ny = tx;
+    if (nx * (p[0] - o[0]) + ny * (p[1] - o[1]) < 0) { nx = -nx; ny = -ny; }
+    const rake = pts.c ? 0 : 0.7;
+    spike(ctx, p[0] - nx * s * 0.25, p[1] - ny * s * 0.25, Math.atan2(ny + uy * rake, nx + ux * rake), s * 0.9, s * 0.8, IRON, true);
+  }
+}
+// A weapon piece along the weapon's working part, from a to b (px), hw its half-width there, butt the end of the grip, edges its cutting edges: the saw
+// teeth, the sica's hook (and its red grip), the spiked iron pommel, the blackened blade, the gilded one with its ribbon.
+function weaponGear(ctx, g, a, b, hw, butt, H, edges) {
   const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, nx = -uy, ny = ux, s = 0.014 * H;
   if (g.id === 'serrated') {
-    for (let i = 0; i < 7; i++) for (const sd of [1, -1]) { const t = 0.12 + i * 0.11, px = a[0] + dx * t + nx * hw * sd * 0.85, py = a[1] + dy * t + ny * hw * sd * 0.85; spike(ctx, px, py, Math.atan2(ny * sd + uy * 0.7, nx * sd + ux * 0.7), s * 0.9, s * 0.8, IRON, true); }
+    for (const e of edges) sawTeeth(ctx, e, a, ux, uy, H);
   } else if (g.id === 'haem') {
     const hook = () => { ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.quadraticCurveTo(b[0] + ux * 0.025 * H - nx * 0.05 * H, b[1] + uy * 0.025 * H - ny * 0.05 * H, b[0] - ux * 0.045 * H - nx * 0.055 * H, b[1] - uy * 0.045 * H - ny * 0.055 * H); };
     ctx.lineCap = 'round'; hook(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = s + 3; ctx.stroke(); hook(); ctx.strokeStyle = '#cfd6de'; ctx.lineWidth = s; ctx.stroke();
@@ -4977,16 +5017,27 @@ function drawSwordArm(ctx, E) {
     ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H, 5, 0, 6.28); ctx.fill();
     ctx.strokeStyle = '#c9a43a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(gx - nx * 0.05 * H, gy - ny * 0.05 * H); ctx.lineTo(gx + nx * 0.05 * H, gy + ny * 0.05 * H); ctx.stroke();
     // the sica's blade bows forward (its chord stays the straight blade the hits use); the others are a leaf
-    if (wid === 'sica') { const bow = (t) => Math.sin(Math.PI * t) * 2.4; shape([P(0, -0.8), ...[0.25, 0.5, 0.75].map((t) => P(t, bow(t) - 0.9 * (1 - t))), P(1, 0), ...[0.75, 0.5, 0.25].map((t) => P(t, bow(t) + 0.9 * (1 - t))), P(0, 0.8)]); }
-    else shape([P(0, -0.8), P(0.3, -1), P(0.72, -0.7), P(1, 0), P(0.72, 0.7), P(0.3, 1), P(0, 0.8)]);
+    if (wid === 'sica') shape([P(0, -0.8), ...[0.25, 0.5, 0.75].map((t) => P(t, sicaBow(t) - 0.9 * (1 - t))), P(1, 0), ...[0.75, 0.5, 0.25].map((t) => P(t, sicaBow(t) + 0.9 * (1 - t))), P(0, 0.8)]);
+    else shape([...LEAF.map(([t, q]) => P(t, -q)), ...LEAF.slice(0, -1).reverse().map(([t, q]) => P(t, q))]);
     ctx.fillStyle = steel; ctx.fill(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(gx + bx * 6, gy + by * 6); ctx.lineTo(h.ux - bx * 6, h.uy - by * 6); ctx.stroke();
+    // the shine runs down the blade's middle: the sica's follows its bow, so it never cuts across the crescent's hollow
+    const mid = wid === 'sica' ? [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.94].map((t) => P(t, sicaBow(t))) : [[gx + bx * 6, gy + by * 6], [h.ux - bx * 6, h.uy - by * 6]];
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); mid.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
   }
   if (G.weapon) {
-    const tip = [h.ux, h.uy], back = (k) => [h.ux - bx * k * H, h.uy - by * k * H];
-    if (wid === 'spear' || wid === 'trident') weaponGear(ctx, G.weapon, back(0.13), tip, w * 1.1, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H);
-    else if (wid === 'axe') weaponGear(ctx, G.weapon, back(0.2), tip, 0.016 * H, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H);
-    else weaponGear(ctx, G.weapon, [gx, gy], tip, w, [h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H], H);
+    const tip = [h.ux, h.uy], back = (k) => [h.ux - bx * k * H, h.uy - by * k * H], ts = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85];
+    // the cutting edges (the saw teeth's lines) follow each blade or head as drawn above, never the shaft
+    const sides = (f) => [1, -1].map((sd) => ts.map((t) => f(t, sd)));
+    let edges;
+    if (wid === 'spear') { const o = back(0.13); edges = sides((t, sd) => P(t, sd * halfAt(SPEARHEAD, t), 0.13 * H, o[0], o[1])); }
+    else if (wid === 'trident') { const pw = 0.04 * H + 0.006 * H; edges = [1, -1].map((k) => [0.11, 0.025].map((q) => [h.ux - bx * q * H + nx * pw * k, h.uy - by * q * H + ny * pw * k])); }
+    else if (wid === 'axe' && state.me.mace) edges = [ringPts(h.ux - bx * 0.04 * H, h.uy - by * 0.04 * H, 0.055 * H)];
+    else if (wid === 'axe') { const o = back(0.13), k = 0.034 * H / w; edges = [[P(0, k * 3.4, H, o[0], o[1]), P(0.06, k * 4.2, H, o[0], o[1]), P(0.13, k * 3.6, H, o[0], o[1])]]; }
+    else if (wid === 'sica') edges = sides((t, sd) => P(t, sicaBow(t) + sd * 0.9 * (1 - t)));
+    else edges = sides((t, sd) => P(t, sd * halfAt(LEAF, t)));
+    if (wid === 'spear' || wid === 'trident') weaponGear(ctx, G.weapon, back(0.13), tip, w * 1.1, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H, edges);
+    else if (wid === 'axe') weaponGear(ctx, G.weapon, back(0.2), tip, 0.016 * H, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H, edges);
+    else weaponGear(ctx, G.weapon, [gx, gy], tip, w, [h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H], H, edges);
   }
   if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(h.ux, h.uy, 6, 0, 6.28); ctx.fill(); }
   if (kit) { drawSeg(ctx, kF, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF); liveArmGear(ctx, h, H, lk, aw, kpx); }
@@ -5613,10 +5664,10 @@ function drawDraft(ctx, E) {
     if (old) { const t = `replaces ${old.gear}`; if (fits(t, 700)) bot.push([t, '#fb923c', 700]); else if (fits(`drops ${old.gear}`, 700)) bot.push([`drops ${old.gear}`, '#fb923c', 700]); else lines(t, '#fb923c'); }
     const opts = c.duo ? [foot, c.duo.map(fam).join(' + ')] : c.fam === 'fin' ? [foot, c.gear] : [foot, `${c.gear} \u00b7 ${c.slot}`, c.gear], at = opts.find((t) => fits(t, 700));
     if (at) bot.push([at, col, 700]); else lines(opts[opts.length - 1], col);
-    const cl = cardLine(c), ls = wrapPx(ctx, cl, w - 12, 14, '600'), fy = y + h - 12 - (bot.length - 1) * 16;
+    const ls = wrapPx(ctx, cardLine(c), w - 12, 14, '600'), note = beastNote(c), ns = note ? wrapPx(ctx, note, w - 12, 14, '600') : [], fy = y + h - 12 - (bot.length - 1) * 16;
     // the icon takes what height is left between the plain line and the footer
     const nsz = fitSize(ctx, c.name, 19, w - 12), nl = wrapPx(ctx, c.name, w - 12, nsz, '800'), xn = (nl.length - 1) * 16;
-    const slack = fy - 10 - (y + 36 + xn + 22 + (ls.length - 1) * 16 + 8), r = Math.min(22, slack / 2 - 2), ir = r >= 9 ? r : 0, ny = y + 36 + (ir ? 2 * ir + 4 : 0);
+    const slack = fy - 10 - (y + 36 + xn + 22 + (ls.length + ns.length - 1) * 16 + 8), r = Math.min(22, slack / 2 - 2), ir = r >= 9 ? r : 0, ny = y + 36 + (ir ? 2 * ir + 4 : 0);
     const rar = c.duo ? 'SET BONUS' : c.fam === 'fin' ? 'WAR PAINT' : c.key ? 'KEYSTONE' : TIERS[c.tier];
     E.text(rar, x + 10, y + 14, { size: 14, weight: '800', align: 'left', color: rc });
     if (priced) {
@@ -5626,6 +5677,7 @@ function drawDraft(ctx, E) {
     if (ir) drawIcon(ctx, c.id, x + w / 2, y + 28 + ir, ir);
     nl.forEach((q, k) => E.text(q, x + w / 2, ny + k * 16, { size: nsz, weight: '800', color: '#f0e6cc' }));
     ls.forEach((s2, k) => E.text(s2, x + w / 2, ny + xn + 22 + k * 16, { size: 14, weight: '600', color: '#cbd5e1' }));
+    ns.forEach((s2, k) => E.text(s2, x + w / 2, ny + xn + 22 + (ls.length + k) * 16, { size: 14, weight: '600', color: '#8a8f99' }));
     bot.forEach(([t, color, wt], k) => E.text(t, x + w / 2, fy + k * 16, { size: 14, weight: String(wt), color }));
     ctx.globalAlpha = 1;
     return { x, y, w, h, card: c };
@@ -5652,17 +5704,18 @@ function drawDraft(ctx, E) {
 }
 // The "?", first page: each card in this draft with its plain line and, under it, its exact numbers
 function drawCardHelp(ctx, E, cards) {
-  const w = Math.min(E.w - 32, 620), x = (E.w - w) / 2, tw = w - 72, rows = cards.map((c) => ({ c, ls: wrapPx(ctx, cardLine(c), tw, 14, '600'), ns: wrapPx(ctx, cardNums(c), tw, 14, '600') }));
-  const hs = rows.map((q) => 22 + 16 * (q.ls.length + q.ns.length)), h = Math.min(E.h - 16, 58 + hs.reduce((a2, b2) => a2 + b2, 0)), y = (E.h - h) / 2;
+  const w = Math.min(E.w - 32, 620), x = (E.w - w) / 2, tw = w - 72, rows = cards.map((c) => ({ c, ls: wrapPx(ctx, cardLine(c), tw, 14, '600'), ns: wrapPx(ctx, cardNums(c), tw, 14, '600'), bn: beastNote(c) ? wrapPx(ctx, beastNote(c), tw, 14, '600') : [] }));
+  const hs = rows.map((q) => 22 + 16 * (q.ls.length + q.ns.length + q.bn.length)), h = Math.min(E.h - 16, 58 + hs.reduce((a2, b2) => a2 + b2, 0)), y = (E.h - h) / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.7)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 16, '#221a2b', '#e6c866');
   E.text('WHAT THESE CARDS DO', E.w / 2, y + 18, { size: 14, weight: '800', color: '#c4b99a' });
   let ry = y + 34;
-  rows.forEach(({ c, ls, ns }, i) => {
+  rows.forEach(({ c, ls, ns, bn }, i) => {
     drawIcon(ctx, c.id, x + 30, ry + 14, 13);
     E.text(c.name, x + 54, ry + 8, { size: 14, weight: '800', align: 'left', color: c.duo ? DUO_GOLD : FAMS[c.fam].col });
     ls.forEach((t, k) => E.text(t, x + 54, ry + 24 + k * 16, { size: 14, weight: '600', align: 'left', color: '#e2e8f0' }));
     ns.forEach((t, k) => E.text(t, x + 54, ry + 24 + (ls.length + k) * 16, { size: 14, weight: '600', align: 'left', color: '#fde68a' }));
+    bn.forEach((t, k) => E.text(t, x + 54, ry + 24 + (ls.length + ns.length + k) * 16, { size: 14, weight: '600', align: 'left', color: '#8a8f99' }));
     ry += hs[i];
   });
   E.text('Tap for how the deal works', E.w / 2, y + h - 14, { size: 14, weight: '800', color: '#ffd24a' });
@@ -5677,12 +5730,12 @@ function nextUp(g) {
 // The "?", third page: what the grade card used to carry: the bout's counts, the gold and where it came from, the purse, the deal's odds, your gear and
 // what the fight's bars are called
 function drawBoutHelp(ctx, E, d) {
-  const w = Math.min(E.w - 32, 620), x = (E.w - w) / 2, tw = w - 28, t = d.tally, o = TUNING.draft.odds[d.grade], pct = o.map((v) => Math.round(v / (o[0] + o[1]) * 100)), g = d.gold;
+  const w = Math.min(E.w - 32, 620), x = (E.w - w) / 2, tw = w - 28, t = d.tally, o = TUNING.draft.odds[d.grade], sure = TUNING.draft.sure[d.grade] || 0, pct = o.map((v) => Math.round(v / (o[0] + o[1]) * 100)), g = d.gold;
   const thrown = g ? g.items.filter((e) => e[0] !== 'fell') : [], tsum = thrown.reduce((a2, e) => a2 + e[1], 0);
   const rows = [
     [`${t.slot} gap hits  \u00b7  ${t.read} fakes spotted  \u00b7  ${t.pun} punishes  \u00b7  ${t.taken} hits taken`, '#e2e8f0'],
     ...(g ? [[`+${g.sum} gold (fell ${g.sum - tsum}${tsum ? `, the crowd threw ${tsum}: ${thrown.map((e) => `${e[0]} ${e[1]}`).join(', ')}` : ''})`, '#fbbf24']] : []),
-    [`Purse ${state.gold}  \u00b7  Grade ${d.grade}: Common ${pct[0]}% \u00b7 Rare ${pct[1]}%`, '#fbbf24'],
+    [`Purse ${state.gold}  \u00b7  Grade ${d.grade}: Common ${pct[0]}% \u00b7 Rare ${pct[1]}%${sure ? ` \u00b7 at least ${sure} Rare` : ''}`, '#fbbf24'],
     ...(nextUp(d.grade) ? [[nextUp(d.grade), '#fde68a']] : []),
     [`Reroll: ${state.token > 0 ? `${state.token} left` : 'used'}`, '#c4b5fd'],
   ].flatMap(([q, col]) => wrapPx(ctx, q, tw, 14, '700').map((l) => [l, col]));
@@ -5744,15 +5797,15 @@ const BEAST_LINE = {
   disarm: `${TUNING.fin.disarm} Momentum: a beast has no weapon, so it is stunned instead.`,
   thorns: `Each block chips. ${TUNING.cards.thorns} chips and a beast is stunned.`,
   matador: 'Dodge a stab, bash, pounce or shove and he stumbles, stunned.',
-  heavy: 'A beast wears no armour.',
-  brawler: 'A beast wears no armour.',
-  breaker: 'A beast wears no armour.',
-  butcher: 'A beast wears no armour.',
 };
-function cardLine(c) {
+// A card whose rule needs his armour keeps its own line against a beast, with a muted note under it
+const ARMOUR_CARDS = ['heavy', 'brawler', 'breaker', 'butcher'];
+function beastNext() {
   const d = state.gauntlet && state.gauntlet[state.draft || state.tent ? state.rack + 1 : state.rack];
-  return BEAST_LINE[c.id] && d && (d.beast || (d.pair && d.pair.beast)) ? BEAST_LINE[c.id] : c.line;
+  return !!d && !!(d.beast || (d.pair && d.pair.beast));
 }
+const cardLine = (c) => (BEAST_LINE[c.id] && beastNext() ? BEAST_LINE[c.id] : c.line);
+const beastNote = (c) => (ARMOUR_CARDS.includes(c.id) && beastNext() ? 'No use against a beast: it wears no armour.' : '');
 // The armourer's tent: your purse, three wares to buy (tap one), and Skip (Leave once you have bought)
 function drawTent(ctx, E) {
   const tt = state.tent, top = E.safe.top + 20, ready = tt.t > TUNING.draft.delay;
@@ -5889,7 +5942,9 @@ function armourIcon(ctx, E, parts, x, y, s, str = 0, gm = null) {
   if (str && kitOn()) {
     const sp = canSprite && kitIconSprite(E, parts, s, str, gm);
     if (sp) ctx.drawImage(sp.cv, sp.x, sp.y, sp.w, sp.h);
-    if (sp || (!canSprite && kitIcon(ctx, parts, s, str, gm))) { ctx.restore(); return; }
+    // while the paint loads the card shows no figure for a frame or two, never the flat blocks
+    if (!sp && !canSprite) kitIcon(ctx, parts, s, str, gm);
+    ctx.restore(); return;
   }
   for (const q of parts) {
     const p = q.d, j = p.joint || (p.frame ? PARTS[pidx(p.frame)].joint : [0, 0]);
@@ -7214,6 +7269,10 @@ const play = {
       } else if (f.k === 'k') {
         ctx.globalAlpha = t; ctx.strokeStyle = f.c; ctx.lineWidth = 2; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x - f.vx * 0.04, f.y - f.vy * 0.04); ctx.stroke();
+      } else if (f.k === 'b') {
+        ctx.globalAlpha = Math.min(1, t * 3); ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 6.28); ctx.fill();
+      } else if (f.k === 'h') {
+        ctx.globalAlpha = t * 0.7; ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.3 - 0.5 * t), 0, 6.28); ctx.fill();
       } else if (f.k === 'd') {
         ctx.globalAlpha = t * 0.45; ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.4 - t * 0.4), 0, 6.28); ctx.fill();
       } else if (f.k === 'r') {
