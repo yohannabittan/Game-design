@@ -1200,3 +1200,61 @@ A pair bout still allows one more hit at each grade. The numbers stay in `TUNING
 - 200 seeded deals without Feint never hold Double Bluff, Misdirection or Unreadable.
 - With Feint, those cards are dealt.
 - `npm run smoke` passes.
+
+## Step 8c (locked 2026-10-26): grades, the draft's reward, beast cards, weapon looks, and blood
+
+**The designer**, after a long Rome session (export 2026-10-26, viewport 402x812):
+- "Taking 0 hits but bashing the other can be a C if there's no good hits. I think laming should be a good hit probably, and 0 hits should give you at least a B basically, but I do actually like the incentive to showboat."
+- "There seems to be multiple tiles that say beasts wear no armour, which I don't get."
+- "The spear doesn't get serrated correctly."
+- "Having a higher grade fight gives money but doesn't seem to yield rarer cards."
+- "The curved sword has like a straight line sticking out of it."
+- "The juice when hitting should probably be blood if it's hitting bare skin or a gap."
+- A screenshot of a foe's intro card ("VERUS · SPARRING") shows his figure as flat blocks.
+
+Their C on a clean bout came from a build before v40: the "0 hits, 1 good move" card follows Step 8's table. Step 8b already made a clean bout an A. The designer now wants a clean bout to be at least a B, with an A earned by good moves. Lamed limbs are already good moves.
+
+- **The grade,** replacing Step 8b's table:
+
+  | Grade | Hits taken | Good moves |
+  | --- | --- | --- |
+  | S | 0 | 3 or more |
+  | A | 2 or fewer | 4 or more |
+  | B | 4 or fewer | any |
+  | C | more than 4 | |
+
+  A pair bout still allows one more hit at each grade.
+- **Good moves:** a shield bash that lands (`bashHits`) also counts.
+- **The grade pays in cards, visibly:**
+  - after an S, both free cards are rare or better;
+  - after an A, at least one free card is rare;
+  - B and C keep their odds.
+
+  The "?" page's odds line shows the grade's odds, as it does now.
+- **Cards against a beast:** a card whose rule needs armour (Heavy Arm, Brawler, Breaker, Butcher) shows its own line as always. Under it, a short muted note reads "No use against a beast: it wears no armour." `BEAST_LINE`'s other entries (Disarm, Thorns, Matador), which change what the card does, stay as they are.
+- **Weapon looks:**
+  - **Serrated Edge on the spear:** the saw teeth sit on the spearhead, not along the shaft. Check every weapon: teeth go on the blade or head only.
+  - **The sica:** find and remove the straight line that sticks out of the curved blade.
+- **Blood:**
+  - a hit that lands on bare skin, or in a gap (a slot hit, or a hit on an unplated part), throws blood: a spray of red drops along the blow and a small red flash;
+  - a hit on a plate or a block keeps the sparks;
+  - beasts bleed the same.
+
+  This is cosmetic only (`Math.random` is allowed), with the counts in TUNING. It stays within frame budget.
+- **His intro card:** a foe's figure on his intro card (`drawIntro`, and the pit wall's cards if they use `armourIcon`) is painted like yours since step 6e: the kit and his painted plates, with no flat blocks.
+- **Acceptance:**
+  - The grade cases:
+    - 0 hits and 1 good move grades B;
+    - 0 hits and 3 good moves grades S;
+    - 2 hits and 4 good moves grades A;
+    - 5 hits grades C;
+    - a pair bout with 3 hits and 4 good moves grades A.
+  - 200 seeded deals after an S hold no common in the free slots.
+  - 200 seeded deals after an A hold at least one rare in the free slots.
+  - Rendered frames:
+    - the spear, gladius, axe, dagger, trident and sica, each with Serrated Edge;
+    - the plain sica;
+    - a slot hit on a man and a hit on a lion, showing blood;
+    - a plate hit, showing sparks;
+    - a foe intro card for light, medium and heavy armour.
+  - `npm run smoke` passes.
