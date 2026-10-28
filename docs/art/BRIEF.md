@@ -335,6 +335,38 @@ From the Pack 20 review:
 
 That is 6 images, one option each, about US$1.50. They replace the `-A` files in `docs/art/candidates/arena/`.
 
+### Pack 22: Arena, the card vault's gear and the tailor's looks, painted (added 2026-10-28)
+
+Spec: `docs/games/arena/prd-v0.3.md`, Step 9 (the gear table). Same rules as Pack 20 B: each piece a transparent PNG in side view facing right, painted to sit over the kit part it covers, in the style and scale of the Pack 20 gear (`gear-*-A.png`) and the kit (`kit-base-*-A.png`).
+
+**A. The card vault's gear,** 12 pieces, named `gear-<name>.png`:
+
+| File | Slot | Look |
+| --- | --- | --- |
+| `gear-bossed-shield` | shield face | a round shield with a big iron boss and studded rim |
+| `gear-phalanx-helm` | head | a Greek bronze helmet, cheek guards, a short crest |
+| `gear-bloodletters-belt` | belt | a dark leather belt hung with small hooked knives |
+| `gear-crimson-cloak` | cloak | a deep red cloak, its hem dark as if soaked |
+| `gear-shadow-sandals` | legs | black-strapped sandals laced high up the shin |
+| `gear-wind-ribbons` | arms | pale blue ribbons wound round the forearm, ends flying |
+| `gear-crusher-gauntlets` | arms | heavy iron gauntlets with knuckle studs |
+| `gear-colossus-plate` | chest | a thick dark-iron muscle cuirass |
+| `gear-smoke-pouch-belt` | belt | a violet sash with small smoking pouches |
+| `gear-mirror-cloak` | cloak | a dark violet cloak lined with small polished bronze discs |
+| `gear-laurel-wreath` | head | a gilded laurel wreath (sits on the hair, no helmet) |
+| `gear-idols-torc` | chest | a heavy gold neck torc with a small gold pectoral |
+
+**B. The tailor's looks, painted** (they are flat drawn shapes today), each in its three styles, named `tailor-<item>-<style>.png`:
+
+| Item | Styles | Sits |
+| --- | --- | --- |
+| crest | bronze, silver, gold | a metal crest along the top of a helmet |
+| plume | red, white, black | a horsehair plume standing from a helmet's top |
+| paint | wings, bolt, sun | a shield-face emblem, round, to lay over a round shield face |
+| cloak | red, blue, green | a plain wool cloak hanging from the shoulders behind the body |
+
+That is 12 + 12 = 24 images, one option each, using the references above, about US$3. Add them to `docs/art/candidates/arena/candidates.json` with `-A` files, make one contact sheet per section, and write `docs/art/HANDOFF-arena-pack22.md` with each piece's pins in px (as the Pack 20 handoff does).
+
 ### Pack 21: Arena, whole limbs cut in two, and legless beast bodies (added 2026-10-24)
 
 The designer, after playing v36: "Still we have issues with the upper lower limb situation, and with the way the animals' limbs attach to their bodies."

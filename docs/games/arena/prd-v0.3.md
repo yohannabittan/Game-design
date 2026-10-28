@@ -1299,7 +1299,24 @@ Brutus's vault holds **six family scrolls**, one per family. Each costs fame (`T
 | Spectacle | Brute + Showman | Breaking his armour fills the crowd. |
 | Grand Illusion | Trickster + Showman | Spotting his fake pleases the crowd twice as much and earns gold. |
 
-Each new card gets a painted gear piece in a later art pack (as Pack 20); until then it wears its family's drawn look, as before Pack 20.
+**The new cards' gear** (one piece a slot, as today; the paint is art Pack 22, wired in Step 9 when it lands, else the family's drawn look):
+
+| Card | Slot | Gear |
+| --- | --- | --- |
+| Bulwark | shield | Bossed Shield |
+| Phalanx Master | helmet | Phalanx Helm |
+| Bloodletter | belt | Bloodletter's Belt |
+| Crimson Tide | cloak | Crimson Cloak |
+| Shadow Step | legs | Shadow Sandals |
+| Wind Dancer | arms | Wind Ribbons |
+| Crusher | arms | Crusher Gauntlets |
+| Colossus | chest | Colossus Plate |
+| Smoke and Mirrors | belt | Smoke Pouch Belt |
+| Grand Deceiver | cloak | Mirror Cloak |
+| Gilded Moment | helmet | Laurel Wreath |
+| Idol of Rome | chest | Idol's Torc |
+
+The set bonuses take no slot, as today.
 
 ### B. Higher bouts deal higher cards
 
