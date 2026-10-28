@@ -1259,7 +1259,7 @@ Their C on a clean bout came from a build before v40: the "0 hits, 1 good move" 
     - a foe intro card for light, medium and heavy armour.
   - `npm run smoke` passes.
 
-## Step 9 (DRAFT 2026-10-28, for the designer's review): the card vault, high cards for high bouts, and bandages before the champion
+## Step 9 (locked 2026-10-28, "Go go go"): the card vault, high cards for high bouts, and bandages before the champion
 
 **The designer:**
 - "I've bought the full ludus. I think we should be able to pay to unlock more cards."
@@ -1320,3 +1320,73 @@ Each new card gets a painted gear piece in a later art pack (as Pack 20); until 
 - **The tailor's looks, painted:** crest, plume, shield paint and cloak in their styles. An art pack of about 12 pieces.
 - **Hard hits and gaps:** waiting for the designer to say what feels off.
 - **Armoured beasts.**
+
+## Step 9a (locked 2026-10-28, built before Step 9): damage numbers, a bout-length setting, and the starting purse
+
+**The designer:**
+- "We do need to curate how much info goes on, especially given the context of how much time you have in the moment, so I think just showing damage numbers is good."
+- "We should contemplate potentially extending health and extending duration of bouts."
+- "I think we can have wheels for strength, speed, size maybe, and then the purse is armor, weapon."
+- Then: "Go go go."
+
+### A. Damage numbers, and nothing else
+
+- Every one of your hits that takes health from him shows its number, rounded to the half:
+  - at the hit point;
+  - sized by the damage, from small for 1 to big for 6 and up;
+  - in the colour each kind of hit uses today.
+- A punish keeps its word ("PUNISH x6" or the like), and a finisher keeps its own pop.
+- A hit on his plate shows no number. The clang and the dent stay.
+- Bleed ticks show no numbers; the blood drops stay.
+- Nothing else is added to the screen.
+- The numbers stay above his head band and never cover his face. They are at least 14 px, and fade within about 0.6 s.
+
+### B. A bout-length setting, for the designer to feel
+
+- A TUNE key, `boutLength`, with three presets: 1x (today), 1.5x and 2x.
+- It scales all of these together:
+  - your hearts;
+  - his health, including pairs and beasts;
+  - the grade's hits allowed (rounded);
+  - the hearts Bread and Circuses throws and the tent's heart ware.
+- It leaves alone:
+  - damage per hit;
+  - stamina;
+  - the crowd's speed;
+  - finisher costs.
+- It is not shown in the release channel (TUNE is hidden there), and the default stays 1x until the designer picks.
+
+### C. The wheels are the body; the purse buys the kit
+
+- **The fighter's wheels:** size, strength, speed and stamina, plus origin and reason as today. The armour and weapon wheels go.
+- **The respin** respins the body wheels.
+- **The tier** (S to D) is rated from the body only.
+- **After the wheels,** before bout 1 of every arena run, the **armourer's tent opens with a starting purse**: 60 gold in the Pit, more in later arenas (`TUNING.purse`, say 60, 70, 80, 90). You buy:
+  - **one weapon:**
+    - gladius, free;
+    - dagger, 10;
+    - spear, 15;
+    - axe or mace, 20;
+    - sica, 20, once bought in the ludus;
+    - trident, 25, once bought in the ludus;
+  - **one armour:** none, free; light, 10; medium, 25; heavy, 40.
+
+  Each shows its one-line job, as the card does now.
+- **No armour is allowed.** So is any combination you can afford.
+- **The gold you don't spend stays in your purse** for the run's tent and the bandages.
+- All prices live in TUNING. The screen follows the tent's look, with a Fight button that is live once a weapon is chosen. A first-run hint says what the purse is for.
+- **Saves:** a run in progress keeps its rolled weapon and armour. Only a new run uses the purse. If the save shape changes, bump `saveVersion` and write `migrate`.
+- **Telemetry:** the result line gains `buy=<weapon>,<armour>` and `purseLeft=`.
+
+### Acceptance
+
+- Rendered frames:
+  - numbers on a slash, a smash, a gap stab and a punish;
+  - none on a plate hit;
+  - each at 667x375 and 402x812.
+- The 1.5x and 2x presets double-checked by script: his health and your hearts scale; damage does not.
+- The purse screen:
+  - at 667x375, 844x390 and 402x812;
+  - a run started with each weapon and armour;
+  - leftover gold carried to the tent.
+- `npm run smoke` passes.
