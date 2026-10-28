@@ -1258,3 +1258,65 @@ Their C on a clean bout came from a build before v40: the "0 hits, 1 good move" 
     - a plate hit, showing sparks;
     - a foe intro card for light, medium and heavy armour.
   - `npm run smoke` passes.
+
+## Step 9 (DRAFT 2026-10-28, for the designer's review): the card vault, high cards for high bouts, and bandages before the champion
+
+**The designer:**
+- "I've bought the full ludus. I think we should be able to pay to unlock more cards."
+- "I'm down for card vault. I think we also need higher rarity cards to reward the higher bouts, and also it's just more fun to get something epic or to make powerful synergies or specialities."
+- On Carpophorus: "It's just hard to get to the last bout with much health, but that's fine, unless we decide to get some kind of heal before the boss."
+- "Armored beasts later."
+
+**Today:**
+- 45 cards in six families. Each family has one epic and one legendary keystone, and there is one rare-family epic (Unbreakable). Six finishers. Seven set bonuses out of the 15 possible family pairs.
+- Epics and legendaries appear only in the priced third slot. The free slots roll only common or rare.
+
+### A. The card vault: a sixth ludus station
+
+Brutus's vault holds **six family scrolls**, one per family. Each costs fame (`TUNING.ludus.price`, 45 each to start). A scroll unlocks that family's new epic and its new legendary. A new set bonus can be dealt once both of its families' scrolls are bought (and, as today, only while you wear a piece of both). Before any scroll, the deck is exactly as today.
+
+**The new cards (draft lines; numbers go in `TUNING.cards`):**
+
+| Family | Epic | Legendary (a speciality: it grows with each card of its family you wear) |
+| --- | --- | --- |
+| Wall | **Bulwark:** three blocks in a row and he's out of breath. | **Phalanx Master:** each Wall card you wear makes a well-timed block's window wider. |
+| Blood | **Bloodletter:** his bleeding lasts twice as long. | **Crimson Tide:** when he falls while bleeding, you heal 1 heart for each bleed on him (3 at most). |
+| Dancer | **Shadow Step:** dodge his wind-up and your next hit can't be blocked. | **Wind Dancer:** each Dancer card you wear makes your dodges longer, and his misses leave him open longer. |
+| Brute | **Crusher:** a fast slash on his armour dents it twice. | **Colossus:** each Brute card you wear gives you 1 more heart, and your smashes from above hit harder. |
+| Trickster | **Smoke and Mirrors:** a Feint he falls for drains his stamina. (Needs Feint.) | **Grand Deceiver:** each Trickster card you wear shows his fakes sooner and keeps your Feint's gap open longer. |
+| Showman | **Gilded Moment:** with the crowd full, your first finisher each bout is free. | **Idol of Rome:** each Showman card you wear makes the crowd fill faster and pay more gold. |
+
+**The eight new set bonuses (the missing pairs):**
+
+| Set | Families | Line |
+| --- | --- | --- |
+| Counterstep | Wall + Dancer | A dodge right after a block is free and opens a gap. |
+| Hammer and Anvil | Wall + Brute | A well-timed block makes your next smash from above break the armour it hits. |
+| Feigned Guard | Wall + Trickster | Lowering your shield on purpose leaves his next blow open to a riposte. |
+| Thousand Cuts | Blood + Dancer | A slash as you step back makes him bleed. |
+| Poisoned Lie | Blood + Trickster | A Feint he falls for makes him bleed. |
+| Acrobat | Dancer + Showman | Dodging his wind-up pleases the crowd. |
+| Spectacle | Brute + Showman | Breaking his armour fills the crowd. |
+| Grand Illusion | Trickster + Showman | Spotting his fake pleases the crowd twice as much and earns gold. |
+
+Each new card gets a painted gear piece in a later art pack (as Pack 20); until then it wears its family's drawn look, as before Pack 20.
+
+### B. Higher bouts deal higher cards
+
+- **The free slots can roll an epic from bout 3 on:** after bout 3, a 10% chance per free slot; after bout 4 (before the champion), 20%. The chances live in `TUNING.draft.boutEpic`.
+- **After an S at bout 3 or later,** one free slot is a sure epic.
+- **The priced slot's cascade climbs with the bout:** the legendary chance goes from 15% to 30% after bout 4.
+- The "?" page's odds line shows these, as now.
+
+### C. Bandages before the champion
+
+- Before the champion's bout, Brutus offers **bandages for gold**: 1 heart each, up to your max, at a price in `TUNING.tent.bandage`.
+- It is one small screen in the tent's style, or a line on the last draft card. A Skip button is always there.
+- The gold you saved by showboating early buys health for the last fight. A free heal is not given.
+
+### Later steps, not in Step 9
+
+- **The fall scenes:** spared, executed or mauled, by crowd favour and foe type. They need art.
+- **The tailor's looks, painted:** crest, plume, shield paint and cloak in their styles. An art pack of about 12 pieces.
+- **Hard hits and gaps:** waiting for the designer to say what feels off.
+- **Armoured beasts.**
