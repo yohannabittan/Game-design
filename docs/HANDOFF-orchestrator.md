@@ -32,7 +32,7 @@ For a new Claude Code session taking over as the orchestrator. Read `CLAUDE.md` 
 
 | Game | Dev build | Notes |
 | --- | --- | --- |
-| Arena | `arena-v46` | v2 PRD `docs/games/arena/prd-v0.3.md`, built through Step 10. The most active game. |
+| Arena | `arena-v48` | v2 PRD `docs/games/arena/prd-v0.3.md`, built through Step 12 (the inventory, the menu remake and graceful loading). The most active game. Open: dark blobs at foe elbows and knees in headless frames since v46 (ask whether the designer sees them); the menu runs 15% slower headless than v46 (`TUNING.menu.fps`). |
 | Gravity Golf | `gravity-golf-v36` | PRD v0.16. A design discussion is open: Trials (below). |
 | Ink | `ink-v33` | Quiet. |
 | Recoil | `recoil-v33` | Quiet. |
