@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18, 19, 20, 21",
+ "pack": "15, 17, 18, 19, 20, 21, 22, 23",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -449,6 +449,107 @@
   "beast-bear-torso-young": [
    "beast-bear-torso-young-A.png",
    "beast-bear-torso-young-B.png"
+  ],
+  "gear-bossed-shield": [
+   "gear-bossed-shield-A.png"
+  ],
+  "gear-phalanx-helm": [
+   "gear-phalanx-helm-A.png"
+  ],
+  "gear-bloodletters-belt": [
+   "gear-bloodletters-belt-A.png"
+  ],
+  "gear-crimson-cloak": [
+   "gear-crimson-cloak-A.png"
+  ],
+  "gear-shadow-sandals": [
+   "gear-shadow-sandals-A.png"
+  ],
+  "gear-wind-ribbons": [
+   "gear-wind-ribbons-A.png"
+  ],
+  "gear-crusher-gauntlets": [
+   "gear-crusher-gauntlets-A.png"
+  ],
+  "gear-colossus-plate": [
+   "gear-colossus-plate-A.png"
+  ],
+  "gear-smoke-pouch-belt": [
+   "gear-smoke-pouch-belt-A.png"
+  ],
+  "gear-mirror-cloak": [
+   "gear-mirror-cloak-A.png"
+  ],
+  "gear-laurel-wreath": [
+   "gear-laurel-wreath-A.png"
+  ],
+  "gear-idols-torc": [
+   "gear-idols-torc-A.png"
+  ],
+  "tailor-crest-bronze": [
+   "tailor-crest-bronze-A.png"
+  ],
+  "tailor-crest-silver": [
+   "tailor-crest-silver-A.png"
+  ],
+  "tailor-crest-gold": [
+   "tailor-crest-gold-A.png"
+  ],
+  "tailor-plume-red": [
+   "tailor-plume-red-A.png"
+  ],
+  "tailor-plume-white": [
+   "tailor-plume-white-A.png"
+  ],
+  "tailor-plume-black": [
+   "tailor-plume-black-A.png"
+  ],
+  "tailor-paint-wings": [
+   "tailor-paint-wings-A.png"
+  ],
+  "tailor-paint-bolt": [
+   "tailor-paint-bolt-A.png"
+  ],
+  "tailor-paint-sun": [
+   "tailor-paint-sun-A.png"
+  ],
+  "tailor-cloak-red": [
+   "tailor-cloak-red-A.png"
+  ],
+  "tailor-cloak-blue": [
+   "tailor-cloak-blue-A.png"
+  ],
+  "tailor-cloak-green": [
+   "tailor-cloak-green-A.png"
+  ],
+  "weapon-gladius": [
+   "weapon-gladius-A.png"
+  ],
+  "weapon-spear": [
+   "weapon-spear-A.png"
+  ],
+  "weapon-dagger": [
+   "weapon-dagger-A.png"
+  ],
+  "weapon-sica": [
+   "weapon-sica-A.png"
+  ],
+  "weapon-axe": [
+   "weapon-axe-A.png"
+  ],
+  "weapon-mace": [
+   "weapon-mace-A.png"
+  ],
+  "weapon-trident": [
+   "weapon-trident-A.png"
+  ],
+  "weapon-wooden-sword": [
+   "weapon-wooden-sword-A.png"
+  ],
+  "logo-arena": [
+   "logo-arena-A.png",
+   "logo-arena-B.png",
+   "logo-arena-C.png"
   ]
  }
 }
