@@ -172,6 +172,8 @@ const TUNING = {
   // the feint lesson: hes = seconds of violet hesitation before the glow jumps; slow = game speed during the first feint ever; captions last cap / remind s
   lesson: { hes: 0.28, slow: 0.4, cap: 5, remind: 2.6 },
   feintRead: { drain: 0.6 },  // fraction of his stamina bar a read feint costs him
+  // biting his feint (step 10): a dodge begun while his fake shows is a stumble; your dodge locked lock s, the real blow's tell left x wind, the hint's s
+  feintBite: { lock: 0.8, wind: 0.6, cap: 4, lean: 0.5 },
   openWin: { dur: 0.15, slow: 0.25 },  // when he is winded: seconds of slow time, and the game speed during it
   // your rolled fighter. Wheels: [value, weight, tier name]. Per size band: arm reach multiplier, hearts, hand lag (swing speed) multiplier and tier score
   // (your scale and damage follow TUNING.sizes, like his). Per stat value 1-5: Strength damage, Speed hand lag / recoil and dodge length, Stamina bar and regen.
@@ -285,7 +287,7 @@ const TUNING = {
     price: { plate: 40, whet: 50, heart: 35, token: 25, forge: 60, hide: 15, wind: 15, wrist: 12, steady: 12, grip: 12, feet: 15, deepbreath: 15, edge: 20, tough: 15, stance: 12 } },
   // the starting purse (step 9a): gold per arena, then each weapon's and armour's price in the armourer's tent before bout 1 (the trident and the sica once
   // the ludus has them); hint = purses with the first-run hint
-  purse: { gold: { pit: 60, city: 70, rome: 80, games: 90 }, weapon: { gladius: 0, dagger: 10, spear: 15, axe: 20, sica: 20, trident: 25 }, armour: { none: 0, light: 10, medium: 25, heavy: 40 }, hint: 1 },
+  purse: { gold: { pit: 45, city: 45, rome: 45, games: 45 }, weapon: { gladius: 0, dagger: 10, spear: 15, axe: 20, sica: 20, trident: 25 }, armour: { none: 0, light: 10, medium: 25, heavy: 40 }, hint: 1 },
   // card effects. The tent's old commons: half hearts, multipliers, bare-hit damage, shield hits. The Wall: shove = paces a perfect block drives him, shoveStun = s stunned
   // at his wall, thorns = blocks that disarm him, thornsDur = s disarmed. Blood: bleed stacks per hit, vein = his wind-up x while he bleeds, bloodlust = stamina per stack
   // per tick, cruel = slot damage per stack. Dancer: sidestep = s winded, matador = s stunned, slip = jab x within slipWin s of a tell dodge, untouch = s all slots open.
@@ -345,6 +347,8 @@ const TUNING = {
     rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99, beasts: [1, 3], young: [1] },  // beasts: the bouts (0-based) a beast fights; young: those of them that bring a young one
     games: { shift: 0.9, feint: 1.35, guard: [0.2, 0.1], gear: 1, ring: 1, pairs: 99 },
   },
+  // x every foe's health by arena (men, beasts, pairs, champions; step 10), on top of the bout length
+  arenaHp: { pit: 1, city: 1.25, rome: 1.5, games: 1.75 },
   // the City's pairs: the waiting foe drawn at scale x his size and alpha, his centre x from the screen's edge (in his H), his body's half width (body, in his H);
   // the fighters' frame slides left until the one fighting stays clear of him (room = H his wall gives the one fighting past his mark, fbody = his half width in
   // his H); taunt = s his bubble shows before he steps in; enter = s before the one who steps in may swing; hp = x each pair foe's health
@@ -356,8 +360,9 @@ const TUNING = {
   crowd: { max: 100, read: 5, perfect: 2.5, slot: 2.5, lame: 2.5, clean: 5, combo: 1, fin: 1, comboWin: 1, turtle: 4, back: 6, idle: 3, drain: 0.02, pay: 0.5, hintDur: 6, step: 20, coins: 5, coinCap: 15, bands: [1 / 3, 2 / 3] },
   // the Colosseum's champions: Carpophorus sends in his lion when his health falls to send x his own; Mevia's spear also throws a net (its weight)
   champs: { carpophorus: { send: 0.5 }, mevia: { net: 2.4 } },
-  // the Emperor's thumb card: s the box takes to show, then the hand to rise, then the thumb to turn; s before a tap continues
-  thumb: { box: 0.6, hand: 0.8, turn: 0.4, tap: 2.2 },
+  // the Emperor's thumb card: s the box takes to show, then the crowd meter to fill to the bout's average, then the hand to rise, then the thumb to
+  // turn; s before a tap continues; then coins and petals fall, rain[band] of them, each fall s from top to bottom
+  thumb: { box: 0.6, meter: 1.1, hand: 0.8, turn: 0.4, tap: 3.3, rain: [14, 22, 34], fall: 2.6 },
   // Step 6, the art (ADR-0020, ADR-0021). Backdrops: each arena's image covers the screen behind the fighters, under a dark wash (alpha over the whole
   // screen, then a band from band H above the floor down to the floor at bandA), so the fighters and their tells read first. Portraits: face = the px of
   // a speaker's face beside his line (big for a headline), crop = the face's box in a portrait (fractions x0 y0 x1 y1), bust = a champion's on his card
@@ -700,7 +705,7 @@ const ROME_END = {
   glory: (n) => `Fifty thousand voices learned the name ${n}. The Emperor heard it too.`,
   promise: (n) => `${n} saw her at last, among the Emperor's slaves. One more door.`,
 };
-// The Grand Games end on the Emperor's thumb: the true ending for your reason at a full meter, a cold nod, or thumbs down.
+// The Grand Games end on the Emperor's thumb, always up (step 10): the crowd's band decides how grand the freedom is, and a full meter is your reason's true ending.
 const TRUE_END = {
   debt: 'The Emperor pays your debt himself. The moneylender bows.',
   revenge: "Aquila burned your village on the Emperor's order. The Emperor looks away first.",
@@ -708,7 +713,7 @@ const TRUE_END = {
   glory: 'Rome chants your name. They will sing it for a hundred years.',
   promise: 'The Emperor frees your sister. She runs to you across the sand.',
 };
-const THUMB_END = ['Free, but forgotten. You walk out to silence.', 'The Emperor nods. Rome will forget you by spring.'];
+const THUMB_END = ['Free. Rome will forget you by spring.', 'Free, and the Emperor nods. Rome will sing of you this year.'];
 // the crowd's band: 0 low, 1 middling, 2 full (the top third)
 const bandOf = (fav) => { const B = TUNING.crowd.bands, k = fav / TUNING.crowd.max; return k >= B[1] ? 2 : k >= B[0] ? 1 : 0; };
 // how a won run ends: the Pit's epilogue, the City's, the Colosseum's, or the Emperor's thumb
@@ -1306,7 +1311,7 @@ function makeFoe(d, pair) {
   const FT = TUNING.foe, f = { ...d };
   f.wname = d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
   f.parts = d.beast ? beastParts(d.beast) : guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards); f.look = d.beast ? null : foeLook(d); f.cloak = null; f.bp = null;
-  f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1) * (pair ? TUNING.pairs.hp : 1) * TUNING.boutLength); f.hp = f.maxHp; f.shown = f.hp;
+  f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1) * (pair ? TUNING.pairs.hp : 1) * TUNING.arenaHp[arena().id] * TUNING.boutLength); f.hp = f.maxHp; f.shown = f.hp;
   f.staMax = TUNING.foeSta.base + TUNING.foeSta.per * d.sta; f.sta = f.staMax; f.staT = 9; f.staShown = 1;
   f.home = d.weapon.range + d.size.reach; f.strike = d.weapon.strike + d.size.reach;
   f.th = REST_TH; f.dx = 0; f.dy = 0; f.a = 0; f.fr = {}; f.down = false; f.bleed = []; f.dents = 0; f.shrug = false;
@@ -1352,7 +1357,7 @@ function newRound(E, seed, me0, rv, arenaId = 'pit') {
     hp: me.halves, endT: 0, dodgeT: 0, dodgeMax: TUNING.dodge.dur, dodgeCool: 0, away: false, dodgeM: -9, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, lungeMiss: false, slotHits: 0, dg: { down: false, id: -1, t: 0 },
     stamina: M.staMax[me.sta - 1], lastAtk: -9, riposte: 0, open: 0, netT: 0, pushT: 0,
     gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
-    feints: 0, feintsRead: 0, feintsBit: 0, feintsNone: 0, feintLive: false, plateSaves: 0, combos: 0, windeds: 0, punishes: 0, bashes: 0, bashHits: 0, nets: 0, netted: 0, zoneReads: 0, lungeReads: 0, turtleReads: 0, presses: 0, retreats: 0, moveCount: {},
+    feints: 0, feintsRead: 0, feintsBit: 0, feintsNone: 0, baited: 0, bitT: 0, feintLive: false, plateSaves: 0, combos: 0, windeds: 0, punishes: 0, bashes: 0, bashHits: 0, nets: 0, netted: 0, zoneReads: 0, lungeReads: 0, turtleReads: 0, presses: 0, retreats: 0, moveCount: {},
     fx: [], pops: [], streaks: [], trail: [],
     mom: 0, momT: 0, momGained: 0, momSpent: 0, lamings: 0, gold: 0, goldEarned: 0, lastGold: null, bought: [], rerolls: 0, tent: null, tentDone: false, lab: null, labMom: false, labUsed: 0, fins: [], wares: [], carry: 0, capCut: 0, ownFeints: 0, feintsLearned: 0, flourishes: 0, netsCast: 0, foeNet: 0, fl: { acc: 0, t: 0, ang: null, at: -9, fx: 0, fy: 0 }, armed: {}, openAll: 0, disarm: 0, flyW: 0, dents: 0, cape: 0, bleed: [], bleedT: 0, bleeds: 0, bleedDmg: 0,
     you: { lunge: 0, lungeK: 0, drive: 0, dk: 0, a: 0, back: 0, hopY: 0, push: 0, parts: playerParts(me), fr: {} }, drives: 0, driveDist: 0, burn: 0, burnT: 0, spoils: 0, landM: -9, buy: '', purseLeft: null,
@@ -1389,7 +1394,7 @@ function tailorOf(E) {
 // The run is saved at the start of each bout (the run's counts, your fighter and the bout reached) and resumed there; the bout itself replays from its seed.
 const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token', 'tokenUsed', 'epicsSeen', 'switchReads', 'stepsIn', 'stepsOut', 'wallHits', 'foeWall', 'outReach', 'dodged', 'chases',
   'capCut', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
-  'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
+  'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'baited', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
   'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep',
   'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
@@ -1804,7 +1809,7 @@ function updateDefence(dt, E) {
   // the cooldown follows only a raise that blocked a blow
   if (s.t >= 0) { s.t += dt; if (s.t >= S.dur && !s.held) { s.t = -1; s.cool = s.blocked ? S.cool : 0; s.blocked = false; } }
   s.cool = Math.max(0, s.cool - dt); s.flash = Math.max(0, s.flash - dt);
-  state.dodgeCool = Math.max(0, state.dodgeCool - dt);
+  state.dodgeCool = Math.max(0, state.dodgeCool - dt); state.bitT = Math.max(0, state.bitT - dt);
   if (dg.down) {
     dg.t += dt;
     if (dg.t > D.dur) { state.stamina -= (has('untouch') ? 0 : D.drain) * dt; state.lastAtk = state.m; if (state.stamina <= 0) { state.stamina = 0; dg.down = false; dg.id = -1; } }
@@ -2184,6 +2189,7 @@ function updateFoe(dt, E) {
     if (sw.fin > 0) { sw.fin -= dt; if (sw.fin <= 0) endBlow(E); return; }
     sw.t += dt;
     if (sw.fake && raised() && state.sh.zone === sw.fake) sw.sawFake = true;
+    if (fakeShowing() && bodyPos() < sw.body0 - TUNING.foot.give) sw.gaveFake = true;
     if (sw.fake && !sw.switched) {
       if (!sw.hesOn && sw.t >= sw.switchAt) feintHesitate(E);
       if (sw.t >= sw.switchAt + sw.hes) feintSwitch(E);
@@ -2328,6 +2334,7 @@ function dodge(E, pid) {
   const D = TUNING.dodge, Fy = youF(E), s = state.sh, h = state.hand, ft = state.foot, wl = walls(E);
   if (noDodge()) { pop(Fy.x, Fy.y - 1.0 * Fy.H, 'NO DODGE', '#94a3b8', 14); return; }
   if (state.away || state.dodgeCool > 0) return;
+  if (fakeShowing()) { bitFeint(E); return; }
   if (ft.pos <= wl.back + 0.01) { backToWall(E); return; }
   // Counterstep: a dodge just after a block is free, and opens a gap
   const step = has('counterstep') && state.m - state.blockM <= C_().counterWin, cost = has('untouch') || step ? 0 : D.cost;
@@ -2344,6 +2351,18 @@ function dodge(E, pid) {
   swooshSound(E, 0.16); E.haptic(12);
   // a short ghost trail behind you and a scuff of sand
   dust(Fy.x, Fy.y, TUNING.juice.scuff); E.audio.noise({ dur: 0.07, gain: 0.1, delay: 0.05 }); state.ghostT = TUNING.juice.ghost; state.ghostAt = -9;
+}
+// Biting his feint (step 10): a dodge begun while his fake still shows is a stumble, not a step. Your dodge locks, and his real blow comes at once on a
+// shorter tell, which you can still block. No dodge card fires, since there is no dodge for tellDodge to see.
+const fakeShowing = () => !!(state.sw && state.sw.fake && !state.sw.switched && state.sw.fin <= 0);
+function bitFeint(E) {
+  const sw = state.sw, FB = TUNING.feintBite, Fy = youF(E), rest = Math.max(0, sw.wind - sw.switchAt - sw.hes) * FB.wind;
+  state.baited++; sw.baited = true; state.dodgeCool = Math.max(state.dodgeCool, FB.lock); state.bitT = FB.lock;
+  feintSwitch(E); sw.wind = sw.t + rest;
+  state.you.a -= TUNING.juice.recoil * FB.lean;
+  pop(Fy.x, Fy.y - 1.05 * Fy.H, 'BAITED', '#f87171', 28); shake(E, 5, 0.15); E.haptic(25);
+  E.audio.beep({ freq: 210, dur: 0.18, type: 'sawtooth', slide: 0.6, gain: 0.1 });
+  if (!E.save.get('baitHint', 0)) { E.save.set('baitHint', 1); state.caption = { lines: ['That was a fake. Dodging a fake leaves you open.'], t: FB.cap, max: FB.cap }; }
 }
 
 // ====== HIT RESOLUTION: your blows on him, his blows on you ======
@@ -2679,8 +2698,9 @@ function resolveSwing(E) {
   if (!jugg) { state.hand.lock = Math.max(state.hand.lock, 0.2); state.hand.hvx = -200; state.hand.hvy = 120; state.hand.atk = null; }
   if (state.hp <= 0) { state.hp = 0; state.endT = 1.0; state.results[state.rack] = 'lost'; }
 }
-// a dodge in his tell (a backstep begun in it, ground given, or his blow on your ghost)
+// a dodge in his tell (a backstep begun in it, ground given, or his blow on your ghost); a feint's tell counts only after the switch
 function tellDodge(E, sw) {
+  if (sw.gaveFake) return;
   state.lastTellDodge = state.m;
   gainMom(E, TUNING.mom.dodge); emit(E, 'dodge', { sw });
 }
@@ -3384,12 +3404,11 @@ function chant(E) {
     E.audio.beep({ freq: 294, dur: 0.12, type: 'sine', gain: g * 0.5, delay: i * C.gap + 0.1 });
   }
 }
-// the crowd at the Emperor's thumb: a long roar, a murmur, or jeers
-function crowdVerdict(E, band) {
+// the crowd at the Emperor's thumb: a long roar
+function crowdVerdict(E) {
   const A = E.audio;
-  if (band === 2) { for (let i = 0; i < 6; i++) A.noise({ dur: 0.3, gain: 0.22 - i * 0.02, delay: i * 0.22 }); A.play('win'); }
-  else if (band === 1) A.noise({ dur: 0.5, gain: 0.08 });
-  else for (let i = 0; i < 4; i++) A.beep({ freq: 140 - i * 10, dur: 0.22, type: 'sawtooth', slide: 0.7, gain: 0.08, delay: i * 0.2 });
+  for (let i = 0; i < 6; i++) A.noise({ dur: 0.3, gain: 0.22 - i * 0.02, delay: i * 0.22 });
+  A.play('win');
 }
 function swooshSound(E, gain = 0.12) { E.audio.noise({ dur: 0.16, gain }); E.audio.beep({ freq: 700, dur: 0.14, type: 'sine', slide: 0.3, gain: gain * 0.4 }); }
 
@@ -4800,10 +4819,14 @@ function foeHealth(ctx, E) {
 // The crowd meter under BOUT: a bar marked in thirds (the Emperor's thumb reads them) with the word CROWD written on it, gold at the top third,
 // flashing as it fills. It fills the HUD's left strip, which ends where the foe's slot (and his flag) begins.
 function drawCrowdMeter(ctx, E, x, y) {
-  const C = TUNING.crowd, k = clamp(state.favShown / C.max, 0, 1), band = bandOf(state.favShown), bw = (hudSlot(E).x0 - 12 - x) * TUNING.hud.crowdW, bh = TUNING.hud.crowdH, by = y - bh / 2;
+  crowdBar(ctx, x, y, (hudSlot(E).x0 - 12 - x) * TUNING.hud.crowdW, state.favShown, state.favT);
+}
+// the bar itself at favour fav (centred on y), white over its fill at flash; the HUD's and the Emperor's thumb card's
+function crowdBar(ctx, x, y, bw, fav, flash) {
+  const C = TUNING.crowd, k = clamp(fav / C.max, 0, 1), band = bandOf(fav), bh = TUNING.hud.crowdH, by = y - bh / 2;
   ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 1, by - 1, bw + 2, bh + 2);
   ctx.fillStyle = band === 2 ? '#ffd24a' : band === 1 ? '#f59e0b' : '#b45309'; ctx.fillRect(x, by, bw * k, bh);
-  if (state.favT > 0) { ctx.fillStyle = `rgba(255,255,255,${state.favT})`; ctx.fillRect(x, by, bw * k, bh); }
+  if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(x, by, bw * k, bh); }
   ctx.font = '800 14px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(20,12,4,0.9)'; ctx.strokeText('CROWD', x + 6, y + 1);
   ctx.fillStyle = '#fff6dc'; ctx.fillText('CROWD', x + 6, y + 1);
@@ -5639,7 +5662,7 @@ function drawDodgeBtn(ctx, E, b) {
   const tw = ctx.measureText('DODGE').width, ax = b.x + b.w / 2 - tw / 2 - s - 4;
   ctx.fillStyle = ink; ctx.beginPath(); ctx.moveTo(ax - s * 0.9, cy); ctx.lineTo(ax + s * 0.7, cy - s); ctx.lineTo(ax + s * 0.7, cy + s); ctx.closePath(); ctx.fill();
   E.text('DODGE', b.x + b.w / 2 + s / 2, cy, { size, weight: '800', color: ink });
-  const sub = wall ? 'at the wall' : state.dg.down && state.dg.t > TUNING.dodge.dur ? 'backing off' : firstRun(E) ? 'hold: back off' : '';
+  const sub = state.bitT > 0 ? 'off balance' : wall ? 'at the wall' : state.dg.down && state.dg.t > TUNING.dodge.dur ? 'backing off' : firstRun(E) ? 'hold: back off' : '';
   if (sub) E.text(sub, b.x + b.w / 2, b.y + b.h * 0.76, { size: 14, weight: '700', color: ink });
 }
 // The arena's edges: a low timber barrier behind each fighter, where he can give no more ground.
@@ -5797,10 +5820,12 @@ function drawFinBtn(ctx, E) {
 function drawCaption(ctx, E) {
   const c = state.caption;
   if (!c) return;
-  const a = clamp(c.t / 0.4, 0, 1) * clamp((c.max - c.t) / 0.15, 0, 1), w = Math.min(E.w - 220, 540), lh = 18, h = 10 + c.lines.length * lh, x = (E.w - w) / 2, y = aboveFin(E, x + w, h, E.h - E.safe.bottom - h - 4);
+  // clear of the left column, so DODGE and its line stay in sight
+  const R = colRect(E), w0 = Math.min(E.w - 220, 540), x = Math.max((E.w - w0) / 2, R.x + R.w + 8), w = Math.min(w0, E.w - E.safe.right - 8 - x), cx = x + w / 2;
+  const a = clamp(c.t / 0.4, 0, 1) * clamp((c.max - c.t) / 0.15, 0, 1), lh = 18, h = 10 + c.lines.length * lh, y = aboveFin(E, x + w, h, E.h - E.safe.bottom - h - 4);
   ctx.globalAlpha = a;
   E.roundRect(x, y, w, h, 10, 'rgba(24,16,40,0.88)', c.good ? '#ffd24a' : '#a78bfa');
-  c.lines.forEach((t, i) => E.text(t, E.w / 2, y + 5 + lh / 2 + i * lh, { size: i ? 13 : 16, weight: i ? '700' : '800', color: i ? '#ede9fe' : c.good ? '#ffd24a' : '#c4b5fd', alpha: a }));
+  c.lines.forEach((t, i) => E.text(t, cx, y + 5 + lh / 2 + i * lh, { size: i ? 13 : 16, weight: i ? '700' : '800', color: i ? '#ede9fe' : c.good ? '#ffd24a' : '#c4b5fd', alpha: a }));
   if (state.sw && state.sw.lesson === 'slow') E.text('slow motion', x + w - 8, y - 10, { size: 14, align: 'right', color: '#a78bfa', alpha: a });
   ctx.globalAlpha = 1;
 }
@@ -6664,7 +6689,7 @@ function drawPurse(ctx, E, P, me) {
   const T = TUNING.purse, top = E.safe.top + 18, L = 16 + E.safe.left, R = E.w - 16 - E.safe.right, ready = P.t > TUNING.draft.delay, gap = 8;
   ctx.fillStyle = '#14101a'; ctx.fillRect(0, 0, E.w, E.h);
   E.text("THE ARMOURER'S TENT", E.w / 2, top, { size: 20, weight: '800', color: '#e6c866' });
-  const say = P.hint ? `Old Brutus: “Buy your kit. Gold you keep buys more in the tent after bout ${TUNING.tent.after}.”` : 'Old Brutus: “Arm yourself. What you don’t spend, you keep.”';
+  const say = P.hint ? `Old Brutus: “${P.gold} gold: heavy plate or a finer blade. Keep some for the tent after bout ${TUNING.tent.after}.”` : `Old Brutus: “${P.gold} gold. Heavy plate or a finer blade, not both.”`;
   sayLine(ctx, E, say, E.w / 2, top + 24, R - L, { size: 14, weight: '700', color: '#fde68a', fit: true }, 'brutus');
   const cost = (P.w ? T.weapon[P.w] : 0) + T.armour[P.a], left = P.gold - cost;
   E.text(`Your purse: ${P.gold} gold`, E.w / 2, top + 46, { size: 16, weight: '800', color: '#fbbf24' });
@@ -6718,7 +6743,7 @@ function fameOf(won, first, thumbUp, gold, bouts = 0) {
   if (bouts > 0) items.push(['bouts won', bouts * F.bout]);
   if (won) items.push(['champion', F.champ]);
   if (first) items.push(['first clear', F.clear]);
-  if (thumbUp) items.push(['thumbs up', F.thumbUp]);
+  if (thumbUp) items.push(['a full crowd', F.thumbUp]);
   if (g > 0) items.push(['gold left', g]);
   return { sum: items.reduce((a, e) => a + e[1], 0), items };
 }
@@ -7526,7 +7551,7 @@ const play = {
     if (isNew) E.save.set('best2', state.gapHits);
     const g = state.gauntlet, won = state.results.filter((r) => r === 'felled').length >= g.length, reached = Math.min(g.length, state.rack + 1);
     const r = { gapHits: state.gapHits, slotHits: state.slotHits, lunges: state.lunges, clangs: state.clangs, broken: state.broken, overheads: state.overheads, jabs: state.jabs, slashes: state.slashes, blocks: state.blocks, perfects: state.perfects, dodges: state.dodges, staOuts: state.staOuts, counters: state.counters, counterHits: state.counterHits, taken: state.taken, felled: state.felled,
-      feints: state.feints, feintsRead: state.feintsRead, switchReads: state.switchReads, feintsBit: state.feintsBit, feintsNone: state.feintsNone, combos: state.combos, windeds: state.windeds, punishes: state.punishes, bashes: state.bashes, bashHits: state.bashHits, nets: state.nets, netted: state.netted,
+      feints: state.feints, feintsRead: state.feintsRead, switchReads: state.switchReads, feintsBit: state.feintsBit, feintsNone: state.feintsNone, baited: state.baited, combos: state.combos, windeds: state.windeds, punishes: state.punishes, bashes: state.bashes, bashHits: state.bashHits, nets: state.nets, netted: state.netted,
       zoneReads: state.zoneReads, lungeReads: state.lungeReads, turtleReads: state.turtleReads, presses: state.presses, retreats: state.retreats, plateSaves: state.plateSaves,
       momGained: state.momGained, momSpent: state.momSpent, bleeds: state.bleeds, lamings: state.lamings };
     const me = state.me, champ = g[g.length - 1];
@@ -7731,6 +7756,18 @@ const play = {
   },
 };
 
+// coins and petals falling over the screen, n of them, each fall s from top to bottom, t s since they began (cosmetic: placed by index, no state)
+function rain(ctx, E, t, n, fall) {
+  const u = (i, k) => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+  for (let i = 0; i < n; i++) {
+    const ph = t / fall - u(i, 1);
+    if (ph < 0) continue;
+    const px = u(i, 2) * E.w + Math.sin(t * 2 + i) * 10, py = -10 + (ph % 1) * (E.h + 20);
+    if (i % 2) { drawCoin(ctx, px, py, 5); continue; }
+    ctx.save(); ctx.translate(px, py); ctx.rotate(t * 3 + i); ctx.fillStyle = i % 4 ? '#f472b6' : '#e11d48';
+    ctx.beginPath(); ctx.ellipse(0, 0, 6, 3, 0, 0, 6.28); ctx.fill(); ctx.restore();
+  }
+}
 // The end: an epilogue card first when the champion fell, then the end card (your card and theirs, your upgrades, the pit wall when you fell).
 const over = {
   enter(E, params) {
@@ -7752,10 +7789,10 @@ const over = {
     if (p.fame && p.fame.sum) E.text(`+${p.fame.sum} fame`, E.w / 2, y + h - 46, { size: 18, weight: '800', color: '#ffd24a' });
     E.text('Tap to continue', E.w / 2, y + h - 22, { size: 14, weight: '800', color: '#ffd24a', alpha: this.t > 0.5 ? 0.6 + 0.4 * Math.sin(E.time * 4) : 0.3 });
   },
-  // The Grand Games end on the Emperor's thumb: the imperial box, then his hand rises and the thumb turns by the crowd's meter (up and a roar, a cold
-  // nod, or down and jeers), then the ending. All three are a win.
+  // The Grand Games end on the Emperor's thumb: the imperial box, the crowd meter filling to the champion bout's average, then his hand rises and the
+  // thumb turns up (a nod as well at a middling meter), the crowd roars, coins and petals fall, and the ending is as grand as the meter.
   thumb(ctx, E) {
-    const p = this.p, T = TUNING.thumb, b = bandOf(p.fav), t = this.t, w = Math.min(E.w - 32, 620), h = Math.min(E.h - 24, 272), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+    const p = this.p, T = TUNING.thumb, b = bandOf(p.fav), t = this.t, t0 = T.box + T.meter, w = Math.min(E.w - 32, 620), h = Math.min(E.h - 24, 272), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
     E.roundRect(x, y, w, h, 18, '#1c1424', b === 2 ? '#ffd24a' : b === 1 ? '#c4b99a' : '#94a3b8');
     E.text("THE EMPEROR'S THUMB", cx, y + 24, { size: 15, weight: '800', color: '#ffd24a' });
     // the box: a purple-draped balcony between two columns, the Emperor seated under a laurel
@@ -7770,29 +7807,33 @@ const over = {
     for (let i = 0; i <= 6; i++) ctx.quadraticCurveTo(bx + bw * (i - 0.5) / 6, by + bh * 0.82, bx + bw * i / 6, by + bh * 0.62);
     ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx, by + bh); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#e6c866'; ctx.fillRect(bx, by + bh * 0.6, bw, 3);
-    const nod = b === 1 ? Math.sin(clamp((t - T.box - T.hand) / T.turn, 0, 1) * Math.PI) * 4 : 0, ex = cx, ey = by + bh * 0.3 + nod;
+    const nod = b === 1 ? Math.sin(clamp((t - t0 - T.hand) / T.turn, 0, 1) * Math.PI) * 4 : 0, ex = cx, ey = by + bh * 0.3 + nod;
     if (!emp) {
       ctx.fillStyle = '#c9a27a'; ctx.beginPath(); ctx.arc(ex, ey, bh * 0.12, 0, 6.28); ctx.fill();
       ctx.fillStyle = '#f2f0ea'; ctx.beginPath(); ctx.moveTo(ex - bh * 0.22, by + bh * 0.62); ctx.quadraticCurveTo(ex, ey + bh * 0.05, ex + bh * 0.22, by + bh * 0.62); ctx.fill();
       ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ex, ey - bh * 0.02, bh * 0.13, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
     }
     ctx.restore();
-    // the hand rises over the rail, a fist with the thumb out, and turns
-    const kh = easeOut(clamp((t - T.box) / T.hand, 0, 1)), kt = easeOut(clamp((t - T.box - T.hand) / T.turn, 0, 1)), hx = cx + bw * 0.3, hy = by + bh * 0.9 - kh * bh * 0.45;
+    // the crowd meter under the box fills to what the Emperor reads, before his hand moves
+    const km = easeOut(clamp((t - T.box) / T.meter, 0, 1)), my = by + bh + 16, fav = p.fav * km;
+    if (t > T.box) { crowdBar(ctx, cx - bw / 2, my, bw, fav, km >= 1 ? 0 : 0.25); E.text(`${Math.round(fav / TUNING.crowd.max * 100)}%`, cx + bw / 2 + 8, my, { size: 14, weight: '800', align: 'left', color: '#fde68a' }); }
+    // the hand rises over the rail, a fist with the thumb out, and turns up
+    const kh = easeOut(clamp((t - t0) / T.hand, 0, 1)), kt = easeOut(clamp((t - t0 - T.hand) / T.turn, 0, 1)), hx = cx + bw * 0.3, hy = by + bh * 0.9 - kh * bh * 0.45;
     if (kh > 0) {
-      const ang = kt * (b === 2 ? -Math.PI / 2 : b === 0 ? Math.PI / 2 : 0), r = bh * 0.15;
+      const ang = -kt * Math.PI / 2, r = bh * 0.15;
       ctx.save(); ctx.translate(hx, hy);
       ctx.fillStyle = '#5b2160'; ctx.fillRect(-r * 0.7, r * 0.6, r * 1.4, bh * 0.4);
       ctx.fillStyle = '#d4a77e'; rrect(ctx, -r, -r * 0.8, r * 2, r * 1.6, r * 0.5); ctx.fill();
       ctx.rotate(ang); ctx.fillRect(r * 0.6, -r * 0.28, r * 1.1, r * 0.56); ctx.strokeStyle = '#7a5032'; ctx.lineWidth = 1.5; ctx.strokeRect(r * 0.6, -r * 0.28, r * 1.1, r * 0.56);
       ctx.restore();
     }
-    if (t >= T.box + T.hand + T.turn) {
-      if (!this.heard) { this.heard = true; crowdVerdict(E, b); }
-      const head = b === 2 ? 'Thumbs up. The crowd roars.' : b === 1 ? 'A cold nod.' : 'Thumbs down. The crowd jeers.';
-      E.text(head, cx, by + bh + 24, { size: 17, weight: '800', color: b === 2 ? '#ffd24a' : b === 1 ? '#e2e8f0' : '#fca5a5' });
-      wrapPx(ctx, endingOf('games', p.me, p.fav), w - 40, 16, '700').slice(0, 2).forEach((s2, i) => E.text(s2, cx, by + bh + 50 + i * 20, { size: 16, weight: '700', color: '#fde68a' }));
+    const tu = t0 + T.hand + T.turn;
+    if (t >= tu) {
+      if (!this.heard) { this.heard = true; crowdVerdict(E); }
+      E.text('Thumbs up. The crowd roars.', cx, my + 26, { size: 17, weight: '800', color: '#ffd24a' });
+      wrapPx(ctx, endingOf('games', p.me, p.fav), w - 40, 16, '700').slice(0, 2).forEach((s2, i) => E.text(s2, cx, my + 50 + i * 20, { size: 16, weight: '700', color: '#fde68a' }));
       if (p.fame && p.fame.sum) E.text(`+${p.fame.sum} fame`, cx + w / 2 - 20, y + h - 18, { size: 16, weight: '800', align: 'right', color: '#ffd24a' });
+      rain(ctx, E, t - tu, T.rain[b], T.fall);
     }
     E.text('Tap to continue', cx, y + h - 18, { size: 14, weight: '800', color: '#ffd24a', alpha: t > T.tap ? 0.6 + 0.4 * Math.sin(E.time * 4) : 0.3 });
   },
@@ -7894,7 +7935,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 11,
+  saveVersion: 12,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -7941,6 +7982,8 @@ export const game = {
     // v11 (v2 step 9a, the starting purse): a saved run keeps the weapon and armour its wheels rolled, so it bought nothing (buy '', no purse left);
     // purseHint counts the purses that showed the first-run hint
     if (fromVersion < 11) { if (data.run) Object.assign(data.run, { buy: '', purseLeft: null }); data.purseHint = 0; }
+    // v12 (v2 step 10, biting his feint): a saved run has bitten none; baitHint is set once the first bite's hint has shown
+    if (fromVersion < 12) { if (data.run) data.run.baited = 0; data.baitHint = 0; }
     return data;
   },
   TUNING,
