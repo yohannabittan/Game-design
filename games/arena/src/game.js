@@ -372,6 +372,16 @@ const TUNING = {
   // screen, then a band from band H above the floor down to the floor at bandA), so the fighters and their tells read first. Portraits: face = the px of
   // a speaker's face beside his line (big for a headline), crop = the face's box in a portrait (fractions x0 y0 x1 y1), bust = a champion's on his card
   // (w, h px, gap from the card's corner), box = the Emperor's crop in the imperial box.
+  // loading (step 12): par images in flight at once in the background; the boot card waits up to boot s for the menu's paintings and shows only after
+  // show s; a bout's intro card holds a tap up to hold s for its paintings; a painting landing on screen fades in over fade s; the boot bar's w x h px
+  load: { par: 4, boot: 3, show: 0.15, hold: 2, fade: 0.2, bar: [180, 4] },
+  // the menu (step 12): seed = the fresh roll's look shown before any run; col = the centre column (share of the width, least, most px), gap px to the
+  // sides; title px (least, most, share of the height); backdrop wash and vignette alphas; torches at dx px either side of the title's centre, glow r
+  // px, flicker share; dust motes, their px/s drift; the fighter's height (share of the height), the cut at his hips (body units), breath (rise as a share of s, rad/s), cloak sway (body units, rad/s)
+  // and colour; Brutus's face px; names per wall; wall height px (most); plaques' heights px; repaints a second of what moves (your fighter, the flames, the dust); the crowd murmur's gain, low-pass Hz, loop s and swells a loop
+  menu: { seed: 20261103, col: [0.4, 270, 340], gap: 12, title: [40, 56, 0.12], wash: 0.22, vignette: 0.8, torchDx: 118, torchR: 64, flicker: 0.22,
+    dust: 16, dustV: [6, 16], fighter: 0.6, hips: -0.45, breath: [0.012, 1.7], sway: [0.05, 1.2], cloak: '#8e2a26', face: 52, names: 3, wallH: 100,
+    play: 56, small: 46, fps: 5, figBox: [-0.4, -1.26, 0.26, -0.03], murmur: 0.05, murmurHz: 600, murmurLoop: 3, swells: 2 },
   art: { wash: 0.28, band: 1.15, bandA: 0.32, face: 30, faceBig: 40, faceCard: 26, gap: 4, cardDrop: 8, crop: [0.2, 0.02, 0.78, 0.46], bust: [60, 80, 10], epi: [96, 128], box: [0, 0.02, 1, 0.62] },
   // The painted cut-out kit (dev-only pilot, a switch on the ART screen): Strength picks the muscle tier (lean up to lean, avg up to avg, the muscular
   // parts above). Each part's joint centres a and b in its PNG (px of size; a tier's image is scaled by its own size), measured from the alpha, and w = the
@@ -1331,7 +1341,7 @@ function newRack(E) {
   state.winded = 0; state.windedMax = 1; state.retreat = 0; state.chase = 0; state.mood = { retreat: false };
   state.mem = { blocks: [], lunges: [], turtle: 0, feints: [] };
   state.gapOpen = null; state.ownT = -9; state.recT = -9; state.baitT = 0; state.puppetN = 0; state.awed = false; state.lng = null; state.foeNet = 0; state.you.drive = 0; state.you.dk = 0; state.burnT = 0;
-  state.swingIn = 1.2; state.intro = true; state.introT = 0; state.warm = false;
+  state.swingIn = 1.2; state.intro = true; state.introT = 0; state.introGo = -1; state.warm = false;
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
   settleFeint('none');
@@ -1407,6 +1417,8 @@ function saveRun(E, rack = state.rack) {
   const c = state.gauntlet[state.gauntlet.length - 1];
   const d = state.draft, draft = d ? { grade: d.grade, tally: d.tally, gold: d.gold, ids: d.cards.map((q) => q.id), priced: d.priced, odds: d.odds, spoil: d.spoil || null } : null;
   E.save.set('run', JSON.parse(JSON.stringify({ seed: state.seed, arena: state.arena, rack, me: state.me, rival: c.rival ? rivalOf(c) : null, draft, ...Object.fromEntries(RUN_KEYS.map((k) => [k, state[k]])) })));
+  // the menu's fighter and backdrop (step 12): the last fighter you sent out, and where
+  E.save.set('last', JSON.parse(JSON.stringify({ arena: state.arena, me: state.me })));
 }
 function resumeRun(E, run) {
   newRound(E, run.seed, run.me, run.rival, run.arena);
@@ -3421,24 +3433,85 @@ const YOU = { skin: '#c58f5e', tunic: '#2f7d6d', hem: '#1d5448', crest: '#e6c866
 
 // ----- the art: images by name through E.art (ADR-0020), with the drawn look as every image's fallback; the kit pilot's switch on the ART screen -----
 // An image loads when E.art has a candidate for its name (dev channel) or, in the release channel, when its name is in SHIPPED; otherwise the drawn look
-// stays. Each load and each pick bumps artV, which the backdrop's and the sprites' cache keys carry, so they repaint once.
-let ART = null, artV = 0;
+// stays. Step 12: every name starts loading in the background at boot (artPreload, TUNING.load.par at a time) and is decoded before it is first drawn.
+// Only a landing that something has asked for (artImg) bumps artV, which the backdrop's and the sprites' cache keys carry, so they repaint once, and
+// fades the screen from the frame before it (artFade). A failed image keeps the drawn look; it is not asked for again.
+let ART = null, artV = 0, ENG = null;
 const KIT = { on: false };
 const IMGS = new Map();
-function artImg(name) {
+function artEntry(name, src) {
+  const e = { src, im: new Image(), ok: false, bad: false, v: artV, asked: false, then: [] };
+  const done = (ok) => {
+    e.ok = ok; e.bad = !ok;
+    if (IMGS.get(name) === e && e.asked) { artFade(); artV++; }
+    for (const f of e.then.splice(0)) f();
+  };
+  e.im.decoding = 'async';
+  e.im.onload = () => { (e.im.decode ? e.im.decode() : Promise.resolve()).then(() => done(true), () => done(true)); };
+  e.im.onerror = () => done(false);
+  e.im.src = src; IMGS.set(name, e);
+  return e;
+}
+// the name's entry, its load started (src re-read only when a load or a pick has bumped artV: images are asked for many times a frame); null when the
+// art has no such name
+function artGet(name) {
   if (!ART || !ART.has(name)) return null;
   let e = IMGS.get(name);
-  // the name's file is looked up again only when a load or a pick has bumped artV (images are asked for many times a frame)
-  if (e && e.v === artV) return e.ok ? e.im : null;
+  if (e && e.v === artV) return e;
   const raw = artSrc(name), src = raw ? decodeURIComponent(raw) : raw; // E.art.src encodes the whole manifest value, slashes too: decode it so a subfolder loads
-  if (!e || e.src !== src) {
-    e = { src, im: new Image(), ok: false, v: artV };
-    const en = e;
-    en.im.onload = () => { en.ok = true; artV++; };
-    en.im.src = src; IMGS.set(name, en);
-  }
+  if (!e || e.src !== src) e = artEntry(name, src);
   e.v = artV;
+  return e;
+}
+// a name asked for while it loads holds the background queue back until it lands, so the screen's own paintings come first
+const ASKED = new Set();
+function artAsk(e) {
+  e.asked = true;
+  if (!e.ok && !e.bad && !ASKED.has(e)) { ASKED.add(e); e.then.push(() => { ASKED.delete(e); artPump(); }); }
+}
+function artImg(name) {
+  const e = artGet(name);
+  if (!e) return null;
+  if (!e.asked || !e.ok) artAsk(e);
   return e.ok ? e.im : null;
+}
+// 'ok' (loaded), 'bad' (failed, or not in the art) or '' (still loading); asking counts as drawing it
+function artState(name) { const e = artGet(name); if (!e) return 'bad'; if (!e.asked || !e.ok) artAsk(e); return e.ok ? 'ok' : e.bad ? 'bad' : ''; }
+// (each name is asked for, none skipped, so all of them jump the background queue at once)
+function artSettled(names) { let ok = true; for (const n of names) if (artState(n) === '') ok = false; return ok; }
+// a figure's paint (step 12): its body parts all loaded, and every piece it may wear loaded or failed; never half and half
+function artReady(A) { let ok = artSettled(A.extra); for (const n of A.body) if (artState(n) !== 'ok') ok = false; return ok; }
+// Every name the game can ask for, loaded a few at a time from boot, so later screens find their paintings ready (a pick reloads its own)
+const LOADQ = { list: [], busy: 0 };
+function artPreload() {
+  if (!ART) return;
+  LOADQ.list = (ART === shippedArt ? [...SHIPPED] : ART.names).filter((n) => n && !RETIRED.test(n));
+  artPump();
+}
+function artPump() {
+  while (!ASKED.size && LOADQ.busy < TUNING.load.par && LOADQ.list.length) {
+    const e = artGet(LOADQ.list.shift());
+    if (!e || e.ok || e.bad) continue;
+    LOADQ.busy++; e.then.push(() => { LOADQ.busy--; artPump(); });
+  }
+}
+// A painting landing on screen fades in: the frame before it is kept and drawn over the new ones, fading out over TUNING.load.fade (every scene's
+// render ends with artFadeOver; a scene change drops it).
+const FADE = { cv: null, at: -1 };
+function artFade() {
+  if (!ENG || !canSprite) return;
+  const c = ENG.canvas;
+  if (!c.width || !c.height) return;
+  if (!FADE.cv || FADE.cv.width !== c.width || FADE.cv.height !== c.height) FADE.cv = new OffscreenCanvas(c.width, c.height);
+  const x = FADE.cv.getContext('2d');
+  x.globalCompositeOperation = 'copy'; x.drawImage(c, 0, 0);
+  FADE.at = ENG.time;
+}
+function artFadeOver(ctx, E) {
+  if (FADE.at < 0) return;
+  const k = 1 - (E.time - FADE.at) / TUNING.load.fade;
+  if (k <= 0 || !FADE.cv || FADE.cv.width !== E.canvas.width) { FADE.at = -1; return; }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = k; ctx.drawImage(FADE.cv, 0, 0); ctx.restore();
 }
 // Step 6d: a limb's two halves are one painting, so a lower half (kit-arm-lo-lean, beast-lion-fore-lo-young) loads the letter its upper half is
 // picked at; the ART screen lists only the upper half, and none of the parts the halves and torsos retired.
@@ -3595,6 +3668,8 @@ function lookFor(fm, isFoe) {
   if (!kitOn() || fm.beast) return lk;
   const tier = kitTier(isFoe ? fm.str : state.me.str), key = `${tier}|${isFoe ? '' : 'y'}|${artV}`;
   if (!lk.kitL || lk.kitL.key !== key) {
+    // until all of his paint is in, he keeps the drawn look whole (step 12)
+    if (!artReady(manArt(lk, tier))) { lk.kitL = { key, lk }; return lk; }
     const helm = KIT_HELM[lk.helm] || 'gallic', shield = KIT_SHIELD[lk.helm] || 'round', wrap = !!KIT_WRAP[lk.helm];
     // the worn pieces whose paint has loaded (step 6c-2), so a part repaints when one arrives
     const ga = Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)] && artImg(gearFile(c))).map((c) => c.id).join('.');
@@ -3634,11 +3709,32 @@ function artPic(name, J0, px = 0, dark = 0) {
 const KIT_HALF = { upperarm: 'kit-arm-up', forearm: 'kit-arm-lo', thigh: 'kit-leg-up', shin: 'kit-leg-lo' };
 // a kit part's image for a tier: a limb's half for a lean or average man, the tier's own torso when it has one, else the muscular base (its upper
 // arm the Pack 20 one-segment part when there is one)
-function kitPic(part, tier, px = 0) {
+function kitName(part, tier) {
   const h = tier && KIT_HALF[part], hn = h && `${h}-${tier}`;
-  if (hn && ART && ART.has(hn)) return artPic(hn, { size: TUNING.kit.half.size[h] }, px);
+  if (hn && ART && ART.has(hn)) return hn;
   const t = tier && part === 'torso' ? `kit-base-torso-${tier}` : null, n = t && ART && ART.has(t) ? t : `kit-base-${part}`;
-  return artPic(ART && ART.has(`${n}-seg`) ? `${n}-seg` : n, TUNING.kit[part], px);
+  return ART && ART.has(`${n}-seg`) ? `${n}-seg` : n;
+}
+function kitPic(part, tier, px = 0) {
+  const n = kitName(part, tier), h = KIT_HALF[part];
+  return artPic(n, h && n.startsWith(h) ? { size: TUNING.kit.half.size[h] } : TUNING.kit[part], px);
+}
+const KIT_PARTS = ['head', 'torso', 'upperarm', 'forearm', 'thigh', 'shin'];
+// a man's paint (step 12): the body of his tier, and the pieces he may wear (his type's helmet and shield, the plates, wraps, his card gear)
+function manArt(lk, tier) {
+  const gear = Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)]).map(gearFile);
+  const tower = lk.gear && lk.gear.shield && lk.gear.shield.id === 'ironwall', wrap = KIT_WRAP[lk.helm] ? [KIT_GEAR.wrap] : [], gal = lk.galerus ? [KIT_GEAR.galerus] : [];
+  return { body: KIT_PARTS.map((p) => kitName(p, tier)), extra: [`kit-helmet-${KIT_HELM[lk.helm] || 'gallic'}`, `kit-shield-${tower ? 'scutum' : KIT_SHIELD[lk.helm] || 'round'}`, KIT_GEAR.plate, KIT_GEAR.manica, KIT_GEAR.greave, ...wrap, ...gal, ...gear] };
+}
+// a beast's paint: every part beastKit pins (a young beast's own where it has one)
+function beastArt(fm) {
+  const nm = (part) => { const b = `beast-${fm.beast}-${part}`; return fm.young && ART && ART.has(`${b}-young`) ? `${b}-young` : b; };
+  return { body: [], extra: ['torso', 'head', 'fore-up', 'fore-lo', 'hind-up', 'hind-lo', ...(TUNING.beastArt[fm.beast].tail ? ['tail'] : [])].map(nm) };
+}
+// the painted doll on a card (kitIcon): its body, and the plates it wears
+function dollArt(parts, str, gm) {
+  const on = (id) => parts.some((q) => q.d.id === id && q.armour);
+  return { body: KIT_PARTS.map((p) => kitName(p, kitTier(str))), extra: [...(on('head') ? [`kit-helmet-${KIT_HELM[gm] || 'gallic'}`] : []), KIT_GEAR.plate, KIT_GEAR.manica, KIT_GEAR.greave] };
 }
 const helmPic = (lk) => artPic(`kit-helmet-${lk.kit.helm}`, TUNING.kit.helm[lk.kit.helm]);
 const gearPic = (piece, px = 0) => artPic(KIT_GEAR[piece], TUNING.kit[piece], px);
@@ -6266,6 +6362,7 @@ function kitIconSprite(E, parts, s, str, gm) {
   const key = `${s}|${kitTier(str)}|${gm}|${k}|${artV}|${parts.map((q) => `${q.d.id}${q.armour ? 1 : 0}${q.guard ? 'g' : ''}`).join(',')}`;
   let sp = ICONS.get(key);
   if (!sp) {
+    if (!artReady(dollArt(parts, str, gm))) return null;
     const x = B[0] * s, y = B[1] * s, w = (B[2] - B[0]) * s, h = (B[3] - B[1]) * s, cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
     c.imageSmoothingQuality = 'high'; c.scale(k, k); c.translate(-x, -y);
     if (!kitIcon(c, parts, s, str, gm)) return null;
@@ -6277,7 +6374,8 @@ function kitIconSprite(E, parts, s, str, gm) {
 }
 function armourIcon(ctx, E, parts, x, y, s, str = 0, gm = null) {
   ctx.save(); ctx.translate(x, y);
-  if (str && kitOn()) {
+  // a body part that failed to load leaves the drawn doll
+  if (str && kitOn() && !dollArt(parts, str, gm).body.some((n) => artState(n) === 'bad')) {
     const sp = canSprite && kitIconSprite(E, parts, s, str, gm);
     if (sp) ctx.drawImage(sp.cv, sp.x, sp.y, sp.w, sp.h);
     // while the paint loads the card shows no figure for a frame or two, never the flat blocks
@@ -6431,7 +6529,7 @@ function drawIntro(ctx, E) {
   if (voice) { const vl = `${d.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, vy, { size: fitSize(ctx, vl, 15, w - 28), weight: '800', color: '#f87171' }); }
   else if (second) { const sl = `“${brutusReason()}”`; E.text(sl, cx, vy, { size: fitSize(ctx, sl, 14, w - 28, '700'), weight: '700', color: '#fde68a' }); }
   const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
-  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
+  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: tapLive() ? k : 0.3 });
 }
 // A beast's card: what it is (a lion or a bear, its epithet), no shield and no feints, its body with its gaps on the left, its size and how its tells
 // look, its profile and stats on the right, then the thread, Brutus and the tap.
@@ -6458,7 +6556,7 @@ function drawBeastIntro(ctx, E) {
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
   brutusCardLine(ctx, E, cx, y, tb, w, thread, 0);
   const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
-  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? k : 0.3 });
+  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: tapLive() ? k : 0.3 });
 }
 // a beast drawn small at rest on its card, w px from nose to tail, its feet at (x, y); its gaps show as on the sand
 function beastIcon(ctx, E, d, x, y, w) {
@@ -6508,7 +6606,7 @@ function drawPairIntro(ctx, E) {
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
   const vy = brutusCardLine(ctx, E, cx, y, tb, w, thread, y + tb + 33);
   if (voice) { const vl = `${a.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, vy, { size: Math.max(14, fitSize(ctx, vl, 15, w - 28)), weight: '800', color: '#f87171' }); }
-  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: state.introT > 0.35 ? 0.6 + 0.4 * Math.sin(state.introT * 4) : 0.3 });
+  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: tapLive() ? 0.6 + 0.4 * Math.sin(state.introT * 4) : 0.3 });
 }
 // one foe's column on the pairs card: who he is, his health, his armour and guards, his gear (the pieces that act for him in red)
 function pairCol(ctx, E, f, x, y, w, tag, ex) {
@@ -6902,52 +7000,379 @@ function rotateCard(ctx, E) {
 // Old Brutus's short intro, the menu's Story card
 const STORY = ['So. Another nobody from the pit.', 'I am Brutus. I make champions out of nobodies.', 'The wheels decide who you are, and what you fight for.',
   'Five bouts stand between you and the end of it. The last is the champion.', 'Win, and Rome remembers you. Fall, and I chalk your name on the wall.'];
-// The menu: the title and your fame, Play (Resume when a run was saved, with New run beside the Ludus, Story and Sound), the Story card, and two walls side by
-// side: the pit wall of the fallen and the Wall of Champions (a tap opens it).
+// The menu (step 12), built from the art that ships: the arena you last fought in behind, darkened at its edges, two torches flickering either side of
+// the bronze title and dust drifting; your last fighter (or a fresh roll's look) on the sand at the left, breathing, cloak swaying, Old Brutus beside
+// them with one line for your progress; Play a bronze gate plaque (Resume when a run was saved), the Ludus (its dot), Story and Sound stone plaques (New
+// run beside them with a run); the Wall of Champions a carved stone tablet (a tap opens it) and the Pit Wall a chalked board at the right, three names
+// each; a low crowd murmur with the sound on. Before the first menu a boot card waits for its paintings (TUNING.load).
+const BOOT = { done: false, t0: -1, bar: 0 };
+// the fighter and arena on the menu: a saved run's, else the last one sent out, else the newest champion's, else a fresh roll's look in the Pit
+function menuFighter(E) {
+  const run = E.save.get('run', null), last = E.save.get('last', null), c = E.save.get('champs', [])[0], q = (run && run.me && run) || (last && last.me && last);
+  if (q) return { me: q.me, arena: ARENA[q.arena] ? q.arena : 'pit' };
+  if (c && c.me) return { me: deriveMe({ ...c.me }), arena: ARENA[c.arena] ? c.arena : 'pit' };
+  return { me: rollMe(TUNING.menu.seed), arena: 'pit' };
+}
+// Old Brutus's line for your progress: your reason's line with a run saved, his first words before any run, the next arena's opening line, and
+// once every arena is cleared, who he is; proud once a champion is carved
+function menuBrutus(E) {
+  const run = E.save.get('run', null), to = openTo(E), champs = E.save.get('champs', []).length, fought = (run && run.me) || E.save.get('wall', []).length || champs || to;
+  const line = run && run.me ? brutus(run.me, 'intro') : !fought ? STORY[0] : to >= ARENAS.length ? STORY[1] : ARENAS[to].brutus;
+  return { line, pic: champs ? 'brutus-proud' : 'brutus' };
+}
+// the menu's own paintings, which the boot card waits for: the backdrop, the fighter's paint and Brutus
+function menuArt(m) {
+  const D = dollArt(m.parts, m.me.str, m.gm);
+  return [BACKDROP[m.arena], m.say.pic, ...(kitOn() ? [...D.body, ...D.extra] : [])];
+}
+// a dev build waits for its art manifest, unless the fetch came back empty-handed
+function artListed(E) {
+  if (!ART || ART === shippedArt || ART.names.length) return true;
+  try { return performance.getEntriesByType('resource').some((r) => /\/candidates\.json$/.test(r.name) && r.responseStatus >= 400); } catch (e) { return false; }
+}
+function menuLay(E, run) {
+  const M = TUNING.menu, T = E.safe.top, B = E.h - E.safe.bottom, L = 16 + E.safe.left, R = E.w - 16 - E.safe.right, cx = E.w / 2;
+  const cw = clamp(E.w * M.col[0], M.col[1], M.col[2]), side = (R - L - cw) / 2 - M.gap, ts = Math.round(clamp(E.h * M.title[2], M.title[0], M.title[1]));
+  const ty = T + 10 + ts * 0.55, fy = ty + ts * 0.5 + 14, py = fy + 22 + M.play / 2, gw = (cw - 10 - M.gap) / 2;
+  const r1 = py + M.play / 2 + M.gap + M.small / 2, r2 = r1 + M.small + M.gap, btn = {};
+  (run ? [['new', 'ludus'], ['story', 'sound']] : [['ludus', 'story'], ['sound']]).forEach((row, j) => row.forEach((k, i) => {
+    const x = row.length === 1 ? cx : cx + (i ? 1 : -1) * (gw + M.gap) / 2;
+    btn[k] = { x: x - gw / 2, y: (j ? r2 : r1) - M.small / 2, w: gw, h: M.small };
+  }));
+  btn.play = { x: cx - (cw - 10) / 2, y: py - M.play / 2, w: cw - 10, h: M.play };
+  const wt = T + 56, wh = Math.min(M.wallH, (B - 8 - wt - 10) / 2), wy = wt + Math.max(0, (B - 8 - wt - 2 * wh - 10) / 2), wx = R - side;
+  const s = Math.min(M.fighter * E.h / 1.08, side / 0.75);
+  return { T, B, L, R, cx, cw, side, ts, ty, fy, btn, champs: { x: wx, y: wy, w: side, h: wh }, pit: { x: wx, y: wy + wh + 10, w: side, h: wh },
+    fig: { x: L + side / 2, y: B - 14, s }, say: { x: cx - cw / 2, y: r2 + M.small / 2 + 8, w: cw, h: B - 8 - (r2 + M.small / 2 + 8) } };
+}
+// a painted piece of the menu, kept as a sprite per key at the screen's pixel ratio (drawn live without OffscreenCanvas)
+const MENU_SPR = new Map(), MENU_BIG = { key: null, cv: null };
+function menuBlit(ctx, E, key, x, y, w, h, paint) {
+  if (!canSprite) { ctx.save(); ctx.translate(x, y); paint(ctx); ctx.restore(); return; }
+  // a screen-sized one (the layer, the boot card) is kept alone, the small ones up to 48
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), kk = `${key}|${w}|${h}|${k}`, big = w * h >= E.w * E.h / 2;
+  let sp = big ? (MENU_BIG.key === kk ? MENU_BIG.cv : null) : MENU_SPR.get(kk);
+  if (!sp) {
+    const cv = new OffscreenCanvas(Math.max(1, Math.ceil(w * k)), Math.max(1, Math.ceil(h * k))), c = cv.getContext('2d', { alpha: !big });
+    c.scale(k, k); paint(c); sp = cv;
+    if (big) Object.assign(MENU_BIG, { key: kk, cv });
+    else { if (MENU_SPR.size > 48) MENU_SPR.clear(); MENU_SPR.set(kk, sp); }
+  }
+  ctx.drawImage(sp, x, y, w, h);
+}
+function ink(c, t, x, y, size, weight, color, align = 'center') {
+  c.font = `${weight} ${size}px system-ui, sans-serif`; c.textAlign = align; c.textBaseline = 'middle'; c.fillStyle = color; c.fillText(t, x, y);
+}
+// the backdrop: the painted arena scaled to cover (the drawn dusk and sand without it), a wash, and dark edges
+function paintMenuBack(c, E, bd) {
+  const M = TUNING.menu, w = E.w, h = E.h;
+  if (bd) {
+    const s = Math.max(w / bd.width, h / bd.height);
+    c.drawImage(bd, (w - bd.width * s) / 2, h - bd.height * s, bd.width * s, bd.height * s);
+  } else {
+    const g = c.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#1a1420'); g.addColorStop(0.5, '#3a2a28'); g.addColorStop(0.56, '#8a6a42'); g.addColorStop(1, '#4e3d26');
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+  }
+  c.fillStyle = `rgba(16,10,14,${M.wash})`; c.fillRect(0, 0, w, h);
+  const v = c.createRadialGradient(w / 2, h * 0.45, Math.min(w, h) * 0.3, w / 2, h * 0.45, Math.hypot(w, h) * 0.6);
+  v.addColorStop(0, 'rgba(8,5,6,0)'); v.addColorStop(1, `rgba(8,5,6,${M.vignette})`);
+  c.fillStyle = v; c.fillRect(0, 0, w, h);
+}
+// the dark sand behind the boot card
+function paintBootBack(c, E) {
+  const g = c.createLinearGradient(0, 0, 0, E.h);
+  g.addColorStop(0, '#120d0a'); g.addColorStop(0.55, '#241a12'); g.addColorStop(1, '#3a2b1c');
+  c.fillStyle = g; c.fillRect(0, 0, E.w, E.h);
+}
+// "ARENA" in stamped bronze: a soft shadow, a dark rim, a bronze gradient and a light edge along its top
+function paintTitle(c, ts, w, h) {
+  const x = w / 2, y = h / 2, t = 'ARENA';
+  c.font = `900 ${ts}px system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+  c.save(); c.shadowColor = 'rgba(0,0,0,0.75)'; c.shadowBlur = ts * 0.2; c.shadowOffsetY = ts * 0.08; c.fillStyle = '#2b1b08'; c.fillText(t, x, y); c.restore();
+  c.lineWidth = Math.max(2, ts * 0.09); c.strokeStyle = '#2b1b08'; c.strokeText(t, x, y);
+  const g = c.createLinearGradient(0, y - ts * 0.42, 0, y + ts * 0.42);
+  g.addColorStop(0, '#fff0c4'); g.addColorStop(0.38, '#e4b264'); g.addColorStop(0.62, '#a8742c'); g.addColorStop(1, '#6a4516');
+  c.fillStyle = g; c.fillText(t, x, y);
+  c.lineWidth = 1; c.strokeStyle = 'rgba(255,240,200,0.6)'; c.strokeText(t, x, y - 1);
+}
+// A plaque w x h at (m, m): bronze (a gate's: rivets and bars) or stone, with its rim, a highlight along the top and the label stamped in; pressed, it
+// sits 2 px lower and darker on a shorter shadow
+const PLAQUE = {
+  bronze: { hi: '#f2c477', mid: '#b47c2e', lo: '#6b4314', edge: '#2b1b08', line: 'rgba(255,236,190,0.6)', ink: '#2a1606', lift: 'rgba(255,228,170,0.55)' },
+  stone: { hi: '#8f887c', mid: '#6a645a', lo: '#48433c', edge: '#1f1c18', line: 'rgba(240,232,214,0.35)', ink: '#f3ead6', lift: 'rgba(0,0,0,0.6)' },
+};
+function paintPlaque(c, kind, label, w, h, down, size, m) {
+  const P = PLAQUE[kind], r = Math.min(12, h * 0.26), d = down ? 2 : 0, y = m + d;
+  c.fillStyle = 'rgba(0,0,0,0.5)'; rrect(c, m + 1, m + (down ? 3 : 5), w - 2, h, r); c.fill();
+  const g = c.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, down ? P.mid : P.hi); g.addColorStop(0.45, P.mid); g.addColorStop(1, P.lo);
+  rrect(c, m, y, w, h, r); c.fillStyle = g; c.fill(); c.lineWidth = 2; c.strokeStyle = P.edge; c.stroke();
+  rrect(c, m + 3.5, y + 3.5, w - 7, h - 7, Math.max(2, r - 3)); c.lineWidth = 1; c.strokeStyle = P.line; c.stroke();
+  if (kind === 'bronze') {
+    c.fillStyle = 'rgba(43,27,8,0.18)';
+    for (let i = 1; i < 8; i++) c.fillRect(m + i * w / 8 - 1.5, y + 7, 3, h - 14);
+    for (const [rx, ry] of [[9, 9], [w - 9, 9], [9, h - 9], [w - 9, h - 9]]) {
+      c.fillStyle = P.edge; c.beginPath(); c.arc(m + rx, y + ry, 3, 0, TAU); c.fill();
+      c.fillStyle = P.hi; c.beginPath(); c.arc(m + rx - 0.8, y + ry - 0.8, 1.4, 0, TAU); c.fill();
+    }
+  }
+  const fs = fitSize(c, label, size, w - 20), cy = y + h / 2;
+  ink(c, label, m + w / 2, cy + (kind === 'bronze' ? 1 : -1), fs, '800', P.lift);
+  ink(c, label, m + w / 2, cy, fs, '800', P.ink);
+}
+function plaque(ctx, E, b, kind, label, down, size) {
+  const m = 6;
+  menuBlit(ctx, E, `plq|${kind}|${label}|${down ? 1 : 0}|${size}`, b.x - m, b.y - m, b.w + 2 * m, b.h + 2 * m + 2, (c) => paintPlaque(c, kind, label, b.w, b.h, down, size, m));
+}
+// The walls: a carved stone tablet (the champions, gilded in its grooves) or a chalked slate in a wooden frame (the fallen), its head and up to
+// TUNING.menu.names names, or a short prompt when empty
+function paintWall(c, w, h, head, names, empty, carved) {
+  if (carved) {
+    const g = c.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#7a7366'); g.addColorStop(1, '#4c473f');
+    rrect(c, 0, 0, w, h, 6); c.fillStyle = g; c.fill(); c.lineWidth = 2; c.strokeStyle = '#25211c'; c.stroke();
+    c.strokeStyle = 'rgba(255,248,230,0.28)'; c.lineWidth = 1; c.beginPath(); c.moveTo(6, 2.5); c.lineTo(w - 6, 2.5); c.stroke();
+    rrect(c, 6, 6, w - 12, h - 12, 4); c.strokeStyle = 'rgba(20,16,12,0.45)'; c.stroke();
+  } else {
+    rrect(c, 0, 0, w, h, 5); c.fillStyle = '#5a3b22'; c.fill(); c.lineWidth = 1.5; c.strokeStyle = '#2b1b0d'; c.stroke();
+    const g = c.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, '#2c3230'); g.addColorStop(1, '#1d2220');
+    c.fillStyle = g; c.fillRect(6, 6, w - 12, h - 12);
+    // old chalk wiped off the slate
+    c.strokeStyle = 'rgba(235,230,215,0.04)'; c.lineWidth = 6; c.lineCap = 'round';
+    for (const [a, b, e, f] of [[0.12, 0.3, 0.55, 0.42], [0.4, 0.75, 0.85, 0.62], [0.2, 0.86, 0.5, 0.8]]) { c.beginPath(); c.moveTo(a * w, b * h); c.lineTo(e * w, f * h); c.stroke(); }
+  }
+  const tw = w - 20, groove = (t, x, y, size, col) => { if (carved) ink(c, t, x, y - 1, size, '800', 'rgba(20,14,8,0.75)'); else ink(c, t, x + 0.6, y + 0.6, size, '800', 'rgba(235,230,215,0.25)'); ink(c, t, x, y, size, '800', col); };
+  groove(head, w / 2, 18, fitSize(c, head, 14, tw), carved ? '#ffd24a' : '#e8e2d4');
+  if (!names.length) { wrapPx(c, empty, tw, 14, '700').slice(0, 2).forEach((t, i) => ink(c, t, w / 2, 46 + i * 18, 14, '700', carved ? '#e2d8c0' : '#a9b0ad')); return; }
+  names.forEach((t, i) => groove(clipLine(c, t, tw, 14, '800'), w / 2, 42 + i * 20, 14, carved ? '#fde68a' : i ? 'rgba(232,226,212,0.82)' : '#f5f2ea'));
+}
+// a torch on its bracket at (x, y), drawn into the menu's layer with its glow; its flame flickers over it each frame (cosmetic: Math.random)
+function paintTorch(c, x, y) {
+  const r = TUNING.menu.torchR, g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, 'rgba(255,176,80,0.7)'); g.addColorStop(0.35, 'rgba(255,120,40,0.28)'); g.addColorStop(1, 'rgba(255,90,20,0)');
+  c.fillStyle = g; c.fillRect(x - r, y - r, 2 * r, 2 * r);
+  c.fillStyle = '#2a1a0e'; c.fillRect(x - 2.5, y + 4, 5, 22); c.fillStyle = '#4a3220'; c.fillRect(x - 5, y + 2, 10, 6);
+}
+// both torches' flames, flickering (cosmetic: Math.random), in three fills: their halo, the flames, their hearts
+function menuFlames(ctx, E, xs, y) {
+  const t = E.time, F = xs.map((x, i) => {
+    const ph = i ? 1 : -1, f = 1 - TUNING.menu.flicker * (0.5 + 0.3 * Math.sin(t * 13 + ph) + 0.2 * Math.sin(t * 7.3 + ph * 2) + 0.25 * (Math.random() - 0.5));
+    return { x, f, fh: 24 * f, sw: 2.5 * Math.sin(t * 9 + ph) };
+  });
+  ctx.fillStyle = `rgba(255,150,60,${0.22 * (F[0].f + F[1].f) / 2})`; ctx.beginPath();
+  for (const { x, f, fh } of F) { const r = 13 + 5 * f; ctx.moveTo(x + r, y - fh * 0.45); ctx.arc(x, y - fh * 0.45, r, 0, TAU); }
+  ctx.fill();
+  const flame = (col, w, h, k) => {
+    ctx.fillStyle = col; ctx.beginPath();
+    for (const { x, fh, sw } of F) { ctx.moveTo(x - w, y + 3); ctx.quadraticCurveTo(x - w * 1.45, y - fh * h, x + sw * k, y - fh * k); ctx.quadraticCurveTo(x + w * 1.45, y - fh * h, x + w, y + 3); ctx.closePath(); }
+    ctx.fill();
+  };
+  flame('#ff8a2a', 6, 0.4, 1); flame('#ffe08a', 3.5, 0.3, 0.62);
+}
+// The menu's still layer: the backdrop, the torches' brackets and glow, your fighter's shadow, the title and the fame laurel, the plaques (the Ludus's dot), the two walls and
+// Old Brutus with his line
+function paintMenu(c, E, o) {
+  const { Ly, m, bd, face, fame, champs, wall, labels, dot } = o, M = TUNING.menu, B = Ly.btn;
+  paintMenuBack(c, E, bd);
+  for (const sd of [-1, 1]) paintTorch(c, Ly.cx + sd * M.torchDx, Ly.ty - 4);
+  // your fighter's shadow on the sand
+  c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.ellipse(Ly.fig.x, Ly.fig.y + 2, 0.26 * Ly.fig.s, 0.035 * Ly.fig.s, 0, 0, TAU); c.fill();
+  menuBlit(c, E, `title|${Ly.ts}`, Ly.cx - Ly.ts * 2, Ly.ty - Ly.ts * 0.8, Ly.ts * 4, Ly.ts * 1.6, (q) => paintTitle(q, Ly.ts, Ly.ts * 4, Ly.ts * 1.6));
+  const ft = `${fame} fame`;
+  c.font = '800 16px system-ui, sans-serif';
+  const fw = fame ? c.measureText(ft).width : -12;
+  laurel(c, Ly.cx - fw / 2 - 12, Ly.fy, 8);
+  if (fame) liftInk(c, ft, Ly.cx + 6, Ly.fy, 16, '800', '#ffd24a');
+  for (const k of Object.keys(B)) plaque(c, E, B[k], k === 'play' ? 'bronze' : 'stone', labels[k], false, k === 'play' ? 22 : 16);
+  if (dot) {
+    const D = TUNING.ludus.dot, b = B.ludus;
+    c.fillStyle = '#ffd24a'; c.strokeStyle = '#3a2a08'; c.lineWidth = 2;
+    c.beginPath(); c.arc(b.x + b.w - D.inset, b.y + D.inset, D.r, 0, TAU); c.fill(); c.stroke();
+  }
+  c.font = '800 14px system-ui, sans-serif';
+  const C = Ly.champs, P = Ly.pit, head = c.measureText('WALL OF CHAMPIONS').width <= C.w - 20 ? 'WALL OF CHAMPIONS' : 'CHAMPIONS';
+  c.save(); c.translate(C.x, C.y); paintWall(c, C.w, C.h, head, champs, 'Fell a champion to be carved here', true); c.restore();
+  c.save(); c.translate(P.x, P.y); paintWall(c, P.w, P.h, 'THE PIT WALL', wall, 'No names chalked here yet', false); c.restore();
+  const S = Ly.say, fs = face ? M.face : 0, lw = S.w - (fs ? fs + 10 : 0), ls = wrapPx(c, `\u201c${m.say.line}\u201d`, lw, 14, '700').slice(0, 2);
+  const my = S.y + Math.min(S.h, fs + 4) / 2, x0 = S.x + (fs ? fs + 10 : 0);
+  if (fs) drawPic(c, E, m.say.pic, TUNING.art.crop, S.x, my - fs / 2, fs, fs);
+  ls.forEach((t, i) => liftInk(c, t, fs ? x0 : x0 + lw / 2, my + (i - (ls.length - 1) / 2) * 18, 14, '700', '#fde68a', fs ? 'left' : 'center'));
+}
+// Your fighter on the sand, feet at (x, y), s px per body unit: the painted doll, a cloak swaying behind and the weapon held up; nothing until the
+// doll's paint is in (the drawn blocks once it has failed, or with the kit off); the weapon stays in the still hand. The doll is copied at whole device pixels, the cheapest copy there is,
+// in two pieces cut at the hips: the body above rises and falls a few pixels as he breathes, its lower rows covering the seam. d: the target's pixel
+// ratio; box: only what lies in it is drawn (the cloak always does).
+function menuFigure(ctx, E, m, x, y, s, d = E.dpr || 1, box = null) {
+  const M = TUNING.menu, t = E.time, sp = kitOn() && canSprite ? kitIconSprite(E, m.parts, s, m.me.str, m.gm) : null;
+  if (!sp) { armourIcon(ctx, E, m.parts, x, y, s, m.me.str, m.gm); return; }
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), cv = sp.cv, amp = Math.max(1, Math.round(M.breath[0] * s * k));
+  const lift = Math.round(amp * (0.5 + 0.5 * Math.sin(t * M.breath[1]))), up = lift / k, sw = M.sway[0] * Math.sin(t * M.sway[1]);
+  const X = Math.round((x + sp.x) * d) / d, Y = Math.round((y + sp.y) * d) / d, cut = clamp(Math.round((M.hips * s - sp.y) * k), 1, cv.height - 1);
+  ctx.save(); ctx.translate(x, y - up);
+  ctx.fillStyle = M.cloak; ctx.strokeStyle = '#3a0f0d'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(0.05 * s, -0.75 * s); ctx.quadraticCurveTo(-0.08 * s, -0.8 * s, -0.17 * s, -0.71 * s);
+  ctx.quadraticCurveTo((-0.26 + sw * 0.5) * s, -0.42 * s, (-0.31 + sw) * s, -0.12 * s + up);
+  ctx.quadraticCurveTo((-0.17 + sw) * s, -0.06 * s + up, (-0.04 + sw * 0.6) * s, -0.13 * s + up);
+  ctx.lineTo(0.02 * s, -0.5 * s); ctx.closePath(); ctx.fill();
+  ctx.moveTo(-0.12 * s, -0.68 * s); ctx.quadraticCurveTo((-0.2 + sw * 0.4) * s, -0.4 * s, (-0.2 + sw * 0.8) * s, -0.12 * s + up); ctx.stroke();
+  ctx.restore();
+  const ext = Math.min(cv.height - cut, amp + 2);
+  // a piece of the doll (source rows sy to sy + sh at dy), only as much of it as lies in the box
+  const piece = (sy, sh, dy) => {
+    let x0 = 0, y0 = sy, x1 = cv.width, y1 = sy + sh;
+    if (box) {
+      x0 = Math.max(x0, Math.floor(box.x * k - X * k)); x1 = Math.min(x1, Math.ceil((box.x + box.w) * k - X * k));
+      y0 = Math.max(y0, sy + Math.floor(box.y * k - dy * k)); y1 = Math.min(y1, sy + Math.ceil((box.y + box.h) * k - dy * k));
+      if (x1 <= x0 || y1 <= y0) return;
+    }
+    ctx.drawImage(cv, x0, y0, x1 - x0, y1 - y0, X + x0 / k, dy + (y0 - sy) / k, (x1 - x0) / k, (y1 - y0) / k);
+  };
+  piece(0, cut + ext, Y - up); piece(cut, cv.height - cut, Y + cut / k);
+  if (!m.weapon) return;
+  if (box) { ctx.save(); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip(); }
+  const A = PARTS[pidx('armF')].joint;
+  ctx.save(); ctx.translate(x + (A[0] + 0.11) * s, y + (A[1] + ARM_LEN) * s); ctx.rotate(Math.PI + 0.2); ctx.translate(0, -ARM_LEN * s);
+  drawWeapon(ctx, m.weapon, s); ctx.restore();
+  if (box) ctx.restore();
+}
+// the menu's look of your fighter: their rolls, plates and weapon (fists hold nothing)
+function menuLook(E) {
+  const f = menuFighter(E), me = f.me, W = TUNING.weapons.find((q) => q.id === me.weapon) || (TUNING.me.weapons[me.weapon] && TUNING.me.weapons[me.weapon].len ? { id: me.weapon, ...TUNING.me.weapons[me.weapon] } : null);
+  return { ...f, parts: playerParts(me), gm: (GTYPE[me.weapon] || GTYPE.gladius).helm, weapon: W && { weapon: W, mace: !!me.mace }, say: menuBrutus(E) };
+}
+// The low crowd under the menu: a looping swell of filtered brown noise, its gain re-armed every half second so it dies away by itself when the menu
+// stops drawing (a hidden tab), cut on leaving or muting (cosmetic: Math.random)
+const MURMUR = { src: null, g: null, next: 0 };
+function murmur(E, on) {
+  const A = E.audio.ctx, M = TUNING.menu;
+  if (!A) return;
+  const now = A.currentTime;
+  if (on && !E.audio.muted) {
+    if (!MURMUR.src) {
+      const n = Math.floor(A.sampleRate * M.murmurLoop), buf = A.createBuffer(1, n, A.sampleRate), d = buf.getChannelData(0), edge = A.sampleRate * 0.05;
+      let br = 0;
+      for (let i = 0; i < n; i++) {
+        br = (br + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+        d[i] = br * 3.5 * (0.65 + 0.35 * Math.sin(i / n * TAU * M.swells)) * Math.min(1, i / edge, (n - i) / edge);
+      }
+      const src = A.createBufferSource(), lp = A.createBiquadFilter(), g = A.createGain();
+      src.buffer = buf; src.loop = true; lp.type = 'lowpass'; lp.frequency.value = M.murmurHz; g.gain.value = 0;
+      src.connect(lp).connect(g).connect(A.destination); src.start();
+      Object.assign(MURMUR, { src, g, next: 0 });
+    }
+    if (now >= MURMUR.next) {
+      const g = MURMUR.g.gain;
+      g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(M.murmur, now + 0.5); g.setValueAtTime(M.murmur, now + 1.2); g.linearRampToValueAtTime(0, now + 2);
+      MURMUR.next = now + 0.5;
+    }
+  } else if (MURMUR.src) {
+    const g = MURMUR.g.gain;
+    g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(0, now + 0.3);
+    MURMUR.src.stop(now + 0.35); MURMUR.src = null;
+  }
+}
+// what moves on the menu, drawn whole: the dust on the open sand, the flames, your fighter
+function menuMoving(c, E, o, dust, d) {
+  const { Ly } = o, M = TUNING.menu, off = dustOff(Ly);
+  c.fillStyle = 'rgba(232,204,150,0.35)'; c.beginPath();
+  for (const q of dust) { const r = moteBox(E, q); q.at = off.some((b) => hitsBox(r, b)) ? null : r; if (q.at) { c.moveTo(r.cx + q.r, r.cy); c.arc(r.cx, r.cy, q.r, 0, TAU); } }
+  c.fill();
+  menuFlames(c, E, [Ly.cx - M.torchDx, Ly.cx + M.torchDx], Ly.ty - 4);
+  menuFigure(c, E, o.m, Ly.fig.x, Ly.fig.y, Ly.fig.s, d);
+}
+// where no dust is drawn: in front of your fighter, the plaques, the walls and Brutus's line
+const dustOff = (Ly) => [figBox(Ly), ...Object.values(Ly.btn), Ly.champs, Ly.pit, Ly.say];
+// the boxes the menu repaints: what moves of your fighter (his cloak and the body above his hips; TUNING.menu.figBox, body units), each torch's
+// flame, a mote of dust
+const figBox = (Ly) => { const { x, y, s } = Ly.fig, B = TUNING.menu.figBox; return { x: x + B[0] * s, y: y + B[1] * s, w: (B[2] - B[0]) * s, h: (B[3] - B[1]) * s }; };
+const flameBox = (Ly, sd) => ({ x: Ly.cx + sd * TUNING.menu.torchDx - 22, y: Ly.ty - 4 - 40, w: 44, h: 50 });
+const moteBox = (E, q) => { const cx = q.x * E.w, cy = q.y * E.h; return { cx, cy, x: cx - q.r - 1, y: cy - q.r - 1, w: 2 * q.r + 2, h: 2 * q.r + 2 }; };
+const hitsBox = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+// The menu as one screen-sized layer, copied to the screen each frame at whole pixels (the cheapest copy there is). Its still parts are painted once
+// (S); the boxes that move (your fighter, the flames, the dust) are put back from S and repainted together at TUNING.menu.fps, not every frame.
+const MENU_L = { key: null, S: null, L: null, tf: 0 };
+function menuLayer(ctx, E, key, o, dust) {
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), W = Math.ceil(E.w * k), H = Math.ceil(E.h * k), Z = MENU_L, M = TUNING.menu, full = `${key}|${k}`;
+  const back = (c, r) => { const x = Math.max(0, Math.floor(r.x * k)), y = Math.max(0, Math.floor(r.y * k)), w = Math.min(W, Math.ceil((r.x + r.w) * k)) - x, h = Math.min(H, Math.ceil((r.y + r.h) * k)) - y; if (w > 0 && h > 0) c.drawImage(Z.S, x, y, w, h, x / k, y / k, w / k, h / k); };
+  if (Z.key !== full) {
+    if (!Z.S || Z.S.width !== W || Z.S.height !== H) { Z.S = new OffscreenCanvas(W, H); Z.L = new OffscreenCanvas(W, H); }
+    const c = Z.S.getContext('2d', { alpha: false }), l = Z.L.getContext('2d', { alpha: false });
+    c.setTransform(k, 0, 0, k, 0, 0); paintMenu(c, E, o);
+    l.setTransform(1, 0, 0, 1, 0, 0); l.drawImage(Z.S, 0, 0); l.setTransform(k, 0, 0, k, 0, 0);
+    menuMoving(l, E, o, dust, k);
+    Object.assign(Z, { key: full, tf: E.time });
+  } else {
+    const l = Z.L.getContext('2d', { alpha: false }), Ly = o.Ly;
+    if (E.time - Z.tf >= 1 / M.fps) {
+      const F = figBox(Ly);
+      back(l, F); menuFigure(l, E, o.m, Ly.fig.x, Ly.fig.y, Ly.fig.s, k, F);
+      for (const sd of [-1, 1]) back(l, flameBox(Ly, sd));
+      menuFlames(l, E, [Ly.cx - M.torchDx, Ly.cx + M.torchDx], Ly.ty - 4);
+      for (const q of dust) if (q.at) back(l, q.at);
+      l.fillStyle = 'rgba(232,204,150,0.35)'; l.beginPath();
+      const off = dustOff(Ly);
+      for (const q of dust) { const r = moteBox(E, q); q.at = off.some((b) => hitsBox(r, b)) ? null : r; if (q.at) { l.moveTo(r.cx + q.r, r.cy); l.arc(r.cx, r.cy, q.r, 0, TAU); } }
+      l.fill();
+      Z.tf = E.time;
+    }
+  }
+  ctx.drawImage(Z.L, 0, 0, W / k, H / k);
+}
+// a line over the painted backdrop, lifted off it by a dark copy under it
+function liftInk(c, t, x, y, size, weight, color, align = 'center') { ink(c, t, x + 1, y + 1.5, size, weight, 'rgba(8,5,4,0.8)', align); ink(c, t, x, y, size, weight, color, align); }
+const MENU_KEYS = ['play', 'new', 'ludus', 'story', 'sound', 'champs'];
 const menu = {
   enter(E) {
-    this.btns = {}; this.story = false;
+    this.btns = {}; this.story = false; this.press = null;
     // a v6 save's won runs are only in the ledger, which migrate cannot read: checked once here, a won run opens the City
     if (E.save.get('arenasCheck', 0)) {
       if (E.ledger.entries.some((e) => e.k === 'result' && e.d && e.d.won === true)) E.save.set('arenas', Math.max(1, E.save.get('arenas', 0)));
       E.save.set('arenasCheck', 0);
     }
     if (E.save.get('fameCheck', 0)) fameFromLedger(E);
+    this.look = menuLook(E);
+    if (BOOT.t0 < 0) BOOT.t0 = E.time;
+    const M = TUNING.menu;
+    this.dust = Array.from({ length: M.dust }, () => ({ x: Math.random(), y: 0.55 + Math.random() * 0.45, v: M.dustV[0] + Math.random() * (M.dustV[1] - M.dustV[0]), r: 0.8 + Math.random() * 1.4, ph: Math.random() * TAU }));
+  },
+  exit(E) { murmur(E, false); },
+  update(dt, E) {
+    if (!BOOT.done) {
+      const names = menuArt(this.look), n = names.filter((q) => artState(q) !== '').length, ready = artListed(E) && n === names.length;
+      BOOT.bar += (n / Math.max(1, names.length) - BOOT.bar) * Math.min(1, dt * 8);
+      if (ready || E.time - BOOT.t0 >= TUNING.load.boot) { BOOT.done = true; artFade(); MENU_BIG.key = MENU_BIG.cv = null; }
+      return;
+    }
+    murmur(E, !portrait(E));
+    for (const d of this.dust) { d.x += d.v * dt / E.w; d.y += Math.sin(E.time * 0.7 + d.ph) * 2 * dt / E.h; if (d.x > 1.02) { d.x = -0.02; d.y = 0.55 + Math.random() * 0.45; } }
   },
   render(ctx, E) {
     this.btns = {};
     if (portrait(E)) { rotateCard(ctx, E); return; }
-    const run = E.save.get('run', null), cx = E.w / 2, top = E.safe.top, bottom = E.h - E.safe.bottom, ty = top + Math.max(44, E.h * 0.15);
-    E.text('ARENA', cx, ty, { size: 44, weight: '800', color: '#e6c866' });
-    const fame = E.save.get('fame', 0), ft = `${fame} fame`;
-    ctx.font = '800 16px system-ui, sans-serif';
-    const fw = ctx.measureText(ft).width;
-    laurel(ctx, cx - fw / 2 - 12, ty + 36, 8); E.text(ft, cx + 6, ty + 36, { size: 16, weight: '800', color: '#ffd24a' });
-    const py = top + E.h * 0.4, ry = py + 64, row = run ? ['new', 'ludus', 'story', 'sound'] : ['ludus', 'story', 'sound'], gap = 12;
-    const bw = Math.min(140, (E.w - 32 - E.safe.left - E.safe.right - gap * (row.length - 1)) / row.length);
-    this.btns.play = E.button(run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', cx, py, { w: 280, h: 56, size: 20 });
-    row.forEach((k, i) => {
-      const x = cx + (i - (row.length - 1) / 2) * (bw + gap), label = k === 'new' ? 'New run' : k === 'ludus' ? 'The Ludus' : k === 'story' ? 'Story' : E.audio.muted ? 'Sound: off' : 'Sound: on';
-      this.btns[k] = E.button(label, x, ry, { w: bw, h: 48, size: 16, fill: k === 'story' ? '#7c2d12' : k === 'ludus' ? '#7a5a14' : '#1f2937' });
-    });
-    if (ludusBuys(E)) {
-      const D = TUNING.ludus.dot, b = this.btns.ludus, dx = b.x + b.w - D.inset, dy = b.y + D.inset;
-      ctx.fillStyle = '#ffd24a'; ctx.strokeStyle = '#3a2a08'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(dx, dy, D.r, 0, 6.28); ctx.fill(); ctx.stroke();
-    }
-    // the pit wall: the last four fallen, newest first, chalked on stone; beside it the Wall of Champions, its newest names carved in gold
-    const sw = Math.min(E.w - 40, 620), sx = cx - sw / 2, wy = Math.min(ry + 44, bottom - 82), pw = (sw - 12) / 2, wall = E.save.get('wall', []).slice(0, 4), champs = E.save.get('champs', []);
-    E.text('THE PIT WALL', sx + pw / 2, wy, { size: 14, weight: '800', color: '#c4b99a' });
-    E.roundRect(sx, wy + 10, pw, 56, 8, '#3a322c', '#5a4e44');
-    if (!wall.length) E.text('No names chalked here yet', sx + pw / 2, wy + 38, { size: 14, color: '#8a8f99' });
-    wall.forEach((q, i) => E.text(clipLine(ctx, `${q.name} (${q.bout})`, pw / 2 - 8), sx + pw * ((i % 2) + 0.5) / 2, wy + 25 + Math.floor(i / 2) * 26, { size: 14, weight: '700', color: i === 0 ? '#ffffff' : '#d6d0c4', alpha: i === 0 ? 1 : 0.8 }));
-    const cx2 = sx + pw + 12;
-    E.text(`THE WALL OF CHAMPIONS${champs.length ? ` (${champs.length})` : ''}`, cx2 + pw / 2, wy, { size: 14, weight: '800', color: '#ffd24a' });
-    this.btns.champs = { x: cx2, y: wy + 10, w: pw, h: 56 };
-    E.roundRect(cx2, wy + 10, pw, 56, 8, '#3a2f22', '#ffd24a');
-    if (!champs.length) E.text('Fell a champion to be carved here', cx2 + pw / 2, wy + 38, { size: 14, color: '#c4b99a' });
-    champs.slice(0, 4).forEach((q, i) => E.text(clipLine(ctx, q.name, pw / 2 - 8), cx2 + pw * ((i % 2) + 0.5) / 2, wy + 25 + Math.floor(i / 2) * 26, { size: 14, weight: '800', color: '#fde68a' }));
+    if (!BOOT.done) { this.bootCard(ctx, E); return; }
+    const run = E.save.get('run', null), M = TUNING.menu, Ly = menuLay(E, run), m = this.look, B = Ly.btn, bd = artImg(BACKDROP[m.arena]), face = !!artImg(m.say.pic);
+    const fame = E.save.get('fame', 0), champs = E.save.get('champs', []).slice(0, M.names).map((q) => q.name), wall = E.save.get('wall', []).slice(0, M.names).map((q) => `${q.name} (${q.bout})`);
+    const labels = { play: run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', new: 'New run', ludus: 'The Ludus', story: 'Story', sound: E.audio.muted ? 'Sound: off' : 'Sound: on' };
+    const dot = ludusBuys(E), key = `menu|${E.w}|${E.h}|${m.arena}|${bd ? artV : '-'}|${face ? artV : '-'}|${Object.keys(B).map((k) => labels[k]).join('|')}|${fame}|${dot ? 1 : 0}|${champs.join(',')}|${wall.join(',')}|${m.say.line}`;
+    const o = { Ly, m, bd, face, fame, champs, wall, labels, dot };
+    if (canSprite) menuLayer(ctx, E, key, o, this.dust);
+    else { paintMenu(ctx, E, o); menuMoving(ctx, E, o, this.dust, E.dpr || 1); }
+    if (this.press && this.press !== 'champs') plaque(ctx, E, B[this.press], this.press === 'play' ? 'bronze' : 'stone', labels[this.press], true, this.press === 'play' ? 22 : 16);
+    this.btns = { ...B, champs: Ly.champs };
     if (this.story) this.storyCard(ctx, E);
+  },
+  // the boot card: the dark sand, then (after TUNING.load.show) the bronze title and a thin bronze bar filling as the menu's paintings land
+  bootCard(ctx, E) {
+    menuBlit(ctx, E, `boot|${E.w}|${E.h}`, 0, 0, E.w, E.h, (c) => paintBootBack(c, E));
+    if (E.time - BOOT.t0 < TUNING.load.show) return;
+    const ts = Math.round(clamp(E.h * TUNING.menu.title[2], TUNING.menu.title[0], TUNING.menu.title[1])), cy = E.h / 2 - 12, [bw, bh] = TUNING.load.bar;
+    menuBlit(ctx, E, `title|${ts}`, E.w / 2 - ts * 2, cy - ts * 0.8, ts * 4, ts * 1.6, (c) => paintTitle(c, ts, ts * 4, ts * 1.6));
+    const x = E.w / 2 - bw / 2, y = cy + ts * 0.7;
+    ctx.fillStyle = 'rgba(120,80,30,0.45)'; ctx.fillRect(x - 1, y - 1, bw + 2, bh + 2);
+    const g = ctx.createLinearGradient(0, y, 0, y + bh); g.addColorStop(0, '#f2c477'); g.addColorStop(1, '#8a5a1c');
+    ctx.fillStyle = g; ctx.fillRect(x, y, bw * clamp(BOOT.bar, 0, 1), bh);
   },
   storyCard(ctx, E) {
     ctx.fillStyle = 'rgba(10,8,14,0.82)'; ctx.fillRect(0, 0, E.w, E.h);
@@ -6957,7 +7382,10 @@ const menu = {
     STORY.forEach((t, i) => E.text(t, E.w / 2, y + 58 + i * lh, { size: fitSize(ctx, t, 16, w - 32, '700'), weight: '700', color: i ? '#f0e6cc' : '#fde68a' }));
     E.text('Tap to close', E.w / 2, y + h - 20, { size: 14, weight: '800', color: '#ffd24a', alpha: 0.6 + 0.4 * Math.sin(E.time * 4) });
   },
+  onPointerDown(p, E) { this.press = !BOOT.done || this.story ? null : MENU_KEYS.find((k) => this.btns[k] && E.hit(this.btns[k], p)) || null; },
+  onPointerUp() { this.press = null; },
   onTap(p, E) {
+    if (!BOOT.done || portrait(E)) return;
     if (this.story) { this.story = false; E.audio.play('tap'); return; }
     const b = this.btns, run = E.save.get('run', null), fresh = () => E.setScene('arenas');
     if (b.play && E.hit(b.play, p)) { E.audio.play('tap'); if (run) E.setScene('play', { resume: run }); else fresh(); }
@@ -7536,12 +7964,35 @@ function initHand(E) {
   poseFoe(E, 0.016);
 }
 
+// The bout begins (the intro card's tap): his bleed carried over, the card lab's Momentum, the first bouts' hint
+function beginBout(E) {
+  state.intro = false; state.introGo = -1; state.swingIn = 1.2;
+  if (state.carry) { addBleed(E, state.carry); state.carry = 0; }
+  if (state.labMom) state.mom = TUNING.mom.max;
+  const seen = E.save.get('boutsSeen', 0);
+  state.hint = seen < TUNING.hint.bouts; state.boutT0 = state.m; E.save.set('boutsSeen', seen + 1);
+}
+// No fight starts half painted (step 12): the tap waits, up to TUNING.load.hold, for the bout's paintings (the backdrop, both fighters' paint with
+// their worn gear, a beast's, a pair's second foe, Brutus and the champion's portrait on the card)
+function introReady(E) {
+  const names = [BACKDROP[arena().id], 'brutus', champPic(state.foe)].filter(Boolean);
+  if (kitOn()) {
+    for (const [f, foe] of [[state.foe, true], [state.you, false], [state.edge, true]]) {
+      if (!f) continue;
+      const A = f.beast ? beastArt(f) : manArt(lookOf(f, foe), kitTier(foe ? f.str : state.me.str));
+      names.push(...A.body, ...A.extra);
+    }
+  }
+  return artSettled(names);
+}
+// "Tap to fight" pulses once the card takes a tap, and dims again while a tap waits for the paint
+const tapLive = () => state.introT > 0.35 && !(state.introGo >= 0);
 const play = {
   state, lay, foeF, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES,
-  ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
+  ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     if (params.resume) resumeRun(E, params.resume); else newRound(E, params.seed, params.me || rollMe(params.seed), undefined, params.arena);
     newRack(E); initHand(E);
@@ -7563,6 +8014,7 @@ const play = {
     // slow time: the open window's brief slow, and the whole of the first feint ever
     if (state.slowT > 0) { state.slowT -= dt; dt *= TUNING.openWin.slow; } else if (state.sw && state.sw.lesson === 'slow') dt *= TUNING.lesson.slow;
     if (state.intro) {
+      if (state.introGo >= 0 && (introReady(E) || E.time - state.introGo >= TUNING.load.hold)) { beginBout(E); return; }
       state.m += dt; state.introT += dt;
       if (state.pop > 0) state.pop = Math.max(0, state.pop - dt * 4);
       poseFoe(E, dt); poseYou(E, dt); moveHand(E, dt); warmPair(E);
@@ -7724,12 +8176,9 @@ const play = {
     // the card lab (dev channel only): a LAB tab on the intro card opens it
     if (state.lab) { labTap(E, p); return; }
     if (state.intro && E.channel !== 'release' && E.hit(labTab(E), p)) { state.lab = { btns: [] }; state.labUsed = 1; E.audio.play('tap'); return; }
-    if (state.intro && state.introT > 0.35 && !portrait(E)) {
-      state.intro = false; state.swingIn = 1.2; E.audio.play('tap');
-      if (state.carry) { addBleed(E, state.carry); state.carry = 0; }
-      if (state.labMom) state.mom = TUNING.mom.max;
-      const seen = E.save.get('boutsSeen', 0);
-      state.hint = seen < TUNING.hint.bouts; state.boutT0 = state.m; E.save.set('boutsSeen', seen + 1);
+    if (state.intro && state.introT > 0.35 && !portrait(E) && !(state.introGo >= 0)) {
+      E.audio.play('tap');
+      if (introReady(E)) beginBout(E); else state.introGo = E.time;
     }
   },
   onPointerUp(p, E) {
@@ -8036,7 +8485,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 13,
+  saveVersion: 14,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -8096,6 +8545,8 @@ export const game = {
       }
       data.purseHint = 0;
     }
+    // v14 (v2 step 12, the menu remade): the last fighter sent out and their arena, for the menu (a saved run's, else none)
+    if (fromVersion < 14) data.last = data.run && data.run.me ? { arena: data.run.arena || 'pit', me: data.run.me } : null;
     return data;
   },
   TUNING,
@@ -8124,10 +8575,18 @@ export const game = {
   start: 'menu',
   // the art (step 6): E.art where the engine has it (ADR-0020); without it every image keeps its drawn fallback
   init(E) {
+    ENG = E;
+    // every screen's render ends with a landing painting's fade; a new screen drops it
+    for (const sc of Object.values(game.scenes)) {
+      const R = sc.render, N = sc.enter;
+      sc.render = function (ctx, E2) { R.call(this, ctx, E2); artFadeOver(ctx, E2); };
+      sc.enter = function (E2, params) { FADE.at = -1; if (N) N.call(this, E2, params); };
+    }
     ART = E.art ? (E.art.enabled ? E.art : shippedArt) : null;
     if (!ART) return;
     KIT.on = E.art.enabled ? !!E.save.get('kitPilot', true) : true;
-    ART.on(() => { artV++; });
+    ART.on(() => { artV++; artPreload(); });
+    artPreload();
     E.art.label = artLabel;
     artTabNames(E);
     kitSwitch(E);
