@@ -1407,3 +1407,66 @@ The set bonuses take no slot, as today.
   - a run started with each weapon and armour;
   - leftover gold carried to the tent.
 - `npm run smoke` passes.
+
+## Step 10 (locked 2026-11-03, "go for arena"): a tight purse, tougher arenas, a price for biting a feint, and a Grand Games ending that feels like winning
+
+**The designer**, after winning the Colosseum and the Grand Games (export 2026-10-31):
+- "It felt like too much money up front. I was able to buy all the things." The last run had 90 gold, bought dagger and heavy, and kept 40.
+- "Dodging during a feint should result in a punishment."
+- "The emperor's thumbs up/down felt weird." A Grand Games win at a low crowd average (23%) ended on "Free, but forgotten. You walk out to silence."
+- "It also felt less hard than the previous arena with animals." The Grand Games took 4 runs; the Colosseum took over 40.
+- "We should contemplate having a multiplier on health on the different arenas, so the bouts become longer and more challenging."
+
+### A. The purse is tight in every arena
+
+- `TUNING.purse.gold` is 45 in every arena. The prices stay as they are.
+- With 45 gold the player chooses: heavy armour with the gladius; or medium armour with a dagger, spear, axe or sica; or light armour with any weapon. Heavy with anything but the gladius is out of reach.
+- Brutus's line on the purse screen fits the new number.
+
+### B. Each arena multiplies his health
+
+- A per-arena multiplier on every foe's health (men, beasts, pairs and champions): Pit 1x, City 1.25x, Colosseum 1.5x, Grand Games 1.75x. It lives in `TUNING.arenaHp`.
+- It stacks with the TUNE `boutLength` setting.
+- Your hearts, his damage and the grade's hits allowed are unchanged. The later arenas are longer and harder, and slow builds (bleed, maiming, the speciality legendaries) pay more there.
+
+### C. Biting his feint costs you
+
+- A dodge started while his wind-up is a feint, not a real blow:
+  - you **stumble**: a "BAITED" pop, and your dodge is locked for `TUNING.feintBite.lock` (about 0.8 s);
+  - his real blow follows at once, with a shortened wind-up (`TUNING.feintBite.wind`, about 0.6x).
+
+  You can still block it.
+- The dodge cards that fire on "a dodge during his wind-up" (Sidestep, Light Feet, Slip and Stab, Matador, Untouchable, Shadow Step, Hamstring, False Step, Acrobat, Counterstep) **do not fire** on a feint's wind-up.
+- Spotting his fake (Mind Reader, feint reads) works as now.
+- A first-time hint, shown once in plain words: "That was a fake. Dodging a fake leaves you open."
+- **Telemetry:** the result line gains `baited=`.
+
+### D. Winning the Grand Games feels like winning
+
+- A Grand Games win always ends in **freedom**:
+  - the Emperor's thumb goes **up**;
+  - the crowd roars;
+  - coins and petals fall.
+
+  The cold "Free, but forgotten" line goes.
+- **The crowd's favour decides how grand the epilogue is,** by the run's crowd average:
+  - low: "Free. Rome will forget you by spring.";
+  - middle: "Free, and the Emperor nods. Rome will sing of you this year.";
+  - full: the reason's true ending, as now (`TRUE_END`).
+- **During the thumb moment,** the crowd meter shows and fills to the run's average, then the thumb comes. The player sees why the ending is grand or quiet.
+- **Losing in the Grand Games** is unchanged (the fall scenes are a later step).
+- Fame for the ending follows the band, as now.
+
+### Acceptance
+
+- Scripted checks:
+  - the purse is 45 in every arena;
+  - his health per arena is ×1, ×1.25, ×1.5 and ×1.75 on the same seed;
+  - a dodge during a feint locks the dodge and speeds his next blow;
+  - each dodge card does not fire on a feint's wind-up;
+  - a dodge during a real wind-up works as before.
+- Rendered frames:
+  - the purse screen;
+  - the BAITED stumble;
+  - the Grand Games thumb moment at each band, at 667x375 and 844x390.
+- `npm run smoke` passes.
