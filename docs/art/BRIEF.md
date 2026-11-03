@@ -413,6 +413,27 @@ That is 4 whole fighter limbs and 12 beast paintings (4 torsos and 8 whole legs)
 
 **This replaces Pack 20b's bear legs and arm-tone items.** Pack 20b's Bronze Bracers and Eye Amulet still stand.
 
+### Pack 23: Arena, the weapons and the title, painted (added 2026-11-03)
+
+Spec: `docs/games/arena/prd-v0.3.md`, "Step 14". The designer: "The character looks great but his sword is just a polygon, and the ARENA title at the top doesn't look good." Every weapon is a flat drawn shape today, in your hand and in every foe's.
+
+**A. The weapons,** each a transparent PNG painted in the style, outline, lighting and scale of the kit (`kit-base-*-A.png`, `kit-shield-round-A.png`). Each stands **straight up, point or head at the top and the end of the grip at the bottom**, seen from the side, with nothing else in the picture. The game rotates it into the hand, so the grip must be straight and clear. Lengths are given in the kit's head heights, so the weapons match the figure.
+
+| File | Weapon | Length | Look |
+| --- | --- | --- | --- |
+| `weapon-gladius.png` | gladius | about 2.5 heads | a short, broad, leaf-tipped Roman sword, bronze pommel and guard, wooden grip |
+| `weapon-spear.png` | spear | about 7 heads | an ash shaft with a leaf-shaped iron head and a small butt spike |
+| `weapon-dagger.png` | dagger (pugio) | about 1.5 heads | a short double-edged dagger, waisted blade, round pommel |
+| `weapon-sica.png` | sica | about 2.5 heads | a Thracian blade that curves forward like a crescent, the inner edge sharp |
+| `weapon-axe.png` | axe | about 4 heads | a wooden haft, a single bearded iron head facing forward |
+| `weapon-mace.png` | mace | about 4 heads | a wooden haft, an iron flanged or studded ball head |
+| `weapon-trident.png` | trident | about 7 heads | an ash shaft, a crossbar and three barbed iron prongs |
+| `weapon-wooden-sword.png` | the rudis (wooden sword of freedom) | about 2.5 heads | a gladius shape carved in pale wood, with a leather-wrapped grip |
+
+**B. The title:** `logo-arena.png`, the word **ARENA** as a game logo: heavy Roman capitals in polished bronze with a dark stamped edge, a laurel wreath behind or under it, on a transparent background, about 3 : 1 wide. Make **three options (A, B, C)**, because painted lettering often comes out wrong: check each spells exactly "ARENA", and redo any that does not.
+
+That is 8 + 3 = 11 images, one option each for the weapons, about US$1.50 to 2. Add them to `docs/art/candidates/arena/candidates.json` with `-A` (and `-B`, `-C`) files, and make one contact sheet per section with the weapons side by side at their relative lengths. Write `docs/art/HANDOFF-arena-pack23.md`, giving each weapon's grip in px: the grip's centre, and where the hand closes on it.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.

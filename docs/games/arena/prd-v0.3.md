@@ -1582,3 +1582,39 @@ All of this is in `game.js`; the engine does not change.
 - Perf within 10%.
 - Loading: frames of the boot card on a throttled load (`tools/drive.mjs` with the image requests delayed about 1.5 s), and a bout intro held for its paintings. No frame shows a figure half painted.
 - `npm run smoke` passes.
+
+## Step 13 (locked 2026-11-03): the arena picker, painted
+
+**The designer:** "When you click on Arena, the different arenas should also be arted out as well." Today the arena picker (`pickArena`) shows four flat dark cards, each with a drawn silhouette, a name, a twist and a champion line.
+
+From art that already ships, no new art:
+- **Each card shows its arena's painted backdrop** (`arena-pit`, `arena-city`, `arena-colosseum`, `arena-grand`), cropped to the card and darkened at the bottom so the words stay readable. The card's frame is the menu's bronze (open) or stone (locked) plaque, from Step 12.
+- **The champion stands on the card:** the arena's champion portrait (`champ-*`), or your rival's, in place of the drawn silhouette. Carpophorus's card keeps his lion beside him, drawn from `beast-lion-head` or as now.
+- **Locked arenas** show their backdrop dimmed and desaturated, with the padlock and the line saying what opens them, as now.
+- **Cleared arenas** keep the gold laurel and gold frame.
+- **Words:** no more than today: the name and place, the twist, and the champion line.
+- **Loading:** follows Step 12's rules: the cards wait for their paintings (a held tap), or show the plain card and fade the painting in.
+- It works at 667x375, 844x390 and 932x430, and in the veteran's "Where will X fight?" form.
+
+### Acceptance
+
+- Frames of a fresh save (one open), a mid save (two open and one cleared), a veteran picking, and every arena cleared, at the three sizes.
+- `npm run smoke` passes.
+
+## Step 14 (planned 2026-11-03, waits for art Pack 23): painted weapons and the title
+
+**The designer:** "The character looks great but his sword is just a polygon, and the ARENA title at the top doesn't look good."
+
+When `docs/art/HANDOFF-arena-pack23.md` lands:
+- **Painted weapons:** every weapon in every hand (yours, every foe's, every champion's, and on the inventory doll, the purse rack and the cards) is drawn from its `weapon-*` painting, rotated and pinned at the grip the handoff gives. A weapon's length stays as its `len` today, so reach and hit geometry do not change. A disarmed fighter or fists show no weapon, as now.
+  - The wooden sword (`weapon-wooden-sword`) replaces the drawn one wherever it shows.
+  - Card weapon looks (Step 8c: the serrated edge, blood on the blade, notches) are drawn over the painting, clipped to its blade.
+  - The mace's ball and the trident's net keep their behaviour.
+- **The title:** the menu and the boot card draw the designer's pick of `logo-arena` in place of the code-drawn "ARENA". The flickering torches stay either side.
+- Release ships the A pick (or the designer's) as webp, added to `SHIPPED` and `sw.js`.
+
+### Acceptance
+
+- Frames: each weapon in your hand at guard and at full swing; a foe with each weapon; the inventory rack; the menu and boot card with the logo.
+- Perf of the play scene within 10%.
+- `npm run smoke` passes.
