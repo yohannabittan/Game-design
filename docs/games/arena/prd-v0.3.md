@@ -1470,3 +1470,102 @@ The set bonuses take no slot, as today.
   - the BAITED stumble;
   - the Grand Games thumb moment at each band, at 667x375 and 844x390.
 - `npm run smoke` passes.
+
+## Step 11 (locked 2026-11-03): fists are free, kit is bought by the slot, and an inventory shows what you wear
+
+**The designer:**
+- "The arena money set-up currently supposes that the gladius is fundamentally worse than other weapons." The weapons are trade-offs, not upgrades.
+- "How about weapons cost money, armour costs money; what's free is fists probably: very fast but much less damage."
+- "An inventory with the types of gear that you can wear. You start with normal everything, and then you can see what you're switching in and out, and rarity helps you understand what's worth switching in."
+- Then: "Yeah, that all sounds good."
+
+### A. Fists are free; every weapon has a price
+
+- **Fists:** a new player weapon, free.
+  - reach 0.5, hand speed 1.6, damage 0.5;
+  - slashes and smashes do not dent plates;
+  - a jab into a gap counts (slot multiplier 2);
+  - they reuse the disarmed foe's fist poses.
+- **Prices** (`TUNING.purse`):
+
+  | Weapon | Price |
+  | --- | --- |
+  | Gladius, spear, dagger, sica | 15 each |
+  | Axe or mace | 20 |
+  | Trident | 20 |
+
+  The sica and trident still need the ludus. **The player chooses axe or mace** (two tiles), rather than the seed choosing.
+- The purse stays 45 gold in every arena.
+
+### B. Armour is bought by the slot
+
+The light, medium and heavy sets go. The purse buys plates one slot at a time:
+
+| Plate | Price | Plates |
+| --- | --- | --- |
+| helmet | 10 | the head |
+| chest plate | 15 | chest and belly |
+| manica | 10 | the shield arm |
+| greaves | 10 | the legs |
+
+- A full set costs 45, and nothing is left for a weapon.
+- Stamina regen follows the number of plates, as the sets did (0 to 1 plate as light; 2 as medium; 3 or more as heavy).
+- **Foes keep their rolled sets.** The tent's "Iron plate" ware adds a plate as now.
+
+### C. The inventory
+
+- **Five slots:**
+  - Head, Chest, Arms and Legs each show the plate worn there, if any, and the card gear worn there (the helmet, chest, arms and legs card slots);
+  - Weapon shows your weapon and its card piece (the weapon card slot).
+- **Belt, cloak and shield-face** card pieces show on a small **Extras** row under the five slots. They keep their own slots, so no card changes.
+- **Every item shows its rarity colour,** as the cards do: plain kit is grey "Common"; plates are a plain bronze; card gear uses its card's tier.
+- **You start each run with plain kit in every slot** (cloth, leather and your bought weapon).
+- **Where it shows:**
+  - **The purse screen** becomes the inventory's first view. You buy into the slots on the same doll.
+  - **On a draft,** tapping a card, or a small "Wearing" button, shows the swap on the inventory: the slot it goes into, what comes out and what goes in, both with rarity colours. Example: "Arms: Barbed Bracers (rare) out, Crusher Gauntlets (epic) in."
+  - **From the "?" page**, as a read-only view.
+- **On screen:** the doll is a small painted figure (your own kit sprite) with five tap targets, each at least 44 px. Item names sit beside them, in the plain-words style. No new numbers are added.
+- **Save:** bump `saveVersion` and write `migrate`. A run in progress keeps its rolled set, shown as the matching plates.
+- **Telemetry:** `buy=` lists the weapon and the plates bought.
+
+### Acceptance
+
+- Scripted checks:
+  - fists are free and deal about half a jab;
+  - every weapon's price;
+  - plates bought by slot become your plated parts;
+  - stamina regen follows the plate count;
+  - an old save resumes.
+- Rendered frames:
+  - the purse-inventory screen, empty and fully bought;
+  - a draft with the swap view;
+  - the "?" inventory;
+  - fists in a fight;
+  - each at 667x375, 844x390 and 932x430.
+- `npm run smoke` passes.
+
+## Step 12 (locked 2026-11-03): the menu, remade
+
+**The designer:** "I think we also need to remake the starting menu; it feels flat." Today it is a black screen with a yellow title, a blue Play button, three flat buttons and two empty grey boxes for the walls.
+
+**The new menu**, built from art that already ships:
+- **The arena behind:** the painted backdrop of the arena you last fought in (`arena-pit`, `-city`, `-colosseum`, `-grand`), darkened at the edges, with two torches flickering and a little drifting dust and sand.
+- **Your fighter on the sand:** your last fighter (or a fresh roll's look) standing in the painted kit, breathing, cloak swaying. Old Brutus's portrait sits beside them with one line that changes with your progress (from the existing Brutus lines).
+- **The title:** "ARENA" in bronze, with a stamped-metal look drawn in code (a gradient, an edge highlight and a soft shadow), and the fame laurel under it.
+- **The buttons**, drawn as painted-looking plaques in code (bronze or stone, with an edge, a highlight and a press state):
+  - **Play** is the big one, a bronze gate plaque;
+  - The Ludus (its dot kept), Story and Sound are smaller stone plaques.
+- **The two walls** become a **stone tablet** (the Wall of Champions, with carved names) and a **chalked board** (the Pit Wall). They show up to three names each, or a short prompt when empty.
+- **Sound:** a low crowd murmur under the menu, if the sound is on.
+- **On screen:** no more text than today. EXPORT, ART and TUNE stay as the engine draws them.
+- It works at 667x375, 844x390, 932x430 and in portrait (the rotate card, as now). The safe areas are respected.
+- **Frame time:** within 10% of today's menu (`tools/perf.mjs arena --scene menu`).
+- **Later:** a painted logo and painted plaque frames could replace the code-drawn ones as a small art pack. They are not needed for this step.
+
+### Acceptance
+
+- Rendered frames:
+  - the menu fresh, after a few runs, and after a Colosseum win (names on the walls);
+  - each at the three landscape sizes.
+- Perf within 10%.
+- `npm run smoke` passes.
