@@ -4,7 +4,7 @@ The designer's note: "Sometimes images take a second to load; I think we need to
 
 The export's last four runs, all in the Grand Games:
 
-| Run | Bought (purse left) | Reached | Grades | Good moves | Hearts lost | Feints read / bitten | Result |
+| Run | Bought (purse left) | Reached | Grades | Good moves | Hits taken | Feints read / bitten | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | gladius, heavy (5) | bout 2 | B | 7 | 7 | 3 / 1 | lost to Crixus, medium, dagger |
 | 2 | dagger, light (25) | bout 2 | S | 5 | 3 | 1 / 0 | lost to Pugnax, big, axe |
