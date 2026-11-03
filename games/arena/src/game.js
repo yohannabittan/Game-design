@@ -382,6 +382,8 @@ const TUNING = {
   menu: { seed: 20261103, col: [0.4, 270, 340], gap: 12, title: [40, 56, 0.12], wash: 0.22, vignette: 0.8, torchDx: 118, torchR: 64, flicker: 0.22,
     dust: 16, dustV: [6, 16], fighter: 0.6, hips: -0.45, breath: [0.012, 1.7], sway: [0.05, 1.2], cloak: '#8e2a26', face: 52, names: 3, wallH: 100,
     play: 56, small: 46, fps: 5, figBox: [-0.4, -1.26, 0.26, -0.03], murmur: 0.05, murmurHz: 600, murmurLoop: 3, swells: 2 },
+  // Step 13, the arena picker: the plaque's margin and rim (px), the painting's horizontal focus, its dark top and bottom (alpha, and where the clear middle runs, 0-1), the room kept for the name above the champion and for his lines below, and how dark a shut arena is
+  pick: { m: 6, rim: 7, focus: 0.5, shade: [0.7, 0.9], fade: [0.28, 0.6], top: 62, bot: 82, lock: 0.5 },
   art: { wash: 0.28, band: 1.15, bandA: 0.32, face: 30, faceBig: 40, faceCard: 26, gap: 4, cardDrop: 8, crop: [0.2, 0.02, 0.78, 0.46], bust: [60, 80, 10], epi: [96, 128], box: [0, 0.02, 1, 0.62] },
   // The painted cut-out kit (dev-only pilot, a switch on the ART screen): Strength picks the muscle tier (lean up to lean, avg up to avg, the muscular
   // parts above). Each part's joint centres a and b in its PNG (px of size; a tier's image is scaled by its own size), measured from the alpha, and w = the
@@ -7421,6 +7423,37 @@ const menu = {
 // Champions) only the open arenas above the one they cleared can be picked; the rest are dimmed.
 const openTo = (E) => E.save.get('arenas', 0);
 function lockLine(i) { return `Fell the ${ARENAS[i - 1].who} champion to open`; }
+// Step 13: one arena's card as a sprite: the bronze (open) or stone (shut) plaque of the menu as its frame, the arena's painting cropped inside it, darkened
+// at the top and bottom for the words, the champion's bust (your rival's with a rival) standing on it, a gold ring and laurel once cleared. A shut arena
+// is desaturated and dimmed. Before a painting has landed the card is the plain one (a flat fill, the drawn champion).
+function paintPickCard(c, E, o) {
+  const P = TUNING.pick, { a, w, h, open, cleared, shown, bd, face } = o, m = P.m, ix = m + P.rim, iy = m + P.rim, iw = w - 2 * P.rim, ih = h - 2 * P.rim, ir = Math.max(2, Math.min(12, h * 0.26) - 3);
+  paintPlaque(c, open ? 'bronze' : 'stone', '', w, h, false, 16, m);
+  c.save(); rrect(c, ix, iy, iw, ih, ir); c.clip();
+  if (bd) {
+    const s = Math.max(iw / bd.width, ih / bd.height);
+    c.drawImage(bd, ix + (iw - bd.width * s) * P.focus, iy + ih - bd.height * s, bd.width * s, bd.height * s);
+  } else { c.fillStyle = open ? '#2a2016' : '#221a2b'; c.fillRect(ix, iy, iw, ih); }
+  const g = c.createLinearGradient(0, iy, 0, iy + ih);
+  g.addColorStop(0, `rgba(8,5,4,${P.shade[0]})`); g.addColorStop(P.fade[0], 'rgba(8,5,4,0)'); g.addColorStop(P.fade[1], 'rgba(8,5,4,0)'); g.addColorStop(1, `rgba(8,5,4,${P.shade[1]})`);
+  c.fillStyle = g; c.fillRect(ix, iy, iw, ih);
+  const cx = m + w / 2, ph = Math.max(40, h - P.top - P.bot), pw = Math.min(ph * 0.75, iw - 10), py = m + P.top;
+  if (shown) {
+    if (cleared) laurel(c, cx, py + ph / 2, Math.min(ph * 0.62, iw / 2 - 6));
+    if (!face || !drawPic(c, E, face, [0, 0, 1, 1], cx - pw / 2, py, pw, ph, cleared ? '#ffd24a' : '#e6c866')) {
+      const fy = py + ph, fh = ph * 0.9;
+      silhouette(c, cx + (a.id === 'city' ? 12 : a.id === 'rome' ? 16 : 0), fy, fh, open ? '#6b5a44' : '#3a3242');
+      if (a.id === 'city') silhouette(c, cx - 18, fy + 4, fh * 0.85, open ? '#4e4234' : '#2e2836');
+      if (a.id === 'rome') lionSilhouette(c, cx - 14, fy, fh * 0.5, open ? '#8a7454' : '#2e2836');
+    }
+  }
+  if (!open) {
+    if (bd) { c.globalCompositeOperation = 'saturation'; c.fillStyle = '#000'; c.fillRect(ix, iy, iw, ih); c.globalCompositeOperation = 'source-over'; }
+    c.fillStyle = `rgba(10,8,14,${P.lock})`; c.fillRect(ix, iy, iw, ih);
+  }
+  c.restore();
+  if (cleared) { rrect(c, m + 1.5, m + 1.5, w - 3, h - 3, Math.min(12, h * 0.26)); c.lineWidth = 3; c.strokeStyle = '#ffd24a'; c.stroke(); }
+}
 const pickArena = {
   enter(E, params = {}) { this.cards = []; this.back = null; this.dev = null; this.vet = params.vet || null; },
   layout(E) {
@@ -7437,24 +7470,21 @@ const pickArena = {
     this.cards = this.layout(E);
     for (const c of this.cards) {
       const { a, i, x, y, w, h } = c, open = i <= to && (!va || va.includes(i)), cleared = i < to, next = !va && !open && i === to, cx = x + w / 2;
-      E.roundRect(x, y, w, h, 14, open ? '#2a2016' : 'rgba(34,26,43,0.6)', cleared ? '#ffd24a' : open ? '#e6c866' : 'rgba(240,230,204,0.25)');
-      ctx.globalAlpha = open ? 1 : 0.55;
+      const rv = rivals[a.id], shown = open || !!(va && i <= to), P = TUNING.pick, ink0 = open ? (cleared ? '#ffd24a' : '#f0e6cc') : '#b4bcc8';
+      const pic = shown ? champPic(rv) || champPic({ champion: true, name: a.champs[0], ck: NEW_CHAMPS[a.champs[0]] ? a.champs[0] : undefined }) : null;
+      const bd = artImg(BACKDROP[a.id]), face = pic && artImg(pic) ? pic : null;
+      const o = { a, w, h, open, cleared, shown, bd, face };
+      menuBlit(ctx, E, `pick|${a.id}|${open ? 1 : 0}|${cleared ? 1 : 0}|${shown ? 1 : 0}|${bd ? artV : '-'}|${face ? `${face}${artV}` : '-'}`, x - P.m, y - P.m, w + 2 * P.m, h + 2 * P.m + 2, (c) => paintPickCard(c, E, o));
       // the name carries its place ("The City arena, Pompeii"), wrapped onto up to three lines: one item
-      wrapPx(ctx, `${a.name}, ${a.place}`.toUpperCase(), w - 12, 14, '800').slice(0, 3).forEach((t, k) => E.text(t, cx, y + 20 + k * 17, { size: 14, weight: '800', color: open ? (cleared ? '#ffd24a' : '#f0e6cc') : '#9aa4b2' }));
-      ctx.globalAlpha = 1;
-      const sh = Math.min(80, h * 0.31), sy = y + 74 + sh;
-      if (cleared) laurel(ctx, cx, sy - sh * 0.5, sh * 0.62);
-      silhouette(ctx, cx + (a.id === 'city' ? 12 : a.id === 'rome' ? 16 : 0), sy, sh, open ? '#6b5a44' : '#3a3242');
-      if (a.id === 'city') silhouette(ctx, cx - 18, sy + 4, sh * 0.85, open ? '#4e4234' : '#2e2836');
-      if (a.id === 'rome') lionSilhouette(ctx, cx - 14, sy, sh * 0.5, open ? '#8a7454' : '#2e2836');
-      if (!open && !(va && i <= to)) padlock(ctx, cx, sy - sh * 0.45, '#e6c866');
+      wrapPx(ctx, `${a.name}, ${a.place}`.toUpperCase(), w - 12, 14, '800').slice(0, 3).forEach((t, k) => liftInk(ctx, t, cx, y + 20 + k * 17, 14, '800', ink0));
+      if (!shown) padlock(ctx, cx, y + P.top + (h - P.top - P.bot) / 2, '#e6c866');
       // open: the twist (white) and the champion (gold, or your rival in red); locked: what opens it
-      const rv = rivals[a.id], wrap = (t) => wrapPx(ctx, t, w - 16, 14, '700').slice(0, 2);
+      const wrap = (t) => wrapPx(ctx, t, w - 16, 14, '700').slice(0, 2);
       const shut = va && i <= to ? (i <= ARENAS.findIndex((q) => q.id === vet.arena) ? `${vet.name.split(' ')[0]} cleared it` : 'Not open') : next ? lockLine(i) : 'Locked';
       const lines = open ? [...wrap(a.twist).map((t) => [t, '#f0e6cc']), ...wrap(rv ? `Rival: ${rv.name.split(/[ ,]/)[0]}` : a.champLabel).map((t) => [t, rv ? '#f87171' : '#fde68a'])]
         : wrapPx(ctx, shut, w - 16, 14, '700').slice(0, 3).map((t) => [t, '#c4b99a']);
       const ly = y + h - 14 - (lines.length - 1) * 18;
-      lines.forEach(([t, col], k) => E.text(t, cx, ly + k * 18, { size: 14, weight: '700', color: col }));
+      lines.forEach(([t, col], k) => liftInk(ctx, t, cx, ly + k * 18, 14, '700', col));
     }
   },
   onTap(p, E) {
