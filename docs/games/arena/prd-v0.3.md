@@ -1562,10 +1562,23 @@ The light, medium and heavy sets go. The purse buys plates one slot at a time:
 - **Frame time:** within 10% of today's menu (`tools/perf.mjs arena --scene menu`).
 - **Later:** a painted logo and painted plaque frames could replace the code-drawn ones as a small art pack. They are not needed for this step.
 
+### Loading, handled gracefully (added 2026-11-03)
+
+**The designer:** "Sometimes images take a second to load; I think we need to handle that a bit more gracefully." Today each painting starts loading only when it is first drawn, and the drawn stand-in shows until it lands, so figures and backdrops pop from flat shapes to paintings mid-screen. In the dev channel the paintings are the art candidates (31 MB), which no service worker caches, so they pop on most visits; release ships 3.3 MB of webp that the service worker precaches.
+
+All of this is in `game.js`; the engine does not change.
+- **A loading card at boot:** before the first menu, a short card shows: the dark sand, "ARENA" in the bronze title and a thin bronze bar filling. It waits for the menu's own paintings (the backdrop, your fighter's parts, Brutus). It gives up after 3 s and shows the menu anyway, and it shows nothing if they are already cached (under about 150 ms).
+- **Everything else loads in the background,** a few at a time, from the moment the game boots (every name the game can ask for), so later screens find their paintings ready.
+- **No fight starts half painted:** a bout's intro card stays up until that bout's paintings (the backdrop, the foe's parts, the beast, the worn gear) have loaded, up to 2 s more, then the bout begins anyway.
+- **No mixed figures:** a fighter or beast draws in the painted kit only when all its painted parts are ready. Until then it keeps the drawn look as a whole, never half and half.
+- **A fade, not a pop:** a painting that lands while its screen is up fades in over about 0.2 s. Each image is decoded (`img.decode()`) before it is first drawn, so it does not stutter.
+- **Failures:** an image that fails to load keeps the drawn look, with no console error and no retry loop.
+
 ### Acceptance
 
 - Rendered frames:
   - the menu fresh, after a few runs, and after a Colosseum win (names on the walls);
   - each at the three landscape sizes.
 - Perf within 10%.
+- Loading: frames of the boot card on a throttled load (`tools/drive.mjs` with the image requests delayed about 1.5 s), and a bout intro held for its paintings. No frame shows a figure half painted.
 - `npm run smoke` passes.
