@@ -434,6 +434,24 @@ Spec: `docs/games/arena/prd-v0.3.md`, "Step 14". The designer: "The character lo
 
 That is 8 + 3 = 11 images, one option each for the weapons, about US$1.50 to 2. Add them to `docs/art/candidates/arena/candidates.json` with `-A` (and `-B`, `-C`) files, and make one contact sheet per section with the weapons side by side at their relative lengths. Write `docs/art/HANDOFF-arena-pack23.md`, giving each weapon's grip in px: the grip's centre, and where the hand closes on it.
 
+### Pack 24: Arena, the muscular arm and leg cut in two (added 2026-11-04)
+
+The designer, on a close-up of their fighter's sword arm: "Maybe it's the muscly forearm that looks like an entire arm." It does. The muscular tier still uses the older `kit-base-forearm` (and `kit-base-shin`). That painting has a full biceps bulge at its top, so the upper arm plus the "forearm" reads as two arms chained at the elbow. Pack 21 fixed the lean and average tiers with the cut-out method and left the muscular tier as it was. This pack gives the muscular tier the same treatment.
+
+**Fighters, muscular tier.** Follow Pack 21 A exactly (`HANDOFF-arena-limbs.md` has the method and the pins it used), in the style, skin tone, outline and lighting of `kit-base-torso-A.png` and the muscular arms on screen today:
+- **one whole arm,** side view, hanging straight down, from the shoulder to a clenched fist with a leather wristband. The biceps sits **only above the elbow**, and the forearm is a forearm: thick, tapering to the wrist, with no second bulge;
+- **one whole leg,** from the hip (the kilt's edge at the top) to a sandalled foot. The calf sits **only below the knee**;
+- **cut each at the elbow or knee in code,** with the same overlapping rounded joint ends as Pack 21.
+
+| Files | Canvas | What |
+| --- | --- | --- |
+| `kit-arm-up-musc.png` | 160 x 288 | shoulder to elbow |
+| `kit-arm-lo-musc.png` | 160 x 288 | elbow to fist |
+| `kit-leg-up-musc.png` | 192 x 320 | hip to knee |
+| `kit-leg-lo-musc.png` | 192 x 352 | knee to sandalled foot |
+
+Make **two options (A, B)** of each whole limb, and cut both. Show the two halves joined at a straight and at a 90-degree elbow on the contact sheet, beside today's muscular arm. That is 4 paintings, about US$0.40. Add the files to `docs/art/candidates/arena/candidates.json`, and write `docs/art/HANDOFF-arena-pack24.md` with the joint points and mid widths in px, as `HANDOFF-arena-limbs.md` does.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
