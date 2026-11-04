@@ -528,6 +528,40 @@ The laurel: no change. Ship `laurel-ring` A.
 
 That is 8 edits, about US$1 to 2. Make a contact sheet of each beast bare and armoured at game size, next to Pack 26's version. Update `docs/art/HANDOFF-arena-pack26.md` with the new layers' boxes; the pins are the parts' own.
 
+### Pack 27: Arena, helmets and head gear painted onto the head (added 2026-11-04)
+
+**The designer,** on Pack 26b's method (painting the armour onto the part itself): "That's a much better idea. At least do it for the helmets." Earlier: "The way we're overlaying the items on the face looks weird", and "you can see the bandana on this helmet".
+
+**Method:** Pack 26b's, applied to the fighter's head.
+- Input: `kit-base-head-A.png`.
+- For each piece, a mask of the region it covers, and an edit (inpainting) that repaints that region wearing the piece. It must:
+  - follow the head's outline;
+  - fit the skull;
+  - keep the face's eyes, nose and jaw where the piece leaves them showing;
+  - match the head's light, outline and style.
+- Output: a layer cut from the result, on the head's own canvas and in the same place, transparent outside the piece, so the game lays it exactly over the head with the head's pins. The pixels outside the mask must stay the head's own; check that by laying each layer back over the head.
+
+| File | Piece | Covers |
+| --- | --- | --- |
+| `kit-helmet-gallic` | Gallic helmet | skull, brow ridge, cheek guards |
+| `kit-helmet-murmillo` | murmillo helmet | the whole head, a broad brim, a grilled visor, a fish-crest ridge |
+| `kit-helmet-thraex` | Thracian helmet | the whole head, a griffin crest, a grilled visor |
+| `kit-helmet-secutor` | secutor helmet | the whole head, smooth and egg-shaped, two small eye holes |
+| `gear-bronze-crest` | crested Greek helmet | skull, cheeks, a red crest |
+| `gear-plumed-helm` | plumed helmet | skull, cheeks, a tall red and white plume |
+| `gear-phalanx-helm` | Corinthian-style helmet | the whole head, a T-shaped face opening, a short crest |
+| `gear-horned-cap` | horned cap | the top of the head, two horns |
+| `gear-dark-hood` | dark hood | the head and the back of the neck, the face in shadow |
+| `gear-blood-band` | red headband | round the brow, its knot and tails at the back |
+| `gear-ribbon-band` | ribbon headband | round the brow, a bow at the back |
+| `gear-laurel-wreath` | gilded laurel wreath | round the head above the brow |
+
+Each layer replaces its `-A` file (keep the old as `-old`). The designer's test: "does he look like a man wearing a helmet, or a helmet stuck on a head?" Redo any that reads as stuck on.
+
+That is 12 edits, about US$1 to 2. Make a contact sheet: each piece on the head at game size, beside the old one. Write `docs/art/HANDOFF-arena-pack27.md`, giving each layer's box. The pins are the head's own, so say if the game must stop applying a piece's separate pins.
+
+**Another session (Pack 26b) may be editing `candidates.json` at the same time.** Pull right before editing it, and merge by hand if git reports a conflict.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
