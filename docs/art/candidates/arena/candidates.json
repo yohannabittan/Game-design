@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25",
+ "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -566,6 +566,34 @@
   "kit-leg-lo-musc": [
    "kit-leg-lo-musc-A.png",
    "kit-leg-lo-musc-B.png"
+  ],
+  "beast-lion-armour-head": [
+   "beast-lion-armour-head-A.png"
+  ],
+  "beast-lion-armour-chest": [
+   "beast-lion-armour-chest-A.png"
+  ],
+  "beast-lion-armour-back": [
+   "beast-lion-armour-back-A.png"
+  ],
+  "beast-lion-armour-leg": [
+   "beast-lion-armour-leg-A.png"
+  ],
+  "beast-bear-armour-head": [
+   "beast-bear-armour-head-A.png"
+  ],
+  "beast-bear-armour-chest": [
+   "beast-bear-armour-chest-A.png"
+  ],
+  "beast-bear-armour-back": [
+   "beast-bear-armour-back-A.png"
+  ],
+  "beast-bear-armour-leg": [
+   "beast-bear-armour-leg-A.png"
+  ],
+  "laurel-ring": [
+   "laurel-ring-A.png",
+   "laurel-ring-B.png"
   ]
  }
 }
