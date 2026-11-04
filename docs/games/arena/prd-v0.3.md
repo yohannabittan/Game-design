@@ -1747,7 +1747,7 @@ The numbers go in `TUNING.champs.<key>`. The other champions (Aurelius, Flamma, 
 - Scripted checks: each move fires and can be answered; the Grand Games order; the second blade's price and its crossed-blade block.
 - Perf within 10%, and `npm run smoke`.
 
-## Step 19 (proposed 2026-11-04, for the designer's OK): an innate trait for each origin
+## Step 19 (proposed 2026-11-04, for the designer's OK): an innate trait for each origin, and a drive for each reason
 
 **The designer:** "I think we should also have an innate trait based on origin."
 
@@ -1768,8 +1768,20 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 | Freed slave of Egypt | **Broken Chains** | "You've broken chains before." | once a run, a killing blow leaves you on 1 heart instead |
 | Charioteer of the Circus | **Steer Him** | "Steer him into the wall." | your shoves drive him 30% further, and a wall hit costs him more |
 
+**The designer, next:** "And maybe an effect for the story reason also."
+
+**A drive for each reason.** The reason you fight (freedom, debt, revenge, glory, a promise) gives one effect, which aims you at that reason's goal. It shows beside the trait on your card and the "?" page, with a tag in play like the trait's. The numbers go in `TUNING.reasons.<key>`.
+
+| Reason | Drive | Brutus's line it comes from | Effect |
+| --- | --- | --- | --- |
+| Freedom | **Nothing to Lose** | "One more, and the gate opens." | below a quarter of your hearts, your blows do 25% more |
+| Debt | **Every Win Pays** | "Your family owes me. Every win pays." | 25% more gold from every bout |
+| Revenge | **Him Last** | "Keep your anger for the champion." | 20% more damage against the champion (and your rival) |
+| Glory | **Louder** | "Glory is loud. Be louder." | the crowd's favour builds 25% faster |
+| A promise | **She's Waiting** | "Don't make her wait." | one extra heart back for each foe felled |
+
 ### Acceptance
 
-- Each trait fires in a scripted check and shows its tag.
+- Each trait and each drive fires in a scripted check and shows its tag.
 - The fighter card and the "?" page show it, at three sizes.
 - `npm run smoke`.
