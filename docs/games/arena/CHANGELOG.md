@@ -95,3 +95,9 @@
   - **Your second blade:** in the purse's Arms row, at the weapon's price, with any weapon but fists. Crossed-blade blocks let half the damage through and cost more stamina; a perfect parry ripostes off-hand, and the off hand follows each slash. Shield cards are never dealt to a dual fighter.
   - **Save v15:** a Grand Games run saved mid-way restarts at bout 1.
   - Perf: work +4%, frame time -1%.
+- v2 step 16 build (Opus 5.5, passed the orchestrator's review of its close-ups first time): armoured beasts and alternating bouts in the Colosseum, helmets painted onto the head, and the painted laurel (`prd-v0.3.md`, "Step 16"; Packs 26b and 27). `arena-v59`.
+  - **The Colosseum** runs a man, an armoured young beast, a pair, an armoured beast, then the champion (`arenas.rome.pairs`, `.armour`).
+  - **Beast plates:** a beast wears four (head, chest, back and foreleg, `TUNING.beasts.armour`). They break at 3 dents like a man's, the layer goes, and the gaps stay open around them. Young beasts get the plates refitted to their own joints, and Carpophorus's lion stays bare.
+  - **Helmets:** all 12 Pack 27 pieces sit at the head's own origin; the 5 closed ones replace the head, and the old pins are gone. On a foe's bare head, helmet-only gear now shows nothing.
+  - **The laurel:** the painted ring sits round a cleared arena's portrait on the picker.
+  - 428 KB of new webp; play work -4.9%, a beast bout +6.9%.

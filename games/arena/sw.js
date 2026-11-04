@@ -1,24 +1,24 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'arena-v58';
+const CACHE_VERSION = 'arena-v59';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'arena-v';
 // The painted art (docs/art/final/arena, one webp each); the release channel shows it, the dev channel shows the candidates instead.
 const ART = [
   './assets/arena-pit.webp', './assets/arena-city.webp', './assets/arena-colosseum.webp', './assets/arena-grand.webp',
   './assets/kit-base-head.webp', './assets/kit-base-torso.webp', './assets/kit-arm-up-musc.webp', './assets/kit-arm-lo-musc.webp',
-  './assets/kit-helmet-gallic.webp', './assets/kit-shield-round.webp', './assets/brutus.webp', './assets/brutus-proud.webp',
+  './assets/kit-helmet-gallic-worn.webp', './assets/kit-shield-round.webp', './assets/brutus.webp', './assets/brutus-proud.webp',
   './assets/champ-marcus.webp', './assets/champ-aurelius.webp', './assets/champ-flamma.webp', './assets/champ-varro.webp',
   './assets/champ-twins.webp', './assets/champ-hermes.webp', './assets/champ-carpophorus.webp', './assets/champ-mevia.webp',
   './assets/champ-aquila.webp', './assets/emperor.webp', './assets/kit-base-torso-lean.webp', './assets/kit-base-torso-avg.webp',
-  './assets/beast-lion-head.webp', './assets/beast-bear-head.webp', './assets/beast-lion-tail.webp', './assets/kit-helmet-murmillo.webp',
-  './assets/kit-helmet-thraex.webp', './assets/kit-helmet-secutor.webp', './assets/kit-galerus.webp', './assets/kit-shield-scutum.webp',
+  './assets/beast-lion-head.webp', './assets/beast-bear-head.webp', './assets/beast-lion-tail.webp', './assets/kit-helmet-murmillo-worn.webp',
+  './assets/kit-helmet-thraex-worn.webp', './assets/kit-helmet-secutor-worn.webp', './assets/kit-galerus.webp', './assets/kit-shield-scutum.webp',
   './assets/kit-shield-parma.webp', './assets/kit-plate-chest.webp', './assets/kit-plate-manica.webp', './assets/kit-plate-greave.webp',
   './assets/kit-wrap-trousers.webp', './assets/kit-leg-up-musc.webp', './assets/kit-leg-lo-musc.webp',
   './assets/gear-bronze-bracers.webp', './assets/gear-barbed-bracers.webp', './assets/gear-matador-ribbons.webp',
   './assets/gear-iron-pauldrons.webp', './assets/gear-knife-bracers.webp', './assets/gear-gilt-armlets.webp',
-  './assets/gear-bronze-crest.webp', './assets/gear-blood-band.webp', './assets/gear-ribbon-band.webp', './assets/gear-horned-cap.webp',
-  './assets/gear-dark-hood.webp', './assets/gear-plumed-helm.webp', './assets/gear-bronze-phalerae.webp', './assets/gear-ghost-silk.webp',
+  './assets/gear-bronze-crest-worn.webp', './assets/gear-blood-band-worn.webp', './assets/gear-ribbon-band-worn.webp', './assets/gear-horned-cap-worn.webp',
+  './assets/gear-dark-hood-worn.webp', './assets/gear-plumed-helm-worn.webp', './assets/gear-bronze-phalerae.webp', './assets/gear-ghost-silk.webp',
   './assets/gear-black-plate.webp', './assets/gear-eye-amulet.webp', './assets/gear-gilded-harness.webp', './assets/gear-bronze-boots.webp',
   './assets/gear-dancers-sandals.webp', './assets/gear-spiked-boots.webp', './assets/gear-soft-boots.webp',
   './assets/gear-gilded-greaves.webp', './assets/gear-hook-belt.webp', './assets/gear-ribbon-sash.webp', './assets/gear-chain-belt.webp',
@@ -33,15 +33,18 @@ const ART = [
   './assets/beast-bear-hind-lo.webp', './assets/beast-bear-fore-up-young.webp', './assets/beast-bear-fore-lo-young.webp',
   './assets/beast-bear-hind-up-young.webp', './assets/beast-bear-hind-lo-young.webp', './assets/beast-lion-torso.webp',
   './assets/beast-lion-torso-young.webp', './assets/beast-bear-torso.webp', './assets/beast-bear-torso-young.webp',
-  './assets/gear-bossed-shield.webp', './assets/gear-phalanx-helm.webp', './assets/gear-bloodletters-belt.webp', './assets/gear-crimson-cloak.webp',
+  './assets/gear-bossed-shield.webp', './assets/gear-phalanx-helm-worn.webp', './assets/gear-bloodletters-belt.webp', './assets/gear-crimson-cloak.webp',
   './assets/gear-shadow-sandals.webp', './assets/gear-wind-ribbons.webp', './assets/gear-crusher-gauntlets.webp',
-  './assets/gear-colossus-plate.webp', './assets/gear-smoke-pouch-belt.webp', './assets/gear-mirror-cloak.webp', './assets/gear-laurel-wreath.webp',
+  './assets/gear-colossus-plate.webp', './assets/gear-smoke-pouch-belt.webp', './assets/gear-mirror-cloak.webp', './assets/gear-laurel-wreath-worn.webp',
   './assets/gear-idols-torc.webp', './assets/tailor-crest-bronze.webp', './assets/tailor-crest-silver.webp', './assets/tailor-crest-gold.webp',
   './assets/tailor-plume-red.webp', './assets/tailor-plume-white.webp', './assets/tailor-plume-black.webp', './assets/tailor-paint-wings.webp',
   './assets/tailor-paint-bolt.webp', './assets/tailor-paint-sun.webp', './assets/tailor-cloak-red.webp', './assets/tailor-cloak-blue.webp',
   './assets/tailor-cloak-green.webp', './assets/weapon-gladius.webp', './assets/weapon-spear.webp', './assets/weapon-dagger.webp',
   './assets/weapon-sica.webp', './assets/weapon-axe.webp', './assets/weapon-mace.webp', './assets/weapon-trident.webp',
-  './assets/weapon-wooden-sword.webp', './assets/logo-arena.webp'
+  './assets/weapon-wooden-sword.webp', './assets/logo-arena.webp',
+  // step 16: the beasts' barding and the laurel ring
+  './assets/beast-lion-armour-head.webp', './assets/beast-lion-armour-chest.webp', './assets/beast-bear-armour-head.webp', './assets/beast-bear-armour-chest.webp',
+  './assets/beast-lion-armour-back.webp', './assets/beast-lion-armour-leg.webp', './assets/beast-bear-armour-back.webp', './assets/beast-bear-armour-leg.webp', './assets/laurel-ring.webp',
 ];
 const ASSETS = [
   './',

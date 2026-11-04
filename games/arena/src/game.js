@@ -161,6 +161,9 @@ const TUNING = {
       prof: { brute: 0.3, duelist: 3, glass: 3, tank: 0.3, balanced: 1 } },
     bear: { band: 'giant', draw: 0.92, front: 0.28, back: 0.37, tall: 0.8, range: -0.05, strike: -0.22, speed: 1.2, dmg: 1.15, wear: 2, moves: { maul: 3, shove: 1.4 }, zone: 0.5, counter: 'shove',
       prof: { brute: 3, duelist: 0.2, glass: 0.2, tank: 3, balanced: 1 } },
+    // Step 16, barding (the Colosseum's arenas.*.armour bouts): each piece's part, a plate like a man's with the beast's gaps open round it, broken by
+    // dents blows (a man's TUNING.armour.dents); its painting is beastArt.armour
+    armour: { plates: { head: 'head', chest: 'chest', back: 'belly', leg: 'legF' }, dents: 3 },
   },
   // a beast's bout: the frame shrinks (never under min) until the beast, at its home plus room H, needs the frame to slide left by at most slide H
   beastFit: { room: 0.1, slide: 0.1, min: 0.7 },
@@ -352,10 +355,12 @@ const TUNING = {
   // gap guard (never in bout 1), gear = pieces added to each foe's; ring = x the distance to both walls; pairs = the bout index (0-based) pairs start at.
   // Step 15: size = x each band's roll weight (runt, lean, medium, big, giant), so later foes lean big; plates = plates added to each man's set.
   // Step 18: dual = each man's chance (never a champion's) of two blades, when his weapon is one (TUNING.dual.weapons)
+  // Step 16: pairs may instead list the bouts that are pairs; beasts: the bouts (0-based) a beast fights, young: those of them that bring a young one,
+  // armour: those of them whose beast wears barding (TUNING.beasts.armour)
   arenas: {
     pit: { shift: 0, feint: 1, guard: [0, 0], gear: 0, ring: 0.7, pairs: 99, size: [1, 1, 1, 1, 1], plates: 0, dual: 0 },
     city: { shift: 0.4, feint: 1.15, guard: [0.1, 0.05], gear: 0, ring: 1, pairs: 2, size: [0.5, 0.8, 1, 1.5, 1.5], plates: 0, dual: 0.2 },
-    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99, size: [0.4, 0.7, 1, 1.8, 1.8], plates: 1, dual: 0.25, beasts: [1, 3], young: [1] },  // beasts: the bouts (0-based) a beast fights; young: those of them that bring a young one
+    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: [2], size: [0.4, 0.7, 1, 1.8, 1.8], plates: 1, dual: 0.25, beasts: [1, 3], young: [1], armour: [1, 3] },
     games: { shift: 0.9, feint: 1.35, guard: [0.2, 0.1], gear: 1, ring: 1, pairs: 99, size: [0.3, 0.6, 1, 2, 2], plates: 1, dual: 0.3 },
   },
   // x every foe's health by arena (men, beasts, pairs, champions; step 10), on top of the bout length
@@ -422,7 +427,9 @@ const TUNING = {
     hero: { legs: [[[-0.02, -0.37], [-0.12, -0.21], [-0.19, -0.04]], [[0.02, -0.37], [0.12, -0.21], [0.19, -0.04]]], chin: 0.12, far: [0.1, -2.7], shield: 0.14,
       over: [2.4, 3.0, 0.3], long: [1.7, 2.4, 0.6], longIds: ['spear', 'trident'], icon: [-0.55, -1.2, 0.5, 0.12] } },
   // Step 13, the arena picker: the plaque's margin and rim (px), the painting's horizontal focus, its dark top and bottom (alpha, and where the clear middle runs, 0-1), the room kept for the name above the champion and for his lines below, and how dark a shut arena is
-  pick: { m: 6, rim: 7, focus: 0.5, shade: [0.7, 0.9], fade: [0.28, 0.6], top: 62, bot: 82, lock: 0.5 },
+  // ring: the painted laurel (laurel-ring, Pack 26) round a cleared arena's portrait, centred on it: its canvas (w, h) and the portrait height it was
+  // painted round (px; HANDOFF-arena-pack26: a 180 x 240 portrait in a 300 x 400 ring)
+  pick: { m: 6, rim: 7, focus: 0.5, shade: [0.7, 0.9], fade: [0.28, 0.6], top: 62, bot: 82, lock: 0.5, ring: [300, 400, 240] },
   art: { wash: 0.28, band: 1.15, bandA: 0.32, face: 30, faceBig: 40, faceCard: 26, gap: 4, cardDrop: 8, crop: [0.2, 0.02, 0.78, 0.46], bust: [60, 80, 10], epi: [96, 128], box: [0, 0.02, 1, 0.62] },
   // The painted cut-out kit (dev-only pilot, a switch on the ART screen): Strength picks the muscle tier (lean up to lean, avg up to avg, the muscular
   // parts above). Each part's joint centres a and b in its PNG (px of size; a tier's image is scaled by its own size), measured from the alpha, and w = the
@@ -445,13 +452,14 @@ const TUNING = {
     // chest plate from the neck to the belt (abs: the row the belly's plate starts at; w: the px across that spans the torso); the manica from the elbow
     // to `to` of the forearm, the greave from `from` to `to` of the shin, the wrap down the thigh; the galerus's box in the shield arm's frame (H); a
     // shield's rim radius r or, for the scutum, its half height h (px), drawn at the drawn shield's size.
-    // Step 6c: each helmet's a and b pin it to the head's top and chin scaled to cover the painted head (the bowl over the hair, the brim wider
-    // than the skull, an open helmet's brim at the brow so the face shows under it), measured on the head drawn under it.
+    // Step 16 (Pack 27): each helmet is painted onto the head itself, 1 px of it to 1 px of the head: o = the head canvas's top-left corner in its
+    // file (headJ lays it there); closed: it is the whole head painted wearing it, drawn instead of the head; otherwise it lies over the head.
+    // crest: the height of the tailor's crest's base on it (head radii from the head's centre, as TUNING.kit.tailor.crest.at; the plume moves with it)
     helm: {
-      gallic: { size: [256, 256], a: [126, 55], b: [126, 226] },
-      murmillo: { size: [256, 256], a: [130, 48], b: [130, 232], closed: true },
-      thraex: { size: [256, 256], a: [120, 52], b: [120, 238], closed: true },
-      secutor: { size: [256, 256], a: [131, 10], b: [131, 232], closed: true },
+      gallic: { size: [266, 308], o: [10, 52], crest: -0.81 },
+      murmillo: { size: [343, 455], o: [55, 199], closed: true, crest: -1.41 },
+      thraex: { size: [312, 439], o: [43, 183], closed: true, crest: -1.35 },
+      secutor: { size: [270, 363], o: [10, 107], closed: true, crest: -1.42 },
     },
     // hole: its armhole (an ellipse's centre and radii, px), filled with the torso's painted shoulder; rim: the row of its bottom rim, where a
     // belt card is buckled when the plate covers the belly too
@@ -522,11 +530,12 @@ const TUNING = {
     // Step 6c-2, the card gear painted (Pack 20, `gear-<name>`), each piece's pins in its own PNG: a and b land on the rig's points at, w = the px
     // across that spans the part's width (none: drawn in its own shape). arms: at = two heights in the arm's frame (H from the shoulder: the forearm
     // runs from ARM_LEN / 2 to the fist at ARM_LEN), so they follow your live arm too (up: there it sits upright on the shoulder, as the drawn one);
-    // helmet: a and b the head's top and chin, as a helmet (helm: it covers the skull and stands in for a plated head's painted helmet); chest: at =
+    // helmet: o, as TUNING.kit.helm's (Pack 27: painted onto the head; helm: a helmet, standing in for a plated head's painted helmet; closed: drawn
+    // instead of the head); chest: at =
     // x, then the top and bottom height (body units; flip: painted turned to his left, so mirrored to face where his head faces); legs: at = fractions from the knee to the ankle (flip: painted facing left); belt: at = x0, x1
     // and the height of the waist; cloak: at = the shoulder point, the hem point and the width (body units), behind the body; shield: its rim radius
     // r or, for the tower, its half height h. bare: on an unplated part of his, a piece that would read as a plate shows only its rows above this
-    // one (a helmet's crest or horns, a cuirass's collar and straps), so you never aim at a plate that is not there; yours is worn whole.
+    // one (a cuirass's collar and straps; 0: none of it, as a helmet painted onto the head), so you never aim at a plate that is not there; yours is worn whole.
     gear: {
       'gear-bronze-bracers': { size: [160, 160], a: [80, 22], b: [80, 138], w: 160, at: [0.19, 0.265] },
       'gear-barbed-bracers': { size: [160, 160], a: [90, 22], b: [82, 138], w: 130, at: [0.19, 0.27] },
@@ -534,12 +543,12 @@ const TUNING = {
       'gear-knife-bracers': { size: [160, 160], a: [0, 88], b: [160, 88], w: 100, at: [0.19, 0.27] },
       'gear-gilt-armlets': { size: [160, 160], a: [80, 37], b: [80, 124], w: 160, at: [0.19, 0.265] },
       'gear-iron-pauldrons': { size: [224, 192], a: [105, 5], b: [105, 185], w: 180, at: [-0.055, 0.05], up: true },
-      'gear-bronze-crest': { size: [256, 256], a: [120, 30], b: [120, 235], helm: true, bare: 85 },
-      'gear-blood-band': { size: [256, 256], a: [140, -20], b: [140, 250] },
-      'gear-ribbon-band': { size: [256, 256], a: [130, 0], b: [130, 280] },
-      'gear-horned-cap': { size: [256, 256], a: [130, 55], b: [130, 285], helm: true, bare: 95 },
-      'gear-dark-hood': { size: [256, 256], a: [130, 20], b: [130, 225], cover: true },
-      'gear-plumed-helm': { size: [256, 256], a: [125, 50], b: [125, 240], helm: true, bare: 95 },
+      'gear-bronze-crest': { size: [306, 405], o: [44, 149], helm: true, bare: 0 },
+      'gear-blood-band': { size: [296, 256], o: [40, 0] },
+      'gear-ribbon-band': { size: [312, 256], o: [50, 0] },
+      'gear-horned-cap': { size: [281, 352], o: [25, 96], helm: true, bare: 0 },
+      'gear-dark-hood': { size: [326, 327], o: [51, 71], cover: true, closed: true },
+      'gear-plumed-helm': { size: [308, 451], o: [51, 195], helm: true, bare: 0 },
       'gear-bronze-phalerae': { size: [384, 384], a: [160, 25], b: [160, 375], w: 300, at: [0, -0.745, -0.49], bare: 70, flip: true },
       'gear-ghost-silk': { size: [384, 384], a: [200, 0], b: [200, 384], w: 380, at: [0, -0.74, -0.45] },
       'gear-black-plate': { size: [384, 384], a: [190, 12], b: [190, 372], w: 300, at: [0, -0.745, -0.48], bare: 95, flip: true },
@@ -560,11 +569,10 @@ const TUNING = {
       'gear-purple-cloak': { size: [384, 512], a: [192, 20], b: [192, 500], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
       'gear-lion-pelt': { size: [384, 512], a: [192, 10], b: [192, 480], w: 384, at: [-0.05, -0.74, -0.13, -0.2, 0.26] },
       'gear-spiked-shield': { size: [320, 320], r: 122 }, 'gear-spiral-shield': { size: [320, 320], r: 158 }, 'gear-tower-shield': { size: [224, 448], h: 224 },
-      // Step 14, the vault's gear (art Pack 22, HANDOFF-arena-pack22): each file's own pins. The helm is painted 1:1 on the head's canvas; the belts' a
-      // and b are their belt line's ends, stretched to the waist; the sandal is a tall laced boot, so it starts near the knee; the wreath is painted
-      // face-on, so it is laid flat round the brow (at: its open back and its front from the head's centre, and its depth across, H)
-      'gear-bossed-shield': { size: [320, 320], r: 158 }, 'gear-phalanx-helm': { size: [256, 256], a: [128, 0], b: [128, 222], helm: true, bare: 70 },
-      'gear-laurel-wreath': { size: [256, 256], a: [128, 16], b: [128, 238], w: 251, at: [-0.085, -0.07, 0.085, -0.035, 0.07] },
+      // Step 14, the vault's gear (art Pack 22, HANDOFF-arena-pack22): each file's own pins. The helm and the wreath are Pack 27's, painted onto the
+      // head; the belts' a and b are their belt line's ends, stretched to the waist; the sandal is a tall laced boot, so it starts near the knee
+      'gear-bossed-shield': { size: [320, 320], r: 158 }, 'gear-phalanx-helm': { size: [289, 357], o: [33, 101], helm: true, closed: true, bare: 0 },
+      'gear-laurel-wreath': { size: [269, 256], o: [10, 0] },
       'gear-bloodletters-belt': { size: [384, 96], a: [88, 48], b: [296, 48], at: [-0.11, 0.11, -0.48] }, 'gear-smoke-pouch-belt': { size: [384, 96], a: [97, 48], b: [286, 48], at: [-0.11, 0.11, -0.48] },
       'gear-crimson-cloak': { size: [384, 512], a: [192, 2], b: [192, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
       'gear-mirror-cloak': { size: [384, 512], a: [187, 33], b: [187, 479], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
@@ -1158,9 +1166,9 @@ const BEAST_BODY = {
     sh: [[0.05, -0.3], [0.08, -0.31]], hp: [[-0.26, -0.28], [-0.22, -0.29]], feet: [0.05, 0.1, -0.27, -0.22], leg: [[0.15, 0.16], [0.15, 0.17]], hip: [-0.25, -0.28],
   },
 };
-// a beast's parts: every gap open (a beast wears no guard)
-function beastParts(kind) {
-  const K = BEAST_BODY[kind], out = K.parts.map((d) => mkPart(d, false));
+// a beast's parts: every gap open (a beast wears no guard); barded (step 16), each piece's part plated
+function beastParts(kind, armour = false) {
+  const K = BEAST_BODY[kind], on = armour ? Object.values(TUNING.beasts.armour.plates) : [], out = K.parts.map((d) => mkPart(d, on.includes(d.id)));
   for (const d of K.slots) { const q = mkPart(d, false); q.slot = true; out.push(q); }
   return out;
 }
@@ -1357,19 +1365,20 @@ function profileOf(d) {
   return Object.keys(P).sort((a, b) => err(a) - err(b))[0];
 }
 // A beast of the gauntlet: its kind's band at a seeded height in it, its stats from the row's points split by a profile its kind leans to (the weakness
-// rule holds), a seeded epithet. Its "weapon" is its kind's numbers (TUNING.beasts) and its hide is no armour: no plates, no shield, no gear, no guard.
+// rule holds), a seeded epithet. Its "weapon" is its kind's numbers (TUNING.beasts) and it has no shield, gear or guard; its plates are its barding
+// (step 16) when it wears one, else none.
 const beastWeapon = (kind) => ({ ...TUNING.beasts[kind], id: kind, name: 'CLAWS', len: 0, combo: [1, 1], shield: 0, drain: 0 });
 const beastSet = (kind) => ({ id: 'beast', name: 'HIDE', plates: [0, 0], helmet: false, slots: BEAST_BODY[kind].slots.length });
-function rollBeast(rng, tier, kind, A, at, young = false) {
+function rollBeast(rng, tier, kind, A, at, young = false, armour = false) {
   const B = TUNING.beasts[kind], band = young ? TUNING.sizes[Math.max(0, TUNING.sizes.indexOf(BAND(B.band)) - TUNING.beastYoung)].id : B.band;
   const size = sizeOf(band, rng.range(-1, 1)), st = rollStats(rng, tier, size, A, B.prof);
-  return { tier, at, name: young ? `Young ${BEASTS[kind].name.toLowerCase()}` : BEASTS[kind].name, young, ck: null, title: null, pair: null, champion: false, beast: kind, epithet: rng.pick(BEASTS[kind].epithets), size, prof: st.prof,
+  return { tier, at, name: young ? `Young ${BEASTS[kind].name.toLowerCase()}` : BEASTS[kind].name, young, armour, ck: null, title: null, pair: null, champion: false, beast: kind, epithet: rng.pick(BEASTS[kind].epithets), size, prof: st.prof,
     weapon: beastWeapon(kind), set: beastSet(kind), str: st.v[0], spd: st.v[1], sta: st.v[2], shield: false, mace: false, partSeed: (rng() * 2 ** 32) >>> 0 };
 }
 // a fighter from a saved rival record, on the rolled one's place (a beast, the Beastmaster's lion, from its own)
 function fromRival(c, rv) {
   if (rv.beast && BEASTS[rv.beast] && BAND(rv.size)) {
-    return { ...c, name: BEASTS[rv.beast].name, ck: null, title: null, champion: false, beast: rv.beast, epithet: rv.epithet || BEASTS[rv.beast].epithets[0], size: sizeOf(rv.size, rv.vary || 0), prof: rv.prof || profileOf(rv),
+    return { ...c, name: BEASTS[rv.beast].name, ck: null, title: null, champion: false, beast: rv.beast, armour: !!rv.armour, epithet: rv.epithet || BEASTS[rv.beast].epithets[0], size: sizeOf(rv.size, rv.vary || 0), prof: rv.prof || profileOf(rv),
       weapon: beastWeapon(rv.beast), set: beastSet(rv.beast), str: rv.str, spd: rv.spd, sta: rv.sta, shield: false, mace: false, partSeed: rv.partSeed >>> 0, gaps: {} };
   }
   const T = TUNING, weapon = T.weapons.find((z) => z.id === rv.weapon), set = T.armourSets.find((z) => z.id === rv.set);
@@ -1377,6 +1386,8 @@ function fromRival(c, rv) {
   return { ...c, name: rv.name, ck: rv.ck || null, title: rv.title || null, rival: true, champion: rv.champion != null ? rv.champion : c.champion, size: sizeOf(rv.size, rv.vary || 0), prof: rv.prof || profileOf(rv), weapon, set, str: rv.str, spd: rv.spd, sta: rv.sta, shield: !!rv.shield && !rv.dual, dual: !!rv.dual, mace: !!rv.mace, partSeed: rv.partSeed >>> 0, gaps: rv.gaps || {} };
 }
 
+// is bout i (0-based) of arena A a pair: from its pairs bout on, or one of the bouts it lists
+const pairAt = (A, i) => { const P = TUNING.arenas[A.id].pairs; return Array.isArray(P) ? P.includes(i) : i >= P; };
 // The arena's gauntlet. A saved rival takes the champion's place: the same man, look and weapon as the one who cut you down (and his partner, in a pair).
 // From the arena's pairs bout on, each bout has a second foe waiting, rolled from the same row on his own stream; the Twins' second is Pollux, a champion
 // too (the Twins always fight as a pair), and Hermes's partner is an ordinary man from the row below. The Grand Games (step 18): each bout a champion
@@ -1388,7 +1399,7 @@ function rollGauntlet(seed, rival, A = ARENAS[0], first = null) {
   const pr = makeRng(seed ^ 0x6a09e667);
   g.forEach((d, i) => {
     const twin = d.ck === 'twins';
-    if (i < TUNING.arenas[A.id].pairs && !twin) return;
+    if (!pairAt(A, i) && !twin) return;
     const row = d.champion && !twin ? d.tier - 1 : d.tier;
     let q;
     for (let k = 0; k < 6 && (!q || g.some((o) => o.name === q.name || (o.pair && o.pair.name === q.name))); k++) q = rollFighter(pr, row, pr.pick(W), used, A, i);
@@ -1396,7 +1407,7 @@ function rollGauntlet(seed, rival, A = ARENAS[0], first = null) {
   });
   // the Colosseum: its beast bouts are a lion or a bear (on their own stream), and the Beastmaster's lion waits at the edge as his partner
   const br = makeRng(seed ^ 0x1f83d9ab), AT = TUNING.arenas[A.id];
-  for (const i of AT.beasts || []) if (g[i]) g[i] = rollBeast(br, g[i].tier, br.pick(Object.keys(BEASTS)), A, i, (AT.young || []).includes(i));
+  for (const i of AT.beasts || []) if (g[i]) g[i] = rollBeast(br, g[i].tier, br.pick(Object.keys(BEASTS)), A, i, (AT.young || []).includes(i), (AT.armour || []).includes(i));
   g.forEach((d, i) => { const C = NEW_CHAMPS[d.ck]; if (C && C.beast) { d.pair = rollBeast(pr, d.tier, C.beast, A, i); d.sends = true; } });
   // a rival keeps his own partner; one who sends no beast never borrows the rolled Beastmaster's lion
   const asRival = (i, rec, from) => {
@@ -1418,7 +1429,7 @@ function rollGauntlet(seed, rival, A = ARENAS[0], first = null) {
   return g;
 }
 const rivalOf = (d) => ({ name: d.name, ck: d.ck || null, title: d.title || null, champion: !!d.champion, size: d.size.id, vary: d.size.vary, prof: d.prof, weapon: d.weapon.id, set: d.set.id, str: d.str, spd: d.spd, sta: d.sta, shield: d.shield, dual: !!d.dual, mace: d.mace, partSeed: d.partSeed,
-  gear: (d.gear || []).slice(), gaps: { ...(d.gaps || {}) }, pair: d.pair ? rivalOf(d.pair) : null, ...(d.beast ? { beast: d.beast, epithet: d.epithet } : {}) });
+  gear: (d.gear || []).slice(), gaps: { ...(d.gaps || {}) }, pair: d.pair ? rivalOf(d.pair) : null, ...(d.beast ? { beast: d.beast, epithet: d.epithet, armour: !!d.armour } : {}) });
 // His gear from the deck: more pieces in later bouts, one a slot, up to the bout's rarity; a champion also wears a legendary. A shield piece only on a
 // shield-bearer, and the cape that bans the shield only on a man without one.
 function rollGear(rng, d, i, A = ARENAS[0]) {
@@ -1455,7 +1466,7 @@ function guardParts(parts, guards) { for (const q of parts) if (q.slot && (guard
 function makeFoe(d, pair) {
   const FT = TUNING.foe, f = { ...d };
   f.wname = (d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name) + (d.dual ? ' x2' : '');
-  f.parts = d.beast ? beastParts(d.beast) : guardParts(foeParts(makeRng(d.partSeed), d.set, d.plus || 0, dualGaps(d)), d.guards); f.look = d.beast ? null : foeLook(d); f.cloak = null; f.bp = null;
+  f.parts = d.beast ? beastParts(d.beast, !!d.armour) : guardParts(foeParts(makeRng(d.partSeed), d.set, d.plus || 0, dualGaps(d)), d.guards); f.look = d.beast ? null : foeLook(d); f.cloak = null; f.bp = null;
   f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1) * (pair ? TUNING.pairs.hp : 1) * TUNING.arenaHp[arena().id] * TUNING.boutLength); f.hp = f.maxHp; f.shown = f.hp;
   f.staMax = TUNING.foeSta.base + TUNING.foeSta.per * d.sta; f.sta = f.staMax; f.staT = 9; f.staShown = 1;
   f.home = d.weapon.range + d.size.reach; f.strike = d.weapon.strike + d.size.reach;
@@ -2796,7 +2807,7 @@ function bounce(E, p, at, ang, sp, a) {
   sparks(at.x, at.y, ang + Math.PI, glance ? 8 : 24); ring(at.x, at.y, glance ? 24 : 44, '#cbd5e1');
   clangSound(E, 0); shake(E, glance ? 2 : 6, 0.12); E.haptic(glance ? 8 : 24);
   let stop = glance ? 0.01 : J.stopClang + 0.02;
-  const breakAt = a.kind === 'over' && meWeapon().overBreak ? meWeapon().overBreak : A.dents;
+  const breakAt = a.kind === 'over' && meWeapon().overBreak ? meWeapon().overBreak : state.foe.beast ? TUNING.beasts.armour.dents : A.dents;
   if (p.armour && (p.dents >= breakAt || (a.kind === 'over' && has('breaker')) || anvil)) {
     p.armour = false; state.broken++;
     if (p.d.id === 'head' && !state.foe.beast && !state.foe.parts.some((q) => q.d === FACE_SLOT)) { const q = mkPart(FACE_SLOT, false); q.slot = true; state.foe.parts.push(q); }
@@ -3919,9 +3930,15 @@ const SHIPPED = new Set([
   'gear-colossus-plate gear-smoke-pouch-belt gear-mirror-cloak gear-laurel-wreath gear-idols-torc tailor-crest-bronze tailor-crest-silver ',
   'tailor-crest-gold tailor-plume-red tailor-plume-white tailor-plume-black tailor-paint-wings tailor-paint-bolt tailor-paint-sun tailor-cloak-red ',
   'tailor-cloak-blue tailor-cloak-green weapon-gladius weapon-spear weapon-dagger weapon-sica weapon-axe weapon-mace weapon-trident ',
-  'weapon-wooden-sword logo-arena'
+  'weapon-wooden-sword logo-arena ',
+  // the beasts' barding (Pack 26b) and the laurel ring (Pack 26)
+  'beast-lion-armour-head beast-lion-armour-chest beast-lion-armour-back beast-lion-armour-leg beast-bear-armour-head beast-bear-armour-chest ',
+  'beast-bear-armour-back beast-bear-armour-leg laurel-ring'
 ].join('').split(' '));
-const shippedSrc = (name) => `assets/${name}.webp`;
+// Pack 27: the helmets and head gear painted onto the head ship as <name>-worn.webp; their old pieces' files are retired
+const WORN = new Set(['kit-helmet-gallic', 'kit-helmet-murmillo', 'kit-helmet-thraex', 'kit-helmet-secutor', 'gear-bronze-crest', 'gear-plumed-helm', 'gear-phalanx-helm',
+  'gear-horned-cap', 'gear-dark-hood', 'gear-blood-band', 'gear-ribbon-band', 'gear-laurel-wreath']);
+const shippedSrc = (name) => `assets/${name}${WORN.has(name) ? '-worn' : ''}.webp`;
 // the art the game asks: E.art in the dev channel (candidates and the designer's picks), the shipped A picks in release
 const shippedArt = { enabled: true, has: (n) => SHIPPED.has(n), choice: () => 0, url: shippedSrc, src: shippedSrc, on() {} };
 const RETIRED = /^(kit-base-(upperarm|forearm|thigh|shin)(-(lean|avg))?(-seg)?|beast-(lion|bear)-(body|upperleg|lowerleg)(-young)?(-seg)?|beast-(lion|bear)-upperleg-young-seg)$/;
@@ -3970,6 +3987,9 @@ const ART_NAMES = {
 };
 for (const [k, n] of [['torso', 'Torso'], ['upperarm', 'Upper arm'], ['forearm', 'Forearm'], ['thigh', 'Thigh'], ['shin', 'Shin']]) ART_NAMES[`kit-base-${k}`] = `${n}, muscular`;
 ART_NAMES['kit-base-torso-lean'] = 'Torso, lean'; ART_NAMES['kit-base-torso-avg'] = 'Torso, average';
+// Step 16: the beasts' barding, the laurel ring
+for (const [k, kn] of [['lion', 'Lion'], ['bear', 'Bear']]) for (const [p, pn] of [['head', 'head guard'], ['chest', 'chest plate'], ['back', 'back plate'], ['leg', 'foreleg guard']]) ART_NAMES[`beast-${k}-armour-${p}`] = `${kn}, ${pn}`;
+ART_NAMES['laurel-ring'] = "Laurel ring (a cleared arena's)";
 // Step 6d (Pack 21): a whole limb is picked by its upper half
 for (const [t, tn] of [['lean', 'lean'], ['avg', 'average'], ['musc', 'muscular']]) { ART_NAMES[`kit-arm-up-${t}`] = `Arm, ${tn} (both halves)`; ART_NAMES[`kit-leg-up-${t}`] = `Leg, ${tn} (both halves)`; }
 for (const k of ['lion', 'bear']) for (const [y, yn] of [['', k[0].toUpperCase() + k.slice(1)], ['-young', `Young ${k}`]]) {
@@ -4119,20 +4139,33 @@ function manArt(lk, tier, wk = null) {
 // a beast's paint: every part beastKit pins (a young beast's own where it has one)
 function beastArt(fm) {
   const nm = (part) => { const b = `beast-${fm.beast}-${part}`; return fm.young && ART && ART.has(`${b}-young`) ? `${b}-young` : b; };
-  return { body: [], extra: ['torso', 'head', 'fore-up', 'fore-lo', 'hind-up', 'hind-lo', ...(TUNING.beastArt[fm.beast].tail ? ['tail'] : [])].map(nm) };
+  return { body: [], extra: [...['torso', 'head', 'fore-up', 'fore-lo', 'hind-up', 'hind-lo', ...(TUNING.beastArt[fm.beast].tail ? ['tail'] : [])].map(nm),
+    ...(fm.parts && fm.parts.some((q) => q.armour) ? Object.keys(BARD).map((k) => `beast-${fm.beast}-armour-${k}`) : [])] };
 }
 // the painted doll on a card (kitIcon): its body, and the plates it wears
 function dollArt(parts, str, gm) {
   const on = (id) => parts.some((q) => q.d.id === id && q.armour);
   return { body: KIT_PARTS.map((p) => kitName(p, kitTier(str))), extra: [...(on('head') ? [`kit-helmet-${KIT_HELM[gm] || 'gallic'}`] : []), KIT_GEAR.plate, KIT_GEAR.manica, KIT_GEAR.greave] };
 }
-const helmPic = (lk) => artPic(`kit-helmet-${lk.kit.helm}`, TUNING.kit.helm[lk.kit.helm]);
+// Pack 27: a piece painted onto the head is pinned as the head is (by its top and chin, TUNING.kit.head), moved by its head origin o
+const headJ = (J) => { const h = TUNING.kit.head, [ox, oy] = J.o; return { ...J, a: [h.a[0] + ox, h.a[1] + oy], b: [h.b[0] + ox, h.b[1] + oy] }; };
+const helmArt = (k) => artPic(`kit-helmet-${k}`, headJ(TUNING.kit.helm[k]));
+const helmPic = (lk) => helmArt(lk.kit.helm);
+// What a painted head wears: on a plated head, its helmet (his type's, or a gear piece that is one); the head piece of his gear that goes on too (none
+// over a closed helmet, no hood over any, and on his unplated head none that reads as a plate, J.bare 0); and whether one of them, closed, is drawn
+// instead of the head
+function headWear(p, lk) {
+  const G = gearArt(lk, 'helmet'), hp = p.armour && helmPic(lk), helm = p.armour ? (G && G.J.helm ? G : hp) : null;
+  let piece = G && !(p.armour && G.J.helm) && !(hp && (hp.J.closed || G.J.cover)) ? G : null;
+  if (piece && !p.armour && !lk.kit.you && piece.J.bare === 0) piece = null;
+  return { helm, piece, hp, closed: !!((helm && helm.J.closed) || (piece && piece.J.closed)) };
+}
 const gearPic = (piece, px = 0) => artPic(KIT_GEAR[piece], TUNING.kit[piece], px);
 const shieldPic = (kind, px = 0) => artPic(`kit-shield-${kind}`, TUNING.kit.shields[kind], px);
 // Step 6c-2: the painted piece a kit look wears in a slot (null: the drawn piece stays); px > 0 a live copy
 function gearArt(lk, slot, px = 0) {
   const c = lk.kit && lk.gear && lk.gear[slot], f = c && gearFile(c), J = f && TUNING.kit.gear[f];
-  return J ? artPic(f, J, px) : null;
+  return J ? artPic(f, J.o ? headJ(J) : J, px) : null;
 }
 // Step 14: the tailor's looks you wear, painted (TUNING.kit.tailor): their files, and an item's painting on a kit look (null: the drawn look stays)
 const tailorFiles = (lk) => Object.entries(lk.tailor || {}).map(([k, t]) => tailorFile(k, t)).filter((n) => TUNING.kit.tailor[n]);
@@ -4239,9 +4272,9 @@ function kitBody(c, p, H, lk) {
   const K = TUNING.kit, id = p.d.id, t = lk.kit.tier;
   if (id === 'cloak') return true;
   if (id === 'head') {
-    const hg = gearArt(lk, 'helmet'), P = kitPic('head'), hp = p.armour && !(hg && hg.J.helm) && helmPic(lk);
+    const P = kitPic('head');
     if (!P) return false;
-    if (!(hp && hp.J.closed)) drawSeg(c, P, [p.d.x * H, K.top * H], [p.d.x * H, K.chin * H], 0);
+    if (!headWear(p, lk).closed) drawSeg(c, P, [p.d.x * H, K.top * H], [p.d.x * H, K.chin * H], 0);
     return true;
   }
   if (id === 'chest' || id === 'belly') {
@@ -4374,7 +4407,7 @@ function lookOf(fm, isFoe) {
 // What shows through each gap, and which sides the plate edges frame it from (top and bottom, or left and right).
 const SLOT_ART = { 'slot-neck': ['skin', 'tb'], 'slot-armpit': ['linen', 'lr'], 'slot-waist': ['linen', 'tb'], 'slot-elbow': ['skin', 'tb'], 'slot-knee': ['skin', 'tb'], 'slot-face': ['skin', 'lr'] };
 // Sprite bounds in body units (arms in their own frame): room for crests, straps, the fist and the shoulder guards.
-const BOX = { head: [-0.17, -1.05, 0.18, -0.66], chest: [-0.17, -0.74, 0.17, -0.5], belly: [-0.19, -0.54, 0.19, -0.24], armF: [-0.14, -0.2, 0.12, 0.42], armB: [-0.14, -0.2, 0.12, 0.42], legs: [-0.21, -0.43, 0.25, 0.04], cloak: [-0.34, -0.86, 0.14, 0.01] };
+const BOX = { head: [-0.17, -1.1, 0.18, -0.66], chest: [-0.17, -0.74, 0.17, -0.5], belly: [-0.19, -0.54, 0.19, -0.24], armF: [-0.14, -0.2, 0.12, 0.42], armB: [-0.14, -0.2, 0.12, 0.42], legs: [-0.21, -0.43, 0.25, 0.04], cloak: [-0.34, -0.86, 0.14, 0.01] };
 const LEGS = [[[-0.02, -0.37], [-0.07, -0.19], [-0.12, -0.02]], [[0.02, -0.37], [0.09, -0.2], [0.12, -0.02]]];
 const canSprite = typeof OffscreenCanvas === 'function';
 
@@ -4491,7 +4524,7 @@ function paintHead(c, p, H, lk) {
   const helm = p.armour ? lk.helm : null, closed = helm === 'murmillo' || helm === 'hoplo';
   // the kit: the painted head is under this (none under a closed helmet); a plated head wears his type's painted helmet, or the helmet piece
   // of his gear that covers the skull (step 6c-2)
-  const hg = K && p.armour && gearArt(lk, 'helmet'), kh = K && p.armour && (hg && hg.J.helm ? hg : helmPic(lk));
+  const kh = K && headWear(p, lk).helm;
   if (kh) { drawSeg(c, kh, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0); wear(c, p, H, x, y - r * 0.3, r, () => { c.beginPath(); c.arc(x, y - r * 0.3, r * 0.9, 0, TAU); }); return; }
   if (!closed && !K) face(c, x, y, r, lk, H, !p.armour);
   if (!p.armour) {
@@ -4833,19 +4866,19 @@ function paintHeadGear(c, p, H, lk) {
     else if (id === 'showstop') for (let k = 0; k < 5; k++) { const a = Math.PI * (1.1 + k * 0.16); c.beginPath(); c.ellipse(x + Math.cos(a) * r * 0.78, y + Math.sin(a) * r * 0.78, r * 0.13, r * 0.06, a + 1.2, 0, TAU); c.fill(); }
     c.restore();
   });
-  if (!g) { if (lk.tailor) tailorHead(c, x, y, r, H, lk.tailor, lk); return; }
-  // the painted piece (a helmet that stood in for a plated head's is already on it)
-  const G = gearArt(lk, 'helmet');
-  if (G) {
-    if (p.armour && G.J.helm) return;
-    // a head piece that is not a helmet: none over a closed helmet (nor a hood over any); a band is tied under an open helmet's brim, so the helmet goes back on over it
-    const hp = p.armour && helmPic(lk);
-    if (hp && (hp.J.closed || G.J.cover)) return;
-    // (a ring laid round the brow, step 14: J.at its back and front from the head's centre, its depth across)
-    const W = G.J.at;
-    if (W) wearSeg(c, G, [x + W[0] * H, y + W[1] * H], [x + W[2] * H, y + W[3] * H], W[4] * H, !p.armour && !lk.kit.you);
-    else wearSeg(c, G, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0, !p.armour && !lk.kit.you);
-    if (hp) drawSeg(c, hp, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0);
+  if (!g) {
+    // (on a painted helmet the tailor's crest and plume stand on its dome)
+    const hk = p.armour && lk.kit && TUNING.kit.helm[lk.kit.helm], dy = hk ? (hk.crest - TUNING.kit.tailor.crest.at[1]) * r : 0;
+    if (lk.tailor) { c.save(); c.translate(0, dy); tailorHead(c, x, y, r, H, lk.tailor, lk); c.restore(); }
+    return;
+  }
+  // the painted piece (a helmet that stood in for a plated head's is already on it); a band is tied under an open helmet's brim, so the helmet goes
+  // back on over it
+  if (gearArt(lk, 'helmet')) {
+    const W = headWear(p, lk), G = W.piece;
+    if (!G) return;
+    drawSeg(c, G, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0);
+    if (W.hp) drawSeg(c, W.hp, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0);
     return;
   }
   const L = FAM_LOOK[g.fam], M = L.metal;
@@ -5425,7 +5458,7 @@ const edgeBox = (f, H) => { const B = beastOf(f); return B ? [(B.front + B.back 
 function edgeSprite(E, f) {
   const F = edgeF(E, f), k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), [w, left] = edgeBox(f, F.H), h = 1.25 * F.H, feet = 1.12 * F.H;
   let key = Math.round(F.H * k);
-  for (const p of f.parts) key = (key * 31 + (p.cut ? 1 : 0) + 2 * p.dents + 64 * p.cracks.length) % 2147483647;
+  for (const p of f.parts) key = (key * 31 + (p.cut ? 1 : 0) + 2 * p.dents + 64 * p.cracks.length + 4096 * (p.armour ? 1 : 0)) % 2147483647;
   if (kitOn()) key = `${key}|${f.beast ? `${f.beast}${f.young ? 'y' : ''}|${artV}` : lookFor(f, true).id}`;
   if (!f.spr || f.spr.key !== key) {
     const cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
@@ -6161,9 +6194,13 @@ function beastSlot(ctx, p, H) {
   if (w > h) line(ctx, x + w * 0.2, d.y * H, x + w * 0.8, d.y * H); else line(ctx, d.x * H, y + h * 0.2, d.x * H, y + h * 0.8);
 }
 // a part's cuts and its flash when hit, in its frame
-function beastMarks(ctx, fm, p, H) {
+function beastMarks(ctx, fm, p, H, drawn = false) {
   const fr = fm.fr[p.d.frame || p.d.id];
   ctx.save(); if (fr) inFrame(ctx, fr, H);
+  // the drawn beast's barding (no painting): its plate's shape in bronze (a lion's) or iron (a bear's)
+  if (drawn && p.armour) { const M = fm.beast === 'lion' ? BRONZE : IRON, d = p.d; path(ctx, d, H); ctx.fillStyle = metalGrad(ctx, (d.x - 0.05) * H, (d.y - 0.08) * H, (d.x + 0.05) * H, (d.y + 0.08) * H, M); ctx.fill(); ctx.strokeStyle = M.edge; ctx.lineWidth = 1.5; ctx.stroke(); }
+  // a plate's dents and cracks, as a man's (step 16)
+  if (p.armour) { const d = p.d, r = d.shape === 'circle' ? d.r : Math.min(d.w, d.h) / 2; wear(ctx, p, H, d.x * H, d.y * H, r * H, () => path(ctx, d, H)); }
   cuts(ctx, p, H);
   if (p.flash > 0) { path(ctx, p.d, H); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,240,200,${0.6 * p.flash / 0.16})`; ctx.fill(); }
   ctx.restore();
@@ -6215,7 +6252,48 @@ function beastKit(E, fm, H) {
     legs: [half('fore-up'), half('fore-lo'), half('hind-up'), half('hind-lo')],
     tail: A.tail ? artPic(nm('tail'), A.tail, A.tail.size[0] * A.head.u * H * dk) : null, pin: TUNING.beastArt.pin[artStem(nm('torso'))] || null,
   };
-  return K.body && K.head && K.legs.every(([a, b]) => a && b) && (!A.tail || K.tail) ? K : null;
+  if (!(K.body && K.head && K.legs.every(([a, b]) => a && b) && (!A.tail || K.tail))) return null;
+  // its barding (step 16): each piece fitted to the part it is worn on, while that part's plate holds
+  const on = (k) => fm.parts.some((q) => q.d.id === TUNING.beasts.armour.plates[k] && q.armour), lay = (k, P, d = 0) => (on(k) ? bardPic(fm.beast, k, P, nm(BARD[k]), d) : null);
+  K.bard = { head: lay('head', K.head), back: lay('back', K.body), chest: lay('chest', K.body), leg: lay('leg', K.legs[0][0]), legFar: lay('leg', K.legs[0][0], dark) };
+  // the torso's and the head's pieces are baked into one copy with their part, so each is still one image a frame
+  K.bodyB = bardBake(K.body, [K.bard.back, K.bard.chest]); K.headB = bardBake(K.head, [K.bard.head]);
+  return K;
+}
+// a part's copy with the pieces it wears painted over it (cached on the copy by which pieces are on), or the copy itself with none
+function bardBake(P, list) {
+  const on = list.filter(Boolean);
+  if (!on.length || !canSprite || !(P.im instanceof OffscreenCanvas)) return P;
+  let C = BARDS.get(P);
+  if (!C) BARDS.set(P, (C = {}));
+  const key = `bake|${on.map((G) => G.src.src).join('|')}`;
+  if (C[key]) return C[key];
+  const cv = new OffscreenCanvas(P.im.width, P.im.height), c = cv.getContext('2d');
+  c.drawImage(P.im, 0, 0); for (const G of on) c.drawImage(G.im, 0, 0);
+  return (C[key] = { ...P, im: cv });
+}
+// Step 16 (Pack 26b): each barding piece is painted on its -A part's own canvas, so it is drawn with that part's box, pin and mirror. Fitted once
+// to the part's copy on screen: moved from the -A part's joints to this part's (a young foreleg's sit elsewhere), cut to its outline, shaded for a
+// far leg; cached on the copy, so a new copy (a new size or pick) fits it again.
+const BARD = { head: 'head', back: 'torso', chest: 'torso', leg: 'fore-up' };
+const BARDS = new WeakMap();
+function bardPic(kind, k, P, part, dark) {
+  const im = artImg(`beast-${kind}-armour-${k}`);
+  if (!im) return null;
+  if (!canSprite || !(P.im instanceof OffscreenCanvas)) return { im, J: P.J, kx: im.width / P.J.size[0], ky: im.height / P.J.size[1] };
+  let C = BARDS.get(P);
+  if (!C) BARDS.set(P, (C = {}));
+  const key = `${k}|${dark}`;
+  if (C[key] && C[key].src === im) return C[key];
+  const cv = new OffscreenCanvas(P.im.width, P.im.height), c = cv.getContext('2d'), grown = k === 'leg' && { size: TUNING.beastArt.legSize, ...halfJ(`beast-${kind}-${BARD[k]}-A`) };
+  c.imageSmoothingQuality = 'high';
+  if (grown && artStem(part) !== `beast-${kind}-${BARD[k]}-A`) {
+    const J = P.J, at = (q) => [q[0] * P.kx, q[1] * P.ky];
+    drawSeg(c, { im, J: grown, kx: im.width / grown.size[0], ky: im.height / grown.size[1] }, at(J.a), at(J.b), J.w * P.kx, !!J.mir !== !!grown.mir);
+  } else c.drawImage(im, 0, 0, cv.width, cv.height);
+  c.globalCompositeOperation = 'destination-in'; c.drawImage(P.im, 0, 0);
+  if (dark) { c.globalCompositeOperation = 'source-atop'; c.fillStyle = `rgba(20,10,4,${dark})`; c.fillRect(0, 0, cv.width, cv.height); }
+  return (C[key] = { im: cv, J: P.J, kx: P.kx, ky: P.ky, src: im });
 }
 // The painted beast, drawn from its pose like the drawn one and in the same order: the far legs (shaded), the tail and the torso (mirrored: its PNG
 // faces left), the near hind leg over the torso's edge, the head pinned by its eye with the tells on it, the near foreleg; each part's cuts and flash on top.
@@ -6231,6 +6309,13 @@ function beastPainted(ctx, fm, H, K, q, live, C, P, fw, hw) {
     const x = B[2] - q[0] * (B[2] - B[0]) / sz[0] + (far ? R[1][0] - R[0][0] : 0), y = B[1] + q[1] * (B[3] - B[1]) / sz[1] + (far ? R[1][1] - R[0][1] : 0);
     return [bf.ox + x * bc - y * bs, bf.oy + x * bs + y * bc];
   };
+  // (a barding piece is drawn as its part is, straight after it (baked into the torso's and head's copies), washed bright while it clangs)
+  const PL = TUNING.beasts.armour.plates, bard = (k, draw, baked = false) => {
+    const G = K.bard[k]; if (!G) return;
+    if (!baked) draw(G);
+    const p = P(PL[k === 'legFar' ? 'leg' : k]), g = p.clang / 0.25 * 0.5;
+    if (g > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= g; draw(G); ctx.restore(); }
+  };
   const leg = (i, w, dark) => {
     const [, k, f] = lg[i], S = (p) => [p[0] * H, p[1] * H], kk = S(k), ff = S(f), d = dark ? 1 : 0, L = K.legs, j = i < 2 ? 0 : 2;
     // the halves face left as the torso does, so both are mirrored to face ahead
@@ -6240,18 +6325,24 @@ function beastPainted(ctx, fm, H, K, q, live, C, P, fw, hw) {
     const t = (ff[1] - kk[1]) / (Math.hypot(ff[0] - kk[0], ff[1] - kk[1]) || 1);
     if (Math.abs(t) > TUNING.beastArt.pawBand) paw[i] = t < 0;
     drawSeg(ctx, L[j + 1][d], kk, ff, w * H, !paw[i]);
+    // the foreleg's guard on its upper half, over the knee
+    if (i < 2) bard(dark ? 'legFar' : 'leg', (G) => drawSeg(ctx, G, S(top(i)), kk, w * H, true));
   };
   leg(1, fw, true); leg(3, hw, true);
   ctx.save(); inFrame(ctx, fr.body, H);
   if (K.tail) { const [tx, ty] = tailTip(q); drawSeg(ctx, K.tail, [A.tail.root[0] * H, A.tail.root[1] * H], [tx * H, ty * H], 0); }
-  ctx.save(); ctx.scale(-1, 1); ctx.drawImage(K.body.im, -B[2] * H, B[1] * H, (B[2] - B[0]) * H, (B[3] - B[1]) * H); ctx.restore();
+  ctx.save(); ctx.scale(-1, 1);
+  const torso = (G) => ctx.drawImage(G.im, -B[2] * H, B[1] * H, (B[2] - B[0]) * H, (B[3] - B[1]) * H);
+  torso(K.bodyB); bard('back', torso, K.bodyB !== K.body); bard('chest', torso, K.bodyB !== K.body);
+  ctx.restore();
   ctx.restore();
   beastMarks(ctx, fm, P('chest'), H); beastMarks(ctx, fm, P('belly'), H);
   leg(2, hw, false);
   beastMarks(ctx, fm, P('legs'), H);
   ctx.save(); inFrame(ctx, fr.head, H);
   const hd = P('head').d, hx = hd.x * H, hy = hd.y * H, s = A.head.u * H, EA = TUNING.beastArt.eyeAt;
-  ctx.drawImage(K.head.im, hx + EA[0] * H - A.head.eye[0] * s, hy + EA[1] * H - A.head.eye[1] * s, A.head.size[0] * s, A.head.size[1] * s);
+  const head = (G) => ctx.drawImage(G.im, hx + EA[0] * H - A.head.eye[0] * s, hy + EA[1] * H - A.head.eye[1] * s, A.head.size[0] * s, A.head.size[1] * s);
+  head(K.headB); bard('head', head, K.headB !== K.head);
   beastFace(ctx, H, hx, hy, q, C, lion, live, true);
   ctx.restore();
   beastMarks(ctx, fm, P('head'), H);
@@ -6294,7 +6385,7 @@ function drawBeast(ctx, E, F, fm, who, ga = 1) {
     if (!lion) { ctx.strokeStyle = 'rgba(20,12,6,0.4)'; ctx.lineWidth = 1.2; for (let i = 0; i < 9; i++) { const x = (-0.3 + i * 0.05) * H, y = (-0.4 + (i % 3) * 0.05) * H; line(ctx, x, y, x - 0.015 * H, y + 0.03 * H); } }
     ctx.restore();
     ctx.restore();
-    beastMarks(ctx, fm, P('chest'), H); beastMarks(ctx, fm, P('belly'), H);
+    beastMarks(ctx, fm, P('chest'), H, true); beastMarks(ctx, fm, P('belly'), H, true);
     // the near hind leg, its haunch over the hip
     const [ha] = lg[2];
     beastLeg(ctx, lg[2], H, hw, C.body, C.line);
@@ -6316,10 +6407,10 @@ function drawBeast(ctx, E, F, fm, who, ga = 1) {
     ctx.beginPath(); ctx.arc(hx, hy, r * (lion ? 0.95 : 0.9), 0, TAU); ctx.fill(); ctx.stroke();
     beastFace(ctx, H, hx, hy, q, C, lion, live, false);
     ctx.restore();
-    beastMarks(ctx, fm, P('head'), H);
+    beastMarks(ctx, fm, P('head'), H, true);
     // the near foreleg over the chest, a red cross on a lamed leg, then the gaps and their light
     beastLeg(ctx, lg[0], H, fw, C.body, C.line);
-    beastMarks(ctx, fm, P('legF'), H);
+    beastMarks(ctx, fm, P('legF'), H, true);
   }
   if (live && state.foeNet > 0 && state.fallT <= 0 && netArt()) drapeNet(ctx, E, H, fm, netK(state.foeNet));
   markLamed(ctx, fm, H);
@@ -6819,12 +6910,12 @@ const BEAST_LINE = {
 };
 // A card whose rule needs his armour keeps its own line against a beast, with a muted note under it
 const ARMOUR_CARDS = ['heavy', 'brawler', 'breaker', 'butcher'];
-function beastNext() {
-  const d = state.gauntlet && state.gauntlet[state.draft || state.tent ? state.rack + 1 : state.rack];
-  return !!d && !!(d.beast || (d.pair && d.pair.beast));
+function beastNext(bare = false) {
+  const d = state.gauntlet && state.gauntlet[state.draft || state.tent ? state.rack + 1 : state.rack], is = (q) => !!q && !!q.beast && !(bare && q.armour);
+  return !!d && (is(d) || is(d.pair));
 }
 const cardLine = (c) => (BEAST_LINE[c.id] && beastNext() ? BEAST_LINE[c.id] : c.line);
-const beastNote = (c) => (ARMOUR_CARDS.includes(c.id) && beastNext() ? 'No use against a beast: it wears no armour.' : '');
+const beastNote = (c) => (ARMOUR_CARDS.includes(c.id) && beastNext(true) ? 'No use against a beast: it wears no armour.' : '');
 // The armourer's tent: your purse, three wares to buy (tap one), and Skip (Leave once you have bought)
 function drawTent(ctx, E) {
   const tt = state.tent, top = E.safe.top + 20, ready = tt.t > TUNING.draft.delay;
@@ -6925,7 +7016,7 @@ const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps 
 // are painted as a painted man's (kitSlot, kitGuard). No flat box or circle is drawn over the painted body.
 function kitIcon(ctx, parts, s, str, gm, pose = null) {
   const K = TUNING.kit, t = kitTier(str), on = (id) => parts.some((q) => q.d.id === id && q.armour), head = parts.find((q) => q.d.id === 'head'), hk = KIT_HELM[gm] || 'gallic';
-  const kh = on('head') && artPic(`kit-helmet-${hk}`, K.helm[hk]), Hd = kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
+  const kh = on('head') && helmArt(hk), Hd = kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
   if (!Hd || !T || !U || !F || !Th || !Sh) return false;
   const hx = (head ? head.d.x : 0) * s, G = on('legs') && gearPic('greave'), PL = gearPic('plate'), M = gearPic('manica'), B = PARTS[pidx('belly')], bw = B.w * s;
   (pose ? pose.legs : LEGS).forEach(([hip, knee, ank]) => {
@@ -7204,7 +7295,7 @@ function drawBeastIntro(ctx, E) {
 }
 // a beast drawn small at rest on its card, w px from nose to tail, its feet at (x, y); its gaps show as on the sand
 function beastIcon(ctx, E, d, x, y, w) {
-  const B = TUNING.beasts[d.beast], s = w / (B.front + B.back + 0.08), ic = d.icon || (d.icon = { beast: d.beast, young: d.young, parts: beastParts(d.beast) });
+  const B = TUNING.beasts[d.beast], s = w / (B.front + B.back + 0.08), ic = d.icon || (d.icon = { beast: d.beast, young: d.young, parts: beastParts(d.beast, !!d.armour) });
   beastRest(ic);
   drawBeast(ctx, E, { x: x - (B.back - B.front) / 2 * s, y, a: 0, dir: -1, H: s }, ic, 'edge');
 }
@@ -8112,13 +8203,16 @@ function paintPickCard(c, E, o) {
   c.fillStyle = g; c.fillRect(ix, iy, iw, ih);
   const cx = m + w / 2, ph = Math.max(40, h - P.top - P.bot), pw = Math.min(ph * 0.75, iw - 10), py = m + P.top;
   if (shown) {
-    if (cleared) laurel(c, cx, py + ph / 2, Math.min(ph * 0.62, iw / 2 - 6));
+    // a cleared arena's laurel: the painted ring over the portrait (step 16, Pack 26: TUNING.pick.ring), else the drawn one behind it
+    const ring = cleared && artImg('laurel-ring'), R = P.ring;
+    if (cleared && !ring) laurel(c, cx, py + ph / 2, Math.min(ph * 0.62, iw / 2 - 6));
     if (!face || !drawPic(c, E, face, [0, 0, 1, 1], cx - pw / 2, py, pw, ph, cleared ? '#ffd24a' : '#e6c866')) {
       const fy = py + ph, fh = ph * 0.9;
       silhouette(c, cx + (a.id === 'city' ? 12 : a.id === 'rome' ? 16 : 0), fy, fh, open ? '#6b5a44' : '#3a3242');
       if (a.id === 'city') silhouette(c, cx - 18, fy + 4, fh * 0.85, open ? '#4e4234' : '#2e2836');
       if (a.id === 'rome') lionSilhouette(c, cx - 14, fy, fh * 0.5, open ? '#8a7454' : '#2e2836');
     }
+    if (ring) { const k = ph / R[2]; c.drawImage(ring, cx - R[0] * k / 2, py + ph / 2 - R[1] * k / 2, R[0] * k, R[1] * k); }
   }
   if (!open) {
     if (bd) { c.globalCompositeOperation = 'saturation'; c.fillStyle = '#000'; c.fillRect(ix, iy, iw, ih); c.globalCompositeOperation = 'source-over'; }
@@ -8147,7 +8241,7 @@ const pickArena = {
       const pic = shown ? champPic(rv) || champPic({ champion: true, name: a.champs[0], ck: NEW_CHAMPS[a.champs[0]] ? a.champs[0] : undefined }) : null;
       const bd = artImg(BACKDROP[a.id]), face = pic && artImg(pic) ? pic : null;
       const o = { a, w, h, open, cleared, shown, bd, face };
-      menuBlit(ctx, E, `pick|${a.id}|${open ? 1 : 0}|${cleared ? 1 : 0}|${shown ? 1 : 0}|${bd ? artV : '-'}|${face ? `${face}${artV}` : '-'}`, x - P.m, y - P.m, w + 2 * P.m, h + 2 * P.m + 2, (c) => paintPickCard(c, E, o));
+      menuBlit(ctx, E, `pick|${a.id}|${open ? 1 : 0}|${cleared ? 1 : 0}|${shown ? 1 : 0}|${bd ? artV : '-'}|${face ? `${face}${artV}` : '-'}|${cleared && artImg('laurel-ring') ? artV : '-'}`, x - P.m, y - P.m, w + 2 * P.m, h + 2 * P.m + 2, (c) => paintPickCard(c, E, o));
       // the name carries its place ("The City arena, Pompeii"), wrapped onto up to three lines: one item
       wrapPx(ctx, `${a.name}, ${a.place}`.toUpperCase(), w - 12, 14, '800').slice(0, 3).forEach((t, k) => liftInk(ctx, t, cx, y + 20 + k * 17, 14, '800', ink0));
       if (!shown) padlock(ctx, cx, y + P.top + (h - P.top - P.bot) / 2, '#e6c866');
