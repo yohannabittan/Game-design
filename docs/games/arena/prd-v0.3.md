@@ -1780,8 +1780,15 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 | Glory | **Louder** | "Glory is loud. Be louder." | the crowd's favour builds 25% faster |
 | A promise | **She's Waiting** | "Don't make her wait." | one extra heart back for each foe felled |
 
+**Skip a draft for gold.** The designer: "In the shop, if I don't want any of the cards, there's no way to skip. I feel I should be able to skip for like 10 to 20 coins extra."
+- The draft gains a **Skip** button beside Reroll, showing its pay, for example "Skip +15".
+- Skipping takes no card and adds the gold to your purse; rerolling first and then skipping is allowed.
+- The pay grows with the bout: 10 after bout 1, rising to 20 by the last (`TUNING.draft.skip`).
+- A skip counts in the export (`skips`).
+
 ### Acceptance
 
+- Skip pays and closes the draft, and it works after a reroll.
 - Each trait and each drive fires in a scripted check and shows its tag.
 - The fighter card and the "?" page show it, at three sizes.
 - `npm run smoke`.
