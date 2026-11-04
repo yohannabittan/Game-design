@@ -1618,3 +1618,9 @@ When `docs/art/HANDOFF-arena-pack23.md` lands:
 - Frames: each weapon in your hand at guard and at full swing; a foe with each weapon; the inventory rack; the menu and boot card with the logo.
 - Perf of the play scene within 10%.
 - `npm run smoke` passes.
+
+### Step 14 also carries (added 2026-11-04)
+
+- **Pack 22 wiring** (`docs/art/HANDOFF-arena-pack22.md`): the 12 vault gear paintings replace their placeholder pins in `TUNING.kit.gear`, and the tailor's crest, plume, shield paint and cloak are drawn from their `tailor-<item>-<style>` paintings in place of the flat drawn shapes.
+- **Fists swing at fist reach.** The designer: "When playing with fists, it's making the air move from further ahead, as if I was using a weapon." Every swing effect (the trail, the whoosh arc, the hit spark and its reach marker) for fists starts and ends at the fist, at the fists' reach, never at a blade's length.
+- **Release:** the A pick of every Pack 22 and Pack 23 painting (the logo: the designer's pick, A until told) is copied to `docs/art/final/arena/`, shipped as webp in `games/arena/assets/` at the size the game draws it at 3x, added to `SHIPPED` and to `sw.js`. PIL is broken in the container: convert in the browser (canvas `toBlob('image/webp')`).
