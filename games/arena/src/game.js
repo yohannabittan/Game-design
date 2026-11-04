@@ -456,7 +456,7 @@ const TUNING = {
     // the fist's grip or the heel (under the ankle, so the sole meets the ground as the muscular shin's does); w the limb's px across at the cut,
     // which both halves share so they meet at the joint, drawn wk times the part's hit width (wk by limb); mir: painted facing the other way (the
     // fist's fingers to the right, the toes to the left), so both halves are mirrored; top: an upper leg's first row under its painted skirt, which
-    // would show under the tunic.
+    // would show under the tunic; pad: px above it filled with that row's pixels, so the leg still meets the tunic's hem.
     half: {
       wk: { arm: 0.7, leg: 0.8 }, size: { 'kit-arm-up': [160, 288], 'kit-arm-lo': [160, 288], 'kit-leg-up': [192, 320], 'kit-leg-lo': [192, 352] },
       'kit-arm-up-lean-A': { a: [69.6, 40], b: [79.5, 264], w: 76 }, 'kit-arm-lo-lean-A': { a: [81.5, 24], b: [59, 238], w: 76 },
@@ -467,6 +467,11 @@ const TUNING = {
       'kit-leg-up-lean-B': { a: [78.5, 64], b: [95.9, 296], w: 70, top: 140, mir: true }, 'kit-leg-lo-lean-B': { a: [95.9, 24], b: [116.1, 292], w: 70, mir: true },
       'kit-leg-up-avg-A': { a: [85.6, 69], b: [95.6, 296], w: 80, top: 118 }, 'kit-leg-lo-avg-A': { a: [87.6, 24], b: [72, 292], w: 80 },
       'kit-leg-up-avg-B': { a: [113.1, 70], b: [95.9, 296], w: 82, top: 138 }, 'kit-leg-lo-avg-B': { a: [76.9, 24], b: [64.5, 292], w: 82 },
+      // Pack 24: the muscular arm and leg, painted facing right (a lower half's b: the fist's grip, the sole's heel)
+      'kit-arm-up-musc-A': { a: [61.5, 87], b: [79.5, 264], w: 88 }, 'kit-arm-lo-musc-A': { a: [80, 24], b: [50, 225], w: 88 },
+      'kit-arm-up-musc-B': { a: [94.5, 108], b: [79.5, 264], w: 70 }, 'kit-arm-lo-musc-B': { a: [79.5, 24], b: [95, 238], w: 70 },
+      'kit-leg-up-musc-A': { a: [92, 128], b: [95, 296], w: 59, top: 188, pad: 9 }, 'kit-leg-lo-musc-A': { a: [95, 24], b: [90, 262], w: 59 },
+      'kit-leg-up-musc-B': { a: [60, 134], b: [95.5, 296], w: 57, top: 196, pad: 14 }, 'kit-leg-lo-musc-B': { a: [96, 24], b: [91, 250], w: 57 },
     },
     // Step 6c-2, the card gear painted (Pack 20, `gear-<name>`), each piece's pins in its own PNG: a and b land on the rig's points at, w = the px
     // across that spans the part's width (none: drawn in its own shape). arms: at = two heights in the arm's frame (H from the shoulder: the forearm
@@ -3587,10 +3592,10 @@ const SHIPPED = new Set([
   // backdrops, faces and portraits
   'arena-pit arena-city arena-colosseum arena-grand brutus brutus-proud champ-marcus champ-aurelius champ-flamma champ-varro champ-twins ',
   'champ-hermes champ-carpophorus champ-mevia champ-aquila emperor ',
-  // the men: muscular parts, lean and average limb halves, helmets, shields, plates, the net
-  'kit-base-head kit-base-torso kit-base-forearm kit-base-shin kit-helmet-gallic kit-shield-round kit-base-torso-lean kit-base-torso-avg ',
+  // the men: the muscular torso, limb halves of every tier, helmets, shields, plates, the net
+  'kit-base-head kit-base-torso kit-helmet-gallic kit-shield-round kit-base-torso-lean kit-base-torso-avg ',
   'kit-helmet-murmillo kit-helmet-thraex kit-helmet-secutor kit-galerus kit-shield-scutum kit-shield-parma kit-plate-chest kit-plate-manica ',
-  'kit-plate-greave kit-wrap-trousers kit-base-upperarm-seg kit-base-thigh-seg kit-net-draped kit-arm-up-lean kit-arm-lo-lean kit-leg-up-lean ',
+  'kit-plate-greave kit-wrap-trousers kit-net-draped kit-arm-up-musc kit-arm-lo-musc kit-leg-up-musc kit-leg-lo-musc kit-arm-up-lean kit-arm-lo-lean kit-leg-up-lean ',
   'kit-leg-lo-lean kit-arm-up-avg kit-arm-lo-avg kit-leg-up-avg kit-leg-lo-avg ',
   // the beasts
   'beast-lion-head beast-bear-head beast-lion-tail beast-lion-fore-up beast-lion-fore-lo beast-lion-hind-up beast-lion-hind-lo ',
@@ -3613,7 +3618,7 @@ const SHIPPED = new Set([
 const shippedSrc = (name) => `assets/${name}.webp`;
 // the art the game asks: E.art in the dev channel (candidates and the designer's picks), the shipped A picks in release
 const shippedArt = { enabled: true, has: (n) => SHIPPED.has(n), choice: () => 0, url: shippedSrc, src: shippedSrc, on() {} };
-const RETIRED = /^(kit-base-(upperarm|forearm|thigh|shin)-(lean|avg)(-seg)?|kit-base-thigh-seg|beast-(lion|bear)-(body|upperleg|lowerleg)(-young)?(-seg)?|beast-(lion|bear)-upperleg-young-seg)$/;
+const RETIRED = /^(kit-base-(upperarm|forearm|thigh|shin)(-(lean|avg))?(-seg)?|beast-(lion|bear)-(body|upperleg|lowerleg)(-young)?(-seg)?|beast-(lion|bear)-upperleg-young-seg)$/;
 function artSrc(name) {
   const u = LO_HALF.test(name) && ART.has(upHalf(name)) ? upHalf(name) : null;
   return (u && ART.url(name, ART.choice(u))) || ART.src(name, shippedSrc(name));
@@ -3660,7 +3665,7 @@ const ART_NAMES = {
 for (const [k, n] of [['torso', 'Torso'], ['upperarm', 'Upper arm'], ['forearm', 'Forearm'], ['thigh', 'Thigh'], ['shin', 'Shin']]) ART_NAMES[`kit-base-${k}`] = `${n}, muscular`;
 ART_NAMES['kit-base-torso-lean'] = 'Torso, lean'; ART_NAMES['kit-base-torso-avg'] = 'Torso, average';
 // Step 6d (Pack 21): a whole limb is picked by its upper half
-for (const [t, tn] of [['lean', 'lean'], ['avg', 'average']]) { ART_NAMES[`kit-arm-up-${t}`] = `Arm, ${tn} (both halves)`; ART_NAMES[`kit-leg-up-${t}`] = `Leg, ${tn} (both halves)`; }
+for (const [t, tn] of [['lean', 'lean'], ['avg', 'average'], ['musc', 'muscular']]) { ART_NAMES[`kit-arm-up-${t}`] = `Arm, ${tn} (both halves)`; ART_NAMES[`kit-leg-up-${t}`] = `Leg, ${tn} (both halves)`; }
 for (const k of ['lion', 'bear']) for (const [y, yn] of [['', k[0].toUpperCase() + k.slice(1)], ['-young', `Young ${k}`]]) {
   ART_NAMES[`beast-${k}-torso${y}`] = `${yn}, torso`;
   ART_NAMES[`beast-${k}-fore-up${y}`] = `${yn}, foreleg (both halves)`; ART_NAMES[`beast-${k}-hind-up${y}`] = `${yn}, hind leg (both halves)`;
@@ -3740,7 +3745,7 @@ const KIT_HELM = { murmillo: 'murmillo', hoplo: 'thraex', open: 'secutor', cap: 
 const KIT_SHIELD = { murmillo: 'scutum', hoplo: 'parma', open: 'round', cap: 'round' };
 const KIT_WRAP = { hoplo: true };
 const KIT_GEAR = { plate: 'kit-plate-chest', manica: 'kit-plate-manica', greave: 'kit-plate-greave', wrap: 'kit-wrap-trousers', galerus: 'kit-galerus' };
-function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean' : str <= T.avg ? 'avg' : ''; }
+function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean' : str <= T.avg ? 'avg' : 'musc'; }
 function lookFor(fm, isFoe) {
   const lk = lookOf(fm, isFoe);
   if (!kitOn() || fm.beast) return lk;
@@ -3847,7 +3852,7 @@ function drawSeg(c, P, A, B, w, flip = false) {
   c.save(); c.translate(A[0], A[1]); c.rotate(Math.atan2(B[1] - A[1], B[0] - A[0]) - Math.PI / 2); c.scale(sx, sy); c.rotate(Math.atan2(bx - ax, by - ay)); c.translate(-ax, -ay);
   if (flip) { c.translate(iw, 0); c.scale(-1, 1); }
   const ih = P.im.height, t = J.top ? Math.round(J.top * P.ky) : 0;
-  if (J.clip) { const ch = Math.round(J.clip * P.ky); c.drawImage(P.im, 0, 0, iw, ch, 0, 0, iw, ch); } else if (t) c.drawImage(P.im, 0, t, iw, ih - t, 0, t, iw, ih - t); else c.drawImage(P.im, 0, 0);
+  if (J.clip) { const ch = Math.round(J.clip * P.ky); c.drawImage(P.im, 0, 0, iw, ch, 0, 0, iw, ch); } else if (t) { c.drawImage(P.im, 0, t, iw, ih - t, 0, t, iw, ih - t); if (J.pad) c.drawImage(P.im, 0, t, iw, 1, 0, t - J.pad * P.ky, iw, J.pad * P.ky); } else c.drawImage(P.im, 0, 0);
   c.restore();
 }
 // The torso pinned from y0 to y1, w across, mirrored when painted turned to his left (J.flip). One painted with its upper arms hanging at its sides
