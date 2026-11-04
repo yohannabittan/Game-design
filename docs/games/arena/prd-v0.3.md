@@ -1700,6 +1700,36 @@ Durations go in `TUNING.story.dur`. Sound uses the clang, tick and chime that al
 - Fresh save: the story opens, and five taps or Skip reach the menu.
 - `npm run smoke`.
 
-## Step 18 (open, 2026-11-04): the Grand Games' theme
+## Step 18 (proposed 2026-11-04, for the designer's OK): the Grand Games are the champions, and every champion has a signature move
 
-**The designer:** "The theme of the Emperor's thumb is much less good than the other arenas, which are actually about battles." Waiting on the designer's choice of a new theme.
+**The designer:** "The theme of the Emperor's thumb is much less good than the other arenas, which are actually about battles." Then: "For the Emperor's Games we could have all champions for now. We should make the champions more distinctive: maybe they each have a special technique, a special move."
+
+**The Grand Games:** four bouts, every one a champion:
+1. a Pit champion (your rival, if you have one);
+2. a City champion (the Twins or Hermes);
+3. a Colosseum champion (Carpophorus with his lion, or Mevia);
+4. Aquila.
+
+The Emperor's thumb stays as the closing card, no longer the theme. The twist line on the picker becomes "Every champion of Rome". Champion health keeps today's `champHp` and the Games' `arenaHp`.
+
+**Signature moves.** Each champion gets one move of his own, everywhere he fights. Each move:
+- has a tell nobody else shows;
+- names itself in a banner the first time;
+- can be read and answered with what you already have (block, perfect block, dodge, step in or out);
+- leaves him open for a punish when you answer it.
+
+Each move comes at most once every few exchanges; the numbers go in `TUNING.champs.<key>`.
+
+| Champion | Move | Tell | Answer, and the reward |
+| --- | --- | --- | --- |
+| Marcus the Red | **Red Rage** (below half health) | he roars, red flush, a stamp | three blows in a row, high-mid-low shown one by one by his arm. Block all three: he is winded. |
+| Aurelius the Golden | **Golden Glint** | he tilts his shield and a flash of light sweeps across your side | the blow comes from the side the flash ends on. Dodge on the flash: a free counter. |
+| Flamma the Unbroken | **Iron Wall** | shield up, he leans in and plods forward | he shoves you to the wall. Lame his leg, or hit low as he comes: he stumbles. |
+| Varro of Capua | **Capuan Feint** | a double wind-up, the second faster | two fakes, then the real blow. Hold your block for the third: a punish. |
+| Castor and Pollux | **Twin Strike** | the waiting twin shouts "Now, brother!" and crouches | the waiting twin dashes in for one blow while the other swings. Dodge back: both overextend. |
+| Hermes the Swift | **Blink** | he drops low and his outline blurs | he dashes in from beyond reach, strikes and darts back. Perfect block on the dash: he is off balance. |
+| Carpophorus | **Whip Crack** | he raises his whip and the lion at the edge roars | the crack stuns you for a moment unless you are blocking. Block on the crack: the lion flinches and he is open. |
+| Mevia the Huntress | **Huntress's Throw** | she draws her spear back over her shoulder, at range | a thrown spear, then she fights with her dagger until she picks it up again. Dodge or block the throw: she is unarmed for a while. |
+| Aquila, the Emperor's Blade | **The Emperor's Blade** | he steps back, his blade glows gold | a lunge across the whole arena. Perfect-block it: a big punish (a finisher if you have the Momentum). |
+
+**Art:** none needed; the tells are drawn effects, banners and poses. A painted whip for Carpophorus could come in a later pack.
