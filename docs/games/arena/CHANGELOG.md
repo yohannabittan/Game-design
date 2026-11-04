@@ -84,3 +84,14 @@
   - **The menu fighter** stands in a hero's pose: feet wide, shield face-on, chin up, and the weapon raised by type (short ones overhead; the spear and trident up and back; fists raised).
   - **Later foes** lean big by arena (`arenas.*.size`), and wear one more plate from the Colosseum on (`arenas.*.plates`). The Pit is unchanged.
   - Perf: the fight is 4% faster, the menu 4.8% slower.
+- v2 step 18 build (Opus 5.5, passed the orchestrator's review of its frames and scripted checks first time): the Grand Games are four champions, five signature moves, and two blades (`prd-v0.3.md`, "Step 18"). `arena-v58`, save v15.
+  - **The Grand Games:** one champion from each pool, with Aquila last. Your Pit rival takes bout 1. The Twins bring Pollux. The picker line reads "Every champion of Rome", and bandages are sold only before the last bout.
+  - **Red Rage** (Marcus): a roar, a red flush and a stamp, then HIGH, MID, LOW. Block all three and he is winded.
+  - **Capuan Feint** (Varro): two fakes, the second faster, then the real blow. Block it and he is winded.
+  - **Blink** (Hermes): a crouch, a ghost blur and a dash. A perfect block leaves him off balance.
+  - **Huntress's Throw** (Mevia): she throws her spear. Answer it and she is unarmed for a while, then fights with her dagger until she picks it up.
+  - **Two Blades** (Aquila): at half health the Emperor signals, his shield flies off and a second gladius comes out. His guards and shield-arm plate drop, and his combos come at two heights at once.
+  - **Dual foes:** from the City on (`arenas.*.dual`, gladius or dagger), with one more gap and crossed-blade blocks that break after three hits.
+  - **Your second blade:** in the purse's Arms row, at the weapon's price, with any weapon but fists. Crossed-blade blocks let half the damage through and cost more stamina; a perfect parry ripostes off-hand, and the off hand follows each slash. Shield cards are never dealt to a dual fighter.
+  - **Save v15:** a Grand Games run saved mid-way restarts at bout 1.
+  - Perf: work +4%, frame time -1%.
