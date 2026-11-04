@@ -1746,3 +1746,30 @@ The numbers go in `TUNING.champs.<key>`. The other champions (Aurelius, Flamma, 
 - A Grand Games run's four bout cards.
 - Scripted checks: each move fires and can be answered; the Grand Games order; the second blade's price and its crossed-blade block.
 - Perf within 10%, and `npm run smoke`.
+
+## Step 19 (proposed 2026-11-04, for the designer's OK): an innate trait for each origin
+
+**The designer:** "I think we should also have an innate trait based on origin."
+
+Each origin (Step 4b's backgrounds) gives a small passive trait, always on and never a card. It comes from Old Brutus's line for that background, so the trait and the story agree.
+- **Where it shows:** the trait's name and one line on your fighter's card and on the "?" page. Its effect shows in play the moment it fires (a small tag on the event, as plate saves do).
+- **Effects** stay small (10 to 30 percent, or one once-per-run save) and go in `TUNING.origins.<key>`. They stack with cards as cards stack.
+- **The start card** each background deals is unchanged.
+
+| Origin | Trait | Brutus's line it comes from | Effect |
+| --- | --- | --- | --- |
+| Farmer of Gaul | **Ox-Strong** | "You plough a field one row at a time." | stamina recovers 15% faster |
+| Thracian soldier | **Shield Drill** | "Shield first." | blocks wear your shield 25% less |
+| Numidian horseman | **Light Feet** | "Give him nothing to hit." | dodges cost 25% less stamina |
+| Baker of Capua | **Kneading** | "Knead him like dough." | each hit within the combo window adds 10% to the next, up to 30% |
+| Sailor of Ostia | **Sea Legs** | "Let him crash on you." | shoves and knockback move you half as far |
+| Scribe of Alexandria | **Reads the Scroll** | "Read him like a scroll." | a feint's tell shows 20% sooner |
+| Gladiatrix of Sparta | **Spartan Guard** | "Show him why they fear it." | the perfect-block window is 30% wider |
+| Freed slave of Egypt | **Broken Chains** | "You've broken chains before." | once a run, a killing blow leaves you on 1 heart instead |
+| Charioteer of the Circus | **Steer Him** | "Steer him into the wall." | your shoves drive him 30% further, and a wall hit costs him more |
+
+### Acceptance
+
+- Each trait fires in a scripted check and shows its tag.
+- The fighter card and the "?" page show it, at three sizes.
+- `npm run smoke`.
