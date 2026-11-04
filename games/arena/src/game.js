@@ -17,7 +17,7 @@ import { makeRng, clamp, lerp, ease } from './engine.js';
 
 // ====== TUNING: every tunable number ======
 const TUNING = {
-  hearts: 3,               // the base for a medium fighter; health is counted in whole hearts, two to the base number (a medium shows 6)
+  hearts: 6,               // the base for a medium fighter; health is counted in whole hearts, two to the base number (a medium shows 12; step 15 doubled it)
   heal: 1,                 // hearts back for each foe felled
   bouts: 5,                // opponents in the gauntlet
   resetDelay: 0.9,         // seconds after a foe falls before the next intro card
@@ -39,6 +39,9 @@ const TUNING = {
   // body unit as a fraction of screen height, feet line, clear gap between the bodies (fraction of width), half body width in H; fit = the largest scale
   // drawn at full frame: a bigger fighter (a Giant) shrinks the whole frame so his head stays as high as that scale's would, clear of the HUD
   fighter: { height: 0.72, floor: 0.92, gap: 0.2, body: 0.12, fit: 1.15 },
+  // Step 15, the fight camera: the frame at rest is rest x the size above; it zooms out further, to min at most, until it shows both back feet, your
+  // blade at full reach (with the lunge) and his weapon's tip, margin px clear of the left column and the screen's edge; it eases to a change over ease s
+  camera: { rest: 0.85, min: 0.6, margin: 12, ease: 0.25 },
   // stride in H; extra stamina; seconds to step in and back. The drive: a committed lunge held at full depth for driveNear s (driveFar s when the foe stands beyond your plain lunge's reach as it starts) presses on at drive H/s for
   // driveCost stamina/s (and one jab's cost when it starts moving), up to driveMax H past the stride; it reaches full pace over driveRamp s, in stamping steps driveHz a second whose pace swings by
   // driveSurge; the body leans driveLean rad into it, eases back over driveOut s, each stamp kicks driveSand grains; the stamina it burns glows for driveBurn s;
@@ -202,11 +205,11 @@ const TUNING = {
     roll: { shape: 0.5, wait: 0.25, spin: 1.15, turns: 2.6, main: 0.8, hold: 0.5, settle: 0.32, peg: 0.05, tickGap: 0.025 },
     spin: 0.8, turns: 2.5,  // a respin on the card: seconds and turns
     sizes: {
-      runt: { name: 'RUNT', arm: 0.9, hearts: 2, lag: 0.75, score: 0 },
-      lean: { name: 'LEAN', arm: 0.95, hearts: 2.5, lag: 0.85, score: 0.25 },
-      medium: { name: 'MEDIUM', arm: 1, hearts: 3, lag: 1, score: 0.5 },
-      big: { name: 'BIG', arm: 1.05, hearts: 3.5, lag: 1.15, score: 0.75 },
-      giant: { name: 'GIANT', arm: 1.1, hearts: 4.5, lag: 1.3, score: 1 },
+      runt: { name: 'RUNT', arm: 0.9, hearts: 4, lag: 0.75, score: 0 },
+      lean: { name: 'LEAN', arm: 0.95, hearts: 5, lag: 0.85, score: 0.25 },
+      medium: { name: 'MEDIUM', arm: 1, hearts: 6, lag: 1, score: 0.5 },
+      big: { name: 'BIG', arm: 1.05, hearts: 7, lag: 1.15, score: 0.75 },
+      giant: { name: 'GIANT', arm: 1.1, hearts: 9, lag: 1.3, score: 1 },
     },
     str: [0.75, 0.9, 1, 1.15, 1.3],
     spdLag: [1.35, 1.15, 1, 0.88, 0.76], spdDodge: [0.8, 0.9, 1, 1.12, 1.25],
@@ -223,7 +226,7 @@ const TUNING = {
     plateDiv: 2,                          // a hit on a plated part costs the hit divided by this, rounded up, so never part of a heart
     tiers: [['S', 12.5], ['A', 10.5], ['B', 8.5], ['C', 6.5], ['D', -1]],  // score = STR + SPD + STA + size: the body only (step 9a; each cut is the old one less a medium armour's 0.5)
     underdog: 6.5, underdogHalves: 1,     // a score below this gets +1 heart
-    heartsPerBase: 2,                     // a size's base hearts times this is its whole hearts (a medium's 3 shows 6)
+    heartsPerBase: 2,                     // a size's base hearts times this is its whole hearts (a medium's 6 shows 12)
     // your weapon: reach = blade length, speed divides hand lag and recoil, dmg and cost multiply every blow, slash multiplies slash damage,
     // slot = slot-hit multiplier, slotDmg = what multiplies a slot hit in place of dmg (the dagger's slot hits are 4x a bare jab, so 1.33x the gladius's),
     // overBreak = dents at which an overhead breaks a plate (0: the usual armour.dents), noDent: its slashes and smashes never dent a plate
@@ -263,7 +266,7 @@ const TUNING = {
   // the one token per run: a Respin on your fighter card or a Reroll on a draft
   token: 1,
   hint: { bouts: 2, dur: 10, heartDur: 6, driveDur: 6, hudDur: 8 },  // the in-play hint shows in this many bouts ever, for this many seconds of each; heartDur, driveDur: the heart hint after your first fell, the drive hint after your first missed lunge
-  // your hearts on the HUD, one for each point of health: heart = spacing and size (px), perRow = most in a row (more start a second row), rowGap = px a second row pushes the rows below it down
+  // your hearts on the HUD, one for each point of health: heart = spacing and size (px), perRow = most in a row (more start another row), rowGap = px each row past the first pushes the rows below it down
   hud: { heart: 19, size: 17, perRow: 9, rowGap: 18, bout: 17, crowdH: 15, crowdW: 0.82 },  // bout: the BOUT line's size; crowdH, crowdW: the crowd bar's height and its share of the left strip
   // footwork, in H. Yours: a tap of DODGE is the backstep (back x your Speed's dodge length), holding it keeps backing off at walkBack; a lunge's recovery
   // takes back up to pace of the ground you gave, over gainDur s, never past your mark; drift: idle for idle s (no swing, dodge or lunge) you drift back a pace per secs s. Speeds are H per second. close: nearest clear gap between the bodies.
@@ -318,7 +321,7 @@ const TUNING = {
     serrated: 1, rend: 1, vein: 1.2, bloodlust: 2, cruel: 1,
     sidestep: 1, matador: 1, slip: 2, slipWin: 1, untouch: 1,
     heavy: 2, brawler: 2, jugg: 0.5, titan: 4,
-    misdir: 2, mind: 1, bait: 2, baitHold: 0.5, baitWin: 3, bluff: 1, bluffWin: 1.5, puppet: 3, puppetHearts: 4,
+    misdir: 2, mind: 1, bait: 2, baitHold: 0.5, baitWin: 3, bluff: 1, bluffWin: 1.5, puppet: 3, puppetHearts: 8,
     flourish: 6, showboat: 0.5, play: 2, bread: 2, breadAt: 80, breadCoins: 3, mulMax: 4, encore: 1, pleaser: 3, pleaserCost: 30, aweAt: 90, awe: 0.7, darlingGold: 0.5,
     cape: 2, capeStun: 1, butcher: 2, spiked: 1, hamWin: 1, sucker: 1.2, bloodSport: 0.5, salute: 1,
     fist: 1, braced: 1,
@@ -346,12 +349,13 @@ const TUNING = {
   // A beast: a lamed foreleg lengthens its wind-ups by arm; either leg lamed lengthens its pounce or charge's tell by pounce and its leap to legs x
   lame: { arm: 0.2, cover: 2.5, legs: 0.55, pounce: 0.25 },
   // each arena's foes: shift = stat levels added to every bout's centre, feint = x his feint weight, guard = added to the chance of a first and a second
-  // gap guard (never in bout 1), gear = pieces added to each foe's; ring = x the distance to both walls; pairs = the bout index (0-based) pairs start at
+  // gap guard (never in bout 1), gear = pieces added to each foe's; ring = x the distance to both walls; pairs = the bout index (0-based) pairs start at.
+  // Step 15: size = x each band's roll weight (runt, lean, medium, big, giant), so later foes lean big; plates = plates added to each man's set
   arenas: {
-    pit: { shift: 0, feint: 1, guard: [0, 0], gear: 0, ring: 0.7, pairs: 99 },
-    city: { shift: 0.4, feint: 1.15, guard: [0.1, 0.05], gear: 0, ring: 1, pairs: 2 },
-    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99, beasts: [1, 3], young: [1] },  // beasts: the bouts (0-based) a beast fights; young: those of them that bring a young one
-    games: { shift: 0.9, feint: 1.35, guard: [0.2, 0.1], gear: 1, ring: 1, pairs: 99 },
+    pit: { shift: 0, feint: 1, guard: [0, 0], gear: 0, ring: 0.7, pairs: 99, size: [1, 1, 1, 1, 1], plates: 0 },
+    city: { shift: 0.4, feint: 1.15, guard: [0.1, 0.05], gear: 0, ring: 1, pairs: 2, size: [0.5, 0.8, 1, 1.5, 1.5], plates: 0 },
+    rome: { shift: 0.7, feint: 1.25, guard: [0.15, 0.1], gear: 1, ring: 1, pairs: 99, size: [0.4, 0.7, 1, 1.8, 1.8], plates: 1, beasts: [1, 3], young: [1] },  // beasts: the bouts (0-based) a beast fights; young: those of them that bring a young one
+    games: { shift: 0.9, feint: 1.35, guard: [0.2, 0.1], gear: 1, ring: 1, pairs: 99, size: [0.3, 0.6, 1, 2, 2], plates: 1 },
   },
   // x every foe's health by arena (men, beasts, pairs, champions; step 10), on top of the bout length
   arenaHp: { pit: 1, city: 1.25, rome: 1.5, games: 1.75 },
@@ -382,7 +386,12 @@ const TUNING = {
   // and colour; Brutus's face px; names per wall; wall height px (most); the painted logo's box (title px, step 14); plaques' heights px; repaints a second of what moves (your fighter, the flames, the dust); the crowd murmur's gain, low-pass Hz, loop s and swells a loop
   menu: { seed: 20261103, col: [0.4, 270, 340], gap: 12, title: [40, 56, 0.12], wash: 0.22, vignette: 0.8, torchDx: 118, torchR: 64, flicker: 0.22,
     dust: 16, dustV: [6, 16], fighter: 0.6, hips: -0.45, breath: [0.012, 1.7], sway: [0.05, 1.2], cloak: '#8e2a26', face: 52, names: 3, wallH: 100,
-    logo: [3.8, 1.25], play: 56, small: 46, fps: 5, figBox: [-0.4, -1.26, 0.26, -0.03], murmur: 0.05, murmurHz: 600, murmurLoop: 3, swells: 2 },
+    logo: [3.8, 1.25], play: 56, small: 46, fps: 5, figBox: [-0.5, -1.8, 0.58, -0.03], murmur: 0.05, murmurHz: 600, murmurLoop: 3, swells: 2,
+    // Step 15, the fighter's hero pose: legs = hip, knee and ankle of each leg (body units, wide); chin = rad the head tips back; far = the shield arm's
+    // upper arm and forearm (rad from hanging, + forward), its shield's radius (body units) at the fist; over = the weapon arm's two angles and the
+    // weapon's lean back from upright (rad), a raised fist for fists; long = the same for the weapons in longIds, held up and back; icon = its sprite's box
+    hero: { legs: [[[-0.02, -0.37], [-0.12, -0.21], [-0.19, -0.04]], [[0.02, -0.37], [0.12, -0.21], [0.19, -0.04]]], chin: 0.12, far: [0.1, -2.7], shield: 0.14,
+      over: [2.4, 3.0, 0.3], long: [1.7, 2.4, 0.6], longIds: ['spear', 'trident'], icon: [-0.55, -1.2, 0.5, 0.12] } },
   // Step 13, the arena picker: the plaque's margin and rim (px), the painting's horizontal focus, its dark top and bottom (alpha, and where the clear middle runs, 0-1), the room kept for the name above the champion and for his lines below, and how dark a shut arena is
   pick: { m: 6, rim: 7, focus: 0.5, shade: [0.7, 0.9], fade: [0.28, 0.6], top: 62, bot: 82, lock: 0.5 },
   art: { wash: 0.28, band: 1.15, bandA: 0.32, face: 30, faceBig: 40, faceCard: 26, gap: 4, cardDrop: 8, crop: [0.2, 0.02, 0.78, 0.46], bust: [60, 80, 10], epi: [96, 128], box: [0, 0.02, 1, 0.62] },
@@ -1078,6 +1087,8 @@ const SLOTS = [
   { id: 'slot-elbow', label: 'ELBOW', shape: 'rect', x: 0, y: 0.15, w: 0.085, h: 0.04, axis: 0, frame: 'armF' },
   { id: 'slot-knee', label: 'KNEE', shape: 'rect', x: 0.075, y: -0.20, w: 0.045, h: 0.06, axis: 0.3 },
 ];
+// Step 15: his face, which opens as a gap like these when his helmet plate breaks (on the face's front half, a jab going straight in)
+const FACE_SLOT = { id: 'slot-face', label: 'FACE', shape: 'rect', x: 0.085, y: -0.79, w: 0.05, h: 0.075, axis: 0 };
 const ARM_LEN = 0.30, SHOULDER = [0.05, -0.67];
 // A beast's body, side view, in its own body units (x forward, y down, origin at its near forepaw). Its parts ride frames set by its pose (poseBeast):
 // 'body' (the torso, rearing about the hip), 'head' (the body's, dipped) and the near foreleg 'legF' (from the shoulder joint, like an arm); the hind
@@ -1254,14 +1265,14 @@ const meWeapon = () => TUNING.me.weapons[state.me.weapon];
 const meLag = () => meSize().lag * TUNING.me.spdLag[state.me.spd - 1] / meWeapon().speed;
 const weaponName = (me) => { const W = TUNING.me.weapons[me.weapon]; return W.alt && me.mace ? W.alt : W.name; };
 
-// The foe's plates follow his set: light 1, medium 2 or 3 (never chest and belly both, legs bare), heavy a helmet and 4 of chest, belly, arms and legs.
-// The set also decides how many joint slots are open between the pieces.
-function foeParts(rng, set) {
+// The foe's plates follow his set: light 1, medium 2 or 3 (never chest and belly both, legs bare), heavy a helmet and 4 of chest, belly, arms and legs;
+// plus: plates his arena adds (TUNING.arenas.*.plates). The set also decides how many joint slots are open between the pieces.
+function foeParts(rng, set, plus = 0) {
   let on;
-  if (set.helmet) on = new Set(['head', ...rng.shuffle(['chest', 'belly', 'armF', 'armB', 'legs']).slice(0, set.plates[0])]);
+  if (set.helmet) on = new Set(['head', ...rng.shuffle(['chest', 'belly', 'armF', 'armB', 'legs']).slice(0, set.plates[0] + plus)]);
   else {
     const n = rng.int(set.plates[0], set.plates[1]);
-    for (let k = 0; k < 30; k++) { on = new Set(rng.shuffle(n === 1 ? ['chest', 'belly', 'armF', 'armB'] : ['head', 'chest', 'belly', 'armF', 'armB']).slice(0, n)); if (!(on.has('chest') && on.has('belly'))) break; }
+    for (let k = 0; k < 30; k++) { on = new Set(rng.shuffle(n === 1 ? ['chest', 'belly', 'armF', 'armB'] : ['head', 'chest', 'belly', 'armF', 'armB']).slice(0, n + plus)); if (!(on.has('chest') && on.has('belly'))) break; }
     if (on.has('chest') && on.has('belly')) on.delete('belly');
   }
   const out = PARTS.map((d) => mkPart(d, on.has(d.id)));
@@ -1269,13 +1280,13 @@ function foeParts(rng, set) {
   return out;
 }
 
-// One fighter of the gauntlet, rolled from the bout's tables: a size band by its weight and his height in it, weapon, armour set, and three 1-5 stats
+// One fighter of the gauntlet, rolled from the bout's tables: a size band by its weight (x his arena's lean) and his height in it, weapon, armour set, and three 1-5 stats
 // from his points and profile (rollStats). tier is his gauntlet row, at his place in the arena's run; a champion is picked from the arena's pool.
 function rollFighter(rng, tier, weapon, used, A = ARENAS[0], at = tier) {
   const G = GAUNTLET[tier], T = TUNING;
   let band, set;
   for (let k = 0; k < 20; k++) {
-    band = pickW(rng, G.sizes);
+    band = pickW(rng, G.sizes.map(([id, w]) => [id, w * TUNING.arenas[A.id].size[TUNING.sizes.indexOf(BAND(id))]]));
     const ai = rng.pick(G.armour);
     set = T.armourSets.find((z) => z.id === ai);
     if (!used.has(`${band}${weapon.id}${set.id}`)) break;
@@ -1285,7 +1296,7 @@ function rollFighter(rng, tier, weapon, used, A = ARENAS[0], at = tier) {
   const pick = G.champion ? rng.pick(A.champs) : rng.pick(NAMES), C = NEW_CHAMPS[pick];
   if (C && C.weapon) weapon = TUNING.weapons.find((z) => z.id === C.weapon);
   return { tier, at, name: C ? C.name : pick, ck: C ? pick : null, title: C ? C.title || null : null, pair: null, champion: !!G.champion, size, prof: st.prof, weapon, set, str: st.v[0], spd: st.v[1], sta: st.v[2],
-    shield: rng.chance(weapon.shield), mace: rng.chance(0.5), partSeed: (rng() * 2 ** 32) >>> 0 };
+    shield: rng.chance(weapon.shield), mace: rng.chance(0.5), partSeed: (rng() * 2 ** 32) >>> 0, plus: TUNING.arenas[A.id].plates };
 }
 // His stats (TUNING.foeStats): the row's points (plus a champion's, plus the arena's shift for each stat), split by a profile rolled with his band's
 // weights (a beast's own, w), a little seeded jitter, each 1 to 5. His weakest stat (on a tie, the one his profile gives least) is held to the weakness cap,
@@ -1383,7 +1394,7 @@ function rollGear(rng, d, i, A = ARENAS[0]) {
 // the gorget the most common. A rival first guards the gap you hit most against him.
 function rollGuards(rng, d, i, A = ARENAS[0]) {
   if (d.beast) return [];
-  const G = TUNING.guard, S = TUNING.arenas[A.id].guard, open = foeParts(makeRng(d.partSeed), d.set).filter((q) => q.slot).map((q) => q.d.id), room = Math.max(0, open.length - G.open), out = [];
+  const G = TUNING.guard, S = TUNING.arenas[A.id].guard, open = foeParts(makeRng(d.partSeed), d.set, d.plus || 0).filter((q) => q.slot).map((q) => q.d.id), room = Math.max(0, open.length - G.open), out = [];
   let n = rng.chance(Math.min(1, G.one[i] + S[0])) ? (rng.chance(Math.min(1, G.two[i] + S[1])) ? 2 : 1) : 0;
   if (d.champion) n = Math.max(n, 1);
   if (GAUNTLET[i].spar) n = 0;
@@ -1399,7 +1410,7 @@ function guardParts(parts, guards) { for (const q of parts) if (q.slot && (guard
 function makeFoe(d, pair) {
   const FT = TUNING.foe, f = { ...d };
   f.wname = d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name;
-  f.parts = d.beast ? beastParts(d.beast) : guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards); f.look = d.beast ? null : foeLook(d); f.cloak = null; f.bp = null;
+  f.parts = d.beast ? beastParts(d.beast) : guardParts(foeParts(makeRng(d.partSeed), d.set, d.plus || 0), d.guards); f.look = d.beast ? null : foeLook(d); f.cloak = null; f.bp = null;
   f.maxHp = Math.round(FT.hp * d.size.hp * (1 + FT.tierHp * d.tier) * (d.champion ? FT.champHp : 1) * (pair ? TUNING.pairs.hp : 1) * TUNING.arenaHp[arena().id] * TUNING.boutLength); f.hp = f.maxHp; f.shown = f.hp;
   f.staMax = TUNING.foeSta.base + TUNING.foeSta.per * d.sta; f.sta = f.staMax; f.staT = 9; f.staShown = 1;
   f.home = d.weapon.range + d.size.reach; f.strike = d.weapon.strike + d.size.reach;
@@ -1409,6 +1420,7 @@ function makeFoe(d, pair) {
 function newRack(E) {
   const d = state.gauntlet[state.rack];
   state.foe = makeFoe(d, !!d.pair); state.edge = d.pair ? makeFoe(d.pair, true) : null;
+  state.cam = null;
   state.swapping = false; state.tauntT = 0; state.taunt = ''; state.sent = false; state.sendT = 0;
   state.rng = makeRng(state.seed + state.rack * 7919);
   state.cover = null; state.step = { x: state.foe.home, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
@@ -1510,8 +1522,8 @@ function resumeRun(E, run) {
 // ----- layout and frames -----
 // In a pairs bout the waiting foe takes the screen's right edge, so the frame slides left (by the worst of the two foes in either place) until the one
 // fighting keeps clear of him when he gives ground to his wall. A beast is long: in its bout the frame also shrinks (TUNING.beastFit) until it fits with
-// a short slide, the beast at its home plus room, or the pair in either place.
-function lay(E) {
+// a short slide, the beast at its home plus room, or the pair in either place. This is the unzoomed frame; the camera (frameAt) scales it.
+function frame1(E) {
   const F = TUNING.fighter, f = state.foe, e = state.edge, kMax = Math.max(state.me ? meSize().scale : 1, f && f.size ? (f.beast ? drawK(f) * beastOf(f).tall : f.size.scale) : 1);
   let H = E.h * F.height * Math.min(1, F.fit / kMax);
   // the frame is centred on the space right of the left column (partly, so the foe keeps room too)
@@ -1520,8 +1532,46 @@ function lay(E) {
   // how far right of the frame's edge each arrangement reaches (H): the one fighting at his wall, and the one waiting
   const need = pair ? Math.max(reachR(f) + waitW(e), reachR(e) + waitW(f)) : solo ? f.home + TUNING.beastFit.room + rearOf(f) : 0;
   if ((f && f.beast) || (e && e.beast)) { const BF = TUNING.beastFit; H = clamp((lim - c0 - g2) / (F.body + need - BF.slide), H * BF.min, H); }
-  const half = g2 + F.body * H, cx = c0 - (pair || solo ? Math.max(0, c0 + half + need * H - lim) : 0);
-  return { H, floor: E.h * F.floor, x0: cx - half, x1: cx + half };
+  return { H, g2, c0, lim, need, slide: pair || solo };
+}
+// Step 15, the fight camera: that frame zoomed out by z, every length in it (the gap between the marks too, so the fight in H is unchanged) scaled
+// about its centre, then slid as above so a pair's waiting foe still stands clear
+function frameAt(E, z, B = frame1(E)) {
+  const H = B.H * z, g2 = B.g2 * z, half = g2 + TUNING.fighter.body * H, cx = B.c0 - (B.slide ? Math.max(0, B.c0 + half + B.need * H - B.lim) : 0);
+  return { H, g2, cx, floor: E.h * TUNING.fighter.floor, x0: cx - half, x1: cx + half };
+}
+// what the camera must show at rest (px): your back foot and his (at his home), your blade at full reach with the lunge's stride, and his weapon's tip
+function camSpan(E, L) {
+  const f = state.foe, F = TUNING.fighter, k = meSize().scale, B = beastOf(f), kf = f.size ? drawK(f) : 1, yH = L.H * k, fH = L.H * kf;
+  const yx = L.x0 - (k - 1) * F.body * L.H, fx = L.x1 + (f.home || 0) * L.H + (B ? kf * B.front - F.body : (kf - 1) * F.body) * L.H;
+  const yBack = L.x0 + (F.body - (k - 1) * F.body - TUNING.pairs.fbody * k) * L.H, fBack = L.x1 + ((f.home || 0) - F.body + rearOf(f)) * L.H;
+  const yTip = yx + (SHOULDER[0] + TUNING.arm.len * meSize().arm + TUNING.blade.len * meWeapon().reach + TUNING.lunge.stride) * yH;
+  const fTip = B ? L.x1 + ((f.home || 0) - F.body) * L.H : fx - (SHOULDER[0] + ARM_LEN + (f.weapon.len || 0)) * fH;
+  return [Math.min(yBack, fTip), Math.max(fBack, yTip)];
+}
+// the frame the camera eases to: TUNING.camera.rest, zoomed out further until camSpan fits right of the left column with the margin
+const camKey = (E) => `${E.w}x${E.h}|${state.rack}`;
+function camTarget(E) {
+  const C = TUNING.camera, B = frame1(E), R = colRect(E), lo = R.x + R.w + C.margin, hi = E.w - E.safe.right - C.margin;
+  let z = C.rest, L = frameAt(E, z, B);
+  for (let i = 0; i < 3; i++) {
+    const [a, b] = camSpan(E, L), k = Math.min(a < lo && a < L.cx ? (L.cx - lo) / (L.cx - a) : 1, b > hi && b > L.cx ? (hi - L.cx) / (b - L.cx) : 1);
+    if (k >= 0.999 || z <= C.min) break;
+    z = Math.max(C.min, z * k); L = frameAt(E, z, B);
+  }
+  return { ...L, z, key: camKey(E) };
+}
+// eased toward its target each frame (a new bout or a resize cuts straight to it); lay is what every drawing and hit reads
+function camUpdate(E, dt) {
+  const t = camTarget(E), c = state.cam, k = 1 - Math.exp(-dt / TUNING.camera.ease);
+  if (!c || c.key !== t.key) { state.cam = t; return; }
+  for (const q of ['H', 'g2', 'cx', 'z']) c[q] = Math.abs(t[q] - c[q]) < 0.05 ? t[q] : c[q] + (t[q] - c[q]) * k;
+  const half = c.g2 + TUNING.fighter.body * c.H;
+  c.x0 = c.cx - half; c.x1 = c.cx + half;
+}
+function lay(E) {
+  if (!state.cam || state.cam.key !== camKey(E)) state.cam = camTarget(E);
+  return state.cam;
 }
 // a beast's numbers (TUNING.beasts), or null for a man
 const beastOf = (f) => (f && f.beast ? TUNING.beasts[f.beast] : null);
@@ -1539,15 +1589,17 @@ const waitLeft = (E, H, e) => E.w - E.safe.right - waitW(e) * H;
 function youF(E) { const L = lay(E), y = state.you, k = meSize().scale; return { x: L.x0 + state.foot.pos * L.H + y.lunge - y.push * L.H - (k - 1) * TUNING.fighter.body * L.H, y: L.floor + y.hopY, a: y.a, dir: 1, H: L.H * k }; }
 // The arena's edges, in H from each fighter's mark: how far you can give ground (negative) and how far he can, trimmed so both stay on screen, then
 // brought in by the arena's ring (the Pit's tight ring; the sparring bout keeps the full room).
+// Step 15: the camera's zoom never widens the ring: each wall is the nearer of the one its frame trims it to and the unzoomed frame's.
 function walls(E) {
-  const L = lay(E), T = TUNING.foot, k = state.foe.size ? state.foe.size.scale : 1, ring = bout().spar ? 1 : arenaT().ring;
-  const back = Math.min(T.room[0], Math.max(0.1, (L.x0 - 0.2 * L.H * meSize().scale - colRect(E).x - colRect(E).w - T.margin) / L.H));
-  const f = state.foe, fore = state.edge && state.edge.size ? Math.min(T.room[1], Math.max(0.1, (waitLeft(E, L.H, state.edge) - 4 - L.x1 - rearOf(f) * L.H) / L.H))
-    : Math.min(T.room[1], Math.max(0.1, (E.w - E.safe.right - (f.beast ? 12 : 24) - L.x1 - (f.beast ? rearOf(f) : 0.3 * k) * L.H) / L.H));
-  return { back: -back * ring, fore: fore * ring };
+  const T = TUNING.foot, k = state.foe.size ? state.foe.size.scale : 1, ring = bout().spar ? 1 : arenaT().ring, f = state.foe;
+  const room = (L) => [Math.min(T.room[0], Math.max(0.1, (L.x0 - 0.2 * L.H * meSize().scale - colRect(E).x - colRect(E).w - T.margin) / L.H)),
+    state.edge && state.edge.size ? Math.min(T.room[1], Math.max(0.1, (waitLeft(E, L.H, state.edge) - 4 - L.x1 - rearOf(f) * L.H) / L.H))
+      : Math.min(T.room[1], Math.max(0.1, (E.w - E.safe.right - (f.beast ? 12 : 24) - L.x1 - (f.beast ? rearOf(f) : 0.3 * k) * L.H) / L.H))];
+  const [b0, f0] = room(lay(E)), [b1, f1] = room(frameAt(E, 1));
+  return { back: -Math.min(b0, b1) * ring, fore: Math.min(f0, f1) * ring };
 }
 // the nearest the two can stand: the clear gap between the bodies at the marks, less a little air
-const gMin = (E) => -(E.w * TUNING.fighter.gap) / lay(E).H + TUNING.foot.close;
+const gMin = (E) => { const L = lay(E); return -2 * L.g2 / L.H + TUNING.foot.close; };
 // the gap between you now, in H, measured from where the marks put it
 const gapNow = () => state.step.x - state.foot.pos;
 // your body's place in the same units: your feet plus the lunge's stride; his reach is measured to it
@@ -2549,6 +2601,7 @@ function bounce(E, p, at, ang, sp, a) {
   const breakAt = a.kind === 'over' && meWeapon().overBreak ? meWeapon().overBreak : A.dents;
   if (p.armour && (p.dents >= breakAt || (a.kind === 'over' && has('breaker')) || anvil)) {
     p.armour = false; state.broken++;
+    if (p.d.id === 'head' && !state.foe.beast && !state.foe.parts.some((q) => q.d === FACE_SLOT)) { const q = mkPart(FACE_SLOT, false); q.slot = true; state.foe.parts.push(q); }
     if (anvil) { state.anvilM = -9; pop(at.x, at.y - 48, 'HAMMER AND ANVIL', '#fbbf24', 18); }
     const [sx, sy] = partCenter(foeF(E), state.foe, p);
     plateBits(sx, sy, 9); ring(sx, sy, 70, '#ffe9a8'); pop(sx, sy - 24, 'PLATE BROKEN', '#ffe9a8', 17); emit(E, 'break', { p });
@@ -4074,7 +4127,7 @@ function lookOf(fm, isFoe) {
   return state.you.look;
 }
 // What shows through each gap, and which sides the plate edges frame it from (top and bottom, or left and right).
-const SLOT_ART = { 'slot-neck': ['skin', 'tb'], 'slot-armpit': ['linen', 'lr'], 'slot-waist': ['linen', 'tb'], 'slot-elbow': ['skin', 'tb'], 'slot-knee': ['skin', 'tb'] };
+const SLOT_ART = { 'slot-neck': ['skin', 'tb'], 'slot-armpit': ['linen', 'lr'], 'slot-waist': ['linen', 'tb'], 'slot-elbow': ['skin', 'tb'], 'slot-knee': ['skin', 'tb'], 'slot-face': ['skin', 'lr'] };
 // Sprite bounds in body units (arms in their own frame): room for crests, straps, the fist and the shoulder guards.
 const BOX = { head: [-0.17, -1.05, 0.18, -0.66], chest: [-0.17, -0.74, 0.17, -0.5], belly: [-0.19, -0.54, 0.19, -0.24], armF: [-0.14, -0.2, 0.12, 0.42], armB: [-0.14, -0.2, 0.12, 0.42], legs: [-0.21, -0.43, 0.25, 0.04], cloak: [-0.34, -0.86, 0.14, 0.01] };
 const LEGS = [[[-0.02, -0.37], [-0.07, -0.19], [-0.12, -0.02]], [[0.02, -0.37], [0.09, -0.2], [0.12, -0.02]]];
@@ -5029,12 +5082,12 @@ function slotLight(ctx, F, p, H, fm) {
 // ----- the fighters on screen: his health bar, limbs, held kit and weapons, the whole body, your sword arm and shield -----
 // The right HUD's rows below the hearts (px from the top): Momentum pips, stamina, the shield
 const HUD_ROW = { pips: 35, sta: 46, shield: 66 };
-// the rows with a second row of hearts (more than hud.perRow of them) pushing each down
+// the rows with each row of hearts past the first (more than hud.perRow of them) pushing each down
 const hudRow = () => {
-  const d = state.maxHp > TUNING.hud.perRow ? TUNING.hud.rowGap : 0;
+  const d = Math.max(0, Math.ceil(state.maxHp / TUNING.hud.perRow) - 1) * TUNING.hud.rowGap;
   return { pips: HUD_ROW.pips + d, sta: HUD_ROW.sta + d, shield: HUD_ROW.shield + d };
 };
-// Heart i of your health, drawn on the right of the HUD: a row of up to hud.perRow, the rest on a second row under the first (px)
+// Heart i of your health, drawn on the right of the HUD: rows of up to hud.perRow, each under the one before (px)
 function heartAt(E, i) {
   const H = TUNING.hud, cols = Math.min(state.maxHp, H.perRow), c = i % H.perRow;
   return [E.w - 16 - E.safe.right - 10 - (cols - 1 - c) * H.heart, 10 + E.safe.top + 14 + Math.floor(i / H.perRow) * H.rowGap];
@@ -6530,12 +6583,12 @@ const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps 
 // Strength), the painted body of his muscle tier is the body, and each plated part wears its painted piece as in the fight (step 6e): a plated head
 // his type's painted helmet (gm: his GTYPE's helm), the chest plate (its lower half on a plated belly, one plate over both), the manica, the greaves; his gaps and guards
 // are painted as a painted man's (kitSlot, kitGuard). No flat box or circle is drawn over the painted body.
-function kitIcon(ctx, parts, s, str, gm) {
+function kitIcon(ctx, parts, s, str, gm, pose = null) {
   const K = TUNING.kit, t = kitTier(str), on = (id) => parts.some((q) => q.d.id === id && q.armour), head = parts.find((q) => q.d.id === 'head'), hk = KIT_HELM[gm] || 'gallic';
   const kh = on('head') && artPic(`kit-helmet-${hk}`, K.helm[hk]), Hd = kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
   if (!Hd || !T || !U || !F || !Th || !Sh) return false;
   const hx = (head ? head.d.x : 0) * s, G = on('legs') && gearPic('greave'), PL = gearPic('plate'), M = gearPic('manica'), B = PARTS[pidx('belly')], bw = B.w * s;
-  LEGS.forEach(([hip, knee, ank]) => {
+  (pose ? pose.legs : LEGS).forEach(([hip, knee, ank]) => {
     const P = (q) => [q[0] * s, q[1] * s];
     drawSeg(ctx, Th, P(hip), P(knee), K.leg * s); drawSeg(ctx, Sh, P(knee), P(ank), K.leg * s);
     if (G) drawSeg(ctx, G, P(lerp2(knee, ank, G.J.from)), P(lerp2(knee, ank, G.J.to)), K.leg * s);
@@ -6550,8 +6603,11 @@ function kitIcon(ctx, parts, s, str, gm) {
     torsoPlate(ctx, PL, s, bw * T.J.k, id, (B.y + B.h / 2) * s, { P: T, w: bw });
     ctx.restore();
   }
-  if (!(kh && kh.J.closed)) drawSeg(ctx, Hd, [hx, K.top * s], [hx, K.chin * s], 0);
-  if (kh) drawSeg(ctx, kh, [hx, K.top * s], [hx, K.chin * s], 0);
+  // the hero pose tips the head back about the chin, chin up
+  const ht = pose ? [hx - Math.sin(pose.chin) * (K.chin - K.top) * s, K.chin * s - Math.cos(pose.chin) * (K.chin - K.top) * s] : [hx, K.top * s];
+  if (!(kh && kh.J.closed)) drawSeg(ctx, Hd, ht, [hx, K.chin * s], 0);
+  if (kh) drawSeg(ctx, kh, ht, [hx, K.chin * s], 0);
+  if (pose) { heroArms(ctx, parts, s, pose, U, F, M, gm); return true; }
   for (const q of parts) {
     const p = q.d;
     if (p.id !== 'armF' && p.id !== 'armB') continue;
@@ -6570,17 +6626,44 @@ function kitIcon(ctx, parts, s, str, gm) {
   }
   return true;
 }
+// Step 15, the menu's hero pose (TUNING.menu.hero): each arm's shoulder, elbow and fist (body units) from its two angles off hanging; the shield
+// arm's kind of shield is his type's, as in the fight
+const heroDir = (a) => [Math.sin(a), Math.cos(a)];
+function heroArm(id, a1, a2) {
+  const j = PARTS[pidx(id)].joint, S = [j[0] + (id === 'armF' ? 0.11 : -0.11), j[1]], el = ARM_LEN / 2, d1 = heroDir(a1), d2 = heroDir(a2);
+  const El = [S[0] + d1[0] * el, S[1] + d1[1] * el];
+  return { S, E: El, F: [El[0] + d2[0] * el, El[1] + d2[1] * el] };
+}
+const heroShield = (gm) => KIT_SHIELD[gm] || 'round';
+function heroPose(weaponId) {
+  const M = TUNING.menu.hero, long = M.longIds.includes(weaponId), w = long ? M.long : M.over;
+  return { ...M, id: long ? 'long' : 'over', weapon: w, near: heroArm('armF', w[0], w[1]), farArm: heroArm('armB', M.far[0], M.far[1]) };
+}
+// the far arm (its manica on the forearm) with the painted shield face on at its fist, then the weapon arm raised; the weapon is the menu's to draw
+function heroArms(ctx, parts, s, pose, U, F, M, gm) {
+  const P = (q) => [q[0] * s, q[1] * s], seg = (A, q) => { const w = q.d.w * s; drawSeg(ctx, U, P(A.S), P(A.E), w); drawSeg(ctx, F, P(A.E), P(A.F), w); if (q.armour && M) drawSeg(ctx, M, P(A.E), P(lerp2(A.E, A.F, M.J.to)), w); };
+  const fq = parts.find((q) => q.d.id === 'armB'), nq = parts.find((q) => q.d.id === 'armF');
+  if (fq) seg(pose.farArm, fq);
+  const kind = heroShield(gm), SP = shieldPic(kind), r = pose.shield * s, TL = TUNING.kit.tall;
+  if (SP) {
+    const k = SP.J.h ? r * TL[0] / SP.J.h : r / SP.J.r, w = SP.J.size[0] * k, h = SP.J.size[1] * k, [fx, fy] = P(pose.farArm.F);
+    ctx.drawImage(SP.im, fx - w / 2, fy - h / 2, w, h);
+  }
+  if (nq) seg(pose.near, nq);
+}
 // the painted figure, painted once into a sprite per look, size, screen and art version, so a card blits it each frame; null until its art loads
 const ICONS = new Map();
-function kitIconSprite(E, parts, s, str, gm) {
-  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), B = TUNING.kit.iconBox;
-  const key = `${s}|${kitTier(str)}|${gm}|${k}|${artV}|${parts.map((q) => `${q.d.id}${q.armour ? 1 : 0}${q.guard ? 'g' : ''}`).join(',')}`;
+function kitIconSprite(E, parts, s, str, gm, pose = null) {
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), B = pose ? TUNING.menu.hero.icon : TUNING.kit.iconBox;
+  const key = `${s}|${kitTier(str)}|${gm}|${k}|${artV}|${pose ? pose.id : ''}|${parts.map((q) => `${q.d.id}${q.armour ? 1 : 0}${q.guard ? 'g' : ''}`).join(',')}`;
   let sp = ICONS.get(key);
   if (!sp) {
-    if (!artReady(dollArt(parts, str, gm))) return null;
+    const A = dollArt(parts, str, gm);
+    if (pose) A.extra.push(`kit-shield-${heroShield(gm)}`);
+    if (!artReady(A)) return null;
     const x = B[0] * s, y = B[1] * s, w = (B[2] - B[0]) * s, h = (B[3] - B[1]) * s, cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
     c.imageSmoothingQuality = 'high'; c.scale(k, k); c.translate(-x, -y);
-    if (!kitIcon(c, parts, s, str, gm)) return null;
+    if (!kitIcon(c, parts, s, str, gm, pose)) return null;
     sp = { cv, x, y, w, h };
     if (ICONS.size > 24) ICONS.clear();
     ICONS.set(key, sp);
@@ -6710,7 +6793,7 @@ function drawIntro(ctx, E) {
   E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40 - 2 * bw), weight: '800', color: '#f0e6cc' });
   if (sub) E.text(sub, cx, y + 72, { size: bw ? fitSize(ctx, sub, 15, w - 2 * bw - 16) : 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   const lx = x + 80, s = 96;
-  armourIcon(ctx, E, guardParts(foeParts(makeRng(d.partSeed), d.set), d.guards), lx, y + b + 100, s, d.str, GTYPE[d.weapon.id].helm);
+  armourIcon(ctx, E, guardParts(foeParts(makeRng(d.partSeed), d.set, d.plus || 0), d.guards), lx, y + b + 100, s, d.str, GTYPE[d.weapon.id].helm);
   E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 14, weight: '800', color: '#aab3bc' });
   const ng = (d.guards || []).length;
   E.text(ng ? `${d.set.slots - ng} open · ${ng} guarded` : `${d.set.slots} gaps open`, lx, y + b + 134, { size: 14, weight: '700', color: '#c4b99a' });
@@ -7451,7 +7534,7 @@ function paintMenu(c, E, o) {
 // in two pieces cut at the hips: the body above rises and falls a few pixels as he breathes, its lower rows covering the seam. d: the target's pixel
 // ratio; box: only what lies in it is drawn (the cloak always does).
 function menuFigure(ctx, E, m, x, y, s, d = E.dpr || 1, box = null) {
-  const M = TUNING.menu, t = E.time, sp = kitOn() && canSprite ? kitIconSprite(E, m.parts, s, m.me.str, m.gm) : null;
+  const M = TUNING.menu, t = E.time, pose = heroPose(m.me.weapon), sp = kitOn() && canSprite ? kitIconSprite(E, m.parts, s, m.me.str, m.gm, pose) : null;
   if (!sp) { armourIcon(ctx, E, m.parts, x, y, s, m.me.str, m.gm); return; }
   const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), cv = sp.cv, amp = Math.max(1, Math.round(M.breath[0] * s * k));
   const lift = Math.round(amp * (0.5 + 0.5 * Math.sin(t * M.breath[1]))), up = lift / k, sw = M.sway[0] * Math.sin(t * M.sway[1]);
@@ -7478,8 +7561,9 @@ function menuFigure(ctx, E, m, x, y, s, d = E.dpr || 1, box = null) {
   piece(0, cut + ext, Y - up); piece(cut, cv.height - cut, Y + cut / k);
   if (!m.weapon) return;
   if (box) { ctx.save(); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip(); }
-  const A = PARTS[pidx('armF')].joint, hx = x + (A[0] + TUNING.kit.weapon.doll[0]) * s, hy = y + (A[1] + ARM_LEN) * s;
-  ctx.save(); ctx.translate(hx, hy); ctx.rotate(Math.PI + 0.2); ctx.translate(0, -ARM_LEN * s);
+  // the hero pose's raised fist (it rises with the breath), the weapon leaning back from upright by the pose's lean
+  const hx = x + pose.near.F[0] * s, hy = y + pose.near.F[1] * s - up;
+  ctx.save(); ctx.translate(hx, hy); ctx.rotate(Math.PI - pose.weapon[2]); ctx.translate(0, -ARM_LEN * s);
   drawWeapon(ctx, m.weapon, s); ctx.restore();
   // (step 14: the doll's fist is copied again over the grip, so it closes on it)
   ctx.save(); ctx.beginPath(); ctx.arc(hx, hy, TUNING.kit.weapon.fist * s, 0, TAU); ctx.clip(); piece(0, cut + ext, Y - up); piece(cut, cv.height - cut, Y + cut / k); ctx.restore();
@@ -8281,6 +8365,7 @@ const play = {
   update(dt, E) {
     if (portrait(E)) return;
     popTop = E.safe.top + 80;
+    camUpdate(E, dt);
     if (state.draft) { state.draft.t += dt; return; }
     if (state.tent) { state.tent.t += dt; return; }
     if (state.caption) { state.caption.t -= dt; if (state.caption.t <= 0) state.caption = null; }
