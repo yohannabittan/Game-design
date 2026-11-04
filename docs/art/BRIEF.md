@@ -495,6 +495,39 @@ Spec: `docs/games/arena/prd-v0.3.md`, Step 16.
 
 That is 10 images, about US$1. Add them to `docs/art/candidates/arena/candidates.json`. Make a contact sheet of each beast wearing all four pieces at game size (with the designer's test: "slotted onto the body, or an empty object stuck on?"), and the laurel round a champion portrait. Write `docs/art/HANDOFF-arena-pack26.md` with each piece's pins in px against the beast part it sits on.
 
+### Pack 26b: Arena, beast armour painted onto the beasts (added 2026-11-04)
+
+**The designer, on Pack 26:** the armoured beasts "don't look so good; they look OK". The laurel is right: "we want the laurels around the picture" (A, the open ring, wraps the portrait without covering it).
+
+**Why Pack 26 looks stuck on:** each piece was painted alone, then laid over the beast. So:
+- the lion's chest plate reads as a loose shell on the shoulder;
+- the back plate floats as an arch;
+- the head guards are flat bands like crowns.
+
+None of them follows the fur, muscle and outline under it.
+
+**The fix is to paint the armour onto the beast itself,** with the image service's edit (inpainting):
+- Take the beast's own part as the input image: `beast-<kind>-torso-A.png`, `beast-<kind>-head-A.png` and `beast-<kind>-fore-up-A.png` for the grown lion and bear.
+- Give it a mask of one plate's region, and ask for that region to be repainted wearing the plate: bronze for the lion, iron for the bear, leather straps, riveted. The plate must wrap the form, follow its outline and sit on the fur, with the light and outline matching the rest of the part.
+- One edit per plate:
+
+| Plate | On | Region |
+| --- | --- | --- |
+| head | the head | a fitted chamfron down the brow and nose, eyes and jaws clear |
+| chest | the torso | a peytral across the chest and the front of the shoulder |
+| back | the torso | scale barding draped over the back and upper flank, from shoulder to haunch |
+| leg | the foreleg's upper half | a fitted guard following the leg |
+
+- **Output, per plate:** a layer cut from the edit's result, on the **same canvas and in the same place as the part it sits on**, transparent outside the plate, so the game lays it exactly over that part with that part's pins. Name them `beast-<kind>-armour-<plate>.png`; they replace Pack 26's `-A` files, with the old ones kept as `-old`.
+- **The pixels outside the mask must stay the part's own,** so the layer lines up exactly. Check that by laying each layer back over its part.
+- The young beasts reuse the grown pieces scaled, as before.
+
+The designer's test, at game size: "does it look like one beast wearing armour, or armour stuck on a beast?" Redo any that reads as stuck on.
+
+The laurel: no change. Ship `laurel-ring` A.
+
+That is 8 edits, about US$1 to 2. Make a contact sheet of each beast bare and armoured at game size, next to Pack 26's version. Update `docs/art/HANDOFF-arena-pack26.md` with the new layers' boxes; the pins are the parts' own.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
