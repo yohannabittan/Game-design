@@ -1,4 +1,54 @@
-# Handoff: Arena Pack 26, armoured beasts and a painted laurel (art, 2026-11-04)
+# Handoff: Arena Pack 26b, beast armour painted onto the beasts (art, 2026-11-04)
+
+**Pack 26b replaces the beast barding below.** The designer found Pack 26's armoured beasts "OK, not so good": each piece was painted alone, then laid on the beast, so it read as stuck on. In 26b each plate is painted onto the beast's own part with the image edit (inpainting) endpoint and a mask, then cut out as a layer. Contact sheets: `docs/art/candidates/arena/sheet-pack26b-beasts-worn.png` (each beast bare, Pack 26, Pack 26b, at 0.62x and at game size 0.4x) and `sheet-pack26b-layers.png` (each layer laid back over its part, 1x). Nothing is in `docs/art/final/arena/`: the designer picks first. The laurel section further down is unchanged: ship `laurel-ring-A.png`.
+
+## Files and boxes (the pins are the parts' own)
+
+The eight `beast-<kind>-armour-<plate>-A.png` in `docs/art/candidates/arena/` are now the 26b layers. Pack 26's pieces are kept as `-old.png` (head, chest, back, leg for both beasts), so the tables further down describe the `-old` files. Each layer is on **the same canvas as the part it sits on, in the same place**, transparent outside the plate, so wiring draws it with the part's own box, pin and mirror, drawn straight after that part:
+
+| Layer | Canvas = part | Painted box x0, y0 to x1, y1 | Draw |
+| --- | --- | --- | --- |
+| `beast-lion-armour-head-A` | 320 x 320 = `beast-lion-head-A` (faces right, like the head) | 143, 63 to 314, 196 | after the head, mirrored with it |
+| `beast-lion-armour-chest-A` | 640 x 384 = `beast-lion-torso-A` | 27, 89 to 424, 346 | after the torso and after the back layer |
+| `beast-lion-armour-back-A` | 640 x 384 = the torso | 119, 14 to 532, 296 | after the torso, before the chest layer |
+| `beast-lion-armour-leg-A` | 160 x 288 = `beast-lion-fore-up-A` | 23, 47 to 131, 254 | after the fore-up half (`a`, `b`, `w`, `mir` as the part) |
+| `beast-bear-armour-head-A` | 320 x 320 = `beast-bear-head-A` | 91, 42 to 315, 199 | as the lion's |
+| `beast-bear-armour-chest-A` | 640 x 384 = `beast-bear-torso-A` | 94, 50 to 455, 343 | as the lion's |
+| `beast-bear-armour-back-A` | 640 x 384 = the torso | 95, 4 to 619, 324 | as the lion's |
+| `beast-bear-armour-leg-A` | 160 x 288 = `beast-bear-fore-up-A` | 24, 32 to 135, 227 | as the lion's |
+
+Draw order that the sheet uses: far legs, torso, back, chest, near foreleg, leg guard, head, head guard. The back and chest layers overlap (the chest sits on the front of the back's scales); the chest layer is drawn last.
+
+## How they were made
+
+One inpainting edit per plate on the beast's own `-A` part (`gpt-image-1.5`, medium, one image each), with a mask over the plate's region and a prompt asking for that region to be repainted wearing bronze (lion) or riveted iron (bear) plates with leather straps. **The mask is advisory:** the model repainted the whole part a little (slightly different fur strokes, a thinner outline, up to 5 px of drift at the edge), so the pixels outside the plate are NOT taken from the result. The layer is only the plate: cut from the result by colour for the bear (iron is grey against red fur) and by a hand-traced outline for the lion (bronze against orange fur has no colour edge), then clipped to the part's own silhouette. Outside the plate the layer is transparent, so the game's part shows through byte for byte. Alignment check: every layer laid over its own part (`sheet-pack26b-layers.png`); layer pixels outside the part's own alpha are 0.0 to 0.3 percent, except the two leg guards (2 to 3 percent, the guard's rim a few px past the leg's outline).
+
+## The designer's test, beast by beast, at game size
+
+- **Bear: reads as one beast wearing armour.** Dark iron with bronze rims, scale barding over the back, a peytral on the chest, a chamfron down the brow and nose with the eye and jaw clear, a plated foreleg. Plates have the fur's lighting and outline weight.
+- **Lion: reads as armoured, less cleanly.** The bronze chamfron, scale back barding and plated leg are good. Flaws: the chest and back plates overlap into one busy gold mass on the shoulder; the mane hides most of the chest plate's left half; the leg guard is wider than the leg at its top and shows a fur gap on its left.
+- Pack 26's loose arch, band and shield are gone from both; nothing reads as a hollow or a crown.
+
+## What is still off
+
+- Outlines of the traced lion plates are hand-placed, so a few edges sit a pixel or two off the plate's own rim, and the lion's leg guard's left edge is rough. The bear's came from colour, so they are tighter, with small leather-strap fragments dropped.
+- The young beasts reuse these layers scaled with their parts, as before; the young foreleg's `a` differs by up to 30 px, so the leg guard may sit high or low on them. Not checked in this pack.
+- Hind legs and `-B` parts have no armour. Only the `-A` torso, head and fore-up are covered.
+- Layers are about 55 to 330 KB each (PNG, optimised); the wiring layer should convert to WebP.
+
+## Cost
+
+10 images (2 discarded tries on the lion chest while finding settings that make the mask count: high input fidelity with a transparent background redrew the whole beast; plain defaults placed the plate), 8 kept: **$0.73** by the usage block at $40 per million output tokens (input tokens not counted, as before). Ledger total now $57.86 of $80, plus the $4.82 wedding mock-ups on the account.
+
+## For the designer to paste
+
+"Pack 26b is in docs/art/candidates/arena: the armour is now painted onto each beast (HANDOFF-arena-pack26.md). Sheets: sheet-pack26b-beasts-worn.png (bare, Pack 26, Pack 26b) and sheet-pack26b-layers.png. The bear is good; the lion's chest and back plates crowd each other."
+
+---
+
+# Pack 26 (superseded for the beast barding by 26b above; the laurel stands)
+
+Original Pack 26 handoff:
 
 For the orchestrator, Step 16. 8 barding pieces (lion and bear) and the laurel in two options, in `docs/art/candidates/arena/`, listed in `candidates.json` (pack 26). Contact sheets: `sheet-pack26-beasts-worn.png` (each beast bare and wearing all four pieces, 1x and 0.4x, and the pieces alone) and `sheet-pack26-laurel.png` (the laurel round a champion portrait, at 3x and at game size). Nothing is in `docs/art/final/arena/`: the designer picks first.
 
