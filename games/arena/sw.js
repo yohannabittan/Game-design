@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'arena-v51';
+const CACHE_VERSION = 'arena-v52';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'arena-v';
 // The painted art (docs/art/final/arena, one webp each); the release channel shows it, the dev channel shows the candidates instead.
@@ -32,7 +32,16 @@ const ART = [
   './assets/beast-bear-fore-up.webp', './assets/beast-bear-fore-lo.webp', './assets/beast-bear-hind-up.webp',
   './assets/beast-bear-hind-lo.webp', './assets/beast-bear-fore-up-young.webp', './assets/beast-bear-fore-lo-young.webp',
   './assets/beast-bear-hind-up-young.webp', './assets/beast-bear-hind-lo-young.webp', './assets/beast-lion-torso.webp',
-  './assets/beast-lion-torso-young.webp', './assets/beast-bear-torso.webp', './assets/beast-bear-torso-young.webp'
+  './assets/beast-lion-torso-young.webp', './assets/beast-bear-torso.webp', './assets/beast-bear-torso-young.webp',
+  './assets/gear-bossed-shield.webp', './assets/gear-phalanx-helm.webp', './assets/gear-bloodletters-belt.webp', './assets/gear-crimson-cloak.webp',
+  './assets/gear-shadow-sandals.webp', './assets/gear-wind-ribbons.webp', './assets/gear-crusher-gauntlets.webp',
+  './assets/gear-colossus-plate.webp', './assets/gear-smoke-pouch-belt.webp', './assets/gear-mirror-cloak.webp', './assets/gear-laurel-wreath.webp',
+  './assets/gear-idols-torc.webp', './assets/tailor-crest-bronze.webp', './assets/tailor-crest-silver.webp', './assets/tailor-crest-gold.webp',
+  './assets/tailor-plume-red.webp', './assets/tailor-plume-white.webp', './assets/tailor-plume-black.webp', './assets/tailor-paint-wings.webp',
+  './assets/tailor-paint-bolt.webp', './assets/tailor-paint-sun.webp', './assets/tailor-cloak-red.webp', './assets/tailor-cloak-blue.webp',
+  './assets/tailor-cloak-green.webp', './assets/weapon-gladius.webp', './assets/weapon-spear.webp', './assets/weapon-dagger.webp',
+  './assets/weapon-sica.webp', './assets/weapon-axe.webp', './assets/weapon-mace.webp', './assets/weapon-trident.webp',
+  './assets/weapon-wooden-sword.webp', './assets/logo-arena.webp'
 ];
 const ASSETS = [
   './',

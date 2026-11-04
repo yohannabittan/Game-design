@@ -229,7 +229,8 @@ const TUNING = {
     // overBreak = dents at which an overhead breaks a plate (0: the usual armour.dents), noDent: its slashes and smashes never dent a plate
     weapons: {
       // fists (step 11): free, very fast, half the damage, a stab into a gap still counts
-      fist: { name: 'FISTS', reach: 0.5, speed: 1.6, dmg: 0.5, cost: 1, slash: 1, slot: 2, slotDmg: 0.5, overBreak: 0, noDent: true },
+      // (Step 14: a fist's swing glow is glow H round the fist, its jab spark knuckle H past it, art only)
+      fist: { name: 'FISTS', reach: 0.5, speed: 1.6, dmg: 0.5, cost: 1, slash: 1, slot: 2, slotDmg: 0.5, overBreak: 0, noDent: true, glow: 0.05, knuckle: 0.035 },
       gladius: { name: 'GLADIUS', reach: 1, speed: 1, dmg: 1, cost: 1, slash: 1, slot: 3, slotDmg: 1, overBreak: 0 },
       spear: { name: 'SPEAR', reach: 1.35, speed: 0.85, dmg: 1, cost: 1, slash: 0.6, slot: 3, slotDmg: 1, overBreak: 0 },
       axe: { name: 'AXE', alt: 'MACE', reach: 0.9, speed: 0.75, dmg: 1.7, cost: 1.4, slash: 1, slot: 3, slotDmg: 1.7, overBreak: 2 },
@@ -378,10 +379,10 @@ const TUNING = {
   // the menu (step 12): seed = the fresh roll's look shown before any run; col = the centre column (share of the width, least, most px), gap px to the
   // sides; title px (least, most, share of the height); backdrop wash and vignette alphas; torches at dx px either side of the title's centre, glow r
   // px, flicker share; dust motes, their px/s drift; the fighter's height (share of the height), the cut at his hips (body units), breath (rise as a share of s, rad/s), cloak sway (body units, rad/s)
-  // and colour; Brutus's face px; names per wall; wall height px (most); plaques' heights px; repaints a second of what moves (your fighter, the flames, the dust); the crowd murmur's gain, low-pass Hz, loop s and swells a loop
+  // and colour; Brutus's face px; names per wall; wall height px (most); the painted logo's box (title px, step 14); plaques' heights px; repaints a second of what moves (your fighter, the flames, the dust); the crowd murmur's gain, low-pass Hz, loop s and swells a loop
   menu: { seed: 20261103, col: [0.4, 270, 340], gap: 12, title: [40, 56, 0.12], wash: 0.22, vignette: 0.8, torchDx: 118, torchR: 64, flicker: 0.22,
     dust: 16, dustV: [6, 16], fighter: 0.6, hips: -0.45, breath: [0.012, 1.7], sway: [0.05, 1.2], cloak: '#8e2a26', face: 52, names: 3, wallH: 100,
-    play: 56, small: 46, fps: 5, figBox: [-0.4, -1.26, 0.26, -0.03], murmur: 0.05, murmurHz: 600, murmurLoop: 3, swells: 2 },
+    logo: [3.8, 1.25], play: 56, small: 46, fps: 5, figBox: [-0.4, -1.26, 0.26, -0.03], murmur: 0.05, murmurHz: 600, murmurLoop: 3, swells: 2 },
   // Step 13, the arena picker: the plaque's margin and rim (px), the painting's horizontal focus, its dark top and bottom (alpha, and where the clear middle runs, 0-1), the room kept for the name above the champion and for his lines below, and how dark a shut arena is
   pick: { m: 6, rim: 7, focus: 0.5, shade: [0.7, 0.9], fade: [0.28, 0.6], top: 62, bot: 82, lock: 0.5 },
   art: { wash: 0.28, band: 1.15, bandA: 0.32, face: 30, faceBig: 40, faceCard: 26, gap: 4, cardDrop: 8, crop: [0.2, 0.02, 0.78, 0.46], bust: [60, 80, 10], epi: [96, 128], box: [0, 0.02, 1, 0.62] },
@@ -508,19 +509,70 @@ const TUNING = {
       'gear-purple-cloak': { size: [384, 512], a: [192, 20], b: [192, 500], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
       'gear-lion-pelt': { size: [384, 512], a: [192, 10], b: [192, 480], w: 384, at: [-0.05, -0.74, -0.13, -0.2, 0.26] },
       'gear-spiked-shield': { size: [320, 320], r: 122 }, 'gear-spiral-shield': { size: [320, 320], r: 158 }, 'gear-tower-shield': { size: [224, 448], h: 224 },
-      // Step 9, the vault's gear (art Pack 22): provisional pins, copied from the Pack 20 piece of the same kind, until HANDOFF-arena-pack22 gives each file's own
-      'gear-bossed-shield': { size: [320, 320], r: 140 }, 'gear-phalanx-helm': { size: [256, 256], a: [125, 50], b: [125, 240], helm: true, bare: 95 },
-      'gear-laurel-wreath': { size: [256, 256], a: [130, 0], b: [130, 280] },
-      'gear-bloodletters-belt': { size: [384, 96], a: [118, 18], b: [266, 18], at: [-0.11, 0.11, -0.48] }, 'gear-smoke-pouch-belt': { size: [384, 96], a: [112, 18], b: [272, 18], at: [-0.11, 0.11, -0.48] },
-      'gear-crimson-cloak': { size: [384, 512], a: [192, 20], b: [192, 500], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
-      'gear-mirror-cloak': { size: [384, 512], a: [192, 20], b: [192, 500], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
-      'gear-shadow-sandals': { size: [192, 384], a: [62, 55], b: [66, 288], at: [0.1, 1] },
-      'gear-wind-ribbons': { size: [160, 160], a: [80, 22], b: [80, 138], w: 160, at: [0.19, 0.265] }, 'gear-crusher-gauntlets': { size: [160, 160], a: [80, 22], b: [80, 138], w: 160, at: [0.2, 0.28] },
-      'gear-colossus-plate': { size: [384, 384], a: [190, 12], b: [190, 372], w: 300, at: [0, -0.745, -0.48], bare: 95 },
-      'gear-idols-torc': { size: [256, 192], a: [128, 0], b: [128, 192], at: [0.02, -0.75, -0.6] },
+      // Step 14, the vault's gear (art Pack 22, HANDOFF-arena-pack22): each file's own pins. The helm is painted 1:1 on the head's canvas; the belts' a
+      // and b are their belt line's ends, stretched to the waist; the sandal is a tall laced boot, so it starts near the knee; the wreath is painted
+      // face-on, so it is laid flat round the brow (at: its open back and its front from the head's centre, and its depth across, H)
+      'gear-bossed-shield': { size: [320, 320], r: 158 }, 'gear-phalanx-helm': { size: [256, 256], a: [128, 0], b: [128, 222], helm: true, bare: 70 },
+      'gear-laurel-wreath': { size: [256, 256], a: [128, 16], b: [128, 238], w: 251, at: [-0.085, -0.07, 0.085, -0.035, 0.07] },
+      'gear-bloodletters-belt': { size: [384, 96], a: [88, 48], b: [296, 48], at: [-0.11, 0.11, -0.48] }, 'gear-smoke-pouch-belt': { size: [384, 96], a: [97, 48], b: [286, 48], at: [-0.11, 0.11, -0.48] },
+      'gear-crimson-cloak': { size: [384, 512], a: [192, 2], b: [192, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
+      'gear-mirror-cloak': { size: [384, 512], a: [187, 33], b: [187, 479], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
+      'gear-shadow-sandals': { size: [192, 384], a: [41, 70], b: [40, 312], at: [0.09, 1] },
+      'gear-wind-ribbons': { size: [160, 240], a: [39, 31], b: [41, 208], w: 64, at: [0.155, 0.29] }, 'gear-crusher-gauntlets': { size: [160, 160], a: [112, 7], b: [74, 152], w: 100, at: [0.21, 0.3] },
+      'gear-colossus-plate': { size: [384, 384], a: [186, 20], b: [186, 363], w: 300, at: [0, -0.745, -0.48], bare: 95 },
+      'gear-idols-torc': { size: [128, 160], a: [64, 4], b: [64, 155], at: [0.03, -0.745, -0.6] },
     },
     // a round shield face on a tall shield: its rim radius per the tall shield's half width
     emblem: 0.85,
+    // Step 14, the tailor's looks painted (Pack 22, `tailor-<item>-<style>`), each file's pin (px): the crest's base and the plume's socket, set on
+    // your head at (x, y) head radii from its centre with the canvas w head radii wide; the paint's disc (r its radius), laid on the round shield's face
+    // at paint of its rim radius; the cloak hung as a card cloak (TUNING.kit.gear's a, b, w and at)
+    tailor: {
+      crest: { at: [-0.15, -0.62], w: 3.1 }, plume: { at: [-0.2, -0.68], top: -1.25, w: 1.9 }, paint: 0.84,
+      'tailor-crest-bronze': { size: [256, 128], a: [127, 126] }, 'tailor-crest-silver': { size: [256, 128], a: [127, 126] }, 'tailor-crest-gold': { size: [256, 128], a: [128, 126] },
+      'tailor-plume-red': { size: [256, 256], a: [88, 254] }, 'tailor-plume-white': { size: [256, 256], a: [73, 254] }, 'tailor-plume-black': { size: [256, 256], a: [206, 254] },
+      'tailor-paint-wings': { size: [256, 256], r: 126 }, 'tailor-paint-bolt': { size: [256, 256], r: 126 }, 'tailor-paint-sun': { size: [256, 256], r: 126 },
+      'tailor-cloak-red': { size: [384, 512], a: [191, 2], b: [191, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
+      'tailor-cloak-blue': { size: [384, 512], a: [182, 2], b: [182, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
+      'tailor-cloak-green': { size: [384, 512], a: [184, 2], b: [184, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
+    },
+    // Step 14, the weapons painted (Pack 23, HANDOFF-arena-pack23), each straight up with its point at row 0: its canvas, the grip's axis x and the row
+    // the hand closes on (pin), px. Drawn about the pin at the fist, its point where the drawn point was (yours at your blade's reach, his `len` plus
+    // tip H past his fist), the side painted right (the axe's bit, the sica's hollow) leading. The spear's and the trident's pins sit 392 px above the
+    // butt (the handoff's proposal put 0.6 H of shaft behind his hand). For the card looks: the blade's or head's rows (blade, top and bottom), its
+    // half width hw, its cutting edges, and clip, the shapes the blackened and gilded looks and the red of a locked blade are kept inside (ring: the
+    // mace's ball, x, y and r, both at once).
+    weapon: {
+      gladius: { size: [96, 640], x: 48, pin: 517, tip: 0.04, blade: [0, 360], hw: 33,
+        edges: [[[48, 0], [32, 32], [21, 64], [15, 96], [15, 360]], [[48, 0], [64, 32], [75, 64], [81, 96], [81, 360]]],
+        clip: [[[48, 0], [32, 32], [21, 64], [15, 96], [15, 360], [81, 360], [81, 96], [75, 64], [64, 32]]] },
+      dagger: { size: [69, 384], x: 34.3, pin: 287, tip: 0.04, blade: [0, 205], hw: 23,
+        edges: [[[35, 0], [19, 32], [12, 64], [11, 96], [14, 160], [11, 200]], [[35, 0], [50, 32], [57, 64], [58, 96], [55, 160], [58, 200]]],
+        clip: [[[35, 0], [19, 32], [12, 64], [11, 96], [14, 160], [11, 205], [58, 205], [55, 160], [58, 96], [57, 64], [50, 32]]] },
+      sica: { size: [136, 640], x: 61.2, pin: 518, tip: 0.04, blade: [0, 408], hw: 26,
+        edges: [[[132, 0], [115, 32], [94, 64], [78, 96], [67, 128], [62, 160], [62, 192], [68, 224], [79, 256], [89, 288], [95, 320], [96, 352], [93, 384], [91, 404]],
+          [[128, 0], [72, 32], [40, 64], [20, 96], [8, 128], [2, 160], [1, 192], [5, 224], [17, 256], [32, 288], [42, 320], [44, 352], [40, 384], [35, 404]]],
+        clip: [[[132, 0], [115, 32], [94, 64], [78, 96], [67, 128], [62, 160], [62, 192], [68, 224], [79, 256], [89, 288], [95, 320], [96, 352], [93, 384], [91, 408],
+          [35, 408], [40, 384], [44, 352], [42, 320], [32, 288], [17, 256], [5, 224], [1, 192], [2, 160], [8, 128], [20, 96], [40, 64], [72, 32], [128, 0]]] },
+      spear: { size: [95, 1792], x: 45.5, pin: 1400, tip: 0.12, blade: [0, 224], hw: 46,
+        edges: [[[47, 0], [27, 32], [16, 64], [8, 96], [3, 128], [0, 160], [5, 192], [19, 224]], [[47, 0], [66, 32], [77, 64], [86, 96], [91, 128], [93, 160], [89, 192], [74, 224]]],
+        clip: [[[47, 0], [27, 32], [16, 64], [8, 96], [3, 128], [0, 160], [5, 192], [19, 224], [74, 224], [89, 192], [93, 160], [91, 128], [86, 96], [77, 64], [66, 32]]] },
+      trident: { size: [240, 1792], x: 121, pin: 1400, tip: 0.13, blade: [0, 240], hw: 60,
+        edges: [[[13, 48], [8, 112], [2, 144], [5, 224]], [[227, 48], [231, 112], [237, 144], [235, 224]]],
+        clip: [[[13, 46], [2, 144], [5, 240], [47, 240], [44, 160], [59, 144], [27, 64]], [[120, 0], [100, 64], [87, 112], [104, 128], [104, 240], [136, 240], [136, 128], [152, 112], [138, 64]],
+          [[227, 46], [238, 144], [235, 240], [193, 240], [196, 160], [181, 144], [212, 64]]] },
+      axe: { size: [253, 1024], x: 47, pin: 832, tip: 0.04, blade: [16, 304], hw: 28,
+        edges: [[[237, 16], [249, 64], [252, 128], [248, 176], [237, 224], [215, 272], [187, 304]]],
+        clip: [[[91, 16], [192, 32], [237, 16], [246, 48], [252, 112], [250, 160], [241, 208], [224, 256], [203, 288], [187, 304], [181, 256], [178, 224], [168, 192], [145, 160], [124, 144], [91, 144]]] },
+      mace: { size: [211, 1024], x: 106, pin: 832, tip: 0.07, blade: [20, 210], hw: 50, ring: [105, 120, 92] },
+      // the weapon in the inventory doll's hand (its fist's x past the shoulder joint, body units, the menu's too, and its lean, rad), and the purse rack's weapons, lying
+      // flat at their lengths against the longest's, under the names at alpha rackA
+      doll: [0.095, 0.1], rackA: 0.5,
+      // the doll's fist (the menu's and the inventory's), body units round the hand, copied again over the grip
+      fist: 0.045,
+      // the wooden sword of freedom on his card, lying flat (not held), its notches cut across the blade
+      wooden: { size: [93, 640], x: 45.9, pin: 518, blade: [0, 424], hw: 34, clip: [[[46, 0], [25, 32], [13, 64], [11, 96], [12, 424], [80, 424], [80, 96], [77, 64], [66, 32]]] },
+    },
     // the draped net (kit-net-draped): its crown a and hem b (px), w its px across; over a man, a lion or a bear in its body's frame: the crown's x and
     // y, the hem's x and y and the width (body units); grow: the s it takes to land, and the size it lands from
     net: { size: [512, 512], a: [256, 84], b: [256, 428], w: 512, grow: [0.3, 0.6], man: [0.02, -1.0, 0, -0.3, 0.55], lion: [0, -0.6, -0.02, -0.1, 0.8], bear: [-0.02, -0.64, -0.04, -0.12, 0.82] },
@@ -1745,7 +1797,8 @@ function moveHand(E, dt) {
   h.along = h.vx * Math.cos(h.ang) + h.vy * Math.sin(h.ang);
   h.sp = h.down && h.lock <= 0 ? h.sp * 0.5 + inst * 0.5 : 0;
   if (h.hy < guardPt(E)[1] - TUNING.attack.over.raise * L.H) h.raisedT = state.m;
-  state.trail.push({ x: h.ux, y: h.uy, life: 0.12 });
+  // (a fist's trail follows the fist, step 14)
+  if (state.me.weapon === 'fist') state.trail.push({ x: h.hx, y: h.hy, life: 0.12 }); else state.trail.push({ x: h.ux, y: h.uy, life: 0.12 });
   for (const q of state.trail) q.life -= dt;
   state.trail = state.trail.filter((q) => q.life > 0);
 }
@@ -3549,7 +3602,13 @@ const SHIPPED = new Set([
   'gear-blood-band gear-ribbon-band gear-horned-cap gear-dark-hood gear-plumed-helm gear-bronze-phalerae gear-ghost-silk gear-black-plate ',
   'gear-eye-amulet gear-gilded-harness gear-bronze-boots gear-dancers-sandals gear-spiked-boots gear-soft-boots gear-gilded-greaves ',
   'gear-hook-belt gear-ribbon-sash gear-chain-belt gear-coin-belt gear-wolf-pelt gear-flowing-cape gear-puppeteers-mantle gear-purple-cloak ',
-  'gear-lion-pelt gear-spiked-shield gear-tower-shield gear-spiral-shield'
+  'gear-lion-pelt gear-spiked-shield gear-tower-shield gear-spiral-shield ',
+  // the vault's gear and the tailor's looks (Pack 22), the weapons and the title (Pack 23)
+  'gear-bossed-shield gear-phalanx-helm gear-bloodletters-belt gear-crimson-cloak gear-shadow-sandals gear-wind-ribbons gear-crusher-gauntlets ',
+  'gear-colossus-plate gear-smoke-pouch-belt gear-mirror-cloak gear-laurel-wreath gear-idols-torc tailor-crest-bronze tailor-crest-silver ',
+  'tailor-crest-gold tailor-plume-red tailor-plume-white tailor-plume-black tailor-paint-wings tailor-paint-bolt tailor-paint-sun tailor-cloak-red ',
+  'tailor-cloak-blue tailor-cloak-green weapon-gladius weapon-spear weapon-dagger weapon-sica weapon-axe weapon-mace weapon-trident ',
+  'weapon-wooden-sword logo-arena'
 ].join('').split(' '));
 const shippedSrc = (name) => `assets/${name}.webp`;
 // the art the game asks: E.art in the dev channel (candidates and the designer's picks), the shipped A picks in release
@@ -3612,6 +3671,15 @@ const GEAR_FILE = { matador: 'gear-matador-ribbons' };
 const gearFile = (c) => GEAR_FILE[c.id] || `gear-${c.gear.toLowerCase().replace(/'/g, '').replace(/\s+/g, '-')}`;
 for (const c of DECK) if (c.slot && TUNING.kit.gear[gearFile(c)]) ART_NAMES[gearFile(c)] = `${c.gear} (${c.name} card)`;
 ART_NAMES['kit-net-draped'] = 'Net, draped over a netted fighter';
+// Step 14: a weapon's painting (TUNING.kit.weapon) by its id, the mace by its own
+const weaponKey = (id, mace) => (id === 'axe' && mace ? 'mace' : id);
+const weaponArt = (key) => `weapon-${key === 'wooden' ? 'wooden-sword' : key}`;
+// a tailor's look's file
+const tailorFile = (item, t) => `tailor-${item}-${TAILOR[item][t.i][0].toLowerCase()}`;
+// Step 14 (Packs 22 and 23): the weapons, the title, the tailor's looks
+for (const k of Object.keys(TUNING.kit.weapon)) if (TUNING.kit.weapon[k].size) ART_NAMES[weaponArt(k)] = k === 'wooden' ? 'Wooden sword (freedom)' : `Weapon: ${k}`;
+ART_NAMES['logo-arena'] = 'Title: ARENA';
+for (const [item, sts] of Object.entries(TAILOR)) sts.forEach((q, i) => { ART_NAMES[tailorFile(item, { i })] = `Tailor: ${item}, ${q[0].toLowerCase()}`; });
 const artLabel = (name) => ART_NAMES[name] || (String(name).replace(/-+/g, ' ').trim().replace(/^./, (c) => c.toUpperCase()));
 // a portrait's crop (fractions x0 y0 x1 y1) at w x h px, cached at the screen's pixel ratio; null until it loads
 const PICS = new Map();
@@ -3676,13 +3744,14 @@ function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean'
 function lookFor(fm, isFoe) {
   const lk = lookOf(fm, isFoe);
   if (!kitOn() || fm.beast) return lk;
-  const tier = kitTier(isFoe ? fm.str : state.me.str), key = `${tier}|${isFoe ? '' : 'y'}|${artV}`;
+  const tier = kitTier(isFoe ? fm.str : state.me.str), wk = isFoe ? fm.weapon && weaponKey(fm.weapon.id, fm.mace) : state.me.weapon !== 'fist' && weaponKey(state.me.weapon, state.me.mace);
+  const key = `${tier}|${isFoe ? '' : 'y'}|${wk}|${artV}`;
   if (!lk.kitL || lk.kitL.key !== key) {
-    // until all of his paint is in, he keeps the drawn look whole (step 12)
-    if (!artReady(manArt(lk, tier))) { lk.kitL = { key, lk }; return lk; }
+    // until all of his paint is in (his weapon too, step 14), he keeps the drawn look whole (step 12)
+    if (!artReady(manArt(lk, tier, wk))) { lk.kitL = { key, lk }; return lk; }
     const helm = KIT_HELM[lk.helm] || 'gallic', shield = KIT_SHIELD[lk.helm] || 'round', wrap = !!KIT_WRAP[lk.helm];
     // the worn pieces whose paint has loaded (step 6c-2), so a part repaints when one arrives
-    const ga = Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)] && artImg(gearFile(c))).map((c) => c.id).join('.');
+    const ga = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)] && artImg(gearFile(c))).map((c) => c.id), ...tailorFiles(lk).filter((n) => artImg(n))].join('.');
     lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe, helm, shield, wrap }, id: `${lk.id}|kit${key}|${helm}.${shield}${wrap ? '.wrap' : ''}|ga${ga}` } };
   }
   return lk.kitL.lk;
@@ -3731,8 +3800,8 @@ function kitPic(part, tier, px = 0) {
 }
 const KIT_PARTS = ['head', 'torso', 'upperarm', 'forearm', 'thigh', 'shin'];
 // a man's paint (step 12): the body of his tier, and the pieces he may wear (his type's helmet and shield, the plates, wraps, his card gear)
-function manArt(lk, tier) {
-  const gear = Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)]).map(gearFile);
+function manArt(lk, tier, wk = null) {
+  const gear = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)]).map(gearFile), ...tailorFiles(lk), ...(wk && TUNING.kit.weapon[wk] ? [weaponArt(wk)] : [])];
   const tower = lk.gear && lk.gear.shield && lk.gear.shield.id === 'ironwall', wrap = KIT_WRAP[lk.helm] ? [KIT_GEAR.wrap] : [], gal = lk.galerus ? [KIT_GEAR.galerus] : [];
   return { body: KIT_PARTS.map((p) => kitName(p, tier)), extra: [`kit-helmet-${KIT_HELM[lk.helm] || 'gallic'}`, `kit-shield-${tower ? 'scutum' : KIT_SHIELD[lk.helm] || 'round'}`, KIT_GEAR.plate, KIT_GEAR.manica, KIT_GEAR.greave, ...wrap, ...gal, ...gear] };
 }
@@ -3752,6 +3821,12 @@ const shieldPic = (kind, px = 0) => artPic(`kit-shield-${kind}`, TUNING.kit.shie
 // Step 6c-2: the painted piece a kit look wears in a slot (null: the drawn piece stays); px > 0 a live copy
 function gearArt(lk, slot, px = 0) {
   const c = lk.kit && lk.gear && lk.gear[slot], f = c && gearFile(c), J = f && TUNING.kit.gear[f];
+  return J ? artPic(f, J, px) : null;
+}
+// Step 14: the tailor's looks you wear, painted (TUNING.kit.tailor): their files, and an item's painting on a kit look (null: the drawn look stays)
+const tailorFiles = (lk) => Object.entries(lk.tailor || {}).map(([k, t]) => tailorFile(k, t)).filter((n) => TUNING.kit.tailor[n]);
+function tailorArt(lk, item, px = 0) {
+  const t = lk.kit && lk.tailor && lk.tailor[item], f = t && tailorFile(item, t), J = f && TUNING.kit.tailor[f];
   return J ? artPic(f, J, px) : null;
 }
 // a gear piece pinned from A to B, w px across its J.w (none: in its own shape), mirrored when painted facing left (or flip); bare (his unplated
@@ -4429,7 +4504,7 @@ function paintHeadGear(c, p, H, lk) {
     else if (id === 'showstop') for (let k = 0; k < 5; k++) { const a = Math.PI * (1.1 + k * 0.16); c.beginPath(); c.ellipse(x + Math.cos(a) * r * 0.78, y + Math.sin(a) * r * 0.78, r * 0.13, r * 0.06, a + 1.2, 0, TAU); c.fill(); }
     c.restore();
   });
-  if (!g) { if (lk.tailor) tailorHead(c, x, y, r, H, lk.tailor); return; }
+  if (!g) { if (lk.tailor) tailorHead(c, x, y, r, H, lk.tailor, lk); return; }
   // the painted piece (a helmet that stood in for a plated head's is already on it)
   const G = gearArt(lk, 'helmet');
   if (G) {
@@ -4437,7 +4512,10 @@ function paintHeadGear(c, p, H, lk) {
     // a head piece that is not a helmet: none over a closed helmet (nor a hood over any); a band is tied under an open helmet's brim, so the helmet goes back on over it
     const hp = p.armour && helmPic(lk);
     if (hp && (hp.J.closed || G.J.cover)) return;
-    wearSeg(c, G, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0, !p.armour && !lk.kit.you);
+    // (a ring laid round the brow, step 14: J.at its back and front from the head's centre, its depth across)
+    const W = G.J.at;
+    if (W) wearSeg(c, G, [x + W[0] * H, y + W[1] * H], [x + W[2] * H, y + W[3] * H], W[4] * H, !p.armour && !lk.kit.you);
+    else wearSeg(c, G, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0, !p.armour && !lk.kit.you);
     if (hp) drawSeg(c, hp, [x, TUNING.kit.top * H], [x, TUNING.kit.chin * H], 0);
     return;
   }
@@ -4681,15 +4759,20 @@ function paintLegGear(c, p, H, lk) {
   });
 }
 // The tailor's looks on your head, where no helmet piece is worn: a metal crest ridge front to back, then a plume of three tall feathers on top
-function tailorHead(c, x, y, r, H, T) {
-  if (T.crest) {
+function tailorHead(c, x, y, r, H, T, lk) {
+  // painted (step 14): each pinned by its base at (x, y) head radii from the head's centre, its canvas w head radii wide
+  const TT = TUNING.kit.tailor, C = tailorArt(lk, 'crest'), Pl = tailorArt(lk, 'plume');
+  const pin = (P, at, w) => { const k = w * r / P.J.size[0]; c.drawImage(P.im, x + at[0] * r - P.J.a[0] * k, y + at[1] * r - P.J.a[1] * k, P.J.size[0] * k, P.J.size[1] * k); };
+  if (C) pin(C, TT.crest.at, TT.crest.w);
+  if (Pl) pin(Pl, T.crest ? [TT.plume.at[0], TT.plume.top] : TT.plume.at, TT.plume.w);
+  if (T.crest && !C) {
     const col = T.crest.col;
     c.beginPath(); c.moveTo(x + r * 0.6, y - r * 0.78); c.quadraticCurveTo(x + r * 0.15, y - r * 1.7, x - r * 1.0, y - r * 0.5);
     c.lineTo(x - r * 0.78, y - r * 0.42); c.quadraticCurveTo(x - r * 0.05, y - r * 1.3, x + r * 0.42, y - r * 0.7); c.closePath();
     const gr = c.createLinearGradient(x, y - r * 1.6, x, y - r * 0.5); gr.addColorStop(0, shade(col, 1.35)); gr.addColorStop(1, shade(col, 0.62));
     c.fillStyle = gr; c.fill(); c.strokeStyle = shade(col, 0.35); c.lineWidth = lw(H, 0.005); c.stroke();
   }
-  if (T.plume) {
+  if (T.plume && !Pl) {
     const col = T.plume.col, by = y - r * (T.crest ? 1.25 : 0.95);
     for (let i = 0; i < 3; i++) {
       c.save(); c.translate(x - r * (0.05 + i * 0.32), by); c.rotate(-0.25 - i * 0.3);
@@ -4708,6 +4791,8 @@ function paintCloak(c, p, H, lk) {
   if (G) { wearSeg(c, G, [A[0] * H, A[1] * H], [A[2] * H, A[3] * H], A[4] * H); return; }
   const L = g ? FAM_LOOK[g.fam] : null, P = (x, y) => [x * H, y * H];
   const shape = (pts, fill, edge) => { c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]))); c.closePath(); c.fillStyle = fill; c.fill(); c.strokeStyle = edge; c.lineWidth = lw(H, 0.005); c.lineJoin = 'round'; c.stroke(); };
+  const TC = !g && tailorArt(lk, 'cloak'), TA = TC && TC.J.at;
+  if (TC) { wearSeg(c, TC, [TA[0] * H, TA[1] * H], [TA[2] * H, TA[3] * H], TA[4] * H); return; }
   if (!g) {
     // the tailor's cloak: plain wool from the shoulders to below the knee, a bronze brooch, two folds
     const pts = [P(0.04, -0.7), P(-0.06, -0.72), P(-0.13, -0.6), P(-0.19, -0.4), P(-0.23, -0.2), P(-0.22, -0.12), P(-0.12, -0.13), P(-0.03, -0.15), P(0.01, -0.36), P(0.02, -0.55)];
@@ -5160,9 +5245,29 @@ function drapeNet(ctx, E, H, fm, k) {
   drawSeg(ctx, P, top, lerp2(top, [B[2] * H, B[3] * H], k), B[4] * H * k);
   ctx.restore();
 }
+// A painted weapon with its pin at A and its point L px along u (unit), its painted right side to u's left-hand normal, and a card's look g over it;
+// red: locked. Returns its blade as a path; false while it loads (the caller draws the drawn one), with the kit off, or where the art has none.
+function paintWeapon(ctx, key, A, u, L, H, g = null, red = false) {
+  const J = TUNING.kit.weapon[key], k = L / J.pin, dk = Math.min((ENG && ENG.dpr) || 1, TUNING.skin.maxDpr);
+  const P = J && kitOn() && artPic(weaponArt(key), J, Math.ceil(J.size[0] * k * dk / 8) * 8);
+  if (!P) return false;
+  const n = [-u[1], u[0]], pt = (x, y) => [A[0] + (n[0] * (x - J.x) + u[0] * (J.pin - y)) * k, A[1] + (n[1] * (x - J.x) + u[1] * (J.pin - y)) * k];
+  const o = pt(0, 0);
+  ctx.save(); ctx.transform(n[0] * k, n[1] * k, -u[0] * k, -u[1] * k, o[0], o[1]); ctx.drawImage(P.im, 0, 0, J.size[0], J.size[1]); ctx.restore();
+  const R = J.ring && pt(J.ring[0], J.ring[1]);
+  const clip = () => {
+    ctx.beginPath();
+    if (R) { ctx.arc(R[0], R[1], J.ring[2] * k, 0, TAU); return; }
+    for (const sh of J.clip) { sh.forEach((q, i) => { const c = pt(q[0], q[1]); if (i) ctx.lineTo(c[0], c[1]); else ctx.moveTo(c[0], c[1]); }); ctx.closePath(); }
+  };
+  if (red) { clip(); ctx.fillStyle = 'rgba(255,90,70,0.5)'; ctx.fill(); }
+  if (g) weaponGear(ctx, g, pt(J.x, J.blade[1]), pt(J.x, J.blade[0]), J.hw * k, pt(J.x, J.size[1]), H, R ? [ringPts(R[0], R[1], J.ring[2] * k)] : J.edges.map((e) => e.map((q) => pt(q[0], q[1]))), clip);
+  return clip;
+}
 // The foe's weapon in his arm's frame: the fist at (0, ARM_LEN), the weapon along +y; frame -x is the edge that leads a chop.
-function drawWeapon(ctx, f, H) {
-  const W = f.weapon, y0 = ARM_LEN * H, len = W.len * H;
+function drawWeapon(ctx, f, H, paint = true) {
+  const W = f.weapon, y0 = ARM_LEN * H, len = W.len * H, key = weaponKey(W.id, f.mace), J = TUNING.kit.weapon[key];
+  if (J && paint && paintWeapon(ctx, key, [0, y0], [0, 1], len + J.tip * H, H, f.look && f.look.gear.weapon)) return;
   ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
   const leaf = (y1, y2, w) => { ctx.beginPath(); ctx.moveTo(-w * 0.8, y1); ctx.lineTo(-w, y1 + (y2 - y1) * 0.3); ctx.lineTo(-w * 0.6, y1 + (y2 - y1) * 0.75); ctx.lineTo(0, y2); ctx.lineTo(w * 0.6, y1 + (y2 - y1) * 0.75); ctx.lineTo(w, y1 + (y2 - y1) * 0.3); ctx.lineTo(w * 0.8, y1); ctx.closePath(); ctx.fillStyle = '#d5dce4'; ctx.fill(); ctx.stroke(); };
   const pole = (a, b, w) => { ctx.fillStyle = '#7a5532'; ctx.fillRect(-w / 2, a, w, b - a); ctx.strokeRect(-w / 2, a, w, b - a); };
@@ -5234,8 +5339,9 @@ function sawTeeth(ctx, pts, a, ux, uy, H) {
   }
 }
 // A weapon piece along the weapon's working part, from a to b (px), hw its half-width there, butt the end of the grip, edges its cutting edges: the saw
-// teeth, the sica's hook (and its red grip), the spiked iron pommel, the blackened blade, the gilded one with its ribbon.
-function weaponGear(ctx, g, a, b, hw, butt, H, edges) {
+// teeth, the sica's hook (and its red grip), the spiked iron pommel, the blackened blade, the gilded one with its ribbon. clip: a painted weapon's blade
+// as a path, which the blackened and gilded looks keep inside
+function weaponGear(ctx, g, a, b, hw, butt, H, edges, clip = null) {
   const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, nx = -uy, ny = ux, s = 0.014 * H;
   if (g.id === 'serrated') {
     for (const e of edges) sawTeeth(ctx, e, a, ux, uy, H);
@@ -5249,12 +5355,18 @@ function weaponGear(ctx, g, a, b, hw, butt, H, edges) {
     disc(ctx, butt[0], butt[1], 0.022 * H, BLACK);
   } else if (g.id === 'misdir') {
     // the blade blackened, a violet line along its edge
-    ctx.fillStyle = 'rgba(20,16,26,0.72)'; ctx.beginPath(); ctx.moveTo(a[0] + nx * hw * 0.8, a[1] + ny * hw * 0.8); ctx.lineTo(b[0] - ux * hw, b[1] - uy * hw); ctx.lineTo(a[0] - nx * hw * 0.8, a[1] - ny * hw * 0.8); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = FAM_LOOK.trick.hi; ctx.lineWidth = 1.5; line(ctx, a[0] + nx * hw * 0.85, a[1] + ny * hw * 0.85, b[0], b[1]);
+    ctx.fillStyle = 'rgba(20,16,26,0.72)';
+    if (clip) { clip(); ctx.fill(); ctx.strokeStyle = FAM_LOOK.trick.hi; ctx.lineWidth = 1.5; ctx.beginPath(); edges[0].forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke(); }
+    else {
+      ctx.beginPath(); ctx.moveTo(a[0] + nx * hw * 0.8, a[1] + ny * hw * 0.8); ctx.lineTo(b[0] - ux * hw, b[1] - uy * hw); ctx.lineTo(a[0] - nx * hw * 0.8, a[1] - ny * hw * 0.8); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = FAM_LOOK.trick.hi; ctx.lineWidth = 1.5; line(ctx, a[0] + nx * hw * 0.85, a[1] + ny * hw * 0.85, b[0], b[1]);
+    }
   } else if (g.id === 'flourish') {
     // a gilt wrap up the blade and a pink ribbon streaming from the pommel
+    ctx.save(); if (clip) { clip(); ctx.clip(); }
     ctx.strokeStyle = GOLD.lite; ctx.lineWidth = 2;
     for (let i = 0; i < 4; i++) { const t = 0.08 + i * 0.1, px = a[0] + dx * t, py = a[1] + dy * t; line(ctx, px + nx * hw, py + ny * hw, px - nx * hw + ux * s, py - ny * hw + uy * s); }
+    ctx.restore();
     ribbon(ctx, [butt, [butt[0] - ux * 0.05 * H + nx * 0.03 * H, butt[1] - uy * 0.05 * H + ny * 0.03 * H], [butt[0] - ux * 0.1 * H - nx * 0.01 * H, butt[1] - uy * 0.1 * H - ny * 0.01 * H]], 0.012 * H, FAM_LOOK.show.hi);
   }
   gearGlint(ctx, b[0] - ux * 0.04 * H, b[1] - uy * 0.04 * H, 0.03 * H, g, 0.45);
@@ -5325,15 +5437,17 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
   if (lk.gear) drawGlints(ctx, fm, H, lk);
   // the foe's weapon arm and club
   if (isFoe) {
-    const fr = fm.fr.armF;
-    drawPart(ctx, E, P('armF'), H, lk, fr);
+    // (a painted weapon goes under his arm, so his fist closes over its grip)
+    const fr = fm.fr.armF, under = !!lk.kit;
+    if (!under) drawPart(ctx, E, P('armF'), H, lk, fr);
     ctx.save(); ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot);
     if (live && hesitating()) {
       ctx.save(); ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 24; ctx.strokeStyle = `rgba(167,139,250,${0.5 + 0.4 * Math.sin(state.m * 60)})`; ctx.lineWidth = 0.07 * H; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(0, ARM_LEN * H); ctx.lineTo(0, (ARM_LEN + fm.weapon.len) * H); ctx.stroke(); ctx.restore();
     }
-    if (sw && sw.pose === 'net' && sw.fin <= 0) drawNet(ctx, 0, (ARM_LEN + 0.05) * H, 0.1 * H); else if (!live || state.disarm <= 0) drawWeapon(ctx, fm, H);
+    if (sw && sw.pose === 'net' && sw.fin <= 0) drawNet(ctx, 0, (ARM_LEN + 0.05) * H, 0.1 * H); else if (!live || state.disarm <= 0) drawWeapon(ctx, fm, H, under);
     ctx.restore();
+    if (under) drawPart(ctx, E, P('armF'), H, lk, fr);
     if (live && sw && sw.puppet && sw.fin <= 0) puppetStrings(ctx, fm, H);
     if (live && state.foeNet > 0 && state.fallT <= 0 && netArt()) drapeNet(ctx, E, H, fm, netK(state.foeNet));
     drawSlots(ctx, E, F, H, fm, lk, live);
@@ -5443,11 +5557,16 @@ function drawSwordArm(ctx, E) {
   }
   const a = h.atk, hot = a && !a.done && h.sp >= TUNING.hit.minSpeed && !locked;
   const gx = h.hx + bx * 0.05 * H, gy = h.hy + by * 0.05 * H, steel = locked ? '#ff8a7a' : '#dfe6ee';
-  if (hot) { ctx.strokeStyle = a.kind === 'over' ? 'rgba(255,200,90,0.5)' : 'rgba(125,227,255,0.45)'; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(h.ux, h.uy); ctx.stroke(); }
+  // Step 14: fists swing at the fist (its glow round it, its jab spark at the knuckles), never at a blade's length
+  const FW = TUNING.me.weapons.fist, fl = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, kn = [h.hx + (h.hx - h.ex) / fl * FW.knuckle * H, h.hy + (h.hy - h.ey) / fl * FW.knuckle * H];
+  const tip = bare ? kn : [h.ux, h.uy], glow = hot && (a.kind === 'over' ? 'rgba(255,200,90,0.5)' : 'rgba(125,227,255,0.45)');
+  if (hot && bare) { ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(h.hx, h.hy, FW.glow * H, 0, TAU); ctx.fill(); }
+  else if (hot) { ctx.strokeStyle = glow; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(h.ux, h.uy); ctx.stroke(); }
   const P = (t, s, len = blade, x0 = gx, y0 = gy) => [x0 + bx * len * t + nx * w * s, y0 + by * len * t + ny * w * s];
   const shape = (pts) => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); };
-  // fists draw no weapon, as his fists when disarmed (the fist is the forearm's, drawn last)
-  if (pole) {
+  // fists draw no weapon, as his fists when disarmed (the fist is the forearm's, drawn last); a painted one is pinned in the fist (step 14)
+  const painted = !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx, h.hy], [bx, by], blade, H, G.weapon, locked);
+  if (painted) { /* drawn */ } else if (pole) {
     // a wooden shaft from behind the fist to the head
     ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H); ctx.lineTo(h.ux - bx * 0.02 * H, h.uy - by * 0.02 * H); ctx.stroke();
     ctx.strokeStyle = '#7a5532'; ctx.lineWidth = 0.03 * H; ctx.stroke();
@@ -5484,7 +5603,7 @@ function drawSwordArm(ctx, E) {
     const mid = wid === 'sica' ? [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.94].map((t) => P(t, sicaBow(t))) : [[gx + bx * 6, gy + by * 6], [h.ux - bx * 6, h.uy - by * 6]];
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); mid.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
   }
-  if (G.weapon && !bare) {
+  if (G.weapon && !bare && !painted) {
     const tip = [h.ux, h.uy], back = (k) => [h.ux - bx * k * H, h.uy - by * k * H], ts = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85];
     // the cutting edges (the saw teeth's lines) follow each blade or head as drawn above, never the shaft
     const sides = (f) => [1, -1].map((sd) => ts.map((t) => f(t, sd)));
@@ -5499,7 +5618,7 @@ function drawSwordArm(ctx, E) {
     else if (wid === 'axe') weaponGear(ctx, G.weapon, back(0.2), tip, 0.016 * H, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H, edges);
     else weaponGear(ctx, G.weapon, [gx, gy], tip, w, [h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H], H, edges);
   }
-  if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(h.ux, h.uy, 6, 0, 6.28); ctx.fill(); }
+  if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 6, 0, 6.28); ctx.fill(); }
   if (kit) { drawSeg(ctx, { ...kF, J: { ...kF.J, top: kF.J.a[1] + (kF.J.b[1] - kF.J.a[1]) * TUNING.kit.fist } }, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF); liveArmGear(ctx, h, H, lk, aw, kpx); }
   else {
     ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
@@ -5513,7 +5632,7 @@ function drawSwordArm(ctx, E) {
     ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(h.fx, h.fy, 7, 0, 6.28); ctx.fill();
   }
   if (a && a.kind !== 'raise' && a.kind !== 'pull' && !locked) E.text(a.kind === 'over' ? 'SMASH' : a.kind === 'jab' ? 'STAB' : a.kind.toUpperCase(), h.hx, h.hy - 0.12 * H, { size: 11, color: '#e2e8f0', alpha: 0.7, weight: '700' });
-  if (locked) E.text('X', h.ux, h.uy - 22, { size: 22, color: '#ff8a7a', weight: '800' });
+  if (locked) E.text('X', tip[0], tip[1] - 22, { size: 22, color: '#ff8a7a', weight: '800' });
 }
 
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
@@ -5553,7 +5672,9 @@ function drawShield(ctx, E) {
     ctx.strokeStyle = '#d6b04a'; ctx.lineWidth = 3; shape(0.82); ctx.stroke();
   }
   if (tower && !kS) { ctx.lineWidth = 2; line(ctx, 0, -r * 0.95, 0, r * 0.95); for (const k of [-0.6, 0.6]) line(ctx, -r * 0.55, r * k, r * 0.55, r * k); }
-  if (tp) shieldPaint(ctx, r, tp);
+  // the tailor's paint painted (step 14) on the kit's shield face, or an emblem's size on a tall one
+  const tP = tp && kS && tailorArt(lk, 'paint', spx);
+  if (tP) pic(tP, (tall ? r * tw * TUNING.kit.emblem : r * TUNING.kit.tailor.paint) / tP.J.r); else if (tp) shieldPaint(ctx, r, tp);
   if (!fc && g && g.id === 'bait') { spiral(ctx, r * 0.8, FAM_LOOK.trick.hi); ctx.strokeStyle = '#2a1c10'; }
   if (!kS) { ctx.fillStyle = '#c9a43a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, 6.28); ctx.fill(); ctx.stroke(); }
   if (!fc && g && g.id === 'thorns') spike(ctx, 0, 0, -0.6, r * 0.3, r * 0.16, BRONZE, true);
@@ -6500,8 +6621,14 @@ function keyIcon(ctx, x, y, len) {
   line(ctx, x + len * 0.3, y, x + len, y); ctx.fillRect(x + len * 0.78, y, len * 0.08, len * 0.22); ctx.fillRect(x + len * 0.92, y, len * 0.08, len * 0.16);
   ctx.restore();
 }
-// the wooden sword of freedom, lying flat, with a notch for each fell
+// the wooden sword of freedom, lying flat, with a notch for each fell (painted, step 14: cut across its blade)
 function woodSword(ctx, x, y, len, n) {
+  const J = TUNING.kit.weapon.wooden, L = J.pin * len / J.size[1], blade = paintWeapon(ctx, 'wooden', [x + len * 0.8 - L, y], [1, 0], L, len);
+  if (blade) {
+    ctx.save(); blade(); ctx.clip(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
+    for (let i = 0; i < n; i++) line(ctx, x + 10 + i * 9, y - 6, x + 13 + i * 9, y + 2);
+    ctx.restore(); return;
+  }
   ctx.fillStyle = '#8a5a2b'; ctx.fillRect(x, y - 4, len * 0.72, 8);
   ctx.beginPath(); ctx.moveTo(x + len * 0.72, y - 4); ctx.lineTo(x + len * 0.8, y); ctx.lineTo(x + len * 0.72, y + 4); ctx.closePath(); ctx.fill();
   ctx.fillStyle = '#5e3e1e'; ctx.fillRect(x - 4, y - 9, 5, 18); ctx.fillRect(x - len * 0.2, y - 3, len * 0.2 - 4, 6);
@@ -6812,6 +6939,16 @@ const MY_WEAPON_JOB = { fist: 'free: very fast, half the damage; never dents a p
   trident: 'longest reach, slow; a well-timed block nets him', sica: 'short and quick: slashes cut deep' };
 // a weapon as the icon draws it: his table's, or your armoury weapon's drawn length
 const iconWeapon = (id) => TUNING.weapons.find((q) => q.id === id) || { id, len: TUNING.me.weapons[id].len };
+// Step 14: a rack weapon (the purse's ids: the mace is its own) as drawn on a card, its painted length from butt to point in card units; and lying flat
+// at s px a unit, centred on (x, y), point right, under the rack's names (none until its painting loads)
+const rackWeapon0 = (id) => iconWeapon(id === 'mace' ? 'axe' : id);
+const rackLen = (id) => { const J = TUNING.kit.weapon[id], W = rackWeapon0(id); return (W.len + J.tip) * J.size[1] / J.pin; };
+function rackWeapon(ctx, id, x, y, s) {
+  const J = TUNING.kit.weapon[id], L = (rackWeapon0(id).len + J.tip) * s, l = rackLen(id) * s;
+  ctx.save(); ctx.globalAlpha *= TUNING.kit.weapon.rackA;
+  paintWeapon(ctx, id, [x - l / 2 + l * (1 - J.pin / J.size[1]), y], [1, 0], L, s);
+  ctx.restore();
+}
 // Your card, in three columns under the story and your start card: your body as yet unarmed, your size, hearts and stats, then your tier and the purse
 // that buys your kit next (gold).
 function drawMeCard(ctx, E, me, x, y, w, h, gold) {
@@ -6876,6 +7013,14 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
   // the doll: your painted figure with the plates you wear, feet at the slots' foot
   const fy = y + 3 * rh + 2 * g - 6, s = Math.min((3 * rh + 2 * g - 12) / 1.08, dw / 0.62), dx = x + cw + g + dw / 2;
   armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, GTYPE[me.weapon].helm);
+  // the weapon in its hand, held up as the menu's fighter holds it (step 14)
+  if (me.weapon !== 'fist') {
+    const A = PARTS[pidx('armF')].joint, [hx, lean] = TUNING.kit.weapon.doll;
+    ctx.save(); ctx.translate(dx + (A[0] + hx) * s, fy + (A[1] + ARM_LEN) * s); ctx.rotate(Math.PI + lean); ctx.translate(0, -ARM_LEN * s);
+    drawWeapon(ctx, { weapon: iconWeapon(me.weapon), mace: me.mace }, s); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.arc(dx + (A[0] + hx) * s, fy + (A[1] + ARM_LEN) * s, TUNING.kit.weapon.fist * s, 0, TAU); ctx.clip();
+    armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, GTYPE[me.weapon].helm); ctx.restore();
+  }
   const rects = [], lh = Math.min(17, (rh - 6) / 4), tw = cw - 16;
   for (const q of INV_SLOTS) {
     const [bx, by, bh] = box[q.id], lit = q.card === sw, plated = !!q.plate && me.plates.includes(PLATES[q.plate].parts[0]), c = gear[q.card], px = dx + q.at[0] * s, py = fy + q.at[1] * s;
@@ -6952,13 +7097,15 @@ function drawPurse(ctx, E, P, me) {
   sayLine(ctx, E, say, E.w / 2, top + 24, R - L, { size: 14, weight: '700', color: '#fde68a', fit: true }, 'brutus');
   const by = E.h - E.safe.bottom - 30, gy = top + 46, gh = by - 30 - gy, rw = clamp((R - L) * 0.36, 200, 300), rx = R - rw;
   P.slots = drawInventory(ctx, E, L, gy, R - L - rw - 14, gh, { me: kit, gear: gearOf(startCards(me).map((c) => c.id)), buy: { short: (k) => !P.kit.includes(k) && cost(P.w, [...P.kit, k]) > P.gold, job: MY_WEAPON_JOB[kit.weapon] } });
-  // the rack: two columns of weapons, each its name and price
+  // the rack: two columns of weapons, each its painting (step 14), name and price
+  const rackLong = Math.max(...Object.keys(T.weapon).filter((id) => id !== 'fist').map(rackLen));
   const ids = Object.keys(T.weapon).filter((id) => !LUDUS_LOCK.has(id) || (me.open || []).includes(id)), rows = Math.ceil(ids.length / 2), tw = (rw - gap) / 2, th = Math.min(64, (gh - gap * (rows - 1)) / rows);
   P.tiles = ids.map((id, i) => {
     const x = rx + (i % 2) * (tw + gap), y = gy + Math.floor(i / 2) * (th + gap), on = P.w === id, short = !on && cost(id, P.kit) > P.gold, pr = T.weapon[id];
     const nm = weaponName({ weapon: id === 'mace' ? 'axe' : id, mace: id === 'mace' }).split(' & ')[0];
     ctx.globalAlpha = !ready ? 0.6 : short ? 0.45 : 1;
     E.roundRect(x, y, tw, th, 12, on ? '#3a2a10' : '#2a2016', on ? '#ffd24a' : '#c4b99a');
+    if (id !== 'fist') rackWeapon(ctx, id, x + tw / 2, y + th / 2, (tw - 12) / rackLong);
     E.text(nm, x + tw / 2, y + th / 2 - 9, { size: fitSize(ctx, nm, 16, tw - 12), weight: '800', color: '#f0e6cc' });
     E.text(pr ? `${pr} gold` : 'free', x + tw / 2, y + th / 2 + 10, { size: 14, weight: '800', color: on ? '#ffd24a' : short ? '#9aa4b2' : '#fbbf24' });
     return { id, x, y, w: tw, h: th };
@@ -7075,10 +7222,10 @@ function menuBrutus(E) {
   const line = run && run.me ? brutus(run.me, 'intro') : !fought ? STORY[0] : to >= ARENAS.length ? STORY[1] : ARENAS[to].brutus;
   return { line, pic: champs ? 'brutus-proud' : 'brutus' };
 }
-// the menu's own paintings, which the boot card waits for: the backdrop, the fighter's paint and Brutus
+// the menu's own paintings, which the boot card waits for: the backdrop, the fighter's paint (and weapon) and Brutus, and the title
 function menuArt(m) {
-  const D = dollArt(m.parts, m.me.str, m.gm);
-  return [BACKDROP[m.arena], m.say.pic, ...(kitOn() ? [...D.body, ...D.extra] : [])];
+  const D = dollArt(m.parts, m.me.str, m.gm), wk = m.weapon && weaponKey(m.weapon.weapon.id, m.weapon.mace);
+  return [BACKDROP[m.arena], m.say.pic, 'logo-arena', ...(kitOn() ? [...D.body, ...D.extra, ...(wk && TUNING.kit.weapon[wk] ? [weaponArt(wk)] : [])] : [])];
 }
 // a dev build waits for its art manifest, unless the fetch came back empty-handed
 function artListed(E) {
@@ -7140,8 +7287,13 @@ function paintBootBack(c, E) {
   g.addColorStop(0, '#120d0a'); g.addColorStop(0.55, '#241a12'); g.addColorStop(1, '#3a2b1c');
   c.fillStyle = g; c.fillRect(0, 0, E.w, E.h);
 }
-// "ARENA" in stamped bronze: a soft shadow, a dark rim, a bronze gradient and a light edge along its top
-function paintTitle(c, ts, w, h) {
+// "ARENA" in stamped bronze: a soft shadow, a dark rim, a bronze gradient and a light edge along its top; step 14: the designer's pick of the painted
+// logo (logo-arena) once it has loaded, fitted inside TUNING.menu.logo title sizes wide and high
+function paintTitle(c, ts, w, h, im = null) {
+  if (im) {
+    const [bw, bh] = TUNING.menu.logo, k = Math.min(bw * ts / im.width, bh * ts / im.height), lw = im.width * k, lh = im.height * k;
+    c.imageSmoothingQuality = 'high'; c.drawImage(im, (w - lw) / 2, (h - lh) / 2, lw, lh); return;
+  }
   const x = w / 2, y = h / 2, t = 'ARENA';
   c.font = `900 ${ts}px system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
   c.save(); c.shadowColor = 'rgba(0,0,0,0.75)'; c.shadowBlur = ts * 0.2; c.shadowOffsetY = ts * 0.08; c.fillStyle = '#2b1b08'; c.fillText(t, x, y); c.restore();
@@ -7234,7 +7386,7 @@ function paintMenu(c, E, o) {
   for (const sd of [-1, 1]) paintTorch(c, Ly.cx + sd * M.torchDx, Ly.ty - 4);
   // your fighter's shadow on the sand
   c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.ellipse(Ly.fig.x, Ly.fig.y + 2, 0.26 * Ly.fig.s, 0.035 * Ly.fig.s, 0, 0, TAU); c.fill();
-  menuBlit(c, E, `title|${Ly.ts}`, Ly.cx - Ly.ts * 2, Ly.ty - Ly.ts * 0.8, Ly.ts * 4, Ly.ts * 1.6, (q) => paintTitle(q, Ly.ts, Ly.ts * 4, Ly.ts * 1.6));
+  menuBlit(c, E, `title|${Ly.ts}|${o.logo ? artV : '-'}`, Ly.cx - Ly.ts * 2, Ly.ty - Ly.ts * 0.8, Ly.ts * 4, Ly.ts * 1.6, (q) => paintTitle(q, Ly.ts, Ly.ts * 4, Ly.ts * 1.6, o.logo));
   const ft = `${fame} fame`;
   c.font = '800 16px system-ui, sans-serif';
   const fw = fame ? c.measureText(ft).width : -12;
@@ -7287,9 +7439,11 @@ function menuFigure(ctx, E, m, x, y, s, d = E.dpr || 1, box = null) {
   piece(0, cut + ext, Y - up); piece(cut, cv.height - cut, Y + cut / k);
   if (!m.weapon) return;
   if (box) { ctx.save(); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip(); }
-  const A = PARTS[pidx('armF')].joint;
-  ctx.save(); ctx.translate(x + (A[0] + 0.11) * s, y + (A[1] + ARM_LEN) * s); ctx.rotate(Math.PI + 0.2); ctx.translate(0, -ARM_LEN * s);
+  const A = PARTS[pidx('armF')].joint, hx = x + (A[0] + TUNING.kit.weapon.doll[0]) * s, hy = y + (A[1] + ARM_LEN) * s;
+  ctx.save(); ctx.translate(hx, hy); ctx.rotate(Math.PI + 0.2); ctx.translate(0, -ARM_LEN * s);
   drawWeapon(ctx, m.weapon, s); ctx.restore();
+  // (step 14: the doll's fist is copied again over the grip, so it closes on it)
+  ctx.save(); ctx.beginPath(); ctx.arc(hx, hy, TUNING.kit.weapon.fist * s, 0, TAU); ctx.clip(); piece(0, cut + ext, Y - up); piece(cut, cv.height - cut, Y + cut / k); ctx.restore();
   if (box) ctx.restore();
 }
 // the menu's look of your fighter: their rolls, plates and weapon (fists hold nothing)
@@ -7407,11 +7561,11 @@ const menu = {
     this.btns = {};
     if (portrait(E)) { rotateCard(ctx, E); return; }
     if (!BOOT.done) { this.bootCard(ctx, E); return; }
-    const run = E.save.get('run', null), M = TUNING.menu, Ly = menuLay(E, run), m = this.look, B = Ly.btn, bd = artImg(BACKDROP[m.arena]), face = !!artImg(m.say.pic);
+    const run = E.save.get('run', null), M = TUNING.menu, Ly = menuLay(E, run), m = this.look, B = Ly.btn, bd = artImg(BACKDROP[m.arena]), face = !!artImg(m.say.pic), logo = artImg('logo-arena');
     const fame = E.save.get('fame', 0), champs = E.save.get('champs', []).slice(0, M.names).map((q) => q.name), wall = E.save.get('wall', []).slice(0, M.names).map((q) => `${q.name} (${q.bout})`);
     const labels = { play: run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', new: 'New run', ludus: 'The Ludus', story: 'Story', sound: E.audio.muted ? 'Sound: off' : 'Sound: on' };
-    const dot = ludusBuys(E), key = `menu|${E.w}|${E.h}|${m.arena}|${bd ? artV : '-'}|${face ? artV : '-'}|${Object.keys(B).map((k) => labels[k]).join('|')}|${fame}|${dot ? 1 : 0}|${champs.join(',')}|${wall.join(',')}|${m.say.line}`;
-    const o = { Ly, m, bd, face, fame, champs, wall, labels, dot };
+    const dot = ludusBuys(E), key = `menu|${E.w}|${E.h}|${m.arena}|${bd ? artV : '-'}|${face ? artV : '-'}|${logo ? artV : '-'}|${Object.keys(B).map((k) => labels[k]).join('|')}|${fame}|${dot ? 1 : 0}|${champs.join(',')}|${wall.join(',')}|${m.say.line}`;
+    const o = { Ly, m, bd, face, logo, fame, champs, wall, labels, dot };
     if (canSprite) menuLayer(ctx, E, key, o, this.dust);
     else { paintMenu(ctx, E, o); menuMoving(ctx, E, o, this.dust, E.dpr || 1); }
     if (this.press && this.press !== 'champs') plaque(ctx, E, B[this.press], this.press === 'play' ? 'bronze' : 'stone', labels[this.press], true, this.press === 'play' ? 22 : 16);
@@ -7423,7 +7577,8 @@ const menu = {
     menuBlit(ctx, E, `boot|${E.w}|${E.h}`, 0, 0, E.w, E.h, (c) => paintBootBack(c, E));
     if (E.time - BOOT.t0 < TUNING.load.show) return;
     const ts = Math.round(clamp(E.h * TUNING.menu.title[2], TUNING.menu.title[0], TUNING.menu.title[1])), cy = E.h / 2 - 12, [bw, bh] = TUNING.load.bar;
-    menuBlit(ctx, E, `title|${ts}`, E.w / 2 - ts * 2, cy - ts * 0.8, ts * 4, ts * 1.6, (c) => paintTitle(c, ts, ts * 4, ts * 1.6));
+    const lg = artImg('logo-arena');
+    menuBlit(ctx, E, `title|${ts}|${lg ? artV : '-'}`, E.w / 2 - ts * 2, cy - ts * 0.8, ts * 4, ts * 1.6, (c) => paintTitle(c, ts, ts * 4, ts * 1.6, lg));
     const x = E.w / 2 - bw / 2, y = cy + ts * 0.7;
     ctx.fillStyle = 'rgba(120,80,30,0.45)'; ctx.fillRect(x - 1, y - 1, bw + 2, bh + 2);
     const g = ctx.createLinearGradient(0, y, 0, y + bh); g.addColorStop(0, '#f2c477'); g.addColorStop(1, '#8a5a1c');
@@ -7651,15 +7806,16 @@ function stationIcon(ctx, id, x, y, s) {
 function unlockMark(ctx, q, x, y, r, style) {
   const id = q.id;
   ctx.save(); ctx.fillStyle = id === 'trident' || id === 'sica' ? '#d9cfb4' : '#1a1422'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.strokeStyle = '#e6c866'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
-  if (id === 'trident') {
+  if (id === 'trident' && !(kitOn() && artImg(weaponArt('trident')))) {
     // a bold trident glyph (the drawn weapon's prongs are hairlines at this size)
     ctx.save(); ctx.translate(x, y); ctx.rotate(0.55); ctx.strokeStyle = '#2a1d12'; ctx.fillStyle = '#2a1d12'; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2.5, r * 0.15);
     line(ctx, 0, r * 0.8, 0, -r * 0.35); line(ctx, -r * 0.4, -r * 0.35, r * 0.4, -r * 0.35);
     for (const k of [-0.4, 0, 0.4]) { line(ctx, k * r, -r * 0.35, k * r, -r * 0.62); ctx.beginPath(); ctx.moveTo(k * r - r * 0.13, -r * 0.55); ctx.lineTo(k * r, -r * 0.82); ctx.lineTo(k * r + r * 0.13, -r * 0.55); ctx.closePath(); ctx.fill(); }
     ctx.restore();
-  } else if (id === 'sica') {
+  } else if (id === 'sica' || id === 'trident') {
+    // (the trident painted, step 14: its prongs read at this size)
     ctx.save(); ctx.beginPath(); ctx.arc(x, y, r - 1, 0, TAU); ctx.clip(); ctx.translate(x, y); ctx.rotate(-0.5);
-    weaponIcon(ctx, { weapon: iconWeapon(id) }, -r * 0.55, 0, r * 3.2); ctx.restore();
+    weaponIcon(ctx, { weapon: iconWeapon(id) }, -r * 0.55, 0, r * (id === 'trident' ? 1.2 : 3.2)); ctx.restore();
   }
   else if (FAMS[id]) { ctx.save(); ctx.translate(x, y); ctx.fillStyle = ctx.strokeStyle = FAMS[id].col; ctx.lineWidth = 2; famGlyph(ctx, id, r / 8); ctx.restore(); }
   else if (q.station === 'vault') {
