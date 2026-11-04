@@ -476,6 +476,25 @@ Also check the others in `sheet-card-gear.png`, `sheet-vault-gear.png` and the k
 
 That is about 17 images, one option each, about US$1.50. They replace the `-A` files in `docs/art/candidates/arena/` (keep the old ones as `-old`). Make a contact sheet of each piece before and after, worn. Write `docs/art/HANDOFF-arena-pack25.md`, saying for each piece whether its pins changed.
 
+### Pack 26: Arena, armoured beasts and a painted laurel (added 2026-11-04)
+
+Spec: `docs/games/arena/prd-v0.3.md`, Step 16.
+
+**A. Beast barding,** for the lion and the bear. Each is a transparent PNG, side view facing left (the way beasts fight), painted as **the near side only** (Pack 25's rule: no inside, no opening, the edge follows the body's outline). Bronze and iron plates with leather straps, in the kit's style. Use the beast parts as the scale and pin reference: `beast-<kind>-torso-A.png`, `beast-<kind>-head-A.png`, `beast-<kind>-fore-up-A.png`.
+
+| File | Sits on |
+| --- | --- |
+| `beast-<kind>-armour-head` | the brow and muzzle, with the eyes and jaws clear (a chamfron) |
+| `beast-<kind>-armour-chest` | the chest and the front of the shoulder |
+| `beast-<kind>-armour-back` | the back, from the shoulders to the haunch (a saddle-like plate) |
+| `beast-<kind>-armour-leg` | the foreleg's upper half |
+
+`<kind>` is `lion` and `bear`: 8 files. The young beasts use the same pieces scaled.
+
+**B. The laurel:** `laurel-ring.png`, a gold laurel wreath, face-on, open at the bottom, sized to sit round a 60 x 80 portrait. Two options, A and B. It frames a cleared arena's champion on the arena picker. Match the logo's laurel style (`logo-arena-A.png`).
+
+That is 10 images, about US$1. Add them to `docs/art/candidates/arena/candidates.json`. Make a contact sheet of each beast wearing all four pieces at game size (with the designer's test: "slotted onto the body, or an empty object stuck on?"), and the laurel round a champion portrait. Write `docs/art/HANDOFF-arena-pack26.md` with each piece's pins in px against the beast part it sits on.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.

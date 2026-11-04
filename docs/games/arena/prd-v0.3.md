@@ -1624,3 +1624,82 @@ When `docs/art/HANDOFF-arena-pack23.md` lands:
 - **Pack 22 wiring** (`docs/art/HANDOFF-arena-pack22.md`): the 12 vault gear paintings replace their placeholder pins in `TUNING.kit.gear`, and the tailor's crest, plume, shield paint and cloak are drawn from their `tailor-<item>-<style>` paintings in place of the flat drawn shapes.
 - **Fists swing at fist reach.** The designer: "When playing with fists, it's making the air move from further ahead, as if I was using a weapon." Every swing effect (the trail, the whoosh arc, the hit spark and its reach marker) for fists starts and ends at the fist, at the fists' reach, never at a blade's length.
 - **Release:** the A pick of every Pack 22 and Pack 23 painting (the logo: the designer's pick, A until told) is copied to `docs/art/final/arena/`, shipped as webp in `games/arena/assets/` at the size the game draws it at 3x, added to `SHIPPED` and to `sw.js`. PIL is broken in the container: convert in the browser (canvas `toBlob('image/webp')`).
+
+## Step 15 (locked 2026-11-04, playtest of v56): double hearts, a face gap, a wider view, a hero's pose, and harder foes later
+
+**The designer:** "Increase the baseline of hearts, maybe just double it and see." "Breaking the helmet should make a gap in the face." "It should always be a bit more zoomed out: a big fighter with a longer weapon finds it really tough to swipe and hit. Today it only zooms all the way out against two foes." "The character's pose on the main menu should be cooler." "Mostly bigger characters, and the enemies more armoured."
+
+- **Hearts x2:**
+  - double `TUNING.hearts` and every size band's `hearts`, for you and for the health they set;
+  - foe health, damage, the grade rungs and heals stay as they are, so a bout simply lets you take twice the hits;
+  - Bread and Circuses, the tent's heart ware and bandages keep their counts (they give back hearts, not halves).
+- **A broken helmet opens the face:** when a foe's helmet plate breaks, his face becomes a gap like any other (`head` opens), shown and hit the same way.
+- **A wider view:**
+  - the fight camera frames both fighters with your reach and his: the screen always shows from his back foot to your back foot, plus your weapon's full reach and his, with a margin;
+  - it is more zoomed out at rest than today (about 15 percent);
+  - it eases rather than jumps, and the pairs' framing still works;
+  - swipes stay mapped to the hand as now.
+  - The numbers go in `TUNING.camera`.
+- **The menu's hero pose:** the menu fighter stands in a heroic pose instead of today's arms-down idle:
+  - feet wide;
+  - shield forward on the far arm;
+  - weapon raised (overhead, or angled up and back by weapon type);
+  - chin up.
+  It keeps the breath and the cloak sway, and fists raise the fists.
+- **Harder foes later:**
+  - in the City, Colosseum and Grand Games, foe sizes lean big (more big and giant, fewer runts);
+  - foes wear one more plate than now from the Colosseum on (`TUNING.arenas.*.gear`);
+  - the Pit is unchanged.
+  - The numbers go in `TUNING.arenas`.
+
+### Acceptance
+
+- Frames: a fight at rest for a big fighter with the spear against a giant; the same with the dagger against a runt; a pair; a beast; and the menu pose with each weapon type. All at 844x390 and 667x375.
+- Scripted checks: hearts per size, double v56's; a helmet break opens `head`.
+- Perf within 10%, and `npm run smoke`.
+
+## Step 16 (planned 2026-11-04, waits for art Pack 26): armoured beasts, alternating bouts, and painted laurels
+
+**The designer:** "Maybe make it alternate armoured animals and double enemies." "When you look at the arenas, the laurels are computer-drawn and should be improved with art."
+
+- **Armoured beasts:**
+  - lions and bears can wear barding: a head guard, a chest plate, a back plate and foreleg guards (Pack 26);
+  - each piece is a plate with gaps around it, broken and hit like a man's;
+  - their numbers go in `TUNING.beasts.armour`.
+- **Alternating bouts:**
+  - the Colosseum runs a man, then an armoured beast, then a pair, then an armoured beast, then the champion;
+  - the Grand Games runs a pair, then an armoured beast, then a pair, then the champion (or whatever Step 18 sets);
+  - the data goes in `TUNING.arenas`.
+- **Painted laurels:** a cleared arena's laurel on the picker is the Pack 26 painting.
+
+## Step 17 (locked 2026-11-04): the story, animated
+
+**The designer:** "Story is just a text box; we should make a little animation like we did for the story in Launch."
+
+Copy Launch's v0.6 cold open:
+- five cards, each a short scene drawn as a pure function of its time;
+- the line fades in on a panel under the scene;
+- a tap jumps to the scene's end, and the next tap goes on;
+- a card goes on by itself 1 s after its scene;
+- Skip is always visible;
+- the Story button replays it, and a fresh save sees it once.
+
+All five cards use art that already ships: the backdrops, Brutus's two portraits, your fighter's rig, the champions' busts, the wheels and the walls.
+
+1. **"So. Another nobody from the pit."** The Pit backdrop. A bare fighter, head bowed, is shoved stumbling onto the sand. Brutus's face slides in, unimpressed.
+2. **"I am Brutus. I make champions out of nobodies."** Brutus proud. Kit drops onto the fighter piece by piece (helmet, plate, greaves, a gladius), each with a clang. He straightens up into the menu's hero pose.
+3. **"The wheels decide who you are, and what you fight for."** The body wheels spin, tick and stop, one after another.
+4. **"Five bouts stand between you and the end of it. The last is the champion."** Five plaques light up one by one along the sand. The fifth flares, and a champion's bust rises behind it.
+5. **"Win, and Rome remembers you. Fall, and I chalk your name on the wall."** Split: on the left a name is carved into the stone tablet, with chips flying; on the right a name is scrawled on the chalk board, with dust. Then the gate opens to the menu.
+
+Durations go in `TUNING.story.dur`. Sound uses the clang, tick and chime that already exist.
+
+### Acceptance
+
+- A frame of each card at its middle and its end, at 844x390.
+- Fresh save: the story opens, and five taps or Skip reach the menu.
+- `npm run smoke`.
+
+## Step 18 (open, 2026-11-04): the Grand Games' theme
+
+**The designer:** "The theme of the Emperor's thumb is much less good than the other arenas, which are actually about battles." Waiting on the designer's choice of a new theme.
