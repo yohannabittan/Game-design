@@ -1700,9 +1700,9 @@ Durations go in `TUNING.story.dur`. Sound uses the clang, tick and chime that al
 - Fresh save: the story opens, and five taps or Skip reach the menu.
 - `npm run smoke`.
 
-## Step 18 (proposed 2026-11-04, for the designer's OK): the Grand Games are the champions, and every champion has a signature move
+## Step 18 (locked 2026-11-04): the Grand Games are the champions, five signature moves, and two blades
 
-**The designer:** "The theme of the Emperor's thumb is much less good than the other arenas, which are actually about battles." Then: "For the Emperor's Games we could have all champions for now. We should make the champions more distinctive: maybe they each have a special technique, a special move."
+**The designer:** "The theme of the Emperor's thumb is much less good than the other arenas, which are actually about battles." "For the Emperor's Games we could have all champions for now. We should make the champions more distinctive: maybe they each have a special technique." Of the first draft: "Aquila sounds weird; it sounds like a normal lunge with a bit of juice." Then: "Two blades is good. I think that should be a real possibility even for other bouts, because it means no shield."
 
 **The Grand Games:** four bouts, every one a champion:
 1. a Pit champion (your rival, if you have one);
@@ -1710,26 +1710,39 @@ Durations go in `TUNING.story.dur`. Sound uses the clang, tick and chime that al
 3. a Colosseum champion (Carpophorus with his lion, or Mevia);
 4. Aquila.
 
-The Emperor's thumb stays as the closing card, no longer the theme. The twist line on the picker becomes "Every champion of Rome". Champion health keeps today's `champHp` and the Games' `arenaHp`.
+The Emperor's thumb stays as the closing card, no longer the theme, and the picker's twist line becomes "Every champion of Rome". Champion health keeps today's `champHp` and the Games' `arenaHp`.
 
-**Signature moves.** Each champion gets one move of his own, everywhere he fights. Each move:
+**Signature moves, the first five.** Each champion's move goes with him everywhere he fights. Each one:
 - has a tell nobody else shows;
 - names itself in a banner the first time;
-- can be read and answered with what you already have (block, perfect block, dodge, step in or out);
-- leaves him open for a punish when you answer it.
+- is answered with what you already have, and the answer opens him for a punish;
+- comes at most once every few exchanges.
 
-Each move comes at most once every few exchanges; the numbers go in `TUNING.champs.<key>`.
+The numbers go in `TUNING.champs.<key>`. The other champions (Aurelius, Flamma, the Twins, Carpophorus) get moves after a playtest of these five.
 
 | Champion | Move | Tell | Answer, and the reward |
 | --- | --- | --- | --- |
 | Marcus the Red | **Red Rage** (below half health) | he roars, red flush, a stamp | three blows in a row, high-mid-low shown one by one by his arm. Block all three: he is winded. |
-| Aurelius the Golden | **Golden Glint** | he tilts his shield and a flash of light sweeps across your side | the blow comes from the side the flash ends on. Dodge on the flash: a free counter. |
-| Flamma the Unbroken | **Iron Wall** | shield up, he leans in and plods forward | he shoves you to the wall. Lame his leg, or hit low as he comes: he stumbles. |
 | Varro of Capua | **Capuan Feint** | a double wind-up, the second faster | two fakes, then the real blow. Hold your block for the third: a punish. |
-| Castor and Pollux | **Twin Strike** | the waiting twin shouts "Now, brother!" and crouches | the waiting twin dashes in for one blow while the other swings. Dodge back: both overextend. |
 | Hermes the Swift | **Blink** | he drops low and his outline blurs | he dashes in from beyond reach, strikes and darts back. Perfect block on the dash: he is off balance. |
-| Carpophorus | **Whip Crack** | he raises his whip and the lion at the edge roars | the crack stuns you for a moment unless you are blocking. Block on the crack: the lion flinches and he is open. |
 | Mevia the Huntress | **Huntress's Throw** | she draws her spear back over her shoulder, at range | a thrown spear, then she fights with her dagger until she picks it up again. Dodge or block the throw: she is unarmed for a while. |
-| Aquila, the Emperor's Blade | **The Emperor's Blade** | he steps back, his blade glows gold | a lunge across the whole arena. Perfect-block it: a big punish (a finisher if you have the Momentum). |
+| Aquila, the Emperor's Blade | **Two Blades** (at half health) | the Emperor signals from his box; Aquila throws his shield aside and draws a second gladius | the second phase: no shield, faster combos that come at two heights at once, so you pick one to block and take the other on your armour. Every gap on his shield side is now open. |
 
-**Art:** none needed; the tells are drawn effects, banners and poses. A painted whip for Carpophorus could come in a later pack.
+**Two blades, for anyone.** A fighter may fight with a weapon in each hand and no shield.
+- **Foes:** from the City on, some foes roll two blades (`TUNING.arenas.*.dual`, a share of foes). Their tells show both arms. With no shield they have more open gaps, and they block with crossed blades: a weaker guard that you can break.
+- **You:** in the armourer's tent, a **second blade** sits in the Arms row as an option in place of the shield.
+  - Its price is that of the weapon; it is the same weapon in the other hand.
+  - Your HIGH, MID and LOW buttons then raise **crossed blades** instead of the shield. They block less, so some damage comes through, and they drain more stamina. A perfect parry ripostes with the off-hand on its own.
+  - Your swing works as now, and the off-hand follows each slash a moment later for part damage.
+  - The numbers go in `TUNING.dual`.
+- **Art:** the second weapon is the same painting in the other hand. None is needed.
+
+### Acceptance
+
+- Frames: each of the five moves at its tell, its blow and its punish window.
+- Aquila before and after his switch.
+- A dual-blade foe at guard and mid-combo.
+- You with two blades: at guard, blocking, parrying, and in the tent.
+- A Grand Games run's four bout cards.
+- Scripted checks: each move fires and can be answered; the Grand Games order; the second blade's price and its crossed-blade block.
+- Perf within 10%, and `npm run smoke`.
