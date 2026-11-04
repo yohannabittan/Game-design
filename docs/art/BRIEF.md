@@ -450,6 +450,8 @@ The designer, on a close-up of their fighter's sword arm: "Maybe it's the muscly
 | `kit-leg-up-musc.png` | 192 x 320 | hip to knee |
 | `kit-leg-lo-musc.png` | 192 x 352 | knee to sandalled foot |
 
+**The test, in the designer's words:** "Look at the art and ask: does this look like one piece of an arm, or like two pieces?" Put each joined limb on the contact sheet at game size, and redo any that reads as two pieces: two bulges, two outlines, or a change of tone at the joint.
+
 Make **two options (A, B)** of each whole limb, and cut both. Show the two halves joined at a straight and at a 90-degree elbow on the contact sheet, beside today's muscular arm. That is 4 paintings, about US$0.40. Add the files to `docs/art/candidates/arena/candidates.json`, and write `docs/art/HANDOFF-arena-pack24.md` with the joint points and mid widths in px, as `HANDOFF-arena-limbs.md` does.
 
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
