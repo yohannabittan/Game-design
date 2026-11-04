@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18, 19, 20, 21, 22, 23",
+ "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -550,6 +550,22 @@
    "logo-arena-A.png",
    "logo-arena-B.png",
    "logo-arena-C.png"
+  ],
+  "kit-arm-up-musc": [
+   "kit-arm-up-musc-A.png",
+   "kit-arm-up-musc-B.png"
+  ],
+  "kit-arm-lo-musc": [
+   "kit-arm-lo-musc-A.png",
+   "kit-arm-lo-musc-B.png"
+  ],
+  "kit-leg-up-musc": [
+   "kit-leg-up-musc-A.png",
+   "kit-leg-up-musc-B.png"
+  ],
+  "kit-leg-lo-musc": [
+   "kit-leg-lo-musc-A.png",
+   "kit-leg-lo-musc-B.png"
   ]
  }
 }
