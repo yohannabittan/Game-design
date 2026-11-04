@@ -426,6 +426,11 @@ const TUNING = {
     galerus: { size: [192, 256], box: [-0.105, -0.17, 0.045, 0.03] },
     shields: { round: { size: [320, 320], r: 160 }, parma: { size: [224, 224], r: 112 }, scutum: { size: [224, 448], h: 224 } },
     neck: -0.745, belt: -0.49, cut: -0.51, edge: '#3a1a0a', top: -0.9, chin: -0.71, far: 0.22, arm: 0.075,
+    // Step 17: every torso and the chest plate are painted turned towards us, so their big near shoulder (and the plate's armhole) lands on the back,
+    // where the far arm hangs behind. In the fight that shoulder ends at the far arm: behind column back[0] (body units) only the ellipse centred
+    // there at row back[1], radii back[2] and back[3], is kept above row back[4], its edge outlined as the painted one is; what is worn on the torso
+    // keeps the ellipse and, below its centre, all in front of its back edge, so a plate's side runs on straight down past the far arm
+    back: [0, -0.58, 0.095, 0.16, -0.54],
     // an open gap on a painted man in the fight: a soft shadow on the limb, its alpha at the centre (fading to none at the gap's edge)
     gap: 0.5,
     // your painted shield: a scutum's half height and half width per its rim radius r
@@ -441,11 +446,12 @@ const TUNING = {
     // rig's), clip the last row drawn (just above the knee cap).
     crop: {
       'kit-base-thigh-A': { a: [100, 60], b: [101, 205], clip: 192 }, 'kit-base-thigh-B': { a: [100, 60], b: [100, 190], clip: 178 },
-      // the muscular torso is painted with both upper arms hanging at its sides: below row trim[0] only columns trim[1] to trim[2] are drawn. Yours in
-      // the fight also keeps only columns mine[0] to mine[1] (the cut outlined mine[2] px wide, see kitTorso): its painted near shoulder goes, under
-      // the shoulder of your live sword arm, and the far one stays, your shield arm hanging behind it as his far arm does.
-      // cap: an ellipse (centre, radii, its outline's px) kept below that row too, so the far shoulder ends round, not cut flat
-      'kit-base-torso-A': { trim: [150, 100, 335], cap: [68, 135, 52, 42, 8], mine: [0, 335, 8] },
+      // the muscular torso is painted with both upper arms hanging at its sides: below row trim[0] only columns trim[1] to trim[2] are drawn. In the
+      // fight it also keeps only columns mine[0] to mine[1] (the cut outlined mine[2] px wide, see kitTorso): the painted shoulder under the weapon
+      // arm goes. cap: an ellipse (centre, radii, its outline's px) kept below that row too, so that shoulder ends round off the fight, not cut flat.
+      // It is painted turned to its left as the others are (step 17: flip, so its chest faces where his head does); back: its own back cut, whose
+      // ellipse meets the trim's column at the trim's row (see TUNING.kit.back)
+      'kit-base-torso-A': { flip: true, trim: [150, 100, 335], cap: [68, 135, 52, 42, 8], mine: [90, 488, 8], back: [0, -0.617, 0.075, 0.13, -0.617] },
       // Step 6e: these torsos are painted turned to their left (the sternum and neck left of centre, the right flank showing), against the head
       // and limbs painted facing right, so they are drawn mirrored to face where the head faces (their near shoulder is on the image's left)
       'kit-base-torso-lean-A': { flip: true, mine: [40, 384, 8] }, 'kit-base-torso-avg-A': { flip: true, mine: [40, 384, 8] },
@@ -3859,17 +3865,21 @@ function drawSeg(c, P, A, B, w, flip = false) {
 }
 // The torso pinned from y0 to y1, w across, mirrored when painted turned to his left (J.flip). One painted with its upper arms hanging at its sides
 // (J.trim: below row r, only columns x0 to x1, and J.cap's ellipse, outlined) has them cut off, since the arms are drawn as their own parts. mine
-// (your fight sprite, whose sword arm hangs from a joint inside the painted near shoulder, with a shoulder of its own) also keeps only J.mine's
-// columns [x0, x1], cutting that painted shoulder off under your arm's, and over (what is worn on the torso) with it; the far shoulder stays whole,
-// the one your shield arm hangs behind. A cut inside the image is outlined J.mine[2] px wide as the painted edge is (on a sprite only: painted live
-// it would land on what is behind).
+// (a fight sprite, yours or his, whose weapon arm hangs from a joint inside the painted front shoulder, with a shoulder of its own) also keeps only
+// J.mine's columns [x0, x1], cutting that painted shoulder off under the arm's, and cuts the back shoulder at the far arm (TUNING.kit.back, or
+// J.back); over (what is worn on the torso, returning its bottom) is cut with both. A cut inside the image is outlined J.mine[2] px wide as the
+// painted edge is (on a sprite only: painted live it would land on what is behind).
 function kitTorso(c, P, y0, y1, w, mine = false, over = null) {
   const J = P.J, f = !!J.flip, M = mine && J.mine, T = J.trim;
   if (!M && !T) { drawSeg(c, P, [0, y0], [0, y1], w, f); if (over) over(); return; }
   const sx = w / J.w, big = 4 * (Math.abs(y1 - y0) + w), col = (x) => (x - J.a[0]) * sx * (f ? -1 : 1), span = (a, b) => [col(a), col(b)].sort((p, q) => p - q);
+  const H = y0 / TUNING.kit.neck, Bk = J.back || TUNING.kit.back, bx = Bk[0] * H, by = Bk[1] * H, xs = (Bk[0] - Bk[2]) * H;
+  const bk = (a = 0, b = TAU) => c.ellipse(bx, by, Bk[2] * H, Bk[3] * H, 0, a, b);
+  const backCut = (plate) => { c.beginPath(); c.rect(bx, -big, big, 2 * big); if (plate) c.rect(xs, by, big, big); else c.rect(-big, Bk[4] * H, 2 * big, big); bk(); c.clip(); };
   c.save();
   if (M) { const [x0, x1] = span(M[0], M[1]); c.beginPath(); c.rect(x0, -big, x1 - x0, 2 * big); c.clip(); }
   c.save();
+  if (M) backCut(false);
   const row = (y) => y0 + (y - J.a[1]) * (y1 - y0) / (J.b[1] - J.a[1]), sy = (y1 - y0) / (J.b[1] - J.a[1]), C = J.cap;
   const cap = () => c.ellipse(col(C[0]), row(C[1]), C[2] * sx, C[3] * sy, 0, 0, TAU);
   if (T) {
@@ -3877,17 +3887,27 @@ function kitTorso(c, P, y0, y1, w, mine = false, over = null) {
     c.beginPath(); c.rect(-big, yr - big, 2 * big, big); c.rect(x0, yr, x1 - x0, big); if (C) cap(); c.clip();
   }
   drawSeg(c, P, [0, y0], [0, y1], w, f);
+  if (T && M && canSprite) {
+    // (in the fight the trim's cut runs down his back, so it is outlined too)
+    const yr = row(T[0]);
+    c.save(); c.globalCompositeOperation = 'source-atop'; c.strokeStyle = TUNING.kit.edge; c.lineWidth = M[2] * sx; c.beginPath();
+    for (const x of T.slice(1)) { c.moveTo(col(x), yr); c.lineTo(col(x), big); }
+    c.stroke(); c.restore();
+  }
   if (T && C && canSprite) {
     const yr = row(T[0]), [x0, x1] = span(T[1], T[2]);
     c.beginPath(); c.rect(-big, yr, x0 + big, big); c.rect(x1, yr, big, big); c.clip();
     c.globalCompositeOperation = 'source-atop'; c.strokeStyle = TUNING.kit.edge; c.lineWidth = C[4] * sx; c.beginPath(); cap(); c.stroke();
   }
   c.restore();
-  if (over) over();
+  let ob = 0;
+  if (over) { c.save(); if (M) backCut(true); ob = over(); c.restore(); }
   if (M && canSprite) {
     c.globalCompositeOperation = 'source-atop'; c.strokeStyle = TUNING.kit.edge; c.lineWidth = M[2] * sx; c.beginPath();
     for (const x of M.slice(0, 2)) if (x > 0 && x < J.size[0]) { c.moveTo(col(x), -big); c.lineTo(col(x), big); }
     c.stroke();
+    c.beginPath(); bk(Math.PI, 1.5 * Math.PI); c.stroke();
+    if (ob) { c.beginPath(); c.moveTo(xs + c.lineWidth / 2, by); c.lineTo(xs + c.lineWidth / 2, ob); c.stroke(); }
   }
   c.restore();
 }
@@ -3897,13 +3917,14 @@ function kitTorso(c, P, y0, y1, w, mine = false, over = null) {
 // radii, px) with the torso's own painted shoulder, so the hole shows the arm in it rather than a dark socket.
 function torsoPlate(c, PL, H, w, on, y1, T = null) {
   const K = TUNING.kit, J = PL.J, y0 = K.neck * H, yb = on === 'both' ? y1 : K.belt * H, h = J.hole;
-  if (on === 'belly') { drawSeg(c, { ...PL, J: { ...J, a: [J.a[0], J.abs], b: [J.b[0], J.size[1]] } }, [0, K.cut * H], [0, y1], w, !!J.flip); return; }
+  if (on === 'belly') { drawSeg(c, { ...PL, J: { ...J, a: [J.a[0], J.abs], b: [J.b[0], J.size[1]] } }, [0, K.cut * H], [0, y1], w, !!J.flip); return y1; }
   drawSeg(c, PL, [0, y0], [0, yb], w, !!J.flip);
-  if (!T || !h) return;
+  if (!T || !h) return yb;
   const sx = w / J.w, sy = (yb - y0) / (J.b[1] - J.a[1]);
   c.save(); c.beginPath(); c.ellipse((h[0] - J.a[0]) * sx * (J.flip ? -1 : 1), y0 + (h[1] - J.a[1]) * sy, h[2] * sx, h[3] * sy, 0, 0, TAU); c.clip();
   drawSeg(c, T.P, [0, y0], [0, K.belt * H], T.w, !!T.P.J.flip);
   c.restore();
+  return yb;
 }
 // the height of the whole plate's bottom rim (J.rim, px) when it runs from the neck to y1 (body units), where a belt is buckled over it
 const plateRim = (y1) => { const K = TUNING.kit, J = K.plate; return K.neck + (y1 - K.neck) * (J.rim - J.a[1]) / (J.b[1] - J.a[1]); };
@@ -3931,12 +3952,15 @@ function kitBody(c, p, H, lk) {
     c.save(); c.beginPath();
     // (the chest's sprite runs a pixel past the cut, over the belly's, so no seam shows between them)
     if (id === 'chest') c.rect(B[0] * H, B[1] * H, (B[2] - B[0]) * H, (K.cut - B[1]) * H + 1); else c.rect(B[0] * H, K.cut * H, (B[2] - B[0]) * H, (B[3] - K.cut) * H);
-    const plate = PL && (() => torsoPlate(c, PL, H, w * P.J.k, p.both ? 'both' : id, (Bd.y + Bd.h / 2) * H, { P, w }));
-    // his near shoulder is cut under his weapon arm's, as yours is under your sword arm's
-    c.clip(); kitTorso(c, P, K.neck * H, K.belt * H, w, true, plate);
-    // the chest piece, drawn whole into both halves so it runs on across the cut
+    // the chest piece over the plate, drawn whole into both halves so it runs on across the cut; both cut with the torso's shoulders (kitTorso)
     const G = gearArt(lk, 'chest'), A = G && G.J.at;
-    if (G) wearSeg(c, G, [A[0] * H, A[1] * H], [A[0] * H, A[2] * H], w * P.J.k, !p.armour && !lk.kit.you);
+    const over = (PL || G) && (() => {
+      const yb = PL ? torsoPlate(c, PL, H, w * P.J.k, p.both ? 'both' : id, (Bd.y + Bd.h / 2) * H, { P, w }) : 0;
+      if (G) wearSeg(c, G, [A[0] * H, A[1] * H], [A[0] * H, A[2] * H], w * P.J.k, !p.armour && !lk.kit.you);
+      return Math.max(yb, G ? A[2] * H : 0);
+    });
+    // his near shoulder is cut under his weapon arm's, as yours is under your sword arm's
+    c.clip(); kitTorso(c, P, K.neck * H, K.belt * H, w, true, over);
     c.restore();
     return true;
   }
