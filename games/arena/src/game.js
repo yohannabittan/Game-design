@@ -426,6 +426,8 @@ const TUNING = {
     galerus: { size: [192, 256], box: [-0.105, -0.17, 0.045, 0.03] },
     shields: { round: { size: [320, 320], r: 160 }, parma: { size: [224, 224], r: 112 }, scutum: { size: [224, 448], h: 224 } },
     neck: -0.745, belt: -0.49, cut: -0.51, edge: '#3a1a0a', top: -0.9, chin: -0.71, far: 0.22, arm: 0.075,
+    // an open gap on a painted man in the fight: a soft shadow on the limb, its alpha at the centre (fading to none at the gap's edge)
+    gap: 0.5,
     // your painted shield: a scutum's half height and half width per its rim radius r
     tall: [1.2, 0.6],
     // your sword arm's halves are mirrored only past this much elbow bend (the elbow's offset per upper arm length) or hilt angle (its sine across the
@@ -3930,8 +3932,8 @@ function kitBody(c, p, H, lk) {
     // (the chest's sprite runs a pixel past the cut, over the belly's, so no seam shows between them)
     if (id === 'chest') c.rect(B[0] * H, B[1] * H, (B[2] - B[0]) * H, (K.cut - B[1]) * H + 1); else c.rect(B[0] * H, K.cut * H, (B[2] - B[0]) * H, (B[3] - K.cut) * H);
     const plate = PL && (() => torsoPlate(c, PL, H, w * P.J.k, p.both ? 'both' : id, (Bd.y + Bd.h / 2) * H, { P, w }));
-    c.clip(); kitTorso(c, P, K.neck * H, K.belt * H, w, !!lk.kit.you, lk.kit.you && plate);
-    if (plate && !lk.kit.you) plate();
+    // his near shoulder is cut under his weapon arm's, as yours is under your sword arm's
+    c.clip(); kitTorso(c, P, K.neck * H, K.belt * H, w, true, plate);
     // the chest piece, drawn whole into both halves so it runs on across the cut
     const G = gearArt(lk, 'chest'), A = G && G.J.at;
     if (G) wearSeg(c, G, [A[0] * H, A[1] * H], [A[0] * H, A[2] * H], w * P.J.k, !p.armour && !lk.kit.you);
@@ -4440,7 +4442,7 @@ function paintLegs(c, p, H, lk) {
 
 // A joint slot is where two plates don't meet: their edges frame it, padding or skin shows inside in shadow, with a warm rim.
 function paintSlot(c, p, H, lk) {
-  if (lk.kit && kitPic('head')) { kitSlot(c, p, H); return; }
+  if (lk.kit && kitPic('head')) { kitGap(c, p, H); return; }
   const d = p.d, w = d.w * H, h = d.h * H, x0 = d.x * H - w / 2, y0 = d.y * H - h / 2, [under, lips] = SLOT_ART[d.id], M = lk.metal, tb = lips === 'tb';
   c.fillStyle = under === 'skin' ? shade(lk.skin, 0.85) : LINEN.mid; c.fillRect(x0, y0, w, h);
   c.save(); c.beginPath(); c.rect(x0, y0, w, h); c.clip();
@@ -4873,6 +4875,14 @@ function kitSlot(c, p, H) {
   g.addColorStop(0, 'rgba(48,16,6,0.8)'); g.addColorStop(0.5, 'rgba(6,3,2,0.95)'); g.addColorStop(1, 'rgba(48,16,6,0.8)');
   rrect(c, x0, y0, w, h, Math.min(w, h) * 0.45); c.fillStyle = g; c.fill();
   c.strokeStyle = 'rgba(255,170,90,0.85)'; c.lineWidth = Math.max(1, 0.005 * H); c.stroke();
+}
+// in the fight a painted man's open gap is a soft shadow on the limb, with no rim, so the limb under it still reads as one piece
+function kitGap(c, p, H) {
+  const d = p.d, a = TUNING.kit.gap, g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+  g.addColorStop(0, `rgba(40,14,4,${a})`); g.addColorStop(0.55, `rgba(40,14,4,${a * 0.6})`); g.addColorStop(1, 'rgba(40,14,4,0)');
+  c.save(); c.translate(d.x * H, d.y * H); c.scale(d.w * H / 2, d.h * H / 2);
+  c.fillStyle = g; c.beginPath(); c.arc(0, 0, 1, 0, TAU); c.fill();
+  c.restore();
 }
 function kitGuard(c, p, H) {
   const PL = gearPic('plate');
