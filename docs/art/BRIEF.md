@@ -454,6 +454,28 @@ The designer, on a close-up of their fighter's sword arm: "Maybe it's the muscly
 
 Make **two options (A, B)** of each whole limb, and cut both. Show the two halves joined at a straight and at a 90-degree elbow on the contact sheet, beside today's muscular arm. That is 4 paintings, about US$0.40. Add the files to `docs/art/candidates/arena/candidates.json`, and write `docs/art/HANDOFF-arena-pack24.md` with the joint points and mid widths in px, as `HANDOFF-arena-limbs.md` does.
 
+### Pack 25: Arena, gear repainted as the near side only (added 2026-11-04)
+
+The designer: "The spiked bracer is shown with a black hole at the back, as if it's empty. Things like bracers should be painted as only the near side, so they can slot seamlessly onto a body part." Many gear paintings show the piece as a free-standing object, in 3D with its inside: open cuffs, hollow tops of boots and greaves, armholes and neck holes. Laid over a limb or torso in side view, that inside reads as a black hole.
+
+**The rule for every piece below:**
+- Paint **only the near side,** as worn, seen exactly from the side (the fighter faces right). It is a shell that sits on top of the body part.
+- **No opening, no inside, no back wall, no cut edge seen end-on.** Where the piece meets the limb (a cuff's top, a boot's top, a plate's neck or armhole), the edge follows the body's outline as a painted rim, with the skin, limb or torso continuing above it.
+- Keep each piece's look, colours, size, canvas and pins, so it swaps in place. Use the delivered `-A` file and the kit (`kit-arm-*-musc-A.png`, `kit-leg-*-musc-A.png`, `kit-base-torso-A.png`) as the references.
+
+| Slot | Files to repaint (`<name>.png`) |
+| --- | --- |
+| arms | `gear-bronze-bracers`, `gear-barbed-bracers`, `gear-knife-bracers`, `gear-gilt-armlets`, `gear-crusher-gauntlets`, `gear-iron-pauldrons`, `kit-plate-manica` |
+| legs | `gear-bronze-boots`, `gear-spiked-boots`, `gear-soft-boots`, `gear-gilded-greaves`, `kit-plate-greave` |
+| chest | `gear-black-plate`, `gear-colossus-plate`, `gear-bronze-phalerae`, `kit-plate-chest` (no armhole and no neck hole: a plate seen from the side, sitting on the torso) |
+| cloak | `gear-wolf-pelt` (no dark inside showing) |
+
+Also check the others in `sheet-card-gear.png`, `sheet-vault-gear.png` and the kit sheets. Repaint any other piece that shows its inside, and list it.
+
+**The test, in the designer's words:** lay each piece over its body part at game size on the contact sheet (the arm, leg or torso it covers, side view, facing right) and ask: does it look like one piece slotted onto the body, or like an empty object stuck on? Redo any that shows a hole.
+
+That is about 17 images, one option each, about US$1.50. They replace the `-A` files in `docs/art/candidates/arena/` (keep the old ones as `-old`). Make a contact sheet of each piece before and after, worn. Write `docs/art/HANDOFF-arena-pack25.md`, saying for each piece whether its pins changed.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
