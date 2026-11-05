@@ -265,7 +265,14 @@ const TUNING = {
   flourish: { speed: 150, turn: 6, win: 0.9, cool: 2.5 },
   // the reason's thread: the debt in denarii and what each fell knocks off it; the crowd's chant (one clap, and one more per share of the crowd meter, up to
   // max, louder with each: gain base + step x claps beyond the first)
-  story: { debt: 1000, debtPer: 200, chant: { gain: 0.08, step: 0.04, gap: 0.24, max: 5 } },
+  // Step 17, Old Brutus's five story cards: dur = each scene's s; autoGap = s after a scene before the card goes on by itself; tapGap = s a card ignores a
+  // second tap; skip = the Skip plaque (px); back = each card's backdrop; kit = the plates on after each drop (card 2), drops = when each piece lands (s);
+  // bowed = the head's tip (rad, - bows it) and the arms' two angles off hanging; hang = the hanging gladius's angle (rad); spin = the first wheel's
+  // start and the gap between wheels (s); lit = when each plaque lights (s); champ = the bust behind the fifth; gate = s the gate takes to rise on the menu
+  story: { debt: 1000, debtPer: 200, chant: { gain: 0.08, step: 0.04, gap: 0.24, max: 5 },
+    dur: [3, 3.6, 3.9, 3.2, 4], autoGap: 1, tapGap: 0.25, skip: [96, 44], back: ['pit', 'pit', 'city', 'pit', 'rome'],
+    kit: [[], ['head'], ['head', 'chest', 'belly'], ['head', 'chest', 'belly', 'legs']], drops: [0.7, 1.2, 1.7, 2.2],
+    bowed: { chin: -0.42, near: [0.12, 0.04], far: [-0.08, -0.04] }, hang: -0.45, spin: [0.25, 0.7], lit: [0.3, 0.65, 1.0, 1.35, 1.9], champ: 'marcus', gate: 0.7 },
   // the one token per run: a Respin on your fighter card or a Reroll on a draft
   token: 1,
   hint: { bouts: 2, dur: 10, heartDur: 6, driveDur: 6, hudDur: 8 },  // the in-play hint shows in this many bouts ever, for this many seconds of each; heartDur, driveDur: the heart hint after your first fell, the drive hint after your first missed lunge
@@ -3788,6 +3795,8 @@ function parrySound(E) {
   A.beep({ freq: 220, dur: 0.18, type: 'triangle', slide: 0.6, gain: 0.25 });
   A.noise({ dur: 0.05, gain: 0.18 });
 }
+// a wheel's landing chime, a little higher for each wheel k
+function landChime(E, k) { E.audio.beep({ freq: 440 + k * 60, dur: 0.1, type: 'triangle', gain: 0.13 }); E.audio.beep({ freq: 880 + k * 120, dur: 0.16, type: 'sine', gain: 0.07, delay: 0.06 }); }
 // a wheel's ticker on a peg: a click, higher the slower the wheel turns (speed in radians per second)
 function tickSound(E, speed) { E.audio.beep({ freq: lerp(1500, 520, clamp(speed / 30, 0, 1)), dur: 0.025, type: 'square', gain: 0.045 }); }
 // the crowd's "ooh": a few low voices sliding down together over a breath of noise (k: louder)
@@ -7070,13 +7079,13 @@ function heroPose(weaponId) {
   const M = TUNING.menu.hero, long = M.longIds.includes(weaponId), w = long ? M.long : M.over;
   return { ...M, id: long ? 'long' : 'over', weapon: w, near: heroArm('armF', w[0], w[1]), farArm: heroArm('armB', M.far[0], M.far[1]) };
 }
-// the far arm (its manica on the forearm) with the painted shield face on at its fist, then the weapon arm raised; the weapon is the menu's to draw
+// the far arm (its manica on the forearm) with the painted shield face on at its fist (none at pose.shield 0), then the weapon arm raised; the weapon is the menu's to draw
 function heroArms(ctx, parts, s, pose, U, F, M, gm) {
   const P = (q) => [q[0] * s, q[1] * s], seg = (A, q) => { const w = q.d.w * s; drawSeg(ctx, U, P(A.S), P(A.E), w); drawSeg(ctx, F, P(A.E), P(A.F), w); if (q.armour && M) drawSeg(ctx, M, P(A.E), P(lerp2(A.E, A.F, M.J.to)), w); };
   const fq = parts.find((q) => q.d.id === 'armB'), nq = parts.find((q) => q.d.id === 'armF');
   if (fq) seg(pose.farArm, fq);
   const kind = heroShield(gm), SP = shieldPic(kind), r = pose.shield * s, TL = TUNING.kit.tall;
-  if (SP) {
+  if (SP && r > 0) {
     const k = SP.J.h ? r * TL[0] / SP.J.h : r / SP.J.r, w = SP.J.size[0] * k, h = SP.J.size[1] * k, [fx, fy] = P(pose.farArm.F);
     ctx.drawImage(SP.im, fx - w / 2, fy - h / 2, w, h);
   }
@@ -7419,7 +7428,8 @@ const wheelRest = (w, i) => -restAt(w, i);
 const sliceCol = (wh, i) => (wh.cols || STAT_COLS)[i];
 // One wheel, drawn by the game: a bronze rim with gold studs, gradient slices sized by their odds (names on the slices that have room), pegs between
 // slices, a hub with the wheel's question and the ticker on top. o: rot (the wheel's turn), w (the slice weights, which may be mid-reshape), landed
-// (the landed slice, or -1), names (the slices' names, on a big wheel), pop and flash (0 to 1, the landing), tick (the ticker's flick, radians), grow (per slice: +1 growing, -1 shrinking).
+// (the landed slice, or -1), names (the slices' names, on a big wheel), pop and flash (0 to 1, the landing), tick (the ticker's flick, radians), grow (per slice: +1 growing, -1 shrinking),
+// quiet (no question on the hub).
 // A small wheel (the card's strip) keeps the rim, slices, pegs and pointer only.
 function drawWheel(ctx, E, wh, cx, cy, r, o) {
   const arcs = sliceArcs(o.w), small = r < 40, base = -Math.PI / 2 + o.rot, landed = o.landed == null ? -1 : o.landed;
@@ -7463,7 +7473,7 @@ function drawWheel(ctx, E, wh, cx, cy, r, o) {
   const hr = small ? r * 0.2 : r * 0.38;
   ctx.fillStyle = '#221a2b'; ctx.beginPath(); ctx.arc(cx, cy, hr, 0, 6.283); ctx.fill();
   ctx.strokeStyle = '#e6c866'; ctx.lineWidth = small ? 1.5 : 3; ctx.stroke();
-  if (!small) { const q = wh.q; E.text(q, cx, cy + 1, { size: Math.max(14, fitSize(ctx, q, 17, hr * 1.85)), weight: '800', color: '#ffd24a' }); }
+  if (!small && !o.quiet) { const q = wh.q; E.text(q, cx, cy + 1, { size: Math.max(14, fitSize(ctx, q, 17, hr * 1.85)), weight: '800', color: '#ffd24a' }); }
   // the ticker: hinged above the rim, flicked aside by each peg
   const py = cy - r * 1.1 - (small ? 3 : 8), len = small ? r * 0.35 : r * 0.28, wd = small ? 5 : Math.max(8, r * 0.09);
   ctx.translate(cx, py); ctx.rotate(o.tick || 0);
@@ -7772,15 +7782,23 @@ function rotateCard(ctx, E) {
   E.text('Arena is played in landscape', E.w / 2, y + 164, { size: 13, color: '#9aa4b2' });
 }
 
-// Old Brutus's short intro, the menu's Story card
+// Old Brutus's short intro, one line for each of the story's cards (step 17)
 const STORY = ['So. Another nobody from the pit.', 'I am Brutus. I make champions out of nobodies.', 'The wheels decide who you are, and what you fight for.',
   'Five bouts stand between you and the end of it. The last is the champion.', 'Win, and Rome remembers you. Fall, and I chalk your name on the wall.'];
 // The menu (step 12), built from the art that ships: the arena you last fought in behind, darkened at its edges, two torches flickering either side of
 // the bronze title and dust drifting; your last fighter (or a fresh roll's look) on the sand at the left, breathing, cloak swaying, Old Brutus beside
 // them with one line for your progress; Play a bronze gate plaque (Resume when a run was saved), the Ludus (its dot), Story and Sound stone plaques (New
 // run beside them with a run); the Wall of Champions a carved stone tablet (a tap opens it) and the Pit Wall a chalked board at the right, three names
-// each; a low crowd murmur with the sound on. Before the first menu a boot card waits for its paintings (TUNING.load).
+// each; a low crowd murmur with the sound on. Before the first menu (or the story) a boot card waits for its paintings (TUNING.load).
 const BOOT = { done: false, t0: -1, bar: 0 };
+// the boot card's clock: its bar follows the paintings that have landed, and it is done once they all have (or TUNING.load.boot s have passed)
+function bootStep(E, names, dt) {
+  if (BOOT.t0 < 0) BOOT.t0 = E.time;
+  const n = names.filter((q) => artState(q) !== '').length, ready = artListed(E) && n === names.length;
+  BOOT.bar += (n / Math.max(1, names.length) - BOOT.bar) * Math.min(1, dt * 8);
+  if (ready || E.time - BOOT.t0 >= TUNING.load.boot) { BOOT.done = true; artFade(); MENU_BIG.key = MENU_BIG.cv = null; }
+  return BOOT.done;
+}
 // the fighter and arena on the menu: a saved run's, else the last one sent out, else the newest champion's, else a fresh roll's look in the Pit
 function menuFighter(E) {
   const run = E.save.get('run', null), last = E.save.get('last', null), c = E.save.get('champs', [])[0], q = (run && run.me && run) || (last && last.me && last);
@@ -8108,7 +8126,7 @@ function liftInk(c, t, x, y, size, weight, color, align = 'center') { ink(c, t, 
 const MENU_KEYS = ['play', 'new', 'ludus', 'story', 'sound', 'champs'];
 const menu = {
   enter(E) {
-    this.btns = {}; this.story = false; this.press = null;
+    this.btns = {}; this.press = null;
     // a v6 save's won runs are only in the ledger, which migrate cannot read: checked once here, a won run opens the City
     if (E.save.get('arenasCheck', 0)) {
       if (E.ledger.entries.some((e) => e.k === 'result' && e.d && e.d.won === true)) E.save.set('arenas', Math.max(1, E.save.get('arenas', 0)));
@@ -8122,19 +8140,14 @@ const menu = {
   },
   exit(E) { murmur(E, false); },
   update(dt, E) {
-    if (!BOOT.done) {
-      const names = menuArt(this.look), n = names.filter((q) => artState(q) !== '').length, ready = artListed(E) && n === names.length;
-      BOOT.bar += (n / Math.max(1, names.length) - BOOT.bar) * Math.min(1, dt * 8);
-      if (ready || E.time - BOOT.t0 >= TUNING.load.boot) { BOOT.done = true; artFade(); MENU_BIG.key = MENU_BIG.cv = null; }
-      return;
-    }
+    if (!BOOT.done && !bootStep(E, menuArt(this.look), dt)) return;
     murmur(E, !portrait(E));
     for (const d of this.dust) { d.x += d.v * dt / E.w; d.y += Math.sin(E.time * 0.7 + d.ph) * 2 * dt / E.h; if (d.x > 1.02) { d.x = -0.02; d.y = 0.55 + Math.random() * 0.45; } }
   },
   render(ctx, E) {
     this.btns = {};
     if (portrait(E)) { rotateCard(ctx, E); return; }
-    if (!BOOT.done) { this.bootCard(ctx, E); return; }
+    if (!BOOT.done) { this.bootCard(ctx, E); gateUp(ctx, E); return; }
     const run = E.save.get('run', null), M = TUNING.menu, Ly = menuLay(E, run), m = this.look, B = Ly.btn, bd = artImg(BACKDROP[m.arena]), face = !!artImg(m.say.pic), logo = artImg('logo-arena');
     const fame = E.save.get('fame', 0), champs = E.save.get('champs', []).slice(0, M.names).map((q) => q.name), wall = E.save.get('wall', []).slice(0, M.names).map((q) => `${q.name} (${q.bout})`);
     const labels = { play: run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', new: 'New run', ludus: 'The Ludus', story: 'Story', sound: E.audio.muted ? 'Sound: off' : 'Sound: on' };
@@ -8144,7 +8157,7 @@ const menu = {
     else { paintMenu(ctx, E, o); menuMoving(ctx, E, o, this.dust, E.dpr || 1); }
     if (this.press && this.press !== 'champs') plaque(ctx, E, B[this.press], this.press === 'play' ? 'bronze' : 'stone', labels[this.press], true, this.press === 'play' ? 22 : 16);
     this.btns = { ...B, champs: Ly.champs };
-    if (this.story) this.storyCard(ctx, E);
+    gateUp(ctx, E);
   },
   // the boot card: the dark sand, then (after TUNING.load.show) the bronze title and a thin bronze bar filling as the menu's paintings land
   bootCard(ctx, E) {
@@ -8158,26 +8171,316 @@ const menu = {
     const g = ctx.createLinearGradient(0, y, 0, y + bh); g.addColorStop(0, '#f2c477'); g.addColorStop(1, '#8a5a1c');
     ctx.fillStyle = g; ctx.fillRect(x, y, bw * clamp(BOOT.bar, 0, 1), bh);
   },
-  storyCard(ctx, E) {
-    ctx.fillStyle = 'rgba(10,8,14,0.82)'; ctx.fillRect(0, 0, E.w, E.h);
-    const w = Math.min(E.w - 32, 560), lh = 24, h = 64 + STORY.length * lh + 34, x = (E.w - w) / 2, y = (E.h - h) / 2;
-    E.roundRect(x, y, w, h, 18, '#221a2b', '#e6c866');
-    sayLine(ctx, E, 'OLD BRUTUS, YOUR LANISTA', E.w / 2, y + 26, w - 32, { size: 14, weight: '800', color: '#c4b99a' }, 'brutus', TUNING.art.faceBig);
-    STORY.forEach((t, i) => E.text(t, E.w / 2, y + 58 + i * lh, { size: fitSize(ctx, t, 16, w - 32, '700'), weight: '700', color: i ? '#f0e6cc' : '#fde68a' }));
-    E.text('Tap to close', E.w / 2, y + h - 20, { size: 14, weight: '800', color: '#ffd24a', alpha: 0.6 + 0.4 * Math.sin(E.time * 4) });
-  },
-  onPointerDown(p, E) { this.press = !BOOT.done || this.story ? null : MENU_KEYS.find((k) => this.btns[k] && E.hit(this.btns[k], p)) || null; },
+  onPointerDown(p, E) { this.press = !BOOT.done ? null : MENU_KEYS.find((k) => this.btns[k] && E.hit(this.btns[k], p)) || null; },
   onPointerUp() { this.press = null; },
   onTap(p, E) {
     if (!BOOT.done || portrait(E)) return;
-    if (this.story) { this.story = false; E.audio.play('tap'); return; }
     const b = this.btns, run = E.save.get('run', null), fresh = () => E.setScene('arenas');
     if (b.play && E.hit(b.play, p)) { E.audio.play('tap'); if (run) E.setScene('play', { resume: run }); else fresh(); }
     else if (b.new && E.hit(b.new, p)) { E.audio.play('tap'); E.save.set('run', null); fresh(); }
-    else if (b.story && E.hit(b.story, p)) { this.story = true; E.audio.play('tap'); }
+    else if (b.story && E.hit(b.story, p)) { E.audio.play('tap'); E.setScene('story', { replay: true }); }
     else if (b.ludus && E.hit(b.ludus, p)) { E.audio.play('tap'); E.setScene('ludus'); }
     else if (b.champs && E.hit(b.champs, p)) { E.audio.play('tap'); E.setScene('champs'); }
     else if (b.sound && E.hit(b.sound, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
+  },
+};
+
+// ----- the story (step 17) -----
+// Old Brutus's five cards, as Launch's cold open: each a short scene drawn as a pure function of its time t from the art that ships (so a tap can jump
+// to its end), its line fading in on a panel under it. A tap in a scene jumps to its end and the next goes on; a card goes on by itself
+// TUNING.story.autoGap s after its scene; Skip ends it, and the gate rises on the menu. A fresh save opens on it once (storySeen, set as it opens);
+// the menu's Story button replays it. Its sounds are the clang, the wheels' tick and the chimes, each fired as the clock passes its beat.
+const beat = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+// a fixed pseudo-random 0 to 1 for particle i (cosmetic), so a burst is the same at every t
+const h01 = (i, k = 0) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
+// the story's fighter: the menu's (their body, size and name) in a murmillo's kit with a gladius, bare and then plated by TUNING.story.kit; bowed, or
+// in the menu's hero pose with no shield
+function storyLook(E) {
+  const f = menuFighter(E), Y = TUNING.story, B = Y.bowed, W = TUNING.weapons.find((q) => q.id === 'gladius');
+  const me = f.me.idx ? f.me : rollMe(TUNING.menu.seed);
+  return {
+    me, gm: GTYPE.gladius.helm, weapon: { weapon: W, mace: false },
+    parts: Y.kit.map((ids) => PARTS.map((d) => mkPart(d, ids.includes(d.id)))),
+    bowed: { legs: LEGS, chin: B.chin, shield: 0, id: 'bowed', near: heroArm('armF', B.near[0], B.near[1]), farArm: heroArm('armB', B.far[0], B.far[1]) },
+    hero: { ...heroPose('gladius'), shield: 0, id: 'bare-hero' },
+  };
+}
+// what the story draws, which the boot card waits for (with the menu's own, so the menu after it is ready too)
+function storyArt(E, S) {
+  const D = dollArt(S.parts[3], S.me.str, S.gm);
+  return [...new Set([...TUNING.story.back.map((k) => BACKDROP[k]), 'brutus', 'brutus-proud', `champ-${TUNING.story.champ}`, ...D.body, ...D.extra,
+    weaponArt('gladius'), ...menuArt(menuLook(E))])];
+}
+// the fighter at (x, y), s px a unit: the painted doll (the drawn one until it loads) tilted about the feet by rot, squashed by sx and sy, faded by
+// alpha; with weapon (rad) the gladius in the near fist at that angle, the fist copied again over its grip
+function storyFig(ctx, E, S, parts, pose, x, y, s, o = {}) {
+  const sp = kitOn() && canSprite ? kitIconSprite(E, parts, s, S.me.str, S.gm, pose) : null;
+  ctx.save(); ctx.globalAlpha *= o.alpha ?? 1; ctx.translate(x, y); if (o.rot) ctx.rotate(o.rot); ctx.scale(o.sx ?? 1, o.sy ?? 1);
+  if (!sp) { armourIcon(ctx, E, parts, 0, 0, s, S.me.str, S.gm); ctx.restore(); return; }
+  ctx.drawImage(sp.cv, sp.x, sp.y, sp.w, sp.h);
+  if (o.weapon != null) {
+    const fx = pose.near.F[0] * s, fy = pose.near.F[1] * s;
+    storyBlade(ctx, S, fx, fy, o.weapon, s);
+    ctx.save(); ctx.beginPath(); ctx.arc(fx, fy, TUNING.kit.weapon.fist * s, 0, TAU); ctx.clip(); ctx.drawImage(sp.cv, sp.x, sp.y, sp.w, sp.h); ctx.restore();
+  }
+  ctx.restore();
+}
+function storyBlade(ctx, S, fx, fy, a, s) { ctx.save(); ctx.translate(fx, fy); ctx.rotate(a); ctx.translate(0, -ARM_LEN * s); drawWeapon(ctx, S.weapon, s); ctx.restore(); }
+// one piece of kit alone in the fighter's frame, as kitIcon wears it (k: 0 the helmet, 1 the plate, 2 the greaves, 3 the gladius)
+function storyPiece(ctx, S, k, s, pose) {
+  const K = TUNING.kit, t = kitTier(S.me.str);
+  if (k === 0) {
+    const kh = helmArt(KIT_HELM[S.gm] || 'gallic'), hx = PARTS[pidx('head')].x * s, len = (K.chin - K.top) * s;
+    if (kh) drawSeg(ctx, kh, [hx - Math.sin(pose.chin) * len, K.chin * s - Math.cos(pose.chin) * len], [hx, K.chin * s], 0);
+  } else if (k === 1) {
+    const PL = gearPic('plate'), T = kitPic('torso', t), B = PARTS[pidx('belly')];
+    if (PL && T) torsoPlate(ctx, PL, s, B.w * s * T.J.k, 'both', (B.y + B.h / 2) * s);
+  } else if (k === 2) {
+    const G = gearPic('greave'), P = (q) => [q[0] * s, q[1] * s];
+    if (G) for (const [, knee, ank] of pose.legs) drawSeg(ctx, G, P(lerp2(knee, ank, G.J.from)), P(lerp2(knee, ank, G.J.to)), K.leg * s);
+  } else storyBlade(ctx, S, pose.near.F[0] * s, pose.near.F[1] * s, TUNING.story.hang, s);
+}
+// a burst of n sparks from (x, y) out to R px over u (0 to 1), falling as they fade
+function storySparks(ctx, x, y, u, n, R, col, up = 1) {
+  if (u <= 0 || u >= 1) return;
+  ctx.save(); ctx.globalAlpha *= 1 - u; ctx.fillStyle = col;
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI * (up ? h01(i, 1) : 2 * h01(i, 1)), d = R * ease.outCubic(u) * (0.45 + 0.55 * h01(i, 2)), z = 1.5 + 1.5 * h01(i, 3);
+    ctx.fillRect(x + Math.cos(a) * d - z, y + Math.sin(a) * d + R * 0.6 * u * u - z, 2 * z, 2 * z);
+  }
+  ctx.restore();
+}
+// a puff of dust on the sand at (x, y), r px, over u
+function storyPuff(ctx, x, y, u, r, col = '232,204,150') {
+  if (u <= 0 || u >= 1) return;
+  ctx.fillStyle = `rgba(${col},${0.45 * (1 - u)})`; ctx.beginPath();
+  for (let i = 0; i < 5; i++) { const dx = (i - 2) * r * 0.5 * (0.6 + u), rr = r * (0.35 + 0.5 * u) * (0.7 + 0.3 * h01(i, 5)); ctx.moveTo(x + dx + rr, y - rr * 0.6 - u * r * 0.4); ctx.arc(x + dx, y - rr * 0.6 - u * r * 0.4, rr, 0, TAU); }
+  ctx.fill();
+}
+// The portcullis, its bottom edge at y: iron bars on a grid, spiked at their feet
+function drawGate(ctx, E, y) {
+  if (y <= 0) return;
+  const sp = 46, n = Math.ceil(E.w / sp) + 1, x0 = (E.w - (n - 1) * sp) / 2, top = y - E.h - 30;
+  ctx.save();
+  ctx.fillStyle = 'rgba(8,6,6,0.35)'; ctx.fillRect(0, top, E.w, y - top);
+  for (let yy = y - 34; yy > top; yy -= 72) {
+    const g = ctx.createLinearGradient(0, yy - 6, 0, yy + 6); g.addColorStop(0, '#6b6258'); g.addColorStop(1, '#2a2622');
+    ctx.fillStyle = g; ctx.fillRect(0, yy - 6, E.w, 12); ctx.fillStyle = '#16120f'; ctx.fillRect(0, yy + 5, E.w, 2);
+  }
+  for (let i = 0; i < n; i++) {
+    const x = x0 + i * sp, g = ctx.createLinearGradient(x - 6, 0, x + 6, 0);
+    g.addColorStop(0, '#2a2622'); g.addColorStop(0.4, '#7a6f62'); g.addColorStop(1, '#1e1b18');
+    ctx.fillStyle = g; ctx.fillRect(x - 6, top, 12, y - top - 14);
+    ctx.beginPath(); ctx.moveTo(x - 6, y - 14); ctx.lineTo(x + 6, y - 14); ctx.lineTo(x, y); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#120f0c'; ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.restore();
+}
+// the gate rising on the menu after the story (GATE.at: when it began)
+const GATE = { at: -1 };
+function gateUp(ctx, E) {
+  if (GATE.at < 0) return;
+  const k = (E.time - GATE.at) / TUNING.story.gate;
+  if (k >= 1) { GATE.at = -1; return; }
+  drawGate(ctx, E, E.h * (1 - ease.inOut(k)));
+}
+
+// 1. The Pit: a bare fighter, head bowed, is shoved stumbling onto the sand; Brutus's face slides in, unimpressed (a slow shake of the head).
+function sceneShove(g) {
+  const { ctx, E, t, L, S } = g, s = L.s, xF = L.l + L.aw * 0.36, p = ease.outCubic(beat(t, 0.05, 0.85)), x = lerp(L.l - s * 0.8, xF, p);
+  const st = beat(t, 0.05, 1.15), hop = Math.abs(Math.sin(st * Math.PI * 3)) * (1 - st) * s * 0.06;
+  const rot = 0.34 * (1 - ease.inOut(beat(t, 0.3, 1.4))) + 0.04 * Math.sin(t * 13) * (1 - beat(t, 0.5, 1.3));
+  storyPuff(ctx, L.l + 10, L.floor, beat(t, 0, 0.7), s * 0.16);
+  for (const k of [0.4, 0.62, 0.85]) storyPuff(ctx, lerp(L.l - s * 0.8, xF, ease.outCubic(beat(k, 0.05, 0.85))) + s * 0.1, L.floor, beat(t, k, k + 0.6), s * 0.1);
+  storyFig(ctx, E, S, S.parts[0], S.bowed, x, L.floor - hop, s, { rot });
+  const no = t > 1.9 ? Math.sin((t - 1.9) * 9) * 6 * (1 - beat(t, 1.9, 2.8)) : 0, bx = lerp(E.w + 12, L.pic.x, ease.outBack(beat(t, 1.0, 1.5))) + no;
+  drawPic(ctx, E, 'brutus', [0, 0, 1, 1], bx, L.pic.y, L.pic.w, L.pic.h);
+}
+// 2. Brutus, proud: kit drops onto the fighter piece by piece (helmet, plate, greaves, a gladius), each with a clang and sparks; he straightens up
+// into the menu's hero pose.
+const KIT_AT = [[0.03, -0.85], [0, -0.55], [0.1, -0.12]];
+function sceneKit(g) {
+  const { ctx, E, t, L, S } = g, s = L.s, x = L.l + L.aw * 0.36, y = L.floor, D = TUNING.story.drops, n = D.filter((d) => t >= d).length, fall = 0.35;
+  const q = n ? t - D[n - 1] : 9, sq = q < 0.22 ? 0.04 * Math.sin(q / 0.22 * Math.PI) : 0, up = ease.inOut(beat(t, 2.6, 3.0));
+  drawPic(ctx, E, 'brutus-proud', [0, 0, 1, 1], L.pic.x + (1 - ease.outCubic(beat(t, 0, 0.45))) * 40, L.pic.y, L.pic.w, L.pic.h);
+  if (up < 1) storyFig(ctx, E, S, S.parts[Math.min(n, 3)], S.bowed, x, y, s, { sx: 1 + sq * 0.5, sy: 1 - sq, alpha: 1 - up, weapon: n >= 4 ? TUNING.story.hang : null });
+  if (up > 0) storyFig(ctx, E, S, S.parts[3], S.hero, x, y, s, { alpha: up, sy: lerp(0.95, 1, up), weapon: Math.PI - S.hero.weapon[2] });
+  D.forEach((d, k) => {
+    const u = beat(t, d - fall, d);
+    if (u > 0 && u < 1) { ctx.save(); ctx.translate(x, y - (1 - u * u) * (y + s * 0.3)); storyPiece(ctx, S, k, s, S.bowed); ctx.restore(); }
+    const at = k < 3 ? KIT_AT[k] : S.bowed.near.F;
+    storySparks(ctx, x + at[0] * s, y + at[1] * s, beat(t, d, d + 0.45), 12, s * 0.32, '#ffd24a');
+  });
+  const gl = beat(t, 3.0, 3.5);
+  if (gl > 0 && gl < 1) {
+    const F = S.hero.near.F, fx = x + F[0] * s, fy = y + F[1] * s, r = s * 0.5 * gl, gr = ctx.createRadialGradient(fx, fy, 0, fx, fy, r);
+    gr.addColorStop(0, `rgba(255,236,170,${0.6 * (1 - gl)})`); gr.addColorStop(1, 'rgba(255,236,170,0)'); ctx.fillStyle = gr; ctx.fillRect(fx - r, fy - r, 2 * r, 2 * r);
+  }
+}
+// 3. The body wheels spin, tick and stop, one after another, on your fighter's own landings
+const STORY_WHEELS = WHEELS.filter((wh) => wh.body);
+function storyWheel(S, i, t) {
+  const wh = STORY_WHEELS[i], list = wh.list(S.me), w = list.map((e) => e[1]), j = wh.at(S.me), sp = TUNING.me.roll.spin, a = TUNING.story.spin[0] + i * TUNING.story.spin[1];
+  return { wh, w, j, a, end: a + sp, rot: (u) => (u > 0 ? spinRot(w, j, u) : 0), u: beat(t, a, a + sp) };
+}
+function sceneWheels(g) {
+  const { ctx, E, t, L, S } = g, n = STORY_WHEELS.length, cw = L.aw / n, r = Math.round(Math.min(L.H * 0.3, cw / 2.5)), cy = L.top + L.H * 0.5;
+  ctx.fillStyle = 'rgba(10,8,14,0.5)'; ctx.fillRect(0, 0, E.w, E.h);
+  for (let i = 0; i < n; i++) {
+    const W = storyWheel(S, i, t), cx = L.l + cw * (i + 0.5), rot = W.rot(W.u), done = t >= W.end, k = ease.outBack(beat(t, i * 0.08, i * 0.08 + 0.3));
+    const tick = W.u > 0 && !done && pegsPassed(W.w, W.rot(Math.max(0, W.u - 0.03)), rot) ? -0.5 : 0;
+    if (k <= 0) continue;
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(k, k); ctx.translate(-cx, -cy);
+    drawWheel(ctx, E, W.wh, cx, cy, r, { rot, w: W.w, landed: done ? W.j : -1, pop: done ? ease.outBack(beat(t, W.end, W.end + 0.15)) : 0, flash: done ? 1 - beat(t, W.end, W.end + 0.4) : 0, tick, quiet: true });
+    ctx.restore();
+  }
+}
+// the wheels' ticks between two times of the card, as the roll's (one tick a TUNING.me.roll.tickGap at most)
+function wheelTicks(E, S, t0, t1, self) {
+  for (let i = 0; i < STORY_WHEELS.length; i++) {
+    const A = storyWheel(S, i, t0), B = storyWheel(S, i, t1), r0 = A.rot(A.u), r1 = B.rot(B.u);
+    if (B.u > 0 && A.u < 1 && pegsPassed(A.w, r0, r1) && E.time - self.lastTick > TUNING.me.roll.tickGap) { self.lastTick = E.time; tickSound(E, Math.abs(r1 - r0) / Math.max(t1 - t0, 1e-3)); }
+  }
+}
+// 4. Five plaques light up one by one along the sand; the fifth flares, and a champion's bust rises behind it
+function scenePlaques(g) {
+  const { ctx, E, t, L } = g, Y = TUNING.story, pw = Math.round(Math.min(104, L.aw / 5 - 22)), ph = 46, py = L.floor - ph - 4, cw = L.aw / 5;
+  const xs = [0, 1, 2, 3, 4].map((i) => L.l + cw * (i + 0.5)), lit = Y.lit.map((a) => beat(t, a, a + 0.25)), fl = beat(t, Y.lit[4], Y.lit[4] + 0.6);
+  const bh = Math.round(L.H * 0.6), bw = Math.round(bh * 0.75), rise = ease.outCubic(beat(t, Y.lit[4] + 0.1, Y.lit[4] + 0.8));
+  if (fl > 0) {
+    const x = xs[4], yy = py + ph / 2, r = pw * (1.4 + 1.4 * ease.outCubic(fl)), gr = ctx.createRadialGradient(x, yy - ph, 0, x, yy - ph, r);
+    gr.addColorStop(0, `rgba(255,200,90,${0.55 - 0.25 * fl})`); gr.addColorStop(1, 'rgba(255,160,60,0)'); ctx.fillStyle = gr; ctx.fillRect(x - r, yy - ph - r, 2 * r, 2 * r);
+  }
+  if (rise > 0) {
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, E.w, py + 6); ctx.clip();
+    drawPic(ctx, E, `champ-${Y.champ}`, [0, 0, 1, 1], xs[4] - bw / 2, py + 6 - (bh + 10) * rise, bw, bh, '#ffd24a');
+    ctx.restore();
+  }
+  xs.forEach((x, i) => {
+    const b = { x: x - pw / 2, y: py, w: pw, h: ph }, on = lit[i], last = i === 4;
+    if (on > 0) { const gr = ctx.createRadialGradient(x, py + ph / 2, 0, x, py + ph / 2, pw * 0.9); gr.addColorStop(0, `rgba(255,190,90,${0.6 * on})`); gr.addColorStop(1, 'rgba(255,190,90,0)'); ctx.fillStyle = gr; ctx.fillRect(x - pw, py + ph / 2 - pw, 2 * pw, 2 * pw); }
+    plaque(ctx, E, b, last && on > 0 ? 'bronze' : 'stone', '', false, 16);
+    if (on > 0 && !last) { ctx.strokeStyle = `rgba(255,210,74,${0.85 * on})`; ctx.lineWidth = 2; rrect(ctx, b.x + 1, b.y + 1, b.w - 2, b.h - 2, Math.min(12, ph * 0.26) - 1); ctx.stroke(); }
+    if (on < 1) { ctx.fillStyle = `rgba(8,6,10,${0.5 * (1 - on)})`; rrect(ctx, b.x, b.y, b.w, b.h, Math.min(12, ph * 0.26)); ctx.fill(); }
+    const col = on > 0.5 ? (last ? '#2a1606' : '#ffd24a') : 'rgba(30,26,22,0.8)', cy = py + ph / 2;
+    if (last) { ctx.save(); ctx.globalAlpha *= on > 0.5 ? 1 : 0.3; laurel(ctx, x, cy + 2, 12); ctx.restore(); }
+    else { ctx.save(); ctx.translate(x, cy); ctx.rotate(-0.6); ctx.fillStyle = col; ctx.fillRect(-1.5, -13, 3, 19); ctx.fillRect(-6, 5, 12, 3); ctx.fillRect(-1.5, 8, 3, 5); ctx.restore(); }
+    if (on > 0 && on < 1) { ctx.strokeStyle = `rgba(255,210,74,${1 - on})`; ctx.lineWidth = 3; rrect(ctx, b.x - 4 * on, b.y - 4 * on, b.w + 8 * on, b.h + 8 * on, 12); ctx.stroke(); }
+  });
+  storySparks(ctx, xs[4], py, fl, 22, pw * 1.1, '#ffd24a');
+}
+// 5. Split: a name carved into the stone tablet with chips flying, and the same name scrawled on the chalk board with dust; then the gate drops
+function sceneWalls(g) {
+  const { ctx, E, t, L, S } = g, w = Math.round(Math.min(L.aw * 0.4, 320)), h = Math.round(Math.min(L.H * 0.5, 150)), y = Math.round(L.top + 24 + (L.H - 24 - h) / 2), gap = 28;
+  ctx.fillStyle = 'rgba(10,8,14,0.4)'; ctx.fillRect(0, 0, E.w, E.h);
+  const name = S.me.name, xl = lerp(-w - 20, L.cx - gap / 2 - w, ease.outCubic(beat(t, 0, 0.4))), xr = lerp(E.w + 20, L.cx + gap / 2, ease.outCubic(beat(t, 0, 0.4)));
+  // one wall's name revealed left to right over u, the tool at its edge throwing chips (stone) or dust (chalk)
+  const wall = (x0, carved, a, b) => {
+    const u = beat(t, a, b), size = fitSize(ctx, name, 36, w - 40);
+    ctx.save(); ctx.translate(x0, y); paintWall(ctx, w, h, '', [], '', carved);
+    ctx.font = `800 ${size}px system-ui, sans-serif`;
+    const tw = ctx.measureText(name).width, nx = (w - tw) / 2, ny = h / 2, ex = nx + tw * u;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, ex, h); ctx.clip();
+    if (carved) { ink(ctx, name, w / 2, ny - 1.5, size, '800', 'rgba(20,14,8,0.8)'); ink(ctx, name, w / 2, ny, size, '800', '#fde68a'); }
+    else { ctx.save(); ctx.globalAlpha *= 0.9; ink(ctx, name, w / 2 + 0.8, ny + 0.8, size, '800', 'rgba(235,230,215,0.3)'); ink(ctx, name, w / 2, ny, size, '800', '#f5f2ea'); ctx.restore(); }
+    ctx.restore();
+    // the tablet's laurel once the name is cut; old tallies of the fallen on the slate
+    if (carved && u >= 1) laurel(ctx, w / 2, ny - size * 0.95, 10 * ease.outBack(beat(t, b, b + 0.3)));
+    if (!carved) { ctx.strokeStyle = 'rgba(235,230,215,0.18)'; ctx.lineWidth = 2; ctx.beginPath(); for (let i = 0; i < 9; i++) { const tx = 22 + i * 9 + (i > 4 ? 10 : 0); ctx.moveTo(tx, h - 34); ctx.lineTo(tx + 2, h - 16); } ctx.moveTo(14, h - 20); ctx.lineTo(70, h - 30); ctx.stroke(); }
+    for (let i = 0; i < 16; i++) {
+      const tb = a + (b - a) * i / 16, p = beat(t, tb, tb + 0.5), bx = nx + tw * beat(tb, a, b);
+      if (p <= 0 || p >= 1) continue;
+      const ang = -Math.PI * (0.15 + 0.7 * h01(i, carved ? 7 : 8)), d = (carved ? 46 : 18) * ease.outCubic(p) * (0.5 + 0.5 * h01(i, 9));
+      const px = bx + Math.cos(ang) * d, py = ny - size * 0.2 + Math.sin(ang) * d * (carved ? 1 : 0.3) + (carved ? 60 : 34) * p * p;
+      ctx.fillStyle = carved ? `rgba(226,216,192,${1 - p})` : `rgba(240,236,224,${0.6 * (1 - p)})`;
+      if (carved) ctx.fillRect(px - 2.5, py - 2.5, 4 + 3 * h01(i, 4), 4 + 3 * h01(i, 6)); else { ctx.beginPath(); ctx.arc(px, py, 2 + 4 * p, 0, TAU); ctx.fill(); }
+    }
+    if (u > 0 && u < 1) {
+      ctx.save(); ctx.translate(ex, ny - size * 0.1);
+      if (carved) { ctx.rotate(0.5 + 0.12 * Math.sin(t * 40)); ctx.fillStyle = '#9aa1a8'; ctx.fillRect(-2, -26, 4, 22); ctx.fillStyle = '#6a4a2a'; ctx.fillRect(-3.5, -44, 7, 20); }
+      else { ctx.rotate(0.6 + 0.1 * Math.sin(t * 25)); ctx.fillStyle = '#f5f2ea'; ctx.fillRect(-3, -22, 6, 20); }
+      ctx.restore();
+    }
+    ctx.restore();
+  };
+  wall(xl, true, 0.5, 1.7); wall(xr, false, 1.6, 2.7);
+  const drop = beat(t, 3.0, 3.4), bounce = t > 3.4 ? Math.sin((t - 3.4) * 22) * 10 * Math.exp(-(t - 3.4) * 9) : 0;
+  if (drop > 0) drawGate(ctx, E, E.h * ease.inQuad(drop) - Math.abs(bounce));
+  if (t > 3.4) storyPuff(ctx, L.cx, E.h, beat(t, 3.4, 4), E.w * 0.06);
+}
+// each card: its scene, and the sounds on its beats (at: s into the card; fn) or between two times of it (run)
+const STORY_CARDS = [
+  { draw: sceneShove, cues: [] },
+  { draw: sceneKit, cues: [...TUNING.story.drops.map((d, k) => [d, (E) => clangSound(E, 0)]), [3.0, (E) => ringSound(E)]] },
+  { draw: sceneWheels, cues: STORY_WHEELS.map((_, i) => [TUNING.story.spin[0] + i * TUNING.story.spin[1] + TUNING.me.roll.spin, (E) => landChime(E, i)]), run: wheelTicks },
+  { draw: scenePlaques, cues: [...TUNING.story.lit.slice(0, 4).map((a) => [a, (E) => tickSound(E, 0)]), [TUNING.story.lit[4], (E) => ringSound(E)]] },
+  { draw: sceneWalls, cues: [...[0, 1, 2, 3, 4, 5, 6].map((i) => [0.55 + i * 0.17, (E) => tickSound(E, 30)]), [3.4, (E) => clangSound(E, 0)]] },
+];
+const story = {
+  enter(E, p = {}) {
+    if (!p.replay) E.save.set('storySeen', 1);
+    this.S = storyLook(E); this.art = storyArt(E, this.S); this.i = 0; this.t0 = E.time; this.lt = 0; this.tapT = -9; this.lastTick = -9; this.skip = null; this.on = false;
+  },
+  dur(i) { return TUNING.story.dur[i]; },
+  // the card's clock (held while the boot card waits or the phone is upright)
+  begin(E) { this.on = true; this.t0 = E.time; this.lt = 0; landChime(E, 0); },
+  advance(E) {
+    if (this.i + 1 >= STORY.length) { this.finish(E); return; }
+    this.i++; this.begin(E);
+  },
+  finish(E) { GATE.at = E.time; E.setScene('menu'); },
+  update(dt, E) {
+    if (!BOOT.done && !bootStep(E, this.art, dt)) return;
+    if (portrait(E)) { this.t0 += dt; return; }
+    if (!this.on) { this.begin(E); return; }
+    const d = this.dur(this.i), t = Math.min(E.time - this.t0, d), c = STORY_CARDS[this.i];
+    for (const [at, fn] of c.cues) if (this.lt < at && t >= at) fn(E);
+    if (c.run && t > this.lt) c.run(E, this.S, this.lt, t, this);
+    this.lt = t;
+    if (E.time - this.t0 >= d + TUNING.story.autoGap) this.advance(E);
+  },
+  lay(E) {
+    const sf = E.safe, l = sf.left + 16, r = E.w - sf.right - 16, top = sf.top + 8, capH = 40, capTop = E.h - sf.bottom - 8 - capH, floor = capTop - 6, H = floor - top;
+    const ph = Math.round(H * 0.58), pw = Math.round(ph * 0.75);
+    return { l, r, aw: r - l, cx: (l + r) / 2, top, capTop, capH, floor, H, s: Math.round(H * 0.62), pic: { x: r - pw - 24, y: top + 52, w: pw, h: ph } };
+  },
+  render(ctx, E) {
+    this.skip = null;
+    if (portrait(E)) { rotateCard(ctx, E); return; }
+    if (!this.on) { menu.bootCard(ctx, E); return; }
+    const Y = TUNING.story, L = this.lay(E), d = this.dur(this.i), t = Math.min(E.time - this.t0, d), bd = artImg(BACKDROP[Y.back[this.i]]);
+    menuBlit(ctx, E, `story|${Y.back[this.i]}|${bd ? artV : '-'}`, 0, 0, E.w, E.h, (c) => paintMenuBack(c, E, bd));
+    ctx.save(); STORY_CARDS[this.i].draw({ ctx, E, t, L, S: this.S }); ctx.restore();
+    const fade = beat(t, 0.5, 1.1), line = STORY[this.i];
+    if (fade > 0) {
+      const size = fitSize(ctx, line, 20, L.aw - 100), y = L.capTop + (1 - fade) * 6;
+      ctx.font = `800 ${size}px system-ui, sans-serif`;
+      const tw = ctx.measureText(line).width;
+      ctx.save(); ctx.globalAlpha = fade;
+      rrect(ctx, L.cx - tw / 2 - 18, y, tw + 36, L.capH, 12); ctx.fillStyle = 'rgba(26,20,32,0.92)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#e6c866'; ctx.stroke();
+      ink(ctx, line, L.cx, y + L.capH / 2, size, '800', '#f0e6cc');
+      ctx.restore();
+    }
+    for (let k = 0; k < STORY.length; k++) {
+      ctx.globalAlpha = k === this.i ? 1 : 0.4; ctx.fillStyle = k <= this.i ? '#ffd24a' : '#f0e6cc';
+      ctx.beginPath(); ctx.arc(L.cx + (k - (STORY.length - 1) / 2) * 18, E.safe.top + 22, k === this.i ? 5 : 4, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (E.time - this.t0 >= d) {
+      const k = 1 + 0.15 * Math.sin(E.time * 6), x = L.r - 14, y = L.capTop + L.capH / 2;
+      ctx.fillStyle = '#ffd24a'; ctx.beginPath(); ctx.moveTo(x - 7 * k, y - 9 * k); ctx.lineTo(x + 9 * k, y); ctx.lineTo(x - 7 * k, y + 9 * k); ctx.closePath(); ctx.fill();
+    }
+    const [sw, sh] = Y.skip;
+    this.skip = { x: L.r - sw, y: E.safe.top + 8, w: sw, h: sh };
+    plaque(ctx, E, this.skip, 'stone', 'Skip', false, 16);
+  },
+  onTap(p, E) {
+    if (portrait(E) || !this.on) return;
+    if (this.skip && E.hit(this.skip, p)) { E.audio.play('tap'); this.finish(E); return; }
+    if (E.time - this.tapT < TUNING.story.tapGap) return;
+    this.tapT = E.time;
+    if (E.time - this.t0 < this.dur(this.i)) { this.t0 = E.time - this.dur(this.i); this.lt = this.dur(this.i); return; }
+    this.advance(E);
   },
 };
 
@@ -8624,7 +8927,7 @@ const roll = {
     const k = this.i, j = WHEELS[k].at(this.me), e = WHEELS[k].list(this.me)[j], L = this.lay(E);
     Object.assign(this, { ph: 'land', t: 0, rot: spinRot(this.w1, j, 1), flash: 1, pop: 0, tick: 0 });
     this.landT[k] = E.time;
-    E.audio.beep({ freq: 440 + k * 60, dur: 0.1, type: 'triangle', gain: 0.13 }); E.audio.beep({ freq: 880 + k * 120, dur: 0.16, type: 'sine', gain: 0.07, delay: 0.06 });
+    landChime(E, k);
     const [s, en] = sliceArcs(this.w1)[j], a = -Math.PI / 2 + this.rot + (s + en) / 2, px = L.cx + Math.cos(a) * L.r * 0.7, py = L.cy + Math.sin(a) * L.r * 0.7;
     if (isRare(WHEELS[k].k, e[0])) {
       E.particles.emit({ x: px, y: py, count: 46, speed: 340, life: 0.9, size: 5, color: '#ffd24a', gravity: 260 });
@@ -9311,7 +9614,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 15,
+  saveVersion: 16,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -9384,6 +9687,8 @@ export const game = {
       if (r) { rv(r.rival); r.first = null; }
       if (r && r.arena === 'games' && r.rack > 0) data.run = { seed: r.seed, arena: r.arena, rack: 0, me: r.me, rival: r.rival || null, first: null, token: r.token, tokenUsed: r.tokenUsed, buy: r.buy || '', purseLeft: r.purseLeft, gold: r.purseLeft || 0 };
     }
+    // v16 (v2 step 17, the story): a save from before has seen Old Brutus's story, so only a fresh save opens on it
+    if (fromVersion < 16) data.storySeen = 1;
     return data;
   },
   TUNING,
@@ -9410,9 +9715,10 @@ export const game = {
     { label: 'Bouts 2x', values: { boutLength: 2 } },
   ],
   start: 'menu',
-  // the art (step 6): E.art where the engine has it (ADR-0020); without it every image keeps its drawn fallback
+  // a fresh save opens on the story (step 17); the art (step 6): E.art where the engine has it (ADR-0020); without it every image keeps its drawn fallback
   init(E) {
     ENG = E;
+    game.start = E.save.get('storySeen', 0) ? 'menu' : 'story';
     // every screen's render ends with a landing painting's fade; a new screen drops it
     for (const sc of Object.values(game.scenes)) {
       const R = sc.render, N = sc.enter;
@@ -9428,5 +9734,5 @@ export const game = {
     artTabNames(E);
     kitSwitch(E);
   },
-  scenes: { menu, arenas: pickArena, ludus, champs, roll, play, over },
+  scenes: { menu, story, arenas: pickArena, ludus, champs, roll, play, over },
 };

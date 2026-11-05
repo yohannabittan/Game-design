@@ -101,3 +101,13 @@
   - **Helmets:** all 12 Pack 27 pieces sit at the head's own origin; the 5 closed ones replace the head, and the old pins are gone. On a foe's bare head, helmet-only gear now shows nothing.
   - **The laurel:** the painted ring sits round a cleared arena's portrait on the picker.
   - 428 KB of new webp; play work -4.9%, a beast bout +6.9%.
+- v2 step 17 build (Opus 5.5, passed the orchestrator's review of its frames first time): the story, animated (`prd-v0.3.md`, "Step 17"). `arena-v60`, save v16.
+  - **Five cards from shipped art,** each a pure function of its scene time, as in Launch:
+    1. a nobody is shoved onto the Pit's sand while Brutus looks on;
+    2. kit drops onto him with clangs until he stands in the hero pose;
+    3. the body wheels spin and stop;
+    4. five plaques light up and Marcus rises behind the last;
+    5. a name is carved into the tablet and another chalked on the board, then a portcullis drops shut and rises again over the menu.
+  - **Controls:** a tap jumps to a card's end, and the next tap goes on. Skip is a 96x44 plaque, and the Story button replays it.
+  - **Save v16:** a fresh save sees the story once; older saves are marked as having seen it.
+  - The story fighter always wears a murmillo's kit and a gladius. `perf.mjs --scene menu` now measures the story on a fresh save.
