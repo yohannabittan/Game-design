@@ -1747,7 +1747,7 @@ The numbers go in `TUNING.champs.<key>`. The other champions (Aurelius, Flamma, 
 - Scripted checks: each move fires and can be answered; the Grand Games order; the second blade's price and its crossed-blade block.
 - Perf within 10%, and `npm run smoke`.
 
-## Step 19 (proposed 2026-11-04, for the designer's OK): an innate trait for each origin, and a drive for each reason
+## Step 19 (locked 2026-11-07): an innate trait for each origin, and a drive for each reason
 
 **The designer:** "I think we should also have an innate trait based on origin."
 
@@ -1793,7 +1793,7 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 - The fighter card and the "?" page show it, at three sizes.
 - `npm run smoke`.
 
-## Step 20 (proposed 2026-11-07, playtest of v60): a slimmer bout card, champions' specials you can tell apart, and a nudge to heal
+## Step 20 (locked 2026-11-07, playtest of v60): a slimmer bout card, champions' specials you can tell apart, and a nudge to heal
 
 **The designer:** "I couldn't really tell the champions' different specials apart. But overall it was cinematic, the way he switched to two blades." And: "I should have bought more healing before the champion." Only one special shows in the export (`capuan1`).
 
@@ -1820,6 +1820,10 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 - **Feedback after, never advice before:** answering a move well shows "READ!" with the punish window highlighted; missing it shows only the move's name over the blow. No screen, card, banner or "?" page says how to answer a signature move.
 - **More often:** each champion uses his move at least twice a bout (tunable in `TUNING.champs.<key>.every`), and Marcus's Red Rage can come before half health.
 - **A nudge to heal:** if you reach the bandage stall before a champion with fewer than half your hearts, Old Brutus says, "Patch yourself up. He won't wait." The bandage row is highlighted. Nothing is bought for you.
+- **Your hearts as one heart and a number.** Double hearts fill up to three rows today. The HUD shows instead:
+  - one heart icon whose red fill drains like a glass as you lose health;
+  - your hearts beside it as "14 / 18".
+  The heart shakes and the number flashes red on a hit, and pulses green on a heal. A giant's hearts take the same room as a runt's. Foes keep their bars.
 - **The export logs** each special's uses and answers (`specials=rage2/1,...`).
 
 ### Acceptance
