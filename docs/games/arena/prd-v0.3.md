@@ -1792,3 +1792,29 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 - Each trait and each drive fires in a scripted check and shows its tag.
 - The fighter card and the "?" page show it, at three sizes.
 - `npm run smoke`.
+
+## Step 20 (proposed 2026-11-07, playtest of v60): champions' specials you can tell apart, and a nudge to heal
+
+**The designer:** "I couldn't really tell the champions' different specials apart. But overall it was cinematic, the way he switched to two blades." And: "I should have bought more healing before the champion." Only one special shows in the export (`capuan1`).
+
+- **Named on his card:** the champion's intro card gains one line: his move's name and its answer, for example "Red Rage: block high, mid, low."
+- **Each move announces itself every time:** the name banner shows on each use, not only the first, so you see "RED RAGE!" before his three blows.
+- **A signature look and sound per move,** so none of them reads like an ordinary attack:
+  - Red Rage: a red flush, a roar and a ground thump;
+  - Capuan Feint: violet ghost wind-ups with a whisper;
+  - Blink: a white blur trail with a whoosh;
+  - Huntress's Throw: a spear glint at range and a whistle;
+  - Two Blades: the Emperor's gesture and a gold flash.
+  - Each tell also gets a short slow-motion beat (about 0.25 s at 40%), the way a felled foe does.
+- **The answer is called out:** answering a move well shows "READ!" with the punish window highlighted. Missing it shows the move's name over the blow.
+- **More often:** each champion uses his move at least twice a bout (tunable in `TUNING.champs.<key>.every`), and Marcus's Red Rage can come before half health.
+- **A nudge to heal:** if you reach the bandage stall before a champion with fewer than half your hearts, Old Brutus says, "Patch yourself up. He won't wait." The bandage row is highlighted. Nothing is bought for you.
+- **The export logs** each special's uses and answers (`specials=rage2/1,...`).
+
+### Acceptance
+
+- A frame of each move's tell, banner and READ.
+- An intro card for each of the five champions.
+- The heal nudge.
+- Scripted checks: each move fires at least twice in a bout, and each can be answered.
+- `npm run smoke`.
