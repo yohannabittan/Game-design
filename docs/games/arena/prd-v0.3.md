@@ -1891,3 +1891,43 @@ The numbers go in `TUNING.strike`. Cards that boost bleed, gaps or dents now rea
   - a mace denting a plate.
 - Perf within 10%, and `npm run smoke`.
 - **A playtest straight after**, since this changes the core of fighting.
+
+## Step 22 (drafted 2026-11-07, builds after Step 21): a sidearm to switch to, and throwing knives
+
+**The designer:** "We should contemplate the secondary weapon thing: today it's not so useful, but being able to switch between two types of fighting could be good." On the swap: "Fast and open." Then: "A throwing knife: maybe it leaves you open when you aim, it only hurts if it hits a gap, but if it does it hurts a lot. You only have limited ammo, and you can't block while throwing."
+
+**The sidearm:**
+- **Where it goes:** a second, different weapon on your belt, bought in the tent's new **Sidearm** slot at its weapon's price. You keep your shield. Two blades stays its own choice in the Arms slot (shield or second blade).
+- **The swap:** a round **⇄** button in the bottom-right corner, outside the swipe area, at least 44 px.
+  - It is fast and open: about 0.5 s (`TUNING.sidearm.swap`) in which you cannot block or swing.
+  - The foe sees it and may punish it.
+- **Cards** that change a weapon apply to the weapon in your hand.
+- **The inventory doll** wears the sidearm at the hip.
+- **Foes:** from the City on, some foes carry a sidearm and swap by range (a spear man draws a gladius when you close in). Mevia's throw already works this way.
+
+**Throwing knives:**
+- **What you get:** a **knife belt** in the Extras row (bought in the tent), holding 3 knives a bout (`TUNING.knives.n`). The belt refills each bout, so knives are a tactic, not a hoard. A card may add one.
+- **To throw:** tap the knife button, which sits above ⇄ and shows the knives left.
+  - Your fighter raises the knife, and you are open: no block, no swing (`TUNING.knives.aim`).
+  - Drag your thumb onto the foe to aim at a spot; the aim point is drawn so you can see it.
+  - Release to throw. Tapping the knife button again cancels.
+- **The hit:**
+  - in a **gap:** big pierce damage (`TUNING.knives.dmg`, about a heavy blow), with a hit flash and the gap's sound;
+  - on **plate, a shield, or a miss:** no damage. It clangs or falls in the sand.
+  - It flies fast but not instantly (`TUNING.knives.speed`), so a foe who is moving or raising his shield can make you miss.
+- **What it rewards:** reading his guard and his openings, the same skill as gap hits, at a range and with a real risk.
+
+### Open, for the designer
+
+- Knives per bout, or a fixed number per run? Per bout is drafted.
+
+### Acceptance
+
+- Scripted checks:
+  - the swap's 0.5 s cannot block;
+  - a knife in a gap does its damage, and a knife on plate does none;
+  - no block while aiming;
+  - the count refills each bout;
+  - a foe swaps by range.
+- Frames: the tent's Sidearm slot, ⇄, the knife button with its count, an aim, a hit, and a clang.
+- Perf within 10%, `npm run smoke`, and a playtest.
