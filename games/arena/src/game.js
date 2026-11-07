@@ -34,7 +34,7 @@ const TUNING = {
     tiredLag: 2.4,         // lag multiplier at zero stamina
   },
   arm: { len: 0.45, minFrac: 0.35, full: 0.97, chamberAt: 0.16, straightAt: 0.5 },  // arm in H; finger distance (H) at which the arm is chambered and at which it is straight
-  blade: { len: 0.36, pad: 5, jabPad: 10, tip: 0.22 },   // gladius length in H, hit pad px, jab tip radius px, fraction of the blade that is the jab tip
+  blade: { len: 0.36, pad: 5, jabPad: 10 },   // gladius length in H, hit pad px, the pad px of a jab's striking part (TUNING.strike)
   grip: { straight: -0.25, chamber: -0.6, tau: 0.045, trail: 0.018 },  // blade angle from the arm (radians, up is negative), smoothing, trail per rad/s of arm swing
   // body unit as a fraction of screen height, feet line, clear gap between the bodies (fraction of width), half body width in H; fit = the largest scale
   // drawn at full frame: a bigger fighter (a Giant) shrinks the whole frame so his head stays as high as that scale's would, clear of the HUD
@@ -53,7 +53,7 @@ const TUNING = {
   dodge: { dur: 0.35, back: 0.32, hop: 0.1, cost: 12, cool: 0.2, drain: 14 },  // dur: a tap's sidestep; a hold stays back and drains stamina per second
   hit: { minSpeed: 400, mid: 950, cool: 0.2 },   // tip px/s: slash threshold, slash damage 2; seconds before a part can be hit again
   attack: {
-    jab: { cost: 8, minSpeed: 520, dmg: 2, recoil: 0.18 },
+    jab: { cost: 8, minSpeed: 520, dmg: 2, recoil: 0.18, dents: 1 },  // dents: a crush jab's (step 21)
     slash: { cost: 14, dmg: 1, fastDmg: 2, recoil: 0.5, dents: 1 },
     over: { cost: 20, minSpeed: 750, dmg: 3, recoil: 0.7, dents: 2, raise: 0.2, window: 0.6 },  // raise: hand this far (H) above the shoulder; window: seconds it counts
   },
@@ -230,21 +230,21 @@ const TUNING = {
     tiers: [['S', 12.5], ['A', 10.5], ['B', 8.5], ['C', 6.5], ['D', -1]],  // score = STR + SPD + STA + size: the body only (step 9a; each cut is the old one less a medium armour's 0.5)
     underdog: 6.5, underdogHalves: 1,     // a score below this gets +1 heart
     heartsPerBase: 2,                     // a size's base hearts times this is its whole hearts (a medium's 6 shows 12)
-    // your weapon: reach = blade length, speed divides hand lag and recoil, dmg and cost multiply every blow, slash multiplies slash damage,
+    // your weapon: reach = blade length, speed divides hand lag and recoil, dmg and cost multiply every blow (how each part of it hits: TUNING.strike),
     // slot = slot-hit multiplier, slotDmg = what multiplies a slot hit in place of dmg (the dagger's slot hits are 4x a bare jab, so 1.33x the gladius's),
     // overBreak = dents at which an overhead breaks a plate (0: the usual armour.dents), noDent: its slashes and smashes never dent a plate
     weapons: {
-      // fists (step 11): free, very fast, half the damage, a stab into a gap still counts
+      // fists (step 11): free, very fast, half the damage (step 21: they crush, so a stab into a gap is a plain hit)
       // (Step 14: a fist's swing glow is glow H round the fist, its jab spark knuckle H past it, art only)
-      fist: { name: 'FISTS', reach: 0.5, speed: 1.6, dmg: 0.5, cost: 1, slash: 1, slot: 2, slotDmg: 0.5, overBreak: 0, noDent: true, glow: 0.05, knuckle: 0.035 },
-      gladius: { name: 'GLADIUS', reach: 1, speed: 1, dmg: 1, cost: 1, slash: 1, slot: 3, slotDmg: 1, overBreak: 0 },
-      spear: { name: 'SPEAR', reach: 1.35, speed: 0.85, dmg: 1, cost: 1, slash: 0.6, slot: 3, slotDmg: 1, overBreak: 0 },
-      axe: { name: 'AXE', alt: 'MACE', reach: 0.9, speed: 0.75, dmg: 1.7, cost: 1.4, slash: 1, slot: 3, slotDmg: 1.7, overBreak: 2 },
-      dagger: { name: 'DAGGER', reach: 0.65, speed: 1.4, dmg: 0.75, cost: 1, slash: 1, slot: 4, slotDmg: 1, overBreak: 0 },
+      fist: { name: 'FISTS', reach: 0.5, speed: 1.6, dmg: 0.5, cost: 1, slot: 2, slotDmg: 0.5, overBreak: 0, noDent: true, glow: 0.05, knuckle: 0.035 },
+      gladius: { name: 'GLADIUS', reach: 1, speed: 1, dmg: 1, cost: 1, slot: 3, slotDmg: 1, overBreak: 0 },
+      spear: { name: 'SPEAR', reach: 1.35, speed: 0.85, dmg: 1, cost: 1, slot: 3, slotDmg: 1, overBreak: 0 },
+      axe: { name: 'AXE', alt: 'MACE', reach: 0.9, speed: 0.75, dmg: 1.7, cost: 1.4, slot: 3, slotDmg: 1.7, overBreak: 2 },
+      dagger: { name: 'DAGGER', reach: 0.65, speed: 1.4, dmg: 0.75, cost: 1, slot: 4, slotDmg: 1, overBreak: 0 },
       // the ludus's armoury (len: the length drawn on your card, H). The trident: the longest reach and the slowest hand, weak slashes, its net cast by
       // your first perfect block each bout (net). The sica: short and quick, its curved edge makes every slash cut deep.
-      trident: { name: 'TRIDENT & NET', reach: 1.5, speed: 0.8, dmg: 1, cost: 1.1, slash: 0.5, slot: 3, slotDmg: 1.15, overBreak: 0, net: true, len: 0.8 },
-      sica: { name: 'SICA', reach: 0.8, speed: 1.2, dmg: 1, cost: 1, slash: 1.6, slot: 3, slotDmg: 1, overBreak: 0, len: 0.3 },
+      trident: { name: 'TRIDENT & NET', reach: 1.5, speed: 0.8, dmg: 1, cost: 1.1, slot: 3, slotDmg: 1.15, overBreak: 0, net: true, len: 0.8 },
+      sica: { name: 'SICA', reach: 0.8, speed: 1.2, dmg: 1, cost: 1, slot: 3, slotDmg: 1, overBreak: 0, len: 0.3 },
     },
     // your net (the trident): it holds him dur s, his wind-ups wind x longer, his footwork at step x its speed
     net: { dur: 3, wind: 0.3, step: 0.5 },
@@ -362,6 +362,30 @@ const TUNING = {
   // crippling him: a lamed sword arm lengthens his wind-ups by arm; a lamed shield arm makes his cover slide cover x slower; lamed legs walk at legs x.
   // A beast: a lamed foreleg lengthens its wind-ups by arm; either leg lamed lengthens its pounce or charge's tell by pounce and its leap to legs x
   lame: { arm: 0.2, cover: 2.5, legs: 0.55, pounce: 0.25 },
+  // Step 21, how each weapon hits (you and every foe alike). Each part of a weapon that strikes, for a jab and for a swing (a slash or an overhead): its
+  // rows on its Pack 23 painting (the axe's on Pack 28's; fists on a scale of pin rows from knuckle to wrist), its kinds and its damage multiplier.
+  // Anywhere else on the weapon is the haft: a thud (thud x the blow, a little push of push paces, no gap bonus, no bleed, no dent).
+  // cut: bare skin bleeds (bleed stacks a cut, kept as a part until whole), a plate dents only dent x; pierce: a jab into a gap is the gap hit, a plate never
+  // dents; crush: dents a plate fully (fists never dent), and every stagger-th crush that lands, plate or flesh, staggers him. hook (the sica): its cuts bleed
+  // hook.bleed x and pull him in hook.pull H. wide (the trident): its jab's pad and slit tolerance x wide. flash: s a clean hit lights its part (painted
+  // in its kind's colour at flashA[0], then brightened at flashA[1]); his
+  // blows: his point passes you by his striking distance less the gap, and the part that lands is the one that far down his weapon
+  strike: {
+    thud: 0.25, push: 0.25, flash: 0.22, flashA: [0.8, 0.5],
+    cut: { bleed: 0.5, dent: 0.5 }, crush: { stagger: 3 }, hook: { bleed: 2, pull: 0.04 },
+    gladius: { jab: [[0, 96, 'pierce', 1], [96, 360, 'cut', 0.5]], swing: [[0, 360, 'cut', 1]] },
+    dagger: { jab: [[0, 80, 'pierce', 1], [80, 205, 'cut', 0.5]], swing: [[0, 205, 'cut', 1]] },
+    spear: { jab: [[0, 224, 'pierce', 1]], swing: [[0, 224, 'cut', 0.6]] },
+    trident: { jab: [[0, 256, 'pierce', 1]], swing: [[0, 256, 'pierce', 0.5]], wide: 1.6 },
+    sica: { jab: [], swing: [[0, 408, 'cut', 1.2]], hook: true },
+    axe: { jab: [[7, 111, 'pierce', 1], [111, 368, 'crush', 0.5]], swing: [[80, 368, 'cut crush', 1], [7, 80, 'pierce', 0.5]] },
+    mace: { jab: [[0, 224, 'crush', 1]], swing: [[0, 224, 'crush', 1]] },
+    fist: { pin: 100, jab: [[0, 100, 'crush', 1]], swing: [[0, 100, 'crush', 1]] },
+    // the rack's and the Weapon slot's look: each kind's colour (cut along the edges, pierce at the point, crush on the head), its tint's alpha, the
+    // edge line (x the blade's half width) and the haft's alpha; each weapon's edges that cut (TUNING.kit.weapon edges, by index)
+    col: { cut: '#ef4444', pierce: '#fbbf24', crush: '#7cb4f0' }, tint: 0.5, cutTint: 0.22, edgeW: 0.35, haftA: 0.4,
+    edges: { gladius: [0, 1], dagger: [0, 1], spear: [0, 1], sica: [0], axe: [0] }, slotH: 26,  // slotH: the lit painting's most px across in the Weapon slot
+  },
   // each arena's foes: shift = stat levels added to every bout's centre, feint = x his feint weight, guard = added to the chance of a first and a second
   // gap guard (never in bout 1), gear = pieces added to each foe's; ring = x the distance to both walls; pairs = the bout index (0-based) pairs start at.
   // Step 15: size = x each band's roll weight (runt, lean, medium, big, giant), so later foes lean big; plates = plates added to each man's set.
@@ -626,7 +650,7 @@ const TUNING = {
       'tailor-cloak-blue': { size: [384, 512], a: [182, 2], b: [182, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
       'tailor-cloak-green': { size: [384, 512], a: [184, 2], b: [184, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
     },
-    // Step 14, the weapons painted (Pack 23, HANDOFF-arena-pack23), each straight up with its point at row 0: its canvas, the grip's axis x and the row
+    // Step 14, the weapons painted (Pack 23, HANDOFF-arena-pack23), each straight up with its point at row 0 (or row top): its canvas, the grip's axis x and the row
     // the hand closes on (pin), px. Drawn about the pin at the fist, its point where the drawn point was (yours at your blade's reach, his `len` plus
     // tip H past his fist), the side painted right (the axe's bit, the sica's hollow) leading. The spear's and the trident's pins sit 392 px above the
     // butt (the handoff's proposal put 0.6 H of shaft behind his hand). For the card looks: the blade's or head's rows (blade, top and bottom), its
@@ -651,9 +675,11 @@ const TUNING = {
         edges: [[[13, 48], [8, 112], [2, 144], [5, 224]], [[227, 48], [231, 112], [237, 144], [235, 224]]],
         clip: [[[13, 46], [2, 144], [5, 240], [47, 240], [44, 160], [59, 144], [27, 64]], [[120, 0], [100, 64], [87, 112], [104, 128], [104, 240], [136, 240], [136, 128], [152, 112], [138, 64]],
           [[227, 46], [238, 144], [235, 240], [193, 240], [196, 160], [181, 144], [212, 64]]] },
-      axe: { size: [253, 1024], x: 47, pin: 832, tip: 0.04, blade: [16, 304], hw: 28,
-        edges: [[[237, 16], [249, 64], [252, 128], [248, 176], [237, 224], [215, 272], [187, 304]]],
-        clip: [[[91, 16], [192, 32], [237, 16], [246, 48], [252, 112], [250, 160], [241, 208], [224, 256], [203, 288], [187, 304], [181, 256], [178, 224], [168, 192], [145, 160], [124, 144], [91, 144]]] },
+      // (Pack 28: the axe's top spike, its point at row top; the canvas grew 64 px at the top, so its point sits top px below row 0)
+      axe: { size: [253, 1088], x: 47, pin: 896, top: 7, tip: 0.04, blade: [80, 368], hw: 28,
+        edges: [[[237, 80], [249, 128], [252, 192], [248, 240], [237, 288], [215, 336], [187, 368]]],
+        clip: [[[91, 80], [192, 96], [237, 80], [246, 112], [252, 176], [250, 224], [241, 272], [224, 320], [203, 352], [187, 368], [181, 320], [178, 288], [168, 256], [145, 224], [124, 208], [91, 208]],
+          [[45, 7], [50, 12], [53, 24], [56, 40], [59, 56], [62, 72], [64, 80], [64, 111], [26, 111], [26, 80], [28, 72], [31, 56], [34, 40], [37, 24], [40, 12]]] },
       mace: { size: [211, 1024], x: 106, pin: 832, tip: 0.07, blade: [20, 210], hw: 50, ring: [105, 120, 92] },
       // the weapon in the inventory doll's hand (its fist's x past the shoulder joint, body units, the menu's too, and its lean, rad), and the purse rack's weapons, lying
       // flat at their lengths against the longest's, under the names at alpha rackA
@@ -980,7 +1006,7 @@ const DECK = [
   { id: 'standfast', fam: 'wall', tier: 1, slot: 'legs', gear: 'Bronze Boots', name: 'Stand Fast', line: 'With your back to the wall, every block counts as perfectly timed.', needs: 'shield' },
   { id: 'ironwall', fam: 'wall', tier: 3, key: true, slot: 'shield', gear: 'Tower Shield', name: 'Iron Wall', line: "Twice the time to time a block, and each one opens a gap. You can't dodge.", needs: 'shield', bans: 'dodge' },
   { id: 'serrated', fam: 'blood', tier: 0, slot: 'weapon', gear: 'Saw-toothed Blade', name: 'Serrated Edge', line: 'A stab into a gap makes him bleed.' },
-  { id: 'rend', fam: 'blood', tier: 0, slot: 'arms', gear: 'Barbed Bracers', name: 'Rend', line: 'A slash where he has no armour makes him bleed.' },
+  { id: 'rend', fam: 'blood', tier: 0, slot: 'arms', gear: 'Barbed Bracers', name: 'Rend', line: 'A cut where he has no armour makes him bleed more.' },
   { id: 'vein', fam: 'blood', tier: 1, slot: 'helmet', gear: 'Blood Band', name: 'Open Vein', line: 'While he bleeds, his wind-ups are slower and easier to read.' },
   { id: 'bloodlust', fam: 'blood', tier: 1, slot: 'cloak', gear: 'Wolf Pelt', name: 'Bloodlust', line: 'While he bleeds, you get your stamina back faster.' },
   { id: 'cruel', fam: 'blood', tier: 2, slot: 'belt', gear: 'Hook Belt', name: 'Cruel Edge', line: 'The more he bleeds, the harder your stabs into gaps hit.' },
@@ -1041,7 +1067,7 @@ const DECK = [
   { id: 'counterstep', vault: true, duo: ['wall', 'dancer'], tier: 2, name: 'Counterstep', line: 'A dodge right after a block is free and opens a gap.', needs: ['shield', 'dodge'] },
   { id: 'anvil', vault: true, duo: ['wall', 'brute'], tier: 2, name: 'Hammer and Anvil', line: 'A well-timed block makes your next smash from above break the armour it hits.', needs: 'shield' },
   { id: 'feigned', vault: true, duo: ['wall', 'trick'], tier: 2, name: 'Feigned Guard', line: 'Lowering your shield on purpose leaves his next blow open to a riposte.', needs: 'shield' },
-  { id: 'cuts', vault: true, duo: ['blood', 'dancer'], tier: 2, name: 'Thousand Cuts', line: 'A slash as you step back makes him bleed.', needs: 'dodge' },
+  { id: 'cuts', vault: true, duo: ['blood', 'dancer'], tier: 2, name: 'Thousand Cuts', line: 'A cut as you step back makes him bleed.', needs: 'dodge' },
   { id: 'lie', vault: true, duo: ['blood', 'trick'], tier: 2, name: 'Poisoned Lie', line: 'A Feint he falls for makes him bleed.', needs: 'feint' },
   { id: 'acrobat', vault: true, duo: ['dancer', 'show'], tier: 2, name: 'Acrobat', line: 'Dodging his wind-up pleases the crowd.', needs: 'dodge' },
   { id: 'spectacle', vault: true, duo: ['brute', 'show'], tier: 2, name: 'Spectacle', line: 'Breaking his armour fills the crowd.' },
@@ -1538,6 +1564,7 @@ function newRack(E) {
   state.winded = 0; state.windedMax = 1; state.retreat = 0; state.chase = 0; state.mood = { retreat: false };
   state.mem = { blocks: [], lunges: [], turtle: 0, feints: [] };
   state.gapOpen = null; state.ownT = -9; state.recT = -9; state.baitT = 0; state.puppetN = 0; state.awed = false; state.lng = null; state.foeNet = 0; state.you.drive = 0; state.you.dk = 0; state.burnT = 0;
+  state.crushN = 0; state.cutAcc = 0; state.zfx = null;
   state.swingIn = 1.2; state.intro = true; state.introT = 0; state.introGo = -1; state.warm = false; state.introHelp = false;
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
@@ -1570,7 +1597,7 @@ function newRound(E, seed, me0, rv, arenaId = 'pit', fr) {
     seed, arena: A.id, rng: makeRng(seed ^ 0x9e3779b9), gauntlet: rollGauntlet(seed, rival, A, first), results: [], rack: 0, m: 0, stop: 0, kickA: 0, kickV: 0,
     hp: me.halves, endT: 0, dodgeT: 0, dodgeMax: TUNING.dodge.dur, dodgeCool: 0, away: false, dodgeM: -9, hurt: 0, done: false, exhaust: 0, exMsg: -9, lunging: false, lunges: 0, lungeMiss: false, slotHits: 0, dg: { down: false, id: -1, t: 0 },
     stamina: M.staMax[me.sta - 1], lastAtk: -9, riposte: 0, open: 0, netT: 0, pushT: 0,
-    gapHits: 0, clangs: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
+    gapHits: 0, clangs: 0, thuds: 0, thudsOn: 0, broken: 0, overheads: 0, jabs: 0, slashes: 0, blocks: 0, perfects: 0, dodges: 0, staOuts: 0, counters: 0, counterHits: 0, taken: 0, felled: 0,
     feints: 0, feintsRead: 0, feintsBit: 0, feintsNone: 0, baited: 0, bitT: 0, feintLive: false, plateSaves: 0, combos: 0, windeds: 0, punishes: 0, bashes: 0, bashHits: 0, nets: 0, netted: 0, zoneReads: 0, lungeReads: 0, turtleReads: 0, presses: 0, retreats: 0, moveCount: {},
     fx: [], pops: [], streaks: [], trail: [],
     mom: 0, momT: 0, momGained: 0, momSpent: 0, lamings: 0, gold: 0, goldEarned: 0, lastGold: null, bought: [], rerolls: 0, tent: null, tentDone: false, lab: null, labMom: false, labUsed: 0, fins: [], wares: [], carry: 0, capCut: 0, ownFeints: 0, feintsLearned: 0, flourishes: 0, netsCast: 0, foeNet: 0, fl: { acc: 0, t: 0, ang: null, at: -9, fx: 0, fy: 0 }, armed: {}, openAll: 0, disarm: 0, flyW: 0, dents: 0, cape: 0, bleed: [], bleedT: 0, bleeds: 0, bleedDmg: 0,
@@ -2061,10 +2088,10 @@ function stepYou(E, dt) {
   if (holding && ft.pos <= wl.back + 0.005) { backToWall(E); dg.down = false; dg.id = -1; }
 }
 // his bash drives you back half a pace, to the wall at most
-function pushYou(E) {
+function pushYou(E, k = 1) {
   const FT = TUNING.foot, ft = state.foot, wl = walls(E), sea = trait('ostia');
   if (sea) tagPop(E, 'ostia', 'SEA LEGS');
-  ft.pos = Math.max(wl.back, ft.pos - FT.push * FT.pace * (sea ? TUNING.origins.ostia.push : 1)); ft.tgt = Math.min(ft.tgt, ft.pos);
+  ft.pos = Math.max(wl.back, ft.pos - FT.push * FT.pace * k * (sea ? TUNING.origins.ostia.push : 1)); ft.tgt = Math.min(ft.tgt, ft.pos);
   if (ft.pos <= wl.back + 0.005) backToWall(E);
 }
 
@@ -2183,9 +2210,9 @@ function chaseIn() {
   state.chase = TUNING.foot.chase; state.chases++; state.swingIn = Math.min(state.swingIn, TUNING.foot.chaseSwing);
 }
 // a strong block or a blocked bash drives him back half a pace, to the wall at most
-function pushFoe(E) {
+function pushFoe(E, k = 1) {
   const FT = TUNING.foot, st = state.step, wl = walls(E), was = st.x, steer = trait('circus');
-  st.x = Math.min(wl.fore, st.x + FT.push * FT.pace * (steer ? TUNING.origins.circus.push : 1));
+  st.x = Math.min(wl.fore, st.x + FT.push * FT.pace * k * (steer ? TUNING.origins.circus.push : 1));
   if (st.x >= wl.fore - 0.005 && state.m - state.foot.foeWallT > FT.wallMsg) {
     state.foot.foeWallT = state.m; state.foeWall++;
     const Ff = foeF(E); pop(Ff.x, Ff.y - 1.3 * Ff.H, was >= wl.fore - 0.005 ? 'PINNED!' : 'TO THE WALL!', '#fde68a', 20);
@@ -2818,46 +2845,64 @@ function bitFeint(E) {
 }
 
 // ====== HIT RESOLUTION: your blows on him, his blows on you ======
-// One hit per swing: the first thing the blade meets decides it (tip first, earliest point of the sweep first; a slot wins over the part it sits on).
+// ----- step 21, the striking parts: which part of a weapon meets him, and how it hits (TUNING.strike) -----
+const myKey = () => weaponKey(state.me.weapon, state.me.mace);
+const attOf = (kind) => (kind === 'jab' ? 'jab' : 'swing');
+// the part s of the way from the point to the hand: its index in the weapon's jab or swing list, -1 for the haft
+function zoneAt(key, att, s) {
+  const S = TUNING.strike[key], J = S.pin ? S : TUNING.kit.weapon[key], t = J.top || 0, r = t + s * (J.pin - t);
+  return S[att].findIndex((z) => r >= z[0] && r <= z[1]);
+}
+// what a blow with that part is: its kinds and multiplier (a thud's on the haft)
+function strikeOf(key, att, i) {
+  const S = TUNING.strike, z = i >= 0 ? S[key][att][i] : null, k = z ? z[2].split(' ') : [];
+  return { key, att, z: i, thud: !z, mul: z ? z[3] : S.thud, cut: k.includes('cut'), pierce: k.includes('pierce'), crush: k.includes('crush'), hook: !!S[key].hook && k.includes('cut') };
+}
+// a blow that meets him with its first part (a finisher's, a free jab's)
+const cleanStrike = (kind, key = myKey()) => strikeOf(key, attOf(kind), TUNING.strike[key][attOf(kind)].length ? 0 : -1);
+// One hit per swing: the first thing the weapon meets decides it (point first, earliest point of the sweep first; a slot wins over the part it sits on).
 function checkHits(E) {
   const h = state.hand, T = TUNING, a = h.atk;
   if (!a || a.done || h.lock > 0 || state.fallT > 0 || state.endT > 0 || state.away) return;
   const need = a.kind === 'jab' ? T.attack.jab.minSpeed : a.kind === 'over' ? T.attack.over.minSpeed : T.hit.minSpeed;
   if (h.sp < need && !lungeStab(a) && !driveStab(a)) return;
   // a lunge that has not committed (the Feint worn) holds what its blade meets until it commits
-  const F = foeF(E), fm = state.foe, jab = a.kind === 'jab', pad = (jab ? T.blade.jabPad : T.blade.pad) / F.H, held = state.lunging && state.lng && !state.lng.committed;
+  const F = foeF(E), fm = state.foe, jab = a.kind === 'jab', held = state.lunging && state.lng && !state.lng.committed;
+  // a jab's striking part has the wider jab pad (the trident's wider still), every other point of the weapon the plain one
+  const key = myKey(), att = attOf(a.kind), wide = (jab && TUNING.strike[key].wide) || 1, pad = T.blade.pad / F.H, jpad = T.blade.jabPad * wide / F.H;
   const order = fm.parts.filter((p) => p.slot).concat(fm.parts.filter((p) => !p.slot));
   if (a.kind === 'slash' && state.armed.whirl && !held && whirlwind(E, F, fm, pad)) return;
   let first = null;
   scan: for (const f of [0.4, 0.7, 1]) {
     const hx = h.phx + (h.hx - h.phx) * f, hy = h.phy + (h.hy - h.phy) * f, tx = h.pux + (h.ux - h.pux) * f, ty = h.puy + (h.uy - h.puy) * f;
-    const k0 = jab ? 1 - T.blade.tip : 0, x0 = hx + (tx - hx) * k0, y0 = hy + (ty - hy) * k0;
-    const n = Math.max(1, Math.ceil(Math.hypot(tx - x0, ty - y0) / 8));
+    const n = Math.max(1, Math.ceil(Math.hypot(tx - hx, ty - hy) / 8));
     for (let i = n; i >= 0; i--) {
-      const x = x0 + (tx - x0) * i / n, y = y0 + (ty - y0) * i / n;
+      const x = hx + (tx - hx) * i / n, y = hy + (ty - hy) * i / n, zi = zoneAt(key, att, 1 - i / n), pd = jab && zi >= 0 ? jpad : pad;
       const [lx, ly] = toLocal(F, x, y);
       for (const p of order) {
         if (p.cool > 0 || p.cut) continue;
         const [qx, qy] = partLocal(p, fm, lx, ly);
-        if (inside(p.d, qx, qy, pad)) { first = { p, at: { x, y, lx: qx, ly: qy } }; break scan; }
+        if (inside(p.d, qx, qy, pd)) { first = { p, at: { x, y, lx: qx, ly: qy }, st: strikeOf(key, att, zi) }; break scan; }
       }
     }
   }
   if (!first) return;
-  const hit = { ...first, ang: Math.atan2(h.vy, h.vx), sp: h.sp, slit: first.p.slot && jab && alongSlit(F, fm, first.p) };
+  const hit = { ...first, ang: Math.atan2(h.vy, h.vx), sp: h.sp, slit: first.p.slot && jab && alongSlit(F, fm, first.p, wide) };
   if (held) { if (!state.lng.pend) state.lng.pend = hit; return; }
   a.done = true;
   state.stop = Math.max(state.stop, land(E, a, hit));
 }
-// what the blade met lands: a clang on a plate, his guard or a gap guard, or a hit (a jab along a slit, or into an opened gap, goes in for a slot hit)
-function land(E, a, { p, at, ang, sp, slit }) {
+// what the weapon met lands: a clang on a plate, his guard or a gap guard; a thud where its haft met him; or a hit (a piercing jab along a slit, or into an
+// opened gap, goes in for a slot hit)
+function land(E, a, { p, at, ang, sp, slit, st = cleanStrike(a.kind) }) {
   if (state.lng && state.lunging) state.lng.hit = true;
   state.landM = state.m;
   // Shadow Step: the first blow to reach him after the dodge goes through his guard (never a plate or a gap guard)
   const shadow = has('shadow') && state.m - state.shadowM <= C_().shadowWin && !p.armour && !p.guard;
   if (shadow) { state.shadowM = -9; if (covered(p)) pop(at.x, at.y - 40, 'UNBLOCKABLE', '#86efac', 18); }
-  if (covered(p) && !shadow) return bounce(E, p, at, ang, sp, a);
-  return gapHit(E, p, at, ang, sp, a, p.slot && a.kind === 'jab' && (state.openAll > 0 || openNow(p) || slit));
+  if (covered(p) && !shadow) return bounce(E, p, at, ang, sp, a, st);
+  if (st.thud) return shaftHit(E, p, at, ang, sp, a);
+  return gapHit(E, p, at, ang, sp, a, p.slot && a.kind === 'jab' && st.pierce && (state.openAll > 0 || openNow(p) || slit), st);
 }
 
 // Whirlwind, armed: this slash goes into every slot its sweep crosses, through his cover, each a slot hit
@@ -2881,24 +2926,29 @@ function whirlwind(E, F, fm, pad) {
   return true;
 }
 // A jab goes into a slot only if its direction (in the foe's frame, and the limb's) is within the tolerance of the slit's axis.
-function alongSlit(F, fm, p) {
+function alongSlit(F, fm, p, wide = 1) {
   const h = state.hand, sp = Math.hypot(h.vx, h.vy) || 1, ax = F.dir * h.vx / sp, ay = h.vy / sp, c = Math.cos(F.a), s = Math.sin(F.a);
   let lx = ax * c + ay * s, ly = -ax * s + ay * c;
   const fr = fm.fr[p.d.frame || p.d.id] || ZERO, fc = Math.cos(fr.rot), fs = Math.sin(fr.rot);
   [lx, ly] = [lx * fc + ly * fs, -lx * fs + ly * fc];
-  return Math.abs(lx * Math.cos(p.d.axis) + ly * Math.sin(p.d.axis)) >= Math.cos(TUNING.cover.jabTol);
+  return Math.abs(lx * Math.cos(p.d.axis) + ly * Math.sin(p.d.axis)) >= Math.cos(Math.min(1.5, TUNING.cover.jabTol * wide));
 }
 
-function bounce(E, p, at, ang, sp, a) {
-  const h = state.hand, A = TUNING.armour, J = TUNING.juice, AT = TUNING.attack[a.kind], glance = a.kind === 'jab';
+// a plate dents by the blow's kind (a crush fully, a cut a little, a point or a haft not at all); Heavy Blows and Crusher multiply what it dents
+function bounce(E, p, at, ang, sp, a, st = cleanStrike(a.kind)) {
+  const h = state.hand, A = TUNING.armour, J = TUNING.juice, AT = TUNING.attack[a.kind], glance = a.kind === 'jab', S = TUNING.strike;
   state.clangs++; p.clang = 0.25; p.cool = 0.3;
-  const crush = a.kind === 'slash' && sp >= TUNING.hit.mid && has('crusher'), anvil = a.kind === 'over' && has('anvil') && state.m - state.anvilM <= C_().anvilWin;
-  const dn = p.armour && !glance && !meWeapon().noDent ? AT.dents * (a.kind === 'over' ? Math.pow(TUNING.cards.heavy, count('heavy')) : crush ? TUNING.cards.crusher : 1) : 0;
-  p.dents += dn;
+  const crusher = a.kind === 'slash' && sp >= TUNING.hit.mid && has('crusher'), anvil = !st.thud && a.kind === 'over' && has('anvil') && state.m - state.anvilM <= C_().anvilWin;
+  const bite = st.thud ? 0 : st.crush ? 1 : st.cut ? S.cut.dent : 0;
+  const dn = p.armour && bite && !meWeapon().noDent ? AT.dents * bite * (a.kind === 'over' ? Math.pow(TUNING.cards.heavy, count('heavy')) : crusher ? TUNING.cards.crusher : 1) : 0;
+  const was = p.dents; p.dents += dn;
+  if (p.armour && !dn) pop(at.x, at.y - 30, st.thud ? 'THUD' : 'GLANCES OFF', '#cbd5e1', 15);
+  if (p.armour && st.crush && !st.thud) crushLands(E);
+  if (dn) state.zfx = { st, m: state.m };
   const rv = glance ? clamp(sp * 0.3, 200, 420) : clamp(sp * A.kick, 450, 1300);
   h.hvx = -Math.cos(ang) * rv; h.hvy = -Math.sin(ang) * rv; h.lock = AT.recoil * TUNING.me.spdLag[state.me.spd - 1] / meWeapon().speed * (glance ? Math.pow(TUNING.cards.wrist, count('wrist')) : 1); h.grip = 0; h.atk = null;
   const d = p.d, sz = d.shape === 'circle' ? d.r : Math.min(d.w, d.h) / 2;
-  for (let c = 0; c < dn; c++) {
+  for (let c = Math.floor(was); c < Math.floor(p.dents); c++) {
     const a0 = Math.random() * 6.28, pts = [[Math.cos(a0) * 0.1 * sz, Math.sin(a0) * 0.1 * sz]];
     for (let k = 1; k <= 4; k++) { const b = a0 + (Math.random() - 0.5) * 0.9; pts.push([pts[0][0] + Math.cos(b) * sz * 0.5 * k * (0.8 + Math.random() * 0.4), pts[0][1] + Math.sin(b) * sz * 0.5 * k * (0.8 + Math.random() * 0.4)]); }
     p.cracks.push(pts);
@@ -2907,7 +2957,7 @@ function bounce(E, p, at, ang, sp, a) {
   clangSound(E, 0); shake(E, glance ? 2 : 6, 0.12); E.haptic(glance ? 8 : 24);
   let stop = glance ? 0.01 : J.stopClang + 0.02;
   const breakAt = a.kind === 'over' && meWeapon().overBreak ? meWeapon().overBreak : state.foe.beast ? TUNING.beasts.armour.dents : A.dents;
-  if (p.armour && (p.dents >= breakAt || (a.kind === 'over' && has('breaker')) || anvil)) {
+  if (p.armour && (p.dents >= breakAt || (!st.thud && a.kind === 'over' && has('breaker')) || anvil)) {
     p.armour = false; state.broken++;
     if (p.d.id === 'head' && !state.foe.beast && !state.foe.parts.some((q) => q.d === FACE_SLOT)) { const q = mkPart(FACE_SLOT, false); q.slot = true; state.foe.parts.push(q); }
     if (anvil) { state.anvilM = -9; pop(at.x, at.y - 48, 'HAMMER AND ANVIL', '#fbbf24', 18); }
@@ -2931,7 +2981,7 @@ function bounce(E, p, at, ang, sp, a) {
   return stop;
 }
 
-function gapHit(E, p, at, ang, sp, a, thrust) {
+function gapHit(E, p, at, ang, sp, a, thrust, st = cleanStrike(a.kind)) {
   const T = TUNING, J = T.juice, AT = T.attack, kind = a.kind, f = state.foe, slot = p.slot;
   // his Unbreakable (the lion pelt): your first hit each bout is shrugged off
   if (foeHas('unbreak') && !state.bout.foeShrug) {
@@ -2943,8 +2993,9 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   let dmg = kind === 'jab' ? AT.jab.dmg : kind === 'over' ? AT.over.dmg * growth('colossus', 'brute', T.cards.colossusOver) : sp >= T.hit.mid ? AT.slash.fastDmg : AT.slash.dmg;
   if (a.tired) dmg = Math.max(1, Math.floor(dmg * T.stamina.tired));
   dmg *= T.me.str[state.me.str - 1] * meSize().dmg;
-  // the weapon multiplies after the usual rounding, to the nearest half, so the gladius (1x) adds no rounding of its own; a slot hit uses slotDmg
-  const wm = thrust ? MW.slotDmg : MW.dmg * (kind === 'slash' ? MW.slash : 1);
+  // the weapon multiplies after the usual rounding, to the nearest half, so the gladius (1x) adds no rounding of its own; a slot hit uses slotDmg, any
+  // other hit the weapon's dmg times its striking part's
+  const wm = thrust ? MW.slotDmg : MW.dmg * st.mul;
   const rip = state.riposte > 0, winded = state.winded > 0;
   if (rip) dmg *= T.shield.riposteMul;
   // the open window multiplies after rounding, so a punish is exactly 1.5x (health can hold halves)
@@ -2987,7 +3038,11 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   // a gap hit: a short hit-stop, more blood from the gap with a red ring, and a deeper hit
   if (thrust) { stop = Math.max(stop, J.slotStop); blood(at.x, at.y, ang, J.blood.slot); ring(at.x, at.y, J.slotRing, '#ef4444'); slotSound(E); }
   if (!slot && p.hp <= 0) { disable(E, p, at, ang); stop += 0.04; }
-  emit(E, thrust ? 'slot' : 'hit', { p, kind, at, ang });
+  // step 21: the part that struck lights up; a cut on bare skin bleeds (the sica's hook more, and pulls him in); a crush counts to a stagger
+  state.zfx = { st, m: state.m };
+  if (st.cut && !numb && dealt > 0) cutBleed(E, st);
+  if (st.crush && dealt > 0) crushLands(E);
+  emit(E, thrust ? 'slot' : 'hit', { p, kind, at, ang, cut: st.cut });
   // two blades: the off hand follows a slash that lands, a moment later, for part of its damage
   if (kind === 'slash' && state.me.dual && dealt > 0) state.offHit = { f, p, t: T.dual.after, dmg: Math.max(0.5, Math.round(dealt * T.dual.part * 2) / 2), ang };
   if (kind === 'over') emit(E, 'over', { p, at });
@@ -3003,6 +3058,33 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   return stop;
 }
 
+// a cut's bleed, kept as a part until it makes a whole stack; the sica's hook bleeds more and pulls him a little toward you
+function cutBleed(E, st) {
+  const S = TUNING.strike;
+  state.cutAcc = (state.cutAcc || 0) + S.cut.bleed * (st.hook ? S.hook.bleed : 1);
+  const n = Math.floor(state.cutAcc + 1e-6);
+  state.cutAcc -= n; addBleed(E, n);
+  if (st.hook) { state.step.x = Math.max(state.foot.pos + gMin(E), state.step.x - S.hook.pull); const Ff = foeF(E); pop(Ff.x - 0.1 * Ff.H, Ff.y - 1.05 * Ff.H, 'HOOKED', '#fca5a5', 15); }
+}
+// every few crushing blows that land, plate or flesh, stagger him
+function crushLands(E) {
+  if (++state.crushN < TUNING.strike.crush.stagger) return;
+  state.crushN = 0; staggerFoe(E);
+}
+// the haft or shaft meets him: a thud, a quarter of the blow with no gap bonus, bleed or dent, and a little push
+function shaftHit(E, p, at, ang, sp, a) {
+  const T = TUNING, AT = T.attack, f = state.foe;
+  let dmg = a.kind === 'jab' ? AT.jab.dmg : a.kind === 'over' ? AT.over.dmg : sp >= T.hit.mid ? AT.slash.fastDmg : AT.slash.dmg;
+  if (a.tired) dmg = Math.max(1, Math.floor(dmg * T.stamina.tired));
+  dmg *= T.me.str[state.me.str - 1] * meSize().dmg;
+  const dealt = !p.slot && has('haem') ? 0 : Math.max(0.5, Math.round(dmg * meWeapon().dmg * T.strike.thud * 2) / 2) * (state.winded > 0 ? T.foeSta.windedDmg : 1);
+  p.cool = T.hit.cool; f.hp -= dealt; state.thuds++;
+  dust(at.x, at.y, 5); dullSound(E); pop(at.x, at.y - 20, 'THUD', '#cbd5e1', 20);
+  state.kickV += T.foe.kick * (Math.cos(ang) > 0 ? -0.4 : 0.2);
+  pushFoe(E, T.strike.push); shake(E, 2, 0.08); E.haptic(8);
+  if (f.hp <= 0) fell(E); else setCover(p);
+  return T.juice.stop1;
+}
 // Step 19 on your blows: Kneading (each hit within the crowd's combo window of the last adds a step, up to its most), Nothing to Lose (low on hearts),
 // Him Last (the champion or your rival)
 function blowMul(E) {
@@ -3199,10 +3281,12 @@ function resolveOne(E, sw) {
     sparks(Fy.x + 0.2 * L.H, zy, Math.PI, 20); clangSound(E, 0); shake(E, 6, 0.2); E.haptic(30);
     pop(Fy.x, zy - 40, 'UNBREAKABLE', '#e879f9', 28); return;
   }
-  // a blow on one of your plates costs half as much, rounded up so it never takes part of a heart
+  // a blow on one of your plates costs half as much, rounded up so it never takes part of a heart (step 21: a crush comes through the plate whole)
   // disarmed, he hits with his fists; Juggernaut: lunging through it, it costs half (rounded up) and you keep coming
   const part = state.you.parts.find((q) => q.d.id === ZONE_PART[sw.zone.id]), plated = !!(part && part.armour), jugg = has('jugg') && (state.you.lungeK > 0.5 || driving());
-  const dmg = Math.ceil((state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg) / (plated ? TUNING.me.plateDiv : 1) * (jugg ? TUNING.cards.jugg : 1));
+  const fs = foeStrike(sw), raw = state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg;
+  if (fs && fs.thud) { shaftOnYou(E, sw, part, raw, jugg); return; }
+  const dmg = Math.ceil(raw * (fs ? fs.mul : 1) / (plated && !(fs && fs.crush) ? TUNING.me.plateDiv : 1) * (jugg ? TUNING.cards.jugg : 1));
   sw.outcome = 'hit'; state.hp -= dmg; state.taken++; state.hurt = plated ? 0.25 : 0.4; if (sw.counter) state.counterHits++;
   if (mv && mv.sig) mv.hit = true;
   if (pounce && !noPush()) { state.pushT = 0.3; pushYou(E); }
@@ -3219,6 +3303,26 @@ function resolveOne(E, sw) {
   if (mv && mv.sig) pop(Fy.x, zy - 44, SIG_NAME[mv.sig], '#ff5a4a', TUNING.sigFx.miss);
   else if (jugg || feint || dmg >= 2) pop(Fy.x, zy - (plated ? 70 : 40), jugg ? 'JUGGERNAUT' : feint ? 'FEINTED!' : plated ? 'PLATE TOOK IT' : `OUCH x${dmg}`, jugg || plated ? '#cbd5e1' : '#ff5a4a', 30 + 4 * dmg);
   if (!jugg) { state.hand.lock = Math.max(state.hand.lock, 0.2); state.hand.hvx = -200; state.hand.hvy = 120; state.hand.atk = null; }
+  youDown(E);
+}
+// Step 21, his blow: the part of his weapon that lands is the one his point has passed you by (his striking distance less the gap at your feet, so your
+// lunge never carries you inside it); none for a beast, a bash, a net, a throw, or his fists
+function foeStrike(sw) {
+  const f = state.foe, att = sw.pose === 'thrust' ? 'jab' : ['chop', 'slash', 'sweep'].includes(sw.pose) ? 'swing' : null;
+  if (f.beast || !att || state.disarm > 0) return null;
+  const key = weaponKey(f.weapon.id, f.mace), J = TUNING.kit.weapon[key];
+  return strikeOf(key, att, zoneAt(key, att, clamp((f.strike - gapNow()) / ((f.weapon.len + J.tip) * drawK(f)), 0, 1)));
+}
+// his shaft lands on you: a thud, a quarter of the blow to the nearest heart (often none) and a little push
+function shaftOnYou(E, sw, part, raw, jugg) {
+  const L = lay(E), Fy = youF(E), zy = zoneScreenY(L, sw.zone), dmg = Math.round(raw * TUNING.strike.thud * (jugg ? TUNING.cards.jugg : 1));
+  sw.outcome = 'hit'; sw.thud = true; state.thudsOn++;
+  if (state.move && state.move.sig) state.move.hit = true;
+  if (dmg > 0) { state.hp -= dmg; state.taken++; state.hurt = 0.2; state.shatter = { i: Math.max(0, Math.ceil(state.hp)), n: Math.min(dmg, Math.ceil(state.hp + dmg)), t: TUNING.juice.shatter }; }
+  if (!noPush()) pushYou(E, TUNING.strike.push);
+  if (part) { const [px, py] = partCenter(Fy, state.you, part); dust(px, py, 5); }
+  dullSound(E); shake(E, 4, 0.12); E.haptic(16); E.flash('#94a3b8', 0.08);
+  pop(Fy.x, zy - 40, 'THUD', '#cbd5e1', 24);
   youDown(E);
 }
 // a dodge in his tell (a backstep begun in it, ground given, or his blow on your ghost); a feint's tell counts only after the switch
@@ -3278,7 +3382,7 @@ const HOOKS = {
     if (state.dents >= C_().thorns) { state.dents = 0; disarmFoe(E, C_().thornsDur); } else pop(Ff.x, Ff.y - 1.15 * Ff.H, `${state.foe.beast ? 'THORNS' : 'WEAPON DENTED'} ${state.dents}/${C_().thorns}`, '#cbd5e1', 15);
   } },
   serrated: { slot: (E) => addBleed(E, C_().serrated) },
-  rend: { hit: (E, c) => { if (c.kind === 'slash') addBleed(E, C_().rend); } },
+  rend: { hit: (E, c) => { if (c.cut) addBleed(E, C_().rend); } },
   bloodlust: { tick: (E, c) => { state.stamina = Math.min(state.staMax, state.stamina + C_().bloodlust * c.n); } },
   haem: { fell: () => { state.carry = state.bleed.length; } },
   sidestep: { dodge: (E) => { const Ff = foeF(E); pop(Ff.x, Ff.y - 1.3 * Ff.H, 'OVERCOMMITTED', '#86efac', 18); windFoe(E, C_().sidestep); } },
@@ -3314,7 +3418,7 @@ const HOOKS = {
   smoke: { feint: (E) => { const f = state.foe, Ff = foeF(E); pop(Ff.x, Ff.y - 1.2 * Ff.H, 'SMOKE: STAMINA DRAINED', '#c4b5fd', 16); spendFoe(E, C_().smoke * f.staMax); } },
   counterstep: { block: () => { state.blockM = state.m; } },
   anvil: { perfect: () => { state.anvilM = state.m; }, over: () => { state.anvilM = -9; } },
-  cuts: { hit: (E, c) => { if (c.kind === 'slash' && state.m - state.dodgeM <= C_().cutsWin) addBleed(E, C_().cuts); } },
+  cuts: { hit: (E, c) => { if (c.cut && state.m - state.dodgeM <= C_().cutsWin) addBleed(E, C_().cuts); } },
   lie: { feint: (E) => addBleed(E, C_().lie) },
   acrobat: { dodge: (E) => favour(E, C_().acrobat) },
   spectacle: { break: (E) => favour(E, C_().spectacle) },
@@ -3919,6 +4023,8 @@ function maulJuice(E) {
   const J = TUNING.juice, Ff = foeF(E), [x, y] = toScreen(Ff, 0.2, 0);
   thud(E, J.maulThud); shake(E, J.maulShake, 0.15); dust(x, y, 12); sand(x, y, -1, J.sand >> 1);
 }
+// a haft's thud: dull and low, no ring
+function dullSound(E) { E.audio.beep({ freq: 95, dur: 0.1, type: 'triangle', slide: 0.6, gain: 0.22 }); E.audio.noise({ dur: 0.05, gain: 0.08 }); }
 // a heavy footfall (k: louder)
 function thud(E, k = 1) { E.audio.beep({ freq: 55, dur: 0.14, type: 'sine', slide: 0.7, gain: 0.18 * k }); E.audio.noise({ dur: 0.04, gain: 0.05 * k }); }
 function sliceSound(E, big) {
@@ -5784,14 +5890,22 @@ function drapeNet(ctx, E, H, fm, k) {
   ctx.restore();
 }
 // A painted weapon with its pin at A and its point L px along u (unit), its painted right side to u's left-hand normal, and a card's look g over it;
-// red: locked. Returns its blade as a path; false while it loads (the caller draws the drawn one), with the kit off, or where the art has none.
-function paintWeapon(ctx, key, A, u, L, H, g = null, red = false) {
-  const J = TUNING.kit.weapon[key], k = L / J.pin, dk = Math.min((ENG && ENG.dpr) || 1, TUNING.skin.maxDpr);
+// red: locked; fx: a striking part lit (zoneFx). Returns its blade as a path; false while it loads (the caller draws the drawn one), with the kit off,
+// or where the art has none.
+function paintWeapon(ctx, key, A, u, L, H, g = null, red = false, fx = null) {
+  const J = TUNING.kit.weapon[key], k = L / (J.pin - (J.top || 0)), dk = Math.min((ENG && ENG.dpr) || 1, TUNING.skin.maxDpr);
   const P = J && kitOn() && artPic(weaponArt(key), J, Math.ceil(J.size[0] * k * dk / 8) * 8);
   if (!P) return false;
   const n = [-u[1], u[0]], pt = (x, y) => [A[0] + (n[0] * (x - J.x) + u[0] * (J.pin - y)) * k, A[1] + (n[1] * (x - J.x) + u[1] * (J.pin - y)) * k];
   const o = pt(0, 0);
-  ctx.save(); ctx.transform(n[0] * k, n[1] * k, -u[0] * k, -u[1] * k, o[0], o[1]); ctx.drawImage(P.im, 0, 0, J.size[0], J.size[1]); ctx.restore();
+  ctx.save(); ctx.transform(n[0] * k, n[1] * k, -u[0] * k, -u[1] * k, o[0], o[1]); ctx.drawImage(P.im, 0, 0, J.size[0], J.size[1]);
+  const lit = fx && zonePic(key, fx.st);
+  if (lit) {
+    const a0 = ctx.globalAlpha;
+    ctx.globalAlpha = a0 * fx.k * TUNING.strike.flashA[0]; ctx.drawImage(lit, 0, 0, J.size[0], J.size[1]);
+    ctx.globalAlpha = a0 * fx.k * TUNING.strike.flashA[1]; ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(lit, 0, 0, J.size[0], J.size[1]);
+  }
+  ctx.restore();
   const R = J.ring && pt(J.ring[0], J.ring[1]);
   const clip = () => {
     ctx.beginPath();
@@ -5802,6 +5916,43 @@ function paintWeapon(ctx, key, A, u, L, H, g = null, red = false) {
   if (g) weaponGear(ctx, g, pt(J.x, J.blade[1]), pt(J.x, J.blade[0]), J.hw * k, pt(J.x, J.size[1]), H, R ? [ringPts(R[0], R[1], J.ring[2] * k)] : J.edges.map((e) => e.map((q) => pt(q[0], q[1]))), clip);
   return clip;
 }
+// Step 21: a weapon's striking parts lit by kind over its dimmed haft (the rack and the Weapon slot), or, with st, the one part a clean hit flashes in
+// its kind's colour; each painted once from its picture
+const ZONE_PICS = new Map();
+function zonePic(key, st = null) {
+  const im = canSprite && artImg(weaponArt(key)), J = TUNING.kit.weapon[key], S = TUNING.strike, Z = S[key], one = st && Z && Z[st.att][st.z];
+  if (!im || !J || !Z || (st && !one)) return null;
+  const id = `${key}|${st ? st.att + st.z : 'all'}|${artV}`;
+  if (ZONE_PICS.has(id)) return ZONE_PICS.get(id);
+  const w = im.width, h = im.height, kx = w / J.size[0], ky = h / J.size[1], cv = new OffscreenCanvas(w, h), c = cv.getContext('2d');
+  const band = (z, f) => { c.save(); c.beginPath(); c.rect(0, z[0] * ky, w, (z[1] - z[0]) * ky); c.clip(); f(); c.restore(); };
+  const tint = (col, a) => { c.globalCompositeOperation = 'source-atop'; c.globalAlpha = a; c.fillStyle = col; c.fillRect(0, 0, w, h); };
+  const isK = (z, k) => z[2].split(' ').includes(k);
+  if (one) band(one, () => { c.drawImage(im, 0, 0, w, h); tint(S.col[one[2].split(' ')[0]], 1); });
+  else {
+    const zs = [...Z.jab, ...Z.swing].filter((z, i, all) => all.findIndex((q) => q.join() === z.join()) === i);
+    c.globalAlpha = S.haftA; c.drawImage(im, 0, 0, w, h); c.globalAlpha = 1;
+    for (const z of zs) band(z, () => c.drawImage(im, 0, 0, w, h));
+    for (const k of ['crush', 'cut', 'pierce']) for (const z of zs.filter((q) => isK(q, k))) band(z, () => tint(S.col[k], k === 'cut' ? S.cutTint : S.tint));
+    // the cutting edges, a red band inside the blade along each
+    for (const z of zs.filter((q) => isK(q, 'cut'))) band(z, () => {
+      c.globalCompositeOperation = 'source-atop'; c.strokeStyle = S.col.cut; c.lineWidth = S.edgeW * 2 * J.hw * kx; c.lineJoin = c.lineCap = 'round';
+      for (const i of S.edges[key] || []) { c.beginPath(); J.edges[i].forEach((q, j) => (j ? c.lineTo(q[0] * kx, q[1] * ky) : c.moveTo(q[0] * kx, q[1] * ky))); c.stroke(); }
+    });
+  }
+  if (ZONE_PICS.size > 32) ZONE_PICS.clear();
+  ZONE_PICS.set(id, cv);
+  return cv;
+}
+// your last clean hit's part, lit while it fades (TUNING.strike.flash)
+function zoneFx() {
+  const z = state.zfx, k = z ? 1 - (state.m - z.m) / TUNING.strike.flash : 0;
+  return k > 0 && z.st.key === myKey() ? { st: z.st, k } : null;
+}
+// each weapon's kinds in at most two words, for the rack and the Weapon slot, in their colours
+const STRIKE_WORDS = { gladius: ['cut', 'pierce'], dagger: ['pierce', 'cut'], spear: ['pierce'], trident: ['pierce'], sica: ['cut'], axe: ['cut', 'crush'], mace: ['crush'], fist: ['crush'] };
+const KIND_WORD = { cut: 'Cut', pierce: 'Pierce', crush: 'Crush' };
+const kindSegs = (key) => (STRIKE_WORDS[key] || []).map((k) => [KIND_WORD[k], TUNING.strike.col[k]]);
 // The foe's weapon in his arm's frame: the fist at (0, ARM_LEN), the weapon along +y; frame -x is the edge that leads a chop.
 function drawWeapon(ctx, f, H, paint = true) {
   const W = f.weapon, y0 = ARM_LEN * H, len = W.len * H, key = weaponKey(W.id, f.mace), J = TUNING.kit.weapon[key];
@@ -6205,7 +6356,7 @@ function drawSwordArm(ctx, E) {
   const P = (t, s, len = blade, x0 = gx, y0 = gy) => [x0 + bx * len * t + nx * w * s, y0 + by * len * t + ny * w * s];
   const shape = (pts) => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); };
   // fists draw no weapon, as his fists when disarmed (the fist is the forearm's, drawn last); a painted one is pinned in the fist (step 14)
-  const painted = !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx, h.hy], [bx, by], blade, H, G.weapon, locked);
+  const painted = !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx, h.hy], [bx, by], blade, H, G.weapon, locked, zoneFx());
   if (painted) { /* drawn */ } else if (pole) {
     // a wooden shaft from behind the fist to the head
     ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H); ctx.lineTo(h.ux - bx * 0.02 * H, h.uy - by * 0.02 * H); ctx.stroke();
@@ -7874,11 +8025,19 @@ const iconWeapon = (id) => TUNING.weapons.find((q) => q.id === id) || { id, len:
 // Step 14: a rack weapon (the purse's ids: the mace is its own) as drawn on a card, its painted length from butt to point in card units; and lying flat
 // at s px a unit, centred on (x, y), point right, under the rack's names (none until its painting loads)
 const rackWeapon0 = (id) => iconWeapon(id === 'mace' ? 'axe' : id);
-const rackLen = (id) => { const J = TUNING.kit.weapon[id], W = rackWeapon0(id); return (W.len + J.tip) * J.size[1] / J.pin; };
-function rackWeapon(ctx, id, x, y, s) {
-  const J = TUNING.kit.weapon[id], L = (rackWeapon0(id).len + J.tip) * s, l = rackLen(id) * s;
+const rackLen = (id) => { const J = TUNING.kit.weapon[id], W = rackWeapon0(id); return (W.len + J.tip) * J.size[1] / (J.pin - (J.top || 0)); };
+// lit: its striking parts lit by kind over a dimmed haft, the painting's box centred on (x, y) (step 21; false while the lit picture is not made)
+function rackWeapon(ctx, id, x, y, s, lit = false) {
+  const J = TUNING.kit.weapon[id], L = (rackWeapon0(id).len + J.tip) * s, l = rackLen(id) * s, A = [x - l / 2 + l * (1 - J.pin / J.size[1]), y];
+  const Z = lit && kitOn() && zonePic(id);
+  if (Z) {
+    const k = L / (J.pin - (J.top || 0));
+    A[1] = y - (J.size[0] / 2 - J.x) * k;
+    ctx.save(); ctx.transform(0, k, -k, 0, A[0] + J.pin * k, A[1] - J.x * k); ctx.drawImage(Z, 0, 0, J.size[0], J.size[1]); ctx.restore();
+    return;
+  }
   ctx.save(); ctx.globalAlpha *= TUNING.kit.weapon.rackA;
-  paintWeapon(ctx, id, [x - l / 2 + l * (1 - J.pin / J.size[1]), y], [1, 0], L, s);
+  paintWeapon(ctx, id, A, [1, 0], L, s);
   ctx.restore();
 }
 // Your card, in three columns under the story and your start card: your body as yet unarmed, your size, hearts and stats, then your tier and the purse
@@ -7989,10 +8148,17 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
       drawCoin(ctx, R - ctx.measureText(pr).width - 9, ly, 5.5);
     }
     ly += lh;
-    // the plate or the plain kit under it; the weapon slot, your weapon (in the purse with its job, as far as the slot holds it)
+    // the plate or the plain kit under it; the weapon slot, your weapon, its kinds, and its painting with its striking parts lit at the slot's foot
+    // (step 21), its job between them in the purse as far as the slot holds it
     put(q.id === 'weapon' ? weaponTitle(me) : plated ? PLATES[q.plate].name : q.plain, plated ? PLATE_COL : PLAIN_COL);
+    const wk = weaponKey(me.weapon, me.mace), pic = q.id === 'weapon' && wk !== 'fist' && kitOn() && zonePic(wk) ? Math.min(TUNING.strike.slotH, bh - (ly - by) - lh) : 0;
+    if (q.id === 'weapon') { segLine(ctx, E, kindSegs(wk), L, ly, rtw, 14, {}); ly += lh; }
+    if (pic > 0) {
+      const J = TUNING.kit.weapon[wk], s0 = Math.min((cw - 16) / rackLen(wk), pic / (J.size[0] * (rackWeapon0(wk).len + J.tip) / (J.pin - (J.top || 0))));
+      rackWeapon(ctx, wk, bx + cw / 2, by + bh - 6 - pic / 2, s0, true);
+    }
     if (!buy && q.id === 'arms' && me.dual) put('Second blade', PLATE_COL);
-    if (q.id === 'weapon' && buy && buy.job) wrapPx(ctx, buy.job, tw, 14, '600').slice(0, Math.max(0, Math.floor((by + bh - ly - lh) / lh))).forEach((t) => put(t, '#cbd5e1', '600'));
+    if (q.id === 'weapon' && buy && buy.job) wrapPx(ctx, buy.job, tw, 14, '600').slice(0, Math.max(0, Math.floor((by + bh - pic - ly - lh) / lh))).forEach((t) => put(t, '#cbd5e1', '600'));
     if (lit && c) { struck(ctx, E, clipLine(ctx, c.gear, tw, 14, '700'), L, ly, rarCol(c)); ly += lh; }
     if (lit) put(swap.gear, rarCol(swap), '800'); else if (c) put(c.gear, rarCol(c));
     rects.push({ id: q.id, plate: q.plate || null, x: bx, y: by, w: cw, h: bh });
@@ -8025,6 +8191,15 @@ function swapLine(ctx, E, c, cx, y, w) {
   let x0 = cx - Math.min(w, ctx.measureText(all).width) / 2;
   for (const [t, col] of segs) { E.text(t, x0, y, { size, weight: '800', align: 'left', color: col }); x0 += ctx.measureText(t).width; }
 }
+// Step 21: the key to the lit weapons, each kind's colour and word, from x on the line at y
+function strikeKey(ctx, E, x, y) {
+  ctx.font = '800 14px system-ui, sans-serif';
+  for (const k of ['cut', 'pierce', 'crush']) {
+    ctx.fillStyle = TUNING.strike.col[k]; ctx.fillRect(x, y - 5, 16, 10);
+    E.text(KIND_WORD[k], x + 21, y, { size: 14, weight: '800', align: 'left', color: TUNING.strike.col[k] });
+    x += 21 + ctx.measureText(KIND_WORD[k]).width + 14;
+  }
+}
 // The inventory over the draft: with a card, its swap (the line, its slot lit) with Take (its price, if it is the gold card) and Back; without one, what
 // you wear, read-only (the Wearing button and the "?"'s last page; a tap closes it)
 function drawWearing(ctx, E, d, c) {
@@ -8034,7 +8209,7 @@ function drawWearing(ctx, E, d, c) {
   if (c) swapLine(ctx, E, c, E.w / 2, y + 20, w - 24); else E.text('WHAT YOU WEAR', E.w / 2, y + 20, { size: 14, weight: '800', color: '#c4b99a' });
   drawInventory(ctx, E, x + 12, y + 38, w - 24, h - 38 - (c ? 62 : 32), { me: state.me, gear: wornGear(), swap: c });
   const by = y + h - (c ? 32 : 16);
-  if (!c) { E.text('Tap to close', E.w / 2, by, { size: 14, weight: '800', color: '#ffd24a' }); return; }
+  if (!c) { strikeKey(ctx, E, x + 20, by); E.text('Tap to close', E.w / 2, by, { size: 14, weight: '800', color: '#ffd24a' }); return; }
   const price = d.cards.indexOf(c) === d.priced ? priceOf(c) : 0;
   d.view.back = E.button('Back', E.w / 2 - 84, by, { w: 140, h: 48, size: 18, fill: '#1f2937' });
   d.view.take = E.button(price ? `Take  ·  ${price} gold` : 'Take', E.w / 2 + 84, by, { w: 160, h: 48, size: 18, fill: state.gold < price ? '#334155' : '#b45309' });
@@ -8054,7 +8229,7 @@ function drawPurse(ctx, E, P, me) {
   const by = E.h - E.safe.bottom - 30, gy = top + 46, gh = by - 30 - gy, rw = clamp((R - L) * 0.36, 200, 300), rx = R - rw;
   P.slots = drawInventory(ctx, E, L, gy, R - L - rw - 14, gh, { me: kit, gear: gearOf(startCards(me).map((c) => c.id)), buy: { short: (k) => !P.kit.includes(k) && cost(P.w, [...P.kit, k]) > P.gold, job: MY_WEAPON_JOB[kit.weapon],
     dual: { on: P.dual && P.w !== 'fist', price: P.w === 'fist' ? 0 : T.weapon[P.w], none: P.w === 'fist', short: !P.dual && purseCost(P.w, P.kit, true) > P.gold } } });
-  // the rack: two columns of weapons, each its painting (step 14), name and price
+  // the rack: two columns of weapons, each its name and price, its painting (step 14) with its striking parts lit and their kinds (step 21)
   const rackLong = Math.max(...Object.keys(T.weapon).filter((id) => id !== 'fist').map(rackLen));
   const ids = Object.keys(T.weapon).filter((id) => !LUDUS_LOCK.has(id) || (me.open || []).includes(id)), rows = Math.ceil(ids.length / 2), tw = (rw - gap) / 2, th = Math.min(64, (gh - gap * (rows - 1)) / rows);
   P.tiles = ids.map((id, i) => {
@@ -8062,9 +8237,14 @@ function drawPurse(ctx, E, P, me) {
     const nm = weaponName({ weapon: id === 'mace' ? 'axe' : id, mace: id === 'mace' }).split(' & ')[0];
     ctx.globalAlpha = !ready ? 0.6 : short ? 0.45 : 1;
     E.roundRect(x, y, tw, th, 12, on ? '#3a2a10' : '#2a2016', on ? '#ffd24a' : '#c4b99a');
-    if (id !== 'fist') rackWeapon(ctx, id, x + tw / 2, y + th / 2, (tw - 12) / rackLong);
-    E.text(nm, x + tw / 2, y + th / 2 - 9, { size: fitSize(ctx, nm, 16, tw - 12), weight: '800', color: '#f0e6cc' });
-    E.text(pr ? `${pr} gold` : 'free', x + tw / 2, y + th / 2 + 10, { size: 14, weight: '800', color: on ? '#ffd24a' : short ? '#9aa4b2' : '#fbbf24' });
+    const ty = y + 12, pt = pr ? `${pr}` : 'free', pc = on ? '#ffd24a' : short ? '#9aa4b2' : '#fbbf24';
+    ctx.font = '800 14px system-ui, sans-serif';
+    const pw = ctx.measureText(pt).width + (pr ? 13 : 0), nw = tw - 16 - pw, ns = fitSize(ctx, nm, 16, nw);
+    E.text(pt, x + tw - 6, ty, { size: 14, weight: '800', align: 'right', color: pc });
+    if (pr) drawCoin(ctx, x + tw - 6 - ctx.measureText(pt).width - 7, ty, 5.5);
+    E.text(clipLine(ctx, nm, nw, ns, '800'), x + 7, ty, { size: ns, weight: '800', align: 'left', color: '#f0e6cc' });
+    if (id !== 'fist') rackWeapon(ctx, id, x + tw / 2, y + th / 2 + 1, (tw - 12) / rackLong, true);
+    segLine(ctx, E, kindSegs(id), x + tw / 2, y + th - 11, tw - 12, 14, { center: true });
     return { id, x, y, w: tw, h: th };
   });
   ctx.globalAlpha = 1;
@@ -9484,7 +9664,7 @@ const tapLive = () => state.introT > 0.35 && !(state.introGo >= 0);
 const play = {
   state, lay, foeF, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
-  emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
+  emit, gainMom, addBleed, tellDodge, resolveSwing, strikeOf, zoneAt, foeStrike, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES,
   ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateOff, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {

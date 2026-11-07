@@ -125,3 +125,15 @@
   - **Brutus's heal nudge** before a champion.
   - **Your hearts** are one draining heart and "14 / 18".
   - Perf: frame mean +1.5%.
+- v2 step 21 build (Opus 5.5, passed the orchestrator's review of its frames and scripted checks first time): each weapon hits with its striking part, in its own way, and shows it (`prd-v0.3.md`, "Step 21"; Pack 28 B). `arena-v62`.
+  - **Where a hit lands:** the whole weapon is scanned, and the part that touches sets the kind (`TUNING.strike`). The haft is a THUD: 25% damage, a small push and a dull sound. Foes follow the same rules, and a spearman's shaft thuds when you stand inside his point.
+  - **The three kinds:**
+    - cuts bleed on bare skin and half-dent plate;
+    - only a pierce jab gets the gap bonus;
+    - crushes dent fully, and every third one staggers.
+  - **Weapon specials:** the sica hooks (double bleed and a small pull); the trident's prongs find gaps more easily.
+  - **Cards:** Rend and Thousand Cuts need a cut; Crusher and Heavy multiply dents.
+  - **The rack and the Weapon slot** light each weapon's parts by kind (cut red, pierce gold, crush steel-blue) over a dim haft, with one or two words. The "?" has the key.
+  - **The axe** gets its top spike (canvas 253x1088, pin 896), with its reach unchanged.
+  - Open, for the playtest: foes' cuts don't make you bleed (you have no bleed); the sica's jab is a thud; fists and the mace get no gap bonus. Combat words can stack in one spot (GUARD over THUD, TO THE WALL over the HUD).
+  - Perf: 3 to 4% slower.
