@@ -562,6 +562,18 @@ That is 12 edits, about US$1 to 2. Make a contact sheet: each piece on the head 
 
 **Another session (Pack 26b) may be editing `candidates.json` at the same time.** Pull right before editing it, and merge by hand if git reports a conflict.
 
+### Pack 28: Arena, the axe gets a spike (added 2026-11-07)
+
+**The designer:** "The hitbox of the axe was a bit weird: it still needed to jab, so maybe it should have a spike." The game's jab lands at the weapon's tip, the top of the haft, but `weapon-axe` ends in a flat cap above a side blade, so a jab looks like it hits with nothing.
+
+- **Edit `weapon-axe-A.png` with inpainting,** Pack 26b's method. Mask only the top of the haft, above the head, and paint a short, sharp iron spike rising straight up from the axe head, in the same iron, outline and light. It is a top spike like a bearded war axe's, about a third of a head long.
+- **Keep the canvas (253 x 1024), the head, the haft, the grip and the pin** (47, 832) exactly, so nothing else moves. If the spike needs more room at the top, shrink nothing; report the spike's tip in px instead.
+- **Two options, A and B.** Keep the old one as `weapon-axe-old.png`.
+- **The contact sheet:** old against new, at game size, held at guard and at a jab.
+- **The handoff:** write `docs/art/HANDOFF-arena-pack28.md`, with the spike tip's px.
+
+Cost about US$0.20.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
