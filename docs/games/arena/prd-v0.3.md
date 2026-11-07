@@ -1799,11 +1799,11 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 
 - **The bout card, slimmed.** The designer: "There's still too much information on the cards before a fight." Today a man's card can carry 14 or more lines: the bout, his name, a sub-line, his armour's name and gap count, guarded gaps, size and weapon, two lines of weapon tip, his profile, three stat bars, a third column of gear tells and "Looks only" pieces, your reason's thread, the wooden sword's notches, Brutus, his line and the tap. The new card keeps six things and the tap:
   1. **the header:** "BOUT 2 OF 5" (or "THE CHAMPION", or "YOUR RIVAL"), with sparring folded in;
-  2. **his name,** big, with the champion's bust beside it as now;
+  2. **his name,** big and stylised: Roman capitals with wide letter spacing, in the menu title's code-drawn stamped bronze (a gradient, a dark edge, a highlight and a soft shadow); a champion's in gold with a small laurel, your rival's in blood red. The champion's bust sits beside it as now;
   3. **one threat line:** size, weapon and style merged, for example "Big · Axe · hits hard, tires fast" (two blades or a shield is added as one word);
   4. **his figure,** with its gaps glowing and guarded gaps ringed in gold. There is no armour text; the picture says it;
   5. **one "watch for" line**, which carries the most important thing in the bout:
-     - for a champion, his signature move and its answer, for example "Red Rage: block high, mid, low";
+     - for a champion, his signature move's **name only**, for example "Signature: Red Rage". **Never how to answer it.** The designer: "Don't say how to beat their signature move; they have to figure it out.";
      - otherwise, his one card gear piece that acts (in red);
      - otherwise, nothing;
   6. **one voice line:** the champion's or your rival's taunt, or else Old Brutus. Never both, and your reason's thread folds into Brutus's line.
@@ -1817,7 +1817,7 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
   - Huntress's Throw: a spear glint at range and a whistle;
   - Two Blades: the Emperor's gesture and a gold flash.
   - Each tell also gets a short slow-motion beat (about 0.25 s at 40%), the way a felled foe does.
-- **The answer is called out:** answering a move well shows "READ!" with the punish window highlighted. Missing it shows the move's name over the blow.
+- **Feedback after, never advice before:** answering a move well shows "READ!" with the punish window highlighted; missing it shows only the move's name over the blow. No screen, card, banner or "?" page says how to answer a signature move.
 - **More often:** each champion uses his move at least twice a bout (tunable in `TUNING.champs.<key>.every`), and Marcus's Red Rage can come before half health.
 - **A nudge to heal:** if you reach the bandage stall before a champion with fewer than half your hearts, Old Brutus says, "Patch yourself up. He won't wait." The bandage row is highlighted. Nothing is bought for you.
 - **The export logs** each special's uses and answers (`specials=rage2/1,...`).
