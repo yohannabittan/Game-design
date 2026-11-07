@@ -111,3 +111,17 @@
   - **Controls:** a tap jumps to a card's end, and the next tap goes on. Skip is a 96x44 plaque, and the Story button replays it.
   - **Save v16:** a fresh save sees the story once; older saves are marked as having seen it.
   - The story fighter always wears a murmillo's kit and a gladius. `perf.mjs --scene menu` now measures the story on a fresh save.
+- v2 steps 19 and 20 build (Opus 5.5, passed the orchestrator's review of its frames and scripted checks first time): traits, drives and Skip; a slim bout card; signature moves you can tell apart; a heal nudge; hearts as one heart and a number (`prd-v0.3.md`, "Step 19", "Step 20"). `arena-v61`, save v17.
+  - **Traits and drives:** nine origin traits (`TUNING.origins`) and five reason drives (`TUNING.reasons`), each with a tag in play, shown on the fighter card and the "?". Shield Drill makes every fourth block free; Steer Him's wall hit costs the foe 25% of his stamina.
+  - **Skip:** beside Reroll, paying 10, 13, 17 then 20 (`TUNING.draft.skip`). The export logs `skips`.
+  - **The bout card** has six things, the tap and a "?" that opens the full card:
+    1. the header;
+    2. a letter-spaced, stamped name (bronze, gold for a champion, red for a rival);
+    3. one threat line;
+    4. the figure, with glowing gaps and gold-ringed guards;
+    5. "Signature: <name>" (never its answer) or his one acting gear piece;
+    6. one voice line.
+  - **Signature moves** banner every time, with a 0.25 s slow beat, their own looks and sounds, and READ! with a gold-lit punish window when answered. They fire four to six times in 75 s; `specials` is in the export.
+  - **Brutus's heal nudge** before a champion.
+  - **Your hearts** are one draining heart and "14 / 18".
+  - Perf: frame mean +1.5%.

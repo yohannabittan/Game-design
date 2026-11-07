@@ -276,8 +276,9 @@ const TUNING = {
   // the one token per run: a Respin on your fighter card or a Reroll on a draft
   token: 1,
   hint: { bouts: 2, dur: 10, heartDur: 6, driveDur: 6, hudDur: 8 },  // the in-play hint shows in this many bouts ever, for this many seconds of each; heartDur, driveDur: the heart hint after your first fell, the drive hint after your first missed lunge
-  // your hearts on the HUD, one for each point of health: heart = spacing and size (px), perRow = most in a row (more start another row), rowGap = px each row past the first pushes the rows below it down
-  hud: { heart: 19, size: 17, perRow: 9, rowGap: 18, bout: 17, crowdH: 15, crowdW: 0.82 },  // bout: the BOUT line's size; crowdH, crowdW: the crowd bar's height and its share of the left strip
+  // Step 20: your hearts are one heart (size px) that drains like a glass, and the count beside it (num px); a hit shakes it (shake px for hit s) and
+  // flashes the count red, a heal pulses it green (heal s)
+  hud: { size: 26, num: 18, shake: 4, hit: 0.45, heal: 0.6, bout: 17, crowdH: 15, crowdW: 0.82 },  // bout: the BOUT line's size; crowdH, crowdW: the crowd bar's height and its share of the left strip
   // footwork, in H. Yours: a tap of DODGE is the backstep (back x your Speed's dodge length), holding it keeps backing off at walkBack; a lunge's recovery
   // takes back up to pace of the ground you gave, over gainDur s, never past your mark; drift: idle for idle s (no swing, dodge or lunge) you drift back a pace per secs s. Speeds are H per second. close: nearest clear gap between the bodies.
   // room: the most each fighter can give ground before the wall (yours, his), trimmed to the screen; margin: px kept clear at the screen edge.
@@ -296,12 +297,15 @@ const TUNING = {
   // prices by rarity (common, rare, epic, legendary) and a set's; delay before a pick counts (s). Step 9, by the bout just won (its gauntlet row, 1 to 5):
   // boutEpic = each free card's chance to be an epic, sureEpic = from this bout an S makes one free card a sure epic, boutLegend = the cascade's legendary chance
   draft: { deal: 3, odds: { S: [0, 100], A: [35, 65], B: [55, 45], C: [75, 25] }, sure: { A: 1 }, pull: 3, perFam: 2, cascade: { set: 0.6, legend: 0.15, epic: 0.3 }, price: [0, 30, 45, 60], duoPrice: 50, delay: 0.45,
-    boutEpic: { 3: 0.1, 4: 0.2 }, sureEpic: 3, boutLegend: { 4: 0.3 } },
+    boutEpic: { 3: 0.1, 4: 0.2 }, sureEpic: 3, boutLegend: { 4: 0.3 },
+    // Step 19: Skip takes no card and pays gold, skip[0] after bout 1 rising evenly to skip[1] for the last draft; its button's w x h px
+    skip: [10, 20], skipBtn: [112, 48] },
   // gold, per run: a fell, each feint read, perfect block and slot hit in the bout, and a bout with no hits taken
   gold: { fell: 20, read: 4, perfect: 2, slot: 2, clean: 15 },
   // the armourer's tent, once a run after bout `after`: big wares and cheap ones (the old commons) shown, each ware's price; forge = your weapon's damage x;
   // bandage = gold for each heart healed before the champion's bout
-  tent: { after: 3, big: 2, small: 1, forge: 1.25, heart: 2, bandage: 15,
+  // nudge: below this share of your hearts at the bandages before the champion, Brutus says so and the bandage row glows
+  tent: { after: 3, big: 2, small: 1, forge: 1.25, heart: 2, bandage: 15, nudge: 0.5,
     price: { plate: 40, whet: 50, heart: 35, token: 25, forge: 60, hide: 15, wind: 15, wrist: 12, steady: 12, grip: 12, feet: 15, deepbreath: 15, edge: 20, tough: 15, stance: 12 } },
   // the starting purse (step 9a; step 11: fists free, kit by the slot): gold per arena, then each weapon's price (the axe and the mace are two buys; the
   // trident and the sica once the ludus has them) and each plate's, in the armourer's tent before bout 1; hint = purses with the first-run hint
@@ -396,12 +400,32 @@ const TUNING = {
   // box[2] px under the safe top.
   champs: {
     carpophorus: { send: 0.5 },
-    mevia: { net: 2.4, sig: 'throw', every: 3, chance: 0.6, range: 0.25, wind: 1.15, grip: 2.4, flight: 0.28, dmg: 2, unarmed: 3, pick: 8, stuck: 1.1 },
-    marcus: { sig: 'rage', below: 0.5, every: 3, chance: 0.6, roar: 0.8, wind: 0.85, winded: 2.2, rear: 0.14 },
-    varro: { sig: 'capuan', every: 3, chance: 0.55, fakes: [0.8, 0.5], hes: 0.2, real: 0.8, winded: 2 },
-    hermes: { sig: 'blink', every: 3, chance: 0.6, wind: 1.2, crouch: 0.6, leap: 0.7, start: 0.25, close: -0.1, back: 0.9, off: 2, low: 0.08, lean: 0.16, blur: [0.07, 0.38] },
-    aquila: { sig: 'twin', at: 0.5, signal: 1.8, toss: 0.45, combo: 3, fast: 0.8, box: [112, 70, 4] },
+    mevia: { net: 2.4, sig: 'throw', every: 1, chance: 0.6, sure: 3, range: 0.25, wind: 1.15, grip: 2.4, flight: 0.28, dmg: 2, unarmed: 3, pick: 8, stuck: 1.1 },
+    marcus: { sig: 'rage', below: 0.9, every: 1, chance: 0.6, sure: 3, roar: 0.8, wind: 0.85, winded: 2.2, rear: 0.14 },
+    varro: { sig: 'capuan', every: 1, chance: 0.6, sure: 3, fakes: [0.8, 0.5], hes: 0.2, real: 0.8, winded: 2 },
+    hermes: { sig: 'blink', every: 1, chance: 0.6, sure: 3, wind: 1.2, crouch: 0.6, leap: 0.7, start: 0.25, close: -0.1, back: 0.9, off: 2, low: 0.08, lean: 0.16, blur: [0.07, 0.38] },
+    aquila: { sig: 'twin', at: 0.5, signal: 1.8, toss: 0.45, combo: 3, fast: 0.8, box: [112, 70, 4], every: 1, chance: 0.6, sure: 3, winded: 2 },
   },
+  // Step 20, each signature's own show: sure = after this many exchanges since the last it comes whatever its chance (a Huntress too close backs off
+  // for it); Aquila's, once he has two blades, is a combo at two heights (answered when none lands). Its tell's beat: beat s of real time at mul speed.
+  // An answer: READ! (read px) with the punish window lit in gold; a blow that lands shows only the move's name (miss px). The looks: the Capuan
+  // ghosts (ghost[0] H either side at alpha ghost[1]), the Blink's white streaks (streaks of them, len H), the spear's glint (glint px), the gold flash (s)
+  sigFx: { beat: 0.25, mul: 0.4, read: 34, miss: 26, ghost: [0.06, 0.3], streaks: 5, len: 0.5, glint: 16, flash: 0.22 },
+  // Step 19, the innate trait of each origin (always on, never a card; names and lines in TRAITS). gaul, Ox-Strong: stamina regen x. thrace, Shield
+  // Drill: every nth block wears the shield nothing (a quarter less). numidia, Light Feet: a dodge's stamina x. capua, Kneading: each hit within
+  // TUNING.crowd.comboWin s of the last adds step to the next, at most max. ostia, Sea Legs: shoves and knockback move you x as far. alexandria,
+  // Reads the Scroll: a feint's tell shows this share of its wind-up sooner. sparta, Spartan Guard: the perfect-block window x. egypt, Broken Chains:
+  // once a run, a killing blow leaves you on hearts. circus, Steer Him: your shoves drive him x as far, and one into his wall costs him wall x his stamina
+  origins: { gaul: { regen: 1.15 }, thrace: { every: 4 }, numidia: { dodge: 0.75 }, capua: { step: 0.1, max: 0.3 }, ostia: { push: 0.5 },
+    alexandria: { sooner: 0.2 }, sparta: { perfect: 1.3 }, egypt: { hearts: 1 }, circus: { push: 1.3, wall: 0.25 } },
+  // the drive of each reason (DRIVES). freedom, Nothing to Lose: at or below below x your hearts, your blows x dmg. debt, Every Win Pays: a bout's
+  // gold x. revenge, Him Last: blows on the champion (and your rival) x. glory, Louder: the crowd's favour x. promise, She's Waiting: hearts more a fell
+  reasons: { freedom: { below: 0.25, dmg: 1.25 }, debt: { gold: 1.25 }, revenge: { dmg: 1.2 }, glory: { fav: 1.25 }, promise: { heal: 1 } },
+  // a trait's or drive's tag in play: s before the same one shows again, its px
+  tag: { gap: 6, size: 16 },
+  // Step 20, the slim bout card: its w x h px (at most), the name's px and letter spacing (x its size), the figure's px a body unit (pair: pair), a beast's
+  // px nose to tail, the laurel's radius either side of a champion's name, the "?" button's px, and the open gaps' glow on the figure (x a gap's size)
+  card: { w: 600, h: 280, name: 34, spacing: 0.12, fig: 100, pair: 78, beast: 172, laurel: 11, help: 44, glow: 2.4 },
   // Step 18, two blades and no shield. His (from the City on, at TUNING.arenas.*.dual for a man with a weapon in weapons): gaps more
   // open gaps; his far arm held at rest rad from hanging and following his weapon arm's swing x follow; his cover is his crossed blades (cover H
   // across), each blow on them costing him drain x a guard's stamina, broken by breakAt of them for broken s. Yours (the purse's Arms row, at your
@@ -798,6 +822,30 @@ const BRUTUS_BG = {
   baker: 'Knead him like dough, baker!', sailor: 'Sea legs, sailor. Let him crash on you.', scribe: 'Read him like a scroll.',
   gladiatrix: 'Sparta sent you. Show him why they fear it.', 'freed slave': "You've broken chains before. Break him.", charioteer: 'No horses here, charioteer. Steer him into the wall.',
 };
+// Step 19: each origin's innate trait, from Brutus's line for it, and each reason's drive, from his reason's line; their numbers are TUNING.origins
+// and TUNING.reasons, read when the line is shown
+const pctOf = (k) => Math.round(Math.abs(k) * 100);
+const TRAITS = {
+  gaul: { name: 'Ox-Strong', line: () => `stamina recovers ${pctOf(TUNING.origins.gaul.regen - 1)}% faster` },
+  thrace: { name: 'Shield Drill', line: () => `blocks wear your shield ${pctOf(1 / TUNING.origins.thrace.every)}% less` },
+  numidia: { name: 'Light Feet', line: () => `dodges cost ${pctOf(1 - TUNING.origins.numidia.dodge)}% less stamina` },
+  capua: { name: 'Kneading', line: () => `each quick hit adds ${pctOf(TUNING.origins.capua.step)}% to the next, up to ${pctOf(TUNING.origins.capua.max)}%` },
+  ostia: { name: 'Sea Legs', line: () => (TUNING.origins.ostia.push === 0.5 ? 'shoves and knockback move you half as far' : `shoves move you ${pctOf(1 - TUNING.origins.ostia.push)}% less`) },
+  alexandria: { name: 'Reads the Scroll', line: () => `a feint's tell shows ${pctOf(TUNING.origins.alexandria.sooner)}% sooner` },
+  sparta: { name: 'Spartan Guard', line: () => `the perfect-block window is ${pctOf(TUNING.origins.sparta.perfect - 1)}% wider` },
+  egypt: { name: 'Broken Chains', line: () => `once a run, a killing blow leaves you on ${TUNING.origins.egypt.hearts} heart${TUNING.origins.egypt.hearts === 1 ? '' : 's'}` },
+  circus: { name: 'Steer Him', line: () => `your shoves drive him ${pctOf(TUNING.origins.circus.push - 1)}% further, and the wall costs him more` },
+};
+const DRIVES = {
+  freedom: { name: 'Nothing to Lose', line: () => `below a quarter of your hearts, your blows do ${pctOf(TUNING.reasons.freedom.dmg - 1)}% more` },
+  debt: { name: 'Every Win Pays', line: () => `${pctOf(TUNING.reasons.debt.gold - 1)}% more gold from every bout` },
+  revenge: { name: 'Him Last', line: () => `${pctOf(TUNING.reasons.revenge.dmg - 1)}% more damage against the champion and your rival` },
+  glory: { name: 'Louder', line: () => `the crowd's favour builds ${pctOf(TUNING.reasons.glory.fav - 1)}% faster` },
+  promise: { name: "She's Waiting", line: () => `${TUNING.reasons.promise.heal} extra heart back for each foe felled` },
+};
+// your trait (by origin) or drive (by reason), when it is this one
+const trait = (k) => !!state.me && state.me.origin === k;
+const drives = (k) => !!state.me && state.me.reason === k;
 // revenge climbs: his line before each bout, and after each fell
 const REVENGE = {
   intro: ["He burned your village. He's waiting at the end.", null, 'Keep your anger for the champion.', 'Not yet. Him last.', 'There he is. The man with the torch.'],
@@ -809,7 +857,7 @@ const CHAMP_LINE = { revenge: 'I remember the fire. Do you?', debt: "Your family
   promise: 'Your sister? She sweeps my floor. Go home.' };
 const debtLeft = () => Math.max(0, TUNING.story.debt - TUNING.story.debtPer * state.felled);
 const denarii = (n) => n.toLocaleString('en-US');
-// Old Brutus before a bout: the arena's opening line first (his reason's first line under it, brutusReason), your background's line before bout 2,
+// Old Brutus before a bout: the arena's opening line first (your reason's thread folds in after it on the card, threadShort), your background's line before bout 2,
 // the champion line last, his reason's line between (revenge climbs)
 function brutusIntro() {
   const me = state.me, r = state.rack, champ = state.foe.champion;
@@ -818,7 +866,6 @@ function brutusIntro() {
   if (me.reason === 'revenge') return REVENGE.intro[champ ? 4 : r];
   return brutus(me, r === 0 ? 'first' : champ ? 'champ' : 'intro');
 }
-const brutusReason = () => (state.me.reason === 'revenge' ? REVENGE.intro[0] : brutus(state.me, 'first'));
 // after a fell: the reason's thread
 function brutusWon() {
   const me = state.me, n = state.felled;
@@ -1491,15 +1538,15 @@ function newRack(E) {
   state.winded = 0; state.windedMax = 1; state.retreat = 0; state.chase = 0; state.mood = { retreat: false };
   state.mem = { blocks: [], lunges: [], turtle: 0, feints: [] };
   state.gapOpen = null; state.ownT = -9; state.recT = -9; state.baitT = 0; state.puppetN = 0; state.awed = false; state.lng = null; state.foeNet = 0; state.you.drive = 0; state.you.dk = 0; state.burnT = 0;
-  state.swingIn = 1.2; state.intro = true; state.introT = 0; state.introGo = -1; state.warm = false;
+  state.swingIn = 1.2; state.intro = true; state.introT = 0; state.introGo = -1; state.warm = false; state.introHelp = false;
   if (state.me.reason === 'glory') chant(E);
   saveRun(E);
   settleFeint('none');
   state.bout = { felled: false, shrugged: false, foeShrug: false, bread: false, net: false, gaps: {}, perf: state.perfects, slot: state.slotHits, read: state.feintsRead, pun: state.punishes, taken: state.taken, dodge: state.dodged, lame: state.lamings, bash: state.bashHits };
   state.open = 0; state.riposte = 0; state.slowT = 0; state.snapT = 0;
   Object.assign(state, { slowFx: 0, slowMul: 1, zoomT: 0, dropT: 0, ghostT: 0, ghostAt: -9, ghosts: [], paintT: 0, banner: null, shatter: null, steps: { foe: null, me: null } });
-  // step 18: his signature's wait and the banners shown, Aquila's switch, the Huntress's spear, the crossed blades' guard, your off hand
-  Object.assign(state, { sigN: 0, sigSeen: {}, switchT: 0, flyS: 0, spearT: 0, spearAt: null, gbreak: 0, coverHits: 0, offT: 0, offHit: null });
+  // step 18: his signature's wait, Aquila's switch, the Huntress's spear, the crossed blades' guard, your off hand
+  Object.assign(state, { sigN: 0, switchT: 0, flyS: 0, spearT: 0, spearAt: null, gbreak: 0, coverHits: 0, offT: 0, offHit: null });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
   // both fighters start each bout back on their marks
   Object.assign(state.foot, { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 });
@@ -1531,6 +1578,8 @@ function newRound(E, seed, me0, rv, arenaId = 'pit', fr) {
     foe: {}, edge: null, swapping: false, tauntT: 0, taunt: '',
     fav: 0, favStep: 0, favT: 0, favShown: 0, favM: 0, favSum: 0, favDur: 0, lastHitM: -9, opened: null, finSel: '', finHintT: 0, hintT: 0, hintS: '',
     crowd: [],
+    // step 19: Broken Chains spent, drafts skipped, the tags' counts and clocks; step 20: each signature's uses and answers ({ rage: [2, 1] })
+    chains: 0, skips: 0, tagN: {}, tagM: {}, drillN: 0, kneadN: 0, kneadM: -9, oxLow: false, specials: {}, readT: 0, hpSeen: null, heartFx: null, introHelp: false,
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, heldAt: -9, zy: -0.58, arm: 0, blocked: false, pressT: -9 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
   });
@@ -1563,7 +1612,7 @@ const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token'
   'capCut', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
   'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'baited', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
   'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep',
-  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft'];
+  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
@@ -1969,8 +2018,10 @@ function updateAttack(E, dt) {
     }
   }
   // regen: only when not swinging, holding or dodging; faster when also not blocking
-  const RM = TUNING.me.staRegen[state.me.sta - 1] * TUNING.me.armour[state.me.set].regen * Math.pow(TUNING.cards.deepbreath, count('deepbreath'));
+  const RM = TUNING.me.staRegen[state.me.sta - 1] * TUNING.me.armour[state.me.set].regen * Math.pow(TUNING.cards.deepbreath, count('deepbreath')) * (trait('gaul') ? TUNING.origins.gaul.regen : 1);
   if (state.m - state.lastAtk > S.delay && !sh.held && !state.away) state.stamina = Math.min(state.staMax, state.stamina + S.regen * RM * (raised() ? 1 : S.idleMul) * dt);
+  // Ox-Strong shows as your breath comes all the way back from under half
+  if (trait('gaul')) { if (state.stamina < state.staMax / 2) state.oxLow = true; else if (state.oxLow && state.stamina >= state.staMax) { state.oxLow = false; tagPop(E, 'gaul', 'OX-STRONG'); } }
 }
 
 function checkExhaust(E, dt) {
@@ -2011,8 +2062,9 @@ function stepYou(E, dt) {
 }
 // his bash drives you back half a pace, to the wall at most
 function pushYou(E) {
-  const FT = TUNING.foot, ft = state.foot, wl = walls(E);
-  ft.pos = Math.max(wl.back, ft.pos - FT.push * FT.pace); ft.tgt = Math.min(ft.tgt, ft.pos);
+  const FT = TUNING.foot, ft = state.foot, wl = walls(E), sea = trait('ostia');
+  if (sea) tagPop(E, 'ostia', 'SEA LEGS');
+  ft.pos = Math.max(wl.back, ft.pos - FT.push * FT.pace * (sea ? TUNING.origins.ostia.push : 1)); ft.tgt = Math.min(ft.tgt, ft.pos);
   if (ft.pos <= wl.back + 0.005) backToWall(E);
 }
 
@@ -2132,12 +2184,14 @@ function chaseIn() {
 }
 // a strong block or a blocked bash drives him back half a pace, to the wall at most
 function pushFoe(E) {
-  const FT = TUNING.foot, st = state.step, wl = walls(E), was = st.x;
-  st.x = Math.min(wl.fore, st.x + FT.push * FT.pace);
+  const FT = TUNING.foot, st = state.step, wl = walls(E), was = st.x, steer = trait('circus');
+  st.x = Math.min(wl.fore, st.x + FT.push * FT.pace * (steer ? TUNING.origins.circus.push : 1));
   if (st.x >= wl.fore - 0.005 && state.m - state.foot.foeWallT > FT.wallMsg) {
     state.foot.foeWallT = state.m; state.foeWall++;
     const Ff = foeF(E); pop(Ff.x, Ff.y - 1.3 * Ff.H, was >= wl.fore - 0.005 ? 'PINNED!' : 'TO THE WALL!', '#fde68a', 20);
-  }
+    // Steer Him: the wall knocks the breath out of him
+    if (steer) { tagPop(E, 'circus', 'STEER HIM'); spendFoe(E, TUNING.origins.circus.wall * state.foe.staMax); }
+  } else if (steer && st.x > was) tagPop(E, 'circus', 'STEER HIM');
 }
 
 // ----- a beast's pose: the lion's crouch and spring and its raised paw, the bear rearing up and lowering its head -----
@@ -2318,12 +2372,16 @@ const SIG_NAME = { rage: 'RED RAGE', capuan: 'CAPUAN FEINT', blink: 'BLINK', thr
 // a champion whose move strikes from where he stands plans each exchange as he gets ready
 const plansEarly = (f) => { const C = sigOf(f); return !!C && (C.sig === 'blink' || C.sig === 'throw'); };
 // His signature takes this exchange when it is ready: its wait over (every exchanges), his health under its mark, the Huntress far enough out with her
-// spear in hand, and its chance on the fight RNG. Aquila's switch is not an exchange (twinCheck).
+// spear in hand, and its chance on the fight RNG, or for sure once sure exchanges have passed (a Huntress too close then backs off to make room).
+// Aquila's switch is not an exchange (twinCheck); once he has two blades, his signature is a combo at two heights.
 function sigMove(rng) {
   const f = state.foe, C = sigOf(f);
-  if (!C || C.sig === 'twin') return null;
+  if (!C || (C.sig === 'twin' && !f.twin)) return null;
   if (++state.sigN <= C.every) return null;
-  if ((C.below && f.hp > f.maxHp * C.below) || (C.sig === 'throw' && (state.spearT > 0 || state.step.x - bodyPos() < C.range)) || !rng.chance(C.chance)) return null;
+  const sure = state.sigN > C.sure;
+  if (C.below && f.hp > f.maxHp * C.below) return null;
+  if (C.sig === 'throw' && (state.spearT > 0 || state.step.x - bodyPos() < C.range)) { if (sure && state.spearT <= 0) state.retreat = Math.max(state.retreat, TUNING.retreat.dur); return null; }
+  if (!sure && !rng.chance(C.chance)) return null;
   state.sigN = 0;
   return buildSig(rng, C.sig, C);
 }
@@ -2348,14 +2406,33 @@ function buildSig(rng, sig, C) {
     const z = pickZone(rng, blockRun(), 'low');
     mv.hits.push(blow(z, base * C.wind, C.dmg, 'throw'));
     mv.cost = M.thrust.cost;
+  } else if (sig === 'twin') {
+    // his two-blade combo, each blow at two heights (buildMove adds the second while he is twin)
+    return { ...buildMove(rng, 'combo', { avoid: blockRun(), wind: 1 }), sig, blocked: 0 };
   }
   return mv;
 }
-// the move's name across the arena, the first time it comes in a bout
-function sigBanner(E, sig) {
-  if (state.sigSeen[sig]) return;
-  state.sigSeen[sig] = true;
+// Step 20: the move's name across the arena every time it comes, its tell's slow beat, its own sound and flash, and its count for the export
+function sigStart(E, sig) {
+  const X = TUNING.sigFx, n = state.specials[sig] || (state.specials[sig] = [0, 0]);
+  n[0]++;
   state.banner = { s: `${SIG_NAME[sig]}!`, t: TUNING.juice.banner * 1.3, max: TUNING.juice.banner * 1.3, sig: true };
+  slowFx(X.beat, X.mul);
+  if (sig === 'rage') { E.audio.noise({ dur: 0.55, gain: 0.16 }); E.audio.beep({ freq: 150, dur: 0.55, type: 'sawtooth', slide: 0.55, gain: 0.1 }); }
+  else if (sig === 'capuan') whisper(E);
+  else if (sig === 'blink') { E.audio.noise({ dur: 0.3, gain: 0.12 }); E.audio.beep({ freq: 380, dur: 0.3, type: 'sine', slide: 2.6, gain: 0.07 }); }
+  else if (sig === 'throw') E.audio.beep({ freq: 1250, dur: 0.18, type: 'sine', slide: 1.3, gain: 0.05 });
+  else if (sig === 'twin') { E.flash('#ffd24a', X.flash * 0.6); E.audio.beep({ freq: 990, dur: 0.25, type: 'triangle', gain: 0.07 }); E.audio.beep({ freq: 1480, dur: 0.3, type: 'triangle', gain: 0.05, delay: 0.06 }); }
+}
+// the Capuan fake's whisper: a breath of noise and a falling hiss
+function whisper(E) { E.audio.noise({ dur: 0.32, gain: 0.05 }); E.audio.beep({ freq: 2400, dur: 0.28, type: 'sine', slide: 0.55, gain: 0.025 }); }
+// An answer: READ!, a chime, and the punish window lit in gold for dur s (play.render: readGlow). Its count goes to the export.
+function sigRead(E, sig, dur) {
+  const n = state.specials[sig] || (state.specials[sig] = [0, 0]), Ff = foeF(E);
+  n[1]++; state.readT = dur; state.readMax = dur;
+  pop(Ff.x, Ff.y - 1.42 * Ff.H, 'READ!', '#ffd24a', TUNING.sigFx.read, 10 + E.safe.top + hudRow().shield + 40, 1.1, 20);
+  ring(Ff.x, Ff.y - 0.55 * Ff.H, 0.6 * Ff.H, '#ffd24a');
+  E.audio.beep({ freq: 880, dur: 0.12, type: 'triangle', gain: 0.12 }); E.audio.beep({ freq: 1320, dur: 0.22, type: 'sine', gain: 0.1, delay: 0.09 }); E.haptic(25);
 }
 // Aquila at half health: he stops, the Emperor signals from his box, the shield is thrown aside and a second gladius drawn (twinTick)
 function twinCheck(E) {
@@ -2363,7 +2440,7 @@ function twinCheck(E) {
   if (!C || C.sig !== 'twin' || f.twin || state.switchT > 0 || f.hp <= 0 || f.hp > f.maxHp * C.at || state.fallT > 0) return;
   dropBlow(); state.winded = 0; state.open = 0; state.stun = 0; state.stagger = 0;
   state.switchT = C.signal; state.swingIn = Math.max(state.swingIn, 0.8);
-  sigBanner(E, 'twin'); E.audio.beep({ freq: 330, dur: 0.5, type: 'sawtooth', slide: 1.5, gain: 0.08 }); E.audio.beep({ freq: 495, dur: 0.6, type: 'triangle', gain: 0.08, delay: 0.25 });
+  sigStart(E, 'twin'); E.audio.beep({ freq: 330, dur: 0.5, type: 'sawtooth', slide: 1.5, gain: 0.08 }); E.audio.beep({ freq: 495, dur: 0.6, type: 'triangle', gain: 0.08, delay: 0.25 });
 }
 function twinTick(E, dt) {
   const f = state.foe, C = TUNING.champs.aquila;
@@ -2372,7 +2449,7 @@ function twinTick(E, dt) {
     // the shield flies aside; every guard and his shield arm's plate come off with it
     f.twin = true; f.dual = true; f.shield = false; state.flyS = 0.9; state.cover = null;
     for (const p of f.parts) { if (p.guard) p.guard = false; if (p.d.id === 'armB') p.armour = false; }
-    sigPop(E, 'GAPS OPEN'); clangSound(E, 0); swooshSound(E, 0.16); shake(E, 5, 0.15);
+    sigPop(E, 'GAPS OPEN'); clangSound(E, 0); swooshSound(E, 0.16); shake(E, 5, 0.15); E.flash('#ffd24a', TUNING.sigFx.flash);
   }
   if (state.switchT <= 0) { state.switchT = 0; state.swingIn = Math.min(state.swingIn, 0.6); }
 }
@@ -2382,6 +2459,14 @@ function spearOut(E, missed) {
   state.spearT = C.pick; state.spearAt = bodyPos() + 0.2;
   setWeapon(f, TUNING.weapons.find((w) => w.id === 'dagger'));
   if (missed) { state.disarm = Math.max(state.disarm, C.unarmed); sigPop(E, 'UNARMED!'); }
+}
+// Step 19: your trait's (green) or drive's (gold) tag over you as it fires, as PLATE TOOK IT does; the same one at most once each TUNING.tag.gap s.
+// state.tagN counts each firing.
+function tagPop(E, key, t, isDrive = false) {
+  state.tagN[key] = (state.tagN[key] || 0) + 1;
+  if (state.m - (state.tagM[key] ?? -99) < TUNING.tag.gap) return;
+  state.tagM[key] = state.m;
+  const Fy = youF(E); pop(Fy.x + 0.1 * Fy.H, Fy.y - 1.32 * Fy.H, t, isDrive ? '#fbbf24' : '#86efac', TUNING.tag.size);
 }
 // a word over him, kept under the right HUD's rows
 function sigPop(E, t) { const Ff = foeF(E); pop(Ff.x - 0.2 * Ff.H, Ff.y - 1.15 * Ff.H, t, '#ffd24a', 22, 10 + E.safe.top + hudRow().shield + 40); }
@@ -2447,11 +2532,14 @@ function startBlow(E) {
   };
   // a Capuan fake shows as a feint's fake to its end, and never jumps
   if (h.dud) { const s0 = state.sw; s0.fake = s0.zone; s0.fakePose = h.pose; s0.switchAt = s0.wind - TUNING.champs.varro.hes * k; s0.hes = Infinity; }
-  if (mv.sig && mv.idx === 0) sigBanner(E, mv.sig);
+  if (mv.sig && mv.idx === 0) sigStart(E, mv.sig);
+  else if (h.dud) whisper(E);
   if (h.pre) E.audio.beep({ freq: 95, dur: 0.6, type: 'sawtooth', slide: 0.7, gain: 0.14 });
   // Grand Deceiver: his fake's hesitation starts sooner, and the switch comes when it would have
   const sw = state.sw;
   if (sw.fake && has('deceiver')) { const e = sw.switchAt * Math.min(C_().deceiveMax, C_().deceiveFake * famN('trick')); sw.switchAt -= e; sw.hes += e; }
+  // Reads the Scroll: the same, from your background
+  if (sw.fake && trait('alexandria')) { const e = sw.switchAt * TUNING.origins.alexandria.sooner; sw.switchAt -= e; sw.hes += e; sw.scroll = true; }
   // the first feint ever is a slow-motion lesson, the second a short reminder (counted in the save)
   if (h.fake && state.lessons < 2) {
     state.sw.lesson = state.lessons === 0 ? 'slow' : 'remind';
@@ -2462,6 +2550,7 @@ function startBlow(E) {
 function feintHesitate(E) {
   const sw = state.sw, L = TUNING.lesson;
   sw.hesOn = true;
+  if (sw.scroll) tagPop(E, 'alexandria', 'READS THE SCROLL');
   E.audio.beep({ freq: 620, dur: 0.12, type: 'sine', slide: 0.7, gain: 0.08 });
   if (sw.lesson === 'slow') state.caption = { lines: [`FEINT! He faked ${sw.fake.label}.`, 'Wait for the glow to settle, then block where it lands.'], t: L.cap, max: L.cap };
   else if (sw.lesson === 'remind') state.caption = { lines: ['Feint: wait for the glow to settle.'], t: L.remind, max: L.remind };
@@ -2499,10 +2588,12 @@ function endBlow(E) {
   const plan = state.plan;
   if (plan && plan.q.length) state.swingIn = plan.gap; else { state.swingIn = plan ? plan.after : nextGap(); state.plan = null; }
   // a signature answered opens him: all three of the Red Rage blocked, the Capuan Feint's real blow blocked, the Blink's dash met well-timed
+  // (step 20: the Huntress's throw answered leaves her unarmed, Aquila's two-height combo answered when none of it lands; each answer is READ!)
   if (mv && mv.sig && state.fallT <= 0) {
-    const C = sigOf(state.foe), won = mv.sig === 'rage' ? mv.blocked >= mv.hits.length : mv.won;
+    const C = sigOf(state.foe), won = mv.sig === 'rage' ? mv.blocked >= mv.hits.length : mv.sig === 'twin' ? !mv.hit : mv.won;
     if (mv.sig === 'blink' && !won) { state.retreat = C.back; state.swingIn = Math.max(state.swingIn, C.back); }
-    if (won && (mv.sig === 'rage' || mv.sig === 'capuan' || mv.sig === 'blink')) { windFoe(E, mv.sig === 'blink' ? C.off : C.winded); return; }
+    if (won && mv.sig === 'throw') sigRead(E, 'throw', state.disarm);
+    if (won && mv.sig !== 'throw') { const dur = mv.sig === 'blink' ? C.off : C.winded; windFoe(E, dur); sigRead(E, mv.sig, dur); return; }
   }
   if (state.foe.sta <= 0) windFoe(E, TUNING.foeSta.winded);
   else if (mv && mv.kind === 'combo' && !mv.broken) windFoe(E, TUNING.foeSta.combo);
@@ -2549,7 +2640,7 @@ function updateFoe(dt, E) {
     if (sw.kind === 'throw' && !sw.thrown && sw.t >= sw.wind - TUNING.champs.mevia.flight) {
       const fr = f.fr.armF, Fy = youF(E);
       sw.thrown = true; sw.rel = toScreen(foeF(E), fr.ox - Math.sin(fr.rot) * ARM_LEN, fr.oy + Math.cos(fr.rot) * ARM_LEN); sw.aim = [Fy.x + 0.12 * Fy.H, zoneScreenY(lay(E), sw.zone)];
-      swooshSound(E, 0.22);
+      swooshSound(E, 0.22); E.audio.beep({ freq: 1500, dur: TUNING.champs.mevia.flight + 0.12, type: 'sine', slide: 1.9, gain: 0.06 });
     }
     if (sw.t >= sw.wind) { if (sw.dud) dudEnd(E); else resolveSwing(E); }
     return;
@@ -2695,9 +2786,10 @@ function dodge(E, pid) {
   if (fakeShowing()) { bitFeint(E); return; }
   if (ft.pos <= wl.back + 0.01) { backToWall(E); return; }
   // Counterstep: a dodge just after a block is free, and opens a gap
-  const step = has('counterstep') && state.m - state.blockM <= C_().counterWin, cost = has('untouch') || step ? 0 : D.cost;
+  const step = has('counterstep') && state.m - state.blockM <= C_().counterWin, light = trait('numidia'), cost = has('untouch') || step ? 0 : Math.round(D.cost * (light ? TUNING.origins.numidia.dodge : 1));
   if (state.stamina < cost) { tiredPop(E); return; }
   state.stamina -= cost; state.lastAtk = state.m;
+  if (light && cost > 0) tagPop(E, 'numidia', 'LIGHT FEET');
   const spd = TUNING.me.spdDodge[state.me.spd - 1];
   // Blur: his blow in flight now aims at the ghost left where you stood
   if (has('blur') && state.sw && state.sw.fin <= 0 && !state.sw.ghostX) state.sw.ghostX = Fy.x;
@@ -2873,6 +2965,7 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   // Execute, armed: a slot hit on a foe below half his health fells him
   const exec = thrust && state.armed.exec && f.hp < f.maxHp * T.fin.below;
   if (exec) { dealt = Math.max(dealt, f.hp); state.armed.exec = false; }
+  if (!exec && !numb) dealt *= blowMul(E);
   p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; if (thrust) { state.slotHits++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1; } if (winded) state.punishes++;
   f.hp -= dealt;
   const gl = kind === 'jab' ? 0.03 : 0.06;
@@ -2910,6 +3003,20 @@ function gapHit(E, p, at, ang, sp, a, thrust) {
   return stop;
 }
 
+// Step 19 on your blows: Kneading (each hit within the crowd's combo window of the last adds a step, up to its most), Nothing to Lose (low on hearts),
+// Him Last (the champion or your rival)
+function blowMul(E) {
+  let k = 1;
+  if (trait('capua')) {
+    const O = TUNING.origins.capua, n = state.m - state.kneadM <= TUNING.crowd.comboWin ? Math.min(Math.round(O.max / O.step), (state.kneadN || 0) + 1) : 0;
+    state.kneadN = n; state.kneadM = state.m;
+    if (n) { k *= 1 + n * O.step; tagPop(E, 'capua', `KNEADING +${pctOf(n * O.step)}%`); }
+  }
+  const R = TUNING.reasons;
+  if (drives('freedom') && state.hp <= state.maxHp * R.freedom.below) { k *= R.freedom.dmg; tagPop(E, 'freedom', 'NOTHING TO LOSE', true); }
+  if (drives('revenge') && (state.foe.champion || state.gauntlet[state.rack].rival)) { k *= R.revenge.dmg; tagPop(E, 'revenge', 'HIM LAST', true); }
+  return k;
+}
 function disable(E, p, at, ang) {
   p.cut = true;
   blood(at.x, at.y, ang, TUNING.juice.blood.down);
@@ -2933,8 +3040,11 @@ function fell(E) {
   if (state.edge && !state.edge.down) { fellOne(E); return; }
   state.felled++; state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.results[state.rack] = 'felled';
   state.hp = Math.min(state.maxHp, state.hp + TUNING.heal);
+  waitingHeal(E);
   state.grades.push(gradeBout()); state.goods.push(boutTally().good);
   state.lastGold = boutGold(); state.gold += state.lastGold.sum; state.goldEarned += state.lastGold.sum;
+  const pays = state.lastGold.items.find((e) => e[0] === 'every win pays');
+  if (pays) tagPop(E, 'debt', `EVERY WIN PAYS +${pays[1]}`, true);
   if (state.gauntlet[state.rack].rival) { state.rivalBeaten = 1; clearRival(E, state.gauntlet[state.rack].from); pop(E.w * 0.62, E.h * 0.42, 'Rival defeated!', '#f87171', 30); }
   pop(E.w * 0.62, E.h * 0.3, 'FOE DOWN', '#ffd24a', 28); shake(E, 10, 0.3); E.flash('#fff0b8', 0.1); E.audio.play('coin'); fellJuice(E);
   if (boutTally().taken === 0) favour(E, TUNING.crowd.clean);
@@ -2942,6 +3052,21 @@ function fell(E) {
 }
 // the pop for hearts gained: "+2 HEARTS"
 const heartsPop = (n) => `+${n} HEART${n === 1 ? '' : 'S'}`;
+// She's Waiting: more hearts back for each foe felled
+function waitingHeal(E) {
+  if (!drives('promise')) return;
+  const was = state.hp; state.hp = Math.min(state.maxHp, state.hp + TUNING.reasons.promise.heal);
+  if (state.hp > was) tagPop(E, 'promise', `SHE'S WAITING ${heartsPop(state.hp - was)}`, true);
+}
+// Broken Chains: once a run, a blow that would fell you leaves you on its hearts; otherwise the bout is lost
+function youDown(E) {
+  if (state.hp > 0) return;
+  if (trait('egypt') && !state.chains) {
+    state.chains = 1; state.hp = TUNING.origins.egypt.hearts; tagPop(E, 'egypt', 'BROKEN CHAINS');
+    E.flash('#fde68a', 0.15); E.audio.beep({ freq: 180, dur: 0.3, type: 'square', slide: 2, gain: 0.08 }); return;
+  }
+  state.hp = 0; state.endT = 1.0; state.results[state.rack] = 'lost';
+}
 // the first of a pair falls: the bout goes on, his partner taunts from the edge and steps in (stepIn, from the play scene's fall clock)
 function fellOne(E) {
   state.fallT = 0.01; state.sw = null; state.move = null; state.plan = null; state.winded = 0; state.swapping = false;
@@ -2949,6 +3074,7 @@ function fellOne(E) {
   E.audio.beep({ freq: 220, dur: 0.2, type: 'triangle', slide: 0.6, gain: 0.2 });
   const was = state.hp; state.hp = Math.min(state.maxHp, state.hp + TUNING.pairs.heal); E.audio.play('coin');
   if (state.hp > was) { const Fy = youF(E); pop(Fy.x, Fy.y - 1.1 * Fy.H, heartsPop(state.hp - was), '#fca5a5', 24); }
+  waitingHeal(E);
   emit(E, 'fell');
 }
 
@@ -2968,7 +3094,7 @@ function resolveSwing(E) {
   resolveOne(E, sw);
   const on = sw.outcome === 'block' || sw.outcome === 'hit' || sw.outcome === 'shrug';
   if (sw.zone2 && on && state.hp > 0 && state.foe.hp > 0) resolveOne(E, { ...sw, zone: sw.zone2, pose: sw.pose2, dmg: sw.dmg2, zone2: null, fake: null, ghostX: null, counter: false, second: true });
-  if (sw.kind === 'throw') spearOut(E, !on || sw.outcome === 'block');
+  if (sw.kind === 'throw') { const missed = !on || sw.outcome === 'block'; spearOut(E, missed); if (state.move && state.move.sig) state.move.won = missed; }
 }
 function resolveOne(E, sw) {
   const L = lay(E), zy = zoneScreenY(L, sw.zone), Fy = youF(E), Ff = foeF(E), sh = state.sh, SH = TUNING.shield, M = TUNING.moves, W = state.foe.weapon, D = TUNING.dual, dual = !!state.me.dual, mv = state.move;
@@ -3003,6 +3129,7 @@ function resolveOne(E, sw) {
   if (blocks(sw.zone)) {
     // a read is the shield in the real zone when the real strike lands, however it got there: switching from the fake is the skill
     const perfect = (sh.t <= perfectWin() || (has('standfast') && atWall(E))) && !net && !bash, bx = Fy.x + 0.28 * L.H, by = zy, read = feint;
+    if (perfect && trait('sparta') && sh.t > perfectWin() / TUNING.origins.sparta.perfect && !(has('standfast') && atWall(E))) tagPop(E, 'sparta', 'SPARTAN GUARD');
     sw.outcome = 'block'; state.blocks++; sh.flash = 0.25; sh.blocked = true;
     if (read) { settleFeint('read'); feintRead(E, bx, by); if (sw.sawFake) state.switchReads++; }
     state.mem.blocks.push({ z: sw.zone.id, t: state.m }); if (state.mem.blocks.length > 6) state.mem.blocks.shift();
@@ -3034,9 +3161,11 @@ function resolveOne(E, sw) {
       state.stamina = Math.max(0, state.stamina - drain); state.lastAtk = state.m;
       if (bash) { if (!noPush()) state.pushT = 0.2; pushFoe(E); } else if (pounce) pushFoe(E);
       clangSound(E, 0); shake(E, 6, 0.15); E.haptic(22); state.stop = Math.max(state.stop, 0.06);
-      if (thru > 0) { state.hp -= thru; state.shatter = { i: Math.max(0, Math.ceil(state.hp)), n: Math.min(thru, Math.ceil(state.hp + thru)), t: TUNING.juice.shatter }; state.hurt = 0.25; E.flash('#ff2a2a', 0.12); if (state.hp <= 0) { state.hp = 0; state.endT = 1.0; state.results[state.rack] = 'lost'; } }
+      if (thru > 0) { state.hp -= thru; state.shatter = { i: Math.max(0, Math.ceil(state.hp)), n: Math.min(thru, Math.ceil(state.hp + thru)), t: TUNING.juice.shatter }; state.hurt = 0.25; E.flash('#ff2a2a', 0.12); youDown(E); }
     } else {
-      sh.hits -= bash ? 1 : W.wear;
+      // Shield Drill: every nth block wears it nothing
+      state.drillN = (state.drillN || 0) + 1;
+      if (trait('thrace') && state.drillN % TUNING.origins.thrace.every === 0) tagPop(E, 'thrace', 'SHIELD DRILL'); else sh.hits -= bash ? 1 : W.wear;
       const drain = (bash ? BM.drain * BM.blocked : W.drain) * steadyMul();
       if (drain) { state.stamina = Math.max(0, state.stamina - drain); state.lastAtk = state.m; pop(bx, by - 70, 'DRAINED', '#fca5a5', 14); }
       if (bash) { if (!noPush()) state.pushT = 0.2; pushFoe(E); } else if (pounce) pushFoe(E);
@@ -3075,6 +3204,7 @@ function resolveOne(E, sw) {
   const part = state.you.parts.find((q) => q.d.id === ZONE_PART[sw.zone.id]), plated = !!(part && part.armour), jugg = has('jugg') && (state.you.lungeK > 0.5 || driving());
   const dmg = Math.ceil((state.disarm > 0 ? Math.min(sw.dmg, TUNING.cards.fist) : sw.dmg) / (plated ? TUNING.me.plateDiv : 1) * (jugg ? TUNING.cards.jugg : 1));
   sw.outcome = 'hit'; state.hp -= dmg; state.taken++; state.hurt = plated ? 0.25 : 0.4; if (sw.counter) state.counterHits++;
+  if (mv && mv.sig) mv.hit = true;
   if (pounce && !noPush()) { state.pushT = 0.3; pushYou(E); }
   // you recoil, and the heart that took it shatters on the HUD
   state.you.a -= TUNING.juice.recoil; state.shatter = { i: Math.max(0, Math.ceil(state.hp)), n: Math.min(dmg, Math.ceil(state.hp + dmg)), t: TUNING.juice.shatter };
@@ -3085,9 +3215,11 @@ function resolveOne(E, sw) {
   E.flash('#ff2a2a', plated ? 0.15 : 0.3); shake(E, 12 + 4 * sw.dmg, 0.35); E.haptic(50 + 20 * sw.dmg);
   E.audio.play('boom'); E.audio.play('lose', 0.5);
   // his ordinary blow gets its flash and sound; a word for a fake that fooled you, Juggernaut, or 2 or more hearts actually lost
-  if (jugg || feint || dmg >= 2) pop(Fy.x, zy - (plated ? 70 : 40), jugg ? 'JUGGERNAUT' : feint ? 'FEINTED!' : plated ? 'PLATE TOOK IT' : `OUCH x${dmg}`, jugg || plated ? '#cbd5e1' : '#ff5a4a', 30 + 4 * dmg);
+  // a signature that lands shows only its name over the blow (step 20)
+  if (mv && mv.sig) pop(Fy.x, zy - 44, SIG_NAME[mv.sig], '#ff5a4a', TUNING.sigFx.miss);
+  else if (jugg || feint || dmg >= 2) pop(Fy.x, zy - (plated ? 70 : 40), jugg ? 'JUGGERNAUT' : feint ? 'FEINTED!' : plated ? 'PLATE TOOK IT' : `OUCH x${dmg}`, jugg || plated ? '#cbd5e1' : '#ff5a4a', 30 + 4 * dmg);
   if (!jugg) { state.hand.lock = Math.max(state.hand.lock, 0.2); state.hand.hvx = -200; state.hand.hvy = 120; state.hand.atk = null; }
-  if (state.hp <= 0) { state.hp = 0; state.endT = 1.0; state.results[state.rack] = 'lost'; }
+  youDown(E);
 }
 // a dodge in his tell (a backstep begun in it, ground given, or his blow on your ghost); a feint's tell counts only after the switch
 function tellDodge(E, sw) {
@@ -3225,7 +3357,7 @@ function disarmFoe(E, dur) {
   const Ff = foeF(E); pop(Ff.x, Ff.y - 1.3 * Ff.H, 'DISARMED!', '#e879f9', 26); shake(E, 6, 0.2); E.haptic(30); clangSound(E, 0);
 }
 // the perfect-block window, doubled by Iron Wall
-const perfectWin = () => TUNING.shield.perfect * (has('ironwall') ? 2 : 1) * growth('phalanx', 'wall', C_().phalanx);
+const perfectWin = () => TUNING.shield.perfect * (has('ironwall') ? 2 : 1) * growth('phalanx', 'wall', C_().phalanx) * (trait('sparta') ? TUNING.origins.sparta.perfect : 1);
 const atWall = (E) => state.foot.pos <= walls(E).back + 0.01;
 
 // ----- finishers: the button at the bottom right spends Momentum on the costliest one you hold and can use now (an arrow on it cycles to the other) -----
@@ -3325,6 +3457,7 @@ const netMul = (k) => (state.foeNet > 0 ? k : 1);
 function favour(E, n) {
   const C = TUNING.crowd;
   if (n > 0) n *= growth('idol', 'show', C_().idolFav);
+  if (n > 0 && drives('glory')) { n *= TUNING.reasons.glory.fav; tagPop(E, 'glory', 'LOUDER', true); }
   state.fav = clamp(state.fav + n, 0, C.max);
   if (n > 0) { state.favT = 0.5; state.favM = state.m; }
   const step = Math.floor(state.fav / C.step);
@@ -3502,6 +3635,8 @@ function boutGold() {
   const items = [['fell', G.fell], ['fakes spotted', c(raw[1])], ['well-timed blocks', c(raw[2])], ['gap hits', c(raw[3])], ['no hits', c(raw[4])]];
   // the crowd pays a share of the bout's un-halved gold by its mood as the bout ends; the Darling's halving is applied to it once
   items.push(['crowd', c(raw.reduce((a, v) => a + v, 0) * TUNING.crowd.pay * state.fav / TUNING.crowd.max * growth('idol', 'show', C_().idolGold))]);
+  // Every Win Pays: a share more of all of it
+  if (drives('debt')) items.push(['every win pays', Math.round(items.reduce((a, e) => a + e[1], 0) * (TUNING.reasons.debt.gold - 1))]);
   const kept = items.filter((e) => e[1] > 0);
   return { sum: kept.reduce((a, e) => a + e[1], 0), items: kept };
 }
@@ -3606,11 +3741,25 @@ function pickCard(E, c) {
   // every card ever picked can fill the training ground's start-card slot
   const seen = E.save.get('picked', []); if (!c.duo && !seen.includes(c.id)) E.save.set('picked', [...seen, c.id]);
   E.audio.play('tap'); E.haptic(15);
+  afterDraft(E, d);
+}
+// the draft closes: the tent once, the bandages before the champion, else the next bout
+function afterDraft(E, d) {
   if (d && d.spoil && d.spoil.took) state.spoils++;
   state.draft = null;
   if (state.rack + 1 === TUNING.tent.after && !state.tentDone) { openTent(E); return; }
   if (bandageDue()) { openBandage(E); return; }
   state.rack++; newRack(E); poseFoe(E, 0.016);
+}
+// Step 19, Skip: no card, and gold instead, rising from skip[0] after bout 1 to skip[1] for the run's last draft (the one before the champion)
+const skipPay = () => { const [a, b] = TUNING.draft.skip, n = Math.max(1, state.gauntlet.length - 2); return Math.round(a + (b - a) * clamp(state.rack / n, 0, 1)); };
+function skipDraft(E) {
+  const d = state.draft;
+  if (!d) return;
+  const pay = skipPay();
+  state.gold += pay; state.goldEarned += pay; state.skips++;
+  E.audio.play('coin'); E.haptic(15);
+  afterDraft(E, d);
 }
 // the run's one token, spent on the draft: three new cards
 function rerollDraft(E) {
@@ -4066,14 +4215,9 @@ function sayLines(ctx, E, lines, cx, y, lh, w, o, pic, s = TUNING.art.face) {
   return { bottom: mid + fs / 2 };
 }
 const sayLine = (ctx, E, t, cx, y, w, o, pic, s) => sayLines(ctx, E, [t], cx, y, 0, w, o, pic, s);
-// Old Brutus's line on a bout card: his face (a card's size) kept TUNING.art.gap clear of the reason's banner above it; returns the y a line below
-// him must not go above (the card grows by TUNING.art.cardDrop with his face on, see cardGrow).
+// Old Brutus's face on a bout card (the card grows by TUNING.art.cardDrop with it on, see cardGrow)
 const brutusFaceOn = () => !!artImg('brutus');
 const cardGrow = () => (brutusFaceOn() ? TUNING.art.cardDrop : 0);
-function brutusCardLine(ctx, E, cx, y, tb, w, thread, below) {
-  const A = TUNING.art, fb = sayLine(ctx, E, `Old Brutus: \u201c${brutusIntro()}\u201d`, cx, y + tb + 10, w - 28, { size: 14, fit: true, weight: '700', color: '#fde68a', minTop: y + tb + (thread ? A.gap - 3 : -3) }, 'brutus', A.faceCard);
-  return fb ? Math.max(below, fb.bottom + A.gap + 9) : below;
-}
 // The kit: a man's look with the kit on, his muscle tier by Strength, whether he is you, and his painted pieces (step 6b: his type's helmet and shield,
 // the leg wraps of the types that wear them), all in the look's id, so his sprites repaint only when one of them changes; cached on the look
 const KIT_HELM = { murmillo: 'murmillo', hoplo: 'thraex', open: 'secutor', cap: 'gallic' };
@@ -5369,22 +5513,37 @@ function slotLight(ctx, F, p, H, fm) {
 // ----- the fighters on screen: his health bar, limbs, held kit and weapons, the whole body, your sword arm and shield -----
 // The right HUD's rows below the hearts (px from the top): Momentum pips, stamina, the shield
 const HUD_ROW = { pips: 35, sta: 46, shield: 66 };
-// the rows with each row of hearts past the first (more than hud.perRow of them) pushing each down
-const hudRow = () => {
-  const d = Math.max(0, Math.ceil(state.maxHp / TUNING.hud.perRow) - 1) * TUNING.hud.rowGap;
-  return { pips: HUD_ROW.pips + d, sta: HUD_ROW.sta + d, shield: HUD_ROW.shield + d };
-};
-// Heart i of your health, drawn on the right of the HUD: rows of up to hud.perRow, each under the one before (px)
-function heartAt(E, i) {
-  const H = TUNING.hud, cols = Math.min(state.maxHp, H.perRow), c = i % H.perRow;
-  return [E.w - 16 - E.safe.right - 10 - (cols - 1 - c) * H.heart, 10 + E.safe.top + 14 + Math.floor(i / H.perRow) * H.rowGap];
-}
-function drawHeart(ctx, x, y, s, col) {
+// (step 20: one heart and a count, so a giant's hearts take a runt's room)
+const hudRow = () => HUD_ROW;
+// your one heart on the HUD's right (px)
+const heartAt = (E) => [E.w - 16 - E.safe.right - 12, 10 + E.safe.top + 14];
+function heartPath(ctx, x, y, s) {
   const u = s / 2;
   ctx.beginPath(); ctx.moveTo(x, y + 0.95 * u);
   ctx.bezierCurveTo(x - 1.35 * u, y - 0.05 * u, x - 0.85 * u, y - 1.05 * u, x, y - 0.4 * u);
   ctx.bezierCurveTo(x + 0.85 * u, y - 1.05 * u, x + 1.35 * u, y - 0.05 * u, x, y + 0.95 * u);
+}
+function drawHeart(ctx, x, y, s, col) {
+  heartPath(ctx, x, y, s);
   ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = 'rgba(20,8,8,0.7)'; ctx.lineWidth = 1.2; ctx.stroke();
+}
+// Your hearts: one heart whose red drains from the top like a glass as you lose health, and "14 / 18" beside it. A hit shakes the heart and flashes the
+// count red; a heal pulses both green (state.heartFx, set as your health moves in play.update).
+function drawHudHeart(ctx, E) {
+  const H = TUNING.hud, fx = state.heartFx, u = fx ? fx.t / fx.max : 0, hit = fx && fx.kind === 'hit', heal = fx && fx.kind === 'heal';
+  let [x, y] = heartAt(E);
+  if (hit) { x += Math.sin(fx.t * 70) * H.shake * u; y += Math.cos(fx.t * 55) * H.shake * 0.5 * u; }
+  const s = H.size * (heal ? 1 + 0.18 * Math.sin(u * Math.PI) : 1), k = clamp(state.hp / state.maxHp, 0, 1), top = y - 0.55 * s, bot = y + 0.5 * s;
+  heartPath(ctx, x, y, s); ctx.fillStyle = '#3b2a2e'; ctx.fill();
+  ctx.save(); heartPath(ctx, x, y, s); ctx.clip();
+  const ly = bot - (bot - top) * k, g = ctx.createLinearGradient(0, ly, 0, bot);
+  g.addColorStop(0, heal ? '#86efac' : '#f87171'); g.addColorStop(1, '#b91c1c');
+  ctx.fillStyle = g; ctx.fillRect(x - s, ly, 2 * s, bot - ly + 2);
+  if (k > 0 && k < 1) { ctx.fillStyle = 'rgba(255,220,210,0.55)'; ctx.fillRect(x - s, ly, 2 * s, 1.5); }
+  ctx.restore();
+  heartPath(ctx, x, y, s); ctx.strokeStyle = heal ? `rgba(134,239,172,${0.5 + 0.5 * u})` : 'rgba(20,8,8,0.8)'; ctx.lineWidth = heal ? 2.5 : 1.4; ctx.stroke();
+  const col = hit && u > 0.2 ? (Math.floor(fx.t * 14) % 2 ? '#ffffff' : '#ef4444') : heal ? '#86efac' : '#f0e6cc';
+  E.text(`${Math.ceil(state.hp)} / ${state.maxHp}`, x - 0.75 * H.size, y + 1, { size: H.num, weight: '800', align: 'right', color: col });
 }
 // Momentum: five pips under your hearts, gold when held, the next pip's gain flashing
 function drawPips(ctx, E, bx, bw, y) {
@@ -5406,8 +5565,8 @@ function drawPips(ctx, E, bx, bw, y) {
 }
 // The HUD's middle: between BOUT on the left and your hearts, stamina and shield on the right, so his bar never meets their labels.
 function hudSlot(E) {
-  const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right, H = TUNING.hud;
-  const x0 = l + 112, x1 = Math.min(E.w - r - 110 - 96, E.w - r - 10 - (Math.min(state.maxHp, H.perRow) - 1) * H.heart - H.size / 2) - 10;
+  const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right;
+  const x0 = l + 112, x1 = E.w - r - 110 - 96 - 10;
   return { top, x0, x1, cx: (x0 + x1) / 2, w: x1 - x0 };
 }
 // His name, health and stamina bars in the HUD slot, and under them his flag: OPEN! while winded, your riposte, or his short opening after a move.
@@ -5766,6 +5925,37 @@ function blinkGhosts(ctx, E) {
   const C = TUNING.champs.hermes, Ff = foeF(E), sw = state.sw, k = sw.spring ? 1 : clamp(sw.t / (sw.springAt * 0.6), 0, 1);
   for (const sd of [-1, 1]) drawFighter(ctx, E, { ...Ff, x: Ff.x + sd * C.blur[0] * Ff.H * (0.7 + 0.3 * Math.sin(state.m * 40 + sd)) }, state.foe, 'edge', C.blur[1] * k);
 }
+// step 20: the Capuan fake's violet ghosts of his wind-up, either side of him; the Blink's white streaks behind his dash; a four-point glint
+function capuanGhosts(ctx, E) {
+  const X = TUNING.sigFx, Ff = foeF(E), sw = state.sw, k = clamp(sw.t / (sw.wind * 0.3), 0, 1);
+  for (const sd of [-1, 1]) drawFighter(ctx, E, { ...Ff, x: Ff.x + sd * X.ghost[0] * Ff.H * (1 + 0.4 * Math.sin(state.m * 14 + sd)) }, state.foe, 'edge', X.ghost[1] * k);
+}
+function blinkStreaks(ctx, E) {
+  const X = TUNING.sigFx, Ff = foeF(E), sw = state.sw, u = clamp(1 - (sw.wind - sw.t) / Math.max(0.05, sw.wind - sw.springAt), 0, 1);
+  ctx.save(); ctx.lineCap = 'round';
+  for (let i = 0; i < X.streaks; i++) {
+    const y = Ff.y - (0.2 + 0.65 * i / (X.streaks - 1)) * Ff.H, x0 = Ff.x + 0.12 * Ff.H, len = X.len * Ff.H * (0.6 + 0.4 * Math.sin(i * 2.3 + 1)), g = ctx.createLinearGradient(x0, 0, x0 + len, 0);
+    g.addColorStop(0, `rgba(255,255,255,${0.95 * (1 - 0.5 * u)})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.strokeStyle = g; ctx.lineWidth = Math.max(3, 0.022 * Ff.H); line(ctx, x0, y, x0 + len, y);
+  }
+  ctx.restore();
+}
+function spearGlint(ctx, x, y, r) {
+  if (r <= 1) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,250,220,0.95)';
+  for (const [a, b] of [[r, r * 0.16], [r * 0.16, r]]) { ctx.beginPath(); ctx.ellipse(x, y, a, b, 0, 0, TAU); ctx.fill(); }
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r * 0.7); g.addColorStop(0, 'rgba(255,240,180,0.8)'); g.addColorStop(1, 'rgba(255,240,180,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+// the punish window after an answer, lit: a gold edge round the screen and a draining gold bar over his name, while he is open or unarmed
+function readGlow(ctx, E) {
+  if (!(state.readT > 0) || !(state.winded > 0 || state.disarm > 0)) return;
+  const k = clamp(state.readT / (state.readMax || 1), 0, 1), a = 0.35 + 0.2 * Math.sin(state.m * 10), S = hudSlot(E), w = Math.min(160, S.w - 20);
+  ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${a})`; ctx.lineWidth = 8; ctx.strokeRect(4, 4, E.w - 8, E.h - 8); ctx.restore();
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(S.cx - w / 2 - 1, S.top + 33, w + 2, 7);
+  ctx.fillStyle = '#ffd24a'; ctx.fillRect(S.cx - w / 2, S.top + 34, w * k, 5);
+}
 const spearLen = (H) => (TUNING.weapons.find((w) => w.id === 'spear').len + TUNING.kit.weapon.spear.tip) * H;
 function drawSpear(ctx, H, tip, u) {
   const L = spearLen(H), A = [tip[0] - u[0] * L, tip[1] - u[1] * L];
@@ -5852,6 +6042,12 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
     g.addColorStop(0, `rgba(239,48,32,${k})`); g.addColorStop(1, 'rgba(239,48,32,0)');
     ctx.fillStyle = g; ctx.fillRect(-0.7 * H, -1.25 * H, 1.4 * H, 1.45 * H);
   }
+  // step 20: a Capuan fake winds up in a violet haze
+  if (rsw && rsw.dud && rsw.fin <= 0) {
+    const k = 0.6 + 0.15 * Math.sin(state.m * 18), g = ctx.createRadialGradient(0, -0.6 * H, 10, 0, -0.6 * H, 0.62 * H);
+    g.addColorStop(0, `rgba(167,139,250,${k})`); g.addColorStop(1, 'rgba(167,139,250,0)');
+    ctx.fillStyle = g; ctx.fillRect(-0.7 * H, -1.25 * H, 1.4 * H, 1.45 * H);
+  }
   const sc = live && state.pop < 1 ? 0.85 + 0.15 * (1 - state.pop) : 1;
   ctx.scale(sc, sc);
   ctx.globalAlpha = ga * (live && state.pop < 1 ? 1 - state.pop * 0.7 : 1);
@@ -5888,6 +6084,8 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
     const thrown = sw && sw.kind === 'throw' && (sw.thrown || sw.fin > 0);
     if (sw && sw.kind === 'throw' && !thrown && sw.grip) { ctx.translate(0, ARM_LEN * H); ctx.rotate(sw.grip); ctx.translate(0, -ARM_LEN * H); }
     if (sw && sw.pose === 'net' && sw.fin <= 0) drawNet(ctx, 0, (ARM_LEN + 0.05) * H, 0.1 * H); else if ((!live || state.disarm <= 0) && !thrown) drawWeapon(ctx, fm, H, under);
+    // step 20: the spearhead glints as she draws it back
+    if (live && sw && sw.kind === 'throw' && !thrown && sw.fin <= 0) spearGlint(ctx, 0, (ARM_LEN + fm.weapon.len) * H, TUNING.sigFx.glint * clamp(sw.t / (sw.wind * 0.4), 0, 1) * (0.8 + 0.2 * Math.sin(state.m * 30)));
     ctx.restore();
     if (under) drawPart(ctx, E, P('armF'), H, lk, fr);
     if (live && sw && sw.puppet && sw.fin <= 0) puppetStrings(ctx, fm, H);
@@ -6796,21 +6994,33 @@ function drawDraft(ctx, E) {
     return { x, y, w, h, card: c };
   });
   const by = Math.min(E.h - E.safe.bottom - 30, y + h + 32);
+  // the row under the cards, centred: the spoils (when there are any), Skip, Reroll, "?" and Wearing
+  const [kw, kh] = D.skipBtn, rw = 150, gp = 10, row = kw + rw + 48 + 104 + 3 * gp, room = E.w - 24 - E.safe.left - E.safe.right;
+  const S = d.spoil, lab = S ? (S.took ? `Keep your ${spoilName(S.mine[0], S.mine[1])}` : `Take ${S.her ? 'her' : 'his'} ${spoilName(S.w, S.mace)}`) : '';
+  const sfs = S ? fitSize(ctx, lab, 16, Math.max(96, room - row - gp - 20)) : 0, sw0 = S ? (ctx.font = `800 ${sfs}px system-ui, sans-serif`, Math.min(Math.max(120, ctx.measureText(lab).width + 24), room - row - gp)) : 0;
+  let rx = (E.w - row - (S ? sw0 + gp : 0)) / 2;
+  const sx = rx; if (S) rx += sw0 + gp;
+  // Skip: no card, its gold on the button
+  ctx.globalAlpha = ready ? 1 : 0.5;
+  d.skip = { x: rx, y: by - kh / 2, w: kw, h: kh };
+  E.roundRect(d.skip.x, d.skip.y, kw, kh, 14, '#3a2a14', '#fbbf24');
+  E.text(`Skip +${skipPay()}`, rx + kw / 2, by, { size: fitSize(ctx, `Skip +${skipPay()}`, 17, kw - 12), weight: '800', color: '#fde68a' });
+  ctx.globalAlpha = 1;
+  rx += kw + gp;
   // the token's state is drawn (lit or grey); its count is written only when there are two or more
-  d.reroll = tokenButton(E, 'Reroll', E.w / 2 - 30, by, state.token, true, state.token > 1 ? `${state.token} left` : '');
-  d.help = { x: E.w / 2 + 66, y: by - 24, w: 48, h: 48 };
+  d.reroll = tokenButton(E, 'Reroll', rx + rw / 2, by, state.token, true, state.token > 1 ? `${state.token} left` : '', rw);
+  rx += rw + gp;
+  d.help = { x: rx, y: by - 24, w: 48, h: 48 };
   E.roundRect(d.help.x, d.help.y, 48, 48, 24, '#1f2937', '#c4b99a');
   E.text('?', d.help.x + 24, by, { size: 22, weight: '800', color: '#f0e6cc' });
   // Wearing: the inventory, what you wear (a card tapped shows its swap there)
-  d.wear = { x: d.help.x + 58, y: by - 22, w: 104, h: 44 };
+  d.wear = { x: d.help.x + 48 + gp, y: by - 22, w: 104, h: 44 };
   E.roundRect(d.wear.x, d.wear.y, d.wear.w, d.wear.h, 12, '#1f2937', '#c4b99a');
   E.text('Wearing', d.wear.x + d.wear.w / 2, by, { size: 16, weight: '800', color: '#f0e6cc' });
-  // the spoils, left of "Pick one": take his weapon, or keep yours
+  // the spoils, leftmost: take his weapon, or keep yours
   d.spoilBtn = null;
-  if (d.spoil) {
-    const S = d.spoil, lab = S.took ? `Keep your ${spoilName(S.mine[0], S.mine[1])}` : `Take ${S.her ? 'her' : 'his'} ${spoilName(S.w, S.mace)}`;
-    const right = E.w / 2 - 127, left = E.safe.left + 12, fs = fitSize(ctx, lab, 16, right - left - 20), tw = (ctx.font = `800 ${fs}px system-ui, sans-serif`, ctx.measureText(lab).width);
-    const bw = Math.min(right - left, Math.max(120, tw + 24)), b = { x: right - bw, y: by - 22, w: bw, h: 44 };
+  if (S) {
+    const fs = sfs, b = { x: sx, y: by - 22, w: sw0, h: 44 };
     ctx.globalAlpha = ready ? 1 : 0.5;
     E.roundRect(b.x, b.y, b.w, b.h, 12, S.took ? '#3a2a14' : '#5a3a12', S.took ? '#c4b99a' : '#fbbf24');
     E.text(lab, b.x + b.w / 2, by, { size: fs, weight: '800', color: S.took ? '#e2d6b8' : '#fde68a' });
@@ -6850,10 +7060,10 @@ function nextUp(g) {
 // what the fight's bars are called
 function drawBoutHelp(ctx, E, d) {
   const w = Math.min(E.w - 32, 620), x = (E.w - w) / 2, tw = w - 28, t = d.tally, o = TUNING.draft.odds[d.grade], sure = TUNING.draft.sure[d.grade] || 0, ep = freeEpic(), pct = o.map((v) => Math.round(v / (o[0] + o[1]) * 100)), g = d.gold;
-  const thrown = g ? g.items.filter((e) => e[0] !== 'fell') : [], tsum = thrown.reduce((a2, e) => a2 + e[1], 0);
+  const thrown = g ? g.items.filter((e) => e[0] !== 'fell' && e[0] !== 'every win pays') : [], tsum = thrown.reduce((a2, e) => a2 + e[1], 0), pays = g ? (g.items.find((e) => e[0] === 'every win pays') || [0, 0])[1] : 0;
   const rows = [
     [`${t.slot} gap hits  \u00b7  ${t.read} fakes spotted  \u00b7  ${t.pun} punishes  \u00b7  ${t.taken} hits taken`, '#e2e8f0'],
-    ...(g ? [[`+${g.sum} gold (fell ${g.sum - tsum}${tsum ? `, the crowd threw ${tsum}: ${thrown.map((e) => `${e[0]} ${e[1]}`).join(', ')}` : ''})`, '#fbbf24']] : []),
+    ...(g ? [[`+${g.sum} gold (fell ${g.sum - tsum - pays}${tsum ? `, the crowd threw ${tsum}: ${thrown.map((e) => `${e[0]} ${e[1]}`).join(', ')}` : ''}${pays ? `, Every Win Pays ${pays}` : ''})`, '#fbbf24']] : []),
     [`Purse ${state.gold}  \u00b7  Grade ${d.grade}: Common ${pct[0]}% \u00b7 Rare ${pct[1]}%${ep ? ` \u00b7 Epic ${Math.round(ep * 100)}% a card` : ''}${sureEpic(d.grade) ? ' \u00b7 at least 1 Epic' : sure ? ` \u00b7 at least ${sure} Rare` : ''}`, '#fbbf24'],
     ...(nextUp(d.grade) ? [[nextUp(d.grade), '#fde68a']] : []),
     [`Reroll: ${state.token > 0 ? `${state.token} left` : 'used'}`, '#c4b5fd'],
@@ -6954,13 +7164,19 @@ function drawBandage(ctx, E) {
   const tt = state.tent, top = E.safe.top + 20, ready = tt.t > TUNING.draft.delay, price = TUNING.tent.bandage, full = state.hp >= state.maxHp, short = !full && state.gold < price;
   ctx.fillStyle = 'rgba(10,8,14,0.86)'; ctx.fillRect(0, 0, E.w, E.h);
   E.text('BANDAGES', E.w / 2, top, { size: 22, weight: '800', color: '#e6c866' });
-  sayLine(ctx, E, `Old Brutus: “The champion is next. Mend first: ${price} gold a heart.”`, E.w / 2, top + 26, E.w - 32, { size: 14, weight: '700', color: '#fde68a', fit: true }, 'brutus');
+  // step 20: under half your hearts, Brutus nudges you and the bandage row glows (nothing is bought for you)
+  const nudge = !full && state.hp < state.maxHp * TUNING.tent.nudge;
+  sayLine(ctx, E, nudge ? 'Old Brutus: “Patch yourself up. He won\u2019t wait.”' : `Old Brutus: “The champion is next. Mend first: ${price} gold a heart.”`, E.w / 2, top + 26, E.w - 32, { size: nudge ? 16 : 14, weight: nudge ? '800' : '700', color: '#fde68a', fit: true }, 'brutus');
   E.text(`Your purse: ${state.gold} gold`, E.w / 2, top + 50, { size: 16, weight: '800', color: '#fbbf24' });
   const n = state.maxHp, hs = Math.min(26, (E.w - 64) / n), hy = top + 78;
   for (let i = 0; i < n; i++) drawHeart(ctx, E.w / 2 + (i - (n - 1) / 2) * hs, hy, Math.min(22, hs - 3), i < state.hp ? '#ef4444' : '#3b2a2e');
   const w = Math.min(240, E.w - 64), h = Math.min(120, E.h - E.safe.bottom - hy - 96), x = (E.w - w) / 2, y = hy + 22;
+  if (nudge && ready) {
+    const k = 0.5 + 0.5 * Math.sin(tt.t * 5);
+    ctx.save(); ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 14 + 12 * k; E.roundRect(x - 4, y - 4, w + 8, h + 8, 17, null, `rgba(255,210,74,${0.6 + 0.4 * k})`); ctx.restore();
+  }
   ctx.globalAlpha = !ready ? 0.6 : full || short ? 0.5 : 1;
-  E.roundRect(x, y, w, h, 14, '#2a2016', full ? '#4ade80' : '#c4b99a');
+  E.roundRect(x, y, w, h, 14, nudge ? '#3a2a14' : '#2a2016', full ? '#4ade80' : nudge ? '#ffd24a' : '#c4b99a');
   const r = Math.min(20, h * 0.18);
   drawWare(ctx, 'heart', x + w / 2, y + 12 + r, r);
   E.text(full ? 'Mended' : 'A bandage', x + w / 2, y + 26 + 2 * r, { size: 17, weight: '800', color: '#f0e6cc' });
@@ -7008,8 +7224,8 @@ function labTap(E, p) {
   E.audio.play('tap');
 }
 // The run's one token: Respin on the fighter card, Reroll on a draft. Lit with "1 left" while it is unspent, grey once spent (a draft's Reroll writes the count only from two up; the "?" has it).
-function tokenButton(E, label, cx, cy, n, on = true, sub = null) {
-  const left = n > 0, live = left && on, w = 170, h = 48, x = cx - w / 2, y = cy - h / 2;
+function tokenButton(E, label, cx, cy, n, on = true, sub = null, w = 170) {
+  const left = n > 0, live = left && on, h = 48, x = cx - w / 2, y = cy - h / 2;
   E.roundRect(x, y, w, h, 14, live ? '#7c3aed' : left ? '#3b2d55' : '#2a2a30', live ? '#c4b5fd' : 'rgba(160,160,170,0.35)');
   const sl = sub === '' ? '' : sub || (left ? `${n} left` : 'used');
   E.text(label, cx, sl ? cy - 8 : cy, { size: 17, weight: '800', color: live ? '#ffffff' : '#8a8f99' });
@@ -7215,16 +7431,172 @@ function champBust(ctx, E, d, x, y) {
   const pic = champPic(d), [bw, bh, g] = TUNING.art.bust;
   return pic && drawPic(ctx, E, pic, [0, 0, 1, 1], x + g, y + g, bw, bh, '#ffd24a') ? bw + g : 0;
 }
+// ----- step 20, the slim bout card: six things and a "?" -----
+// A name in stamped metal: Roman capitals, wide letter spacing, a soft shadow, a dark edge, the metal's gradient and a light edge along its top (as the
+// menu's title); painted once per name, size, metal and screen into a sprite
+const METAL = { bronze: ['#fff0c4', '#e4b264', '#a8742c', '#6a4516'], gold: ['#fffbe0', '#ffe27a', '#d4a017', '#7a5a08'], blood: ['#ffd6cc', '#f0614f', '#a61b1b', '#4a0a0a'] };
+const NAME_SPR = new Map();
+const romanFont = (size) => `700 ${size}px Georgia, 'Times New Roman', serif`;
+function nameWidth(ctx, t, size) { ctx.font = romanFont(size); return ctx.measureText(t).width + (t.length - 1) * size * TUNING.card.spacing; }
+function paintName(c, t, x, y, size, metal) {
+  const M = METAL[metal], gap = size * TUNING.card.spacing, ch = [...t];
+  c.font = romanFont(size); c.textBaseline = 'middle'; c.textAlign = 'left'; c.lineJoin = 'round';
+  const ws = ch.map((q) => c.measureText(q).width), tw = ws.reduce((a, q) => a + q, 0) + gap * (ch.length - 1);
+  const each = (fn) => { let xx = x - tw / 2; ch.forEach((q, i) => { fn(q, xx); xx += ws[i] + gap; }); };
+  c.save(); c.shadowColor = 'rgba(0,0,0,0.75)'; c.shadowBlur = size * 0.18; c.shadowOffsetY = size * 0.07; c.fillStyle = M[3]; each((q, xx) => c.fillText(q, xx, y)); c.restore();
+  c.lineWidth = Math.max(2, size * 0.09); c.strokeStyle = '#1a0f04'; each((q, xx) => c.strokeText(q, xx, y));
+  const g = c.createLinearGradient(0, y - size * 0.42, 0, y + size * 0.42);
+  g.addColorStop(0, M[0]); g.addColorStop(0.38, M[1]); g.addColorStop(0.62, M[2]); g.addColorStop(1, M[3]);
+  c.fillStyle = g; each((q, xx) => c.fillText(q, xx, y));
+  c.lineWidth = 1; c.strokeStyle = 'rgba(255,240,200,0.55)'; each((q, xx) => c.strokeText(q, xx, y - 1));
+}
+// the name centred on (cx, cy), shrunk until it fits maxW; returns the size drawn
+function stampName(ctx, E, t, cx, cy, size, metal, maxW) {
+  while (size > 16 && nameWidth(ctx, t, size) > maxW) size--;
+  if (!canSprite) { paintName(ctx, t, cx, cy, size, metal); return size; }
+  const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), key = `${t}|${size}|${metal}|${k}`;
+  let sp = NAME_SPR.get(key);
+  if (!sp) {
+    const w = Math.ceil(nameWidth(ctx, t, size) + size), h = Math.ceil(size * 1.7), cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
+    c.scale(k, k); paintName(c, t, w / 2, h / 2, size, metal);
+    sp = { cv, w, h };
+    if (NAME_SPR.size > 16) NAME_SPR.clear();
+    NAME_SPR.set(key, sp);
+  }
+  ctx.drawImage(sp.cv, cx - sp.w / 2, cy - sp.h / 2, sp.w, sp.h);
+  return size;
+}
+// a line of coloured pieces at x (left, or centred when center), joined by sep, at the largest size from size down to 14 that fits w; past that the last
+// piece is cut
+function segLine(ctx, E, segs, x, y, w, size, o = {}) {
+  const sep = o.sep ?? ' \u00b7 ', wt = o.weight || '800', parts = segs.filter((q) => q && q[0]);
+  const width = (sz) => { ctx.font = `${wt} ${sz}px system-ui, sans-serif`; return parts.reduce((a, q, i) => a + ctx.measureText(q[0]).width + (i ? ctx.measureText(sep).width : 0), 0); };
+  let sz = size; while (sz > 14 && width(sz) > w) sz--;
+  if (width(sz) > w && parts.length) { const last = parts[parts.length - 1], rest = width(sz) - (ctx.font = `${wt} ${sz}px system-ui, sans-serif`, ctx.measureText(last[0]).width); parts[parts.length - 1] = [clipLine(ctx, last[0], Math.max(20, w - rest), sz, wt), last[1]]; }
+  let xx = o.center ? x - Math.min(w, width(sz)) / 2 : x;
+  ctx.font = `${wt} ${sz}px system-ui, sans-serif`;
+  parts.forEach((q, i) => {
+    if (i) { E.text(sep, xx, y, { size: sz, weight: wt, align: 'left', color: '#8a8f99' }); xx += ctx.measureText(sep).width; }
+    E.text(q[0], xx, y, { size: sz, weight: wt, align: 'left', color: q[1] }); ctx.font = `${wt} ${sz}px system-ui, sans-serif`; xx += ctx.measureText(q[0]).width;
+  });
+}
+const titleCase = (t) => t.toLowerCase().replace(/(^|[\s-])\S/g, (c) => c.toUpperCase());
+const SIG_TITLE = { rage: 'Red Rage', capuan: 'Capuan Feint', blink: 'Blink', throw: "Huntress's Throw", twin: 'Two Blades' };
+// his weapon as the threat line names it, and his style (his profile's line, without its stop)
+const weaponWord = (d) => titleCase(d.beast ? BEASTS[d.beast].name : (d.weapon.alt && d.mace ? d.weapon.alt : d.weapon.name).split(' & ')[0]);
+const styleOf = (d) => (PROFILES[d.prof] || PROFILES.balanced).line.replace(/\.$/, '');
+// 3. one threat line: size, weapon and style; two blades, a shield or a beast's barding as one word
+const threatSegs = (d) => [[titleCase(d.size.name), '#fde68a'], [weaponWord(d), '#f0e6cc'], [d.beast ? (d.armour ? 'Barded' : '') : d.dual ? 'Dual' : d.shield ? 'Shield' : '', '#f0e6cc'], [styleOf(d), '#cbd5e1']];
+// 5. the watch-for line: a champion's signature by name only (never how to answer it), else the first of his gear that acts, in red, else nothing
+function watchSegs(fs) {
+  for (const f of fs) { const C = sigOf(f); if (C) return [['Signature:', '#c4b99a'], [SIG_TITLE[C.sig], '#fca5a5']]; }
+  for (const f of fs) { const c = (f.gear || []).map((id) => CARD[id]).find((q) => FOE_TELL[q.id]); if (c) return [[`${c.gear}:`, '#f87171'], [FOE_TELL[c.id](), '#fca5a5']]; }
+  return null;
+}
+// your reason's thread, folded into Brutus's line in a few words (revenge climbs in his lines already)
+function threadShort() {
+  const me = state.me, n = state.felled, left = Math.max(0, state.gauntlet.length - n);
+  if (me.reason === 'debt') return `${denarii(debtLeft())} owed.`;
+  if (me.reason === 'freedom') return `Notches: ${n}.`;
+  if (me.reason === 'promise') return left > 1 ? `${left} fights to her.` : 'Her door.';
+  if (me.reason === 'glory') return `They chant ${me.name.toUpperCase()}!`;
+  return state.rack === 0 ? REVENGE.intro[0] : '';
+}
+// 6. one voice: the champion's or your rival's taunt, else Old Brutus with the thread when it fits one line
+function voiceOf(ctx, d0, f, w) {
+  const me = state.me;
+  if (d0.rival || f.champion) return { who: f.name.split(/[ ,]/)[0], t: d0.rival ? tauntOf(me) : champLine(f, me.reason) };
+  const b = brutusIntro(), th = threadShort(), full = th ? `Old Brutus: \u201c${b} ${th}\u201d` : '';
+  ctx.font = '700 14px system-ui, sans-serif';
+  return { t: full && ctx.measureText(full).width <= w - (brutusFaceOn() ? TUNING.art.faceCard + 8 : 0) ? full : `Old Brutus: \u201c${b}\u201d` };
+}
+// a figure's open gaps glow and its guarded gaps are ringed in gold, at its centres (cs: [x, y, half width, half height, guarded])
+function gapGlow(ctx, cs) {
+  const C = TUNING.card, k = 0.65 + 0.35 * Math.sin(state.introT * 5);
+  ctx.save();
+  for (const [x, y, rw, rh, g] of cs) {
+    if (g) { ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(x, y, rw + 3, rh + 3, 0, 0, TAU); ctx.stroke(); continue; }
+    const r = Math.max(rw, rh), R = r * C.glow * (0.9 + 0.2 * k), gr = ctx.createRadialGradient(x, y, 0, x, y, R);
+    gr.addColorStop(0, `rgba(255,200,100,${0.9 * k})`); gr.addColorStop(0.45, `rgba(255,150,60,${0.45 * k})`); gr.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.restore();
+}
+// a man's figure on the card (his plates painted, as the fight's), feet at (x, y), s px a body unit, its gaps lit
+function manFigure(ctx, E, f, parts, x, y, s) {
+  armourIcon(ctx, E, parts, x, y, s, f.str, GTYPE[f.weapon.id].helm);
+  gapGlow(ctx, parts.filter((q) => q.slot).map((q) => {
+    const p = q.d, j = p.frame ? PARTS[pidx(p.frame)].joint : [0, 0], side = p.frame === 'armF' ? 0.11 : 0;
+    return [x + (j[0] + side + p.x) * s, y + (j[1] + p.y) * s, p.w * s / 2, p.h * s / 2, !!q.guard];
+  }));
+}
+function beastFigure(ctx, E, f, x, y, w) {
+  const { F, ic } = beastIcon(ctx, E, f, x, y, w);
+  gapGlow(ctx, ic.parts.filter((p) => p.slot).map((p) => { const [px, py] = partCenter(F, ic, p); const r = (p.d.r || Math.max(p.d.w || 0.05, p.d.h || 0) / 2) * F.H; return [px, py, r, r, false]; }));
+}
+// The slim card (step 20): 1. the header, 2. his name in stamped metal (the champion's bust beside it), 3. the threat line, 4. his figure with its gaps
+// lit, 5. the watch-for line, 6. one voice; then "Tap to fight", and the "?" for the full card. A pair shows both men, a beast its body.
+function drawSlim(ctx, E) {
+  const Cd = TUNING.card, f = state.foe, q = state.edge, d0 = state.gauntlet[state.rack], me = state.me, last = state.rack === state.gauntlet.length - 1;
+  const w = Math.min(E.w - 32, Cd.w), h = Math.min(E.h - 12, Cd.h + cardGrow()), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const champ = f.champion || d0.champion, rival = !!d0.rival, metal = rival ? 'blood' : champ ? 'gold' : 'bronze';
+  ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
+  E.roundRect(x, y, w, h, 18, '#221a2b', rival ? '#f87171' : champ ? '#ffd24a' : f.beast && !q ? '#fb923c' : '#e6c866');
+  // 1
+  const of = `BOUT ${state.rack + 1} OF ${state.gauntlet.length}`, extra = q ? 'PAIRS' : f.beast ? 'A BEAST' : bout().spar ? 'SPARRING' : '';
+  const head = rival ? (last ? 'YOUR RIVAL' : `YOUR RIVAL  \u00b7  ${of}`) : champ ? (last ? 'THE CHAMPION' : `A CHAMPION  \u00b7  ${of}`) : extra ? `${of}  \u00b7  ${extra}` : of;
+  E.text(head, cx, y + 20, { size: 14, weight: '800', color: rival ? '#f87171' : champ ? '#ffd24a' : f.beast && !q ? '#fb923c' : '#c4b99a' });
+  // 2
+  const name = (q ? f.title || d0.title || `${f.name} and ${q.beast ? beastTitle(q) : q.name}` : f.beast ? beastTitle(f) : f.name).toUpperCase();
+  const bw = champ ? champBust(ctx, E, f, x, y) : 0, lr = metal === 'gold' ? Cd.laurel : 0;
+  const ns = stampName(ctx, E, name, cx, y + 54, Cd.name, metal, w - 40 - 2 * bw - 4 * lr - 16);
+  if (lr) { const nw = nameWidth(ctx, name, ns) / 2 + lr + 10; laurel(ctx, cx - nw, y + 56, lr); laurel(ctx, cx + nw, y + 56, lr); }
+  // 4, on the right
+  const fw = q ? 196 : f.beast ? Cd.beast + 8 : 150, fx = x + w - 16 - fw / 2, feet = y + 200;
+  if (q) {
+    for (const [g, gx] of [[f, fx - fw / 4], [q, fx + fw / 4]]) {
+      if (g.beast) beastFigure(ctx, E, g, gx, feet - 10, fw / 2 - 6); else manFigure(ctx, E, g, g.parts, gx, feet, Cd.pair * (g === q ? 0.92 : 1));
+    }
+  } else if (f.beast) beastFigure(ctx, E, f, fx, feet - 8, Cd.beast);
+  else manFigure(ctx, E, f, guardParts(foeParts(makeRng(f.partSeed), f.set, f.plus || 0, dualGaps(f)), f.guards), fx, feet, Cd.fig);
+  // 3 and 5, left of him
+  const tx = x + 24, tw = fx - fw / 2 - 12 - tx;
+  const threat = q ? [[`${titleCase(f.size.name)} ${weaponWord(f)}`, '#fde68a'], [`${titleCase(q.size.name)} ${weaponWord(q)}`, '#fde68a'], ['one at a time', '#cbd5e1']] : threatSegs(f);
+  const watch = watchSegs(q ? [f, q] : [f]);
+  const ty = watch ? y + 116 : y + 132;
+  segLine(ctx, E, threat, tx, ty, tw, 18);
+  if (watch) segLine(ctx, E, watch, tx, ty + 34, tw, 16, { sep: ' ', weight: '800' });
+  // 6
+  const v = voiceOf(ctx, d0, f, w - 28), vy = y + h - 64;
+  if (v.who) { const vl = `${v.who}: \u201c${v.t}\u201d`; E.text(clipLine(ctx, vl, w - 28, Math.max(14, fitSize(ctx, vl, 15, w - 28)), '800'), cx, vy, { size: Math.max(14, fitSize(ctx, vl, 15, w - 28)), weight: '800', color: '#f87171' }); }
+  else sayLine(ctx, E, v.t, cx, vy, w - 28, { size: 14, fit: true, weight: '700', color: '#fde68a' }, 'brutus', TUNING.art.faceCard);
+  // the tap, and the "?" in the corner
+  E.text('Tap to fight', cx, y + h - 22, { size: 16, weight: '800', color: '#ffd24a', alpha: tapLive() ? 0.6 + 0.4 * Math.sin(state.introT * 4) : 0.3 });
+  const r = Cd.help / 2, qx = x + w - 12 - r, qy = y + h - 12 - r;
+  state.introQ = { x: qx - r - 2, y: qy - r - 2, w: 2 * r + 4, h: 2 * r + 4 };
+  ctx.beginPath(); ctx.arc(qx, qy, r, 0, TAU); ctx.fillStyle = '#1f2937'; ctx.fill(); ctx.strokeStyle = '#c4b99a'; ctx.lineWidth = 2; ctx.stroke();
+  E.text('?', qx, qy + 1, { size: 22, weight: '800', color: '#f0e6cc' });
+}
+// your trait and drive, one line each, on the "?" page
+function youLines(ctx, E, cx, y, w) {
+  const me = state.me, T = TRAITS[me.origin], D = DRIVES[me.reason];
+  segLine(ctx, E, [[`${T.name}:`, '#86efac'], [T.line(), '#e2e8f0']], cx, y, w - 28, 14, { sep: ' ', weight: '700', center: true });
+  segLine(ctx, E, [[`${D.name}:`, '#fbbf24'], [D.line(), '#e2e8f0']], cx, y + 19, w - 28, 14, { sep: ' ', weight: '700', center: true });
+}
 // His card before each bout, in rows that never meet: the bout, his name and (champion) his tie to your reason, his armour on the left, size, weapon,
 // its tip and stats on the right, your reason's thread, Brutus, what the champion or your rival says, and the tap.
+// Step 20: the bout card is slim (drawSlim); its "?" shows the full card that was (drawIntroFull), with your trait and drive where Brutus stood
 function drawIntro(ctx, E) {
+  if (state.introHelp) { drawIntroFull(ctx, E); return; }
+  drawSlim(ctx, E);
+}
+function drawIntroFull(ctx, E) {
   if (state.edge) { drawPairIntro(ctx, E); return; }
   if (state.foe.beast) { drawBeastIntro(ctx, E); return; }
   const d = state.foe, me = state.me, champ = d.champion, spar = bout().spar;
-  const voice = d.rival ? tauntOf(me) : champ ? champLine(d, me.reason) : null, sub = champ ? champTie(d, me.reason) : spar ? 'Sparring: learn his wind-ups.' : null;
+  const sub = champ ? champTie(d, me.reason) : spar ? 'Sparring: learn his wind-ups.' : null;
   const gear = (d.gear || []).map((id) => CARD[id]), thread = me.reason !== 'revenge', b = sub ? 88 : 68, bodyH = 152 + ((d.guards || []).length ? 12 : 0), tb = b + bodyH + (thread ? 32 : 6);
-  const second = state.rack === 0 && !voice;
-  const w = Math.min(E.w - 32, (gear.length ? 640 : 460) + (artImg('brutus') ? TUNING.art.face + 8 : 0)), h = Math.min(E.h - 12, tb + 22 + (voice || second ? 22 : 0) + 34 + cardGrow()), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const w = Math.min(E.w - 32, gear.length ? 640 : 480), h = Math.min(E.h - 12, tb + 22 + 20 + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', d.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
   const of = `BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
@@ -7269,17 +7641,14 @@ function drawIntro(ctx, E) {
     });
   }
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
-  const vy = brutusCardLine(ctx, E, cx, y, tb, w, thread, y + tb + (voice ? 33 : 31));
-  if (voice) { const vl = `${d.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, vy, { size: fitSize(ctx, vl, 15, w - 28), weight: '800', color: '#f87171' }); }
-  else if (second) { const sl = `“${brutusReason()}”`; E.text(sl, cx, vy, { size: fitSize(ctx, sl, 14, w - 28, '700'), weight: '700', color: '#fde68a' }); }
-  const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
-  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: tapLive() ? k : 0.3 });
+  youLines(ctx, E, cx, y + tb + 12, w);
+  E.text('Tap to go back', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a' });
 }
 // A beast's card: what it is (a lion or a bear, its epithet), no shield and no feints, its body with its gaps on the left, its size and how its tells
 // look, its profile and stats on the right, then the thread, Brutus and the tap.
 function drawBeastIntro(ctx, E) {
   const d = state.foe, me = state.me, thread = me.reason !== 'revenge', b = 88, bodyH = 160, tb = b + bodyH + (thread ? 32 : 6);
-  const w = Math.min(E.w - 32, 520 + (brutusFaceOn() ? TUNING.art.faceCard + 8 : 0)), h = Math.min(E.h - 12, tb + 22 + 34 + cardGrow()), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const w = Math.min(E.w - 32, 540), h = Math.min(E.h - 12, tb + 22 + 20 + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', '#fb923c');
   E.text(`BOUT ${state.rack + 1} OF ${state.gauntlet.length}  ·  A BEAST`, cx, y + 20, { size: 14, weight: '800', color: '#fb923c' });
@@ -7298,15 +7667,16 @@ function drawBeastIntro(ctx, E) {
   profLine(ctx, E, d, rx, py, rw, 17);
   statBars(ctx, E, d, rx, py + (two ? 40 : 26), rw, 19, 14);
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
-  brutusCardLine(ctx, E, cx, y, tb, w, thread, 0);
-  const k = 0.6 + 0.4 * Math.sin(state.introT * 4);
-  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: tapLive() ? k : 0.3 });
+  youLines(ctx, E, cx, y + tb + 12, w);
+  E.text('Tap to go back', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a' });
 }
 // a beast drawn small at rest on its card, w px from nose to tail, its feet at (x, y); its gaps show as on the sand
 function beastIcon(ctx, E, d, x, y, w) {
   const B = TUNING.beasts[d.beast], s = w / (B.front + B.back + 0.08), ic = d.icon || (d.icon = { beast: d.beast, young: d.young, parts: beastParts(d.beast, !!d.armour) });
   beastRest(ic);
-  drawBeast(ctx, E, { x: x - (B.back - B.front) / 2 * s, y, a: 0, dir: -1, H: s }, ic, 'edge');
+  const F = { x: x - (B.back - B.front) / 2 * s, y, a: 0, dir: -1, H: s };
+  drawBeast(ctx, E, F, ic, 'edge');
+  return { F, ic };
 }
 // his profile in one line (14 px): its name in his profile's colour, then what it means, cut to w px
 const PROF_COL = { brute: '#fb923c', duelist: '#7de3ff', glass: '#f87171', tank: '#a3e635', balanced: '#e2e8f0' };
@@ -7334,9 +7704,9 @@ function profLine(ctx, E, d, x, y, w, wrap = 0) {
 // A pairs bout's card: both foes side by side, the one who fights first on the left, each with his own health, armour, guarded gaps and gear (at 14 px)
 function drawPairIntro(ctx, E) {
   const a = state.foe, q = state.edge, me = state.me, d0 = state.gauntlet[state.rack], champ = a.champion;
-  const voice = d0.rival ? tauntOf(me) : champ ? champLine(a, me.reason) : null, sub = champ ? champTie(a, me.reason) : 'Pairs: when one is out of breath or down, the other steps in.';
+  const sub = champ ? champTie(a, me.reason) : 'Pairs: when one is out of breath or down, the other steps in.';
   const thread = me.reason !== 'revenge', b = 88, cw = (Math.min(E.w - 32, 640) - 48) / 2, ex = profFits(ctx, a, cw - 88) && profFits(ctx, q, cw - 88) ? 0 : 16, bodyH = 150 + ex, tb = b + bodyH + (thread ? 32 : 6);
-  const w = Math.min(E.w - 32, 640), h = Math.min(E.h - 12, tb + 22 + (voice ? 22 : 0) + 34 + cardGrow()), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
+  const w = Math.min(E.w - 32, 640), h = Math.min(E.h - 12, tb + 22 + 20 + 34), x = (E.w - w) / 2, y = (E.h - h) / 2, cx = E.w / 2;
   ctx.fillStyle = 'rgba(10,8,14,0.6)'; ctx.fillRect(0, 0, E.w, E.h);
   E.roundRect(x, y, w, h, 18, '#221a2b', d0.rival ? '#f87171' : champ ? '#ffd24a' : '#e6c866');
   const of = `PAIRS  ·  BOUT ${state.rack + 1} OF ${state.gauntlet.length}`;
@@ -7348,9 +7718,8 @@ function drawPairIntro(ctx, E) {
   pairCol(ctx, E, q, x + 32 + cw, y + b, cw, d0.sends ? 'STEPS IN AT HALF HEALTH' : 'WAITS AT THE EDGE', ex);
   ctx.fillStyle = 'rgba(240,230,204,0.18)'; ctx.fillRect(cx - 1, y + b, 2, bodyH - 6);
   if (thread) drawThread(ctx, E, cx, y + b + bodyH + 16, w);
-  const vy = brutusCardLine(ctx, E, cx, y, tb, w, thread, y + tb + 33);
-  if (voice) { const vl = `${a.name.split(/[ ,]/)[0]}: “${voice}”`; E.text(vl, cx, vy, { size: Math.max(14, fitSize(ctx, vl, 15, w - 28)), weight: '800', color: '#f87171' }); }
-  E.text('Tap to fight', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a', alpha: tapLive() ? 0.6 + 0.4 * Math.sin(state.introT * 4) : 0.3 });
+  youLines(ctx, E, cx, y + tb + 12, w);
+  E.text('Tap to go back', cx, y + h - 18, { size: 16, weight: '800', color: '#ffd24a' });
 }
 // one foe's column on the pairs card: who he is, his health, his armour and guards, his gear (the pieces that act for him in red)
 function pairCol(ctx, E, f, x, y, w, tag, ex) {
@@ -7525,24 +7894,29 @@ function drawMeCard(ctx, E, me, x, y, w, h, gold) {
   E.text(st, cx, y + 36, { size: Math.max(14, fitSize(ctx, st, 15, w - 28)), weight: '800', color: '#f0e6cc' });
   const pk = `${noun[0].toUpperCase()}${noun.slice(1)}: starts with ${scs.length > 1 ? `${sc.name} + ${scs[1].name}` : `${sc.name} (${FAMS[sc.fam].name})`}`;
   E.text(pk, cx, y + 56, { size: Math.max(14, fitSize(ctx, pk, 14, w - 28, '700')), weight: '700', color: '#86efac' });
-  const lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
-  armourIcon(ctx, E, playerParts({ plates: [] }), ax, y + 72 + s * 0.95, s, me.str);
-  E.text('NO KIT YET', ax, y + 174, { size: 14, weight: '800', color: '#aab3bc' });
+  // step 19: your origin's trait and your reason's drive, a line each
+  const TR = TRAITS[me.origin], DR = DRIVES[me.reason];
+  segLine(ctx, E, [[`${TR.name}:`, '#86efac'], [TR.line(), '#cbd5e1']], cx, y + 76, w - 28, 14, { sep: ' ', weight: '700', center: true });
+  segLine(ctx, E, [[`${DR.name}:`, '#fbbf24'], [DR.line(), '#cbd5e1']], cx, y + 94, w - 28, 14, { sep: ' ', weight: '700', center: true });
+  const dy = 30, lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
+  armourIcon(ctx, E, playerParts({ plates: [] }), ax, y + 72 + dy + s * 0.95, s, me.str);
+  E.text('NO KIT YET', ax, y + 174 + dy, { size: 14, weight: '800', color: '#aab3bc' });
   const mx = x + 18 + lw, mw = w * 0.36;
-  E.text(S.name, mx, y + 84, { size: 20, weight: '800', align: 'left', color: '#fde68a' });
-  E.text(SIZE_TIP[me.size], mx, y + 103, { size: 14, align: 'left', color: '#9aa4b2' });
-  E.text(`♥ ${me.halves} hearts`, mx, y + 123, { size: 15, weight: '800', align: 'left', color: '#f87171' });
-  statBars(ctx, E, me, mx, y + 147, mw, 20, 14);
+  E.text(S.name, mx, y + 84 + dy, { size: 20, weight: '800', align: 'left', color: '#fde68a' });
+  ctx.font = '800 20px system-ui, sans-serif';
+  E.text(`♥ ${me.halves} hearts`, mx + ctx.measureText(S.name).width + 12, y + 85 + dy, { size: 15, weight: '800', align: 'left', color: '#f87171' });
+  E.text(SIZE_TIP[me.size], mx, y + 105 + dy, { size: 14, align: 'left', color: '#9aa4b2' });
+  statBars(ctx, E, me, mx, y + 128 + dy, mw, 20, 14);
   // a veteran's gained point glows green on its bar
-  if (me.vid && me.up) { const v = me[['', 'str', 'spd', 'sta'][me.up]], seg = (mw - 14 * 2.6) / 5; ctx.fillStyle = '#4ade80'; ctx.fillRect(mx + 14 * 2.6 + (v - 1) * seg, y + 147 + (me.up - 1) * 20 - 14 * 0.35, seg - 3, 14 * 0.7); }
+  if (me.vid && me.up) { const v = me[['', 'str', 'spd', 'sta'][me.up]], seg = (mw - 14 * 2.6) / 5; ctx.fillStyle = '#4ade80'; ctx.fillRect(mx + 14 * 2.6 + (v - 1) * seg, y + 128 + dy + (me.up - 1) * 20 - 14 * 0.35, seg - 3, 14 * 0.7); }
   const tx = mx + mw + 10, tw = x + w - 12 - tx, tc = TIER_COL[me.tier];
-  ctx.strokeStyle = tc; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tx + 24, y + 96, 22, 0, 6.28); ctx.stroke();
-  E.text(me.tier, tx + 24, y + 98, { size: 28, weight: '800', color: tc });
-  E.text('TIER', tx + 54, y + 88, { size: 14, weight: '800', align: 'left', color: '#c4b99a' });
-  if (me.underdog) E.text('Underdog!', tx + 54, y + 105, { size: 14, weight: '800', align: 'left', color: '#ffd24a', alpha: 0.75 + 0.25 * Math.sin(E.time * 6) });
-  E.text('PURSE', tx, y + 136, { size: 14, weight: '800', align: 'left', color: '#c4b99a' });
-  E.text(`${gold} gold`, tx, y + 156, { size: fitSize(ctx, `${gold} gold`, 20, tw), weight: '800', align: 'left', color: '#fbbf24' });
-  wrapPx(ctx, 'buys your weapon and armour next', tw, 14).slice(0, 3).forEach((t, i) => E.text(t, tx, y + 176 + i * 16, { size: 14, align: 'left', color: '#c4b99a' }));
+  ctx.strokeStyle = tc; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tx + 24, y + 96 + dy, 22, 0, 6.28); ctx.stroke();
+  E.text(me.tier, tx + 24, y + 98 + dy, { size: 28, weight: '800', color: tc });
+  E.text('TIER', tx + 54, y + 88 + dy, { size: 14, weight: '800', align: 'left', color: '#c4b99a' });
+  if (me.underdog) E.text('Underdog!', tx + 54, y + 105 + dy, { size: 14, weight: '800', align: 'left', color: '#ffd24a', alpha: 0.75 + 0.25 * Math.sin(E.time * 6) });
+  E.text('PURSE', tx, y + 136 + dy, { size: 14, weight: '800', align: 'left', color: '#c4b99a' });
+  E.text(`${gold} gold`, tx, y + 156 + dy, { size: fitSize(ctx, `${gold} gold`, 20, tw), weight: '800', align: 'left', color: '#fbbf24' });
+  E.text(clipLine(ctx, 'for your kit', tw), tx, y + 176 + dy, { size: 14, align: 'left', color: '#c4b99a' });
 }
 // ----- the inventory (step 11): five slots around a small painted doll, and the Extras row -----
 // Each slot: its card gear slot, its plate, the plain kit worn without one, and where its line meets the doll (body units, feet at 0). Head, Arms and
@@ -9109,7 +9483,7 @@ function introReady(E) {
 const tapLive = () => state.introT > 0.35 && !(state.introGo >= 0);
 const play = {
   state, lay, foeF, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
-  walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
+  walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES,
   ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateOff, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
@@ -9131,6 +9505,11 @@ const play = {
     state.zoomT = Math.max(0, state.zoomT - dt); state.paintT = Math.max(0, state.paintT - dt);
     if (state.banner && (state.banner.t -= dt) <= 0) state.banner = null;
     if (state.shatter && (state.shatter.t -= dt) <= 0) state.shatter = null;
+    // your heart shakes as your health falls and pulses as it rises, whatever moved it
+    if (state.heartFx && (state.heartFx.t -= dt) <= 0) state.heartFx = null;
+    if (state.hpSeen != null && state.hp !== state.hpSeen) { const hit = state.hp < state.hpSeen, t = hit ? TUNING.hud.hit : TUNING.hud.heal; state.heartFx = { kind: hit ? 'hit' : 'heal', t, max: t }; }
+    state.hpSeen = state.hp;
+    state.readT = Math.max(0, (state.readT || 0) - dt);
     if (state.slowFx > 0) { state.slowFx -= dt; dt *= state.slowMul; }
     // slow time: the open window's brief slow, and the whole of the first feint ever
     if (state.slowT > 0) { state.slowT -= dt; dt *= TUNING.openWin.slow; } else if (state.sw && state.sw.lesson === 'slow') dt *= TUNING.lesson.slow;
@@ -9240,7 +9619,7 @@ const play = {
     if (won) carveChampion(E, me, state.arena, champ.name);
     E.ledger.add('result', { ...r, won, reached, halves: state.hp, sizes: g.map((d) => d.size.id[0]).join(''), profs: g.map((d) => d.prof).join(','), weapons: g.map((d) => d.weapon.id).join(','), armour: g.map((d) => d.set.id[0]).join(''),
       stats: g.map((d) => `${d.str}${d.spd}${d.sta}`).join(','), champ: g[g.length - 1].name, lostTo: won ? '' : `${g[reached - 1].name} ${g[reached - 1].size.id} ${g[reached - 1].weapon.id}`,
-      moves: Object.entries(state.moveCount).map(([k, v]) => `${k}${v}`).join(','),
+      moves: Object.entries(state.moveCount).map(([k, v]) => `${k}${v}`).join(','), specials: Object.entries(state.specials).map(([k, v]) => `${k}${v[0]}/${v[1]}`).join(','), skips: state.skips, chains: state.chains,
       meSize: me.size, meStats: `${me.str}${me.spd}${me.sta}`, meArmour: me.set, mePlates: me.plates.join(','), meTier: me.tier, underdog: me.underdog ? 1 : 0,
       grades: state.grades.join(''), goods: state.goods.join(','), picks: state.picks.join(','), stepsIn: state.stepsIn, stepsOut: state.stepsOut, wallHits: state.wallHits, foeWall: state.foeWall, outReach: state.outReach, dodged: state.dodged, chases: state.chases,
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
@@ -9293,12 +9672,16 @@ const play = {
       if (d.help && E.hit(d.help, p)) { d.helpOn = 1; E.audio.play('tap'); return; }
       if (d.wear && E.hit(d.wear, p)) { d.view = { card: null }; E.audio.play('tap'); return; }
       if (d.reroll && d.reroll.live && E.hit(d.reroll, p)) { rerollDraft(E); return; }
+      if (d.skip && d.t > TUNING.draft.delay && E.hit(d.skip, p)) { skipDraft(E); return; }
       if (d.spoilBtn && d.t > TUNING.draft.delay && E.hit(d.spoilBtn, p)) { swapSpoil(E); return; }
       const b = d.t > TUNING.draft.delay && d.btns.find((q) => E.hit(q, p)); if (b) { d.view = { card: b.card }; E.audio.play('tap'); } return;
     }
     // the card lab (dev channel only): a LAB tab on the intro card opens it
     if (state.lab) { labTap(E, p); return; }
     if (state.intro && E.channel !== 'release' && E.hit(labTab(E), p)) { state.lab = { btns: [] }; state.labUsed = 1; E.audio.play('tap'); return; }
+    // the card's "?" opens the full card, and any tap closes it again
+    if (state.intro && state.introHelp) { state.introHelp = false; E.audio.play('tap'); return; }
+    if (state.intro && state.introT > 0.35 && state.introQ && !(state.introGo >= 0) && E.hit(state.introQ, p)) { state.introHelp = true; E.audio.play('tap'); return; }
     if (state.intro && state.introT > 0.35 && !portrait(E) && !(state.introGo >= 0)) {
       E.audio.play('tap');
       if (introReady(E)) beginBout(E); else state.introGo = E.time;
@@ -9329,7 +9712,8 @@ const play = {
       if (netArt()) { ctx.save(); ctx.translate(Fy.x, Fy.y); ctx.scale(Fy.dir, 1); ctx.rotate(Fy.a); drapeNet(ctx, E, Fy.H, state.you, k); ctx.restore(); } else drawNet(ctx, Fy.x, Fy.y - 0.55 * Fy.H, 0.32 * Fy.H * k);
     }
     if (state.edge && !state.edge.down) drawEdge(ctx, E);
-    if (state.sw && state.sw.kind === 'blink' && state.sw.fin <= 0) blinkGhosts(ctx, E);
+    if (state.sw && state.sw.kind === 'blink' && state.sw.fin <= 0) { blinkGhosts(ctx, E); if (state.sw.spring) blinkStreaks(ctx, E); }
+    if (state.sw && state.sw.dud && state.sw.fin <= 0) capuanGhosts(ctx, E);
     drawFighter(ctx, E, foeF(E), state.foe, 'foe');
     if (state.sw && state.sw.kind === 'throw' && state.sw.thrown && state.sw.fin <= 0) spearFlight(ctx, E);
     if (state.flyS > 0) flyingShield(ctx, E);
@@ -9392,6 +9776,7 @@ const play = {
       E.text(q.s, q.x, q.y - (1 - t) * q.rise, { size: q.size * (1 + (1 - t) * 0.2), color: q.color, weight: '800', alpha: Math.min(1, t * 2) });
     }
     if (state.switchT > 0) emperorSignal(ctx, E);
+    readGlow(ctx, E);
     if (state.banner) drawBanner(ctx, E);
 
     // HUD, inside the safe area
@@ -9401,9 +9786,8 @@ const play = {
     // a dark plate under the right column, so a tall foe's helmet passing behind it never hides a row
     const H2 = hudRow();
     E.roundRect(E.w - r - 176, top - 6, 182, H2.shield + 18, 8, 'rgba(18,12,22,0.72)', null);
-    // one heart for each point of health, whole
-    for (let i = 0; i < state.maxHp; i++) { const [hx, hy] = heartAt(E, i); drawHeart(ctx, hx, hy, TUNING.hud.size, i < Math.ceil(state.hp) ? '#ef4444' : '#3b3f46'); }
-    if (state.shatter) for (let k = 0; k < state.shatter.n; k++) { const [hx, hy] = heartAt(E, Math.min(state.maxHp - 1, state.shatter.i + k)); heartShatter(ctx, hx, hy, 1 - state.shatter.t / TUNING.juice.shatter); }
+    drawHudHeart(ctx, E);
+    if (state.shatter) { const [hx, hy] = heartAt(E); heartShatter(ctx, hx, hy, 1 - state.shatter.t / TUNING.juice.shatter); }
     const bw = 110, bx = E.w - r - bw, sf = state.stamina / state.staMax;
     drawPips(ctx, E, bx, bw, top + H2.pips);
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(bx - 1, top + H2.sta - 1, bw + 2, 11);
@@ -9614,7 +9998,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 16,
+  saveVersion: 17,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -9689,6 +10073,8 @@ export const game = {
     }
     // v16 (v2 step 17, the story): a save from before has seen Old Brutus's story, so only a fresh save opens on it
     if (fromVersion < 16) data.storySeen = 1;
+    // v17 (v2 steps 19 and 20): a saved run gains Broken Chains unspent, no drafts skipped and no signatures counted
+    if (fromVersion < 17 && data.run) Object.assign(data.run, { chains: data.run.chains || 0, skips: data.run.skips || 0, specials: data.run.specials || {} });
     return data;
   },
   TUNING,
