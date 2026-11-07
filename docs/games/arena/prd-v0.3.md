@@ -1793,11 +1793,22 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 - The fighter card and the "?" page show it, at three sizes.
 - `npm run smoke`.
 
-## Step 20 (proposed 2026-11-07, playtest of v60): champions' specials you can tell apart, and a nudge to heal
+## Step 20 (proposed 2026-11-07, playtest of v60): a slimmer bout card, champions' specials you can tell apart, and a nudge to heal
 
 **The designer:** "I couldn't really tell the champions' different specials apart. But overall it was cinematic, the way he switched to two blades." And: "I should have bought more healing before the champion." Only one special shows in the export (`capuan1`).
 
-- **Named on his card:** the champion's intro card gains one line: his move's name and its answer, for example "Red Rage: block high, mid, low."
+- **The bout card, slimmed.** The designer: "There's still too much information on the cards before a fight." Today a man's card can carry 14 or more lines: the bout, his name, a sub-line, his armour's name and gap count, guarded gaps, size and weapon, two lines of weapon tip, his profile, three stat bars, a third column of gear tells and "Looks only" pieces, your reason's thread, the wooden sword's notches, Brutus, his line and the tap. The new card keeps six things and the tap:
+  1. **the header:** "BOUT 2 OF 5" (or "THE CHAMPION", or "YOUR RIVAL"), with sparring folded in;
+  2. **his name,** big, with the champion's bust beside it as now;
+  3. **one threat line:** size, weapon and style merged, for example "Big · Axe · hits hard, tires fast" (two blades or a shield is added as one word);
+  4. **his figure,** with its gaps glowing and guarded gaps ringed in gold. There is no armour text; the picture says it;
+  5. **one "watch for" line**, which carries the most important thing in the bout:
+     - for a champion, his signature move and its answer, for example "Red Rage: block high, mid, low";
+     - otherwise, his one card gear piece that acts (in red);
+     - otherwise, nothing;
+  6. **one voice line:** the champion's or your rival's taunt, or else Old Brutus. Never both, and your reason's thread folds into Brutus's line.
+
+  A small **"?"** on the card opens today's full details (stats, weapon tip, every gear piece, the wooden sword's notches) for anyone who wants them. The beast card and the pair card follow the same six. Nothing a decision needs is lost, because the threat, the gaps and the one gear piece that acts all stay on the card.
 - **Each move announces itself every time:** the name banner shows on each use, not only the first, so you see "RED RAGE!" before his three blows.
 - **A signature look and sound per move,** so none of them reads like an ordinary attack:
   - Red Rage: a red flush, a roar and a ground thump;
@@ -1814,7 +1825,7 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 ### Acceptance
 
 - A frame of each move's tell, banner and READ.
-- An intro card for each of the five champions.
+- The slim card for a man, a pair, a beast, each of the five champions, and your rival, at 667x375 and 844x390, with its "?" page.
 - The heal nudge.
 - Scripted checks: each move fires at least twice in a bout, and each can be answered.
 - `npm run smoke`.
