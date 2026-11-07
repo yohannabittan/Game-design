@@ -1833,3 +1833,61 @@ Each origin (Step 4b's backgrounds) gives a small passive trait, always on and n
 - The heal nudge.
 - Scripted checks: each move fires at least twice in a bout, and each can be answered.
 - `npm run smoke`.
+
+## Step 21 (locked 2026-11-07): each weapon hits with its striking part, in its own way, and shows it
+
+**The designer:** "The hitbox of the axe was a bit weird; it still needed to jab, so maybe it should have a spike." Then: "Not just the spike: we should rethink the way different weapons hit." And: "Maybe that means when picking weapons we should show which parts of the weapon hit."
+
+Today every weapon hits the same way:
+- a jab lands at the tip, a slash anywhere along the weapon;
+- weapons differ only in reach, speed, damage and a slash multiplier.
+
+This step replaces that with one rule set, for you and for every foe. Each weapon keeps its reach, speed and damage numbers; its `slash` multiplier gives way to the rules below.
+
+**1. Only the striking part deals the real hit.**
+- Each weapon's painting has striking zones, measured in px on its Pack 23 painting (`TUNING.strike.<weapon>`).
+- A blow that connects with the haft or shaft is a **thud**: small damage (`thud`, about 25%) and a little push, with no gap bonus, no bleed and no dent. It has a dull sound and the word "THUD".
+- A clean hit flashes the striking part.
+
+**2. Three kinds of hit,** built on systems already in the game:
+
+| Kind | Strong against | Weak against |
+| --- | --- | --- |
+| **Cut** (an edge drawn across) | bare skin: causes bleed | plate: glances off for little |
+| **Pierce** (a point driven in) | gaps: the gap bonus | broad plate |
+| **Crush** (a heavy head) | plate: dents and breaks it, staggers | no bleed |
+
+**3. Each weapon's zones:**
+
+| Weapon | Zones | Jab | Slash and overhead |
+| --- | --- | --- | --- |
+| Gladius | point: pierce; both edges: cut | pierce | cut |
+| Dagger | point: pierce; short edges: cut | fast pierce | short cut |
+| Spear | leaf head only: pierce (a slash with the head: a light cut) | long pierce | shaft thud, unless the head connects |
+| Trident | three prongs: pierce, with a wider point zone that finds gaps more easily | pierce | shaft thud, unless the prongs connect |
+| Sica | inner curve: hooking cut (more bleed, and a small pull in) | the back of the curve: weak | cut |
+| Axe | side blade: cut and crush; top spike (Pack 28): pierce | short pierce with the spike | cut and crush with the blade, haft thud |
+| Mace | ball, all round: crush | crush | crush, haft thud |
+| Fists | knuckles: crush (light: staggers, never dents) | crush | crush |
+
+The numbers go in `TUNING.strike`. Cards that boost bleed, gaps or dents now read through these kinds, with the same effects.
+
+**4. Showing it when picking:**
+- In the armourer's tent's weapon rack and on the inventory's Weapon slot, each weapon is drawn with its striking zones lit in a colour per kind: cut red along the edge, pierce gold at the point, crush steel-blue on the head. The haft is left dim.
+- Under it go one or two words, for example "Cut · Pierce" or "Crush".
+- The "?" page gets a small key of the three colours.
+- No sentences.
+
+### Acceptance
+
+- Scripted checks for each weapon:
+  - jab and slash at its striking part, and at its haft (a thud);
+  - each kind against bare skin, a gap and a plate.
+- A foe's shaft hit on you is a thud.
+- Frames:
+  - the rack with every weapon's zones;
+  - a clean hit's flash, and a THUD;
+  - a sica hook drawing bleed;
+  - a mace denting a plate.
+- Perf within 10%, and `npm run smoke`.
+- **A playtest straight after**, since this changes the core of fighting.
