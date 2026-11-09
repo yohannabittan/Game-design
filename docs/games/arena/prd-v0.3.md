@@ -1936,7 +1936,7 @@ The numbers go in `TUNING.strike`. Cards that boost bleed, gaps or dents now rea
 
 **The designer, on a friend's first run:** "There was still too much text; he wasn't reading it. He didn't know what the cards did. He didn't understand why, when he selected one, it brought him to the inventory and he had to click Take; he said 'Take what? I thought I selected it.' He didn't select armour, not realising what it would cost. He didn't realise he could jump. He spammed jab. It was missing a step-by-step tutorial: use your right hand, use your shield, and so on." (`playtests/2026-11-09-v62-friend.md`: three of four runs bought no armour and fell by bout 3 or 4.)
 
-There is no jump in the game. "Jump" is most likely the lunge (a long push steps you in) or DODGE (tap a backstep, hold to back off). The training yard teaches both.
+"Jump" meant the lunge (the designer, 2026-11-09): a long push that steps you in. He never found it, so the yard gives it its own step.
 
 **1. The training yard, before the first bout of the first run.**
 - **When:** on the first run (`firstRun`), after the purse and before bout 1. It is skipped from then on (`trainDone` in the save), and can be replayed from the menu (a **Training** button on the menu's how-to-play or settings page, wherever it fits).
