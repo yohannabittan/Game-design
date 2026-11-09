@@ -137,3 +137,4 @@
   - **The axe** gets its top spike (canvas 253x1088, pin 896), with its reach unchanged.
   - Open, for the playtest: foes' cuts don't make you bleed (you have no bleed); the sica's jab is a thud; fists and the mace get no gap bonus. Combat words can stack in one spot (GUARD over THUD, TO THE WALL over the HUD).
   - Perf: 3 to 4% slower.
+- v2 step 23 build (Opus 5.5, passed the orchestrator's review of its frames and scripted checks first time): a first-run pass from a friend's playtest: a training yard before bout 1 (and Training on the menu), a one-tap draft with a slimmer card face and a short line on every card, a starting kit and a "No plates?" ask in the purse, shorter first-run hints, and a nudge off jab spam (`prd-v0.3.md`, "Step 23"). Open: the manica plates the shield arm, which no blow lands on, so its slot says "no use". `arena-v63`.
