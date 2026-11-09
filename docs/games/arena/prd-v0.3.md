@@ -1931,3 +1931,85 @@ The numbers go in `TUNING.strike`. Cards that boost bleed, gaps or dents now rea
   - a foe swaps by range.
 - Frames: the tent's Sidearm slot, ⇄, the knife button with its count, an aim, a hit, and a clang.
 - Perf within 10%, `npm run smoke`, and a playtest.
+
+## Step 23 (locked 2026-11-09, a friend's first run on v62): a training yard, a one-tap draft, a warning before fighting bare, and less to read
+
+**The designer, on a friend's first run:** "There was still too much text; he wasn't reading it. He didn't know what the cards did. He didn't understand why, when he selected one, it brought him to the inventory and he had to click Take; he said 'Take what? I thought I selected it.' He didn't select armour, not realising what it would cost. He didn't realise he could jump. He spammed jab. It was missing a step-by-step tutorial: use your right hand, use your shield, and so on." (`playtests/2026-11-09-v62-friend.md`: three of four runs bought no armour and fell by bout 3 or 4.)
+
+There is no jump in the game. "Jump" is most likely the lunge (a long push steps you in) or DODGE (tap a backstep, hold to back off). The training yard teaches both.
+
+**1. The training yard, before the first bout of the first run.**
+- **When:** on the first run (`firstRun`), after the purse and before bout 1. It is skipped from then on (`trainDone` in the save), and can be replayed from the menu (a **Training** button on the menu's how-to-play or settings page, wherever it fits).
+- **Who:** the sparring partner of bout 1 stands in, in the bout's own arena, with Old Brutus's face beside each line. Neither of you loses hearts in the yard.
+- **How each step works:**
+  - one short line at the top, at most eight words;
+  - a ghost thumb on the screen showing the gesture, looping, on the side it belongs to;
+  - the step waits until you do it (no timer). Done: a tick, a chime, the next step;
+  - a small **Skip training** button in the top corner (at least 44 px) ends the yard and starts the bout.
+- **The steps,** one control at a time:
+  1. **Your sword hand:** "Right thumb: your sword goes where you hold." Touch and move.
+  2. **Jab:** "Push toward him: jab." Two jabs that land.
+  3. **Slash:** "Sweep across: slash." Two slashes.
+  4. **Overhead:** "Up, then down: overhead." One.
+  5. **Lunge:** "Push long and hold: lunge in." One lunge.
+  6. **Shield:** "He swings high. Left thumb: HIGH." He makes one slow, scripted blow at each height in turn (high, then mid, then low) and the matching button pulses. Each is blocked to go on.
+  7. **Dodge:** "Tap DODGE to step back." Then "Hold DODGE to back off." One each.
+  8. **Gaps:** "See the glow? A gap. Hit it." One hit in a gap.
+  9. **Reading:** "When he glows, he's about to swing." He makes one ordinary tell; you block or dodge it.
+  10. "Now fight." The bout starts with both at full health.
+- The numbers (blow speed, how many of each) go in `TUNING.train`.
+
+**2. The draft: one tap takes a card.**
+- **A tap on a card takes it.** There is no detour through the inventory and no Take button. The card lifts, flashes, and flies to its slot on a small doll in the corner (about 0.4 s) before the next screen.
+- A **gold card you can't afford** shakes and shows "Need N gold" on the card; nothing is taken.
+- The swap still shows on the card itself, as today: "replaces Iron Greaves" in orange.
+- **Wearing** stays as its own button for anyone who wants to look; it no longer opens from a card.
+- The card's inactive time (`TUNING.draft.delay`) stays, so the tap that ended the bout can't take a card by accident.
+- On the first draft of the first run, Brutus says only: "Pick one. Tap it."
+
+**3. A card says what it does at a glance.**
+- **A card's face carries four things:** its icon (larger, using the room freed), its name, **one short effect line** (at most six words, a new `short` field on each card, for example "Cuts bleed more", "Block pushes him back", "+1 heart per fell"), and its slot as a small chip.
+- **Moved off the face:** the rarity word (the border's colour already says it), the family name and the gear name (both shown on the "?" with the full line). The price stays.
+- **A long press** on a card (about 0.4 s) shows its full line and footer in a box over it; letting go closes it and takes nothing.
+- Every card in `DECK` (67) gets its `short`.
+
+**4. Armour: a starting kit, and a word before fighting bare.**
+- **On the first run,** the purse opens with a kit already chosen: a gladius and a chest plate (30 of 45 gold, `TUNING.purse.first`). Brutus says: "I picked you a blade and a chest plate. Change what you like." Everything can be changed as today.
+- **On any run,** Fight! with no plate bought, while you could afford one, asks once: Brutus: "No plates? Every blow lands on skin." with two buttons, **Buy a plate** (back to the purse, a plate slot pulsing) and **Fight bare**. A run that chose Fight bare is not asked again.
+- **Each plate slot shows what it saves** in a few words under its price, for example "Chest: blocks cuts" (no sentences).
+
+**5. Less to read on the first run.**
+- **The first-run hints are cut** to at most eight words each, and none shows during bout 1 (the yard covers it):
+  - the HUD: "Gold: Momentum. Green: stamina. Tan: shield.";
+  - the crowd: "Style fills the crowd. Crowds pay.";
+  - Momentum: "Momentum full. War paint spends it.";
+  - the heart: "Each fell heals +1 heart.";
+  - the drive: "Hold a lunge to drive further.";
+- No screen of the first run shows more than two lines of Brutus at once.
+
+**6. A nudge off jab spam.**
+- **The hint:** after six jabs in a row with no other move, in the first two runs, Brutus says once: "He's seen that jab. Slash, or lunge." (`TUNING.train.spam`).
+- **The fight itself:** from bout 2 on, a foe who has blocked your last three jabs in a row raises his guard against the next jab sooner (`TUNING.foe.jabRead`, small), so jabbing alone stops working and mixing in slashes and lunges does. This uses the foe's habit memory where it already exists (bout 3 on) and adds it from bout 2 for jabs only.
+
+### Defaults chosen (the designer can change them)
+
+- One tap takes a card, with no confirm. A second tap would be safer against slips, but the friend expected one.
+- The yard is on the first run only, with Skip, plus a Training button on the menu.
+- The first run's purse starts with a gladius and a chest plate.
+
+### Acceptance
+
+- Frames at 667x375 and 844x390:
+  - each training step with its ghost thumb;
+  - a card taken in one tap, mid-flight to the doll;
+  - an unaffordable gold card shaking;
+  - the slimmer card face, and a long-press box;
+  - the purse's first-run kit, and the "No plates?" ask.
+- Scripted checks (`tools/drive.mjs`):
+  - the yard runs end to end on a fresh save, and Skip ends it;
+  - it doesn't show on the second run;
+  - one tap takes a card;
+  - Fight bare isn't asked twice in a run;
+  - every card has a `short` of six words or fewer.
+- `npm run smoke`.
+- **A playtest with someone new**, the real test of this step.
