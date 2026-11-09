@@ -323,6 +323,18 @@ const TUNING = {
     plate: { helmet: 10, chest: 15, manica: 10, greaves: 10 }, hint: 1,
     // step 23: the first run's purse opens with this kit chosen
     first: { w: 'gladius', kit: ['chest'] } },
+  // Step 22, the sidearm: a second weapon on your belt, bought in the purse's Sidearm slot at its weapon's price. swap = s the ⇄ swap takes, with no
+  // block and no swing; punish = s at most before his next blow when you start one within his reach; btn = the round buttons' radius and gap (px),
+  // bottom right. His (foe): his chance per arena of a sidearm (never a champion's, a rival's or two blades'), which weapon carries which, and the gap
+  // (H, past his size's reach) at which he draws it (near) and goes back to his long weapon (far); swap = s he holds off a blow while he swaps
+  // hip: where the inventory doll wears it (body units right of and below its middle, its lean in rad, its scale)
+  sidearm: { swap: 0.5, punish: 0.35, btn: { r: 26, gap: 10 }, hip: [0.06, -0.5, 0.45, 0.8],
+    foe: { chance: { pit: 0, city: 0.3, rome: 0.35, games: 0.4 }, carry: { spear: 'gladius' }, near: 0.12, far: 0.3, swap: 0.5 } },
+  // Step 22, throwing knives: a consumable bought one at a time (price gold) in the purse, the tent and the bandage stall, at most max carried, kept
+  // for the run. aim = s to raise the knife (open: no block, no swing) before a release throws it; lift = px the aim point sits above the thumb;
+  // speed = flight in H per s; dmg = a knife in a gap; pad = px of give round a part; len = the knife's drawn length (H); fall = s a spent knife
+  // lies in the sand; row = the Knives row's height and its - and + buttons' width (px)
+  knives: { price: 5, max: 6, aim: 0.25, lift: 50, speed: 5, dmg: 5, pad: 4, len: 0.13, fall: 1.2, row: [44, 44] },
   // card effects. The tent's old commons: half hearts, multipliers, bare-hit damage, shield hits. The Wall: shove = paces a perfect block drives him, shoveStun = s stunned
   // at his wall, thorns = blocks that disarm him, thornsDur = s disarmed. Blood: bleed stacks per hit, vein = his wind-up x while he bleeds, bloodlust = stamina per stack
   // per tick, cruel = slot damage per stack. Dancer: sidestep = s winded, matador = s stunned, slip = jab x within slipWin s of a tell dodge, untouch = s all slots open.
@@ -1306,6 +1318,8 @@ const count = (id) => (state.picks ? state.picks.filter((q) => q === id).length 
 // what the keystones take away
 const noDodge = () => has('ironwall') || has('titan');
 const noShield = () => has('untouch');
+// step 22: swapping to your sidearm or aiming a knife leaves you open: no block, no swing
+const busy = () => state.swapT > 0 || !!state.aim;
 function pickW(rng, list) { let tot = 0; for (const e of list) tot += e[1]; let r = rng() * tot; for (const e of list) { r -= e[1]; if (r < 0) return e[0]; } return list[list.length - 1][0]; }
 const statMul = (k, v) => TUNING.stat[k][0] - TUNING.stat[k][1] * v;
 // a count of hearts (yours, the grade's hits) at the bout-length setting, whole
@@ -1514,6 +1528,9 @@ function rollGauntlet(seed, rival, A = ARENAS[0], first = null) {
   // Step 18: two blades, on their own stream: a share of the men from the City on (never a champion or a rival, only with a blade), with no shield
   const dr = makeRng(seed ^ 0x7a3d51c9), DS = TUNING.arenas[A.id].dual;
   if (DS) for (const d of g.flatMap((q) => [q, q.pair]).filter(Boolean)) if (!d.beast && !d.champion && !d.rival && TUNING.dual.weapons.includes(d.weapon.id) && dr.chance(DS)) { d.dual = true; d.shield = false; }
+  // Step 22: a sidearm, on its own stream: a share of the men from the City on whose weapon carries one (never a champion, a rival or two blades)
+  const sr = makeRng(seed ^ 0x51ed27a3), SF = TUNING.sidearm.foe, SC = SF.chance[A.id] || 0;
+  if (SC) for (const d of g.flatMap((q) => [q, q.pair]).filter(Boolean)) if (!d.beast && !d.champion && !d.rival && !d.dual && SF.carry[d.weapon.id] && sr.chance(SC)) d.side = SF.carry[d.weapon.id];
   // his gear and gap guards, on their own stream so the fighters above roll as they always did (a pair's second on another); a rival keeps the gear he wore
   const gr = makeRng(seed ^ 0x2f6b9a17), gp = makeRng(seed ^ 0x3c6ef373);
   const kit = (d, src, rec) => { const gear = rollGear(src, d, d.tier, A), guards = rollGuards(src, d, d.tier, A); d.gear = d.rival && rec && rec.gear ? rec.gear.slice() : gear; d.guards = guards; };
@@ -1564,6 +1581,8 @@ function makeFoe(d, pair) {
   f.staMax = TUNING.foeSta.base + TUNING.foeSta.per * d.sta; f.sta = f.staMax; f.staT = 9; f.staShown = 1;
   f.home = d.weapon.range + d.size.reach; f.strike = d.weapon.strike + d.size.reach;
   f.th = REST_TH; f.dx = 0; f.dy = 0; f.a = 0; f.fr = {}; f.down = false; f.bleed = []; f.dents = 0; f.shrug = false;
+  // step 22: his long weapon and his sidearm, each a TUNING.weapons row (swapped by range in foeSidearm)
+  f.mainW = d.weapon; f.sideW = d.side ? TUNING.weapons.find((w) => w.id === d.side) : null;
   return f;
 }
 function newRack(E) {
@@ -1587,6 +1606,8 @@ function newRack(E) {
   Object.assign(state, { slowFx: 0, slowMul: 1, zoomT: 0, dropT: 0, ghostT: 0, ghostAt: -9, ghosts: [], paintT: 0, banner: null, shatter: null, steps: { foe: null, me: null } });
   // step 18: his signature's wait, Aquila's switch, the Huntress's spear, the crossed blades' guard, your off hand
   Object.assign(state, { sigN: 0, switchT: 0, flyS: 0, spearT: 0, spearAt: null, gbreak: 0, coverHits: 0, offT: 0, offHit: null });
+  // step 22: your swap, your aim, a knife in flight and one spent in the sand, his swap
+  Object.assign(state, { swapT: 0, aim: null, knife: null, knifeFall: null, foeSwapT: 0 });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
   // both fighters start each bout back on their marks
   Object.assign(state.foot, { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 });
@@ -1619,6 +1640,8 @@ function newRound(E, seed, me0, rv, arenaId = 'pit', fr) {
     fav: 0, favStep: 0, favT: 0, favShown: 0, favM: 0, favSum: 0, favDur: 0, lastHitM: -9, opened: null, finSel: '', finHintT: 0, hintT: 0, hintS: '',
     crowd: [],
     // step 19: Broken Chains spent, drafts skipped, the tags' counts and clocks; step 20: each signature's uses and answers ({ rage: [2, 1] })
+    // step 22: the knives you carry, thrown, and in a gap; your swaps and his
+    knives: 0, knivesThrown: 0, knifeGaps: 0, mySwaps: 0, foeSwaps: 0,
     chains: 0, skips: 0, jabRun: 0, jabGuard: 0, tagN: {}, tagM: {}, drillN: 0, kneadN: 0, kneadM: -9, oxLow: false, specials: {}, readT: 0, hpSeen: null, heartFx: null, introHelp: false,
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, heldAt: -9, zy: -0.58, arm: 0, blocked: false, pressT: -9 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
@@ -1652,7 +1675,7 @@ const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token'
   'capCut', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
   'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'baited', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
   'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep',
-  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials'];
+  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials', 'knives', 'knivesThrown', 'knifeGaps', 'mySwaps'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
@@ -2035,7 +2058,7 @@ function moveHand(E, dt) {
 // up (a free raise, no blow), or any other arc (slash). The cost is paid then.
 function updateAttack(E, dt) {
   const h = state.hand, T = TUNING, AT = T.attack, S = T.stamina, sh = state.sh;
-  const live = h.down && h.lock <= 0 && !state.away && state.endT <= 0 && state.fallT <= 0;
+  const live = h.down && h.lock <= 0 && !state.away && state.endT <= 0 && state.fallT <= 0 && !busy();
   if (h.atk && (!live || (h.sp < T.hit.minSpeed * 0.55 && !lungeStab(h.atk) && !driveStab(h.atk)))) h.atk = null;
   if (!h.atk && live && h.sp >= T.hit.minSpeed) {
     const spv = Math.hypot(h.vx, h.vy) || 1, ux = h.vx / spv, uy = h.vy / spv;
@@ -2112,7 +2135,7 @@ function pushYou(E, k = 1) {
 }
 
 // ----- your defence: the shield and the backstep in time -----
-const raised = () => !state.sh.broken && !noShield() && state.sh.arm <= 0 && state.you.lungeK < 0.15 && (state.sh.held || (state.sh.t >= 0 && state.sh.t < TUNING.shield.dur));
+const raised = () => !state.sh.broken && !noShield() && !busy() && state.sh.arm <= 0 && state.you.lungeK < 0.15 && (state.sh.held || (state.sh.t >= 0 && state.sh.t < TUNING.shield.dur));
 const blocks = (zone) => raised() && state.sh.zone === zone;
 function updateDefence(dt, E) {
   const s = state.sh, D = TUNING.dodge, S = TUNING.shield, dg = state.dg;
@@ -2512,6 +2535,18 @@ function twinTick(E, dt) {
   }
   if (state.switchT <= 0) { state.switchT = 0; state.swingIn = Math.min(state.swingIn, 0.6); }
 }
+// Step 22: a foe with a sidearm draws it when you close inside near (H past his reach) and goes back to his long weapon past far, only between
+// exchanges; for TUNING.sidearm.foe.swap s after it he holds off his next blow
+function foeSidearm(E, dt) {
+  const f = state.foe, SF = TUNING.sidearm.foe;
+  state.foeSwapT = Math.max(0, state.foeSwapT - dt);
+  if (!f.sideW || state.sw || state.plan || state.foeSwapT > 0 || state.disarm > 0 || state.stagger > 0) return;
+  const d = state.step.x - bodyPos() - f.size.reach, long = f.weapon === f.mainW;
+  if (long ? d > SF.near : d < SF.far) return;
+  setWeapon(f, long ? f.sideW : f.mainW);
+  state.foeSwapT = SF.swap; state.swingIn = Math.max(state.swingIn, SF.swap); state.foeSwaps++;
+  const Ff = foeF(E); pop(Ff.x, Ff.y - 1.15 * Ff.H, f.wname, '#fde68a', 16); swooshSound(E);
+}
 // the Huntress's spear thrown: she fights with her dagger (unarmed a while if it missed you) until she picks it up again
 function spearOut(E, missed) {
   const f = state.foe, C = TUNING.champs.mevia;
@@ -2684,6 +2719,7 @@ function updateFoe(dt, E) {
   state.retreat = Math.max(0, state.retreat - dt);
   if (state.winded > 0) { state.winded = Math.max(0, state.winded - dt); return; }
   if (state.stun > 0) { state.stun -= dt; return; }
+  foeSidearm(E, dt);
   const sw = state.sw;
   if (sw) {
     if (sw.fin > 0) { sw.fin -= dt; if (sw.fin <= 0) endBlow(E); return; }
@@ -2823,6 +2859,7 @@ function raiseShield(E, zone, pid) {
   const s = state.sh, Fy = youF(E);
   if (s.broken || noShield()) { pop(Fy.x, Fy.y - 1.0 * Fy.H, 'NO SHIELD', '#94a3b8', 14); return; }
   if (state.away || state.you.lungeK >= 0.15) return;
+  if (busy()) { pop(Fy.x, Fy.y - 1.0 * Fy.H, 'OPEN', '#fca5a5', 14); return; }
   if (!raised() && !(s.arm > 0)) {
     if (s.cool > 0) return;
     s.zone = zone; s.zy = zone.sy; s.blocked = false;
@@ -2895,7 +2932,7 @@ const cleanStrike = (kind, key = myKey()) => strikeOf(key, attOf(kind), TUNING.s
 // One hit per swing: the first thing the weapon meets decides it (point first, earliest point of the sweep first; a slot wins over the part it sits on).
 function checkHits(E) {
   const h = state.hand, T = TUNING, a = h.atk;
-  if (!a || a.done || h.lock > 0 || state.fallT > 0 || state.endT > 0 || state.away) return;
+  if (!a || a.done || h.lock > 0 || state.fallT > 0 || state.endT > 0 || state.away || busy()) return;
   const need = a.kind === 'jab' ? T.attack.jab.minSpeed : a.kind === 'over' ? T.attack.over.minSpeed : T.hit.minSpeed;
   if (h.sp < need && !lungeStab(a) && !driveStab(a)) return;
   // a lunge that has not committed (the Feint worn) holds what its blade meets until it commits
@@ -3521,7 +3558,7 @@ function finBtn(E) {
   const c = finLive(E) && finReady();
   if (!c) return null;
   const B = TUNING.finBtn, two = finList().length > 1, w = B.w + (two ? B.arrow : 0);
-  return { c, two, x: E.w - 16 - E.safe.right - w, y: E.h - 10 - E.safe.bottom - B.h, w, h: B.h, arrow: two ? B.arrow : 0 };
+  return { c, two, x: E.w - 16 - E.safe.right - armsW(E) - w, y: E.h - 10 - E.safe.bottom - B.h, w, h: B.h, arrow: two ? B.arrow : 0 };
 }
 function fireFinisher(E, c) {
   const Fy = youF(E);
@@ -3581,6 +3618,179 @@ function finTouch(E, p) {
     E.audio.play('tap'); E.haptic(8);
   } else fireFinisher(E, b.c);
   return true;
+}
+// ----- step 22: the sidearm (⇄) and throwing knives, two round buttons at the bottom right -----
+// the purse's weapon id as the weapon wheel's (the mace is an axe that is a mace)
+const sideWield = (id) => [id === 'mace' ? 'axe' : id, id === 'mace'];
+// never in the training yard or the card lab
+const armsLive = (E) => !state.train && !state.lab && finLive(E);
+// ⇄ in the corner while you carry a sidearm, the knife button above it (in the corner without one) while you carry a knife or aim one; w: the room
+// they take from the finisher button and the hints
+function armsBtns(E) {
+  if (!state.me || !armsLive(E)) return null;
+  const B = TUNING.sidearm.btn, side = !!state.me.side, kn = state.knives > 0 || !!state.aim;
+  if (!side && !kn) return null;
+  const x = E.w - 16 - E.safe.right - B.r, y0 = E.h - 10 - E.safe.bottom - B.r;
+  return { swap: side ? { x, y: y0, r: B.r } : null, knife: kn ? { x, y: side ? y0 - 2 * B.r - B.gap : y0, r: B.r } : null, w: 2 * B.r + B.gap };
+}
+const armsW = (E) => { const b = armsBtns(E); return b ? b.w : 0; };
+const onRound = (b, p) => !!b && Math.hypot(p.x - b.x, p.y - b.y) <= b.r + TUNING.finBtn.reach;
+// a touch on ⇄ swaps; on the knife button it raises a knife, or lowers the one raised
+function armsTouch(E, p) {
+  const b = armsBtns(E);
+  if (!b) return false;
+  if (onRound(b.swap, p)) { startSwap(E); return true; }
+  if (onRound(b.knife, p)) { if (state.aim) { state.aim = null; E.audio.play('tap'); } else startAim(E); return true; }
+  return false;
+}
+// he sees you open: within his reach, his next blow comes soon
+function seenOpen() { if (!state.sw && inReach()) state.swingIn = Math.min(state.swingIn, TUNING.sidearm.punish); }
+// the swap: the weapon in your hand goes to your belt and the sidearm comes up; the hand is down for TUNING.sidearm.swap s (no swing), the shield too
+function startSwap(E) {
+  if (state.swapT > 0 || state.aim || !state.me.side) return;
+  const S = TUNING.sidearm, h = state.hand, [w, m] = sideWield(state.me.side), was = weaponKey(state.me.weapon, state.me.mace);
+  state.me = { ...wield(state.me, w, m), side: was };
+  state.swapT = S.swap; state.mySwaps++;
+  h.atk = null; h.lock = S.swap; h.hvx = 0; h.hvy = 240; h.grip = 0;
+  const Fy = youF(E); pop(Fy.x, Fy.y - 1.2 * Fy.H, weaponTitle(state.me).toUpperCase(), '#fde68a', 16);
+  swooshSound(E, 0.1); E.haptic(10);
+  seenOpen();
+}
+// a knife raised: open (no block, no swing) until it is thrown or lowered; the next right-thumb touch aims it and its release throws it
+function startAim(E) {
+  if (state.knives <= 0 || state.swapT > 0) return;
+  const h = state.hand;
+  h.down = false; h.atk = null;
+  state.aim = { t: 0, id: -1, x: 0, y: 0, go: false };
+  E.audio.beep({ freq: 880, dur: 0.06, type: 'triangle', gain: 0.08 }); E.haptic(8);
+  seenOpen();
+}
+function aimAt(E, p) { const a = state.aim; a.x = clamp(p.x, 10, E.w - 10); a.y = clamp(p.y - TUNING.knives.lift, E.safe.top + 10, E.h - 10); }
+// where the raised knife is held: up beside your head
+function knifeHand(E) { const Fy = youF(E), [sx, sy] = toScreen(Fy, SHOULDER[0], SHOULDER[1]); return [sx + 0.02 * Fy.dir * Fy.H, sy - 0.34 * Fy.H]; }
+// thrown: spent, hit or miss; it flies to the aim point at TUNING.knives.speed and finds what is there when it arrives
+function throwKnife(E) {
+  const K = TUNING.knives, a = state.aim, [x0, y0] = knifeHand(E), d = Math.hypot(a.x - x0, a.y - y0);
+  state.aim = null; state.knives--; state.knivesThrown++;
+  state.knife = { x0, y0, x1: a.x, y1: a.y, t: 0, dur: Math.max(0.05, d / (K.speed * youF(E).H)) };
+  swooshSound(E, 0.1); E.haptic(10);
+}
+function stepArms(E, dt) {
+  state.swapT = Math.max(0, state.swapT - dt);
+  const a = state.aim;
+  if (a && !armsLive(E)) state.aim = null;
+  else if (a && (a.t += dt) >= TUNING.knives.aim && a.go) throwKnife(E);
+  const k = state.knife;
+  if (k && (k.t += dt) >= k.dur) { state.knife = null; knifeLands(E, k); }
+  const q = state.knifeFall;
+  if (q) {
+    q.life -= dt; q.vy += 1600 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.rot += q.vr * dt;
+    if (q.y >= q.floor) { q.y = q.floor; q.vx = q.vy = q.vr = 0; q.rot = q.flat; }
+    if (q.life <= 0) state.knifeFall = null;
+  }
+}
+// what the knife meets where it arrives: an open gap takes TUNING.knives.dmg; plate, his shield or guard clang; bare skin it glances off; nothing is a miss
+function knifeLands(E, k) {
+  const K = TUNING.knives, F = foeF(E), fm = state.foe, at = { x: k.x1, y: k.y1 }, ang = Math.atan2(k.y1 - k.y0, k.x1 - k.x0);
+  let hit = null;
+  if (state.fallT <= 0 && fm.hp > 0 && fm.parts) {
+    const [lx, ly] = toLocal(F, k.x1, k.y1);
+    for (const p of fm.parts.filter((q) => q.slot).concat(fm.parts.filter((q) => !q.slot))) {
+      const [qx, qy] = partLocal(p, fm, lx, ly);
+      if (inside(p.d, qx, qy, K.pad / F.H)) { hit = p; break; }
+    }
+  }
+  if (hit && hit.slot && !covered(hit)) { knifeGap(E, hit, at, ang); return; }
+  if (hit && covered(hit)) { hit.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 12); ring(at.x, at.y, 30, '#cbd5e1'); clangSound(E, 0); pop(at.x, at.y - 24, 'CLANG', '#cbd5e1', 16); E.haptic(12); }
+  else { pop(at.x, at.y - 24, hit ? 'GLANCES OFF' : 'MISS', '#cbd5e1', 15); E.audio.play('miss'); }
+  const L = lay(E);
+  state.knifeFall = { x: at.x, y: at.y, vx: -Math.cos(ang) * 90, vy: -120, rot: ang, vr: (Math.random() < 0.5 ? -1 : 1) * 14, flat: Math.PI * (Math.random() < 0.5 ? 0.02 : 0.98), floor: L.floor - 2, life: K.fall };
+}
+// a knife in a gap: a big piercing hit, the gap's ring and sound; he covers it after, as after any blow
+function knifeGap(E, p, at, ang) {
+  const J = TUNING.juice, f = state.foe, dealt = TUNING.knives.dmg;
+  p.cool = TUNING.hit.cool; p.flash = 0.16; state.gapHits++; state.slotHits++; state.knifeGaps++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1;
+  f.hp -= dealt;
+  blood(at.x, at.y, ang, J.blood.slot); ring(at.x, at.y, J.slotRing, '#ef4444'); slotSound(E); sliceSound(E, true);
+  dmgPop(E, at, dealt, '#ff6a4a'); shake(E, 8, 0.1); E.haptic(30); E.flash('#fff0b8', 0.07);
+  state.stop = Math.max(state.stop, J.slotStop);
+  crowdEvent(E, 'slot');
+  if (f.hp <= 0) fell(E); else setCover(p);
+}
+// a small dark throwing knife, its point along ang from (x, y), len px from pommel to point
+function drawKnife(ctx, x, y, ang, len) {
+  const w = Math.max(2.5, len * 0.12);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.strokeStyle = '#11141a'; ctx.lineWidth = 1;
+  ctx.fillStyle = '#5b3a22'; ctx.fillRect(-len * 0.4, -w * 0.45, len * 0.36, w * 0.9); ctx.strokeRect(-len * 0.4, -w * 0.45, len * 0.36, w * 0.9);
+  ctx.fillStyle = '#20242b'; ctx.fillRect(-len * 0.05, -w * 0.9, len * 0.05, w * 1.8);
+  ctx.beginPath(); ctx.moveTo(0, -w * 0.6); ctx.lineTo(len * 0.6, 0); ctx.lineTo(0, w * 0.6); ctx.closePath();
+  ctx.fillStyle = '#353b44'; ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(203,213,225,0.7)'; ctx.beginPath(); ctx.moveTo(len * 0.04, -w * 0.15); ctx.lineTo(len * 0.5, 0); ctx.stroke();
+  ctx.restore();
+}
+// in the world: the raised knife and its aim point (a gold ring with a dotted line from the knife), the knife in flight, a spent one falling
+function drawKnives(ctx, E) {
+  const K = TUNING.knives, len = K.len * youF(E).H, a = state.aim, k = state.knife, q = state.knifeFall;
+  if (a) {
+    const [hx, hy] = knifeHand(E), aimed = a.id >= 0, ang = aimed ? Math.atan2(a.y - hy, a.x - hx) : -Math.PI / 2 + 0.35 * youF(E).dir, up = clamp(a.t / K.aim, 0, 1);
+    drawKnife(ctx, hx - Math.cos(ang) * len * 0.3, hy + (1 - up) * 0.2 * len - Math.sin(ang) * len * 0.3, ang, len);
+    if (aimed) {
+      const pulse = 0.5 + 0.5 * Math.sin(state.m * 10);
+      ctx.save(); ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,210,74,0.55)'; ctx.lineWidth = 2; line(ctx, hx, hy, a.x, a.y); ctx.restore();
+      ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(a.x, a.y, 9 + 2 * pulse, 0, TAU); ctx.stroke();
+      line(ctx, a.x - 15, a.y, a.x - 7, a.y); line(ctx, a.x + 7, a.y, a.x + 15, a.y); line(ctx, a.x, a.y - 15, a.x, a.y - 7); line(ctx, a.x, a.y + 7, a.x, a.y + 15);
+      ctx.fillStyle = '#ffd24a'; ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, TAU); ctx.fill();
+    }
+  }
+  if (k) { const u = clamp(k.t / k.dur, 0, 1); drawKnife(ctx, lerp(k.x0, k.x1, u), lerp(k.y0, k.y1, u), Math.atan2(k.y1 - k.y0, k.x1 - k.x0), len); }
+  if (q) { ctx.globalAlpha = clamp(q.life / 0.3, 0, 1); drawKnife(ctx, q.x, q.y, q.rot, len); ctx.globalAlpha = 1; }
+}
+// the round buttons: ⇄ (its ring fills while you swap) and the knife button with the knives left (red while one is raised: a tap lowers it)
+function drawArmsBtns(ctx, E) {
+  const b = armsBtns(E);
+  if (!b) return;
+  const S = TUNING.sidearm;
+  if (b.swap) {
+    const c = b.swap, on = state.swapT > 0;
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, TAU); ctx.fillStyle = 'rgba(30,24,36,0.85)'; ctx.fill(); ctx.strokeStyle = state.aim ? '#6b7280' : '#e6c866'; ctx.lineWidth = 2; ctx.stroke();
+    if (on) { ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(c.x, c.y, c.r - 3, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - state.swapT / S.swap)); ctx.stroke(); }
+    E.text('⇄', c.x, c.y + 1, { size: 26, weight: '800', color: state.aim ? '#6b7280' : '#fde68a' });
+  }
+  if (b.knife) {
+    const c = b.knife, on = !!state.aim;
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, TAU); ctx.fillStyle = on ? 'rgba(90,20,20,0.9)' : 'rgba(30,24,36,0.85)'; ctx.fill(); ctx.strokeStyle = on ? '#f87171' : '#e6c866'; ctx.lineWidth = 2; ctx.stroke();
+    drawKnife(ctx, c.x - c.r * 0.5, c.y + c.r * 0.38, -Math.PI / 4, c.r * 1.25);
+    const bx = c.x + c.r * 0.68, by = c.y - c.r * 0.68;
+    ctx.beginPath(); ctx.arc(bx, by, 10, 0, TAU); ctx.fillStyle = '#1b1410'; ctx.fill(); ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.5; ctx.stroke();
+    E.text(`${state.knives}`, bx, by + 1, { size: 14, weight: '800', color: '#ffd24a' });
+  }
+}
+// Step 22: the Knives row wherever gold is spent: the knife, its word and price, then - and + either side of the count (n of the most). Returns the two
+// buttons' rects; add and sub say whether each can be tapped now.
+function knifeRow(ctx, E, x, y, w, n, add, sub) {
+  const K = TUNING.knives, [h, bw] = K.row, R = x + w;
+  E.roundRect(x, y, w, h, 10, '#1f1a24', '#4a4252');
+  const my = y + h / 2;
+  drawKnife(ctx, x + 17, my + 5, -0.6, 24);
+  E.text('KNIVES', x + 34, my - 7, { size: 14, weight: '800', align: 'left', color: '#c4b99a' });
+  const pr = `${K.price}`;
+  E.text(pr, x + 47, my + 9, { size: 14, weight: '800', align: 'left', color: '#fbbf24' }); drawCoin(ctx, x + 40, my + 9, 5.5);
+  const plus = { x: R - bw - 2, y: y + 2, w: bw, h: h - 4 }, cw = 40, minus = { x: plus.x - cw - bw, y: y + 2, w: bw, h: h - 4 };
+  for (const [r, t, ok] of [[minus, '−', sub], [plus, '+', add]]) {
+    E.roundRect(r.x, r.y, r.w, r.h, 8, ok ? '#3a2a10' : '#2a2016', ok ? '#ffd24a' : '#4a4252');
+    E.text(t, r.x + r.w / 2, r.y + r.h / 2 + 1, { size: 22, weight: '800', color: ok ? '#ffd24a' : '#6b7280' });
+  }
+  E.text(`${n}/${K.max}`, minus.x + bw + cw / 2, my, { size: 16, weight: '800', color: n ? '#f0e6cc' : '#9aa4b2' });
+  return { minus, plus };
+}
+// the tent's and the stall's: a knife bought (up to the most carried) or one bought here sold back (tt.kn: bought on this screen)
+function knifeBuy(E, tt, more) {
+  const K = TUNING.knives;
+  if (more ? state.knives >= K.max || state.gold < K.price : !(tt.kn > 0)) { E.audio.play('miss'); return; }
+  const d = more ? 1 : -1;
+  state.knives += d; tt.kn = (tt.kn || 0) + d; state.gold -= d * K.price;
+  E.audio.play(more ? 'coin' : 'tap'); E.haptic(10);
 }
 function emit(E, ev, ctx = {}) {
   crowdEvent(E, ev);
@@ -3868,8 +4078,8 @@ function leaveTent(E) {
   state.rack++; newRack(E); poseFoe(E, 0.016);
 }
 // Step 9: before the last bout's champion (step 18: not the Grand Games' others), Brutus sells bandages for gold (1 heart each, up to your max), on a small screen in the tent's look (state.tent with
-// `band`); it is skipped when you are at full health. The run is saved at the champion's bout, as the tent's is at the next one.
-const bandageDue = () => { const nx = state.gauntlet[state.rack + 1]; return !!nx && !!nx.champion && state.rack + 2 === state.gauntlet.length && state.hp < state.maxHp; };
+// `band`; step 22: knives too); it is skipped when you are at full health and can buy no knife. The run is saved at the champion's bout, as the tent's is at the next one.
+const bandageDue = () => { const nx = state.gauntlet[state.rack + 1], K = TUNING.knives; return !!nx && !!nx.champion && state.rack + 2 === state.gauntlet.length && (state.hp < state.maxHp || (state.knives < K.max && state.gold >= K.price)); };
 function openBandage(E) {
   state.tent = { band: true, t: 0, btns: [], skip: null, bought: 0 };
   saveRun(E, state.rack + 1);
@@ -6962,13 +7172,13 @@ function aboveFin(E, right, h, y) {
 function rightHints(E) {
   const out = [];
   if ((state.finHintT <= 0 && state.hintT <= 0) || !finLive(E)) return out;
-  const b = finBtn(E), R = E.w - 16 - E.safe.right, room = R - (colRect(E).x + colRect(E).w + 12), ctx = E.ctx;
+  const b = finBtn(E), R = E.w - 16 - E.safe.right - armsW(E), room = R - (colRect(E).x + colRect(E).w + 12), ctx = E.ctx;
   let y = (b ? b.y : E.h - 10 - E.safe.bottom - TUNING.finBtn.h) - 23;
   ctx.font = '800 14px system-ui, sans-serif';
   for (const [s, t] of [[b && state.finHintT > 0 ? 'Tap to spend your Momentum.' : '', state.finHintT], [state.hintT > 0 ? state.hintS : '', state.hintT]]) {
     if (!s) continue;
     const lines = wrapPx(ctx, s, room - 8, 14, '800'), tw = Math.max(...lines.map((l) => ctx.measureText(l).width)), ph = 18 * lines.length + 12;
-    out.push({ lines, x: R - tw, y, px: R - tw - 8, py: y - 18 * (lines.length - 1) - 15, pw: tw + 16, ph, a: clamp(t / 1.5, 0, 1) });
+    out.push({ lines, r: R, x: R - tw, y, px: R - tw - 8, py: y - 18 * (lines.length - 1) - 15, pw: tw + 16, ph, a: clamp(t / 1.5, 0, 1) });
     y -= ph + 6;
   }
   return out;
@@ -6977,7 +7187,7 @@ function drawRightHints(E) {
   const ctx = E.ctx;
   for (const q of rightHints(E)) {
     ctx.globalAlpha = q.a; E.roundRect(q.px, q.py, q.pw, q.ph, 10, 'rgba(20,12,4,0.72)', null); ctx.globalAlpha = 1;
-    q.lines.forEach((l, i) => E.text(l, E.w - 16 - E.safe.right, q.y - 18 * (q.lines.length - 1 - i), { size: 14, align: 'right', weight: '800', color: '#fde68a', alpha: q.a }));
+    q.lines.forEach((l, i) => E.text(l, q.r, q.y - 18 * (q.lines.length - 1 - i), { size: 14, align: 'right', weight: '800', color: '#fde68a', alpha: q.a }));
   }
 }
 // The hint, in a player's first bouts ever: two short lines along the bottom, in the space right of the left thumb's column, fading out.
@@ -7380,7 +7590,7 @@ function drawTent(ctx, E) {
   E.text("THE ARMOURER'S TENT", E.w / 2, top, { size: 22, weight: '800', color: '#e6c866' });
   sayLine(ctx, E, 'Old Brutus: “Spend it here. Gold buys nothing in the sand.”', E.w / 2, top + 26, E.w - 32, { size: 14, weight: '700', color: '#fde68a' }, 'brutus');
   E.text(`Your purse: ${state.gold} gold`, E.w / 2, top + 50, { size: 16, weight: '800', color: '#fbbf24' });
-  const n = tt.wares.length, gap = 14, w = Math.min(200, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 68, h = Math.min(170, E.h - E.safe.bottom - y - 70), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
+  const KR = TUNING.knives.row[0] + 8, n = tt.wares.length, gap = 14, w = Math.min(200, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n), y = top + 68, h = Math.min(170, E.h - E.safe.bottom - y - 70 - KR), x0 = (E.w - (w * n + gap * (n - 1))) / 2;
   tt.btns = tt.wares.map((wr, i) => {
     const x = x0 + i * (w + gap), short = !wr.sold && state.gold < wr.price, r = Math.min(24, h * 0.14);
     ctx.globalAlpha = !ready ? 0.6 : short ? 0.5 : 1;
@@ -7393,8 +7603,17 @@ function drawTent(ctx, E) {
     ctx.globalAlpha = 1;
     return { x, y, w, h, ware: wr };
   });
-  const any = tt.wares.some((q) => q.sold);
-  tt.skip = E.button(any ? 'Leave' : 'Skip', E.w / 2, Math.min(E.h - E.safe.bottom - 30, y + h + 34), { w: 170, h: 48, size: 18, fill: any ? '#b45309' : '#334155' });
+  const any = tt.wares.some((q) => q.sold) || tt.kn > 0;
+  tt.krow = tentKnives(ctx, E, y + h + 8, ready);
+  tt.skip = E.button(any ? 'Leave' : 'Skip', E.w / 2, Math.min(E.h - E.safe.bottom - 30, y + h + KR + 34), { w: 170, h: 48, size: 18, fill: any ? '#b45309' : '#334155' });
+}
+// step 22: the tent's and the stall's Knives row, centred at y
+function tentKnives(ctx, E, y, ready) {
+  const K = TUNING.knives, tt = state.tent, w = Math.min(300, E.w - 64);
+  ctx.globalAlpha = ready ? 1 : 0.6;
+  const r = knifeRow(ctx, E, (E.w - w) / 2, y, w, state.knives, state.knives < K.max && state.gold >= K.price, tt.kn > 0);
+  ctx.globalAlpha = 1;
+  return r;
 }
 // The bandages before the champion, in the tent's look: Brutus, your purse, your hearts (the missing ones dark), one bandage to tap for each heart, and
 // Skip (Fight on once you have bought)
@@ -7408,7 +7627,7 @@ function drawBandage(ctx, E) {
   E.text(`Your purse: ${state.gold} gold`, E.w / 2, top + 50, { size: 16, weight: '800', color: '#fbbf24' });
   const n = state.maxHp, hs = Math.min(26, (E.w - 64) / n), hy = top + 78;
   for (let i = 0; i < n; i++) drawHeart(ctx, E.w / 2 + (i - (n - 1) / 2) * hs, hy, Math.min(22, hs - 3), i < state.hp ? '#ef4444' : '#3b2a2e');
-  const w = Math.min(240, E.w - 64), h = Math.min(120, E.h - E.safe.bottom - hy - 96), x = (E.w - w) / 2, y = hy + 22;
+  const KR = TUNING.knives.row[0] + 8, w = Math.min(240, E.w - 64), h = Math.min(120, E.h - E.safe.bottom - hy - 96 - KR), x = (E.w - w) / 2, y = hy + 22;
   if (nudge && ready) {
     const k = 0.5 + 0.5 * Math.sin(tt.t * 5);
     ctx.save(); ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 14 + 12 * k; E.roundRect(x - 4, y - 4, w + 8, h + 8, 17, null, `rgba(255,210,74,${0.6 + 0.4 * k})`); ctx.restore();
@@ -7422,7 +7641,9 @@ function drawBandage(ctx, E) {
   E.text(full ? `${tt.bought} bought` : `${price} gold`, x + w / 2, y + h - 14, { size: 14, weight: '800', color: full ? '#4ade80' : short ? '#9aa4b2' : '#ffd24a' });
   ctx.globalAlpha = 1;
   tt.btns = [{ x, y, w, h }];
-  tt.skip = E.button(tt.bought ? 'Fight on' : 'Skip', E.w / 2, Math.min(E.h - E.safe.bottom - 30, y + h + 34), { w: 170, h: 48, size: 18, fill: tt.bought ? '#b45309' : '#334155' });
+  tt.krow = tentKnives(ctx, E, y + h + 8, ready);
+  const any = tt.bought || tt.kn > 0;
+  tt.skip = E.button(any ? 'Fight on' : 'Skip', E.w / 2, Math.min(E.h - E.safe.bottom - 30, y + h + KR + 34), { w: 170, h: 48, size: 18, fill: any ? '#b45309' : '#334155' });
 }
 // ----- the card lab (dev channel only): hold any cards before a bout, start it with full Momentum, add gold -----
 const labTab = (E) => ({ x: E.w - E.safe.right - 82, y: E.safe.top + 4, w: 72, h: 44 });
@@ -8187,8 +8408,9 @@ const weaponTitle = (me) => (me.weapon === 'axe' ? (me.mace ? 'Mace' : 'Axe') : 
 // slot's rect (its plate's tap target in the purse).
 function drawInventory(ctx, E, x, y, w, h, inv) {
   const { me, gear, buy } = inv, g = 8, ex = EXTRAS.some((k) => gear[k]), exH = ex ? 30 : 0;
-  const rh = (h - exH - (ex ? g : 0) - 2 * g) / 3, dw = clamp(w * 0.24, 76, 160), cw = (w - dw - 2 * g) / 2, rx = x + cw + dw + 2 * g;
-  const box = { head: [x, y, rh], arms: [x, y + rh + g, rh], legs: [x, y + 2 * (rh + g), rh], chest: [rx, y, rh], weapon: [rx, y + rh + g, 2 * rh + g] };
+  const rh = (h - exH - (ex ? g : 0) - 2 * g) / 3, dw = clamp(w * 0.24, 76, 160), cw = (w - dw - 2 * g) / 2, rx = x + cw + dw + 2 * g, sd = !!(buy || me.side);
+  // step 22: the Sidearm slot takes the Weapon slot's lower half, in the purse and whenever you carry one
+  const box = { head: [x, y, rh], arms: [x, y + rh + g, rh], legs: [x, y + 2 * (rh + g), rh], chest: [rx, y, rh], weapon: [rx, y + rh + g, sd ? rh : 2 * rh + g], side: [rx, y + 2 * (rh + g), rh] };
   // the doll: your painted figure with the plates you wear, feet at the slots' foot
   const fy = y + 3 * rh + 2 * g - 6, s = Math.min((3 * rh + 2 * g - 12) / 1.08, dw / 0.62), dx = x + cw + g + dw / 2;
   armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, GTYPE[me.weapon].helm);
@@ -8202,6 +8424,13 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
       ctx.save(); ctx.beginPath(); ctx.arc(px, py, TUNING.kit.weapon.fist * s, 0, TAU); ctx.clip();
       armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, GTYPE[me.weapon].helm); ctx.restore();
     }
+  }
+  // the sidearm (step 22) at the hip, hanging back
+  const [sw0, sm0] = me.side ? sideWield(me.side) : ['fist', false];
+  if (sw0 !== 'fist') {
+    const k = TUNING.sidearm.hip;
+    ctx.save(); ctx.translate(dx + k[0] * s, fy + k[1] * s); ctx.rotate(k[2]); ctx.translate(0, -ARM_LEN * s * k[3]);
+    drawWeapon(ctx, { weapon: iconWeapon(sw0), mace: sm0 }, s * k[3]); ctx.restore();
   }
   const rects = [], lh = Math.min(17, (rh - 6) / 4), tw = cw - 16;
   for (const q of INV_SLOTS) {
@@ -8246,6 +8475,23 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
     if (c) put(c.gear, rarCol(c));
     rects.push({ id: q.id, plate: q.plate || null, x: bx, y: by, w: cw, h: bh });
   }
+  // the Sidearm slot (step 22): its weapon and kinds; in the purse its price, and a tap makes the rack buy for it (its border pulses gold)
+  if (sd) {
+    const [bx, by, bh] = box.side, S = buy && buy.side, pk = !!S && S.pick, k = me.side, L = bx + 8, px = dx + TUNING.sidearm.hip[0] * s, py = fy + TUNING.sidearm.hip[1] * s;
+    ctx.strokeStyle = ctx.fillStyle = 'rgba(196,185,154,0.4)'; ctx.lineWidth = 1;
+    line(ctx, bx, by + rh / 2, px, py); ctx.beginPath(); ctx.arc(px, py, 2.5, 0, TAU); ctx.fill();
+    E.roundRect(bx, by, cw, bh, 10, pk ? '#3a2a10' : '#1f1a24', pk ? '#ffd24a' : k ? PLATE_COL : '#4a4252');
+    if (pk) { const u = 0.5 + 0.5 * Math.sin(S.t * 6); ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.4 + 0.5 * u})`; ctx.lineWidth = 2 + 2 * u; rrect(ctx, bx - 2, by - 2, cw + 4, bh + 4, 11); ctx.stroke(); ctx.restore(); }
+    let ly = by + 4 + lh / 2;
+    E.text('SIDEARM', L, ly, { size: 14, weight: '800', align: 'left', color: pk ? '#ffd24a' : '#c4b99a' });
+    if (buy && k) { const pr = `${TUNING.purse.weapon[k]}`, R = bx + cw - 8; E.text(pr, R, ly, { size: 14, weight: '800', align: 'right', color: PLATE_COL }); drawCoin(ctx, R - ctx.measureText(pr).width - 9, ly, 5.5); }
+    ly += lh;
+    E.text(clipLine(ctx, k ? weaponTitle({ weapon: sw0, mace: sm0 }) : 'None', tw, 14, '700'), L, ly, { size: 14, weight: '700', align: 'left', color: k ? PLATE_COL : PLAIN_COL }); ly += lh;
+    if (pk) E.text('Pick from the rack', L, ly, { size: 14, weight: '700', align: 'left', color: '#ffd24a' });
+    else if (k) segLine(ctx, E, kindSegs(k), L, ly, tw, 14, {});
+    else if (buy) E.text('Tap, then a weapon', L, ly, { size: 14, weight: '600', align: 'left', color: '#9aa4b2' });
+    rects.push({ id: 'side', plate: null, x: bx, y: by, w: cw, h: bh });
+  }
   // the belt, the cloak and the shield's face, on one row
   if (ex) {
     const ey = y + h - exH, my = ey + exH / 2, R = x + w - 8;
@@ -8284,24 +8530,28 @@ function drawWearing(ctx, E) {
 // The purse, the inventory's first view (step 11), in the tent's look: Brutus (the first-run hint says what the purse is for), the doll with your
 // start cards' pieces (tap a slot to buy its plate, again to sell it back), the weapons in a rack on the right (fists free, the ludus's once bought),
 // and what is left with Fight!. P: the roll scene's purse.
-// the purse's price for a weapon (twice over with a second blade, step 18) and plates
-const purseCost = (w, kit, dual = false) => TUNING.purse.weapon[w] * (dual ? 2 : 1) + kit.reduce((a, k) => a + TUNING.purse.plate[k], 0);
+// the purse's price for a weapon (twice over with a second blade, step 18) and plates; step 22: a sidearm at its weapon's price, and knives
+const purseCost = (w, kit, dual = false, side = null, kn = 0) => TUNING.purse.weapon[w] * (dual ? 2 : 1) + kit.reduce((a, k) => a + TUNING.purse.plate[k], 0) + (side ? TUNING.purse.weapon[side] : 0) + kn * TUNING.knives.price;
+// the whole purse P as it would be with o changed
+const purseOf = (P, o = {}) => { const q = { ...P, ...o }; return purseCost(q.w, q.kit, q.dual && q.w !== 'fist', q.side, q.knives); };
 function drawPurse(ctx, E, P, me) {
   const T = TUNING.purse, top = E.safe.top + 18, L = 16 + E.safe.left, R = E.w - 16 - E.safe.right, ready = P.t > TUNING.draft.delay, gap = 8;
-  const cost = (w, kit) => purseCost(w, kit, P.dual && w !== 'fist'), left = P.gold - cost(P.w, P.kit), kit = kitMe(me, P.w, P.kit, P.dual);
+  const side = P.pick === 'side', left = P.gold - purseOf(P), kit = { ...kitMe(me, P.w, P.kit, P.dual), side: P.side };
   ctx.fillStyle = '#14101a'; ctx.fillRect(0, 0, E.w, E.h);
   E.text("THE ARMOURER'S TENT", E.w / 2, top, { size: 20, weight: '800', color: '#e6c866' });
   const say = P.first ? 'Old Brutus: “I picked you a blade and a chest plate. Change what you like.”'
     : P.hint ? `Old Brutus: “${P.gold} gold. Fists are free. Tap a slot to plate it, and keep some for the tent.”` : `Old Brutus: “${P.gold} gold. Plates or a blade: not all of both.”`;
   sayLine(ctx, E, say, E.w / 2, top + 24, R - L, { size: 14, weight: '700', color: '#fde68a', fit: true }, 'brutus');
   const by = E.h - E.safe.bottom - 30, gy = top + 46, gh = by - 30 - gy, rw = clamp((R - L) * 0.36, 200, 300), rx = R - rw;
-  P.slots = drawInventory(ctx, E, L, gy, R - L - rw - 14, gh, { me: kit, gear: gearOf(startCards(me).map((c) => c.id)), buy: { short: (k) => !P.kit.includes(k) && cost(P.w, [...P.kit, k]) > P.gold, job: MY_WEAPON_JOB[kit.weapon],
-    dual: { on: P.dual && P.w !== 'fist', price: P.w === 'fist' ? 0 : T.weapon[P.w], none: P.w === 'fist', short: !P.dual && purseCost(P.w, P.kit, true) > P.gold } } });
-  // the rack: two columns of weapons, each its name and price, its painting (step 14) with its striking parts lit and their kinds (step 21)
+  P.slots = drawInventory(ctx, E, L, gy, R - L - rw - 14, gh, { me: kit, gear: gearOf(startCards(me).map((c) => c.id)), buy: { short: (k) => !P.kit.includes(k) && purseOf(P, { kit: [...P.kit, k] }) > P.gold, job: MY_WEAPON_JOB[kit.weapon],
+    dual: { on: P.dual && P.w !== 'fist', price: P.w === 'fist' ? 0 : T.weapon[P.w], none: P.w === 'fist', short: !P.dual && purseOf(P, { dual: true }) > P.gold }, side: { pick: side, t: P.t } } });
+  // the rack: two columns of weapons, each its name and price, its painting (step 14) with its striking parts lit and their kinds (step 21); with the
+  // Sidearm slot picked (step 22) it buys the sidearm, never fists or the weapon in hand
   const rackLong = Math.max(...Object.keys(T.weapon).filter((id) => id !== 'fist').map(rackLen));
   const ids = Object.keys(T.weapon).filter((id) => !LUDUS_LOCK.has(id) || (me.open || []).includes(id)), rows = Math.ceil(ids.length / 2), tw = (rw - gap) / 2, th = Math.min(64, (gh - gap * (rows - 1)) / rows);
   P.tiles = ids.map((id, i) => {
-    const x = rx + (i % 2) * (tw + gap), y = gy + Math.floor(i / 2) * (th + gap), on = P.w === id, short = !on && cost(id, P.kit) > P.gold, pr = T.weapon[id];
+    const x = rx + (i % 2) * (tw + gap), y = gy + Math.floor(i / 2) * (th + gap), on = (side ? P.side : P.w) === id, pr = T.weapon[id];
+    const short = side ? id === 'fist' || id === P.w || (!on && purseOf(P, { side: id }) > P.gold) : !on && purseOf(P, { w: id, side: P.side === id ? null : P.side }) > P.gold;
     const nm = weaponName({ weapon: id === 'mace' ? 'axe' : id, mace: id === 'mace' }).split(' & ')[0];
     ctx.globalAlpha = !ready ? 0.6 : short ? 0.45 : 1;
     E.roundRect(x, y, tw, th, 12, on ? '#3a2a10' : '#2a2016', on ? '#ffd24a' : '#c4b99a');
@@ -8317,8 +8567,12 @@ function drawPurse(ctx, E, P, me) {
   });
   ctx.globalAlpha = 1;
   // what is left, and what the plates cost your stamina
-  const rg = TUNING.me.armour[kit.set].regen, st = rg < 1 ? `  ·  stamina ${Math.round((1 - rg) * 100)}% slower` : '';
-  E.text(`Left in your purse: ${left} gold${st}`, L, by, { size: fitSize(ctx, `Left in your purse: ${left} gold${st}`, 16, R - L - 170), weight: '800', align: 'left', color: '#fbbf24' });
+  const rg = TUNING.me.armour[kit.set].regen, st = rg < 1 ? `  ·  stamina ${Math.round((1 - rg) * 100)}% slower` : '', K = TUNING.knives, kw = clamp((R - L) * 0.36, 230, 270);
+  // step 22: the Knives row, left of Fight!
+  ctx.globalAlpha = ready ? 1 : 0.6;
+  P.krow = knifeRow(ctx, E, R - 170 - kw, by - K.row[0] / 2, kw, P.knives, P.knives < K.max && purseOf(P, { knives: P.knives + 1 }) <= P.gold, P.knives > 0);
+  ctx.globalAlpha = 1;
+  E.text(`Left in your purse: ${left} gold${st}`, L, by, { size: fitSize(ctx, `Left in your purse: ${left} gold${st}`, 16, R - L - 180 - kw), weight: '800', align: 'left', color: '#fbbf24' });
   P.fight = E.button('Fight!', R - 80, by, { w: 150, h: 48, size: 20, fill: '#b45309' });
   // Buy a plate: the plate it points at pulses until one is bought
   const pk = purseNudge(P), ps = P.pulse >= 0 && pk && P.slots.find((q) => q.plate === pk);
@@ -8328,7 +8582,7 @@ function drawPurse(ctx, E, P, me) {
 // the plate Buy a plate points at: the chest if the purse covers it, else the cheapest it covers; none when no plate is bought, or none is affordable
 function purseNudge(P) {
   if (P.kit.length) return null;
-  const ok = Object.keys(PLATES).filter((k) => purseCost(P.w, [k], P.dual) <= P.gold).sort((a, b) => (b === 'chest') - (a === 'chest') || TUNING.purse.plate[a] - TUNING.purse.plate[b]);
+  const ok = Object.keys(PLATES).filter((k) => purseOf(P, { kit: [k] }) <= P.gold).sort((a, b) => (b === 'chest') - (a === 'chest') || TUNING.purse.plate[a] - TUNING.purse.plate[b]);
   return ok[0] || null;
 }
 // Fight! with no plate while one is affordable (step 23): Brutus asks once, Buy a plate or Fight bare
@@ -9521,10 +9775,11 @@ const roll = {
     this.at(this.vet ? WHEELS.length : 0);
   },
   // the purse: the arena's starting gold, your fists and no plates; on the first run (step 23) a kit already chosen (TUNING.purse.first). ask: the
-  // "No plates?" card is up; bare: this run chose to fight bare; pulse: when Buy a plate sent you back (a plate slot pulses)
+  // "No plates?" card is up; bare: this run chose to fight bare; pulse: when Buy a plate sent you back (a plate slot pulses). Step 22: side, the sidearm
+  // bought (a purse weapon id, or none); pick, which of Weapon and Sidearm the rack buys for; knives, how many bought
   openPurse(E) {
     const F = TUNING.purse.first, first = firstRun(E);
-    this.purse = { gold: TUNING.purse.gold[this.arena], w: first ? F.w : 'fist', kit: first ? F.kit.slice() : [], dual: false, t: 0, tiles: [], slots: [], fight: null, first,
+    this.purse = { gold: TUNING.purse.gold[this.arena], w: first ? F.w : 'fist', kit: first ? F.kit.slice() : [], dual: false, side: null, pick: 'main', knives: 0, krow: null, t: 0, tiles: [], slots: [], fight: null, first,
       hint: E.save.get('purseHint', 0) < TUNING.purse.hint, ask: null, bare: false, pulse: -1 };
   },
   // wheel k, before its spin: its plain weights (a stat wheel's B tier) and the reshaped ones it spins on
@@ -9709,11 +9964,27 @@ const roll = {
       else if (P.ask.bare && E.hit(P.ask.bare, p)) { P.ask = null; P.bare = true; this.fight(E); }
       return;
     }
+    // step 22: the Knives row, one at a time up to the most; the Sidearm slot (and the Weapon slot) say which the rack buys for
+    const K = TUNING.knives;
+    if (P.krow && (E.hit(P.krow.plus, p) || E.hit(P.krow.minus, p))) {
+      const more = E.hit(P.krow.plus, p), n = P.knives + (more ? 1 : -1);
+      if (n < 0 || n > K.max || purseOf(P, { knives: n }) > P.gold) { E.audio.play('miss'); return; }
+      P.knives = n; E.audio.play(more ? 'coin' : 'tap'); E.haptic(10);
+      return;
+    }
+    const pick = P.slots.find((q) => (q.id === 'side' || q.id === 'weapon') && E.hit(q, p));
+    if (pick) { P.pick = pick.id === 'side' && P.pick !== 'side' ? 'side' : 'main'; E.audio.play('tap'); E.haptic(6); return; }
     const tile = P.tiles.find((q) => E.hit(q, p)), two = P.slots.find((q) => q.id === 'dual' && E.hit(q, p)), slot = !two && P.slots.find((q) => q.plate && E.hit(q, p));
+    if (tile && P.pick === 'side') {
+      const sd = P.side === tile.id ? null : tile.id;
+      if (sd && (sd === 'fist' || sd === P.w || purseOf(P, { side: sd }) > P.gold)) { E.audio.play('miss'); return; }
+      P.side = sd; E.audio.play(sd ? 'coin' : 'tap'); E.haptic(12);
+      return;
+    }
     if (tile || slot || two) {
-      const w = tile ? tile.id : P.w, kit = slot ? Object.keys(PLATES).filter((k) => (k === slot.plate ? !P.kit.includes(k) : P.kit.includes(k))) : P.kit, dual = w !== 'fist' && (two ? !P.dual : P.dual);
-      if ((two && w === 'fist') || purseCost(w, kit, dual) > P.gold) { E.audio.play('miss'); return; }
-      P.w = w; P.kit = kit; P.dual = dual; E.audio.play('coin'); E.haptic(12);
+      const w = tile ? tile.id : P.w, kit = slot ? Object.keys(PLATES).filter((k) => (k === slot.plate ? !P.kit.includes(k) : P.kit.includes(k))) : P.kit, dual = w !== 'fist' && (two ? !P.dual : P.dual), side = P.side === w ? null : P.side;
+      if ((two && w === 'fist') || purseOf(P, { w, kit, dual, side }) > P.gold) { E.audio.play('miss'); return; }
+      P.w = w; P.kit = kit; P.dual = dual; P.side = side; E.audio.play('coin'); E.haptic(12);
       return;
     }
     if (!P.fight || !E.hit(P.fight, p)) return;
@@ -9721,10 +9992,11 @@ const roll = {
     this.fight(E);
   },
   fight(E) {
-    const P = this.purse, me = kitMe(this.me, P.w, P.kit, P.dual);
+    const P = this.purse, me = { ...kitMe(this.me, P.w, P.kit, P.dual), side: P.side };
     if (P.hint) E.save.set('purseHint', E.save.get('purseHint', 0) + 1);
     E.audio.play('tap');
-    E.setScene('play', { seed: this.seed, arena: this.arena, me, token: this.token, tokenUsed: this.used, buy: `${P.w}${P.dual ? 'x2' : ''},${P.kit.join('+') || 'none'}`, gold: P.gold - purseCost(P.w, P.kit, P.dual) });
+    E.setScene('play', { seed: this.seed, arena: this.arena, me, token: this.token, tokenUsed: this.used, buy: `${P.w}${P.dual ? 'x2' : ''},${P.kit.join('+') || 'none'}${P.side ? `,side ${P.side}` : ''}${P.knives ? `,knives ${P.knives}` : ''}`,
+      gold: P.gold - purseOf(P), knives: P.knives });
   },
 };
 
@@ -9928,7 +10200,7 @@ const play = {
   state, lay, foeF, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, strikeOf, zoneAt, foeStrike, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
-  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES,
+  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, raised, busy, purseCost, knifeBuy, partCenter,
   ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateOff, YARD, endYard, tapCard, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     // the menu's Training (step 23): the yard alone, with a stock fighter in the first run's kit against the Pit's sparring partner, saving nothing
@@ -9942,7 +10214,7 @@ const play = {
     newRack(E); initHand(E);
     if (state.draft) { state.intro = false; state.fallT = TUNING.resetDelay; state.foe.hp = 0; state.foe.shown = 0; }
     if (params.token != null && !params.resume) { state.token = params.token; state.tokenUsed = params.tokenUsed || ''; }
-    if (params.buy && !params.resume) { state.buy = params.buy; state.gold = state.purseLeft = params.gold; saveRun(E); }
+    if (params.buy && !params.resume) { state.buy = params.buy; state.gold = state.purseLeft = params.gold; state.knives = params.knives || 0; saveRun(E); }
   },
   update(dt, E) {
     if (portrait(E)) return;
@@ -10010,6 +10282,7 @@ const play = {
     twirl(E, dt);
     checkHits(E);
     updateOff(E, dt);
+    stepArms(E, dt);
     updateFoe(dt, E);
     updatePair(E, dt);
     updateBleed(E, dt);
@@ -10081,7 +10354,8 @@ const play = {
       grades: state.grades.join(''), goods: state.goods.join(','), picks: state.picks.join(','), stepsIn: state.stepsIn, stepsOut: state.stepsOut, wallHits: state.wallHits, foeWall: state.foeWall, outReach: state.outReach, dodged: state.dodged, chases: state.chases,
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
       arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1,
-      meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast, drives: state.drives, driveDist: Math.round(state.driveDist * 100) / 100, spoils: state.spoils, buy: state.buy, purseLeft: state.purseLeft });
+      meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast, drives: state.drives, driveDist: Math.round(state.driveDist * 100) / 100, spoils: state.spoils, buy: state.buy, purseLeft: state.purseLeft,
+      knives: state.knivesThrown, knifeGaps: state.knifeGaps, swaps: state.mySwaps, foeSwaps: state.foeSwaps });
     E.setScene('over', { ...r, won, reached, gauntlet: g, me, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew,
       picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice(),
       arena: state.arena, fav: state.arena === 'games' ? thumbFav() : state.fav, opened, fame });
@@ -10094,6 +10368,9 @@ const play = {
     if (d && !d.fly && !d.view && !d.helpOn && d.t > TUNING.draft.delay) { const b = d.btns.find((q) => E.hit(q, p)); d.press = b ? { i: b.i, t0: E.time } : null; }
     if (state.endT > 0 || portrait(E) || state.intro || state.draft || state.tent) return;
     if (p.startX >= E.w / 3 && finTouch(E, p)) return;
+    if (p.startX >= E.w / 3 && armsTouch(E, p)) return;
+    // a raised knife: the right thumb aims it (the sword hand stays put), and its release throws it
+    if (state.aim && p.startX >= E.w / 3) { if (state.aim.id < 0) { state.aim.id = p.id; aimAt(E, p); } return; }
     if (p.startX < E.w / 3) {
       const b = buttonAt(E, p);
       if (b && b.dodge) dodge(E, p.id);
@@ -10112,6 +10389,7 @@ const play = {
   },
   onPointerMove(p, E) {
     const h = state.hand;
+    if (state.aim && state.aim.id === p.id) aimAt(E, p);
     if (h.down && h.id === p.id) { h.fx = p.x; h.fy = p.y; }
   },
   onTap(p, E) {
@@ -10120,6 +10398,7 @@ const play = {
     if (tt) {
       if (tt.t < TUNING.draft.delay) return;
       if (tt.skip && E.hit(tt.skip, p)) { leaveTent(E); return; }
+      if (tt.krow && (E.hit(tt.krow.plus, p) || E.hit(tt.krow.minus, p))) { knifeBuy(E, tt, E.hit(tt.krow.plus, p)); return; }
       const b = tt.btns.find((q) => E.hit(q, p)); if (b) { if (tt.band) buyBandage(E); else buyWare(E, b.ware); } return;
     }
     const d = state.draft;
@@ -10148,6 +10427,7 @@ const play = {
   },
   onPointerUp(p, E) {
     if (state.draft) state.draft.press = null;
+    if (state.aim && state.aim.id === p.id) { state.aim.go = true; return; }
     const s = state.sh, h = state.hand, dg = state.dg;
     if (dg.down && dg.id === p.id) { dg.down = false; dg.id = -1; }
     else if (s.hid === p.id) { s.held = false; s.hid = -1; baitDrop(E); }
@@ -10183,6 +10463,7 @@ const play = {
     drawZone(ctx, E);
     drawShield(ctx, E);
     drawSwordArm(ctx, E);
+    drawKnives(ctx, E);
     drawZoneLabel(ctx, E);
 
     for (const f of state.fx) {
@@ -10273,6 +10554,7 @@ const play = {
     if (state.netT > 0) E.text('NETTED: slow hand, no lunge', bx + bw, sy + 34, { size: 14, align: 'right', color: '#e2e8f0', weight: '700' });
     if (state.hint && !state.intro && !state.caption) drawHint(ctx, E);
     drawFinBtn(ctx, E);
+    drawArmsBtns(ctx, E);
     drawRightHints(E);
     if (state.train) drawYard(ctx, E);
     if (state.intro) { drawIntro(ctx, E); if (E.channel !== 'release') { const t = labTab(E); E.roundRect(t.x, t.y, t.w, t.h, 10, '#1f2937', '#e879f9'); E.text('LAB', t.x + t.w / 2, t.y + t.h / 2, { size: 15, weight: '800', color: '#f5d0fe' }); } }
@@ -10461,7 +10743,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 17,
+  saveVersion: 18,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -10538,6 +10820,11 @@ export const game = {
     if (fromVersion < 16) data.storySeen = 1;
     // v17 (v2 steps 19 and 20): a saved run gains Broken Chains unspent, no drafts skipped and no signatures counted
     if (fromVersion < 17 && data.run) Object.assign(data.run, { chains: data.run.chains || 0, skips: data.run.skips || 0, specials: data.run.specials || {} });
+    // v18 (v2 step 22, the sidearm and throwing knives): every saved fighter carries no sidearm, and a saved run no knives
+    if (fromVersion < 18) {
+      for (const me of [data.run && data.run.me, data.last && data.last.me]) if (me) me.side = null;
+      if (data.run) Object.assign(data.run, { knives: 0, knivesThrown: 0, knifeGaps: 0, mySwaps: 0 });
+    }
     return data;
   },
   TUNING,
