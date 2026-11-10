@@ -2014,3 +2014,41 @@ The numbers go in `TUNING.strike`. Cards that boost bleed, gaps or dents now rea
   - every card has a `short` of six words or fewer.
 - `npm run smoke`.
 - **A playtest with someone new**, the real test of this step.
+
+## Step 22b (locked 2026-11-10, playtest of v64): a knife throw you can learn
+
+**The designer:** "I couldn't figure out how to do the knife throwing." The export shows 7 knives thrown and none in a gap (`playtests/2026-11-10-v64.md`). Today the throw is: tap the knife button, then put the right thumb down and drag (the aim point sits 50 px above the thumb), then let go. A tap on the foe throws at once, 50 px above the tap. Nothing teaches it, and nothing says why a knife failed.
+
+- **A first-knife lesson.** The first time a bout starts with knives on your belt (once ever, `knifeHint` in the save), Brutus walks you through one throw, the training yard's way: one line, a ghost thumb and a pulse, waiting for each step.
+  1. "Tap the knife to raise it." The knife button pulses.
+  2. "Drag onto a glowing gap." A ghost thumb drags from the right side onto a gap.
+  3. "Let go to throw."
+  
+  The foe holds still for the lesson.
+- **While a knife is raised:**
+  - **his gaps glow brighter,** so you can see what you're aiming at;
+  - **the aim point is shown** as soon as the knife is up: a gold ring with a thin line down to your thumb, so the 50 px lift reads as one pointer, not as a miss;
+  - **the ring turns green over a gap** (with a soft tick sound), and red over plate or a shield;
+  - **a tap doesn't throw.** Only a drag of at least `TUNING.knives.drag` (about 20 px) and a release throws. A tap leaves the knife raised and shows the ring where you touched.
+  - **A small snap:** within `TUNING.knives.snap` (about 14 px) of a gap's edge, the ring snaps onto the gap. Set it to 0 to turn the snap off.
+- **Every throw says what happened**, in the game's combat-word style:
+  - "GAP!" with the hit's flash;
+  - "PLATE" with a clang;
+  - "SKIN" with a glance;
+  - "MISSED" as it falls in the sand.
+- **The raised knife is held in your fighter's raised hand,** not drawn in the air above the head.
+- **The export logs** each outcome: `knifePlate`, `knifeSkin`, `knifeMiss` beside `knifeGaps`.
+
+### Acceptance
+
+- Frames at 667x375 and 844x390:
+  - each lesson step;
+  - a raised knife in the hand with its ring and line;
+  - the ring green over a gap, and red over plate;
+  - each of the four outcome words.
+- Scripted checks:
+  - the lesson runs once, then never again;
+  - a tap doesn't throw, and a drag and release does;
+  - the snap lands a ring that is a few px off a gap;
+  - each outcome is counted.
+- `npm run smoke`.
