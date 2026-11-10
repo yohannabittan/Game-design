@@ -334,7 +334,13 @@ const TUNING = {
   // for the run. aim = s to raise the knife (open: no block, no swing) before a release throws it; lift = px the aim point sits above the thumb;
   // speed = flight in H per s; dmg = a knife in a gap; pad = px of give round a part; len = the knife's drawn length (H); fall = s a spent knife
   // lies in the sand; row = the Knives row's height and its - and + buttons' width (px)
-  knives: { price: 5, max: 6, aim: 0.25, lift: 50, speed: 5, dmg: 5, pad: 4, len: 0.13, fall: 1.2, row: [44, 44] },
+  // Step 22b: drag = px the aiming thumb must travel from where it went down before its release throws (less is a tap, which only moves the aim);
+  // snap = px from a gap's edge within which the aim snaps onto the gap (0: off); ring = the aim ring's radius (px); rest = where the ring sits
+  // before a thumb is down (H above his feet); raise = where your hand holds the raised knife (H from the shoulder, forward and down), held = its drawn size there (x len);
+  // glow = his open gaps' fill alpha and blur (px) while a knife is up; ghost = where the first-knife lesson's ghost thumb starts its drag (x the
+  // screen's width, y its height)
+  knives: { price: 8, max: 6, aim: 0.25, lift: 50, speed: 5, dmg: 5, pad: 4, len: 0.13, fall: 1.2, row: [44, 44],
+    drag: 20, snap: 14, ring: 10, rest: 0.6, raise: [-0.06, -0.3], held: 1.4, glow: [0.4, 22], ghost: [0.56, 0.84] },
   // card effects. The tent's old commons: half hearts, multipliers, bare-hit damage, shield hits. The Wall: shove = paces a perfect block drives him, shoveStun = s stunned
   // at his wall, thorns = blocks that disarm him, thornsDur = s disarmed. Blood: bleed stacks per hit, vein = his wind-up x while he bleeds, bloodlust = stamina per stack
   // per tick, cruel = slot damage per stack. Dancer: sidestep = s winded, matador = s stunned, slip = jab x within slipWin s of a tell dodge, untouch = s all slots open.
@@ -1606,8 +1612,8 @@ function newRack(E) {
   Object.assign(state, { slowFx: 0, slowMul: 1, zoomT: 0, dropT: 0, ghostT: 0, ghostAt: -9, ghosts: [], paintT: 0, banner: null, shatter: null, steps: { foe: null, me: null } });
   // step 18: his signature's wait, Aquila's switch, the Huntress's spear, the crossed blades' guard, your off hand
   Object.assign(state, { sigN: 0, switchT: 0, flyS: 0, spearT: 0, spearAt: null, gbreak: 0, coverHits: 0, offT: 0, offHit: null });
-  // step 22: your swap, your aim, a knife in flight and one spent in the sand, his swap
-  Object.assign(state, { swapT: 0, aim: null, knife: null, knifeFall: null, foeSwapT: 0 });
+  // step 22: your swap, your aim, a knife in flight and one spent in the sand, his swap; step 22b: the first-knife lesson
+  Object.assign(state, { swapT: 0, aim: null, knife: null, knifeFall: null, foeSwapT: 0, kLesson: null });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
   // both fighters start each bout back on their marks
   Object.assign(state.foot, { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 });
@@ -1640,8 +1646,8 @@ function newRound(E, seed, me0, rv, arenaId = 'pit', fr) {
     fav: 0, favStep: 0, favT: 0, favShown: 0, favM: 0, favSum: 0, favDur: 0, lastHitM: -9, opened: null, finSel: '', finHintT: 0, hintT: 0, hintS: '',
     crowd: [],
     // step 19: Broken Chains spent, drafts skipped, the tags' counts and clocks; step 20: each signature's uses and answers ({ rage: [2, 1] })
-    // step 22: the knives you carry, thrown, and in a gap; your swaps and his
-    knives: 0, knivesThrown: 0, knifeGaps: 0, mySwaps: 0, foeSwaps: 0,
+    // step 22: the knives you carry, thrown, and in a gap (22b: on plate, on skin, missed); your swaps and his
+    knives: 0, knivesThrown: 0, knifeGaps: 0, knifePlate: 0, knifeSkin: 0, knifeMiss: 0, mySwaps: 0, foeSwaps: 0,
     chains: 0, skips: 0, jabRun: 0, jabGuard: 0, tagN: {}, tagM: {}, drillN: 0, kneadN: 0, kneadM: -9, oxLow: false, specials: {}, readT: 0, hpSeen: null, heartFx: null, introHelp: false,
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, heldAt: -9, zy: -0.58, arm: 0, blocked: false, pressT: -9 },
     hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
@@ -1675,7 +1681,7 @@ const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token'
   'capCut', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
   'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'baited', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
   'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep',
-  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials', 'knives', 'knivesThrown', 'knifeGaps', 'mySwaps'];
+  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials', 'knives', 'knivesThrown', 'knifeGaps', 'knifePlate', 'knifeSkin', 'knifeMiss', 'mySwaps'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
@@ -2037,7 +2043,7 @@ function moveHand(E, dt) {
     h.tgx += (clamp(gx + ox, 10, E.w - 10) - h.tgx) * k; h.tgy += (clamp(gy + oy, E.safe.top + 40, E.h - 10) - h.tgy) * k;
     if (h.grip > 0) h.grip -= dt;
   } else {
-    const [rx, ry] = guardPt(E);
+    const [rx, ry] = state.aim ? raisePt(E) : guardPt(E);
     const k = 1 - Math.exp(-dt / TUNING.control.back);
     h.tgx += (rx - h.tgx) * k; h.tgy += (ry - h.tgy) * k;
   }
@@ -2228,7 +2234,7 @@ function stepFoe(dt, E) {
     st.dodgeT = T.dodgeDur; st.dodgeCool = T.dodgeCool;
     if (lungeRead()) { state.lungeReads++; readPop(E, 'READS YOUR LUNGE'); counter(E, 'thrust'); }
   }
-  if (state.fallT > 0 || state.winded > 0 || state.stagger > 0) return;
+  if (state.fallT > 0 || state.winded > 0 || state.stagger > 0 || state.kLesson) return;
   // the pounce's spring carries a beast across the ground to where it lands
   const sw = state.sw;
   if (sw && sw.spring && sw.fin <= 0) { st.x = lerp(sw.from, sw.land, ease.inOut(clamp((sw.t - sw.springAt) / Math.max(0.01, sw.wind - sw.springAt), 0, 1))); return; }
@@ -3580,7 +3586,7 @@ function fireFinisher(E, c) {
 function updateFinisher(E, dt) {
   state.finHintT = Math.max(0, state.finHintT - dt);
   state.hintT = Math.max(0, state.hintT - dt);
-  if (state.train || !finBtn(E) || E.save.get('finHint', 0) || state.hintT > 0 || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
+  if (state.train || state.kLesson || !finBtn(E) || E.save.get('finHint', 0) || state.hintT > 0 || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
   E.save.set('finHint', 1); state.finHintT = TUNING.finBtn.hintDur;
 }
 // The first run is every run until the first one ends (finish sets firstRunDone): the HUD names its bars and the DODGE button says how to back off.
@@ -3592,7 +3598,7 @@ const runsDone = (E) => E.save.get('runsDone', firstRun(E) ? 0 : TUNING.train.sp
 // first runs), then, never in the first run's bout 1 (the training yard covers it), the HUD's bars (first run only), the crowd's first third, a full
 // Momentum with no war paint, the hearts after your first fell, and the drive after your first lunge that met nothing (state.lungeMiss, set in endLunge)
 function updateHints(E) {
-  if (state.train || state.hintT > 0 || state.finHintT > 0 || !finLive(E) || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
+  if (state.train || state.kLesson || state.hintT > 0 || state.finHintT > 0 || !finLive(E) || (state.hint && state.m - state.boutT0 < TUNING.hint.dur)) return;
   const C = TUNING.crowd, M = TUNING.mom, TR = TUNING.train;
   if (state.jabRun >= TR.spam && !E.save.get('jabHint', 0) && runsDone(E) < TR.spamRuns) {
     E.save.set('jabHint', 1); state.hintT = TUNING.hint.spamDur; state.hintS = "Old Brutus: “He's seen that jab. Slash, or lunge.”";
@@ -3656,21 +3662,66 @@ function startSwap(E) {
   swooshSound(E, 0.1); E.haptic(10);
   seenOpen();
 }
-// a knife raised: open (no block, no swing) until it is thrown or lowered; the next right-thumb touch aims it and its release throws it
+// a knife raised: open (no block, no swing) until it is thrown or lowered. The aim ring shows at once, on his middle; a right-thumb touch moves it
+// (lift px above the thumb), and only a touch dragged TUNING.knives.drag px or more throws on its release: a tap just leaves the ring there
 function startAim(E) {
   if (state.knives <= 0 || state.swapT > 0) return;
-  const h = state.hand;
+  const h = state.hand, F = foeF(E), rx = F.x, ry = F.y - TUNING.knives.rest * F.H;
   h.down = false; h.atk = null;
-  state.aim = { t: 0, id: -1, x: 0, y: 0, go: false };
+  state.aim = { t: 0, id: -1, rx, ry, x: rx, y: ry, tx: null, ty: null, sx: 0, sy: 0, drag: 0, go: false, over: knifeAt(E, rx, ry).kind };
   E.audio.beep({ freq: 880, dur: 0.06, type: 'triangle', gain: 0.08 }); E.haptic(8);
   seenOpen();
 }
-function aimAt(E, p) { const a = state.aim; a.x = clamp(p.x, 10, E.w - 10); a.y = clamp(p.y - TUNING.knives.lift, E.safe.top + 10, E.h - 10); }
-// where the raised knife is held: up beside your head
-function knifeHand(E) { const Fy = youF(E), [sx, sy] = toScreen(Fy, SHOULDER[0], SHOULDER[1]); return [sx + 0.02 * Fy.dir * Fy.H, sy - 0.34 * Fy.H]; }
+function aimDown(E, p) { const a = state.aim; a.id = p.id; a.sx = p.x; a.sy = p.y; a.drag = 0; aimAt(E, p); }
+function aimAt(E, p) {
+  const a = state.aim;
+  a.tx = p.x; a.ty = p.y; a.drag = Math.max(a.drag, Math.hypot(p.x - a.sx, p.y - a.sy));
+  a.rx = clamp(p.x, 10, E.w - 10); a.ry = clamp(p.y - TUNING.knives.lift, E.safe.top + 10, E.h - 10);
+  aimSnap(E);
+}
+// the thumb lifted: a drag throws (once the knife is up), a tap leaves it raised with the ring where it touched
+function aimUp(E) { const a = state.aim; a.id = -1; if (a.drag >= TUNING.knives.drag) a.go = true; }
+// what a knife arriving at (x, y) meets now: an open gap, plate (or his shield or guard), bare skin, or nothing
+function knifeAt(E, x, y) {
+  const K = TUNING.knives, F = foeF(E), fm = state.foe;
+  if (state.fallT > 0 || fm.hp <= 0 || !fm.parts) return { p: null, kind: 'miss' };
+  const [lx, ly] = toLocal(F, x, y);
+  for (const p of fm.parts.filter((q) => q.slot).concat(fm.parts.filter((q) => !q.slot))) {
+    const [qx, qy] = partLocal(p, fm, lx, ly);
+    if (inside(p.d, qx, qy, K.pad / F.H)) return { p, kind: p.slot && !covered(p) ? 'gap' : covered(p) ? 'plate' : 'skin' };
+  }
+  return { p: null, kind: 'miss' };
+}
+// how far (in his H) a point in a part's own frame lies outside its shape
+function partGapDist(d, lx, ly) {
+  if (d.shape === 'circle') return Math.max(0, Math.hypot(lx - d.x, ly - d.y) - d.r);
+  return Math.hypot(Math.max(0, Math.abs(lx - d.x) - d.w / 2), Math.max(0, Math.abs(ly - d.y) - d.h / 2));
+}
+// the ring: on the thumb's point, or snapped onto the middle of the nearest open gap within TUNING.knives.snap px of its edge; green over a gap
+// (with a soft tick as it turns), red over plate; checked every frame, as he moves
+function aimSnap(E) {
+  const K = TUNING.knives, a = state.aim, F = foeF(E), fm = state.foe;
+  a.x = a.rx; a.y = a.ry;
+  let t = knifeAt(E, a.x, a.y);
+  if (K.snap > 0 && t.kind !== 'gap' && state.fallT <= 0 && fm.hp > 0 && fm.parts) {
+    const [lx, ly] = toLocal(F, a.rx, a.ry);
+    let best = null, bd = K.snap / F.H;
+    for (const p of fm.parts) {
+      if (!p.slot || covered(p)) continue;
+      const [qx, qy] = partLocal(p, fm, lx, ly), d = partGapDist(p.d, qx, qy);
+      if (d <= bd) { bd = d; best = p; }
+    }
+    if (best) { [a.x, a.y] = partCenter(F, fm, best); t = { p: best, kind: 'gap' }; }
+  }
+  if (t.kind === 'gap' && a.over !== 'gap') E.audio.beep({ freq: 1500, dur: 0.03, type: 'triangle', gain: 0.05 });
+  a.over = t.kind;
+}
+// where the raised knife is held: in your sword hand, which goes up beside your head (moveHand)
+function knifeHand() { return [state.hand.hx, state.hand.hy]; }
+function raisePt(E) { const Fy = youF(E), R = TUNING.knives.raise, [sx, sy] = toScreen(Fy, SHOULDER[0], SHOULDER[1]); return [sx + R[0] * Fy.dir * Fy.H, sy + R[1] * Fy.H]; }
 // thrown: spent, hit or miss; it flies to the aim point at TUNING.knives.speed and finds what is there when it arrives
 function throwKnife(E) {
-  const K = TUNING.knives, a = state.aim, [x0, y0] = knifeHand(E), d = Math.hypot(a.x - x0, a.y - y0);
+  const K = TUNING.knives, a = state.aim, [x0, y0] = knifeHand(), d = Math.hypot(a.x - x0, a.y - y0);
   state.aim = null; state.knives--; state.knivesThrown++;
   state.knife = { x0, y0, x1: a.x, y1: a.y, t: 0, dur: Math.max(0.05, d / (K.speed * youF(E).H)) };
   swooshSound(E, 0.1); E.haptic(10);
@@ -3679,7 +3730,7 @@ function stepArms(E, dt) {
   state.swapT = Math.max(0, state.swapT - dt);
   const a = state.aim;
   if (a && !armsLive(E)) state.aim = null;
-  else if (a && (a.t += dt) >= TUNING.knives.aim && a.go) throwKnife(E);
+  else if (a) { aimSnap(E); if ((a.t += dt) >= TUNING.knives.aim && a.go) throwKnife(E); }
   const k = state.knife;
   if (k && (k.t += dt) >= k.dur) { state.knife = null; knifeLands(E, k); }
   const q = state.knifeFall;
@@ -3689,20 +3740,14 @@ function stepArms(E, dt) {
     if (q.life <= 0) state.knifeFall = null;
   }
 }
-// what the knife meets where it arrives: an open gap takes TUNING.knives.dmg; plate, his shield or guard clang; bare skin it glances off; nothing is a miss
+// what the knife meets where it arrives, and the word for it: GAP! (TUNING.knives.dmg); PLATE on plate, his shield or guard (a clang); SKIN off bare
+// skin (a glance); MISSED, into the sand
 function knifeLands(E, k) {
-  const K = TUNING.knives, F = foeF(E), fm = state.foe, at = { x: k.x1, y: k.y1 }, ang = Math.atan2(k.y1 - k.y0, k.x1 - k.x0);
-  let hit = null;
-  if (state.fallT <= 0 && fm.hp > 0 && fm.parts) {
-    const [lx, ly] = toLocal(F, k.x1, k.y1);
-    for (const p of fm.parts.filter((q) => q.slot).concat(fm.parts.filter((q) => !q.slot))) {
-      const [qx, qy] = partLocal(p, fm, lx, ly);
-      if (inside(p.d, qx, qy, K.pad / F.H)) { hit = p; break; }
-    }
-  }
-  if (hit && hit.slot && !covered(hit)) { knifeGap(E, hit, at, ang); return; }
-  if (hit && covered(hit)) { hit.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 12); ring(at.x, at.y, 30, '#cbd5e1'); clangSound(E, 0); pop(at.x, at.y - 24, 'CLANG', '#cbd5e1', 16); E.haptic(12); }
-  else { pop(at.x, at.y - 24, hit ? 'GLANCES OFF' : 'MISS', '#cbd5e1', 15); E.audio.play('miss'); }
+  const K = TUNING.knives, at = { x: k.x1, y: k.y1 }, ang = Math.atan2(k.y1 - k.y0, k.x1 - k.x0), { p, kind } = knifeAt(E, k.x1, k.y1);
+  if (kind === 'gap') { knifeGap(E, p, at, ang); return; }
+  if (kind === 'plate') { state.knifePlate++; p.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 12); ring(at.x, at.y, 30, '#cbd5e1'); clangSound(E, 0); pop(at.x, at.y - 24, 'PLATE', '#cbd5e1', 20); E.haptic(12); }
+  else if (kind === 'skin') { state.knifeSkin++; sparks(at.x, at.y, ang + Math.PI, 4); dullSound(E); pop(at.x, at.y - 24, 'SKIN', '#fca5a5', 20); }
+  else { state.knifeMiss++; pop(at.x, at.y - 24, 'MISSED', '#e2e8f0', 20); E.audio.play('miss'); }
   const L = lay(E);
   state.knifeFall = { x: at.x, y: at.y, vx: -Math.cos(ang) * 90, vy: -120, rot: ang, vr: (Math.random() < 0.5 ? -1 : 1) * 14, flat: Math.PI * (Math.random() < 0.5 ? 0.02 : 0.98), floor: L.floor - 2, life: K.fall };
 }
@@ -3712,7 +3757,7 @@ function knifeGap(E, p, at, ang) {
   p.cool = TUNING.hit.cool; p.flash = 0.16; state.gapHits++; state.slotHits++; state.knifeGaps++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1;
   f.hp -= dealt;
   blood(at.x, at.y, ang, J.blood.slot); ring(at.x, at.y, J.slotRing, '#ef4444'); slotSound(E); sliceSound(E, true);
-  dmgPop(E, at, dealt, '#ff6a4a'); shake(E, 8, 0.1); E.haptic(30); E.flash('#fff0b8', 0.07);
+  pop(at.x, at.y - 30, 'GAP!', '#ffd24a', 22); dmgPop(E, at, dealt, '#ff6a4a'); shake(E, 8, 0.1); E.haptic(30); E.flash('#fff0b8', 0.07);
   state.stop = Math.max(state.stop, J.slotStop);
   crowdEvent(E, 'slot');
   if (f.hp <= 0) fell(E); else setCover(p);
@@ -3729,19 +3774,19 @@ function drawKnife(ctx, x, y, ang, len) {
   ctx.strokeStyle = 'rgba(203,213,225,0.7)'; ctx.beginPath(); ctx.moveTo(len * 0.04, -w * 0.15); ctx.lineTo(len * 0.5, 0); ctx.stroke();
   ctx.restore();
 }
-// in the world: the raised knife and its aim point (a gold ring with a dotted line from the knife), the knife in flight, a spent one falling
+// in the world: the raised knife in your fist, pointing at the aim ring (gold; green over a gap, red over plate) with a thin line down to your
+// thumb (or, before a thumb is down, to where it would be); the knife in flight; a spent one falling
 function drawKnives(ctx, E) {
   const K = TUNING.knives, len = K.len * youF(E).H, a = state.aim, k = state.knife, q = state.knifeFall;
   if (a) {
-    const [hx, hy] = knifeHand(E), aimed = a.id >= 0, ang = aimed ? Math.atan2(a.y - hy, a.x - hx) : -Math.PI / 2 + 0.35 * youF(E).dir, up = clamp(a.t / K.aim, 0, 1);
-    drawKnife(ctx, hx - Math.cos(ang) * len * 0.3, hy + (1 - up) * 0.2 * len - Math.sin(ang) * len * 0.3, ang, len);
-    if (aimed) {
-      const pulse = 0.5 + 0.5 * Math.sin(state.m * 10);
-      ctx.save(); ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,210,74,0.55)'; ctx.lineWidth = 2; line(ctx, hx, hy, a.x, a.y); ctx.restore();
-      ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(a.x, a.y, 9 + 2 * pulse, 0, TAU); ctx.stroke();
-      line(ctx, a.x - 15, a.y, a.x - 7, a.y); line(ctx, a.x + 7, a.y, a.x + 15, a.y); line(ctx, a.x, a.y - 15, a.x, a.y - 7); line(ctx, a.x, a.y + 7, a.x, a.y + 15);
-      ctx.fillStyle = '#ffd24a'; ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, TAU); ctx.fill();
-    }
+    const [hx, hy] = knifeHand(), ang = Math.atan2(a.y - hy, a.x - hx), col = a.over === 'gap' ? '#4ade80' : a.over === 'plate' ? '#f87171' : '#ffd24a';
+    ctx.save(); ctx.shadowColor = 'rgba(255,236,150,0.9)'; ctx.shadowBlur = 8; drawKnife(ctx, hx - Math.cos(ang) * len * 0.2, hy - Math.sin(ang) * len * 0.2, ang, len * K.held); ctx.restore();
+    const pulse = 0.5 + 0.5 * Math.sin(state.m * 10), r = K.ring + 2 * pulse, tx = a.tx == null ? a.rx : a.tx, ty = a.tx == null ? a.ry + K.lift : a.ty;
+    ctx.save(); ctx.strokeStyle = col; ctx.globalAlpha = 0.7; ctx.lineWidth = 1.5; line(ctx, a.x, a.y + r, tx, ty); ctx.restore();
+    if (a.id < 0) { ctx.save(); ctx.globalAlpha = 0.6; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx, ty, 5, 0, TAU); ctx.stroke(); ctx.restore(); }
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4; ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, TAU); ctx.stroke();
+    line(ctx, a.x - r - 6, a.y, a.x - r + 2, a.y); line(ctx, a.x + r - 2, a.y, a.x + r + 6, a.y); line(ctx, a.x, a.y - r - 6, a.x, a.y - r + 2);
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, TAU); ctx.fill(); ctx.restore();
   }
   if (k) { const u = clamp(k.t / k.dur, 0, 1); drawKnife(ctx, lerp(k.x0, k.x1, u), lerp(k.y0, k.y1, u), Math.atan2(k.y1 - k.y0, k.x1 - k.x0), len); }
   if (q) { ctx.globalAlpha = clamp(q.life / 0.3, 0, 1); drawKnife(ctx, q.x, q.y, q.rot, len); ctx.globalAlpha = 1; }
@@ -5852,7 +5897,12 @@ function slotLight(ctx, F, p, H, fm) {
   ctx.save();
   if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); }
   path(ctx, d, H);
-  if ((state.winded > 0 || state.openAll > 0 || openNow(p)) && fm === state.foe && p.flash <= 0) {
+  if (state.aim && fm === state.foe && p.flash <= 0 && !covered(p)) {
+    // a knife raised: every gap it could find glows bright
+    const G = TUNING.knives.glow, k = 0.8 + 0.2 * Math.sin(state.m * 12);
+    ctx.fillStyle = `rgba(255,210,74,${G[0] * k})`; ctx.fill();
+    ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = G[1]; ctx.strokeStyle = `rgba(255,236,150,${k})`; ctx.lineWidth = 4; ctx.stroke();
+  } else if ((state.winded > 0 || state.openAll > 0 || openNow(p)) && fm === state.foe && p.flash <= 0) {
     const k = 0.6 + 0.4 * Math.sin(state.m * 12);
     ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 16; ctx.strokeStyle = `rgba(255,210,74,${k})`; ctx.lineWidth = 3.5; ctx.stroke();
   } else {
@@ -10033,18 +10083,18 @@ const yardDue = (E) => !state.drill && state.rack === 0 && firstRun(E) && !E.sav
 function startYard(E, drill = false) {
   state.intro = false; state.introGo = -1; state.hint = false; state.boutT0 = state.m;
   state.train = { i: -1, drill, snap: JSON.parse(JSON.stringify(Object.fromEntries(RUN_KEYS.map((k) => [k, state[k]])))), move: 0, px: null, py: null, jabs: 0, gaps: 0,
-    blocked: 0, held: 0, read: 0, sw: null, wait: 0, skip: null };
+    blocked: 0, held: 0, read: 0, sw: null, wait: 0, skip: null, press: null };
   nextYard(E);
 }
 function nextYard(E) {
   const tr = state.train;
   tr.i++; tr.t = 0; tr.doneT = -1; tr.sw = null; tr.wait = TUNING.train.gap;
   const st = YARD[tr.i];
+  // (a hold made in the steps before counts for nothing)
+  if (st.id === 'hold') { tr.press = null; tr.held = 0; }
   tr.base = st.got ? st.got(tr) : 0;
-  // the left thumb's steps start back on your mark, with ground behind you to give
-  if (['shield', 'dodge', 'hold', 'gap', 'read'].includes(st.id)) { const ft = state.foot; ft.tgt = 0; ft.v = TUNING.foot.pace / TUNING.foot.gainDur; }
-  // (a hold made in the step before counts for nothing)
-  if (st.id === 'hold' && !state.dg.down) state.dg.t = 0;
+  // every step starts with both of you back on your marks, mid-ring, with ground behind you to give
+  Object.assign(state.foot, { pos: 0, tgt: 0, v: 1 }); Object.assign(state.step, { x: state.foe.home, tgt: 0 });
 }
 function endYard(E) {
   const tr = state.train;
@@ -10080,8 +10130,8 @@ function updateYard(E, dt) {
   if (st.id === 'go') { if (tr.t >= T.go) endYard(E); return; }
   if (tr.doneT >= 0) { if (tr.t - tr.doneT >= T.next) nextYard(E); return; }
   if (h.down) { if (tr.px != null) tr.move += Math.hypot(h.fx - tr.px, h.fy - tr.py); tr.px = h.fx; tr.py = h.fy; } else tr.px = tr.py = null;
-  // (dg.t stays where a hold ended: the Pit's wall is close behind, and ends a hold soon after its dodge)
-  if (state.dg.t > TUNING.dodge.dur + T.hold) tr.held = 1;
+  // a hold is DODGE kept pressed past a dodge's length, however soon the wall behind ends the backing off
+  if (tr.press && state.m - tr.press.t0 > TUNING.dodge.dur + T.hold) tr.held = 1;
   if (st.id === 'gap') state.openAll = Math.max(state.openAll, 0.5);
   if (st.id === 'shield' || st.id === 'read') {
     if (tr.sw && tr.sw.outcome) {
@@ -10094,7 +10144,28 @@ function updateYard(E, dt) {
   }
   if (st.got(tr) - tr.base >= st.need()) {
     tr.doneT = tr.t;
-    E.audio.beep({ freq: 880, dur: 0.12, type: 'triangle', gain: 0.12 }); E.audio.beep({ freq: 1320, dur: 0.2, type: 'triangle', gain: 0.1, delay: 0.09 }); E.haptic(12);
+    yardChime(E);
+  }
+}
+// a step done: the chime, and a tick that springs in at (cx, ty), u s after
+function yardChime(E) { E.audio.beep({ freq: 880, dur: 0.12, type: 'triangle', gain: 0.12 }); E.audio.beep({ freq: 1320, dur: 0.2, type: 'triangle', gain: 0.1, delay: 0.09 }); E.haptic(12); }
+function yardTick(ctx, cx, ty, u) {
+  const k = easeOut(clamp(u / 0.2, 0, 1)), r = 22 * k;
+  ctx.save(); ctx.fillStyle = 'rgba(20,60,30,0.85)'; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, ty, r, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(cx - r * 0.45, ty); ctx.lineTo(cx - r * 0.1, ty + r * 0.35); ctx.lineTo(cx + r * 0.5, ty - r * 0.35); ctx.stroke(); ctx.restore();
+}
+// Brutus's line on a dark plate at the top, x0 to x0 + w (its rim green once the step is done)
+function yardPlate(ctx, E, x0, w, line, done) {
+  const top = E.safe.top;
+  E.roundRect(x0, top + 6, w, 44, 12, 'rgba(20,12,4,0.78)', done ? '#4ade80' : '#e6c866');
+  sayLine(ctx, E, line, x0 + w / 2, top + 28, w - 16, { size: 17, weight: '800', color: '#fde68a', fit: true }, 'brutus');
+}
+// a pulsing gold ring on each of these parts of his
+function gapRings(ctx, E, t, parts) {
+  const F = foeF(E), a = 0.5 + 0.5 * Math.sin(t * 8);
+  for (const p of parts) {
+    const [px, py] = partCenter(F, state.foe, p);
+    ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.4 + 0.6 * a})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(px, py, 12 + 5 * a, 0, TAU); ctx.stroke(); ctx.restore();
   }
 }
 // the ghost thumb at (x, y): pressed, a solid pale thumb; lifted, a faint one; a hold grows a ring
@@ -10122,26 +10193,13 @@ function drawYard(ctx, E) {
   E.text('Skip training', L + 62, top + 28, { size: fitSize(ctx, 'Skip training', 15, 112), weight: '800', color: '#f0e6cc' });
   // his line on a dark plate between Skip and the HUD, the step's count (when it is more than one) under it
   const x0 = tr.skip.x + tr.skip.w + 10, w = R - x0, cx = x0 + w / 2, line = typeof st.line === 'function' ? st.line(tr) : st.line;
-  E.roundRect(x0, top + 6, w, 44, 12, 'rgba(20,12,4,0.78)', tr.doneT >= 0 ? '#4ade80' : '#e6c866');
-  sayLine(ctx, E, line, cx, top + 28, w - 16, { size: 17, weight: '800', color: '#fde68a', fit: true }, 'brutus');
+  yardPlate(ctx, E, x0, w, line, tr.doneT >= 0);
   const need = st.need ? st.need() : 0, got = st.got ? clamp(st.got(tr) - tr.base, 0, need) : 0;
   if (need > 1) for (let i = 0; i < need; i++) { ctx.fillStyle = i < got ? '#4ade80' : 'rgba(240,230,204,0.35)'; ctx.beginPath(); ctx.arc(cx + (i - (need - 1) / 2) * 16, top + 60, 5, 0, TAU); ctx.fill(); }
-  // done: a tick that springs in
-  if (tr.doneT >= 0) {
-    const k = easeOut(clamp((tr.t - tr.doneT) / 0.2, 0, 1)), r = 22 * k, ty = top + 90;
-    ctx.save(); ctx.fillStyle = 'rgba(20,60,30,0.85)'; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, ty, r, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(cx - r * 0.45, ty); ctx.lineTo(cx - r * 0.1, ty + r * 0.35); ctx.lineTo(cx + r * 0.5, ty - r * 0.35); ctx.stroke(); ctx.restore();
-    return;
-  }
+  if (tr.doneT >= 0) { yardTick(ctx, cx, top + 90, tr.t - tr.doneT); return; }
   if (!st.ghost) return;
   // the gaps step rings each open gap
-  if (st.id === 'gap') {
-    const F = foeF(E), a = 0.5 + 0.5 * Math.sin(tr.t * 8);
-    for (const p of state.foe.parts.filter((q) => q.slot && !q.guard && !q.cut)) {
-      const [px, py] = partCenter(F, state.foe, p);
-      ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.4 + 0.6 * a})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(px, py, 12 + 5 * a, 0, TAU); ctx.stroke(); ctx.restore();
-    }
-  }
+  if (st.id === 'gap') gapRings(ctx, E, tr.t, state.foe.parts.filter((q) => q.slot && !q.guard && !q.cut));
   // the ghost thumb: the right thumb's between the fighters at knee height; the left thumb's on its button, which pulses
   const u = (tr.t % T.ghost.loop) / T.ghost.loop, k = E.h / 375, ax = E.w * 0.54, ay = E.h * 0.7, B = shieldBtns(E);
   const btn = st.ghost === 'shield' ? B[Math.min(tr.blocked, ZONES.length - 1)] : st.ghost === 'read' ? B[ZONES.indexOf(state.sw ? state.sw.zone : ZONE.mid)] : st.ghost === 'tap' || st.ghost === 'hold' ? B[3] : null;
@@ -10159,6 +10217,68 @@ function drawYard(ctx, E) {
   keys.filter((q) => q[3]).forEach((q, i) => (i ? ctx.lineTo(ax + q[1] * k, ay + q[2] * k) : ctx.moveTo(ax + q[1] * k, ay + q[2] * k))); ctx.stroke(); ctx.restore();
   const [dx, dy, dn] = ghostAt(keys, u);
   ghostThumb(ctx, ax + dx * k, ay + dy * k, dn);
+}
+
+// ----- step 22b: the first-knife lesson -----
+// The first bout ever begun with knives on your belt (knifeHint in the save), Brutus walks you through one throw the training yard's way: his line
+// at the top, a ghost thumb and a pulse, and no timer; a tick and a chime as each step is done. He holds still (stepFoe) and the sword thumb waits.
+const KNIFE_LESSON = ['Tap the knife to raise it.', 'Drag onto a glowing gap.', 'Let go to throw.'];
+// the ghost thumb lifting off, keyframed as GHOST's
+const GHOST_LIFT = [[0, 0, 0, 1], [0.45, 0, 0, 1], [0.65, 0, -16, 0], [1, 0, -16, 0]];
+const lessonDue = (E) => state.knives > 0 && !state.drill && !state.lab && !E.save.get('knifeHint', 0);
+function startLesson() { state.kLesson = { i: 0, t: 0, doneT: -1, base: state.knivesThrown }; state.hint = false; }
+function endLesson(E) { state.kLesson = null; E.save.set('knifeHint', 1); state.swingIn = 1.2; }
+function updateLesson(E, dt) {
+  const ls = state.kLesson, a = state.aim, thrown = state.knivesThrown > ls.base;
+  ls.t += dt; state.swingIn = 1.2;
+  if (state.fallT > 0 || state.endT > 0) { endLesson(E); return; }
+  if (ls.doneT >= 0) { if (ls.t - ls.doneT >= TUNING.train.next) { if (ls.i >= KNIFE_LESSON.length - 1) endLesson(E); else { ls.i++; ls.doneT = -1; } } return; }
+  // the knife lowered before it was thrown: back to raising it
+  if (ls.i > 0 && !a && !thrown) ls.i = 0;
+  const got = ls.i === 0 ? !!a : ls.i === 1 ? !!a && a.id >= 0 && a.over === 'gap' && a.drag >= TUNING.knives.drag : thrown;
+  if (got) { ls.doneT = ls.t; yardChime(E); }
+}
+// the open gap the lesson points at: the one nearest his middle
+function lessonGap(E) {
+  const F = foeF(E), fm = state.foe, cy = F.y - TUNING.knives.rest * F.H;
+  let best = null, bd = Infinity;
+  for (const p of fm.parts) {
+    if (!p.slot || covered(p)) continue;
+    const [px, py] = partCenter(F, fm, p), d = Math.hypot(px - F.x, py - cy);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+function drawLesson(ctx, E) {
+  const ls = state.kLesson, T = TUNING.train, K = TUNING.knives, L = 16 + E.safe.left, w = E.w - 16 - E.safe.right - 182 - L, cx = L + w / 2;
+  yardPlate(ctx, E, L, w, KNIFE_LESSON[ls.i], ls.doneT >= 0);
+  if (ls.doneT >= 0) { yardTick(ctx, cx, E.safe.top + 90, ls.t - ls.doneT); return; }
+  const u = (ls.t % T.ghost.loop) / T.ghost.loop, pulse = 0.5 + 0.5 * Math.sin(ls.t * 8), b = armsBtns(E);
+  // 1: the knife button pulses, and the ghost thumb taps it
+  if (ls.i === 0) {
+    if (!b || !b.knife) return;
+    const c = b.knife;
+    ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.5 + 0.5 * pulse})`; ctx.lineWidth = 3 + 2 * pulse; ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 5, 0, TAU); ctx.stroke(); ctx.restore();
+    ghostThumb(ctx, c.x - c.r * 0.2, c.y + c.r * 0.1, ghostAt(GHOST.tap, u)[2]);
+    return;
+  }
+  // 2: the gap rings, and the ghost thumb drags from the right side to just under it (the ring sits lift px above the thumb)
+  if (ls.i === 1) {
+    const g = lessonGap(E);
+    if (!g) return;
+    gapRings(ctx, E, ls.t, [g]);
+    const [gx, gy] = partCenter(foeF(E), state.foe, g), sx = E.w * K.ghost[0], sy = E.h * K.ghost[1], ey = gy + K.lift;
+    const keys = [[0, sx, sy, 1], [0.55, gx, ey, 1], [0.8, gx, ey, 1], [0.9, gx, ey, 0], [1, sx, sy, 0]];
+    ctx.save(); ctx.strokeStyle = 'rgba(248,241,228,0.35)'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]); line(ctx, sx, sy, gx, ey); ctx.restore();
+    const [x, y, dn] = ghostAt(keys, u);
+    ghostThumb(ctx, x, y, dn);
+    return;
+  }
+  // 3: the ghost thumb lifts off where yours is, in a growing ring (seen on a pale loincloth too)
+  const a = state.aim;
+  if (!a || a.tx == null) return;
+  const [dx, dy, dn] = ghostAt(GHOST_LIFT, u);
+  ghostThumb(ctx, a.tx + dx, a.ty + dy, dn, 0.2 + 0.6 * u);
 }
 
 function initHand(E) {
@@ -10180,6 +10300,7 @@ function beginBout(E) {
   if (state.labMom) state.mom = TUNING.mom.max;
   const seen = E.save.get('boutsSeen', 0);
   state.hint = seen < TUNING.hint.bouts && !(firstRun(E) && state.rack === 0); state.boutT0 = state.m; E.save.set('boutsSeen', seen + 1);
+  if (lessonDue(E)) startLesson();
 }
 // No fight starts half painted (step 12): the tap waits, up to TUNING.load.hold, for the bout's paintings (the backdrop, both fighters' paint with
 // their worn gear, a beast's, a pair's second foe, Brutus and the champion's portrait on the card)
@@ -10197,10 +10318,10 @@ function introReady(E) {
 // "Tap to fight" pulses once the card takes a tap, and dims again while a tap waits for the paint
 const tapLive = () => state.introT > 0.35 && !(state.introGo >= 0);
 const play = {
-  state, lay, foeF, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
+  state, lay, foeF, beginBout, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, strikeOf, zoneAt, foeStrike, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
-  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, raised, busy, purseCost, knifeBuy, partCenter,
+  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, knifeAt, startLesson, nextYard, aimSnap, raised, busy, purseCost, knifeBuy, partCenter,
   ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateOff, YARD, endYard, tapCard, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     // the menu's Training (step 23): the yard alone, with a stock fighter in the first run's kit against the Pit's sparring partner, saving nothing
@@ -10283,6 +10404,7 @@ const play = {
     checkHits(E);
     updateOff(E, dt);
     stepArms(E, dt);
+    if (state.kLesson) updateLesson(E, dt);
     updateFoe(dt, E);
     updatePair(E, dt);
     updateBleed(E, dt);
@@ -10355,7 +10477,7 @@ const play = {
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
       arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1,
       meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast, drives: state.drives, driveDist: Math.round(state.driveDist * 100) / 100, spoils: state.spoils, buy: state.buy, purseLeft: state.purseLeft,
-      knives: state.knivesThrown, knifeGaps: state.knifeGaps, swaps: state.mySwaps, foeSwaps: state.foeSwaps });
+      knives: state.knivesThrown, knifeGaps: state.knifeGaps, knifePlate: state.knifePlate, knifeSkin: state.knifeSkin, knifeMiss: state.knifeMiss, swaps: state.mySwaps, foeSwaps: state.foeSwaps });
     E.setScene('over', { ...r, won, reached, gauntlet: g, me, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew,
       picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice(),
       arena: state.arena, fav: state.arena === 'games' ? thumbFav() : state.fav, opened, fame });
@@ -10369,11 +10491,13 @@ const play = {
     if (state.endT > 0 || portrait(E) || state.intro || state.draft || state.tent) return;
     if (p.startX >= E.w / 3 && finTouch(E, p)) return;
     if (p.startX >= E.w / 3 && armsTouch(E, p)) return;
-    // a raised knife: the right thumb aims it (the sword hand stays put), and its release throws it
-    if (state.aim && p.startX >= E.w / 3) { if (state.aim.id < 0) { state.aim.id = p.id; aimAt(E, p); } return; }
+    // a raised knife: the right thumb aims it (the sword hand stays put), and a dragged thumb's release throws it; in the first-knife lesson the
+    // sword thumb waits for the knife
+    if (state.aim && p.startX >= E.w / 3) { if (state.aim.id < 0) aimDown(E, p); return; }
+    if (state.kLesson && p.startX >= E.w / 3) return;
     if (p.startX < E.w / 3) {
       const b = buttonAt(E, p);
-      if (b && b.dodge) dodge(E, p.id);
+      if (b && b.dodge) { dodge(E, p.id); if (state.train) state.train.press = { id: p.id, t0: state.m }; }
       else if (b) raiseShield(E, b.z, p.id);
       return;
     }
@@ -10427,7 +10551,8 @@ const play = {
   },
   onPointerUp(p, E) {
     if (state.draft) state.draft.press = null;
-    if (state.aim && state.aim.id === p.id) { state.aim.go = true; return; }
+    if (state.train && state.train.press && state.train.press.id === p.id) state.train.press = null;
+    if (state.aim && state.aim.id === p.id) { aimUp(E); return; }
     const s = state.sh, h = state.hand, dg = state.dg;
     if (dg.down && dg.id === p.id) { dg.down = false; dg.id = -1; }
     else if (s.hid === p.id) { s.held = false; s.hid = -1; baitDrop(E); }
@@ -10522,7 +10647,7 @@ const play = {
 
     // HUD, inside the safe area
     const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right, TS = TUNING.stamina;
-    if (!state.train) {
+    if (!state.train && !state.kLesson) {
       E.text(`BOUT ${state.rack + 1}/${state.gauntlet.length}`, l, top + 12, { size: TUNING.hud.bout, align: 'left', weight: '800', color: state.foe.champion ? '#ffd24a' : '#e6e6e6' });
       drawCrowdMeter(ctx, E, l, top + 31);
     }
@@ -10549,7 +10674,7 @@ const play = {
       ctx.fillStyle = state.sh.broken || noShield() ? '#3b3f46' : i < state.sh.hits ? '#d6a24a' : '#3b3f46';
       ctx.fillRect(bx + i * (bw / nsh), sy, bw / nsh - 4, 7);
     }
-    if (!state.draft && !state.tent && !state.train) foeHealth(ctx, E);
+    if (!state.draft && !state.tent && !state.train && !state.kLesson) foeHealth(ctx, E);
     if (state.edge && !state.edge.down && !state.intro && !state.draft && !state.tent) drawEdgeTag(ctx, E);
     if (state.netT > 0) E.text('NETTED: slow hand, no lunge', bx + bw, sy + 34, { size: 14, align: 'right', color: '#e2e8f0', weight: '700' });
     if (state.hint && !state.intro && !state.caption) drawHint(ctx, E);
@@ -10557,6 +10682,7 @@ const play = {
     drawArmsBtns(ctx, E);
     drawRightHints(E);
     if (state.train) drawYard(ctx, E);
+    if (state.kLesson) drawLesson(ctx, E);
     if (state.intro) { drawIntro(ctx, E); if (E.channel !== 'release') { const t = labTab(E); E.roundRect(t.x, t.y, t.w, t.h, 10, '#1f2937', '#e879f9'); E.text('LAB', t.x + t.w / 2, t.y + t.h / 2, { size: 15, weight: '800', color: '#f5d0fe' }); } }
     if (state.lab) drawLab(ctx, E);
     if (state.draft) drawDraft(ctx, E);
