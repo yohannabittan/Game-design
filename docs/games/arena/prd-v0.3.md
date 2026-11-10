@@ -1907,7 +1907,7 @@ The numbers go in `TUNING.strike`. Cards that boost bleed, gaps or dents now rea
 
 **Throwing knives:**
 - **What you get:** knives are a **consumable you buy**. The designer: "I was thinking that knives are a purchasable consumable."
-  - Each knife costs `TUNING.knives.price` (about 5 gold). You buy them one at a time with a **Knives** row (− and +, the count between) wherever gold is spent: the purse before bout 1, the armourer's tent after bout 3, and the bandage stall before the champion.
+  - Each knife costs `TUNING.knives.price`: 8 gold (5 at first; the designer, 2026-11-10: "a bit too cheap"). You buy them one at a time with a **Knives** row (− and +, the count between) wherever gold is spent: the purse before bout 1, the armourer's tent after bout 3, and the bandage stall before the champion.
   - You carry at most `TUNING.knives.max` (about 6). They carry across bouts for the whole run.
   - A thrown knife is spent, hit or miss; none come back. Knives left at the run's end are lost.
   - A card may give one or two.
