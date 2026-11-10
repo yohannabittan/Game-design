@@ -55,7 +55,8 @@ const TUNING = {
   attack: {
     jab: { cost: 8, minSpeed: 520, dmg: 2, recoil: 0.18, dents: 1 },  // dents: a crush jab's (step 21)
     slash: { cost: 14, dmg: 1, fastDmg: 2, recoil: 0.5, dents: 1 },
-    over: { cost: 20, minSpeed: 750, dmg: 3, recoil: 0.7, dents: 2, raise: 0.2, window: 0.6 },  // raise: hand this far (H) above the shoulder; window: seconds it counts
+    // raise: the hand this far (H) above the guard (about the top of your head); window: seconds it counts after; down: the stroke's downward share that makes it a chop
+    over: { cost: 20, minSpeed: 520, dmg: 3, recoil: 0.7, dents: 2, raise: 0.14, window: 0.8, down: 0.25 },
   },
   stamina: { max: 100, regen: 45, delay: 0.45, tired: 0.5, idleMul: 1.8, exhaust: 1.5 },  // tired: damage multiplier at zero; idleMul: regen when not swinging, blocking or dodging; exhaust: seconds with no swings at zero
   part: { hp: 3 },         // damage a gap part takes before it is disabled
@@ -307,9 +308,18 @@ const TUNING = {
   // Step 23, the training yard before the first run's bout 1: jabs (that land), slashes, overheads and lunges to do; move = px the sword thumb travels
   // in step 1; wind = s each scripted blow winds up, gap = s between them; hold = s past a dodge's length that DODGE is held; next = s the tick shows
   // before the next step; go = s "Now fight." shows. spam: jabs in a row with no other move before Brutus's nudge, in the first spamRuns runs.
-  // ghost: the ghost thumb's loop (s), its size (px w x h) and alpha
-  train: { jabs: 2, slashes: 2, overs: 1, lunges: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
-    ghost: { loop: 1.6, w: 30, h: 40, alpha: 0.55 } },
+  // ghost: the ghost thumb's loop (s), its size (px w x h) and alpha, and where the sword thumb's ghost touches (x the screen's width, height)
+  // Step 23b. path: the ghost's paths, fitted to the fight: reach = the most a stroke's hand aim strays from the guard (arm lengths, short of a
+  // lunge), lunge = a lunge's push (arm lengths), chamber = how near the shoulder a jab is drawn in first (H), over = how far (H, his) above his head the
+  // overhead's tip starts, up = the least the hand rises above the raise line (H), through = the chop's follow-through past his head (H, his),
+  // slash = where the slash starts and ends on him (his H above his feet, near then far side), front = a jab's point on his chest, its front (his H
+  // toward you from the middle), tip = the dotted trail's dots;
+  // why = s between two "why it didn't count" words, slow = a stroke too slow to count: tip px/s and the least H it travels; field = the export's
+  // characters per yard field (the ledger keeps 80)
+  train: { jabIn: 0.1, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
+    ghost: { loop: 1.6, w: 30, h: 40, alpha: 0.55, at: [0.58, 0.8] },
+    path: { reach: 1.1, lunge: 1.85, chamber: 0.2, over: 0.3, up: 0.06, through: 0.12, slash: [0.88, 0.3, 0.06, -0.06], front: 0.1, tip: 9 },
+    why: 0.7, slow: { sp: 200, len: 0.25 }, field: 80 },
   // gold, per run: a fell, each feint read, perfect block and slot hit in the bout, and a bout with no hits taken
   gold: { fell: 20, read: 4, perfect: 2, slot: 2, clean: 15 },
   // the armourer's tent, once a run after bout `after`: big wares and cheap ones (the old commons) shown, each ware's price; forge = your weapon's damage x;
@@ -1648,9 +1658,11 @@ function newRound(E, seed, me0, rv, arenaId = 'pit', fr) {
     // step 19: Broken Chains spent, drafts skipped, the tags' counts and clocks; step 20: each signature's uses and answers ({ rage: [2, 1] })
     // step 22: the knives you carry, thrown, and in a gap (22b: on plate, on skin, missed); your swaps and his
     knives: 0, knivesThrown: 0, knifeGaps: 0, knifePlate: 0, knifeSkin: 0, knifeMiss: 0, mySwaps: 0, foeSwaps: 0,
+    // step 23b: the training yard's steps for the export (each one's seconds and failed attempts), and the step it was skipped at
+    yard: '', yardSkip: '',
     chains: 0, skips: 0, jabRun: 0, jabGuard: 0, tagN: {}, tagM: {}, drillN: 0, kneadN: 0, kneadM: -9, oxLow: false, specials: {}, readT: 0, hpSeen: null, heartFx: null, introHelp: false,
     sh: { t: -1, cool: 0, up: 0, hits: TUNING.shield.hits, broken: false, flash: 0, zone: ZONES[1], held: false, hid: -1, heldAt: -9, zy: -0.58, arm: 0, blocked: false, pressT: -9 },
-    hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
+    hand: { down: false, id: -1, fx: 0, fy: 0, tgx: 0, tgy: 0, ux: 0, uy: 0, pux: 0, puy: 0, hx: 0, hy: 0, phx: 0, phy: 0, ptgy: 0, ex: 0, ey: 0, sx: 0, sy: 0, bx: 1, by: 0, ang: 0, pang: 0, ph: 0, vx: 0, vy: 0, along: 0, hvx: 0, hvy: 0, lock: 0, grip: 0, sp: 0, raisedT: -9, atk: null },
   });
   for (const c of startCards(me)) applyCard(c);
   // the ludus: the fourth card in the first draft (training ground), and the tailor's looks on you
@@ -1681,7 +1693,7 @@ const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token'
   'capCut', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
   'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'baited', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
   'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep',
-  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials', 'knives', 'knivesThrown', 'knifeGaps', 'knifePlate', 'knifeSkin', 'knifeMiss', 'mySwaps'];
+  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials', 'knives', 'knivesThrown', 'knifeGaps', 'knifePlate', 'knifeSkin', 'knifeMiss', 'mySwaps', 'yard', 'yardSkip'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
@@ -2029,7 +2041,7 @@ function solveArm(E, dt) {
 
 function moveHand(E, dt) {
   const h = state.hand, HT = TUNING.hand, L = { H: myH(E) }, tired = state.stamina <= 0 || state.exhaust > 0;
-  h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy;
+  h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy; h.ptgy = h.tgy;
   if (h.lock > 0) {
     h.lock -= dt;
     h.tgx += h.hvx * dt; h.tgy += h.hvy * dt;
@@ -2060,7 +2072,7 @@ function moveHand(E, dt) {
   state.trail = state.trail.filter((q) => q.life > 0);
 }
 
-// An attack is born when the tip gets fast, and is named by how it moves: straight out from the shoulder (jab), down after the hand was above the head (overhead),
+// An attack is born when the tip gets fast, and is named by how it moves: down after the hand was above the head (overhead), straight out from the shoulder (jab),
 // up (a free raise, no blow), or any other arc (slash). The cost is paid then.
 function updateAttack(E, dt) {
   const h = state.hand, T = TUNING, AT = T.attack, S = T.stamina, sh = state.sh;
@@ -2070,9 +2082,10 @@ function updateAttack(E, dt) {
     const spv = Math.hypot(h.vx, h.vy) || 1, ux = h.vx / spv, uy = h.vy / spv;
     // a jab is a push forward along the guard line, whatever the arm's aim
     const ga = Math.atan2(TUNING.control.guard[1], TUNING.control.guard[0]), along = (h.vx * Math.cos(ga) + h.vy * Math.sin(ga)) / spv;
+    // (a downward stroke from a hand raised above the head is an overhead before it is a jab; the thumb must be bringing it down, not drawing it in)
     let kind = null;
-    if (along > TUNING.control.jabCone) { if (spv >= AT.jab.minSpeed) kind = 'jab'; }
-    else if (uy > 0.25 && state.m - h.raisedT < AT.over.window) { if (spv >= AT.over.minSpeed) kind = 'over'; }
+    if (uy > AT.over.down && h.tgy > h.ptgy && state.m - h.raisedT < AT.over.window) { if (spv >= AT.over.minSpeed) kind = 'over'; }
+    else if (along > TUNING.control.jabCone) { if (spv >= AT.jab.minSpeed) kind = 'jab'; }
     else if (uy < -0.7) kind = 'raise';
     else kind = 'slash';
     // the hand's motion just after your feint is its recovery, not a blow
@@ -2970,7 +2983,7 @@ function checkHits(E) {
 // what the weapon met lands: a clang on a plate, his guard or a gap guard; a thud where its haft met him; or a hit (a piercing jab along a slit, or into an
 // opened gap, goes in for a slot hit)
 function land(E, a, { p, at, ang, sp, slit, st = cleanStrike(a.kind) }) {
-  if (state.train) yardLand(a, p);
+  if (state.train) yardLand(E, a, p);
   if (state.lng && state.lunging) state.lng.hit = true;
   state.landM = state.m;
   // Shadow Step: the first blow to reach him after the dodge goes through his guard (never a plate or a gap guard)
@@ -10058,32 +10071,33 @@ const roll = {
 const YARD_BLOW = { high: 'chop', mid: 'thrust', low: 'sweep' };
 const YARD = [
   { id: 'hand', line: 'Right thumb: your sword goes where you hold.', ghost: 'hand', got: (tr) => (tr.move >= TUNING.train.move ? 1 : 0), need: () => 1 },
-  { id: 'jab', line: 'Push toward him: jab.', ghost: 'jab', got: (tr) => tr.jabs, need: () => TUNING.train.jabs },
-  { id: 'slash', line: 'Sweep across: slash.', ghost: 'slash', got: () => state.slashes, need: () => TUNING.train.slashes },
-  { id: 'over', line: 'Up, then down: overhead.', ghost: 'over', got: () => state.overheads, need: () => TUNING.train.overs },
+  { id: 'jab', line: 'Push toward him: jab.', ghost: 'jab', want: 'jab', got: (tr) => tr.jabs, need: () => TUNING.train.jabs },
+  { id: 'slash', line: 'Sweep across: slash.', ghost: 'slash', want: 'slash', got: () => state.slashes, need: () => TUNING.train.slashes },
+  { id: 'over', line: (tr) => (tr.higher ? 'Higher first. Then chop down.' : 'Up, then down: overhead.'), ghost: 'over', want: 'over', got: () => state.overheads, need: () => TUNING.train.overs },
   { id: 'lunge', line: 'Push long and hold: lunge in.', ghost: 'lunge', got: () => state.lunges, need: () => TUNING.train.lunges },
   { id: 'shield', line: (tr) => { const z = ZONES[Math.min(tr.blocked, ZONES.length - 1)]; return `He swings ${z.id}. Left thumb: ${z.label}.`; }, ghost: 'shield', got: (tr) => tr.blocked, need: () => ZONES.length },
   { id: 'dodge', line: 'Tap DODGE to step back.', ghost: 'tap', got: () => state.dodges, need: () => 1 },
   { id: 'hold', line: 'Hold DODGE to back off.', ghost: 'hold', got: (tr) => tr.held, need: () => 1 },
-  { id: 'gap', line: 'See the glow? A gap. Hit it.', ghost: 'jab', got: (tr) => tr.gaps, need: () => 1 },
+  { id: 'gap', line: 'See the glow? A gap. Hit it.', ghost: 'gap', got: (tr) => tr.gaps, need: () => 1 },
   { id: 'read', line: "When he glows, he's about to swing.", ghost: 'read', got: (tr) => tr.read, need: () => 1 },
+  // step 23b: the last two lessons
+  { id: 'perfect', line: 'Block just as it lands: perfect.', ghost: 'perfect', got: () => state.perfects, need: () => TUNING.train.perfects },
+  { id: 'tell', line: 'Dodge just as he swings.', ghost: 'tell', got: (tr) => tr.dodged, need: () => 1 },
   { id: 'go', line: 'Now fight.' },
 ];
-// the ghost thumb's loops: keyframes [phase, dx, dy, pressed], dx and dy px (x the screen's height / 375) from the right thumb's spot; the left
-// thumb's are on a button
+// the ghost thumb's loops on a button: keyframes [phase, dx, dy, pressed] (the sword thumb's paths are worked out each frame, ghostPath)
 const GHOST = {
-  jab: [[0, -45, 12, 1], [0.3, 45, -8, 1], [0.45, 45, -8, 0], [1, -45, 12, 0]],
-  slash: [[0, 12, -50, 1], [0.35, -6, 45, 1], [0.5, -6, 45, 0], [1, 12, -50, 0]],
-  over: [[0, 0, 20, 1], [0.35, 0, -60, 1], [0.5, 0, -60, 1], [0.65, 10, 40, 1], [0.78, 10, 40, 0], [1, 0, 20, 0]],
-  lunge: [[0, -60, 10, 1], [0.35, 70, -10, 1], [0.75, 70, -10, 1], [0.85, 70, -10, 0], [1, -60, 10, 0]],
   tap: [[0, 0, 0, 0], [0.2, 0, 0, 1], [0.4, 0, 0, 1], [0.5, 0, 0, 0], [1, 0, 0, 0]],
   hold: [[0, 0, 0, 0], [0.1, 0, 0, 1], [0.85, 0, 0, 1], [0.95, 0, 0, 0], [1, 0, 0, 0]],
 };
+// why an attempt didn't count
+const WHY = { slow: 'TOO SLOW', early: 'EARLY', late: 'TOO LATE', height: 'WRONG HEIGHT', missed: 'MISSED', gap: 'NOT A GAP', further: 'PUSH FURTHER', hold: 'HOLD IT LONGER',
+  block: 'DODGE, NOT BLOCK', jab: 'THAT WAS A JAB', slash: 'THAT WAS A SLASH', over: 'THAT WAS AN OVERHEAD' };
 const yardDue = (E) => !state.drill && state.rack === 0 && firstRun(E) && !E.save.get('trainDone', 0);
 function startYard(E, drill = false) {
   state.intro = false; state.introGo = -1; state.hint = false; state.boutT0 = state.m;
   state.train = { i: -1, drill, snap: JSON.parse(JSON.stringify(Object.fromEntries(RUN_KEYS.map((k) => [k, state[k]])))), move: 0, px: null, py: null, jabs: 0, gaps: 0,
-    blocked: 0, held: 0, read: 0, sw: null, wait: 0, skip: null, press: null };
+    blocked: 0, held: 0, read: 0, dodged: 0, sw: null, wait: 0, skip: null, press: null, log: [] };
   nextYard(E);
 }
 function nextYard(E) {
@@ -10093,11 +10107,25 @@ function nextYard(E) {
   // (a hold made in the steps before counts for nothing)
   if (st.id === 'hold') { tr.press = null; tr.held = 0; }
   tr.base = st.got ? st.got(tr) : 0;
-  // every step starts with both of you back on your marks, mid-ring, with ground behind you to give
-  Object.assign(state.foot, { pos: 0, tgt: 0, v: 1 }); Object.assign(state.step, { x: state.foe.home, tgt: 0 });
+  // what the step's "why it didn't count" watches: the stroke in hand, a raise not yet used, the dodges before his tell, Brutus's second line
+  Object.assign(tr, { fails: 0, whyM: -9, atk: state.hand.atk, run: null, rz: state.hand.raisedT, d0: state.dodges, endM: -9, higher: false, g0: 0 });
+  // every step starts with both of you back on your marks, mid-ring, with ground behind you to give; he stands where your jab lands on him
+  const gap = yardStand(E, state.foe);
+  state.foe.strike = gap;
+  Object.assign(state.foot, { pos: 0, tgt: 0, v: 1 }); Object.assign(state.step, { x: gap, tgt: 0 });
 }
-function endYard(E) {
-  const tr = state.train;
+// the gap (H) the yard stands him at: his own striking distance, drawn in until your plain jab (shoulder, straight arm and blade, no lunge) reaches
+// jabIn H into his front, never nearer than the bodies can stand. His blows still reach you (inReach follows his strike)
+function yardStand(E, f) {
+  const L = lay(E), Fy = youF(E), B = TUNING.fighter.body, own = f.weapon.strike + f.size.reach;
+  const tip = L.x0 - (meSize().scale - 1) * B * L.H + SHOULDER[0] * Fy.H + myArm(E) + myBlade(E) - TUNING.train.jabIn * myH(E);
+  return clamp((tip - L.x1 + B * L.H) / L.H, gMin(E), own);
+}
+// the yard as the export writes it: `hand2,jab4/1,over31/6,...` (seconds, and failed attempts when there were any)
+const yardEntry = (id, t, fails) => `${id}${Math.round(t)}${fails ? `/${fails}` : ''}`;
+function endYard(E, skipped = false) {
+  const tr = state.train, st = YARD[tr.i];
+  if (skipped && st.got && tr.doneT < 0) tr.log.push(yardEntry(st.id, tr.t, tr.fails));
   state.train = null; E.save.set('trainDone', 1);
   if (tr.drill) { E.setScene('menu'); return; }
   Object.assign(state, tr.snap);
@@ -10105,20 +10133,84 @@ function endYard(E) {
   Object.assign(state.you, { lunge: 0, lungeK: 0, drive: 0, dk: 0, back: 0, hopY: 0, push: 0, parts: playerParts(state.me) });
   Object.assign(state.dg, { down: false, id: -1, t: 0 }); Object.assign(state.sh, { held: false, hid: -1, t: -1, arm: 0 });
   state.hand.down = false; state.hand.atk = null;
+  state.yard = tr.log.join(','); state.yardSkip = skipped && st.got ? st.id : '';
   newRack(E); initHand(E); beginBout(E);
 }
-// what your blade met, in the yard: jabs that land, and hits in a gap
-function yardLand(a, p) {
-  const tr = state.train;
-  if (a.kind === 'jab') tr.jabs++;
-  if (p.slot && !covered(p)) tr.gaps++;
+// the export's yard fields: past the ledger's length the steps run on into yard2
+function yardFields() {
+  if (!state.yard) return {};
+  const s = state.yard, cap = TUNING.train.field, cut = s.length > cap ? s.lastIndexOf(',', cap) : -1;
+  return { ...(cut > 0 ? { yard: s.slice(0, cut), yard2: s.slice(cut + 1) } : { yard: s }), ...(state.yardSkip ? { yardSkip: state.yardSkip } : {}) };
 }
-// one of his blows in the yard: slow and scripted at a height (the shield), or his ordinary tell (reading); none of them hurts
+// an attempt that didn't count: one more failed attempt for the export, and a few words why over the action
+function yardMiss(E, why, x, y) {
+  const tr = state.train;
+  tr.fails++;
+  if (state.m - tr.whyM < TUNING.train.why) return;
+  tr.whyM = state.m;
+  pop(x, y, WHY[why], '#fdba74', 22, E.safe.top + 110); E.audio.beep({ freq: 220, dur: 0.12, type: 'triangle', slide: 0.7, gain: 0.1 });
+}
+const missAtTip = (E, why) => yardMiss(E, why, state.hand.ux, state.hand.uy - 34);
+const missAtYou = (E, why) => { const Fy = youF(E); yardMiss(E, why, Fy.x + 0.3 * Fy.H, Fy.y - 1.05 * Fy.H); };
+// what your blade met, in the yard: jabs that land, and hits in a gap
+function yardLand(E, a, p) {
+  const tr = state.train, gap = p.slot && !covered(p);
+  if (a.kind === 'jab') tr.jabs++;
+  if (gap) tr.gaps++;
+  else if (YARD[tr.i].id === 'gap' && tr.doneT < 0) missAtTip(E, 'gap');
+}
+// one of his blows in the yard: slow and scripted at a height (the shield; mid for the perfect block), or his ordinary tell (reading, the dodge in
+// his tell); none of them hurts
 function yardBlow(E, st) {
-  const tr = state.train, z = ZONES[Math.min(tr.blocked, ZONES.length - 1)].id;
-  const mv = st.id === 'shield' ? { kind: YARD_BLOW[z], cost: 0, hits: [{ zone: z, wind: TUNING.train.wind, dmg: 0, pose: YARD_BLOW[z] }] } : buildMove(state.rng, 'thrust', { avoid: null, wind: 1 });
+  const tr = state.train, z = st.id === 'perfect' ? 'mid' : ZONES[Math.min(tr.blocked, ZONES.length - 1)].id, slow = st.id === 'shield' || st.id === 'perfect';
+  const mv = slow ? { kind: YARD_BLOW[z], cost: 0, hits: [{ zone: z, wind: TUNING.train.wind, dmg: 0, pose: YARD_BLOW[z] }] } : buildMove(state.rng, 'thrust', { avoid: null, wind: 1 });
   for (const h of mv.hits) h.dmg = 0;
-  startMove(E, mv, false); tr.sw = state.sw;
+  startMove(E, mv, false); tr.sw = state.sw; tr.p0 = state.perfects;
+}
+// how one of his blows ended, for the step: a block, a perfect block, a dodge in his tell, or why it didn't count
+function yardOutcome(E, st, sw) {
+  const tr = state.train, o = sw.outcome, sh = state.sh, up = sh.held || raised();
+  if (o === 'block') tr.blocked++;
+  if (st.id === 'read' && (o === 'block' || o === 'dodge')) tr.read = 1;
+  if (st.id === 'tell' && o === 'dodge') tr.dodged = 1;
+  if (o === 'block' && st.id === 'perfect' && state.perfects === tr.p0) missAtYou(E, 'early');
+  if (o === 'block' && st.id === 'tell') missAtYou(E, 'block');
+  if (o === 'hit') missAtYou(E, st.id === 'tell' ? (state.dodgeM >= sw.m0 ? 'early' : 'late') : up && sh.zone !== sw.zone ? 'height' : 'late');
+}
+// the sword steps watch each stroke: one of the wrong kind, a jab that met nothing, a jab that never became a lunge, a stroke too slow to count,
+// and in the overhead's step a raise let go by
+function yardStrokes(E, st) {
+  const tr = state.train, h = state.hand, AT = TUNING.attack, SL = TUNING.train.slow, a = h.atk, real = (q) => q && q.kind !== 'raise' && q.kind !== 'pull';
+  if (a !== tr.atk) {
+    const old = tr.atk; tr.atk = a;
+    if (real(old) && old.kind === 'jab' && !old.done && (st.id === 'jab' || st.id === 'gap')) missAtTip(E, 'missed');
+    if (real(old) && old.kind === 'jab' && st.id === 'lunge' && !state.lunging && state.lunges - tr.base < st.need()) missAtTip(E, 'further');
+    if (real(a)) {
+      tr.rz = h.raisedT;
+      if (st.want && a.kind !== st.want) {
+        missAtTip(E, a.kind);
+        // the overhead's step: Brutus says it again his other way, and the ghost starts over
+        if (st.id === 'over') { tr.higher = true; tr.g0 = tr.t; }
+      }
+    }
+  }
+  if (st.id === 'over' && h.raisedT > tr.rz && state.m - h.raisedT > AT.over.window) { tr.rz = h.raisedT; if (h.down) missAtTip(E, 'slow'); }
+  // a stroke: the tip kept above slow.sp; too slow when it went far enough the step's way but no blow was born of it
+  if (st.id !== 'jab' && st.id !== 'slash' && st.id !== 'gap') return;
+  if (h.down && h.sp >= SL.sp) {
+    const r = tr.run || (tr.run = { x: h.ux, y: h.uy, peak: 0, born: false });
+    r.peak = Math.max(r.peak, h.sp); r.ex = h.ux; r.ey = h.uy; if (real(a)) r.born = true;
+  } else if (tr.run) {
+    const r = tr.run, dx = r.ex - r.x, dy = r.ey - r.y, d = Math.hypot(dx, dy), C = TUNING.control, ga = Math.atan2(C.guard[1], C.guard[0]);
+    const fwd = d > 0 && (dx * Math.cos(ga) + dy * Math.sin(ga)) / d > C.jabCone, need = st.id === 'slash' ? TUNING.hit.minSpeed : AT.jab.minSpeed;
+    tr.run = null;
+    if (!r.born && r.peak < need && d >= SL.len * myH(E) && fwd === (st.id !== 'slash')) yardMiss(E, 'slow', r.ex, r.ey - 34);
+  }
+}
+// DODGE let go in the hold step before it became a hold
+function yardRelease(E, press) {
+  const tr = state.train;
+  if (YARD[tr.i].id === 'hold' && tr.doneT < 0 && !tr.held && state.m - press.t0 > TUNING.dodge.dur * 0.5) missAtYou(E, 'hold');
 }
 function updateYard(E, dt) {
   const tr = state.train, T = TUNING.train, st = YARD[tr.i], h = state.hand, f = state.foe;
@@ -10133,17 +10225,16 @@ function updateYard(E, dt) {
   // a hold is DODGE kept pressed past a dodge's length, however soon the wall behind ends the backing off
   if (tr.press && state.m - tr.press.t0 > TUNING.dodge.dur + T.hold) tr.held = 1;
   if (st.id === 'gap') state.openAll = Math.max(state.openAll, 0.5);
-  if (st.id === 'shield' || st.id === 'read') {
-    if (tr.sw && tr.sw.outcome) {
-      const o = tr.sw.outcome;
-      if (o === 'block') tr.blocked++;
-      if (st.id === 'read' && (o === 'block' || o === 'dodge')) tr.read = 1;
-      tr.sw = null; tr.wait = T.gap;
-    } else if (tr.sw && state.sw !== tr.sw) { tr.sw = null; tr.wait = T.gap; }
+  yardStrokes(E, st);
+  if (st.id === 'shield' || st.id === 'read' || st.id === 'perfect' || st.id === 'tell') {
+    // the dodge in his tell: one made before his tell began is early
+    if (st.id === 'tell' && state.dodges > tr.d0) { if (!tr.sw && state.m - tr.endM > T.why) missAtYou(E, 'early'); tr.d0 = state.dodges; }
+    if (tr.sw && tr.sw.outcome) { yardOutcome(E, st, tr.sw); tr.sw = null; tr.wait = T.gap; tr.endM = state.m; }
+    else if (tr.sw && state.sw !== tr.sw) { tr.sw = null; tr.wait = T.gap; }
     else if (!tr.sw && !state.sw && state.winded <= 0 && state.stun <= 0 && (tr.wait -= dt) <= 0 && inReach()) yardBlow(E, st);
   }
   if (st.got(tr) - tr.base >= st.need()) {
-    tr.doneT = tr.t;
+    tr.doneT = tr.t; tr.log.push(yardEntry(st.id, tr.t, tr.fails));
     yardChime(E);
   }
 }
@@ -10185,6 +10276,77 @@ function ghostAt(keys, u) {
   const [t0, x0, y0, d0] = keys[i], [t1, x1, y1] = keys[i + 1], k = ease.inOut(clamp((u - t0) / Math.max(1e-3, t1 - t0), 0, 1));
   return [lerp(x0, x1, k), lerp(y0, y1, k), d0];
 }
+// ----- step 23b: the ghost's paths, worked out from the fight as it stands this frame -----
+// Where your hand and tip would be with the hand aimed at (tx, ty), as solveArm puts them (thrust 1: the blade along the arm, as in a jab).
+function tipFor(E, tx, ty, thrust) {
+  const A = TUNING.arm, G = TUNING.grip, H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
+  const d = Math.hypot(tx - sx, ty - sy) || 1, ang = Math.atan2(ty - sy, tx - sx), e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1);
+  const r = myArm(E) * (A.minFrac + (A.full - A.minFrac) * e), hx = sx + Math.cos(ang) * r, hy = sy + Math.sin(ang) * r;
+  const ph = ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust), b = myBlade(E);
+  return { hx, hy, ux: hx + Math.cos(ph) * b, uy: hy + Math.sin(ph) * b };
+}
+// the hand's aim that brings the tip to (px, py), or as near as an aim within `reach` arm lengths of the guard gets it
+function aimFor(E, px, py, thrust, reach) {
+  const [gx, gy] = guardPt(E), lim = reach * myArm(E);
+  let tx = px, ty = py;
+  for (let i = 0; i < 8; i++) {
+    const q = tipFor(E, tx, ty, thrust); tx += px - q.ux; ty += py - q.uy;
+    const ox = tx - gx, oy = ty - gy, d = Math.hypot(ox, oy) || 1;
+    if (d > lim) { tx = gx + ox / d * lim; ty = gy + oy / d * lim; }
+  }
+  return [tx, ty];
+}
+// a point on him: a part's centre, or (a beast, with no such part) the place on his figure, his H above his feet
+function foeAt(E, id, up) {
+  const F = foeF(E), p = state.foe.parts.find((q) => q.d.id === id);
+  return p ? partCenter(F, state.foe, p) : toScreen(F, 0, -up);
+}
+// the open gap the gap step points at: the one nearest his chest
+function yardGap(E) {
+  const F = foeF(E), [cx, cy] = foeAt(E, 'chest', 0.6);
+  let best = null, bd = Infinity;
+  for (const p of state.foe.parts) {
+    if (!p.slot || covered(p)) continue;
+    const [px, py] = partCenter(F, state.foe, p), d = Math.hypot(px - cx, py - cy);
+    if (d < bd) { bd = d; best = [px, py]; }
+  }
+  return best;
+}
+// A ghost's path: its keyframes [phase, x, y, pressed] as hand aims (screen px, the first the guard), its thrust, and the point on him it is for.
+// The thumb is a trackpad: wherever it touches is the guard, so the ghost's thumb draws each aim's offset from the guard, divided by the gain.
+function ghostPath(E, id) {
+  const chest = () => { const c = foeAt(E, 'chest', 0.6), F = foeF(E); return [c[0] + F.dir * TUNING.train.path.front * F.H, c[1]]; };
+  const P = TUNING.train.path, [gx, gy] = guardPt(E), F = foeF(E), arm = myArm(E), H = myH(E), line = gy - TUNING.attack.over.raise * H;
+  if (id === 'jab' || id === 'gap') {
+    // a jab: the hand drawn in toward the shoulder on the line to the point, then pushed straight out along it
+    const at = id === 'gap' ? yardGap(E) || chest() : chest(), end = aimFor(E, at[0], at[1], 1, P.reach), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
+    const d = Math.hypot(end[0] - sx, end[1] - sy) || 1, st = [sx + (end[0] - sx) / d * P.chamber * H, sy + (end[1] - sy) / d * P.chamber * H];
+    return { thrust: 1, at, keys: [[0, gx, gy, 1], [0.22, ...st, 1], [0.3, ...end, 1], [0.5, ...end, 0], [1, gx, gy, 0]] };
+  }
+  if (id === 'slash') {
+    const [h0, h1, x0, x1] = P.slash, a = toScreen(F, x0, -h0), b = toScreen(F, x1, -h1);
+    const s0 = aimFor(E, a[0], a[1], 0, P.reach);
+    // a slash starts with the hand below the raise line, or it would be an overhead
+    for (let i = 0; i < 6; i++) s0[1] += Math.max(0, line + P.up * H - tipFor(E, s0[0], s0[1], 0).hy);
+    const s1 = aimFor(E, b[0], b[1], 0, P.reach);
+    return { thrust: 0, at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], keys: [[0, gx, gy, 1], [0.25, ...s0, 1], [0.3, ...s0, 1], [0.39, ...s1, 1], [0.55, ...s1, 0], [1, gx, gy, 0]] };
+  }
+  if (id === 'over') {
+    // up: the arm swung up from the shoulder, from forward toward straight up, until the hand is well above your head and the tip above his
+    const hd = foeAt(E, 'head', 0.8), top = hd[1] - P.over * F.H, [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), r = TUNING.arm.straightAt * H;
+    let up = null;
+    for (let a = -0.4; a >= -Math.PI / 2 - 0.4 && !up; a -= 0.05) {
+      const q = [sx + Math.cos(a) * r, sy + Math.sin(a) * r], o = Math.hypot(q[0] - gx, q[1] - gy), t = tipFor(E, q[0], q[1], 0);
+      if (o <= P.reach * arm && t.hy <= line - P.up * H && t.uy <= top) up = q;
+    }
+    if (!up) up = [sx + Math.cos(-1.3) * r, sy + Math.sin(-1.3) * r];
+    const dn = aimFor(E, hd[0], hd[1] + P.through * F.H, 0, P.reach);
+    return { thrust: 0, at: hd, keys: [[0, gx, gy, 1], [0.3, ...up, 1], [0.45, ...up, 1], [0.55, ...dn, 1], [0.7, ...dn, 0], [1, gx, gy, 0]] };
+  }
+  // the lunge: a long push past him, through his chest
+  const c = chest(), d = Math.hypot(c[0] - gx, c[1] - gy) || 1, end = [gx + (c[0] - gx) / d * P.lunge * arm, gy + (c[1] - gy) / d * P.lunge * arm];
+  return { thrust: 1, at: c, lunge: true, keys: [[0, gx, gy, 1], [0.35, ...end, 1], [0.75, ...end, 1], [0.85, ...end, 0], [1, gx, gy, 0]] };
+}
 function drawYard(ctx, E) {
   const tr = state.train, st = YARD[tr.i], T = TUNING.train, top = E.safe.top, L = 16 + E.safe.left, R = E.w - 16 - E.safe.right - 182;
   // Skip training, top left (where BOUT and the crowd sit in a bout)
@@ -10200,23 +10362,41 @@ function drawYard(ctx, E) {
   if (!st.ghost) return;
   // the gaps step rings each open gap
   if (st.id === 'gap') gapRings(ctx, E, tr.t, state.foe.parts.filter((q) => q.slot && !q.guard && !q.cut));
-  // the ghost thumb: the right thumb's between the fighters at knee height; the left thumb's on its button, which pulses
-  const u = (tr.t % T.ghost.loop) / T.ghost.loop, k = E.h / 375, ax = E.w * 0.54, ay = E.h * 0.7, B = shieldBtns(E);
-  const btn = st.ghost === 'shield' ? B[Math.min(tr.blocked, ZONES.length - 1)] : st.ghost === 'read' ? B[ZONES.indexOf(state.sw ? state.sw.zone : ZONE.mid)] : st.ghost === 'tap' || st.ghost === 'hold' ? B[3] : null;
+  // the ghost thumb: the right thumb's between the fighters below knee height (clear of your hand as it rises); the left thumb's on its button, which pulses
+  const u = ((tr.t - tr.g0) % T.ghost.loop) / T.ghost.loop, [ax, ay] = [E.w * T.ghost.at[0], E.h * T.ghost.at[1]], B = shieldBtns(E), sw = state.sw, left = sw ? sw.wind - sw.t : 9;
+  const btn = st.ghost === 'shield' ? B[Math.min(tr.blocked, ZONES.length - 1)] : st.ghost === 'read' || st.ghost === 'perfect' ? B[ZONES.indexOf(sw ? sw.zone : ZONE.mid)]
+    : st.ghost === 'tap' || st.ghost === 'hold' || st.ghost === 'tell' ? B[3] : null;
   if (btn) {
     const pulse = 0.5 + 0.5 * Math.sin(tr.t * 8);
     ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.5 + 0.5 * pulse})`; ctx.lineWidth = 3 + 2 * pulse; rrect(ctx, btn.x - 3, btn.y - 3, btn.w + 6, btn.h + 6, 14); ctx.stroke(); ctx.restore();
-    const [, , dn] = ghostAt(GHOST[st.ghost === 'hold' ? 'hold' : 'tap'], u);
+    // the last two lessons press with his blow: in the perfect-block window, and as his tell nears its end
+    const [, , dn] = st.ghost === 'perfect' ? [0, 0, sw && left <= perfectWin() ? 1 : 0] : st.ghost === 'tell' ? [0, 0, sw && left <= TUNING.dodge.dur && left > 0 ? 1 : 0]
+      : ghostAt(GHOST[st.ghost === 'hold' ? 'hold' : 'tap'], u);
     ghostThumb(ctx, btn.x + btn.w * 0.62, btn.y + btn.h * 0.5, dn, st.ghost === 'hold' && dn ? 0.6 * clamp((u - 0.1) / 0.75, 0, 1) : 0);
     return;
   }
+  const k = E.h / 375;
   if (st.ghost === 'hand') { const a = u * TAU; ghostThumb(ctx, ax + 28 * k * Math.cos(a), ay + 20 * k * Math.sin(a), 1); return; }
-  const keys = GHOST[st.ghost];
-  // its path, faint, then the thumb on it
+  const gp = ghostPath(E, st.ghost), [gx, gy] = guardPt(E), G = TUNING.control.gain;
+  const keys = gp.keys.map(([ph, x, y, d]) => [ph, (x - gx) / G, (y - gy) / G, d]), GT = T.ghost, C = TUNING.control, arm = myArm(E);
+  // (the whole path is lifted, or drawn in, to keep the thumb on the screen)
+  const ox = Math.min(0, E.w - E.safe.right - GT.w - ax - Math.max(...keys.map((q) => q[1]))), oy = Math.min(0, E.h - E.safe.bottom - GT.h - ay - Math.max(...keys.map((q) => q[2])));
+  for (const q of keys) { q[1] += ox; q[2] += oy; }
+  // a lunge's tip goes on with your stride as the push passes its start
+  const stride = (x, y) => (gp.lunge ? TUNING.lunge.stride * myH(E) * clamp((Math.hypot(x - gx, y - gy) / arm - C.lungeStart) / (C.lungeFull - C.lungeStart), 0, 1) : 0);
+  // where the tip goes on him: a dotted trail along the pressed part of the path, and a ring on the point it is for
+  const dn = gp.keys.filter((q) => q[3]), n = T.path.tip;
+  ctx.save(); ctx.fillStyle = 'rgba(255,214,110,0.7)';
+  for (let i = 0; i < dn.length - 1; i++) for (let j = 0; j < n; j++) {
+    const f = j / n, x = lerp(dn[i][1], dn[i + 1][1], f), y = lerp(dn[i][2], dn[i + 1][2], f), q = tipFor(E, x, y, gp.thrust);
+    ctx.beginPath(); ctx.arc(q.ux + stride(x, y), q.uy, 2.2, 0, TAU); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(255,214,110,0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(gp.at[0], gp.at[1], 10, 0, TAU); ctx.stroke(); ctx.restore();
+  // the thumb's path, faint, then the thumb on it
   ctx.save(); ctx.strokeStyle = 'rgba(248,241,228,0.35)'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]); ctx.beginPath();
-  keys.filter((q) => q[3]).forEach((q, i) => (i ? ctx.lineTo(ax + q[1] * k, ay + q[2] * k) : ctx.moveTo(ax + q[1] * k, ay + q[2] * k))); ctx.stroke(); ctx.restore();
-  const [dx, dy, dn] = ghostAt(keys, u);
-  ghostThumb(ctx, ax + dx * k, ay + dy * k, dn);
+  keys.filter((q) => q[3]).forEach((q, i) => (i ? ctx.lineTo(ax + q[1], ay + q[2]) : ctx.moveTo(ax + q[1], ay + q[2]))); ctx.stroke(); ctx.restore();
+  const [dx, dy, d] = ghostAt(keys, u);
+  ghostThumb(ctx, ax + dx, ay + dy, d);
 }
 
 // ----- step 22b: the first-knife lesson -----
@@ -10322,7 +10502,7 @@ const play = {
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, strikeOf, zoneAt, foeStrike, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, knifeAt, startLesson, nextYard, aimSnap, raised, busy, purseCost, knifeBuy, partCenter,
-  ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateOff, YARD, endYard, tapCard, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
+  ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateOff, YARD, endYard, tapCard, ghostPath, tipFor, guardPt, myH, yardFields, sizeOf, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     // the menu's Training (step 23): the yard alone, with a stock fighter in the first run's kit against the Pit's sparring partner, saving nothing
     state.drill = !!params.drill; state.train = null;
@@ -10477,7 +10657,7 @@ const play = {
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
       arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1,
       meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast, drives: state.drives, driveDist: Math.round(state.driveDist * 100) / 100, spoils: state.spoils, buy: state.buy, purseLeft: state.purseLeft,
-      knives: state.knivesThrown, knifeGaps: state.knifeGaps, knifePlate: state.knifePlate, knifeSkin: state.knifeSkin, knifeMiss: state.knifeMiss, swaps: state.mySwaps, foeSwaps: state.foeSwaps });
+      knives: state.knivesThrown, knifeGaps: state.knifeGaps, knifePlate: state.knifePlate, knifeSkin: state.knifeSkin, knifeMiss: state.knifeMiss, swaps: state.mySwaps, foeSwaps: state.foeSwaps, ...yardFields() });
     E.setScene('over', { ...r, won, reached, gauntlet: g, me, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew,
       picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice(),
       arena: state.arena, fav: state.arena === 'games' ? thumbFav() : state.fav, opened, fame });
@@ -10504,7 +10684,8 @@ const play = {
     const h = state.hand;
     if (h.down) return;
     h.down = true; h.id = p.id; h.fx = p.x; h.fy = p.y;
-    h.ax = p.x; h.ay = p.y;
+    // (a raise before the thumb lifted makes no overhead of this touch's first stroke)
+    h.ax = p.x; h.ay = p.y; h.raisedT = -9;
     if (h.lock <= 0) {
       [h.tgx, h.tgy] = guardPt(E);
       h.grip = 0; solveArm(E, 0);
@@ -10517,7 +10698,7 @@ const play = {
     if (h.down && h.id === p.id) { h.fx = p.x; h.fy = p.y; }
   },
   onTap(p, E) {
-    if (state.train && state.train.skip && E.hit(state.train.skip, p)) { E.audio.play('tap'); endYard(E); return; }
+    if (state.train && state.train.skip && E.hit(state.train.skip, p)) { E.audio.play('tap'); endYard(E, true); return; }
     const tt = state.tent;
     if (tt) {
       if (tt.t < TUNING.draft.delay) return;
@@ -10551,7 +10732,7 @@ const play = {
   },
   onPointerUp(p, E) {
     if (state.draft) state.draft.press = null;
-    if (state.train && state.train.press && state.train.press.id === p.id) state.train.press = null;
+    if (state.train && state.train.press && state.train.press.id === p.id) { yardRelease(E, state.train.press); state.train.press = null; }
     if (state.aim && state.aim.id === p.id) { aimUp(E); return; }
     const s = state.sh, h = state.hand, dg = state.dg;
     if (dg.down && dg.id === p.id) { dg.down = false; dg.id = -1; }
