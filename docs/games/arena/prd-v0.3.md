@@ -2052,3 +2052,51 @@ The numbers go in `TUNING.strike`. Cards that boost bleed, gaps or dents now rea
   - the snap lands a ring that is a few px off a gap;
   - each outcome is counted.
 - `npm run smoke`.
+
+## Step 23b (locked 2026-11-10, the designer's run of the v64 training yard): overheads that register, a ghost thumb fitted to the fight, and the last two lessons
+
+**The designer:** "It was really hard to get it to register an overhead, and the suggestion of how to move the thumb didn't take into account distance from the opponent and size of the opponent. I didn't get to see things like do a perfect block or dodge." They were stuck at the hold step (fixed in Step 22b's build) and never reached the later steps.
+
+**1. Overheads that register.**
+- **Today,** an overhead needs all three of these:
+  - the hand at least `attack.over.raise` (0.2 H) above the shoulder;
+  - then, within `attack.over.window` (0.6 s), a downward stroke of at least `attack.over.minSpeed` (750 px/s, the fastest of any blow);
+  - and that stroke must not fall in the jab cone, or it counts as a jab.
+- **The change:**
+  - Measure the gesture at 667x375 and 844x390 with a scripted thumb. If a natural "up, then chop down" (the hand raised well above the head, then a quick stroke down onto his head) fails, loosen the numbers until it works:
+    - a lower `minSpeed`;
+    - a longer `window`;
+    - a stroke that starts above the head counts as an overhead before the jab test.
+    
+    Don't touch the jab and slash numbers.
+  - **In the yard,** if a stroke during the overhead step comes out as a jab or a slash, Brutus says "Higher first. Then chop down." and the ghost replays.
+
+**2. The ghost thumb fits the fight.** Each ghost path is worked out from where things are on screen now, not from a fixed path:
+- your sword hand;
+- his figure: its height (his size), where it stands (the distance) and the camera's zoom;
+- his gap, for the gap step.
+
+The paths:
+- **jab:** from your hand straight to his chest;
+- **slash:** across his body;
+- **overhead:** up above his head, then down onto it;
+- **lunge:** a long push past him;
+- **gap:** onto the glowing gap.
+
+The paths are recomputed when he steps or the camera moves.
+
+**3. The last two lessons.** The yard gets two steps after "Reading", so it ends with:
+- **"Block just as it lands: perfect."** He makes slow blows until you make a perfect block. A block that comes too early shows "EARLY" and he swings again.
+- **"Dodge just as he swings."** A tell, and you dodge inside its window. One is enough.
+
+Each step also says, in a few words, why an attempt didn't count ("EARLY", "TOO SLOW", "THAT WAS A JAB").
+
+**4. The yard in the export.** A run's export carries a `yard=` field: each step's seconds and its failed attempts (for example `yard=hand2,jab4/1,over31/6,...`), and `yardSkip=<step>` if it was skipped. A playtest then shows where a new player stalls.
+
+### Acceptance
+
+- A scripted natural overhead registers at both sizes, and the jab and slash checks of Step 21 still pass.
+- Frames of each ghost path against a runt and a giant, near and far.
+- Frames of the two new steps.
+- The `yard=` field in an export.
+- `npm run smoke`.
