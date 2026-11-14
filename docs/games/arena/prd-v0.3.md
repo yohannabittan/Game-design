@@ -2176,3 +2176,27 @@ Each becomes its own step, written in full before it's built. Rough order:
 5. **Emperor's decrees:** a one-run rule shown on the picker (everyone bleeds, no shields, bows only, beasts in the Pit).
 6. **New pairings:** a man with a beast, a two-blade champion with a bow. Data only.
 7. **Tinted gear:** bronze, iron and blackened kit tints in code, for foe variety.
+
+## Step 24c (locked 2026-11-14, built with Step 24): a planted overhead
+
+**The designer:** "When I was playing mace and trying to do overhead blows: lifting the arm up and back brings the person back, and then bringing it down lunges, so the person is too close to really hit the sweet spot."
+
+Your body follows your sword hand:
+- the lean follows the hand back and forth;
+- a push past reach becomes a lunge, and the lunge steps you in.
+
+So an overhead is undone by the very motion it needs. The wind-up leans you back, and the chop is read as a push past reach, so you lunge in. With a mace or an axe, that puts his body inside the striking head, so the blow lands with the haft: a THUD (Step 21).
+
+**The change:**
+- **A raised hand doesn't lean you back.** While the hand is above the overhead line (`attack.over.raise`), the backward lean is held at no more than `TUNING.over.leanBack` (about a quarter of today's), so you don't give ground.
+- **An overhead never lunges.** A stroke classed as an overhead (Step 23b's classing, tested before the jab) can't start a lunge or a step in, however far down and forward it goes. Your feet stay planted for the whole blow and its recovery.
+- **The chop lands at the head.** The overhead's arc is worked out so that, from where you stand, the weapon's striking part (Step 21's zones: the mace's ball, the axe's blade) comes down on him rather than the haft, as long as he's within that weapon's reach. If he's too close, it's still a THUD, and that's your positioning, not the input's.
+- **Every weapon gets this.** It matters most for the mace, the axe and the trident.
+
+### Acceptance
+
+- Scripted, for the mace, the axe and the gladius:
+  - an up-and-down overhead from a standing start leaves your feet where they were (the step-in count doesn't change);
+  - from the weapon's own range, it lands with the striking part, not a THUD.
+- Jabs, slashes and lunges still classify and step as before (Step 21's and Step 23b's checks).
+- A frame of a mace overhead landing its ball, from before and after the change.
