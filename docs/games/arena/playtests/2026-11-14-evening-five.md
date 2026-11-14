@@ -27,3 +27,7 @@
 ## Next
 
 Nothing is changed from this export. The young lion goes in the watch list.
+
+## Later the same day
+
+The two-weapon builder found that with a spear a straight thumb push is often classed as a SLASH, not a jab: the blade's angle skews the stroke's measured direction. That happens with one spear too, and may explain the 83 slashes to 22 jabs above. To look at next.
