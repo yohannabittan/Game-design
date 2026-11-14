@@ -6,6 +6,8 @@ You are an art session: a separate cloud session opened by the orchestrator to m
 
 The designer doesn't code. They play the games on a phone from a home-screen icon, offline. They pick; you propose. Show options before anything is wired in.
 
+Read "What every teammate should know" in `docs/team.md` first: the goal, the designer's taste in their own words, and what has gone wrong before. For art, the two tests that matter most are theirs: **"one piece or two?"** (a limb or a weapon must read as a single thing) and **"worn, or stuck on?"** (gear is painted onto the part it sits on, near side only, never as a separate hollow object).
+
 ## First checks (do these before anything else)
 
 1. **The image key is a network secret on this environment:** the proxy adds it to requests to `api.openai.com`. There is no key in your environment variables, and you send no Authorization header yourself. Confirm it works with `curl -sS -o /dev/null -w "%{http_code}\n" https://api.openai.com/v1/models`, which should print 200. If it doesn't, say so and stop; the designer fixes it in the environment's settings.

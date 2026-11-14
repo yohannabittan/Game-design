@@ -1,8 +1,42 @@
 # The team: who reads what, who may use what
 
-Every agent's brief starts: "You are a **<role>**. Read `CLAUDE.md`, then your card in `docs/team.md`." The card is the standing part of the brief; the orchestrator adds only the task. Reviewed on 2026-11-14; `tools/docs-check.mjs` fails if a tool in `tools/` is missing from the table below, and warns when that review date is more than 30 days old.
+Every agent's brief starts: "You are a **<role>**. Read `CLAUDE.md`, then 'What every teammate should know' and your card in `docs/team.md`." The card is the standing part of the brief; the orchestrator adds only the task.
+
+**A brief gives a goal, not a procedure:** what the player should get out of it, why it matters, what done looks like and how the designer will judge it, the files in bounds, and the time-box. The teammate finds its own way with the code map. Step-by-step instructions are for the rare case where the path itself is the risk. Reviewed on 2026-11-14; `tools/docs-check.mjs` fails if a tool in `tools/` is missing from the table below, and warns when that review date is more than 30 days old.
 
 **One home per fact.** A standing instruction lives in one card and nowhere else. If a brief has to repeat or correct a card, the card is wrong: fix the card in the same turn, and don't patch around it in the brief. (The artist's brief told sessions to look for a key that had moved; for weeks the opening message corrected it and the brief stayed wrong.)
+
+## What every teammate should know
+
+You get one task and no history. The orchestrator has the whole history, and this section is the part of it that changes how you should do any task. Read it before your card.
+
+**The goal.** One person designs these games and is their first player. A build succeeds when they pick the game up because they want to and lose track of time in it. Passing your checks is not the goal; it's how you know you haven't broken the path to it. If your task is done to the letter and the thing isn't more fun, clearer or better looking than before, say so in your report.
+
+**The player** holds a phone in two hands and plays with thumbs, at 874x402 in landscape for Arena. They don't read text on the screen, and neither do their friends. A friend who is new gets no help from anyone: the game has to teach itself.
+
+**The designer's taste, in their own words.** Hold your work up against these:
+- On figures and art: "Does this look like one piece of an arm, or like two pieces?" "A man wearing a helmet, or a helmet stuck on a head?"
+- On text: "There was still too much text; he wasn't reading it."
+- On taps: "Take what? I thought I selected it."
+- On mystery: "Don't say how to beat their signature move; they have to figure it out."
+- On power: "Fast and open." Anything strong leaves you exposed while you use it (the knife, the bow, the sidearm swap).
+- On drama: "It was cinematic, the way he switched to two blades." They want moments worth watching.
+- On teaching: "It should be added to training." Teach by doing, not by telling.
+- On humour: a fruit seller "from the Americas, being part of the joke". The game can wink.
+
+**What has gone wrong before,** in builds whose checks all passed. Look for these in your own work before you report:
+- **Bodies and things that don't join up:** a second arm showing, a part overlapping its neighbour, a knife floating beside a hand, gear that looks hollow, a head and chest facing different ways. Zoom in on the figure in your own frames.
+- **Stuck states at the edges:** a step that can't be finished against a wall, from a certain distance, or at one screen size. Try the corners, not only the middle.
+- **Clean test input hiding sloppy-thumb failures:** a scripted stroke is perfect and a thumb isn't. Try short, slow, hurried and repeated input.
+- **Things nobody could work out:** a feature that works and that no player would discover or understand. Ask what the screen shows a person who has never seen it.
+- **Words where a picture would do,** and labels that grew into sentences.
+- **Stills that hide motion problems.** If it moves, watch it move.
+
+**When your task doesn't say, decide for the player,** in this order: what they can see and understand without reading; what keeps their thumb in control; what is more fun to do; then what is simplest to build. Say what you chose and why.
+
+**You are also a second pair of eyes on the whole game.** If you notice something outside your task that would hurt the player (a plate that protects nothing, a jab that falls short at one screen size), don't fix it, and do report it. Those catches have been some of the most useful things in any report.
+
+**Tell the truth about what you know.** "Not verified", "I couldn't make this exact" and "this differs between runs" are worth more than a clean-looking report. Nobody is graded on passing first time.
 
 ## Who is on the team
 
@@ -48,8 +82,7 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
 - **Work in your own worktree:** `tools/worktree.sh new <name>` from the repo root. Change only the files your brief names. **Do not commit.**
 - **`CACHE_VERSION`:** bump it only if your brief says so. When two builds are in flight, the orchestrator bumps it at landing.
 - **Find your way first** (Arena): `docs/games/arena/CODEMAP.md` leads to `RECIPES.md`, to `node tools/codemap.mjs arena --where <word>` and to the generated `INDEX.md`. Don't read the whole source.
-- **Stay inside the PRD step.** If the step doesn't settle something, take the simplest option and list it in your report.
-- **Every number in `TUNING`.** No DOM, no dependencies, no `engine.js` edits (`CLAUDE.md`'s hard rules).
+- **Stay inside the PRD step,** and obey `CLAUDE.md`'s hard rules. If the step doesn't settle something, decide for the player (above) and list it in your report.
 - **Checks:** start from `tools/checks/arena.mjs` (Arena) and `tools/drive.mjs`. Run both phone sizes (667x375 and 844x390 in landscape games). No simulations of a player; time-box any one check to 20 minutes.
 - **Show the work the cheapest way that answers the question:** a still for a look, a GIF for anything that moves (`node tools/sketch.mjs frames <dir> <out.gif>`), under 3 MB and 667 px wide. Look at every frame yourself before you report.
 - **`npm run smoke`** from your worktree before you report.

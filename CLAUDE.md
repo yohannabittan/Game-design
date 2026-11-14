@@ -47,7 +47,7 @@ This repository is a library of small, touch-first, offline-capable skill games 
 
 The session the designer talks to is the orchestrator. It writes and reviews documents and dispatches builds; it does not write `game.js` itself unless a builder has failed twice.
 
-- **Roles and their cards:** `docs/team.md` says, for each role, what it reads first, what it may change, which tools it uses and what its report holds. Every agent's brief starts "You are a <role>. Read `CLAUDE.md`, then your card in `docs/team.md`", and then gives only the task.
+- **Roles and their cards:** `docs/team.md` says, for each role, what it reads first, what it may change, which tools it uses and what its report holds. Every agent's brief starts "You are a <role>. Read `CLAUDE.md`, then 'What every teammate should know' and your card in `docs/team.md`", and then gives the task as a goal (what the player gets, why, what done looks like, what's in bounds), not a procedure.
 - **Builder:** an `Agent` on `opus` for feel-critical or high-risk work, `sonnet` for small fixes. The brief is the Builder card plus the PRD step (the layer files in `prompts/` are for a new game's first layers). Builders read the repo themselves.
 - **Sketcher:** an `Agent` on `sonnet` making a throwaway still, GIF or touchable page before a look-or-feel step is built.
 - **Verifier:** a fresh `Agent` that didn't build the thing, for any build that changes controls, the first run or the save. It writes its own checks from the PRD's acceptance list and tries to break the build (`docs/team.md`, Verifier card).
