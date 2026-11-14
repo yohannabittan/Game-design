@@ -34,6 +34,8 @@ Every agent's brief starts: "You are a **<role>**. Read `CLAUDE.md`, then your c
 | `tools/checks/arena.mjs` | Arena's check helpers: saves, thumb paths, the yard, geometry | | yes, and adds to it | | | |
 | `tools/perf.mjs` | frame time, and a comparison against another copy | | yes, when drawing changes | | | yes |
 | `tools/sketch.mjs` | a GIF from a sketch page, or from frames of the real game | | yes, for anything that moves | yes | | |
+| `tools/replay.mjs` | replays a recorded run on a fake clock and dumps the run state, so "nothing changed" can be proved exactly; the scripts are in `tools/checks/replays/` | yes, before landing a restructuring | yes, before and after any change that must not alter play | | | yes |
+| `tools/arena-split.mjs` | the script that split Arena into modules (ADR-0024); kept so the move can be re-run | only for a re-split | | | | |
 | `tools/usage.py` | the cost ledger in `docs/usage/` | yes, after every landing | | | | |
 | `tools/release.sh` | cuts the friends' release copy | yes, when the designer asks | | | | |
 | `tools/new-game.sh`, `tools/make-icons.py` | scaffold a new game and its icons | yes | | | | |

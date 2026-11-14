@@ -151,7 +151,7 @@ The designer: "If we can think of a little way to visualise things before puttin
   | Does it move and land right? (a blow, an effect, a swap) | a GIF |
   | Does it feel right in the hand? (aim, timing, a gesture) | a touchable page, then the designer's playtest |
   | Is it fun, fair, the right length? | the designer's playtest and its export; nothing else answers this |
-  | Did anything change that shouldn't have? | a scripted check, or a replay (the replay tool of ADR-0024, once it lands) |
+  | Did anything change that shouldn't have? | a scripted check, or a replay (`node tools/replay.mjs <script.json>` before and after; identical dumps mean identical play) |
 
   Use the cheapest one that answers the question, and say which one was used when reporting a build.
 

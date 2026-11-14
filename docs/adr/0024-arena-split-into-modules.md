@@ -89,3 +89,11 @@ The split by layer is still worth doing for a different reason: the file is 914 
 - **One module per section (about 20):** tidier, but more files for each builder to keep consistent and no extra parallelism. The designer asked not to overdo it.
 - **Lanes by layer as the way to work in parallel** (this ADR's first draft): the history shows a feature changes 6 to 12 sections, so layers don't separate builders. Feature modules do.
 - **Keeping one file, with only the three-way landing:** that already allows some parallel work, but every builder still reads 11,000 lines, and the clashes in one file are harder to see.
+
+## As built (2026-11-14, `arena-v68`)
+
+- **Proved identical:** three replays (the Pit, a City pair bout, a beast bout) give byte-identical dumps before and after, run by the builder and again by the orchestrator. 998 of the 999 top-level declarations are in the modules verbatim; the 999th, the play scene, differs only by the list of names the checks use (moved to `game.js`) and the export's fields written one per line. The frame time is 3.8% better.
+- **Sizes:** tuning 790, data 521, fight 1,491, foe 508, cards 308, draw-fight 2,831, screens 1,617, scenes 2,059, game 1,038, features/yard 384, features/ranged 474.
+- **Over the 2,000-line limit:** `draw-fight.js`. The kit painting (`paintHead` to `paintCloak`) splits out cleanly, and is the next move, by the same script.
+- **Hooks are plain calls:** the core calls the feature modules' functions at call sites named in each module's header. No registry was added.
+- **Left in the core:** the features' `TUNING` blocks (moving them would change the key order), `foeSidearm` (the foe's own decision), and the bow and knife branches inside `drawSwordArm`, `resolveOne` and the HUD (moving them would mean rewriting those functions).

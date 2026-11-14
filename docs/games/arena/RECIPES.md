@@ -127,4 +127,7 @@ Watch out: a save given to `open` as plain data skips `migrate` (it is wrapped w
 6. Pin the state you need (`state.swingIn = 99`, `state.step.x`, set from a timer) so a frame is the same each time; wait for his blow with a poll on `state.sw`.
 7. Capture with `g.shot(path)`; `g.errors()` must be empty; close with `g.close()`. A contact sheet of the frames helps to review.
 
+8. To start partway through a run, resume a saved one: `resumeRun` and the `play` scene's `enter` take a saved run (its rack says which bout). The painted art loads in the background in real time, so let the loads settle before you compare frames.
+9. To prove a change left play alone: `node tools/replay.mjs tools/checks/replays/pit.json > before.json`, make the change, run it again, and compare. The three scripts there cover the Pit, a City pair bout and a beast bout.
+
 Check: `npm run smoke` at the end, then `python3 tools/usage.py`.

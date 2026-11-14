@@ -1,5 +1,7 @@
 # Arena code map
 
+**The modules** (ADR-0024, `games/arena/src/`): `tuning.js` (every number), `data.js` (the tables), `fight.js` (your fighter, input, hits, juice), `foe.js` (the foe AI), `cards.js` (the card engine), `draw-fight.js` (the fighters, the arena, the HUD), `screens.js` (the draft, the purse, the inventory, meta), `scenes.js` (menu, roll, play, over), `game.js` (run state, rolls, save, the export, the names the checks use), and `features/yard.js` and `features/ranged.js` (the training yard; the sidearm, knives and bow). Only `tuning.js` and `data.js` may be read while modules load. A new feature gets its own file under `features/`.
+
 The hand-written map that was here went stale (it described v36; the game is past v66, and 513 of its 553 anchors had moved). It is replaced by three things, used in this order:
 
 1. **`RECIPES.md`** (hand-written, short): for the common kinds of change (a card, a weapon, a hint, an export field, a purse item, a yard step), the places to touch, by name. Start here.
