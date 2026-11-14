@@ -134,7 +134,7 @@ The designer: "If we can think of a little way to visualise things before puttin
 | Form | For | Time |
 | --- | --- | --- |
 | **a still mock frame** (one PNG of the screen) | layouts, cards, HUD, text amounts | about 10 min |
-| **a GIF of the moment** (`tools/sketch.mjs`: a canvas page recorded with Playwright and ffmpeg) | motion, effects, animation, "what does a slash look like" | about 20 min |
+| **a GIF of the moment** (`node tools/sketch.mjs page <file.html> <out.gif>` records a sketch page; `frames <dir> <out.gif>` encodes frames of the real game) | motion, effects, animation, "what does a slash look like" | about 20 min |
 | **a tiny interactive page** the designer touches on the phone | control feel: gestures, timing, aiming | about 30 min |
 
 **How:**
@@ -142,7 +142,18 @@ The designer: "If we can think of a little way to visualise things before puttin
 - **The flow:** draft the PRD step, sketch, send it to the designer, take the reaction, lock the step, build.
 - **The handoff:** the builder's brief carries the picked sketch as the target ("make it look like this"). A kept sketch goes in `docs/games/<slug>/sketches/` (small files only; the repo is public).
 - **Time-box:** a sketch is 20 to 30 minutes. One that needs more means the question is too big; split it.
-- **Built work:** for something already built, record a GIF of the real game (`tools/drive.mjs` frames through ffmpeg) instead of stills whenever the thing in question moves.
+- **Built work:** for something already built, record a GIF of the real game (frames from a check script, then `node tools/sketch.mjs frames`) instead of stills whenever the thing in question moves.
+- **Which proof for which question** (the designer, 2026-11-14: "I like that you can use images, GIFs or full playtests to test things"):
+
+  | The question | The proof |
+  | --- | --- |
+  | Does it look right, standing still? (a layout, a card, art) | a still |
+  | Does it move and land right? (a blow, an effect, a swap) | a GIF |
+  | Does it feel right in the hand? (aim, timing, a gesture) | a touchable page, then the designer's playtest |
+  | Is it fun, fair, the right length? | the designer's playtest and its export; nothing else answers this |
+  | Did anything change that shouldn't have? | a scripted check, or a replay (the replay tool of ADR-0024, once it lands) |
+
+  Use the cheapest one that answers the question, and say which one was used when reporting a build.
 
 ## Keep the method alive (2026-11-14)
 

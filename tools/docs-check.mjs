@@ -3,7 +3,7 @@
 //   node tools/docs-check.mjs      prints one line per finding; exits 1 on any FAIL (a WARN does not fail).
 // `npm run smoke` runs it (FAILs count in the main checkout; a builder's worktree only gets notes).
 // FAIL: a statement that is now false and that a session would act on.
-//   - a repo path named in CLAUDE.md that does not exist
+//   - a repo path named in CLAUDE.md or docs/process.md that does not exist
 //   - an ADR file missing from docs/adr/README.md
 //   - a game whose current CACHE_VERSION is not in its CHANGELOG.md (CLAUDE.md rule 11)
 // WARN: drift worth a look at the next retro (docs/process.md, "Keep the method alive").
@@ -20,11 +20,18 @@ const has = (p) => existsSync(join(ROOT, p));
 const out = [];
 const FAIL = (m) => out.push(`FAIL docs-check: ${m}`), WARN = (m) => out.push(`WARN docs-check: ${m}`);
 
-// 1. Paths named in CLAUDE.md exist (placeholders like <slug> are skipped).
+// 1. Paths named in CLAUDE.md and docs/process.md exist (placeholders like <slug> are skipped; a path inside a longer
+// command counts too, so `node tools/x.mjs page ...` is checked).
 const claude = read('CLAUDE.md');
-for (const m of claude.matchAll(/`([A-Za-z0-9_./-]+)`/g)) {
-  const t = m[1].replace(/\/$/, '');
-  if (/^(tools|docs|prompts|templates|skeleton|games)\//.test(t) && !has(t)) FAIL(`CLAUDE.md names \`${m[1]}\`, which does not exist`);
+for (const doc of ['CLAUDE.md', 'docs/process.md']) {
+  if (!has(doc)) continue;
+  const seen = new Set();
+  for (const m of read(doc).matchAll(/`([^`\n]+)`/g)) for (const w of m[1].split(/\s+/)) {
+    const t = w.replace(/[,;:.)]+$/, '').replace(/\/$/, '');
+    if (!/^(tools|docs|prompts|templates|skeleton|games)\/[A-Za-z0-9_./-]+$/.test(t) || seen.has(t)) continue;
+    seen.add(t);
+    if (!has(t)) FAIL(`${doc} names \`${t}\`, which does not exist`);
+  }
 }
 
 // 2. Every ADR is in the index.
