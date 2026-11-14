@@ -120,11 +120,11 @@ await browser.close(); server.close();
     }
   }
 }
-// The doctor (tools/doctor.mjs): the repo's documents and tools must still describe the repo.
+// The docs check (tools/docs-check.mjs): the repo's documents and tools must still describe the repo.
 {
   const { execFileSync } = await import('node:child_process');
   const inWorktree = execFileSync('git', ['rev-parse', '--git-dir'], { cwd: ROOT }).toString().includes('worktrees');
-  try { console.log(execFileSync('node', [join(ROOT, 'tools', 'doctor.mjs')], { cwd: ROOT }).toString().trim()); }
+  try { console.log(execFileSync('node', [join(ROOT, 'tools', 'docs-check.mjs')], { cwd: ROOT }).toString().trim()); }
   catch (e) { const o = String(e.stdout || e.message).trim(); console.log(o); if (!inWorktree && /^FAIL/m.test(o)) failed++; }
 }
 process.exit(failed ? 1 : 0);

@@ -13,7 +13,7 @@
 
 ## What went stale or got in the way
 
-- The doctor's warnings (`node tools/doctor.mjs`):
+- The docs check's warnings (`node tools/docs-check.mjs`):
 - What builders "had to hunt for":
 - What the designer had to say twice:
 

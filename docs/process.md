@@ -150,12 +150,12 @@ The designer: "How can we improve this in the future and not let the tools and m
 
 **1. If it can rot, generate it or test it.** A fact about the repo is never kept by hand when a tool can produce it or check it:
 - **generated:** the code index (`tools/codemap.mjs`), the usage ledger (`tools/usage.py`);
-- **checked:** `tools/doctor.mjs` (paths named in `CLAUDE.md` exist, every ADR is indexed, every shipped version is in its changelog, the handoff isn't behind the games, every tool is explained) and the recipes' names. Both run inside `npm run smoke`.
+- **checked:** `tools/docs-check.mjs` (paths named in `CLAUDE.md` exist, every ADR is indexed, every shipped version is in its changelog, the handoff isn't behind the games, every tool is explained) and the recipes' names. Both run inside `npm run smoke`.
 - **A new document that states facts about the code gets its check in the same change,** or it isn't written.
 
 **2. A retro every ten builds or two weeks, whichever comes first,** fifteen minutes, written to `docs/retros/<date>.md` from `templates/retro.md`:
 - **The numbers** from the ledger: tokens per build, builds that passed review first time, rounds per step. Better or worse than the last retro?
-- **The doctor's warnings,** and what the builders "had to hunt for".
+- **The docs check's warnings,** and what the builders "had to hunt for".
 - **What the designer had to say twice.** A thing repeated is a missing rule or a missing check.
 - **Out of it come at most three changes, and at least one removal.**
 

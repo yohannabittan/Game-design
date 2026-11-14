@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// doctor: checks that the repo's own documents and tools still describe the repo, so the method does not rot quietly.
-//   node tools/doctor.mjs      prints one line per finding; exits 1 on any FAIL (a WARN does not fail).
+// docs-check: checks that the repo's own documents and tools still describe the repo, so the method does not rot quietly.
+//   node tools/docs-check.mjs      prints one line per finding; exits 1 on any FAIL (a WARN does not fail).
 // `npm run smoke` runs it (FAILs count in the main checkout; a builder's worktree only gets notes).
 // FAIL: a statement that is now false and that a session would act on.
 //   - a repo path named in CLAUDE.md that does not exist
@@ -18,7 +18,7 @@ const ROOT = resolve(new URL('..', import.meta.url).pathname);
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 const has = (p) => existsSync(join(ROOT, p));
 const out = [];
-const FAIL = (m) => out.push(`FAIL doctor: ${m}`), WARN = (m) => out.push(`WARN doctor: ${m}`);
+const FAIL = (m) => out.push(`FAIL docs-check: ${m}`), WARN = (m) => out.push(`WARN docs-check: ${m}`);
 
 // 1. Paths named in CLAUDE.md exist (placeholders like <slug> are skipped).
 const claude = read('CLAUDE.md');
@@ -61,5 +61,5 @@ for (const p of ['docs/process.md', 'docs/HANDOFF-orchestrator.md', 'prompts', '
   if (a != null && gamesAge != null && a > 30 && gamesAge < 7) WARN(`${p} was last changed ${Math.round(a)} days ago; check it still describes how the work is done`);
 }
 
-console.log(out.length ? out.join('\n') : 'ok   doctor: the documents and tools still describe the repo');
+console.log(out.length ? out.join('\n') : 'ok   docs-check: the documents and tools still describe the repo');
 process.exit(out.some((l) => l.startsWith('FAIL')) ? 1 : 0);

@@ -39,7 +39,7 @@ For a new Claude Code session taking over as the orchestrator. Read `CLAUDE.md` 
 | Launch | `launch-v18` | Quiet. |
 | Checkpoint | `checkpoint-v12` | Quiet. |
 
-Each game's history is in `docs/games/<slug>/CHANGELOG.md`. To find code in Arena, start from `docs/games/arena/CODEMAP.md`: the recipes, `node tools/codemap.mjs arena --where <word>`, and the generated `INDEX.md`. `node tools/doctor.mjs` says when this document has fallen behind the games.
+Each game's history is in `docs/games/<slug>/CHANGELOG.md`. To find code in Arena, start from `docs/games/arena/CODEMAP.md`: the recipes, `node tools/codemap.mjs arena --where <word>`, and the generated `INDEX.md`. `node tools/docs-check.mjs` says when this document has fallen behind the games.
 
 ## Waiting on the designer
 
