@@ -595,6 +595,34 @@ Style reference: `docs/art/final/arena/weapon-gladius.png` and the round kit shi
 
 About 5 to 7 images, US$1 to 2.
 
+### Pack 30: Arena, the range and the show trials (added 2026-11-14)
+
+**For:** `docs/games/arena/prd-v0.3.md`, Steps 27 and 27b (the Shrinking Target, the Apple Shot, the Knife Board and the Wheel). The designer approved the sketch's look ("the images look good"): `docs/games/arena/sketches/range.html`.
+
+**Style:** the style references are `docs/art/final/arena/weapon-gladius.png` and the round kit shield (Pack 23's outline, light and palette). Every file is a transparent PNG, side view or straight on, with nothing else in the picture.
+
+**The man isn't painted:** the game builds him from the fighters' painted kit, in a tunic, posed in code.
+
+| File | What | Size (1 kit head = 256 px) |
+| --- | --- | --- |
+| `range-target` | a round straw archery butt with painted rings (gold centre, red, black, white) on a short wooden post | about 2.5 heads tall |
+| `fruit-pumpkin`, `fruit-watermelon`, `fruit-pineapple`, `fruit-pomegranate`, `fruit-apple` | each fruit whole, slightly cartoonish, to balance on a man's head; their real sizes relative to each other | the pumpkin about 1 head wide, down to the apple about a quarter |
+| `pot-clay`, `pot-wineskin` | a small round clay pot with a rope loop, and a leather wine skin, each for hanging on a board | about half a head |
+| `knife-board` | a tall wooden board of planks on two legs, scarred with old knife marks, that a man stands against | about 8 heads tall, 4 wide |
+| `knife-wheel` | a big round wooden wheel with spokes, iron studs and leather straps where a man is tied spread-eagled, seen straight on | about 8 heads across |
+| `fruit-seller` | a bust of a cheerful, sun-browned fruit seller "from beyond the sea", in a straw hat, holding up a pineapple | 512 x 512, like the champions' busts |
+
+**Steps:**
+- **Three options** of `range-target`, `knife-wheel` and `fruit-seller`. One option for each fruit and pot, made from the picked style reference so they match.
+- **The contact sheet:** everything at game size against a sand ground, with the man's place marked on the board and the wheel.
+- **The handoff** (`docs/art/HANDOFF-arena-pack30.md`) gives, in px:
+  - each fruit's base (where it sits on the head);
+  - the target's ring radii and centre;
+  - the board's and the wheel's areas where the man goes, and the wheel's hub;
+  - each pot's hanging point.
+
+About 14 images, US$2 to 3.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
