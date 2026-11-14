@@ -1,5 +1,5 @@
 {
-  "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b",
+  "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29",
   "assets": {
     "arena-pit": [
       "arena-pit-A.webp",
@@ -595,6 +595,17 @@
     "laurel-ring": [
       "laurel-ring-A.png",
       "laurel-ring-B.png"
+    ],
+    "weapon-bow": [
+      "weapon-bow-A.png",
+      "weapon-bow-B.png",
+      "weapon-bow-C.png"
+    ],
+    "weapon-bow-drawn": [
+      "weapon-bow-drawn-A.png"
+    ],
+    "arrow": [
+      "arrow-A.png"
     ]
   }
 }
