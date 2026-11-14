@@ -14,6 +14,7 @@ Every agent's brief starts: "You are a **<role>**. Read `CLAUDE.md`, then your c
 | **Sketcher** | an `Agent` on Sonnet, 20 to 30 minutes | the orchestrator | `CLAUDE.md`, the Sketcher card, the PRD step it sketches | files in the scratchpad; one named file under `docs/games/<slug>/sketches/` when told | touch a game; commit |
 | **Artist** | a separate cloud session on Sonnet, one per pack, closed after | the orchestrator | `docs/art/BRIEF.md` (its card), then `CLAUDE.md` | `docs/art/` and `docs/assets-ledger.md`; commits and pushes those itself | touch a game; print, write or log a key |
 | **Helper** | an `Agent` on Sonnet, one job | the orchestrator | `CLAUDE.md`, the Helper card | the one file its brief names | commit; widen the job |
+| **Verifier** | an `Agent` with fresh context (Opus for controls and feel, Sonnet otherwise) | the orchestrator, after any build that changes controls, the first run or the save | `CLAUDE.md`, the Verifier card, the PRD step's acceptance list | its own check scripts under `tools/checks/`, in the builder's worktree | read the builder's checks first; fix the game; commit |
 | **Reviewer** | an `Agent` on Sonnet with fresh context | the orchestrator, at milestones | `prompts/08-review.md` | nothing | edit anything |
 
 **Access is by instruction, not by lock.** Every agent runs in the same environment, with the same file access and the same network: a builder could run the art session's commands. The cards say what each role must not do, and the orchestrator checks what changed before it lands anything (`git status` in the worktree; only named paths are landed).
@@ -76,6 +77,20 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
 - **Verify what you write against the repo:** a function name with `node tools/codemap.mjs <slug> --where <name>`, a path by looking.
 - **Mark what you couldn't verify** as "not verified", in the file and in your report.
 - **Say in your report** if anything in your card or brief was wrong or out of date.
+
+## Verifier card
+
+- **You didn't build this, and your job is to find what's wrong with it.** A report of "all fine" from a verifier who only re-ran the builder's checks is worth nothing.
+- **Write your own checks from the PRD step's acceptance list,** before you read the builder's checks or report. Then compare: what did the builder not test?
+- **Try to break it the way a person would:**
+  - a new player on a fresh save, and a veteran save;
+  - the smallest and the largest phone size the game supports, and the designer's (874x402 for Arena);
+  - at the edges: against a wall, at the ring's limit, with no gold, with a full belt, mid-swap, right after another move;
+  - quick, sloppy and repeated input, not only clean strokes.
+- **Watch it move.** Record a GIF of each thing the step changed (`node tools/sketch.mjs frames <dir> <out.gif>`) and look at it frame by frame: limbs, weapons, text that overlaps, things that float.
+- **Run the game's whole suite** under `tools/checks/`, and `npm run smoke`.
+- **Add the checks worth keeping to the suite.** Don't change the game.
+- **Report:** each problem with a frame or GIF and the steps to see it, most serious first; what you couldn't check; and what in your card or brief was wrong or out of date.
 
 ## Artist card
 

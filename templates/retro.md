@@ -6,6 +6,9 @@
 
 | | Last retro | Now |
 | --- | --- | --- |
+| **Bugs the designer found in play** (the number that counts) | | |
+| Problems a verifier caught before landing | | |
+| Feature builds landed and not yet playtested | | |
 | Tokens per build (median) | | |
 | Builds that passed review first time | | |
 | Rounds per step (median) | | |

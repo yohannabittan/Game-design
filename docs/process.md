@@ -181,6 +181,53 @@ The designer: "How can we improve this in the future and not let the tools and m
 
 **5. The designer's friction is the trigger.** "Builders are slow", "I can't tell what a slash is", "it got stuck" start a method change the same day; they don't wait for a retro.
 
+## Guard rails from the 2026-11-14 review
+
+The orchestrator listed the process's weaknesses and the designer said: "I like all of these; you should do them." Each rule below answers one weakness, with the evidence for it.
+
+**1. A build that changes how the game is played is verified by someone who didn't build it.**
+- **Why:** builders wrote their own checks and chose their own frames, and the orchestrator reviewed from those. Four bugs got through builds that "passed review first time": the double arms (twice), a stuck training step, knives nobody could learn, a jab that fell short on the designer's phone.
+- **The rule:** any build that changes controls, the first run, or the save gets a **Verifier** (`docs/team.md`): a fresh agent that writes its own checks from the PRD's acceptance list without reading the builder's, tries to break the build, and watches it move. The build lands when the verifier's report is clean, or the orchestrator says in the changelog what it accepted and why.
+- **The number that counts** at a retro is bugs the designer found in play, not builds that passed first time.
+
+**2. Checks are kept and re-run.**
+- **Why:** each build's scripted checks lived in a temporary folder and never ran again, so nothing re-tested the training yard when the bow went in.
+- **The rule:** each game with scripted checks keeps a permanent suite under `tools/checks/`. Every build adds its step's key checks to the suite, and the whole suite passes before a build lands. A replay of recorded runs (ADR-0024) is part of it.
+
+**3. New eyes on every release.**
+- **Why:** the designer is the only regular tester and is now skilled (24 of 31 blocks perfect in the v66 run). The one newcomer lost by bout 4 and couldn't read the cards.
+- **The rule:** each friends' release gets at least one session from someone new, filed under `docs/playtests-external/`. A difficulty or price change cites a newcomer's export, or says it's a guess.
+
+**4. A playtest gate on new features.**
+- **Why:** six features landed between two playtests, about fifteen more were queued, and the sidearm went unused for three runs.
+- **The rules:**
+  - **At most two feature builds may be landed and unplaytested.** After that, only fixes and work on the core (feel, onboarding, polish) start until the designer has played.
+  - **A feature is done when it shows up in a playtest's export,** not when it lands.
+  - **A feature unused in three playtests** goes to the retro: fold it into something, change it, or cut it.
+  - **The queue shows the next five steps.** Everything else lives in an ideas list, unordered.
+
+**5. One document says what the game is today.**
+- **Why:** Arena's PRD is 2,368 lines and 45 steps, later ones overriding earlier ones.
+- **The rule:** `docs/games/<slug>/RULES.md` states the game as it stands: the controls, the systems, the numbers that matter, the modes. Every landing updates it. PRD steps are change requests against it, and from now on each new step is its own short file under `docs/games/<slug>/steps/`.
+
+**6. A stable copy always exists.**
+- **Why:** every push went straight to the build the designer plays, and the friends' release sat a month and dozens of versions old.
+- **The rule:** a friends' release is cut from the last playtested build after each playtested milestone, and at least every two weeks. The release gate includes loading a save from the previous release through every migration since.
+
+**7. The flagship is a decision, written down.**
+- **Why:** the repo's aim is small games built a layer at a time; Arena is 11,000 lines and the other five games haven't moved since mid-October.
+- **The rule:** `docs/HANDOFF-orchestrator.md` says which game is the flagship and what state the others are in (frozen, maintained, or next), by the designer's word. It's revisited at each retro.
+
+**8. The process stops changing until it's measured.**
+- **Why:** seven process changes landed on 2026-11-14 and none is proven.
+- **The rules:**
+  - **No new process tools or rules until the next retro** (2026-11-28), except a fix for friction the designer names.
+  - **Before saying yes to an idea, the orchestrator says its cost or its risk in one line.** A plain yes is not an answer.
+
+**9. Decisions waiting on the designer are few and in one place.**
+- **Why:** open questions piled up at the bottom of long messages.
+- **The rule:** the open decisions live in the handoff's "Waiting on the designer". The orchestrator asks at most three at a time, at the top of a message, each with its recommended answer.
+
 ## Always
 
 - **ADRs.** Any decision about how games are built, not what a game is, gets an ADR in `docs/adr/`. Changing the engine contract, adding a dependency, changing the deploy path, changing the save format policy. See `docs/adr/README.md`.
