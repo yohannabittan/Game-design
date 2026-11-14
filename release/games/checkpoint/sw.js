@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'checkpoint-release-v1.5';
+const CACHE_VERSION = 'checkpoint-release-v1.6';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'checkpoint-release-';
 const ASSETS = [
@@ -12,6 +12,9 @@ const ASSETS = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-180.png',
+  './assets/plane.webp',
+  './assets/supervisor-proud.webp',
+  './assets/supervisor.webp',
   './assets/item-banana.webp',
   './assets/item-batteries.webp',
   './assets/item-belt-buckle.webp',

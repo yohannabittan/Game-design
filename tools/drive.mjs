@@ -6,6 +6,7 @@
 // open() options: w, h (viewport), save (an {__v, data} envelope, or plain data which is wrapped with a huge __v so
 // migrate is skipped; written to localStorage before the game loads, once per tab), offline (start with the network off,
 // only useful after a first online visit), root (serve another copy of the repo, used by perf --compare).
+// release: true drives the friends' release copy (release/games/<slug>, whose save key is game:<slug>.release), for the release gate.
 // CLI: node tools/drive.mjs <slug> [--w 390 --h 844] [--shot out.png] [--offline]
 //   boots, screenshots, optionally proves the offline reload, prints one JSON line, exits 1 on any error.
 import { createServer } from 'node:http';
@@ -39,7 +40,7 @@ export async function serve(root = ROOT) {
   return { base: `http://127.0.0.1:${server.address().port}`, close: () => server.close() };
 }
 
-export async function open(slug, { w = 390, h = 844, save, offline = false, root = ROOT } = {}) {
+export async function open(slug, { w = 390, h = 844, save, offline = false, root = ROOT, release = false } = {}) {
   const { chromium } = await loadPlaywright();
   const srv = await serve(root);
   const browser = await chromium.launch();
@@ -49,7 +50,7 @@ export async function open(slug, { w = 390, h = 844, save, offline = false, root
     const env = JSON.stringify(save && save.__v ? save : { __v: 999, data: save });
     await ctx.addInitScript(([key, val]) => {
       try { if (!sessionStorage.getItem('__drive')) { localStorage.setItem(key, val); sessionStorage.setItem('__drive', '1'); } } catch (e) {}
-    }, [`game:${slug}`, env]);
+    }, [release ? `game:${slug}.release` : `game:${slug}`, env]);
   }
   const page = await ctx.newPage();
   const noManifest = (u) => /\/docs\/art\/candidates\/[^/]+\/candidates\.json$/.test(u); // a game with no art pack: expected 404 (ADR-0020)
@@ -60,7 +61,7 @@ export async function open(slug, { w = 390, h = 844, save, offline = false, root
 
   const booted = (timeout = 8000) => page.waitForFunction(() => window.__engine && window.__engine.frame > 5, null, { timeout });
   if (offline) await ctx.setOffline(true);
-  await page.goto(`${srv.base}/games/${slug}/`, { waitUntil: 'load' });
+  await page.goto(`${srv.base}/${release ? 'release/' : ''}games/${slug}/`, { waitUntil: 'load' });
   await booted();
 
   return {

@@ -7,6 +7,8 @@
 // (genShiftSteps, seeded); every tap resolves the same way (ADR-0008).
 // The shift clock runs in fixed steps (TUNING.simStep): the belt, the walkers, the rush lever, the SWAT slow-motion and the false-alarm lock
 // all live on that clock, so the same seed and tap times give the same shift at any frame rate.
+// PRD v0.4 (Pat's last week) adds the story on top: three animated scenes, a desk of Pat's things, travellers' bubbles, day 10's two fixed
+// bags (`finale`), the ending and the departures board. All of it is cosmetic or setup data: rules, items, scoring and timings are unchanged.
 
 import { makeRng, clamp, ease } from './engine.js';
 
@@ -64,7 +66,6 @@ const TUNING = {
   ],
   ranks: [[1, 'Rookie'], [4, 'Officer'], [7, 'Lead officer'], [10, 'Senior officer']],   // first day of each rank
   starRule: '3 stars: no strikes. 2: one. 1: clear.',
-  tips: ['', '', '', '', '', '', '', '', 'One glance per scan.', 'Pull the lever only when it is easy.'],
   rush: [5, 10],                                                        // rush hour days: bags arrive in bursts
   burst: { size: 3, gapIn: 12 },
   rotMax: [20, 30, 45, 60, 90, 90, 120, 150, 180, 180],
@@ -79,7 +80,7 @@ const TUNING = {
   bodyNormal: [[1, 2], [1, 2], [1, 3], [1, 3], [2, 3], [2, 3], [2, 3], [2, 3], [2, 4], [2, 4]],   // normal body items per beeper (the first is always metal)
   opener: { shift: 1, contraband: ['scissors'], harmless: ['shirt', 'phone', 'headphones'] },
   // Recurring characters (PRD v0.2 F). Behaviour is flavour, never the tell; only the scans are. Days each one appears:
-  cast: { grandma: [1, 3, 5, 7, 9, 10], businessman: [1, 2, 4, 6, 8, 10], tourist: [2, 4, 5, 7, 9], smuggler: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+  cast: { grandma: [1, 3, 5, 7, 9, 10], businessman: [1, 2, 4, 6, 8, 10], tourist: [2, 4, 5, 7, 9, 10], smuggler: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
   // Vic the smuggler comes back every day with a cleverer hiding place: in the bag (under another item) or on the body.
   smuggler: [
     { body: ['leg knife'] }, { body: ['pocket lighter'] }, { bag: ['knife'], under: 'laptop' }, { body: ['boot blade'] }, { body: ['belt taser'] },
@@ -116,6 +117,24 @@ const TUNING = {
   lever: { x: 310, w: 46, h: 124, lift: 14 },
   travel: { walk: 120, release: 0.25, firstAt: 1.2, scanFade: 0.35, leave: 0.8, passK: 1.6, archExit: 24 },   // walk units/s; a traveller starts walking when their bag is `release` out of the hood, and never before firstAt s; one who did not beep strides through the arch at passK x; a missed body critical ends the day archExit units past the arch
 
+  // PRD v0.4 D: day 10's two fixed bags. `vicAt` and `patAt` are queue positions (the schedule pins a contraband bag and a clean bag there); the
+  // items are data. Vic's masterpiece is the game's hardest hide: the explosives under a power bank (its look-alike, and dense, so it shows black).
+  // Pat's bag is clean and carries the regulars' farewell gifts: Rose's spare needles (the knife look-alike), Abernathy's toy, a book.
+  finale: {
+    shift: 10, vicAt: 12, patAt: 16,
+    vic: { contra: ['explosives'], under: 'power bank', harmless: ['power bank', 'phone', 'headphones', 'shirt', 'umbrella', 'book'] },
+    pat: { harmless: ['knitting needles', 'toy', 'book', 'shirt', 'sunglasses'] },
+  },
+  // PRD v0.4 A to E: the story's numbers (the words are in STORY, BRIEF, DESK and SAY). Scenes are pure functions of their time.
+  story: {
+    openDur: [3.6, 3.6, 3.8], turnDur: [3.4, 3.4, 3.6], endDur: [3.6, 4, 3.2, 4.4], autoGap: 1, tapGap: 0.25, tapAdvance: 1.1, skipW: 88, skipH: 44,
+    say: 1.5, sayChance: 0.25, stripDur: 2.2, planeRun: [0.35, 1.6],   // bubble life and the chance an ordinary cleared traveller thanks you; the end card's plane strip
+    pal: {
+      wall0: '#0d1a3a', wall1: '#16284f', counter: '#1b2d55', counterEdge: '#2a5a9a', wood: '#6b4a2f', woodTop: '#9a6e46', woodDark: '#4a3220',
+      skyTop: '#2a3f7a', skyBot: '#ffb27a', skyDay0: '#6fb3ff', skyDay1: '#dff0ff', sun: '#ffe08a', runway: '#3b4252', paper: '#f1ece0', note: '#ffe27a', marker: '#e8202e', lanyard: '#4a7fd0',
+    },
+  },
+
   simStep: 1 / 120,
 
   // Art. The belt is the scanner screen: real X-ray colours by material on a pale screen, overlaps multiply, dense things go black.
@@ -148,7 +167,8 @@ const TUNING = {
     grandma: { name: 'Grandma Rose', coat: '#8a5ca8', hair: '#e2e2e2', skin: '#f1c7a3', bun: true, specs: true },
     businessman: { name: 'Mr. Pike', coat: '#262b36', hair: '#2b1d14', skin: '#e8b896', tie: '#4d8bd6', sweat: true, glance: true },
     smuggler: { name: 'Vic', coat: '#7a6440', hair: '#1a1a1a', skin: '#d9a47a', cap: '#15171c', shades: true, glance: true },
-    tourist: { name: 'Tourist Tom', coat: '#e0902a', hair: '#b07a3a', skin: '#f1c7a3', hat: '#efe0a8', dots: true },
+    tourist: { name: 'Mr Abernathy', coat: '#e0902a', hair: '#b07a3a', skin: '#f1c7a3', hat: '#efe0a8', dots: true },
+    pat: { name: 'Supervisor Pat', coat: '#2f7f8a', hair: '#15171c', skin: '#b8703c', specs: true, pat: true },   // day 10: Pat as a passenger, her photo on the tag
   },
   sprite: { ahead: 320, perFrame: 1, items: 3, maxDpr: 3 },   // bag sprites are painted ahead of the hood, `items` items a frame
   prepMs: 4,
@@ -504,6 +524,7 @@ function packRule(shift) {
     overlap, margin: overlap ? 0 : T.packGap, rotMax: T.rotMax[shift - 1], bias: Math.min(0.95, T.overlapBias[shift - 1] * (0.4 + o)), slack: overlap ? T.visSlack : 0,
     needH: overlap ? T.minVisible + (T.occMinVisible.harmless - T.minVisible) * o + T.visSlack : 1,
     needC: overlap ? T.minVisible + (T.occMinVisible.contraband - T.minVisible) * o + T.visSlack : 1,
+    audit: shift === T.finale.shift,
   };
 }
 // A generator: it yields `null` between item placements, so a caller can spread one bag over many frames. `under`: the smuggler's hiding place.
@@ -525,9 +546,16 @@ function* packBagSteps(rng, names, shift, under) {
 function finalOk(bag, rule) {
   if (!rule.overlap) return true;
   const area = visibility(bag, T.visFinalStep), line = outlineVisibility(bag, T.visFinalStep), tell = tellVisibility(bag, T.visFinalStep);
-  return bag.items.every((it, i) => {
+  const fine = bag.items.every((it, i) => {
     const need = (it.contraband ? rule.needC : rule.needH) - rule.slack + T.visFinalSlack;
     return area[i] >= need && line[i] >= need && tell[i] >= T.tellVis + T.visFinalSlack;
+  });
+  if (!fine || !rule.audit) return fine;
+  // Day 10 only: a bag that scrapes the fine measure must also clear it on the offset grids the proofs use, with no slack.
+  const a2 = visibility(bag, 0.75, 0.31), l2 = outlineVisibility(bag, 0.7, 0.3), t2 = tellVisibility(bag, 0.6, 0.27);
+  return bag.items.every((it, i) => {
+    const need = (it.contraband ? rule.needC : rule.needH) - rule.slack;
+    return a2[i] >= need && l2[i] >= need && t2[i] >= T.tellVis;
   });
 }
 const contrabandPool = (shift) => T.newContraband.slice(0, shift).flat();
@@ -538,13 +566,26 @@ function runsOk(kinds) {
   for (let i = 1; i < kinds.length; i++) { run = kinds[i] === kinds[i - 1] ? run + 1 : 1; if (run > T.runMax) return false; }
   return true;
 }
+const finaleOn = (shift) => shift === T.finale.shift;
+// Day 10 pins Vic's bag to a contraband place and Pat's to a clean one (swapping with another bag of the kind, so the counts stay exact).
+function pinFinale(kinds) {
+  const F = T.finale, pins = [[F.vicAt, 1], [F.patAt, 0]];
+  for (const [at, want] of pins) {
+    if (kinds[at] === want) continue;
+    const j = kinds.findIndex((k, i) => k === want && !pins.some(([p]) => p === i));
+    kinds[at] = want; kinds[j] = 1 - want;
+  }
+}
 function schedule(rng, shift) {
   const n = T.bagsPerShift, clean = Math.round(n * T.cleanShare), opener = T.opener.shift === shift;
   for (let k = 0; k < 200; k++) {
     const kinds = rng.shuffle([...Array(clean).fill(0), ...Array(n - clean).fill(1)]);
+    if (finaleOn(shift)) pinFinale(kinds);
     if (runsOk(kinds) && (!opener || (kinds[0] === 1 && kinds[1] === 0))) return kinds;
   }
-  return Array.from({ length: n }, (_, i) => (i + 1) % 2);
+  const kinds = Array.from({ length: n }, (_, i) => (i + 1) % 2);
+  if (finaleOn(shift)) pinFinale(kinds);
+  return kinds;
 }
 function pickWeighted(rng, list, weight, n) {
   return list.map((d) => ({ d, k: Math.log(rng()) / weight(d) })).sort((a, b) => b.k - a.k).slice(0, n).map((x) => x.d);
@@ -570,6 +611,10 @@ function bagNames(rng, shift, holds, index) {
 }
 // The recurring characters' bags: their own items, filled up to the day's count.
 function castBag(rng, shift, who) {
+  if (finaleOn(shift) && (who === 'smuggler' || who === 'pat')) {   // day 10's two fixed bags: the items are data (their placing is still seeded)
+    const f = who === 'pat' ? T.finale.pat : T.finale.vic;
+    return { contra: (f.contra || []).slice(), harmless: f.harmless.slice(), under: f.under || null };
+  }
   const [lo, hi] = T.itemsPerBag[shift - 1], total = rng.int(lo, hi);
   let contra = [], own = [], under = null;
   if (who === 'grandma') own = ['knitting needles', 'book'];
@@ -581,15 +626,16 @@ function castBag(rng, shift, who) {
 }
 // Who appears where today: each recurring character takes one index whose bag kind matches what they carry.
 function castOf(rng, shift, kinds) {
-  const out = {}, used = new Set([0, 1]);
+  const fin = finaleOn(shift), out = {}, used = new Set(fin ? [0, 1, T.finale.vicAt, T.finale.patAt] : [0, 1]);
   for (const who of ['smuggler', 'tourist', 'grandma', 'businessman']) {
-    if (!T.cast[who].includes(shift)) continue;
+    if (!T.cast[who].includes(shift) || (fin && who === 'smuggler')) continue;
     const contraBag = who === 'smuggler' ? !!T.smuggler[shift - 1].bag : who === 'tourist' ? shift >= T.touristGlobeFrom : false;
     const want = contraBag ? 1 : 0, open = kinds.map((k, i) => i).filter((i) => !used.has(i) && kinds[i] === want && i < kinds.length - 1);
     if (!open.length) continue;
     const i = rng.pick(open);
     used.add(i); out[i] = who;
   }
+  if (fin) { out[T.finale.vicAt] = 'smuggler'; out[T.finale.patAt] = 'pat'; }
   return out;
 }
 // The travellers: one per bag. Only a traveller carrying metal beeps and has body items to show (PRD v0.2 J); the rest have none. Setup only,
@@ -801,7 +847,7 @@ function endShift(E, result, item) {
   const unlocked = clear ? E.save.set('unlocked', Math.max(readUnlocked(E), clampUnlocked(S.shift + 1))) : readUnlocked(E);
   const career = E.save.update('career', (c) => { const x = cleanCareer(c); x.swats += S.swatCount; x.vic += S.vicCaught ? 1 : 0; x.breaches += result === 'breach' ? 1 : 0; return x; }, {});
   const best = clear ? Math.max(rec.best, S.score) : rec.best;   // a best counts only on a cleared day
-  S.result = { shift: S.shift, seed: S.seed, unlocked, result, score: S.score, strikes: Math.min(S.strikes, T.strikesMax), stars, best, isNew: clear && S.score > rec.best, catches: S.catches, falseAlarms: S.falseAlarms, misses: S.misses, time: S.time, swats: S.swatCount, vic: S.vicCaught, breachItem: item || '', rank: rankOf(S.shift), career };
+  S.result = { shift: S.shift, seed: S.seed, unlocked, result, first: clear && rec.stars === 0, score: S.score, strikes: Math.min(S.strikes, T.strikesMax), stars, best, isNew: clear && S.score > rec.best, catches: S.catches, falseAlarms: S.falseAlarms, misses: S.misses, time: S.time, swats: S.swatCount, vic: S.vicCaught, breachItem: item || '', rank: rankOf(S.shift), career };
   E.save.update('shifts', (all) => ({ ...cleanShifts(all), [S.shift]: { best, stars: Math.max(rec.stars, stars) } }), {});
   if (E.ledger) E.ledger.add('shift', { shift: S.shift, seed: S.seed, result, score: S.score, strikes: S.strikes, missed: S.misses, falseAlarms: S.falseAlarms, stars, catches: S.catches, passes: S.passes, bags: S.bags.filter((b) => b.resolved).length, time: +S.time.toFixed(1), streakMax: S.streakMax, swats: S.swatCount, beeps: S.beeps, bodyCatches: S.bodyCatches, bodyMisses: S.bodyMisses, lever: +(S.leverTime / Math.max(1e-9, S.time)).toFixed(3), breach: item || '', slow: +(S.slow / Math.max(1, S.timed)).toFixed(3), dpr: +(E.dpr || 1).toFixed(2), missedItems: S.missNames.join(','), falseItems: S.faNames.join(','), occlusion: T.tune.occlusion, beltK: T.tune.belt, pace: T.tune.pace, scanShow: T.scanShow });
   S.log.push({ t: S.time, e: result });
@@ -823,7 +869,7 @@ function resolved(E) {
   S.resolved++;
   if (!S.ended && S.resolved === S.bags.length + S.travellers.length) endShift(E, 'clear');
 }
-function bagDone(E, b, ok) { b.resolved = true; if (ok) correct(E); resolved(E); }
+function bagDone(E, b, ok) { b.resolved = true; if (ok) { correct(E); say(b.tr, 'clear'); } resolved(E); }
 
 // SWAT: officers drop on the traveller, the belt and lane slow to a crawl for a beat, sirens, a big bonus (larger the earlier the catch).
 function callSwat(E, tr, early) {
@@ -855,6 +901,7 @@ function catchItem(E, b, it) {
   addFx(f < J.earlyLabel ? `+${pts}, early` : `+${pts}`, BAG_X + it.x, b.y + it.y, P.catch, big);
   S.log.push({ t: S.time, e: 'catch', item: it.name, pts });
   if (b.who === 'smuggler') S.vicCaught = true;
+  say(b.tr, 'caught');
   if (it.tier === 3) callSwat(E, b.tr, early);
   if (b.pending === 0) { b.trayT = 0; b.stampT = 0; b.stamp = 'SEARCH'; tone(E, J.tones.stamp); bagDone(E, b, !b.touched && !b.missed); }
 }
@@ -862,6 +909,7 @@ function falseAlarm(E, b, it) {
   const L = layout(E), [x, y] = itemXY(L, b, it);
   it.state = 2; it.flagT = 0; b.touched = true; b.flashT = J.bagFlash;
   raiseFalse(E, x, y, BAG_X + it.x, b.y + it.y, it.name);
+  say(b.tr, 'false');
 }
 function raiseFalse(E, px, py, ux, uy, name) {
   S.falseAlarms++; S.lockUntil = S.time + T.falseLock;
@@ -912,6 +960,7 @@ function stopTraveller(E, tr, early, ux, uy) {
     S.log.push({ t: S.time, e: 'catch', item: it.name, body: true, pts });
   }
   if (tr.who === 'smuggler') S.vicCaught = true;
+  say(tr, 'caught');
   E.audio.play('hit'); E.haptic(J.haptic.catch); pop(E, 'scorePop', J.pop);
   burst(E, L.ox + ux * L.s, uy * L.s, P.catch, J.burst.catch, J.burstSpeed);
   addFx(early >= T.earlyMax - 1e-9 ? `+${sum}, early` : `+${sum}`, ux, uy, P.catch, sum >= J.bigCatch);
@@ -935,6 +984,7 @@ function archExit(E, tr) {
 // The arch: a traveller with metal sets off a two-tone beep and flashes the light amber; anyone else gets a soft green light.
 function archIn(E, tr) {
   S.lamp = { kind: tr.beeps ? 'beep' : 'clear', t: 0, off: -1 };
+  say(tr, 'arch');
   if (!tr.beeps) return;
   for (const t of J.tones.beep) tone(E, t);
   E.haptic(J.haptic.beep); S.beeps++;
@@ -1101,6 +1151,7 @@ function travellerFalse(E, tr, px, py, name, it) {
   tr.touched = true; tr.grumbleT = J.grumble; tr.fa = it;
   if (it) it.state = 2;
   raiseFalse(E, L.ox + px * L.s, py * L.s, px, py, name);
+  if (tr.who) say(tr, 'false');
 }
 function pullLever(E) {
   S.lever = !S.lever;
@@ -1202,7 +1253,8 @@ function drawBag(ctx, E, L, b) {
   if (b.touched || b.passed) { plate(ctx, BAG_X, b.y, b.w, b.h, 18); ctx.strokeStyle = b.touched ? P.falseAlarm : P.clean; ctx.lineWidth = 4; ctx.stroke(); }
   if (b.flashT > 0) { plate(ctx, BAG_X, b.y, b.w, b.h, 18); ctx.fillStyle = alpha(P.falseAlarm, 0.35 * (b.flashT / J.bagFlash)); ctx.fill(); }
   // the colour tag on the handle, shared with the traveller
-  E.roundRect(BAG_X + b.w / 2 - 14, b.y - 6, 28, 16, 4, b.tr ? b.tr.tag : P.dim, P.ink);
+  if (b.who === 'pat') { disc(ctx, BAG_X + b.w / 2, b.y + 2, 17, '#f4f0e6', P.ink, 2); patFace(ctx, 'supervisor', BAG_X + b.w / 2, b.y + 2, 26, null); }   // Pat's photo on her tag
+  else E.roundRect(BAG_X + b.w / 2 - 14, b.y - 6, 28, 16, 4, b.tr ? b.tr.tag : P.dim, P.ink);
   if (b.stampT >= 0) drawBagStamp(ctx, E, b);
   ctx.restore();
 }
@@ -1314,7 +1366,8 @@ function drawPerson(ctx, E, x, y, lk, tag, walking, t, extra = {}) {
   if (lk.shades) { ctx.fillStyle = '#05060a'; ctx.fillRect(x - 6, y - 53, 12, 4); }
   else { ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 3.5 + look, y - 52, 2, 2); ctx.fillRect(x + 1.5 + look, y - 52, 2, 2); if (lk.specs) { ctx.strokeStyle = '#cfd6e0'; ctx.lineWidth = 1; ctx.strokeRect(x - 5 + look, y - 53.5, 4, 4); ctx.strokeRect(x + 1 + look, y - 53.5, 4, 4); } }
   if (lk.sweat && !extra.still) { ctx.fillStyle = '#9fd8ff'; const k = (t * 1.3) % 1; ctx.fillRect(x + 7, y - 56 + k * 8, 2, 3); }
-  E.roundRect(x - 5, y - 40, 10, 12, 2, tag, P.ink);
+  if (lk.pat) patBadge(ctx, x, y - 38, 12, 14, lk);
+  else E.roundRect(x - 5, y - 40, 10, 12, 2, tag, P.ink);
   if (extra.ring) { ctx.strokeStyle = extra.ring; ctx.lineWidth = 3; plate(ctx, x - 15, y - 66, 30, 70, 8); ctx.stroke(); }
 }
 // A walking traveller is a cached sprite of the figure (painted once) plus two leg fills, so a full lane costs a few copies a frame.
@@ -1345,7 +1398,7 @@ function drawTravellers(ctx, E, L) {
       if (tr.look.sweat) { ctx.fillStyle = '#9fd8ff'; ctx.fillRect(tr.x + 7, tr.y - 56 + ((t * 1.3) % 1) * 8, 2, 3); }
     } else drawPerson(ctx, E, tr.x, tr.y, tr.look, tr.tag, walking, t, { ring: tr.ring });
     ctx.globalAlpha = 1;
-    if (tr.grumbleT > 0) speech(ctx, E, tr.x, tr.y - 74, tr.idx % 2 ? 'Seriously?' : 'Ugh!');
+    if (tr.grumbleT > 0 && !tr.say) speech(ctx, E, tr.x, tr.y - 74, tr.idx % 2 ? 'Seriously?' : 'Ugh!');
   }
 }
 function speech(ctx, E, x, y, s) {
@@ -1353,6 +1406,74 @@ function speech(ctx, E, x, y, s) {
   const w = ctx.measureText(s).width + 14, cx = clamp(x, T.beltW + w / 2 + 2, T.designW - w / 2 - 2);
   E.roundRect(cx - w / 2, y - 12, w, 24, 8, '#f2f2f2', P.ink);
   txt(E, s, cx, y, TY.small, P.ink);
+}
+// ---- travellers speak (PRD v0.4 D) ----
+// A short bubble when a traveller is stopped or cleared, about 1.5 s, picked from the seed and the person (never chance at play time).
+// Vic's lines escalate through the week; day 10 gives him his masterpiece and Pat her own bag. Never the tell: every pool is the same for guilty and innocent.
+const hash2 = (a, b) => { let h = (a ^ Math.imul(b + 0x9e3779b9, 0x85ebca6b)) >>> 0; h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d); return (h ^ (h >>> 12)) >>> 0; };
+const SAY = {
+  vic: [[1, ['Just holiday things!', 'Never seen it before!']], [4, ['New trick, Officer!', "You're good. I'm better."]], [6, ["She's leaving. Then it's just you and me."]], [9, ['Just a practice run, Officer.']]],
+  vic10: { arch: "This one's my masterpiece.", caught: 'Thirty years... and she trained you right.' },
+  rose: "They're only needles, dear.", roseBye: 'Give the little ones a hug, Pat!',
+  abernathy: "It's a gift for my nan!", globe: "It's a snow globe!", abernathyBye: 'Safe travels, Supervisor! Sorry about the globe.',
+  patClear: 'Look at every bag. Even mine.', patFalse: 'Good. Never trust a supervisor.',
+  stop: ["I'm late!", 'Is this about my shoes?'], thanks: ['Thanks!', 'Have a good day!'],
+};
+// kind: 'caught' (a real catch), 'false' (a false alarm), 'clear' (the bag or person cleared), 'arch' (stepping into the scanner)
+function lineFor(tr, kind) {
+  const day = S.shift, h = hash2(S.seed, tr.idx * 31 + day), pick = (a) => a[(h >>> 4) % a.length], last = day === T.finale.shift;
+  switch (tr.who) {
+    case 'smuggler':
+      if (last) return kind === 'caught' ? SAY.vic10.caught : kind === 'clear' ? null : SAY.vic10.arch;
+      return kind === 'arch' || kind === 'clear' ? null : pick(SAY.vic.filter(([d]) => d <= day).pop()[1]);
+    case 'grandma': return kind === 'clear' ? (last ? SAY.roseBye : null) : kind === 'arch' ? null : SAY.rose;
+    case 'tourist': return kind === 'clear' ? null : kind === 'arch' ? null : kind === 'caught' && day >= T.touristGlobeFrom ? (last ? SAY.abernathyBye : SAY.globe) : SAY.abernathy;
+    case 'pat': return kind === 'clear' ? SAY.patClear : kind === 'arch' ? null : SAY.patFalse;
+    default:
+      if (kind === 'clear') return tr.bag.kind === 'clean' && (h >>> 8) % 100 < T.story.sayChance * 100 ? pick(SAY.thanks) : null;
+      return kind === 'arch' ? null : pick(SAY.stop);
+  }
+}
+function say(tr, kind) {
+  if (!tr) return;
+  const text = lineFor(tr, kind);
+  if (!text) return;
+  if (tr.say && tr.say.t < T.story.say * 0.6) { if (kind === 'clear') tr.sayQ = text; return; }   // a cleared line waits for the one still showing
+  tr.say = { text, t: 0 }; tr.sayQ = null;
+}
+function wrapText(ctx, text, maxW) {
+  const out = []; let cur = '';
+  for (const w of text.split(' ')) { const t = cur ? `${cur} ${w}` : w; if (cur && ctx.measureText(t).width > maxW) { out.push(cur); cur = w; } else cur = t; }
+  if (cur) out.push(cur);
+  return out;
+}
+// Two lines of near-equal length when the text needs two (no lone last word).
+function balanced(ctx, text, maxW) {
+  let lines = wrapText(ctx, text, maxW);
+  if (lines.length === 2) for (let w = maxW - 8; w > maxW * 0.4; w -= 8) { const l2 = wrapText(ctx, text, w); if (l2.length > 2) break; lines = l2; }
+  return lines;
+}
+function bubble(ctx, E, L, x, y, text, a) {
+  const size = TY.small, lh = size + 3;
+  ctx.font = `${TY.weight} ${size}px system-ui, sans-serif`;
+  const lines = wrapText(ctx, text, T.designW - T.beltW - 30), w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 14, h = lines.length * lh + 8;
+  const cx = clamp(x, T.beltW + w / 2 + 3, T.designW - w / 2 - 3), top = Math.max(y - h, L.laneTop + 3);
+  ctx.save(); ctx.globalAlpha = a;
+  E.roundRect(cx - w / 2, top, w, h, 8, '#f2f2f2', P.ink);
+  if (top + h <= y + 2) { ctx.fillStyle = '#f2f2f2'; ctx.beginPath(); ctx.moveTo(x - 5, top + h - 1); ctx.lineTo(x + 5, top + h - 1); ctx.lineTo(x, top + h + 6); ctx.fill(); }
+  lines.forEach((l, i) => txt(E, l, cx, top + 4 + lh * (i + 0.5), size, P.ink, { alpha: a }));
+  ctx.restore();
+}
+function drawBubbles(ctx, E, L) {
+  const life = T.story.say;
+  for (const tr of S.travellers) {
+    const sy = tr.say;
+    if (!sy) continue;
+    const k = sy.t / life, a = Math.min(1, k * 8, (1 - k) * 5);
+    if (tr.swat) bubble(ctx, E, L, tr.swat.x, tr.swat.y - 70 * T.swat.zoom - 52, sy.text, a);
+    else if (tr.state === 'scan' && tr.beeps) bubble(ctx, E, L, LA.centre, L.boothTop - 6, sy.text, a);
+    else bubble(ctx, E, L, tr.x, tr.y - 80, sy.text, a);
+  }
 }
 // SWAT: officers drop on ropes, tackle, pin, then drag the traveller off. Lights wash the lane red and blue.
 function drawSwat(ctx, E, L) {
@@ -1493,6 +1614,7 @@ const play = {
     if (S.bannerT > 0) S.bannerT -= dt;
     if (S.lamp) { S.lamp.t += dt; if (S.lamp.off >= 0) S.lamp.off += dt; }
     if (S.stamp) S.stamp.t += dt;
+    for (const tr of S.travellers) if (tr.say) { tr.say.t += dt; if (tr.say.t >= T.story.say) { tr.say = tr.sayQ ? { text: tr.sayQ, t: 0 } : null; tr.sayQ = null; } }
     S.leverAnim += ((S.lever ? 1 : 0) - S.leverAnim) * Math.min(1, dt * 14);
     for (const b of S.bags) {
       if (b.gone) continue;
@@ -1545,6 +1667,7 @@ const play = {
     drawScan(ctx, E, L);
     drawTravellers(ctx, E, L);
     drawSwat(ctx, E, L);
+    drawBubbles(ctx, E, L);
     if (S.swats.some((t) => t.swat.t < T.swat.len)) {   // red and blue lights wash the lane
       const red = Math.floor(E.time * 6) % 2 === 0;
       ctx.fillStyle = alpha(red ? P.swatRed : P.swatBlue, 0.16); ctx.fillRect(T.beltW, L.laneTop, T.designW - T.beltW, L.H - L.laneTop);
@@ -1596,15 +1719,19 @@ const shapesOf = (shift) => T.newContraband[shift - 1].map((n) => BY_NAME[n]);
 const bodyOf = (shift) => T.newBody[shift - 1].map((n) => BODY_BY_NAME[n]);
 
 const menu = {
-  enter() { this.cells = []; this.btnMute = null; this.down = null; },
+  enter(E) {
+    this.cells = []; this.btns = {}; this.down = null;
+    if (!E.save.get('openSeen', false)) E.setScene('story', { chapter: 'open' });   // the cold open plays once, on the first launch
+  },
   render(ctx, E) {
-    const shifts = readShifts(E), unlocked = readUnlocked(E);
+    const shifts = readShifts(E), unlocked = readUnlocked(E), super_ = !!E.save.get('endSeen', false);
     const ty = E.safe.top + Math.max(84, E.h * 0.1);
     E.titleArea = { x: 0, y: ty - 28, w: E.w, h: 60 };
     ctx.save(); ctx.shadowColor = P.metal; ctx.shadowBlur = 18;
     txt(E, 'CHECKPOINT', E.w / 2, ty, TY.large, P.metal);
     ctx.restore();
-    txt(E, 'Watch the belt. Watch the people.', E.w / 2, ty + 34, TY.small, P.dim);
+    if (super_) txt(E, 'Supervisor', E.w / 2, ty + 34, TY.medium, P.star);
+    else txt(E, 'Watch the belt. Watch the people.', E.w / 2, ty + 34, TY.small, P.dim);
     const n = T.beltSpeed.length, cols = 2, gap = 8, cw = Math.min(170, (E.w - 24 - gap) / cols), ch = 58, top = ty + 66;
     const x0 = (E.w - (cw * cols + gap)) / 2;
     this.cells = [];
@@ -1622,37 +1749,78 @@ const menu = {
       ctx.restore();
       this.cells.push(cell);
     }
-    this.btnMute = button(E, E.audio.muted ? 'Sound: off' : 'Sound: on', E.w / 2, top + 5 * (ch + 8) + 30, { fill: P.buttonMute, w: 160, h: 44, size: TY.small + 2 }, this.down === 'mute');
+    // Sound, Story (replays the cold open, then the turn and the ending once seen) and, once day 10 has been played, Departures.
+    const list = [['mute', E.audio.muted ? 'Sound: off' : 'Sound: on'], ['story', 'Story'], ...(shifts[n] ? [['board', 'Departures']] : [])], bw = Math.min(124, (E.w - 24 - 8 * (list.length - 1)) / list.length), by = top + 5 * (ch + 8) + 30;
+    this.btns = {};
+    list.forEach(([key, label], i) => { this.btns[key] = button(E, label, E.w / 2 + (i - (list.length - 1) / 2) * (bw + 8), by, { fill: P.buttonMute, w: bw, h: 44, size: TY.small + 2 }, this.down === key); });
   },
   onPointerDown(p, E) {
     const c = this.cells.find((c) => c.open && E.hit(c, p));
-    this.down = c ? c.shift : this.btnMute && E.hit(this.btnMute, p) ? 'mute' : null;
+    this.down = c ? c.shift : Object.keys(this.btns).find((k) => E.hit(this.btns[k], p)) || null;
   },
   onPointerUp() { this.down = null; },
   onTap(p, E) {
-    const c = this.cells.find((c) => E.hit(c, p));
+    const c = this.cells.find((c) => E.hit(c, p)), b = this.btns;
     if (c) { if (c.open) E.setScene('brief', { shift: c.shift }); else E.toast(`Clear day ${c.shift - 1} first`); }
-    else if (this.btnMute && E.hit(this.btnMute, p)) E.audio.toggleMute();
+    else if (b.mute && E.hit(b.mute, p)) E.audio.toggleMute();
+    else if (b.story && E.hit(b.story, p)) E.setScene('story', { chapter: 'open', replay: true, queue: [...(E.save.get('turnSeen', false) ? ['turn'] : []), ...(E.save.get('endSeen', false) ? ['end'] : [])] });
+    else if (b.board && E.hit(b.board, p)) E.setScene('board');
   },
 };
 
-// The day card: the rank, what is new today (bag shapes on a scanner strip, body items named), while the shift is built behind it.
+// Pat on a day card: her portrait and a bubble, a sticky note in her writing (day 5), or an empty chair and a note (day 9). Returns the height used.
+function patBlock(ctx, E, x, y, w, ph, day) {
+  const B = BRIEF[day], mode = B.mode || 'say', f = `${TY.weight} ${TY.medium}px system-ui, sans-serif`;
+  ctx.font = f;
+  if (mode === 'say') {
+    const pw = ph * 0.85, bx = x + pw + 12, bw = w - pw - 12;
+    let size = TY.medium, lines = wrapText(ctx, B.say, bw - 24);
+    if (lines.length > 4) { size = TY.small; ctx.font = `${TY.weight} ${size}px system-ui, sans-serif`; lines = wrapText(ctx, B.say, bw - 24); }
+    const lh = size + 4, bh = Math.max(lines.length * lh + 18, 46), by = y + (ph - bh) / 2;
+    drawArt(ctx, E, 'supervisor', x + pw / 2, y + ph, ph);
+    E.roundRect(bx, by, bw, bh, 12, P.panel, P.bagEdge);
+    ctx.fillStyle = P.panel; ctx.beginPath(); ctx.moveTo(bx + 1, by + bh / 2 - 8); ctx.lineTo(bx - 9, by + bh / 2); ctx.lineTo(bx + 1, by + bh / 2 + 8); ctx.fill();
+    lines.forEach((l, i) => txt(E, l, bx + 12, by + 9 + lh * (i + 0.5), size, P.text, { align: 'left' }));
+    return Math.max(ph, bh);
+  }
+  const nx = mode === 'chair' ? x + ph * 0.7 + 12 : x, nw = mode === 'chair' ? w - ph * 0.7 - 12 : w, lines = wrapText(ctx, B.say, nw - 32), lh = TY.medium + 4, nh = Math.max(lines.length * lh + 22, ph * 0.8);
+  if (mode === 'chair') {   // an empty chair: Pat is packing
+    const cx = x + ph * 0.35, cb = y + ph;
+    ctx.strokeStyle = '#7f95b8'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx - 14, cb - ph * 0.9); ctx.lineTo(cx - 14, cb - ph * 0.45); ctx.lineTo(cx + 16, cb - ph * 0.45); ctx.moveTo(cx + 1, cb - ph * 0.45); ctx.lineTo(cx + 1, cb - 10); ctx.moveTo(cx - 14, cb - 8); ctx.lineTo(cx + 16, cb - 8); ctx.stroke();
+    chip(ctx, cx - 18, cb - ph * 0.9 - 4, 8, ph * 0.5, 3, '#45566f'); chip(ctx, cx - 18, cb - ph * 0.5 - 2, 40, 10, 4, '#45566f');
+  }
+  ctx.save(); ctx.translate(nx + nw / 2, y + nh / 2); ctx.rotate(-0.025);
+  chip(ctx, -nw / 2, -nh / 2, nw, nh, 3, PAL.note, '#b89a2a', 1.5);
+  lines.forEach((l, i) => txt(E, l, 0, -nh / 2 + 11 + lh * (i + 0.5) + (nh - lines.length * lh - 22) / 2, TY.medium, '#3a2e10', { font: 'Georgia, "Times New Roman", serif' }));
+  ctx.restore();
+  return nh + 4;
+}
+
+// The day card: the flight, the rank, Pat's line, what is new today (bag shapes on a scanner strip, body items named), the desk, while the shift is built behind it.
 const brief = {
   enter(E, params) {
-    this.shift = params.shift; this.seed = (E.rng() * 2 ** 32) >>> 0; this.t0 = E.time; this.down = null; this.btnStart = this.btnMenu = null;
+    const seed = params.seed ?? (E.rng() * 2 ** 32) >>> 0;
+    if (params.shift === 8 && !params.noTurn && !E.save.get('turnSeen', false)) { prepare(8, seed); E.setScene('story', { chapter: 'turn', pump: true, then: ['brief', { shift: 8, noTurn: true, seed }] }); return; }   // the turn plays once, before the card, while day 8 is built behind it
+    this.shift = params.shift; this.seed = seed; this.t0 = E.time; this.down = null; this.btnStart = this.btnMenu = null;
+    this.desk = deskDays(readShifts(E));
     prepare(this.shift, this.seed);
     const fresh = shapesOf(this.shift), body = bodyOf(this.shift);
     if ((fresh.length || body.length) && E.ledger) E.ledger.add('newshapes', { shift: this.shift, shapes: [...fresh.map((d) => d.name), ...body.map((b) => b.label)].join(',') });
   },
   update(dt, E) { pump(E); },
   render(ctx, E) {
-    const shift = this.shift, fresh = shapesOf(shift), body = bodyOf(shift), cx = E.w / 2, top = E.safe.top, y1 = top + Math.max(84, E.h * 0.11);
+    const shift = this.shift, fresh = shapesOf(shift), body = bodyOf(shift), cx = E.w / 2, top = E.safe.top, y1 = top + clamp(E.h * 0.07, 44, 60), [flight, pax] = FLIGHTS[shift];
     txt(E, `Day ${shift}`, cx, y1, TY.large, P.text);
     txt(E, rankOf(shift) + (T.rush.includes(shift) ? ', rush hour' : ''), cx, y1 + 34, TY.medium, T.rush.includes(shift) ? P.organic : P.dim);
-    txt(E, T.brief[shift - 1], cx, y1 + 62, TY.small, P.dim);
-    const y0 = E.h * 0.42;
-    if (fresh.length || body.length) {
-      txt(E, 'New contraband today', cx, y0 - 82, TY.medium, P.organic);
+    txt(E, `${flight}, ${pax} passengers`, cx, y1 + 60, TY.small, P.text);
+    txt(E, T.brief[shift - 1], cx, y1 + 82, TY.small, P.dim);
+    const some = fresh.length || body.length, bw = Math.min(E.w - 32, 400), bx = cx - bw / 2;
+    let y = y1 + 106;
+    y += patBlock(ctx, E, bx, y, bw, clamp(E.h * (some ? 0.13 : 0.18), 84, 140), shift) + 20;
+    if (some) {
+      const y0 = y + 76;
+      txt(E, 'New contraband today', cx, y + 6, TY.medium, P.organic);
       const all = [...fresh.map((d) => ({ d })), ...body.map((b) => ({ b }))], cw = Math.min(112, (E.w - 32) / all.length);
       all.forEach((e, i) => {
         const x = cx + (i - (all.length - 1) / 2) * cw;
@@ -1665,14 +1833,13 @@ const brief = {
         txt(E, label[0], x, y0 + 66, TY.small, P.text);
         if (label[1]) txt(E, label[1], x, y0 + 84, TY.small, (e.d || e.b).tier === 3 ? P.catch : P.dim);
       });
-    } else if (T.tips[shift - 1]) {
-      txt(E, 'Tip', cx, y0 - 30, TY.small, P.dim);
-      txt(E, T.tips[shift - 1], cx, y0, TY.medium, P.text);
+      y = y0 + 98;
     }
-    const ready = PREP && PREP.shift === shift && PREP.ready;
-    this.btnStart = ready ? button(E, 'Start', cx, E.h * 0.72, { fill: P.button }, this.down === 'start', clamp((E.time - this.t0) / 0.3, 0, 1)) : null;
-    if (!ready) txt(E, 'Loading', cx, E.h * 0.72, TY.medium, P.dim);
-    this.btnMenu = button(E, 'Menu', cx, E.h * 0.72 + 68, { fill: P.buttonQuiet }, this.down === 'menu');
+    if (this.desk.length) { const dw = Math.min(E.w - 32, 360); drawDeskStrip(ctx, E, cx - dw / 2, y, dw, 44, this.desk); y += 44; }
+    const ready = PREP && PREP.shift === shift && PREP.ready, sy = Math.min(Math.max(y + 56, E.h * 0.72), E.h - E.safe.bottom - 12 - 58 - 28);
+    this.btnStart = ready ? button(E, 'Start', cx, sy, { fill: P.button }, this.down === 'start', clamp((E.time - this.t0) / 0.3, 0, 1)) : null;
+    if (!ready) txt(E, 'Loading', cx, sy, TY.medium, P.dim);
+    this.btnMenu = button(E, 'Menu', cx, sy + 68, { fill: P.buttonQuiet }, this.down === 'menu');
   },
   onPointerDown(p, E) { this.down = this.btnStart && E.hit(this.btnStart, p) ? 'start' : this.btnMenu && E.hit(this.btnMenu, p) ? 'menu' : null; },
   onPointerUp() { this.down = null; },
@@ -1712,30 +1879,67 @@ function photo(ctx, E, r, x, y, w, h) {
   ctx.restore();
 }
 
-// The end card is tomorrow's front page: the headline says what happened, then the score, stars and the buttons.
+// The end card's plane strip (PRD v0.4 C): a cleared day lifts off and says where it landed; any other day leaves the plane on the stand.
+function planeStrip(ctx, E, r, x, y, w, h, k) {
+  const clear = r.result === 'clear', last = r.shift === T.finale.shift, ph = 26, base = y + h - 5, lh = TY.small + 3;
+  ctx.save(); plate(ctx, x, y, w, h, 3); ctx.clip();
+  const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, '#bcd9f0'); g.addColorStop(1, '#e9f2f9'); ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#9b978b'; ctx.fillRect(x, y + h - 8, w, 8);
+  ctx.fillStyle = '#f3efe3'; for (let dx = 6; dx < w; dx += 22) ctx.fillRect(x + dx, y + h - 5, 10, 2);
+  ctx.font = `${TY.weight} ${TY.small}px system-ui, sans-serif`;
+  if (clear) {
+    const [r0, r1] = T.story.planeRun, u = seg(k, r0, r1), air = seg(u, 0.4, 1), a = seg(k, r1 - 0.5, r1 + 0.1);
+    drawArt(ctx, E, 'plane', x + 8 + ph * 1.3 + (w + ph * 3) * ease.inQuad(u), base - air ** 1.4 * h * 0.9, ph, { rot: -0.3 * seg(u, 0.35, 0.8) });
+    const lines = balanced(ctx, `Flight ${r.shift} landed. ${FLIGHTS[r.shift][1]} passengers home safe.`, w - 14);
+    lines.forEach((l, i) => txt(E, l, x + w / 2, y + (h - 8) / 2 + (i - (lines.length - 1) / 2) * lh, TY.small, P.ink, { alpha: a }));
+  } else {
+    const tx = x + ph * 2.6 + 20, a = seg(k, 0.2, 0.6), main = last ? "Pat's flight didn't take off." : "The flight didn't take off.", sub = last ? 'The kids will wait a little longer.' : "Passengers are waiting while it's searched.";
+    drawArt(ctx, E, 'plane', x + 8 + ph * 1.3, base, ph);
+    if (Math.floor(k * 3) % 2 === 0) disc(ctx, x + ph * 2.6 + 12, base - 6, 3.5, P.catch);
+    const l1 = wrapText(ctx, main, x + w - tx - 8), l2 = wrapText(ctx, sub, x + w - tx - 8), n = l1.length + l2.length;
+    l1.forEach((l, i) => txt(E, l, tx, y + (h - 8) / 2 + (i - (n - 1) / 2) * lh, TY.small, P.catch, { align: 'left', alpha: a }));
+    l2.forEach((l, i) => txt(E, l, tx, y + (h - 8) / 2 + (l1.length + i - (n - 1) / 2) * lh, TY.small, P.paperDim, { align: 'left', alpha: a }));
+  }
+  ctx.restore();
+}
+// Pat's line on the end card: her face, what she says, and the thing she gives you the first time a day is cleared.
+function patRow(ctx, E, line, x, y, w, h, k) {
+  const a = seg(k, 0.5, 0.9), gift = line.gift ? 40 : 0;
+  ctx.save(); ctx.globalAlpha = a; chip(ctx, x, y, w, h, 8, '#e4dccb');
+  patFace(ctx, line.proud ? 'supervisor-proud' : 'supervisor', x + 8 + h * 0.4, y + h / 2, h - 8, P.paperDim);
+  ctx.font = `${TY.weight} ${TY.small}px system-ui, sans-serif`;
+  const tx = x + h + 12, lines = wrapText(ctx, line.text, w - h - 20 - gift), lh = TY.small + 3;
+  lines.forEach((l, i) => txt(E, l, tx, y + h / 2 + (i - (lines.length - 1) / 2) * lh, TY.small, P.ink, { align: 'left', alpha: a }));
+  if (line.gift) drawDeskObject(ctx, E, line.gift.id, x + w - 24, y + h / 2, 1.2 * ease.outBack(seg(k, 0.7, 1.1)));
+  ctx.restore();
+}
+
+// The end card is tomorrow's front page: the plane strip, the headline, Pat's line, the score and stars, and the buttons.
 const SERIF = 'Georgia, "Times New Roman", serif';
 const over = {
   enter(E, r) {
-    this.r = r; this.t0 = E.time; this.btns = {}; this.down = null;
+    this.r = r; this.t0 = E.time; this.btns = {}; this.down = null; this.endSeen = !!E.save.get('endSeen', false); this.pat = patLine(r);
     prepare(r.shift, r.seed);
   },
   update(dt, E) { pump(E); },
   render(ctx, E) {
-    const r = this.r, cx = E.w / 2, k = E.time - this.t0, hl = headline(r);
-    const pw = Math.min(E.w - 24, 380), px = cx - pw / 2, py = E.safe.top + 12, ph = E.h * 0.58 - py;
+    const r = this.r, cx = E.w / 2, k = E.time - this.t0, hl = headline(r), clear = r.result === 'clear';
+    const pw = Math.min(E.w - 24, 380), px = cx - pw / 2, py = E.safe.top + 12, ph = E.h * (E.h < 720 ? 0.595 : 0.58) - py;
     ctx.save(); ctx.translate(cx, py + ph / 2); ctx.rotate(-0.012 * (1 - ease.outCubic(clamp(k / 0.4, 0, 1)))); ctx.translate(-cx, -py - ph / 2);
     E.roundRect(px, py, pw, ph, 4, P.paper);
     txt(E, 'THE DAILY CHECKPOINT', cx, py + 24, TY.medium, P.ink, { font: SERIF, weight: '800' });
     fillBox(E, px + 12, py + 40, pw - 24, 2, P.ink);
     txt(E, `Day ${r.shift}  ·  ${r.rank}`, px + 14, py + 54, TY.small, P.paperDim, { align: 'left', font: SERIF });
-    txt(E, r.result === 'clear' ? 'Final edition' : 'Extra!', px + pw - 14, py + 54, TY.small, r.result === 'clear' ? P.paperDim : P.catch, { align: 'right', font: SERIF });
+    txt(E, clear ? 'Final edition' : 'Extra!', px + pw - 14, py + 54, TY.small, clear ? P.paperDim : P.catch, { align: 'right', font: SERIF });
     fillBox(E, px + 12, py + 64, pw - 24, 1, P.ink);
-    const hy = py + 100;
-    hl.lines.forEach((line, i) => txt(E, line, cx, hy + i * 38, TY.large, r.result === 'breach' ? P.catch : P.ink, { font: SERIF, weight: '900' }));
-    txt(E, hl.sub, cx, hy + hl.lines.length * 38 + 2, TY.small, P.paperDim, { font: SERIF });
-    const fy = hy + hl.lines.length * 38 + 22, fh = py + ph - 60 - fy;
+    const compact = E.h < 720, sh = clear ? 44 : compact ? 60 : 62, sy0 = py + 70;
+    planeStrip(ctx, E, r, px + 14, sy0, pw - 28, sh, k);
+    const hy = sy0 + sh + (compact ? 22 : 24), ls = compact ? 33 : 36, sub = hy + (hl.lines.length - 1) * ls + (compact ? 28 : 30);
+    hl.lines.forEach((line, i) => txt(E, line, cx, hy + i * ls, TY.large, r.result === 'breach' ? P.catch : P.ink, { font: SERIF, weight: '900' }));
+    txt(E, hl.sub, cx, sub, TY.small, P.paperDim, { font: SERIF });
+    const sy = py + ph - 34, rowH = this.pat ? (compact ? 44 : 46) : 0, rowY = sy - 22 - rowH, fy = sub + 18, fh = (this.pat ? rowY - 8 : sy - 26) - fy;
     if (fh >= 60) photo(ctx, E, r, px + 14, fy, pw - 28, fh);
-    const sy = py + ph - 34;
+    if (this.pat) patRow(ctx, E, this.pat, px + 14, rowY, pw - 28, rowH, k);
     for (let i = 0; i < 3; i++) {
       const on = i < r.stars, kk = on ? clamp((k - J.cardStars * (i + 1)) / 0.3, 0, 1) : 1;
       drawStar(ctx, px + 30 + i * 30, sy, 12, false, P.paperDim);
@@ -1748,21 +1952,22 @@ const over = {
     txt(E, r.isNew ? 'New best' : r.best ? `Best ${r.best}` : 'No best yet', cx, iy, TY.medium, P.organic);
     txt(E, `Missed ${r.misses}, false alarms ${r.falseAlarms}`, cx, iy + 28, TY.small, r.strikes ? P.text : P.dim);
     txt(E, T.starRule, cx, iy + 50, TY.small, P.dim);
-    const next = r.result === 'clear' && r.shift < T.beltSpeed.length, grow = clamp((k - J.cardButtons) / 0.3, 0, 1);
+    const last = r.shift >= T.beltSpeed.length, finale = clear && last && !this.endSeen, grow = clamp((k - J.cardButtons) / 0.3, 0, 1);
+    const list = [...(clear && !last ? [['next', 'Next day']] : []), ...(finale ? [['end', 'Continue']] : last ? [['board', 'Departures']] : []), ['retry', 'Retry'], ['menu', 'Menu']];
     this.btns = {};
     if (grow <= 0) return;
-    const bh = 50, gap = 8, n = next ? 3 : 2;
+    const bh = 50, gap = 8, n = list.length, primary = clear ? 0 : list.findIndex(([key]) => key === 'retry');
     let y = Math.min(iy + 78 + bh / 2, E.h - E.safe.bottom - 12 - (n - 1) * (bh + gap) - bh / 2);
-    if (next) { this.btns.next = button(E, 'Next day', cx, y, { fill: P.button, h: bh }, this.down === 'next', grow); y += bh + gap; }
-    this.btns.retry = button(E, 'Retry', cx, y, next ? { fill: P.buttonQuiet, h: bh } : { fill: P.button, h: bh }, this.down === 'retry', grow); y += bh + gap;
-    this.btns.menu = button(E, 'Menu', cx, y, { fill: P.buttonQuiet, h: bh }, this.down === 'menu', grow);
+    list.forEach(([key, label], i) => { this.btns[key] = button(E, label, cx, y, { fill: i === primary ? P.button : P.buttonQuiet, h: bh }, this.down === key, grow); y += bh + gap; });
   },
-  onPointerDown(p, E) { this.down = Object.keys(this.btns).find((k) => E.hit(this.btns[k], p)) || null; },
+  onPointerDown(p, E) { this.down = E.time - this.t0 >= J.cardButtons ? Object.keys(this.btns).find((k) => E.hit(this.btns[k], p)) || null : null; },
   onPointerUp() { this.down = null; },
   onTap(p, E) {
-    if (E.time - this.t0 < J.cardButtons) return;
-    const b = this.btns, r = this.r;
+    const b = this.btns, r = this.r, k = E.time - this.t0;
+    if (k < J.cardButtons || !Object.keys(b).some((key) => E.hit(b[key], p))) { if (k < T.story.stripDur) this.t0 = E.time - T.story.stripDur; return; }   // a tap on the card jumps its animation to the end
     if (b.next && E.hit(b.next, p)) E.setScene('brief', { shift: r.shift + 1 });
+    else if (b.end && E.hit(b.end, p)) E.setScene('story', { chapter: 'end' });
+    else if (b.board && E.hit(b.board, p)) E.setScene('board');
     else if (b.retry && E.hit(b.retry, p)) {
       if (E.ledger) E.ledger.add('retry', { shift: r.shift, seed: r.seed, after: r.result, score: r.score, stars: r.stars });
       E.setScene('play', { shift: r.shift, seed: r.seed });
@@ -1770,13 +1975,576 @@ const over = {
   },
 };
 
+// ---------- the story (PRD v0.4: Pat's last week) ----------
+// Pat Okoye's last ten days. Pack 10 art (webp in assets/) loads once at boot; until a picture decodes the portraits and the plane are drawn
+// by the game, so the story never waits on a file. Every scene is a pure function of its time t, so a tap can jump straight to its end.
+const ART = {};
+function loadArt() {
+  if (typeof Image === 'undefined' || typeof location === 'undefined') return;
+  for (const id of ['supervisor', 'supervisor-proud', 'plane']) {
+    const im = new Image();
+    im.onload = () => { if (im.naturalWidth) ART[id] = im; };
+    im.src = new URL(`../assets/${id}.webp`, import.meta.url).href;
+  }
+}
+loadArt();
+const PAL = T.story.pal;
+const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const blend = (a, b, k) => a + (b - a) * k;
+const bump = (t, t0, d = 0.18) => (t < t0 || t > t0 + d ? 0 : Math.sin((Math.PI * (t - t0)) / d));
+const chip = (ctx, x, y, w, h, r, fill, stroke, lw = 1.5) => { plate(ctx, x, y, w, h, r); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); } };
+const disc = (ctx, x, y, r, fill, stroke, lw = 1.5) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); } };
+// One hop, p from 0 to 1: the arc, the squash before take-off and on landing, the stretch in the air.
+function hopOf(p) {
+  const a = Math.sin(Math.PI * p), c = Math.max(0, 1 - p * 6) + Math.max(0, p * 6 - 5);
+  return { y: a, sx: 1 - 0.1 * a + 0.22 * c, sy: 1 + 0.16 * a - 0.24 * c };
+}
+
+// Pat's drawn stand-ins: a lanyard badge with her face, a person in uniform, a plane. Used until the pictures decode.
+function patBadge(ctx, cx, cy, w, h, lk) {
+  ctx.strokeStyle = PAL.lanyard; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(cx - w * 0.42, cy - h / 2 - 6); ctx.lineTo(cx, cy - h / 2 + 1); ctx.lineTo(cx + w * 0.42, cy - h / 2 - 6); ctx.stroke();
+  chip(ctx, cx - w / 2, cy - h / 2, w, h, 2, '#f4f0e6', P.ink, 1);
+  disc(ctx, cx, cy - h * 0.08, w * 0.27, lk.skin);
+  ctx.fillStyle = lk.hair; ctx.beginPath(); ctx.arc(cx, cy - h * 0.14, w * 0.27, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = lk.skin; ctx.fillRect(cx - w * 0.3, cy + h * 0.2, w * 0.6, h * 0.16);
+}
+const PAT_LOOK = { ...TUNING.characters.pat, coat: '#1f3a6e', pat: true };
+function patGlyph(ctx, E, h, proud) {
+  const s = h / 76;
+  ctx.save(); ctx.scale(s, s);
+  drawPerson(ctx, E, 0, 0, PAT_LOOK, P.dim, false, 0, { still: true });
+  ctx.fillStyle = '#3f8f2f'; ctx.fillRect(-26, -42, 9, 4);
+  ctx.fillStyle = '#16284f'; plate(ctx, -30, -40, 18, 22, 2); ctx.fill();
+  if (proud) { ctx.strokeStyle = '#b8703c'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-12, -30); ctx.lineTo(12, -34); ctx.moveTo(-12, -34); ctx.lineTo(12, -30); ctx.stroke(); }
+  ctx.restore();
+}
+function planeGlyph(ctx, h) {
+  const w = h * 2.6;
+  ctx.fillStyle = '#ffb867'; ctx.beginPath(); ctx.moveTo(-w * 0.46, -h * 0.4); ctx.lineTo(-w * 0.4, -h); ctx.lineTo(-w * 0.3, -h); ctx.lineTo(-w * 0.2, -h * 0.4); ctx.fill();
+  chip(ctx, -w * 0.5, -h * 0.62, w, h * 0.34, h * 0.17, '#f6f7f2', '#a9b4bf', 1);
+  ctx.fillStyle = '#4f8fd0'; ctx.beginPath(); ctx.moveTo(-w * 0.2, -h * 0.4); ctx.lineTo(w * 0.1, -h * 0.4); ctx.lineTo(-w * 0.12, -h * 0.1); ctx.lineTo(-w * 0.28, -h * 0.1); ctx.fill();
+  ctx.fillStyle = '#3d5f8f'; for (let i = 0; i < 9; i++) ctx.fillRect(-w * 0.32 + i * w * 0.07, -h * 0.55, w * 0.025, h * 0.07);
+  ctx.fillStyle = '#16284f'; ctx.fillRect(-w * 0.2, -h * 0.1, h * 0.12, h * 0.1); ctx.fillRect(w * 0.3, -h * 0.28, h * 0.1, h * 0.28);
+}
+// A picture standing on (cx, bottom), contained to height h; o: squash sx, sy, tilt rot, alpha. The loaded webp, else the drawn stand-in.
+function drawArt(ctx, E, id, cx, bottom, h, o = {}) {
+  const im = ART[id];
+  ctx.save(); ctx.globalAlpha *= o.alpha ?? 1;
+  ctx.translate(cx, bottom); if (o.rot) ctx.rotate(o.rot); ctx.scale(o.sx ?? 1, o.sy ?? 1);
+  if (im) { const w = (im.naturalWidth * h) / im.naturalHeight; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(im, -w / 2, -h, w, h); }
+  else if (id === 'plane') planeGlyph(ctx, h);
+  else patGlyph(ctx, E, h, id === 'supervisor-proud');
+  ctx.restore();
+}
+const FACE = { supervisor: [85, 0, 110], 'supervisor-proud': [48, 0, 110] };   // the head, in the webp's own pixels (272 x 320 and 201 x 320)
+// Pat's face in a disc: her photo on the traveller tag and on the end card's row.
+function patFace(ctx, id, cx, cy, size, ring) {
+  const im = ART[id], r = size / 2;
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = '#9fc4e8'; ctx.fillRect(cx - r, cy - r, size, size);
+  if (im) { const [sx, sy, sz] = FACE[id], k = im.naturalHeight / 320; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(im, sx * k, sy * k, sz * k, sz * k, cx - r, cy - r, size, size); }
+  else { disc(ctx, cx, cy + r * 0.1, r * 0.55, PAT_LOOK.skin); ctx.fillStyle = PAT_LOOK.hair; ctx.beginPath(); ctx.arc(cx, cy, r * 0.58, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#16284f'; ctx.fillRect(cx - r, cy + r * 0.62, size, r * 0.4); }
+  ctx.restore();
+  if (ring) disc(ctx, cx, cy, r, null, ring, 2);
+}
+
+// ---- the words ----
+const FLIGHTS = [null, ['Flight 1 to the coast', 96], ['Flight 2 to the lakes', 112], ['Flight 3 to the mountains', 128], ['Flight 4 to the capital', 182], ['Flight 5 to the islands', 204],
+  ['Flight 6 to the north', 140], ['Flight 7 to the desert', 156], ['Flight 8 to the valley', 168], ['Flight 9 to the old town', 190], ['Flight 10, the holiday rush', 240]];
+const DEST = [null, 'the coast', 'the lakes', 'the mountains', 'the capital', 'the islands', 'the north', 'the desert', 'the valley', 'the old town', 'holiday rush'];
+// Pat on each day's card. mode: 'say' her portrait and a bubble, 'note' a sticky note in her writing, 'chair' an empty chair and a note.
+const BRIEF = [null,
+  { say: 'First day. Breathe. Look at every bag.' },
+  { say: 'Metal is blue. Blue near a person, look twice.' },
+  { say: "Don't stop clean bags. They have a plane to catch." },
+  { say: 'Fireworks season. My grandkids love fireworks. Watch the tubes.' },
+  { mode: 'note', say: "Rush hour. I'm in the back. You've got this. P." },
+  { say: "Vic knows I'm leaving. He'll want one past us before I go." },
+  { say: 'Dense things show black. Black hides things. So does Vic.' },
+  { say: "He wants his masterpiece on my plane. Don't let him." },
+  { mode: 'chair', say: "Packing. Back for Flight 10. Don't let him win. P." },
+  { say: 'Holiday rush. Everyone wants to be home. Me too.' },
+];
+// Pat's things on the desk, one per cleared day (the desk is derived from the save, nothing is stored for it).
+const DESK = [
+  { day: 1, id: 'pen', say: 'Keep it. Mine never works anyway.' },
+  { day: 3, id: 'cord', say: "You've got the eye. Might as well have the cord." },
+  { day: 4, id: 'coaster', say: "I'm learning. Don't laugh." },
+  { day: 6, id: 'whistle', say: 'For rush hour. Use it sparingly.' },
+  { day: 8, id: 'sign', say: 'Practise saying it: my lane.' },
+  { day: 10, id: 'mug', say: null },
+];
+const deskDays = (shifts) => DESK.filter((d) => (shifts[d.day] || { stars: 0 }).stars > 0);
+// The end card's Pat line warms through the week: [3 stars, 2 stars, 1 star].
+const PAT_END = { early: ['Nobody\'s flying safer today.', 'Good shift. Tidy up those strikes.', 'They got home. Let\'s be sharper.'], mid: ['You\'d have caught me at your age.', 'Almost ready.', 'Not your best. Sleep, then sharper.'], phone: ['Saw the board. Proud of you.', 'Close one. Tomorrow\'s the big one.', 'Shake it off. I need you sharp.'] };
+const PAT_FAIL = { day: 'We\'ll get them off tomorrow.', last: 'Again. I\'m not going anywhere till you do.' };
+function patLine(r) {
+  if (r.result !== 'clear') return { text: r.shift === T.finale.shift ? PAT_FAIL.last : PAT_FAIL.day };
+  if (r.shift === T.finale.shift) return null;
+  const gift = r.first && DESK.find((d) => d.day === r.shift && d.say);
+  if (gift) return { text: gift.say, gift };
+  if (r.shift === 5) return { text: "Didn't need me, did you?", proud: true };
+  const set = r.shift <= 4 ? PAT_END.early : r.shift === 9 ? PAT_END.phone : PAT_END.mid;
+  return { text: set[3 - r.stars], proud: r.shift === 9 && r.stars === 3 };
+}
+
+// ---- drawn props ----
+function drawLanyard(ctx, x, y, len, ang, s) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.strokeStyle = PAL.lanyard; ctx.lineWidth = 3.5 * s; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-10 * s, -8 * s); ctx.lineTo(0, len); ctx.moveTo(10 * s, -8 * s); ctx.lineTo(0, len); ctx.stroke();
+  chip(ctx, -14 * s, len, 28 * s, 38 * s, 4 * s, '#f4f0e6', P.ink, 1.5);
+  ctx.fillStyle = '#16284f'; ctx.fillRect(-14 * s, len, 28 * s, 7 * s);
+  disc(ctx, 0, len + 21 * s, 7 * s, PAT_LOOK.skin);
+  ctx.fillStyle = PAT_LOOK.hair; ctx.beginPath(); ctx.arc(0, len + 19 * s, 7 * s, Math.PI, 0); ctx.fill();
+  ctx.restore();
+}
+function drawCalendar(ctx, E, x, y, s, label) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  chip(ctx, -34, -34, 68, 68, 8, '#f4f0e6', P.ink, 2);
+  ctx.fillStyle = PAL.marker; plate(ctx, -34, -34, 68, 18, 8); ctx.fill(); ctx.fillRect(-34, -26, 68, 10);
+  txt(E, label, 0, 4, TY.large, P.ink, { alpha: 1 });
+  ctx.restore();
+}
+function drawSuitcase(ctx, x, y, s, t, lumpy) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(-13, -44); ctx.lineTo(-13, -54); ctx.lineTo(13, -54); ctx.lineTo(13, -44); ctx.stroke();
+  chip(ctx, -34, -46, 68, 46, 7, '#9b7b4f', P.ink, 2);
+  ctx.fillStyle = '#6b5232'; ctx.fillRect(-34, -26, 68, 4); ctx.fillRect(-5, -46, 10, 46);
+  ctx.fillStyle = '#c9d3dc'; ctx.fillRect(-20, -31, 7, 9); ctx.fillRect(13, -31, 7, 9);
+  if (lumpy) for (const [bx, by, r] of [[-20, -38, 7], [20, -37, 8], [0, -8, 6]]) { const k = 1 + 0.2 * Math.sin(t * 6 + bx); ctx.fillStyle = 'rgba(255,235,190,0.35)'; ctx.beginPath(); ctx.ellipse(bx, by, r * k, r * 0.75 * k, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+function musicNote(ctx, x, y, s, a) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#e8edf5'; ctx.strokeStyle = '#e8edf5'; ctx.lineWidth = 2 * s;
+  ctx.beginPath(); ctx.ellipse(x, y, 5 * s, 3.6 * s, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x + 4.4 * s, y - 1 * s); ctx.lineTo(x + 4.4 * s, y - 15 * s); ctx.quadraticCurveTo(x + 11 * s, y - 12 * s, x + 9 * s, y - 6 * s); ctx.stroke();
+  ctx.restore();
+}
+function drawPhoto(ctx, w, t) {
+  const h = w * 1.12;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(-w / 2 + 4, -h / 2 + 5, w, h);
+  chip(ctx, -w / 2, -h / 2, w, h, 3, '#f6f2e8', '#cfc8b8', 1);
+  const ix = -w / 2 + 8, iy = -h / 2 + 8, iw = w - 16, ih = h - 30;
+  ctx.fillStyle = '#9cd3ff'; ctx.fillRect(ix, iy, iw, ih);
+  ctx.fillStyle = '#6fbf6a'; ctx.fillRect(ix, iy + ih * 0.7, iw, ih * 0.3);
+  disc(ctx, ix + iw * 0.84, iy + ih * 0.18, iw * 0.07, '#ffe08a');
+  [[-0.2, '#e86a8a', 0], [0.2, '#5b9be8', 1.7]].forEach(([fx, col, ph]) => {
+    const x = ix + iw * (0.5 + fx), y = iy + ih * 0.92, r = iw * 0.075;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x - r * 1.2, y); ctx.lineTo(x + r * 1.2, y); ctx.lineTo(x, y - r * 3); ctx.fill();
+    disc(ctx, x, y - r * 3.7, r, '#b8703c');
+    ctx.strokeStyle = '#b8703c'; ctx.lineWidth = 2.5; const wv = Math.sin(t * 8 + ph) * 0.5;
+    ctx.beginPath(); ctx.moveTo(x - r * 0.7, y - r * 2.6); ctx.lineTo(x - r * 2.2, y - r * (4.2 + wv * 2)); ctx.moveTo(x + r * 0.7, y - r * 2.6); ctx.lineTo(x + r * 2.2, y - r * (4.2 - wv * 2)); ctx.stroke();
+  });
+}
+function drawPassengers(ctx, E, w, circle) {
+  const h = w * 1.3;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(-w / 2 + 4, -h / 2 + 5, w, h);
+  chip(ctx, -w / 2, -h / 2, w, h, 3, PAL.paper, '#cfc8b8', 1);
+  txt(E, 'FLIGHT 10', 0, -h / 2 + 18, TY.small, P.ink);
+  const rows = 6, y0 = -h / 2 + 40, rh = (h - 52) / rows;
+  for (let i = 0; i < rows; i++) {
+    const y = y0 + i * rh + rh / 2;
+    ctx.fillStyle = '#c8c1b1'; ctx.fillRect(-w / 2 + 12, y - 5, 10, 10);
+    if (i === 3) txt(E, 'VIC', -w / 2 + 32, y + 1, TY.small, P.ink, { align: 'left' });
+    else { ctx.fillStyle = '#d5cfc0'; ctx.fillRect(-w / 2 + 32, y - 3, w * (0.34 + ((i * 37) % 17) / 60), 6); }
+  }
+  if (circle > 0) {
+    const y = y0 + 3 * rh + rh / 2;
+    ctx.strokeStyle = PAL.marker; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.ellipse(-w / 2 + 40, y, 36, rh * 0.62, -0.06, -2.2, -2.2 + circle * Math.PI * 2.15); ctx.stroke();
+  }
+}
+function drawRadio(ctx, w, shake, rings, t) {
+  ctx.save(); ctx.translate(shake, 0);
+  const h = w * 0.62;
+  ctx.strokeStyle = '#9aa4b2'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(w * 0.32, -h); ctx.lineTo(w * 0.48, -h - w * 0.5); ctx.stroke(); disc(ctx, w * 0.48, -h - w * 0.5, 4, '#e8202e');
+  chip(ctx, -w / 2, -h, w, h, 10, '#2b3a55', '#0a1226', 2.5);
+  ctx.fillStyle = '#0a1226'; for (let i = 0; i < 5; i++) ctx.fillRect(-w / 2 + 12, -h + 14 + i * (h * 0.14), w * 0.42, 4);
+  disc(ctx, w * 0.22, -h * 0.55, h * 0.26, '#16284f', '#9aa4b2', 2);
+  ctx.strokeStyle = '#ffb020'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(w * 0.22, -h * 0.55); ctx.lineTo(w * 0.22 + Math.cos(-1 + Math.sin(t * 9) * 0.4) * h * 0.2, -h * 0.55 + Math.sin(-1 + Math.sin(t * 9) * 0.4) * h * 0.2); ctx.stroke();
+  ctx.restore();
+  for (let i = 0; i < 3; i++) {
+    const p = (rings + i / 3) % 1;
+    if (rings < 0) break;
+    ctx.save(); ctx.globalAlpha = (1 - p) * 0.8; ctx.strokeStyle = '#ffb020'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(-w * 0.2, -h * 0.5, w * (0.12 + p * 0.3), -0.9, 0.9); ctx.stroke(); ctx.restore();
+  }
+}
+// Pat's things, centred on (x, y) and fitting about 30 px.
+function drawDeskObject(ctx, E, id, x, y, s = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.lineJoin = 'round';
+  if (id === 'pen') {
+    ctx.rotate(-0.55); chip(ctx, -15, -3, 28, 6, 3, '#1d3f8f', P.ink, 1);
+    ctx.fillStyle = '#c9d3dc'; ctx.fillRect(-13, -3, 9, 6); ctx.fillStyle = P.ink; ctx.beginPath(); ctx.moveTo(13, -3); ctx.lineTo(18, 0); ctx.lineTo(13, 3); ctx.fill();
+  } else if (id === 'cord') {
+    ctx.strokeStyle = PAL.lanyard; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-13, -9); ctx.quadraticCurveTo(-14, 14, 0, 14); ctx.quadraticCurveTo(14, 14, 13, -9); ctx.stroke();
+    ctx.strokeStyle = '#cfd6e0'; ctx.lineWidth = 1.5; for (const dx of [-12, 2]) { ctx.beginPath(); ctx.ellipse(dx + 5, -10, 5, 4, 0, 0, Math.PI * 2); ctx.stroke(); }
+  } else if (id === 'coaster') {
+    disc(ctx, 0, 0, 13, '#d9658a', '#8a2f55', 1.5);
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1; for (let i = -8; i <= 8; i += 4) { ctx.beginPath(); ctx.moveTo(i, -9); ctx.lineTo(i, 9); ctx.moveTo(-9, i); ctx.lineTo(9, i); ctx.stroke(); }
+  } else if (id === 'whistle') {
+    chip(ctx, -14, -5, 22, 11, 5, '#c9d3dc', P.ink, 1.5); ctx.fillStyle = '#c9d3dc'; ctx.fillRect(6, -3, 9, 7); ctx.strokeRect(6, -3, 9, 7);
+    disc(ctx, -5, 0, 2.2, P.ink); disc(ctx, -17, 6, 5, null, '#c9d3dc', 2);
+  } else if (id === 'sign') {
+    chip(ctx, -16, -11, 32, 22, 3, '#16284f', '#e8edf5', 2);
+    ctx.fillStyle = '#ffd11a'; ctx.fillRect(-12, -7, 10, 3); ctx.fillRect(-12, -1, 10, 3);
+    txt(E, '3', 7, 1, TY.small, '#ffd11a');
+  } else if (id === 'mug') {
+    chip(ctx, -11, -13, 21, 25, 3, '#f4f0e6', P.ink, 1.5); ctx.strokeStyle = P.ink; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(11, -1, 6, -1.3, 1.3); ctx.stroke();
+    ctx.fillStyle = '#16284f'; ctx.fillRect(-11, -6, 21, 8); ctx.fillStyle = '#ffd11a'; for (const dx of [-6, 0, 6]) ctx.fillRect(dx - 1.5, -3, 3, 2);
+  }
+  ctx.restore();
+}
+const DESK_SLOT = (x, w, i) => x + (w / DESK.length) * (i + 0.5);
+// A strip of Pat's desk: only the earned things, each in its own place so they never shift as more arrive.
+function drawDeskStrip(ctx, E, x, y, w, h, earned, o = {}) {
+  chip(ctx, x, y, w, h, 8, PAL.wood, PAL.woodDark, 2);
+  ctx.fillStyle = PAL.woodTop; plate(ctx, x, y, w, 8, 8); ctx.fill(); ctx.fillRect(x, y + 4, w, 4);
+  DESK.forEach((d, i) => {
+    if (!earned.some((e) => e.day === d.day) || (o.hide && o.hide === d.day)) return;
+    drawDeskObject(ctx, E, d.id, DESK_SLOT(x, w, i), y + h / 2 + 3, 1);
+  });
+}
+
+// ---- scene toolkit ----
+function wallBack(g) {
+  const { ctx, E } = g, gr = ctx.createLinearGradient(0, 0, 0, E.h);
+  gr.addColorStop(0, PAL.wall0); gr.addColorStop(1, PAL.wall1);
+  ctx.fillStyle = gr; ctx.fillRect(0, 0, E.w, E.h);
+}
+// The counter along the bottom of the scene: the lit belt (a bag rides it) or Pat's desk.
+function counter(g, kind) {
+  const { ctx, E, t } = g, y = g.cTop, w = E.w, h = g.floor - y + 40;
+  if (kind === 'belt') {
+    ctx.fillStyle = PAL.counter; ctx.fillRect(0, y + 14, w, h); ctx.fillStyle = PAL.counterEdge; ctx.fillRect(0, y + 14, w, 3);
+    ctx.fillStyle = P.screen; ctx.fillRect(0, y, w, 14);
+    ctx.fillStyle = P.roller; for (let rx = -((t * 40) % 28); rx < w; rx += 28) ctx.fillRect(rx, y + 1, 2, 12);
+    const bx = ((t * 34) % (w + 120)) - 60;
+    chip(ctx, bx - 26, y - 26, 52, 28, 7, '#2a5a9a', P.ink, 2); ctx.strokeStyle = P.ink; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(bx, y - 26, 9, Math.PI, 0); ctx.stroke();
+  } else {
+    ctx.fillStyle = PAL.wood; ctx.fillRect(0, y, w, h); ctx.fillStyle = PAL.woodTop; ctx.fillRect(0, y, w, 12); ctx.fillStyle = PAL.woodDark; ctx.fillRect(0, y + 12, w, 3);
+  }
+}
+function windowView(g, wx, wy, ww, wh, top, bot, sun, clouds) {
+  const { ctx } = g;
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip();
+  const gr = ctx.createLinearGradient(0, wy, 0, wy + wh); gr.addColorStop(0, top); gr.addColorStop(0.8, bot); gr.addColorStop(1, bot);
+  ctx.fillStyle = gr; ctx.fillRect(wx, wy, ww, wh);
+  const sy = blend(wy + wh * 1.08, wy + wh * 0.6, sun);
+  ctx.globalAlpha = 0.25; disc(ctx, wx + ww * 0.74, sy, wh * 0.2, PAL.sun); ctx.globalAlpha = 1; disc(ctx, wx + ww * 0.74, sy, wh * 0.1, PAL.sun);
+  if (clouds) for (let i = 0; i < 3; i++) { const cxx = wx + ((i * 0.37 + g.t * 0.012) % 1.2 - 0.1) * ww, cy = wy + wh * (0.18 + 0.14 * i); ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(cxx, cy, 30, 9, 0, 0, Math.PI * 2); ctx.ellipse(cxx + 16, cy - 6, 18, 8, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = '#18274d'; ctx.fillRect(wx, wy + wh * 0.7, ww * 0.26, wh * 0.14); ctx.fillRect(wx + ww * 0.06, wy + wh * 0.62, ww * 0.1, wh * 0.08);
+  ctx.fillStyle = PAL.runway; ctx.fillRect(wx, wy + wh * 0.86, ww, wh * 0.14);
+  ctx.fillStyle = '#e8edf5'; for (let x = wx - ((g.t * 30) % 40); x < wx + ww; x += 40) ctx.fillRect(x, wy + wh * 0.93, 20, 2);
+  ctx.restore();
+}
+function windowFrame(g, wx, wy, ww, wh) {
+  const { ctx } = g;
+  ctx.strokeStyle = '#2a3a5c'; ctx.lineWidth = 8; ctx.lineJoin = 'round'; ctx.strokeRect(wx - 2, wy - 2, ww + 4, wh + 4);
+  ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh); ctx.stroke();
+  ctx.strokeStyle = P.boothHi; ctx.lineWidth = 1.5; ctx.strokeRect(wx - 6, wy - 6, ww + 12, wh + 12);
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip(); ctx.globalAlpha = 0.1; ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(wx + ww * 0.1, wy); ctx.lineTo(wx + ww * 0.2, wy); ctx.lineTo(wx + ww * 0.05, wy + wh); ctx.lineTo(wx - ww * 0.05, wy + wh); ctx.fill(); ctx.restore();
+}
+const patPos = (g, x) => ({ x: clamp(x, g.cs * 0.43 + 6, g.E.w - g.cs * 0.43 - 6), bottom: g.cTop + 16 });   // she always stands inside the screen
+const soundCues = { tap: { freq: 240, dur: 0.05, type: 'square', gain: 0.05 }, whoosh: { freq: 380, dur: 0.2, type: 'triangle', gain: 0.05, slide: 1.7 }, ding: { freq: 880, dur: 0.18, type: 'sine', gain: 0.06 }, low: { freq: 196, dur: 0.22, type: 'triangle', gain: 0.07 }, crackle: { freq: 120, dur: 0.06, type: 'sawtooth', gain: 0.05 } };
+
+// The window on the stand at dawn, shared by the cold open: `sun` rises 0 to 1, `plane` taxis in 0 to 1.
+function dawnWindow(g, sun, plane) {
+  const { ctx, E, t, cx, W } = g, ww = Math.min(W - 28, 380), wx = cx - ww / 2, wy = g.top + 6, wh = Math.min(g.H * 0.4, 260);
+  windowView(g, wx, wy, ww, wh, PAL.skyTop, PAL.skyBot, sun, false);
+  const ph = wh * 0.34;
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip();
+  drawArt(ctx, E, 'plane', blend(wx - ph * 1.4, wx + ww * 0.34, ease.outCubic(plane)), wy + wh * 0.97, ph, { rot: -0.02 * (1 - seg(plane, 0.7, 1)) });
+  ctx.restore();
+  windowFrame(g, wx, wy, ww, wh);
+}
+// Pat's briefing room: a clock and ten days on the wall, the first seven crossed out and the eighth circled.
+function officeWall(g) {
+  const { ctx, E, t, cx, W } = g, hx = cx - W * 0.27, hy = g.top + 74;
+  disc(ctx, hx, hy, 40, '#f1ece0', '#2a3a5c', 5);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(hx + Math.cos(a) * 33, hy + Math.sin(a) * 33); ctx.lineTo(hx + Math.cos(a) * 37, hy + Math.sin(a) * 37); ctx.stroke(); }
+  ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(-1.2) * 20, hy + Math.sin(-1.2) * 20); ctx.stroke();
+  ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(0.4) * 30, hy + Math.sin(0.4) * 30); ctx.stroke();
+  ctx.strokeStyle = PAL.marker; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(t * 2) * 32, hy + Math.sin(t * 2) * 32); ctx.stroke();
+  const cw = 26, gx = cx + W * 0.06, gy = g.top + 38;
+  chip(ctx, gx - 10, gy - 10, cw * 5 + 14, cw * 2 + 14, 6, PAL.paper, '#cfc8b8', 1);
+  for (let d = 0; d < 10; d++) {
+    const x = gx + (d % 5) * cw, y = gy + Math.floor(d / 5) * cw;
+    chip(ctx, x, y, cw - 4, cw - 4, 3, '#fff', '#bdb6a6', 1);
+    if (d < 7) { ctx.strokeStyle = '#7a7466'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 4, y + 4); ctx.lineTo(x + cw - 8, y + cw - 8); ctx.moveTo(x + cw - 8, y + 4); ctx.lineTo(x + 4, y + cw - 8); ctx.stroke(); }
+    if (d === 7) disc(ctx, x + (cw - 4) / 2, y + (cw - 4) / 2, 11, null, PAL.marker, 2.5);
+  }
+}
+
+// ---- the scenes: g = { ctx, E, t, cx, W, top, floor, H, cs, cTop } ----
+// A1. The lane at dawn: a plane taxis to its stand, Pat hops in and taps her clipboard.
+function sceneDawn(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  dawnWindow(g, seg(t, 0, 3.4), seg(t, 0, 1.7));
+  const p = patPos(g, blend(E.w + cs * 0.4, cx + W * 0.14, ease.outCubic(seg(t, 0.2, 1.0)))), h = hopOf(seg(t, 0.95, 1.4));
+  const tap = bump(t, 1.5) + bump(t, 1.95) + bump(t, 2.4);
+  drawArt(ctx, E, 'supervisor', p.x, p.bottom - h.y * 10, cs, { sx: h.sx * (1 + 0.025 * tap), sy: h.sy * (1 - 0.035 * tap) });
+  if (tap > 0) { ctx.save(); ctx.globalAlpha = tap; ctx.strokeStyle = '#e8edf5'; ctx.lineWidth = 3; ctx.lineCap = 'round'; const mx = p.x - cs * 0.33, my = p.bottom - cs * 0.52; for (const a of [-2.7, -2.2, -1.7]) { ctx.beginPath(); ctx.moveTo(mx + Math.cos(a) * 14, my + Math.sin(a) * 14); ctx.lineTo(mx + Math.cos(a) * 26, my + Math.sin(a) * 26); ctx.stroke(); } ctx.restore(); }
+  counter(g, 'belt');
+}
+// A2. The lanyard: Pat holds it out, and it swings toward you; ten days on a calendar.
+function sceneLanyard(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  dawnWindow(g, 1, 1);
+  const lean = ease.outCubic(seg(t, 0.3, 1.1)), p = patPos(g, cx + W * 0.14 + lean * 12), h = hopOf(seg(t, 0.1, 0.5));
+  drawArt(ctx, E, 'supervisor', p.x, p.bottom - h.y * 8, cs, { rot: lean * 0.05, sx: h.sx, sy: h.sy });
+  counter(g, 'belt');
+  const k = ease.inOut(seg(t, 0.9, 1.9)), hx = p.x - cs * 0.02, hy = p.bottom - cs * 0.42, sc = blend(0.8, 1.9, k);
+  const sw = t > 1.5 ? 0.6 * Math.exp(-1.7 * (t - 1.5)) * Math.cos(8 * (t - 1.5)) : 0;
+  drawLanyard(ctx, blend(hx, cx - W * 0.12, k), blend(hy, g.cTop - cs * 0.62, k), 60 * sc, sw, sc);
+  const ck = ease.outBack(seg(t, 1.7, 2.3));
+  if (ck > 0) drawCalendar(ctx, E, cx - W * 0.3, g.top + g.H * 0.4 + 70, ck * 1.15, '10');
+}
+// A3. Vic: whistling at the back of the queue with a lumpy suitcase, he tips his hat to Pat.
+function sceneVic(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  dawnWindow(g, 1, 1);
+  const s = (cs * 0.85) / 76, vx = cx + W * 0.3, vb = g.cTop + 14, lift = bump(t, 1.7, 0.9);
+  ctx.save(); ctx.globalAlpha = 0.8;
+  [[cx - W * 0.04, 0], [cx + W * 0.06, 2]].forEach(([bx, i]) => { ctx.save(); ctx.translate(bx, vb - 10); ctx.scale(s * 0.55, s * 0.55); drawPerson(ctx, E, 0, 0, { coat: T.people.coat[i + 1], skin: T.people.skin[i], hair: T.people.hair[i] }, P.tags[i], true, t + i, {}); ctx.restore(); });
+  ctx.restore();
+  const hp = hopOf(seg(t, 2.3, 2.8));
+  drawArt(ctx, E, 'supervisor', cx - W * 0.3, g.cTop + 16 - hp.y * 6, cs * 0.56, { sx: hp.sx, sy: hp.sy });
+  ctx.save(); ctx.translate(vx, vb); ctx.scale(s, s);
+  drawPerson(ctx, E, 0, 0, { ...T.characters.smuggler, cap: null }, P.tags[0], false, t, { still: true });
+  ctx.save(); ctx.translate(-7 * lift, -58 - 9 * lift); ctx.rotate(-0.5 * lift); ctx.fillStyle = T.characters.smuggler.cap; ctx.fillRect(-8, -2, 16, 5); ctx.fillRect(-1, 1, 11, 3); ctx.restore();
+  ctx.restore();
+  for (let i = 0; i < 3; i++) { const q = (((t - i * 0.4) % 1.2) + 1.2) % 1.2 / 1.2; if (t > i * 0.4) musicNote(ctx, vx - 12 * s * 0.4 - q * 26, vb - 51 * s - q * 60, 1.1, Math.sin(Math.PI * q)); }
+  drawSuitcase(ctx, vx - 68, vb + 6, s * 0.4, t, true);
+  counter(g, 'belt');
+}
+// C1. The turn: Pat shows a photo of two small kids waving.
+function sceneTurnPhoto(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  officeWall(g);
+  const p = patPos(g, cx + W * 0.2);
+  drawArt(ctx, E, 'supervisor', p.x, p.bottom, cs, { sy: 1 + 0.01 * Math.sin(t * 2) });
+  const k = ease.outBack(seg(t, 0.3, 1.3)), w = Math.min(150, W * 0.4);
+  ctx.save(); ctx.translate(blend(-60, cx - W * 0.2, k), blend(g.floor + 90, g.cTop - cs * 0.42, k)); ctx.rotate(-0.1 + 0.05 * Math.sin(t * 3) * k); ctx.scale(1 + 0.05 * k, 1 + 0.05 * k);
+  drawPhoto(ctx, w, t); ctx.restore();
+  counter(g, 'desk');
+}
+// C2. The turn: she turns the passenger list toward you and one name is circled: VIC.
+function sceneTurnList(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  officeWall(g);
+  const p = patPos(g, cx + W * 0.2);
+  drawArt(ctx, E, 'supervisor', p.x, p.bottom, cs, { rot: 0.02 * Math.sin(t * 2) });
+  const k = ease.outBack(seg(t, 0.2, 1.0)), w = Math.min(176, W * 0.46);
+  ctx.save(); ctx.translate(cx - W * 0.2, g.cTop - cs * 0.45); ctx.rotate(0.05); ctx.scale(Math.max(0.02, k), 1);
+  drawPassengers(ctx, E, w, seg(t, 1.3, 2.1)); ctx.restore();
+  counter(g, 'desk');
+}
+// C3. The turn: she stands, the list shrinks to a corner with VIC pulsing, anger lines flare behind her.
+function sceneTurnStand(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  officeWall(g);
+  const p = patPos(g, cx + W * 0.2), rise = ease.outBack(seg(t, 0.2, 0.8));
+  ctx.save(); ctx.strokeStyle = PAL.marker; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+  for (let i = 0; i < 7; i++) { const a = -Math.PI * 0.95 + (i / 6) * Math.PI * 0.9, q = (((t - 0.7 - i * 0.05) % 0.9) + 0.9) % 0.9 / 0.9; if (t > 0.7) { ctx.globalAlpha = (1 - q) * 0.8; const r0 = cs * 0.42 + q * 18, hx = p.x, hy = p.bottom - cs * 0.72; ctx.beginPath(); ctx.moveTo(hx + Math.cos(a) * r0, hy + Math.sin(a) * r0); ctx.lineTo(hx + Math.cos(a) * (r0 + 16), hy + Math.sin(a) * (r0 + 16)); ctx.stroke(); } }
+  ctx.restore();
+  drawArt(ctx, E, 'supervisor', p.x, p.bottom - rise * 14, cs, { sy: 1 + 0.05 * rise });
+  const pulse = 1 + 0.08 * Math.sin(t * 8);
+  ctx.save(); ctx.translate(cx - W * 0.25, g.cTop - cs * 0.28); ctx.rotate(0.06); ctx.scale(0.62 * pulse, 0.62 * pulse); drawPassengers(ctx, E, Math.min(176, W * 0.46), 1); ctx.restore();
+  counter(g, 'desk');
+}
+// E1. Pat, now a passenger, hands you her mug; it lands on the desk with her other things.
+function sceneMug(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  { const ww = Math.min(W - 28, 380), wx = cx - ww / 2, wy = g.top + 6, wh = Math.min(g.H * 0.36, 230); windowView(g, wx, wy, ww, wh, PAL.skyDay0, PAL.skyDay1, 1, true); ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip(); drawArt(ctx, E, 'plane', wx + ww * 0.34, wy + wh * 0.97, wh * 0.36); ctx.restore(); windowFrame(g, wx, wy, ww, wh); }
+  const p = patPos(g, cx - W * 0.12), hop = hopOf(seg(t, 0.1, 0.5));
+  drawSuitcase(ctx, p.x + cs * 0.4, p.bottom - 6, cs / 130, t, false);
+  drawArt(ctx, E, 'supervisor-proud', p.x, p.bottom - hop.y * 6, cs, { sx: hop.sx, sy: hop.sy });
+  counter(g, 'desk');
+  const earned = deskDays(g.shifts), dw = Math.min(E.w - 24, 360), dx = (E.w - dw) / 2, dy = g.cTop + 12;
+  drawDeskStrip(ctx, E, dx, dy, dw, 36, earned, { hide: 10 });
+  const slot = DESK.findIndex((d) => d.id === 'mug'), tx = DESK_SLOT(dx, dw, slot), ty = dy + 21, k = seg(t, 0.8, 2.3), e = ease.inOut(k);
+  const sx0 = p.x + cs * 0.12, sy0 = p.bottom - cs * 0.45, arc = Math.sin(Math.PI * e) * cs * 0.3, land = k >= 1 ? hopOf(seg(t, 2.3, 2.8)) : { sx: 1, sy: 1, y: 0 };
+  const sz = k < 1 ? blend(1.8, 1.1, e) : 1.1;
+  if (t > 0.35) drawDeskObject(ctx, E, 'mug', blend(sx0, tx, e), blend(sy0, ty, e) - arc, sz * ease.outBack(seg(t, 0.35, 0.8)) * (k >= 1 ? land.sy : 1));
+  if (t > 2.3) { ctx.save(); ctx.globalAlpha = 1 - seg(t, 2.3, 3.0); ctx.strokeStyle = '#ffe08a'; ctx.lineWidth = 2.5; const r = 10 + 24 * seg(t, 2.3, 3.0); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.beginPath(); ctx.moveTo(tx + Math.cos(a) * r, ty + Math.sin(a) * r); ctx.lineTo(tx + Math.cos(a) * (r + 8), ty + Math.sin(a) * (r + 8)); ctx.stroke(); } ctx.restore(); }
+}
+// E2. The plane lifts off and a tiny figure waves from a window.
+function scenePlane(g) {
+  const { ctx, E, t, cx } = g;
+  wallBack(g);
+  const wx = 14, ww = E.w - 28, wy = g.top + 14, wh = Math.min(g.H * 0.74, 520);
+  windowView(g, wx, wy, ww, wh, PAL.skyDay0, PAL.skyDay1, 1, true);
+  const ph = wh * 0.17, runY = wy + wh * 0.96, u = seg(t, 0.4, 3.9), air = seg(u, 0.3, 1);
+  const px = wx + ww * (0.2 + 0.62 * u * u), py = runY - air ** 1.4 * wh * 0.62, rot = -0.28 * seg(u, 0.3, 0.7);
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip();
+  ctx.save(); ctx.translate(px, py); ctx.rotate(rot);
+  drawArt(ctx, E, 'plane', 0, 0, ph);
+  const fx = ph * 2.6 * 0.12, fy = -ph * 0.42, wv = Math.sin(t * 9);
+  disc(ctx, fx, fy, ph * 0.06, '#b8703c', P.ink, 1); ctx.strokeStyle = '#b8703c'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(fx + ph * 0.05, fy + ph * 0.07); ctx.lineTo(fx + ph * 0.13, fy - ph * (0.1 + 0.07 * wv)); ctx.stroke();
+  ctx.restore(); ctx.restore();
+  windowFrame(g, wx, wy, ww, wh);
+  counter(g, 'desk');
+}
+// E3. The radio on the desk crackles: "Lane's yours, Officer."
+function sceneRadio(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  const ww = Math.min(W - 80, 300), wx = cx - ww / 2, wy = g.top + 10, wh = Math.min(g.H * 0.4, 250);
+  windowView(g, wx, wy, ww, wh, PAL.skyDay0, PAL.skyDay1, 1, true);
+  const q = seg(t, 0, 3.2); ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip(); drawArt(ctx, E, 'plane', wx + ww * (0.3 + 0.8 * q), wy + wh * (0.55 - 0.5 * q), wh * 0.1, { rot: -0.3 }); ctx.restore();
+  windowFrame(g, wx, wy, ww, wh);
+  counter(g, 'desk');
+  const earned = deskDays(g.shifts), dw = Math.min(E.w - 24, 360), dx = (E.w - dw) / 2;
+  drawDeskStrip(ctx, E, dx, g.cTop + 12, dw, 36, earned);
+  const on = t > 0.4, w = Math.min(190, W * 0.5);
+  ctx.save(); ctx.translate(cx, g.cTop + 6); drawRadio(ctx, w, on ? Math.sin(t * 50) * 1.5 : 0, on ? t * 1.6 : -1, t); ctx.restore();
+}
+// E4. Next morning: a nervous new recruit at your lane, and your hand passes them the lanyard.
+function sceneRecruit(g) {
+  const { ctx, E, t, cx, W, cs } = g;
+  wallBack(g);
+  const ww = Math.min(W - 28, 380), wx = cx - ww / 2, wy = g.top + 6, wh = Math.min(g.H * 0.36, 230);
+  windowView(g, wx, wy, ww, wh, PAL.skyDay0, PAL.skyDay1, 1, true);
+  windowFrame(g, wx, wy, ww, wh);
+  const s = (cs * 1.05) / 76, rx = cx - W * 0.1 + Math.sin(t * 38) * 0.9 * (1 - seg(t, 2.2, 2.6)), rb = g.cTop + 14, hop = hopOf(seg(t, 2.3, 2.8)), breathe = 1 + 0.015 * Math.sin(t * 3.2);
+  ctx.save(); ctx.translate(rx, rb - hop.y * 14); ctx.scale(s * hop.sx, s * hop.sy * breathe);
+  drawPerson(ctx, E, 0, 0, { coat: '#3a4a68', skin: '#e8b896', hair: '#5a3a22', sweat: true, glance: true }, '#f2f2f2', false, t, {});
+  if (t > 2.2) { ctx.strokeStyle = PAL.lanyard; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(-7, -44); ctx.lineTo(0, -30); ctx.lineTo(7, -44); ctx.stroke(); chip(ctx, -4.5, -31, 9, 11, 1.5, '#f4f0e6', P.ink, 1); }
+  ctx.restore();
+  const k = ease.outCubic(seg(t, 0.4, 1.7)), out = seg(t, 2.1, 2.6), hx = blend(E.w + 60, rx + cs * 0.34, k) + out * 220, hy = rb - cs * 0.42 - out * 10;
+  ctx.save(); ctx.translate(hx, hy);
+  ctx.fillStyle = P.vest; plate(ctx, 0, -12, 200, 24, 8); ctx.fill();
+  disc(ctx, -4, 0, 14, '#d9a47a', P.ink, 2);
+  if (out < 1) drawLanyard(ctx, -6, 6, 50, 0.1 * Math.sin(t * 5), 0.9);
+  ctx.restore();
+  counter(g, 'belt');
+}
+
+// The chapters. `dur` is each scene's length; `auto` goes on by itself after autoGap (the cold open); the others wait for a tap. `cues` are sounds at scene times.
+const CHAPTERS = {
+  open: { flag: 'openSeen', dur: T.story.openDur, auto: true, cards: [
+    { text: 'Supervisor Pat Okoye has run this lane for thirty years.', draw: sceneDawn, cues: [[0.9, 'whoosh'], [1.5, 'tap'], [1.95, 'tap'], [2.4, 'tap']] },
+    { text: "'Ten days till I retire. Then this lane is yours.'", draw: sceneLanyard, cues: [[0.9, 'whoosh'], [1.7, 'ding']] },
+    { text: "'That's Vic. Thirty years, and he's never got one past me.'", draw: sceneVic, cues: [[1.7, 'whoosh'], [2.3, 'tap']] },
+  ] },
+  turn: { flag: 'turnSeen', dur: T.story.turnDur, auto: false, cards: [
+    { text: "'Flight 10 is my flight home. They're waiting at the other end.'", draw: sceneTurnPhoto, cues: [[0.4, 'whoosh']] },
+    { text: "'And look who booked a seat.'", draw: sceneTurnList, cues: [[0.3, 'whoosh'], [1.4, 'tap']] },
+    { text: "'He wants his masterpiece on my plane. Don't let him.'", draw: sceneTurnStand, cues: [[0.3, 'low'], [0.7, 'tap']] },
+  ] },
+  end: { flag: 'endSeen', dur: T.story.endDur, auto: false, cards: [
+    { text: "'Not bad, Officer. Not bad at all.'", draw: sceneMug, cues: [[0.8, 'whoosh'], [2.3, 'ding']] },
+    { text: 'Flight 10 landed. 240 passengers home safe.', draw: scenePlane, cues: [[0.5, 'whoosh'], [1.5, 'ding']] },
+    { text: "'Lane's yours, Officer.'", draw: sceneRadio, cues: [[0.4, 'crackle'], [0.55, 'crackle'], [0.7, 'crackle'], [1.0, 'low']] },
+    { text: "'First day. Breathe. Look at every bag.'", label: 'Next morning', draw: sceneRecruit, cues: [[0.4, 'whoosh'], [2.3, 'ding']] },
+  ] },
+};
+
+// The scene player: one animated card at a time, its line fading in underneath. A tap early in a scene jumps to its end, a tap once the caption has shown (tapAdvance) goes on,
+// the cold open also goes on by itself; Skip (always there, 44 px) ends the whole chapter and any that follow. Nothing here delays a shift.
+const story = {
+  enter(E, p = {}) {
+    this.p = p; this.ch = CHAPTERS[p.chapter || 'open']; this.i = 0; this.t0 = E.time; this.fired = 0; this.btnSkip = null; this.tapT = -Infinity;
+    this.shifts = readShifts(E);
+    if (!p.replay) E.save.set(this.ch.flag, true);
+    if (E.ledger) E.ledger.add('story', { chapter: p.chapter || 'open', replay: !!p.replay });
+  },
+  dur() { return this.ch.dur[this.i]; },
+  advance(E) {
+    if (this.i + 1 >= this.ch.cards.length) { this.finish(E, false); return; }
+    this.i++; this.t0 = E.time; this.fired = 0;
+  },
+  finish(E, all) {
+    const q = all ? [] : this.p.queue || [], then = this.p.then || (this.p.chapter === 'end' ? ['board', {}] : ['menu', {}]);
+    if (q.length) E.setScene('story', { ...this.p, chapter: q[0], queue: q.slice(1) });
+    else E.setScene(then[0], then[1]);
+  },
+  update(dt, E) {
+    if (this.p.pump) pump(E);
+    const k = E.time - this.t0, cues = this.ch.cards[this.i].cues || [];
+    while (this.fired < cues.length && cues[this.fired][0] <= k) { if (k - cues[this.fired][0] < 0.3) tone(E, soundCues[cues[this.fired][1]]); this.fired++; }
+    if (this.ch.auto && k >= this.dur() + T.story.autoGap) this.advance(E);
+  },
+  render(ctx, E) {
+    const sf = E.safe, Y = T.story, aw = E.w - sf.left - sf.right, cx = sf.left + aw / 2, c = this.ch.cards[this.i], d = this.dur();
+    const t = Math.min(E.time - this.t0, d);
+    ctx.font = `800 ${TY.medium}px system-ui, sans-serif`;
+    const capW = Math.min(aw - 32, 420), lines = wrapText(ctx, c.text, capW - 28), lh = TY.medium + 6, capH = lines.length * lh + 12;
+    const capTop = E.h - sf.bottom - 14 - capH, floor = capTop - 14, top = sf.top + 60, H = floor - top;
+    c.draw({ ctx, E, t, cx, W: aw, top, floor, H, cs: clamp(H * 0.52, 150, 320), cTop: floor - 56, shifts: this.shifts });
+    const fade = seg(t, 0.5, 1.1);
+    if (fade > 0) {
+      let cw = 0; for (const l of lines) cw = Math.max(cw, ctx.measureText(l).width);
+      ctx.save(); ctx.globalAlpha = fade; E.roundRect(cx - cw / 2 - 14, capTop + (1 - fade) * 6, cw + 28, capH, 12, P.panel, P.bagEdge); ctx.restore();
+      lines.forEach((l, n) => txt(E, l, cx, capTop + (1 - fade) * 6 + 6 + (n + 0.5) * lh, TY.medium, P.text, { weight: '800', alpha: fade }));
+    }
+    if (c.label) { ctx.font = `${TY.weight} ${TY.small}px system-ui, sans-serif`; const lw = ctx.measureText(c.label).width + 20; E.roundRect(sf.left + 16, sf.top + 12, lw, 30, 8, P.pill); txt(E, c.label, sf.left + 26, sf.top + 27, TY.small, P.organic, { align: 'left' }); }
+    this.ch.cards.forEach((_, k) => { ctx.globalAlpha = k === this.i ? 1 : 0.35; disc(ctx, E.w / 2 + (k - (this.ch.cards.length - 1) / 2) * 18, sf.top + 14, k === this.i ? 5 : 4, P.text); });
+    ctx.globalAlpha = 1;
+    if (E.time - this.t0 >= d) { const k = 1 + 0.15 * Math.sin(E.time * 6), x = E.w - sf.right - 32, y = capTop - 24; ctx.fillStyle = P.text; ctx.beginPath(); ctx.moveTo(x - 7 * k, y - 9 * k); ctx.lineTo(x + 9 * k, y); ctx.lineTo(x - 7 * k, y + 9 * k); ctx.fill(); }
+    this.btnSkip = button(E, 'Skip', E.w - sf.right - 16 - Y.skipW / 2, sf.top + 12 + Y.skipH / 2, { w: Y.skipW, h: Y.skipH, fill: P.buttonQuiet });
+  },
+  onTap(p, E) {
+    if (this.btnSkip && E.hit(this.btnSkip, p)) { this.finish(E, true); return; }
+    if (E.time - this.tapT < T.story.tapGap) return;
+    this.tapT = E.time;
+    const k = E.time - this.t0;
+    if (k < this.dur() && k < T.story.tapAdvance) { this.t0 = E.time - this.dur(); return; }
+    this.advance(E);
+  },
+  onKey(k, E) { if (k === ' ' || k === 'Enter') this.onTap({ x: -1, y: -1 }, E); },
+};
+
+// The departures board (PRD v0.3 E, v0.4 E): ten flights, LANDED (the day was ever cleared), GROUNDED (played, never cleared) or blank. Derived from the shifts save.
+const board = {
+  enter(E) { this.t0 = E.time; this.shifts = readShifts(E); this.btn = null; this.down = false; },
+  render(ctx, E) {
+    const sf = E.safe, cx = E.w / 2, Y = T.story, rec = (d) => this.shifts[d], landed = (d) => rec(d) && rec(d).stars > 0, n = T.beltSpeed.length;
+    wallBack({ ctx, E });
+    const ty = sf.top + 44, bw = Math.min(E.w - 24, 380), bx = cx - bw / 2, k = E.time - this.t0;
+    txt(E, 'Departures', cx, ty, TY.large, P.star);
+    const got = Array.from({ length: n }, (_, i) => landed(i + 1)).filter(Boolean).length;
+    txt(E, `${got} of ${n} flights landed`, cx, ty + 32, TY.small, P.dim);
+    const top = ty + 58, bottom = E.h - sf.bottom - 12 - 50 - 14, rh = clamp((bottom - top) / n, 38, 56);
+    for (let d = 1; d <= n; d++) {
+      const y = top + (d - 1) * rh, st = landed(d) ? 1 : rec(d) ? 2 : 0, a = seg(k, 0.1 + d * 0.1, 0.35 + d * 0.1), col = st === 1 ? P.clean : P.catch;
+      ctx.save(); ctx.globalAlpha = Math.max(0.0, a);
+      chip(ctx, bx, y + 2, bw, rh - 4, 8, '#0a1226', st ? col : P.panelOffEdge, 2);
+      if (st) { ctx.save(); ctx.translate(bx + 30, y + rh / 2 + 7); ctx.scale(1 - 0.0, 1); ctx.globalAlpha *= 1; drawArt(ctx, E, 'plane', 0, 0, 16); ctx.restore(); }
+      else disc(ctx, bx + 30, y + rh / 2, 4, P.panelOffEdge);
+      txt(E, `Flight ${d}`, bx + 58, y + rh / 2, TY.small, st ? P.text : P.textOff, { align: 'left' });
+      txt(E, DEST[d], bx + 140, y + rh / 2, TY.small, P.dim, { align: 'left' });
+      const flip = st ? ease.outBack(seg(k, 0.25 + d * 0.1, 0.55 + d * 0.1)) : 0;
+      if (st && flip > 0) { ctx.save(); ctx.translate(bx + bw - 12, y + rh / 2); ctx.scale(1, flip); txt(E, st === 1 ? 'LANDED' : 'GROUNDED', 0, 0, TY.small, col, { align: 'right' }); ctx.restore(); }
+      ctx.restore();
+    }
+    this.btn = button(E, 'Menu', cx, E.h - sf.bottom - 12 - 25, { fill: P.button, h: 50 }, this.down);
+  },
+  onPointerDown(p, E) { this.down = !!(this.btn && E.hit(this.btn, p)); },
+  onPointerUp() { this.down = false; },
+  onTap(p, E) { if (this.btn && E.hit(this.btn, p)) E.setScene('menu'); },
+};
+
 export const game = {
   slug: 'checkpoint',
   title: 'Checkpoint',
-  saveVersion: 4,
+  saveVersion: 5,
   // v1 kept `unlocked` beside the per-shift records; v2 derives it from them (the highest shift with stars, plus one) and clamps it.
   // v3 adds the career record (SWAT calls, Vic caught, breaches); stars, best scores and unlocked days are kept as they are.
   // v4: a best counts only on a cleared day, so a day never cleared (no stars) loses the best a breach or three strikes once saved. The shape is unchanged.
+  // v5 (PRD v0.4): openSeen, turnSeen, endSeen (the story's three parts, each shown once; the desk is derived from the cleared days, nothing stored).
   migrate(data, fromVersion) {
     if (fromVersion < 2) {
       const cleared = Object.entries(cleanShifts(data.shifts)).filter(([, r]) => r.stars > 0).map(([n]) => Number(n));
@@ -1786,6 +2554,12 @@ export const game = {
     if (fromVersion < 4 && data.shifts) {
       data.shifts = cleanShifts(data.shifts);
       for (const r of Object.values(data.shifts)) if (!r.stars) r.best = 0;
+    }
+    if (fromVersion < 5) {
+      const shifts = cleanShifts(data.shifts), days = Object.keys(shifts).map(Number), cleared = days.filter((n) => shifts[n].stars > 0);
+      data.openSeen = days.length > 0;                                                   // a played save skips the cold open
+      data.turnSeen = Math.max(0, ...cleared) >= 8 || clampUnlocked(data.unlocked) >= 9;   // a save past day 8 has no turn to show
+      data.endSeen = false;                                                              // a veteran sees the ending once, after their next cleared day 10
     }
     return data;
   },
@@ -1801,7 +2575,7 @@ export const game = {
     { label: 'Rush hour', values: { 'tune.belt': 1.2, 'tune.pace': 1.3, scanShow: 1.1, 'tune.occlusion': 0.9 } },
   ],
   start: 'menu',
-  scenes: { menu, brief, play, over },
+  scenes: { menu, brief, play, over, story, board },
   // Read by tools/sim-checkpoint.mjs so the harness runs the real generation, tap resolution and scoring.
   sim: {
     ITEMS, BODY, SILHOUETTE, scanAlpha, bannerSpot, swatBudget, genShift, genShiftSteps, prepare, pump, readShifts, cleanShifts, cleanCareer, visibility, outlineVisibility, tellVisibility, layout, clampUnlocked, headline, packRule,

@@ -44,3 +44,16 @@ Both would post to a Google Form the designer owns, landing in a Sheet. The desi
   - a landing page;
   - icons, screenshots and a short clip for each game.
 - **Platform:** web first, then app stores for the games that hold players.
+
+## v1.6 shipped (2026-11-14)
+
+Cut from the last build the designer had played (Arena `arena-v66`) and gated by a helper agent before it went live:
+- **Boot:** all six games start with no errors, and nothing dev-only shows.
+- **The save chain:** saves written by the v1.5 copies load in v1.6. Arena's save went from version 4 to 18 with a run in progress resumed; Launch, Recoil and Gravity Golf kept their bests and unlocks. Ink's and Checkpoint's old saves were written directly, not by playing, so their check is weaker.
+- **Arena's first run:** the story, the arena choice, the roll, the purse and the training yard all work.
+
+Known flaws shipped: Arena's Arms slot reads "no use" (fixed in v67 as the reinforced shield), and the origin trait's text on the rolled-fighter card is clipped.
+
+The blockers 3 and 4 above (Gravity Golf's "Read it" holes, the feedback build) were not settled; v1.6 shipped without them.
+
+**The gate for the next cut** (at least every two weeks, from the last build the designer played): `tools/release.sh <version>` in a worktree at that build; `npm run smoke`; for each game, open the old release copy with `tools/drive.mjs` (`open(slug, { release: true })`), play to a save, then load that save in the new copy; a fresh first run of each game; and one session from someone new, filed under `docs/playtests-external/`.

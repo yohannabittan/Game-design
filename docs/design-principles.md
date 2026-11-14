@@ -131,3 +131,43 @@ The story is short and sweet, easy to grasp, and supports the drive rather than 
 
 Test: a new player can say, after two minutes, who they are, who they are doing it for, and what they want next.
 
+## 18. The first minute teaches by doing (from Arena, 2026-11)
+
+A newcomer to Arena lost by bout 4 without ever finding the lunge, read none of the text, and bought no armour. A training yard fixed it: one control at a time, a ghost thumb showing the gesture, no timer, and a word for why a try didn't count.
+
+- Teach each verb by having the player do it once, in play, before it matters.
+- A hint is at most eight words. A card or tile says what it does in six.
+- A try that doesn't count says why, in a word or two: "EARLY", "TOO SLOW", "THAT WAS A JAB".
+- Give a newcomer a sensible default (a starting kit) and one warning before a choice that will sink them.
+
+Test: hand the game to someone new, say nothing, and watch the first minute. Every verb they never used is a lesson that's missing.
+
+## 19. Each verb looks and sounds like itself, and the world answers each one differently (from Arena, 2026-11)
+
+For weeks a jab and a slash in Arena looked the same: an arm moving, the same thin trail. The player only learned which one it was from the result. The fix was a look, a trail and a sound per blow, and a different answer from plate, skin and a gap.
+
+- Juice is information before it is decoration: the player should know what they did, and whether it was the right place, without reading.
+- The best outcome is always the loudest.
+- A wrong place and a right place never look alike.
+
+Test: record each verb as a GIF with the sound off. Can someone who hasn't played name each one, and say which hits were good?
+
+## 20. One tap means done; one screen shows one thing (from Arena, 2026-11)
+
+A newcomer tapped a card to choose it and landed on an inventory screen with a "Take" button: "Take what? I thought I selected it."
+
+- The first tap does the thing. A detour to confirm is for choices that can't be undone and cost something real.
+- What a choice replaces or costs shows on the choice itself.
+
+Test: count the taps from seeing a choice to having made it. More than one needs a reason.
+
+## 21. The pull is the measure (from Arena, 2026-11)
+
+The designer: "If this isn't fun for me, and the game we make is not distracting by how fun it is, it won't work." The clearest sign in Arena's exports was 13 runs in 42 minutes against one champion, each started straight after a loss.
+
+- A loss should leave the player one decision away from trying again, with a reason to (a rival who beat them, a build they want to try, a move they nearly read).
+- Read the pull off the export: runs in one sitting, and how often a loss is followed at once by another run. Never ask for it.
+- A feature nobody uses in three sittings is clutter between the player and the fun: fold it in, change it, or cut it.
+
+Test: after a loss, is the next run one tap away, and does the player take it?
+

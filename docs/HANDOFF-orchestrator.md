@@ -34,6 +34,8 @@ The designer is the first player, not a tester: the game has to be fun enough to
 
 ## Where each game stands
 
+**Arena is the flagship** (the designer, 2026-11-14): "the other ones are more mini games; this is more complex and rich, but I still want us to take learnings from this to past and future games." The other five are frozen, not abandoned. What Arena teaches goes back into the shared skeleton, the pattern library and the principles (`docs/learnings-from-arena.md`), so the mini games and any new game start from it.
+
 | Game | Dev build | Notes |
 | --- | --- | --- |
 | Arena | `arena-v68` | PRD `docs/games/arena/prd-v0.3.md`, built through Step 24 with 24c (the training yard, the one-tap draft, the sidearm, throwing knives, the bow, the reinforced shield, planted overheads). The most active game. **Next, in this order** (the PRD's "Build order"): Step 26 (each blow's look, built to `sketches/*.gif`); Steps 27 and 27b (Trials; art Pack 30 is in `docs/art/final/arena/`). The reuse pack (a Daily run, the Hall, Legend cards, decrees) is queued in the PRD. |
@@ -55,7 +57,7 @@ Each game's history is in `docs/games/<slug>/CHANGELOG.md`. To find code in Aren
 2. **Gravity Golf Trials:** five-hole runs (never more than 10) under one rule (no landing, one shot per hole, no aim line, beat par, a stroke budget, a timer), with medals. Open question: a separate menu mode, or at the end of each sector?
    - If Trials go ahead, the "Read it" holes in the main course go and "no aim line" becomes a Trial rule. That settles the open "Read it vs Expert" question as option 1.
    - Trials need a PRD (v0.17).
-3. **Friends' release v1.6 is cut and tested, not yet live** (2026-11-14). It sits in the worktree `/home/user/wt-release16` (Arena at `arena-v66`, the last build the designer played). The gate passed: all six games boot, saves from v1.5 carry over, nothing dev-only shows. Known flaws: Arena's Arms slot still reads "no use" (fixed in v67), and the traits text on the rolled-fighter card is clipped. On the designer's go: `tools/worktree.sh land release16 release`, smoke, commit, push. The gate's harness is in the scratchpad `release16/` folder; keep it under `tools/checks/` when landing (and add it to `docs/team.md`), since `tools/drive.mjs`'s `save:` option can't reach a release copy (its save key is `game:<slug>.release`).
+3. **A newcomer's session on v1.6** (shipped 2026-11-14; see `docs/release-friendlies.md`). When a friend plays and the designer forwards the export, file it under `docs/playtests-external/`. Never chase the designer for it.
 4. **Arena, the designer's open calls** (2026-11-14):
    - the trial art picks from Pack 30 (suggested: target B, wheel C, fruit seller A);
    - how the range sketch felt (`docs/games/arena/sketches/range.html`): the shrink, the three misses, the sway, the wheel's speed. The answers set Step 27's numbers.

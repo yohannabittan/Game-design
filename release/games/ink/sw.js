@@ -1,8 +1,14 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'ink-release-v1.5';
+const CACHE_VERSION = 'ink-release-v1.6';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'ink-release-';
+// PACK16: the art chat's second batch (PRD v0.8), landed with ink-v32.
+const PACK16 = [
+  './assets/client-ines-happy.webp', './assets/client-ines-neutral.webp', './assets/client-ines-sad.webp',
+  './assets/client-arlo-happy.webp', './assets/client-arlo-neutral.webp', './assets/client-arlo-sad.webp',
+  './assets/rita-proud.webp', './assets/rita-kind.webp',
+];
 const ASSETS = [
   './',
   './index.html',
@@ -14,6 +20,26 @@ const ASSETS = [
   './icons/icon-180.png',
   './assets/title-ink@2x.png',
   './assets/title-ink@3x.png',
+  './assets/client-bram-happy.webp',
+  './assets/client-bram-neutral.webp',
+  './assets/client-bram-sad.webp',
+  './assets/client-june-happy.webp',
+  './assets/client-june-neutral.webp',
+  './assets/client-june-sad.webp',
+  './assets/client-kai-happy.webp',
+  './assets/client-kai-neutral.webp',
+  './assets/client-kai-sad.webp',
+  './assets/client-mina-happy.webp',
+  './assets/client-mina-neutral.webp',
+  './assets/client-mina-sad.webp',
+  './assets/client-ola-happy.webp',
+  './assets/client-ola-neutral.webp',
+  './assets/client-ola-sad.webp',
+  './assets/client-theo-happy.webp',
+  './assets/client-theo-neutral.webp',
+  './assets/client-theo-sad.webp',
+  './assets/rita.webp',
+  ...PACK16,
 ];
 
 self.addEventListener('install', (event) => {
@@ -37,6 +63,7 @@ const NET_TIMEOUT = 3000;
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  if (new URL(req.url).pathname.includes('/docs/art/candidates/')) return; // dev-channel art candidates are never cached (ADR-0020)
   const fromCache = () => caches.match(req, { ignoreSearch: true }).then((hit) => hit || (req.mode === 'navigate' ? caches.match('./index.html') : undefined));
   const fromNet = fetch(req, { cache: 'no-cache' }).then((res) => {
     if (res && res.ok) { const copy = res.clone(); caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy)); }
