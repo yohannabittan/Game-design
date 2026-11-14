@@ -4,7 +4,7 @@
 import { clamp, lerp } from './engine.js';
 import { TUNING } from './tuning.js';
 import { bandOf, TAILOR, DECK, CARD, rarCol, gearOf, PARTS, ARM_LEN, SHOULDER, BEAST_BODY, POSE_NAME, mkPart } from './data.js';
-import { lay, beastOf, rearOf, youF, walls, myH, myBlade, myPoint, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, canBlock, shieldMax, beastRestQ,
+import { lay, beastOf, rearOf, youF, walls, myH, myBlade, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, canBlock, shieldMax, beastRestQ,
   knee, colRect, shieldBtns, myKey, sand, LOOK } from './fight.js';
 import { hesitating, covering, covered, LIMB, lamed, edgeF, poseEdge } from './foe.js';
 import { perfectWin, finCost, finReady, finLive, finBtn, firstRun } from './cards.js';
@@ -12,6 +12,7 @@ import { fitSize, wrapPx } from './screens.js';
 import { ink, over } from './scenes.js';
 import { arena, bg, state, easeOut, wrap, pidx, noDodge, noShield, meSize, meWeapon, ART, artV, ENG, IMGS, artImg, artReady, BACKDROP, kitOn } from './game.js';
 import { bowShown, armsW, drawBow, drawSlung } from './features/ranged.js';
+import { offRec } from './features/dual.js';
 
 // ====== DRAWING: the fighters, the arena, the HUD, cards and wheels ======
 const YOU = { skin: '#c58f5e', tunic: '#2f7d6d', hem: '#1d5448', crest: '#e6c866' };
@@ -1830,14 +1831,6 @@ export function drawWeapon(ctx, f, H, paint = true) {
   else if (W.id === 'axe') weaponGear(ctx, g, [0, top - 0.16 * H], [0, top], 0.016 * H, [0, y0 - 0.06 * H], H, edges);
   else weaponGear(ctx, g, [0, y0 + 0.04 * H], [0, y0 + 0.04 * H + len], W.id === 'dagger' ? 0.018 * H : 0.026 * H, [0, y0 - 0.055 * H], H, edges);
 }
-// Your second blade (step 18), in your far arm's frame (its rotation rot): the painting of your weapon pinned at the fist, its point along your off
-// hand's angle (state.you.offA, in your body's frame), a drawn blade while its paint loads
-function offBlade(ctx, H, rot, lk) {
-  const a = (state.you.offA == null ? TUNING.dual.down : state.you.offA) - rot, u = [Math.cos(a), Math.sin(a)], A = [0, ARM_LEN * H], L = TUNING.blade.len * H * meWeapon().reach;
-  if (paintWeapon(ctx, weaponKey(state.me.weapon, state.me.mace), A, u, L, H, lk.gear && lk.gear.weapon)) return;
-  ctx.lineCap = 'round'; ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 0.03 * H + 2; line(ctx, A[0], A[1], A[0] + u[0] * L, A[1] + u[1] * L);
-  ctx.strokeStyle = '#dfe6ee'; ctx.lineWidth = 0.03 * H; line(ctx, A[0], A[1], A[0] + u[0] * L, A[1] + u[1] * L);
-}
 // A blade's outline as [t, half-width] corners from the hilt (0) to the point (1), and its half-width at t
 const LEAF = [[0, 0.8], [0.3, 1], [0.72, 0.7], [1, 0]], SPEARHEAD = [[0, 0.6], [0.3, 1.1], [1, 0]];
 // how far your sica's blade bows forward of its chord at t, in blade widths
@@ -2006,6 +1999,7 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
   const fall = live && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath(); ctx.ellipse(F.x, L.floor + 3, H * 0.22, H * 0.035, 0, 0, 6.28); ctx.fill();
+  const base = ctx.getTransform();
   ctx.save();
   if (who === 'you' && ga === 1) { easeBody(); lookXf(ctx, E); }
   ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
@@ -2039,13 +2033,11 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
   // step 24: the bow out, your blade hangs at your hip and the shield is slung on your back
   const slung = !isFoe && bowShown();
   if (slung) drawSlung(ctx, E, H, lk);
-  // two blades (step 18): the second is the same painting, gripped in the far fist, drawn under it (his, and yours in the kit)
-  if (isFoe ? fm.dual && !(live && state.disarm > 0) : !!state.me.dual && !!lk.kit && !slung) {
-    ctx.save(); inFrame(ctx, fm.fr.armB, H);
-    if (isFoe) drawWeapon(ctx, fm, H, !!lk.kit); else offBlade(ctx, H, fm.fr.armB.rot, lk);
-    ctx.restore();
-  }
-  drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
+  // two blades (step 18): his second is the same painting, gripped in the far fist, drawn under it. Yours (2026-11-14) is your off arm, bending as
+  // your sword arm does, behind you; its weapon and fist are drawn over him (drawShield)
+  if (isFoe && fm.dual && !(live && state.disarm > 0)) { ctx.save(); inFrame(ctx, fm.fr.armB, H); drawWeapon(ctx, fm, H, !!lk.kit); ctx.restore(); }
+  if (!isFoe && ga === 1 && state.me.dual && state.duo && !slung) { ctx.save(); ctx.setTransform(base); drawArm(ctx, E, offRec(), state.hand.off, 'back'); ctx.restore(); }
+  else drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
   if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk, Math.min(E.dpr || 1, TUNING.skin.maxDpr)));
   drawPart(ctx, E, P('legs'), H, lk, null);
   drawPart(ctx, E, P('belly'), H, lk, null);
@@ -2132,22 +2124,37 @@ function liveArmGear(ctx, h, H, lk, aw = 0, px = 0) {
 }
 // Your weapon arm, in screen space: a gladius or dagger as a leaf blade (broad, tapering to a point), a spear's shaft and head, an axe or a mace.
 export function drawSwordArm(ctx, E) {
-  const h = state.hand, H = myH(E), locked = h.lock > 0, blade = myPoint(E), wid = state.me.weapon, bare = wid === 'fist';
+  const h = state.hand, main = state.me.dual && state.duo && h.off ? state.duo.rest : h;
+  drawArm(ctx, E, main, main === h, 'all');
+  if (h.down) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(h.ax, h.ay, 22, 0, 6.28); ctx.stroke();
+    ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath(); ctx.moveTo(h.ax, h.ay); ctx.lineTo(h.fx, h.fy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(h.fx, h.fy, 7, 0, 6.28); ctx.fill();
+  }
+  drawLookFx(ctx);
+}
+// One arm and its weapon from a hand record (state.hand, or with two weapons the hand off the thumb, state.duo.rest). live: the hand on the thumb,
+// which shows its blow; part: 'all', or the off arm's two passes, 'back' (the arm, behind your body) and 'front' (its weapon and fist, over him)
+function drawArm(ctx, E, h, live, part) {
+  const H = myH(E), locked = h.lock > 0, blade = myBlade(E) * (1 - (h.sl || 0)), wid = state.me.weapon, bare = wid === 'fist';
+  const far = part !== 'all', back = part !== 'front', front = part !== 'back';
   const w = (wid === 'dagger' ? 0.026 : wid === 'sica' ? 0.03 : 0.034) * H, pole = wid === 'spear' || wid === 'axe' || wid === 'trident';
   // step 26: the blade as the blow is classed (drawn only; the hits use the hand's own blade): a jab's snaps into the arm's line, a slash's rolls
   // its edge forward (drawn narrower); the shoulder rides your body's look
-  const LB = TUNING.look.blade, kind = blowKind(), bw = LOOK.body.w, ph = h.ph + (kind === 'jab' && !locked ? clamp(wrap(h.ang - h.ph), -LB.snap, LB.snap) * bw : 0);
+  const LB = TUNING.look.blade, kind = live ? blowKind() : null, bw = LOOK.body.w, ph = h.ph + (kind === 'jab' && !locked ? clamp(wrap(h.ang - h.ph), -LB.snap, LB.snap) * bw : 0);
   const bx = Math.cos(ph), by = Math.sin(ph), nx = -by, ny = bx, ux = h.hx + bx * blade, uy = h.hy + by * blade, roll = kind === 'slash' && !bare ? 1 - (1 - LB.roll) * bw : 1;
   const [sx, sy] = lookPt(E, h.sx, h.sy);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  drawBlowTrail(ctx, E, kind, bare, ph, ux, uy);
+  if (live && front) drawBlowTrail(ctx, E, kind, bare, ph, ux, uy);
   const lk = lookFor(state.you, false), G = lk.gear;
   // the kit: the painted upper arm now, the forearm and fist over the grip at the end (with the arm's gear on it)
   const aw = TUNING.kit.arm * H, kpx = aw * Math.min(E.dpr || 1, TUNING.skin.maxDpr), kU = lk.kit && kitPic('upperarm', lk.kit.tier, kpx), kF = lk.kit && kitPic('forearm', lk.kit.tier, kpx), kit = kU && kF;
   // The PNGs face right, their back (-x) to the rear. The arm bends wherever the finger leads, so each half is mirrored when it would face the wrong
   // way: the upper arm's back to the outside of the elbow, the fist's fingers toward the hilt (kept as they were when the arm is straight or the blade
   // runs along the forearm, so they never flicker).
-  if (kit) {
+  if (kit && back) {
     const lu = Math.hypot(h.ex - sx, h.ey - sy) || 1, lf = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, F = TUNING.kit.flip;
     const u = (-(h.ey - sy) * (h.ex - (sx + h.hx) / 2) + (h.ex - sx) * (h.ey - (sy + h.hy) / 2)) / (lu * lu), f = (-(h.hy - h.ey) * bx + (h.hx - h.ex) * by) / lf;
     if (Math.abs(u) > F[0]) h.flipU = u < 0;
@@ -2156,14 +2163,14 @@ export function drawSwordArm(ctx, E) {
     drawSeg(ctx, kF, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF);
     drawSeg(ctx, kU, [sx, sy], [h.ex, h.ey], aw, !!h.flipU);
   }
-  else {
+  else if (!kit && back) {
     limb(ctx, [[sx, sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
     liveArmGear(ctx, h, H, lk);
-    ctx.fillStyle = YOU.tunic; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(sx, sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke();
+    if (!far) { ctx.fillStyle = YOU.tunic; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke(); }
   }
+  if (!front) return;
   // (the painted pauldrons ride the arm with its other pieces, and the painted black plate needs no shoulder)
-  if ((G.arms && G.arms.id === 'jugg' && !(kit && gearArt(lk, 'arms'))) || (G.chest && G.chest.id === 'titan' && !(kit && gearArt(lk, 'chest')))) {
+  if (far) { /* the far shoulder is behind you */ } else if ((G.arms && G.arms.id === 'jugg' && !(kit && gearArt(lk, 'arms'))) || (G.chest && G.chest.id === 'titan' && !(kit && gearArt(lk, 'chest')))) {
     // Juggernaut's iron pauldrons, or Titan's black shoulder: layered black lames and a spike over the weapon shoulder
     for (let i = 2; i >= 0; i--) {
       const r = (0.075 - i * 0.012) * H, cy = sy - 0.012 * H + i * 0.024 * H;
@@ -2179,7 +2186,7 @@ export function drawSwordArm(ctx, E) {
       ctx.fillStyle = metalGrad(ctx, sx + r, cy - r, sx - r, cy, lk.metal); ctx.fill(); ctx.strokeStyle = lk.metal.edge; ctx.lineWidth = 1.5; ctx.stroke();
     }
   }
-  const a = h.atk, hot = a && !a.done && h.sp >= TUNING.hit.minSpeed && !locked;
+  const a = live ? h.atk : null, hot = a && !a.done && h.sp >= TUNING.hit.minSpeed && !locked;
   const gx = h.hx + bx * 0.05 * H, gy = h.hy + by * 0.05 * H, steel = locked ? '#ff8a7a' : '#dfe6ee';
   // Step 14: fists swing at the fist (its glow round it, its jab spark at the knuckles), never at a blade's length
   const FW = TUNING.me.weapons.fist, fl = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, kn = [h.hx + (h.hx - h.ex) / fl * FW.knuckle * H, h.hy + (h.hy - h.ey) / fl * FW.knuckle * H];
@@ -2190,12 +2197,12 @@ export function drawSwordArm(ctx, E) {
   const shape = (pts) => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); };
   // fists draw no weapon, as his fists when disarmed (the fist is the forearm's, drawn last); a painted one is pinned in the fist (step 14)
   // step 24: the bow in your fist in place of your weapon, from halfway through the swap to it
-  const bowUp = bowShown();
+  const bowUp = !far && bowShown();
   if (bowUp) drawBow(ctx, E);
   ctx.save();
   if (roll < 1) { ctx.translate(h.hx, h.hy); ctx.rotate(ph); ctx.scale(1, roll); ctx.rotate(-ph); ctx.translate(-h.hx, -h.hy); }
   // (a long weapon choked up is painted whole, slid back through the fist by the share drawn back: myPoint)
-  const sl = myBlade(E) - blade, painted = !bowUp && !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx - bx * sl, h.hy - by * sl], [bx, by], blade + sl, H, G.weapon, locked, zoneFx());
+  const sl = myBlade(E) - blade, painted = !bowUp && !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx - bx * sl, h.hy - by * sl], [bx, by], blade + sl, H, G.weapon, locked, live ? zoneFx() : null);
   if (painted || bowUp) { /* drawn */ } else if (pole) {
     // a wooden shaft from behind the fist to the head
     ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * (0.12 * H + sl), h.hy - by * (0.12 * H + sl)); ctx.lineTo(ux - bx * 0.02 * H, uy - by * 0.02 * H); ctx.stroke();
@@ -2255,16 +2262,8 @@ export function drawSwordArm(ctx, E) {
     ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
     ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();
   }
-  if (h.down) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(h.ax, h.ay, 22, 0, 6.28); ctx.stroke();
-    ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.beginPath(); ctx.moveTo(h.ax, h.ay); ctx.lineTo(h.fx, h.fy); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(h.fx, h.fy, 7, 0, 6.28); ctx.fill();
-  }
   if (a && a.kind !== 'raise' && a.kind !== 'pull' && !locked) E.text(a.kind === 'over' ? 'SMASH' : a.kind === 'jab' ? 'STAB' : a.kind.toUpperCase(), h.hx, h.hy - 0.12 * H, { size: 11, color: '#e2e8f0', alpha: 0.7, weight: '700' });
   if (locked) E.text('X', tip[0], tip[1] - 22, { size: 22, color: '#ff8a7a', weight: '800' });
-  drawLookFx(ctx);
 }
 
 // ----- step 26: the look of a blow (fight.js LOOK, TUNING.look) -----
@@ -2380,6 +2379,8 @@ function drawLookFx(ctx) {
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
 export function drawShield(ctx, E) {
   const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, lk = lookFor(state.you, false);
+  // two weapons: no shield; the off hand's weapon and fist (its arm is drawn behind you, in drawFighter)
+  if (state.me.dual && state.duo && !bowShown()) { drawArm(ctx, E, offRec(), state.hand.off, 'front'); return; }
   if (sh.broken) return;
   ctx.save(); lookXf(ctx, E); shieldArm(ctx, E, sh, Fy, H, J, lk); ctx.restore();
 }
@@ -2391,26 +2392,6 @@ function shieldArm(ctx, E, sh, Fy, H, J, lk) {
   // step 24: the bow is out: the shield (or the second blade) is away (drawFighter), the far hand reaches for the string
   if (bowShown()) { if (!kit) { limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin); fist(); } return; }
   // the painted shield arm is your body's far arm, drawn behind the torso as his is (its fist under the shield), so it is not drawn again here
-  // Two blades (step 18): no shield; the painted far arm grips its blade in drawFighter, the drawn one here
-  if (state.me.dual) {
-    // raised (or following a slash) the painted blade comes in front of you, the far fist copied over its grip
-    if (kit) {
-      if (sh.up < 0.3 && !(state.offT > 0)) return;
-      const fr = state.you.fr.armB, pa = state.you.parts.find((q) => q.d.id === 'armB');
-      ctx.save(); ctx.translate(Fy.x, Fy.y); ctx.scale(Fy.dir, 1); ctx.rotate(Fy.a);
-      ctx.save(); inFrame(ctx, fr, H); offBlade(ctx, H, fr.rot, lk); ctx.restore();
-      const c = Math.cos(fr.rot), sn = Math.sin(fr.rot), fx = (fr.ox - sn * ARM_LEN) * H, fy = (fr.oy + c * ARM_LEN) * H;
-      ctx.beginPath(); ctx.arc(fx, fy, TUNING.kit.weapon.fist * 1.4 * H, 0, TAU); ctx.clip();
-      drawPart(ctx, E, pa, H, lk, fr);
-      ctx.restore();
-      return;
-    }
-    const fr = state.you.fr.armB;
-    ctx.save(); ctx.translate(sx, sy); ctx.rotate(Fy.a + fr.rot); offBlade(ctx, H, fr.rot, lk); ctx.restore();
-    limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
-    ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(hx, hy, 0.042 * H, 0, TAU); ctx.fill(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();
-    return;
-  }
   if (!kit) limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
   // Untouchable: no shield at all, an empty fist (the kit's far arm ends in one)
   if (noShield() && kit) return;

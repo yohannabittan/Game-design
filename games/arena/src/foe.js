@@ -453,7 +453,7 @@ export function stepIn(E) {
   state.bleed = inn.bleed; state.dents = inn.dents; state.bout.foeShrug = inn.shrug;
   state.fallT = 0; state.sw = null; state.move = null; state.plan = null; state.stun = 0; state.stagger = 0; state.winded = 0; state.open = 0; state.retreat = 0; state.chase = 0;
   state.cover = null; state.disarm = 0; state.flyW = 0; state.kickA = 0; state.kickV = 0; state.pop = 1; state.swapping = false; state.tauntT = 0; state.sendT = 0;
-  Object.assign(state, { sigN: 0, switchT: 0, gbreak: 0, coverHits: 0, offHit: null });
+  Object.assign(state, { sigN: 0, switchT: 0, gbreak: 0, coverHits: 0 });
   state.step = { x: walls(E).fore, tgt: 0, t: 1, dodgeT: 0, dodgeCool: 0 };
   state.swingIn = Math.max(state.swingIn, TUNING.pairs.enter);
   inn.th = REST_TH;

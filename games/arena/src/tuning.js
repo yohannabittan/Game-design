@@ -537,11 +537,17 @@ export const TUNING = {
   // open gaps; his far arm held at rest rad from hanging and following his weapon arm's swing x follow; his cover is his crossed blades (cover H
   // across), each blow on them costing him drain x a guard's stamina, broken by breakAt of them for broken s. Yours (the purse's Arms row, at your
   // weapon's price): crossed blades let through x a blow's hearts (rounded down), cost cost stamina a block and drain holdDrain x to hold; a
-  // well-timed block ripostes with the off hand; each slash that lands is followed after follow s by the off hand for part x its damage, its arm
-  // swinging for swing s. Your off hand's blade points down rad (at the hip) and, raised, guard rad for HIGH, MID and LOW (0 points ahead, down is
-  // positive), easing over tau s; its follow-up reaches its fist to reach (body units), the blade thrust rad
+  // well-timed block ripostes with the off hand, its fist reaching to reach (body units) and back over swing s, the blade thrust rad; raised, the
+  // off blade crosses at guard rad for HIGH, MID and LOW (0 points ahead, down is positive).
+  // Step 2026-11-14, hand to hand: both weapons held forward, the off hand's guard a little lower at hold (H from the shoulder, as control.guard);
+  // the blows go right, left, right, left, the thumb passing to the other hand when a blow is over, the one that struck easing back to its guard over
+  // back s; a
+  // stroke drawn back toward you (direction share past pull) is the thumb's return, not a blow; after a bounce the free hand waits overlap x the
+  // struck hand's recoil; after reset s with no blow the next is the main hand's; the off hand's jab is born at offJab x attack.jab.minSpeed (its
+  // lower guard gives the same thumb push a slower point)
   dual: { weapons: ['gladius', 'dagger'], gaps: 1, rest: -1.3, follow: 0.8, cover: 0.12, drain: 2, breakAt: 3, broken: 2.5,
-    through: 0.5, cost: 6, holdDrain: 1.6, after: 0.14, part: 0.5, swing: 0.24, down: 1.1, guard: [-0.25, -1.3, 0.55], tau: 0.06, reach: [0.32, -0.62], thrust: 0.1 },
+    through: 0.5, cost: 6, holdDrain: 1.6, swing: 0.24, guard: [-0.25, -1.3, 0.55], reach: [0.32, -0.62], thrust: 0.1,
+    hold: [0.36, 0.04], back: 0.08, pull: 0.7, overlap: 0.3, reset: 0.8, offJab: 0.85 },
   // the Emperor's thumb card: s the box takes to show, then the crowd meter to fill to the bout's average, then the hand to rise, then the thumb to
   // turn; s before a tap continues; then coins and petals fall, rain[band] of them, each fall s from top to bottom
   thumb: { box: 0.6, meter: 1.1, hand: 0.8, turn: 0.4, tap: 3.3, rain: [14, 22, 34], fall: 2.6 },

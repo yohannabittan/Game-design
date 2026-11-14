@@ -7,13 +7,14 @@ import { pctOf, PARTS, FACE_SLOT, ARM_LEN, SHOULDER, BEAST_BODY, ZONES, ZONE, PO
 import { guardUp, covering, covered, foeHas, LIMB, limbName, lamed, setCover, memoryOn, blockRun, readJab, lungeRead, readPop, RANGED, SIG_NAME,
   spearOut, tagPop, startBlow, feintSwitch, spendFoe, windFoe, counter, settleFeint } from './foe.js';
 import { C_, growth, topThird, staggerFoe, perfectWin, atWall, emit, netMul, favour, gainMom, addBleed } from './cards.js';
-import { weaponKey, TAU, lerp2, hudRow } from './draw-fight.js';
+import { weaponKey, TAU, hudRow } from './draw-fight.js';
 import { boutTally, gradeBout, boutGold } from './screens.js';
 import { popTop } from './scenes.js';
 import { arenaT, bout, trait, drives, state, easeOut, wrap, ZERO, has, count, noDodge, noShield, busy, statMul, shake, meSize, meWeapon, meLag,
   nextGap } from './game.js';
 import { yardLand, foeAt } from './features/yard.js';
 import { bowShown, raisePt, bowPt } from './features/ranged.js';
+import { offFist, poseRest, returnStroke, jabNeed } from './features/dual.js';
 
 // ====== FIGHTER MODEL: layout, your body and sword arm, footwork, defence, the foe's body ======
 // ----- layout and frames -----
@@ -146,9 +147,10 @@ export const zoneScreenY = (L, zone, H = L.H) => L.floor + zone.y * H;
 
 // the overhead line: the hand above it (TUNING.attack.over.raise H over the guard) is raised for an overhead
 const overLine = (E) => guardPt(E)[1] - TUNING.attack.over.raise * myH(E);
-// the guard: a relaxed, half-bent arm in front of the body, in screen px, on the body as it stands now
-export function guardPt(E) {
-  const H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), g = TUNING.control.guard;
+// the guard: a relaxed, half-bent arm in front of the body, in screen px, on the body as it stands now (two weapons: the off hand's, a little lower,
+// is TUNING.dual.hold)
+export function guardPt(E, off = !!state.hand.off) {
+  const H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), g = off ? TUNING.dual.hold : TUNING.control.guard;
   return [sx + g[0] * H, sy + g[1] * H];
 }
 // thumb offset from the anchor, times the gain, px
@@ -199,11 +201,8 @@ export function poseYou(E, dt) {
   if (h.hy < overLine(E)) y.a = Math.max(y.a, -TUNING.over.leanBack);
   sh.zy += (sh.zone.sy - sh.zy) * (1 - Math.exp(-dt / 0.05));
   sh.up += ((raised() ? 1 : 0) - sh.up) * (1 - Math.exp(-dt / (raised() ? 0.045 : 0.12)));
-  const [cx, cy] = shieldPos();
-  if (state.me.dual) {
-    const D = TUNING.dual, k = state.offT > 0 ? Math.sin(Math.PI * (1 - state.offT / D.swing)) : 0, g = lerp(D.down, D.guard[ZONES.indexOf(sh.zone)], sh.up);
-    y.offA = lerp(y.offA == null ? g : y.offA + (g - y.offA) * (1 - Math.exp(-dt / D.tau)), D.thrust, k);
-  }
+  if (state.me.dual && state.duo) poseRest(E, dt);
+  const [cx, cy] = shieldPos(E);
   y.fr = { armB: { ox: PARTS[4].joint[0], oy: PARTS[4].joint[1], rot: Math.atan2(cy - PARTS[4].joint[1], cx - PARTS[4].joint[0]) - Math.PI / 2 + 0.05 * Math.sin(state.m * 1.9) } };
 }
 // walking in is the lunge: its recovery plants your feet up to a pace forward, taking back ground you gave, never past your mark. A lunge pulled back with
@@ -328,14 +327,13 @@ function openGap(E, zone, k = 1) {
 }
 // the gap your feint opened, while it is open
 export const openNow = (p) => !!state.gapOpen && state.gapOpen.p === p && state.gapOpen.t > 0;
-// shield centre in body units: hanging at the hip, or raised to the zone
-// (two blades: the off hand's follow-up reaches out and back over TUNING.dual.swing)
-export function shieldPos() {
+// shield centre in body units: hanging at the hip, or raised to the zone (two weapons: the off hand's fist, wherever it is)
+export function shieldPos(E) {
   // (step 24: the bow out, the far hand reaches for its string)
   if (state.bowNock && bowShown()) return state.bowNock;
-  const sh = state.sh, J = PARTS[4].joint, p = [lerp(J[0] + 0.3 * Math.cos(1.69), 0.2, sh.up), lerp(J[1] + 0.3 * Math.sin(1.69), sh.zy, sh.up)], D = TUNING.dual;
-  const k = state.me && state.me.dual && state.offT > 0 ? Math.sin(Math.PI * (1 - state.offT / D.swing)) : 0;
-  return k ? lerp2(p, D.reach, k) : p;
+  if (E && state.me && state.me.dual && state.duo) return offFist(E);
+  const sh = state.sh, J = PARTS[4].joint;
+  return [lerp(J[0] + 0.3 * Math.cos(1.69), 0.2, sh.up), lerp(J[1] + 0.3 * Math.sin(1.69), sh.zy, sh.up)];
 }
 
 // Step 24c: the arm's reach (px from the shoulder to the fist) that brings the middle of the weapon's striking part (its swing's first, TUNING.strike)
@@ -348,12 +346,12 @@ export function overReach(E, sx, sy) {
   return q > 0 ? Math.sqrt(q) - l * Math.cos(ph) : 0;
 }
 // ----- the sword arm: the aim point follows the finger, the arm stays straight on a circle round the shoulder and bends when the finger draws in -----
-export function solveArm(E, dt) {
-  const h = state.hand, A = TUNING.arm, G = TUNING.grip, H = myH(E);
+export function solveArm(E, dt, h = state.hand) {
+  const A = TUNING.arm, G = TUNING.grip, H = myH(E);
   const [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
   const arm = myArm(E), S = TUNING.slide, sl = slideTo(E, sx);
   h.sl = h.sl == null ? sl : h.sl + (sl - h.sl) * (1 - Math.exp(-Math.max(0, dt) / S.tau));
-  const blade = myPoint(E);
+  const blade = myBlade(E) * (1 - h.sl);
   const ax = h.tgx - sx, ay = h.tgy - sy, d = Math.hypot(ax, ay) || 1, dx = ax / d, dy = ay / d;
   const e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1), ov = h.ovK > 0.001 ? overReach(E, sx, sy) : null;
   let r = arm * (A.minFrac + (A.full - A.minFrac) * e);
@@ -427,11 +425,11 @@ export function updateAttack(E, dt) {
     // (a downward stroke from a hand raised above the head is an overhead before it is a jab; the thumb must be bringing it down, not drawing it in)
     let kind = null;
     if (chop(spv)) { if (spv >= AT.over.minSpeed) kind = 'over'; }
-    else if (along > TUNING.control.jabCone) { if (spv >= AT.jab.minSpeed) kind = 'jab'; }
+    else if (along > TUNING.control.jabCone) { if (spv >= jabNeed(h)) kind = 'jab'; }
     else if (uy < -0.7) kind = 'raise';
     else kind = 'slash';
-    // the hand's motion just after your feint is its recovery, not a blow
-    if (state.m - state.recT < TUNING.myFeint.recover && kind !== 'raise') kind = 'pull';
+    // the hand's motion just after your feint is its recovery, not a blow (and with two weapons, the thumb coming back after a blow)
+    if ((state.m - state.recT < TUNING.myFeint.recover && kind !== 'raise') || (kind === 'slash' && returnStroke(ux))) kind = 'pull';
     if (kind === 'raise' || kind === 'pull') h.atk = { kind, done: true };
     else if (kind && state.exhaust > 0) tiredPop(E);
     else if (kind) {
@@ -804,7 +802,7 @@ const cleanStrike = (kind, key = myKey()) => strikeOf(key, attOf(kind), TUNING.s
 export function checkHits(E) {
   const h = state.hand, T = TUNING, a = h.atk;
   if (!a || a.done || h.lock > 0 || state.fallT > 0 || state.endT > 0 || state.away || busy()) return;
-  const need = a.kind === 'jab' ? T.attack.jab.minSpeed : a.kind === 'over' ? T.attack.over.minSpeed : T.hit.minSpeed;
+  const need = a.kind === 'jab' ? jabNeed(h) : a.kind === 'over' ? T.attack.over.minSpeed : T.hit.minSpeed;
   if (h.sp < need && !lungeStab(a) && !driveStab(a)) return;
   // a lunge that has not committed (the Feint worn) holds what its blade meets until it commits
   const F = foeF(E), fm = state.foe, jab = a.kind === 'jab', held = state.lunging && state.lng && !state.lng.committed;
@@ -995,8 +993,6 @@ export function gapHit(E, p, at, ang, sp, a, thrust, st = cleanStrike(a.kind)) {
   emit(E, thrust ? 'slot' : 'hit', { p, kind, at, ang, cut: st.cut });
   // (a bite that does nothing still bleeds him if a card says so: then it shows that blood)
   if (numb && state.bleeds > b0) blood(at.x, at.y, ang, J.blood.drops);
-  // two blades: the off hand follows a slash that lands, a moment later, for part of its damage
-  if (kind === 'slash' && state.me.dual && dealt > 0) state.offHit = { f, p, t: T.dual.after, dmg: Math.max(0.5, Math.round(dealt * T.dual.part * 2) / 2), ang };
   if (kind === 'over') emit(E, 'over', { p, at });
   if (kind === 'over' && has('titan') && f.hp > 0) staggerFoe(E);
   if (f.hp <= 0) fell(E);
@@ -1301,20 +1297,6 @@ export function feintRead(E, bx, by) {
   const Ff = foeF(E); shimmer(Ff.x, Ff.y - 0.55 * Ff.H, TUNING.juice.readBurst); ring(Ff.x, Ff.y - 0.55 * Ff.H, 0.5 * Ff.H, '#c4b5fd'); ooh(E, 0.8);
   E.audio.beep({ freq: 660, dur: 0.12, type: 'triangle', gain: 0.12 }); E.audio.beep({ freq: 990, dur: 0.16, type: 'sine', gain: 0.1, delay: 0.08 });
   if (state.caption && state.sw && state.sw.lesson) state.caption = { lines: ['Spotted his fake! He spent his stamina on it.'], t: 2.2, max: 2.2, good: true };
-}
-// the off hand's follow-up (two blades): it lands on the part the slash cut, through his guard, unless he has gone down or stepped out
-export function updateOff(E, dt) {
-  state.offT = Math.max(0, state.offT - dt);
-  const o = state.offHit;
-  if (!o || (o.t -= dt) > 0) return;
-  state.offHit = null;
-  const f = state.foe;
-  if (o.f !== f || f.hp <= 0 || state.fallT > 0) return;
-  const F = foeF(E), [x, y] = partCenter(F, f, o.p);
-  state.offT = TUNING.dual.swing; f.hp -= o.dmg;
-  blood(x, y, o.ang, Math.min(TUNING.juice.blood.max, TUNING.juice.blood.drops + TUNING.juice.blood.perDmg * o.dmg)); dmgPop(E, { x: x + 8, y: y + 10 }, o.dmg, '#fff0b8'); sliceSound(E, false);
-  state.kickV += -0.3; shake(E, 3, 0.08); E.haptic(10);
-  if (f.hp <= 0) fell(E);
 }
 // Riposte: a perfect block sends a free jab into the first bare part he leaves (a body part before a slot), at the riposte's damage
 const counterJab = (E) => freeHit(E, 'COUNTER JAB', false);

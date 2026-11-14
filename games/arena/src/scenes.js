@@ -7,7 +7,7 @@ import { NOTES } from './notes.js';
 import { NEW_CHAMPS, ARENAS, ARENA, ORIGINS, brutus, bandOf, endingOf, LUDUS, LUDUS_ITEM, TAILOR, FAMS, CARD, WARES, titleOf, PARTS, ARM_LEN,
   SHOULDER, PLATES, playerParts, mkPart, lenN } from './data.js';
 import { camUpdate, lay, youF, foeF, toScreen, guardPt, poseYou, solveArm, moveHand, updateAttack, checkExhaust, stepYou, raised, updateDefence,
-  shieldMax, poseFoe, stepFoe, knee, buttonAt, raiseShield, dodge, checkHits, bounce, updateOff, dust, ring, stepJuice, paintGlow, drawBanner,
+  shieldMax, poseFoe, stepFoe, knee, buttonAt, raiseShield, dodge, checkHits, bounce, dust, ring, stepJuice, paintGlow, drawBanner,
   heartShatter, ringSound, clangSound, landChime, tickSound, ooh, crowdVerdict } from './fight.js';
 import { lamed, guardJab, sigOf, updateFoe, taunt, stepIn, updatePair, settleFeint } from './foe.js';
 import { updateFinisher, firstRun, runsDone, updateHints, finTouch, crowdDrain, twirl, baitDrop, thumbFav, addBleed, updateBleed } from './cards.js';
@@ -23,6 +23,7 @@ import { openDraft, swapSpoil, buyWare, leaveTent, buyBandage, pickCard, skipDra
 import { arena, state, easeOut, wrap, pidx, noShield, ME_WHEEL, rollMe, kitMe, wheelList, statTier, deriveMe, respinMe, vetMe, rivalOf, newRack,
   newRound, saveRun, resumeRun, ART, artV, artImg, artState, artSettled, artFade, shippedArt, BACKDROP, champPic, kitOn } from './game.js';
 import { yardDue, startYard, endYard, yardFields, yardRelease, updateYard, drawYard } from './features/yard.js';
+import { startDual, updateDual, dualTouch } from './features/dual.js';
 import { armsTouch, aimDown, aimAt, aimUp, stepArms, bowDown, drawKnives, drawArmsBtns, knifeBuy, lessonDue, startLesson, updateLesson, drawLesson } from './features/ranged.js';
 
 // ====== JUICE (continued) ======
@@ -1444,6 +1445,7 @@ export function initHand(E) {
   [h.tgx, h.tgy] = guardPt(E);
   h.pang = Math.atan2(h.tgy - sy, h.tgx - sx); h.sl = null;
   solveArm(E, 0);
+  startDual(E);
   h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy; state.you.a = 0.05;
   poseYou(E, 0.016);
   poseFoe(E, 0.016);
@@ -1554,7 +1556,7 @@ export const play = {
     updateAttack(E, dt);
     twirl(E, dt);
     checkHits(E);
-    updateOff(E, dt);
+    updateDual(E, dt);
     stepArms(E, dt);
     if (state.kLesson) updateLesson(E, dt);
     updateFoe(dt, E);
@@ -1759,6 +1761,7 @@ export const play = {
       else if (b) raiseShield(E, b.z, p.id);
       return;
     }
+    dualTouch(E);
     const h = state.hand;
     if (h.down) return;
     h.down = true; h.id = p.id; h.fx = p.x; h.fy = p.y;
