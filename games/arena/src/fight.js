@@ -130,7 +130,8 @@ export function inside(d, lx, ly, pad) {
   if (d.shape === 'circle') return Math.hypot(lx - d.x, ly - d.y) <= d.r + pad;
   return Math.abs(lx - d.x) <= d.w / 2 + pad && Math.abs(ly - d.y) <= d.h / 2 + pad;
 }
-export const zoneScreenY = (L, zone) => L.floor + zone.y * L.H;
+// where a zone's blow lands on a body of height H (your own, by default the camera's medium unit)
+export const zoneScreenY = (L, zone, H = L.H) => L.floor + zone.y * H;
 
 // the overhead line: the hand above it (TUNING.attack.over.raise H over the guard) is raised for an overhead
 const overLine = (E) => guardPt(E)[1] - TUNING.attack.over.raise * myH(E);
@@ -1115,7 +1116,7 @@ export function resolveSwing(E) {
   if (sw.kind === 'throw') { const missed = !on || sw.outcome === 'block'; spearOut(E, missed); if (state.move && state.move.sig) state.move.won = missed; }
 }
 function resolveOne(E, sw) {
-  const L = lay(E), zy = zoneScreenY(L, sw.zone), Fy = youF(E), Ff = foeF(E), sh = state.sh, SH = TUNING.shield, M = TUNING.moves, W = state.foe.weapon, D = TUNING.dual, dual = !!state.me.dual, mv = state.move;
+  const L = lay(E), Fy = youF(E), zy = zoneScreenY(L, sw.zone, Fy.H), Ff = foeF(E), sh = state.sh, SH = TUNING.shield, M = TUNING.moves, W = state.foe.weapon, D = TUNING.dual, dual = !!state.me.dual, mv = state.move;
   // a beast's shove is its bash; its pounce bounces off your shield and, landing, drives you back; its maul lands with a thud whatever it meets
   const net = sw.pose === 'net', bash = sw.pose === 'bash' || sw.pose === 'shove', BM = sw.pose === 'shove' ? M.shove : M.bash, pounce = sw.pose === 'pounce', feint = !!sw.fake;
   if (!sw.second) sw.fin = 0.4;
@@ -1259,7 +1260,7 @@ export function foeStrike(sw) {
 }
 // his shaft lands on you: a thud, a quarter of the blow to the nearest heart (often none) and a little push
 function shaftOnYou(E, sw, part, raw, jugg) {
-  const L = lay(E), Fy = youF(E), zy = zoneScreenY(L, sw.zone), dmg = Math.round(raw * TUNING.strike.thud * (jugg ? TUNING.cards.jugg : 1));
+  const L = lay(E), Fy = youF(E), zy = zoneScreenY(L, sw.zone, Fy.H), dmg = Math.round(raw * TUNING.strike.thud * (jugg ? TUNING.cards.jugg : 1));
   sw.outcome = 'hit'; sw.thud = true; state.thudsOn++;
   if (state.move && state.move.sig) state.move.hit = true;
   if (dmg > 0) { state.hp -= dmg; state.taken++; state.hurt = 0.2; state.shatter = { i: Math.max(0, Math.ceil(state.hp)), n: Math.min(dmg, Math.ceil(state.hp + dmg)), t: TUNING.juice.shatter }; }

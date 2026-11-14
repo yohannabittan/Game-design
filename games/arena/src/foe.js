@@ -408,7 +408,7 @@ export function updateFoe(dt, E) {
     if (sw.pre && !sw.stamped && sw.t >= sw.pre) { sw.stamped = true; rageStamp(E); }
     if (sw.kind === 'throw' && !sw.thrown && sw.t >= sw.wind - TUNING.champs.mevia.flight) {
       const fr = f.fr.armF, Fy = youF(E);
-      sw.thrown = true; sw.rel = toScreen(foeF(E), fr.ox - Math.sin(fr.rot) * ARM_LEN, fr.oy + Math.cos(fr.rot) * ARM_LEN); sw.aim = [Fy.x + 0.12 * Fy.H, zoneScreenY(lay(E), sw.zone)];
+      sw.thrown = true; sw.rel = toScreen(foeF(E), fr.ox - Math.sin(fr.rot) * ARM_LEN, fr.oy + Math.cos(fr.rot) * ARM_LEN); sw.aim = [Fy.x + 0.12 * Fy.H, zoneScreenY(lay(E), sw.zone, Fy.H)];
       swooshSound(E, 0.22); E.audio.beep({ freq: 1500, dur: TUNING.champs.mevia.flight + 0.12, type: 'sine', slide: 1.9, gain: 0.06 });
     }
     if (sw.t >= sw.wind) { if (sw.dud) dudEnd(E); else resolveSwing(E); }

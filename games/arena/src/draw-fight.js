@@ -2804,7 +2804,7 @@ export function drawZone(ctx, E) {
   zoneLbl = null;
   if (!tellOn(sw)) return;
   const L = lay(E), SH = TUNING.shield, Fy = youF(E), Ff = foeF(E);
-  const y = zoneScreenY(L, sw.zone), bh = 0.11 * L.H;
+  const y = zoneScreenY(L, sw.zone, Fy.H), bh = 0.11 * Fy.H;
   const x0 = Fy.x - 0.2 * L.H, x1 = Ff.x - 0.1 * L.H, w = x1 - x0;
   if (hesitating()) {
     // the hesitation: a violet shimmer on the fake zone, no shield call yet
@@ -2819,7 +2819,7 @@ export function drawZone(ctx, E) {
   const pulse = 0.5 + 0.5 * Math.sin(sw.t * (10 + 14 * sw.t / sw.wind));
   const rgb = shown ? '196,181,253' : perfect ? '255,236,120' : inWin ? '255,150,60' : '255,70,50';
   const a = (0.12 + 0.3 * (sw.t / sw.wind)) * (0.7 + 0.5 * pulse);
-  for (const yy of sw.zone2 ? [y, zoneScreenY(L, sw.zone2)] : [y]) {
+  for (const yy of sw.zone2 ? [y, zoneScreenY(L, sw.zone2, Fy.H)] : [y]) {
     const g = ctx.createLinearGradient(0, yy - bh, 0, yy + bh);
     g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`);
     ctx.fillStyle = g; ctx.fillRect(x0, yy - bh, w, bh * 2);
@@ -2830,7 +2830,7 @@ export function drawZone(ctx, E) {
     ctx.strokeStyle = `rgba(255,120,80,${0.6 + 0.4 * pulse})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(gx, gy, 0.16 * L.H, 0, 6.28); ctx.stroke(); ctx.restore();
   }
   const ar = `rgba(${rgb},${0.55 + 0.4 * pulse})`;
-  for (const yy of sw.zone2 ? [y, zoneScreenY(L, sw.zone2)] : [y]) {
+  for (const yy of sw.zone2 ? [y, zoneScreenY(L, sw.zone2, Fy.H)] : [y]) {
     ctx.strokeStyle = `rgba(${rgb},${0.5 + 0.4 * pulse})`; ctx.lineWidth = 3; ctx.setLineDash([14, 10]);
     ctx.beginPath(); ctx.moveTo(x1, yy); ctx.lineTo(x0, yy); ctx.stroke(); ctx.setLineDash([]);
     ctx.strokeStyle = ar; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -2838,7 +2838,7 @@ export function drawZone(ctx, E) {
     ctx.beginPath(); ctx.moveTo(ax - s, yy - s); ctx.lineTo(ax - 2 * s, yy); ctx.lineTo(ax - s, yy + s); ctx.stroke();
   }
   const pose = sw.fake && !sw.switched ? sw.fakePose : sw.pose, name = sw.kind === 'combo' ? `COMBO ${sw.idx + 1}/${sw.n}` : POSE_NAME[pose];
-  const what = pose === 'bash' ? 'BASH: DODGE' : pose === 'net' ? 'NET: DODGE' : null, zl = sw.zone2 ? `${sw.zone.label} / ${sw.zone2.label}` : sw.zone.label, ly = (sw.zone2 ? Math.min(y, zoneScreenY(L, sw.zone2)) : y) - bh - 10;
+  const what = pose === 'bash' ? 'BASH: DODGE' : pose === 'net' ? 'NET: DODGE' : null, zl = sw.zone2 ? `${sw.zone.label} / ${sw.zone2.label}` : sw.zone.label, ly = (sw.zone2 ? Math.min(y, zoneScreenY(L, sw.zone2, Fy.H)) : y) - bh - 10;
   zoneLbl = shown ? { t: `FEINT: NOT ${sw.fake.label}`, y: y - bh - 10, color: '#c4b5fd', alpha: 1 } : { t: what || (perfect ? `${zl} NOW` : inWin ? `SHIELD ${zl}` : `${sw.counter ? 'COUNTER ' : ''}${name} ${zl}`), y: ly, color: `rgb(${rgb})`, alpha: 1 };
 }
 // The tell's label, drawn after the shield and sword arm so they never cover it: centred over the foe, kept on screen, so it never sits under your arm.
