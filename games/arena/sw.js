@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'arena-v66';
+const CACHE_VERSION = 'arena-v67';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'arena-v';
 // The painted art (docs/art/final/arena, one webp each); the release channel shows it, the dev channel shows the candidates instead.
@@ -45,6 +45,8 @@ const ART = [
   // step 16: the beasts' barding and the laurel ring
   './assets/beast-lion-armour-head.webp', './assets/beast-lion-armour-chest.webp', './assets/beast-bear-armour-head.webp', './assets/beast-bear-armour-chest.webp',
   './assets/beast-lion-armour-back.webp', './assets/beast-lion-armour-leg.webp', './assets/beast-bear-armour-back.webp', './assets/beast-bear-armour-leg.webp', './assets/laurel-ring.webp',
+  // step 24: the bow at rest and drawn, and its arrow
+  './assets/weapon-bow.webp', './assets/weapon-bow-drawn.webp', './assets/arrow.webp',
 ];
 const ASSETS = [
   './',

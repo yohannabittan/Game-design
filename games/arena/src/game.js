@@ -50,6 +50,9 @@ const TUNING = {
     driveLean: 0.13, driveOut: 0.2, driveSand: 8, driveBurn: 0.5,
     driveThud: 0.45, driveHaptic: 6, driveFoot: 0.1, driveDust: 2 },
   lean: { base: 0.03, max: 0.21, beyond: 0.6, span: 0.2, fast: 0.7, tau: 0.06, back: 0.05 },  // radians (max = 12 degrees); aim distance (H) past which a fast slash leans, over span; fast = fraction of hit.mid
+  // Step 24c, a planted overhead: leanBack = the most you lean back (rad) while your hand is above the overhead line; lead = the blade's angle ahead of
+  // the arm (rad) as an overhead comes down, with the arm's reach set so the middle of its striking part comes down on his head; tau = s it eases in
+  over: { leanBack: 0.035, lead: 0.1, tau: 0.03 },
   dodge: { dur: 0.35, back: 0.32, hop: 0.1, cost: 12, cool: 0.2, drain: 14 },  // dur: a tap's sidestep; a hold stays back and drains stamina per second
   hit: { minSpeed: 400, mid: 950, cool: 0.2 },   // tip px/s: slash threshold, slash damage 2; seconds before a part can be hit again
   attack: {
@@ -315,8 +318,8 @@ const TUNING = {
   // slash = where the slash starts and ends on him (his H above his feet, near then far side), front = a jab's point on his chest, its front (his H
   // toward you from the middle), tip = the dotted trail's dots;
   // why = s between two "why it didn't count" words, slow = a stroke too slow to count: tip px/s and the least H it travels; field = the export's
-  // characters per yard field (the ledger keeps 80)
-  train: { jabIn: 0.1, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
+  // characters per yard field (the ledger keeps 80). Step 24: knife = practice knives the knife step gives (not your own)
+  train: { jabIn: 0.1, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, knife: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
     ghost: { loop: 1.6, w: 30, h: 40, alpha: 0.55, at: [0.58, 0.8] },
     path: { reach: 1.1, lunge: 1.85, chamber: 0.2, over: 0.3, up: 0.06, through: 0.12, slash: [0.88, 0.3, 0.06, -0.06], front: 0.1, tip: 9 },
     why: 0.7, slow: { sp: 200, len: 0.25 }, field: 80 },
@@ -331,6 +334,8 @@ const TUNING = {
   // trident and the sica once the ludus has them) and each plate's, in the armourer's tent before bout 1; hint = purses with the first-run hint
   purse: { gold: { pit: 45, city: 45, rome: 45, games: 45 }, weapon: { fist: 0, gladius: 15, spear: 15, dagger: 15, sica: 15, axe: 20, mace: 20, trident: 20 },
     plate: { helmet: 10, chest: 15, manica: 10, greaves: 10 }, hint: 1,
+    // Step 24: the Arms slot's plate is a reinforced shield: x its blows before it breaks (never with two blades)
+    reinforce: 1.5,
     // step 23: the first run's purse opens with this kit chosen
     first: { w: 'gladius', kit: ['chest'] } },
   // Step 22, the sidearm: a second weapon on your belt, bought in the purse's Sidearm slot at its weapon's price. swap = s the ⇄ swap takes, with no
@@ -351,6 +356,21 @@ const TUNING = {
   // screen's width, y its height)
   knives: { price: 8, max: 6, aim: 0.25, lift: 50, speed: 5, dmg: 5, pad: 4, len: 0.13, fall: 1.2, row: [44, 44],
     drag: 20, snap: 14, ring: 10, rest: 0.6, raise: [-0.06, -0.3], held: 1.4, glow: [0.4, 22], ghost: [0.56, 0.84] },
+  // Step 24, the bow: a sidearm bought in the purse's Sidearm slot at price gold. swap = s the swap to it or back takes (no block, no swing), the shield
+  // going to your back (or back to your arm) and the blade away (or back) halfway. While it is out the right thumb works it: down starts the draw, full
+  // after draw s; a release sooner looses nothing (TOO SOON) and the draw starts again. Held on to full s the arrow flies and hits up to power x
+  // harder. speed = its flight (H per s); gap = x the ordinary gap hit (a gladius jab's in a gap, at your Strength); skin = its damage on bare skin,
+  // with a stagger; rush = x his step while it is out (he closes to striking distance), pounce = s at most to a beast's next blow once it is up.
+  // The look: follow = s the arm stays out toward the ring after a loose; len = the bow tip to tip (H); rest = the hand's place with no thumb down (H from the shoulder, forward and down); ring = the aim ring's
+  // radius at the draw's start and at full power (px); fall = s a spent arrow lies in the sand; back = where the slung shield sits on your back
+  // (body units from your feet), its radius (H), its turn (rad) and its squash across; hip = where the put-away blade hangs (body units, its lean
+  // back in rad, its scale); the painted bow (Pack 29): its canvas, the grip pin, the
+  // string's ends at rest and drawn, the drawn point's x (on the grip's row), the rest-to-drawn crossfade (share of the draw); the arrow's canvas,
+  // its nock and tip, and x its thickness drawn
+  bow: { price: 20, swap: 0.7, draw: 0.6, full: 1.2, power: 1.3, speed: 9, gap: 2, skin: 1, rush: 1.8, pounce: 0.6, follow: 0.3,
+    len: 0.55, rest: [0.28, 0.16], ring: [16, 8], fall: 1.2, back: [-0.14, -0.62, 0.15, 0.25, 0.42], hip: [-0.1, -0.52, 0.75, 0.8],
+    art: { size: [454, 1024], grip: [397, 514], rest: [[302, 38], [302, 987]], drawn: [[173, 38], [175, 987]], nock: 44, fade: [0.25, 0.7] },
+    arrow: { size: [410, 32], nock: [0, 12], tip: [409, 14], thick: 1.8 } },
   // card effects. The tent's old commons: half hearts, multipliers, bare-hit damage, shield hits. The Wall: shove = paces a perfect block drives him, shoveStun = s stunned
   // at his wall, thorns = blocks that disarm him, thornsDur = s disarmed. Blood: bleed stacks per hit, vein = his wind-up x while he bleeds, bloodlust = stamina per stack
   // per tick, cruel = slot damage per stack. Dancer: sidestep = s winded, matador = s stunned, slip = jab x within slipWin s of a tell dodge, untouch = s all slots open.
@@ -1319,7 +1339,8 @@ const REST_TH = 0.9;
 // Your plates follow your rolled set: n of head, chest and legs (the parts the high, mid and low blows land on), heavy also plates the shield arm.
 const ZONE_PART = { high: 'head', mid: 'chest', low: 'legs' };
 // The plates the purse sells by the slot (step 11): each one's name and the parts it plates
-const PLATES = { helmet: { name: 'Helmet', parts: ['head'] }, chest: { name: 'Chest plate', parts: ['chest', 'belly'] }, manica: { name: 'Manica', parts: ['armB'] }, greaves: { name: 'Greaves', parts: ['legs'] } };
+// (step 24: the manica is sold as a reinforced shield, TUNING.purse.reinforce; it is still worn on the shield arm)
+const PLATES = { helmet: { name: 'Helmet', parts: ['head'] }, chest: { name: 'Chest plate', parts: ['chest', 'belly'] }, manica: { name: 'Reinforced shield', parts: ['armB'] }, greaves: { name: 'Greaves', parts: ['legs'] } };
 const playerParts = (me) => PARTS.map((d) => mkPart(d, me.plates.includes(d.id)));
 
 // ====== RUN STATE AND SMALL HELPERS ======
@@ -1334,8 +1355,10 @@ const count = (id) => (state.picks ? state.picks.filter((q) => q === id).length 
 // what the keystones take away
 const noDodge = () => has('ironwall') || has('titan');
 const noShield = () => has('untouch');
-// step 22: swapping to your sidearm or aiming a knife leaves you open: no block, no swing
-const busy = () => state.swapT > 0 || !!state.aim;
+// step 22: swapping to your sidearm or aiming a knife leaves you open: no block, no swing; step 24: so does the bow, all the while it is out
+const busy = () => state.swapT > 0 || !!state.aim || !!state.bowOut;
+// step 24: the bow is in your hand, from halfway through the swap to it until halfway through the swap back (the shield on your back the same)
+const bowShown = () => (state.swapT > 0 && state.bowSwap ? !!state.bowOut === state.swapT <= TUNING.bow.swap / 2 : !!state.bowOut);
 function pickW(rng, list) { let tot = 0; for (const e of list) tot += e[1]; let r = rng() * tot; for (const e of list) { r -= e[1]; if (r < 0) return e[0]; } return list[list.length - 1][0]; }
 const statMul = (k, v) => TUNING.stat[k][0] - TUNING.stat[k][1] * v;
 // a count of hearts (yours, the grade's hits) at the bout-length setting, whole
@@ -1624,6 +1647,8 @@ function newRack(E) {
   Object.assign(state, { sigN: 0, switchT: 0, flyS: 0, spearT: 0, spearAt: null, gbreak: 0, coverHits: 0, offT: 0, offHit: null });
   // step 22: your swap, your aim, a knife in flight and one spent in the sand, his swap; step 22b: the first-knife lesson
   Object.assign(state, { swapT: 0, aim: null, knife: null, knifeFall: null, foeSwapT: 0, kLesson: null });
+  // step 24: each bout starts with the blade in hand and the shield on the arm
+  Object.assign(state, { bowOut: false, bowSwap: false, arrow: null, arrowFall: null, follow: null });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
   // both fighters start each bout back on their marks
   Object.assign(state.foot, { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 });
@@ -1658,6 +1683,8 @@ function newRound(E, seed, me0, rv, arenaId = 'pit', fr) {
     // step 19: Broken Chains spent, drafts skipped, the tags' counts and clocks; step 20: each signature's uses and answers ({ rage: [2, 1] })
     // step 22: the knives you carry, thrown, and in a gap (22b: on plate, on skin, missed); your swaps and his
     knives: 0, knivesThrown: 0, knifeGaps: 0, knifePlate: 0, knifeSkin: 0, knifeMiss: 0, mySwaps: 0, foeSwaps: 0,
+    // step 24: arrows loosed, and where they went; the seconds the bow was out
+    arrows: 0, arrowGaps: 0, arrowSkin: 0, arrowPlate: 0, arrowMiss: 0, bowTime: 0,
     // step 23b: the training yard's steps for the export (each one's seconds and failed attempts), and the step it was skipped at
     yard: '', yardSkip: '',
     chains: 0, skips: 0, jabRun: 0, jabGuard: 0, tagN: {}, tagM: {}, drillN: 0, kneadN: 0, kneadM: -9, oxLow: false, specials: {}, readT: 0, hpSeen: null, heartFx: null, introHelp: false,
@@ -1693,7 +1720,8 @@ const RUN_KEYS = ['hp', 'maxHp', 'staMax', 'picks', 'grades', 'results', 'token'
   'capCut', 'shrugs', 'gapHits', 'slotHits', 'lunges', 'clangs', 'broken', 'overheads', 'jabs', 'slashes', 'blocks', 'perfects', 'dodges', 'staOuts', 'counters', 'counterHits', 'taken', 'felled',
   'feints', 'feintsRead', 'feintsBit', 'feintsNone', 'baited', 'combos', 'windeds', 'punishes', 'bashes', 'bashHits', 'nets', 'netted', 'zoneReads', 'lungeReads', 'turtleReads', 'presses', 'retreats', 'plateSaves', 'moveCount',
   'gold', 'goldEarned', 'wares', 'tentDone', 'bought', 'rerolls', 'momGained', 'momSpent', 'lamings', 'bleeds', 'bleedDmg', 'ownFeints', 'feintsLearned', 'flourishes', 'fins', 'carry', 'labUsed', 'fav', 'favStep',
-  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials', 'knives', 'knivesThrown', 'knifeGaps', 'knifePlate', 'knifeSkin', 'knifeMiss', 'mySwaps', 'yard', 'yardSkip'];
+  'fourth', 'netsCast', 'drives', 'driveDist', 'spoils', 'buy', 'purseLeft', 'chains', 'skips', 'specials', 'knives', 'knivesThrown', 'knifeGaps', 'knifePlate', 'knifeSkin', 'knifeMiss', 'mySwaps', 'yard', 'yardSkip',
+  'arrows', 'arrowGaps', 'arrowSkin', 'arrowPlate', 'arrowMiss', 'bowTime'];
 // A deep copy, since the engine flushes the save whenever the page is hidden, long after the live objects have moved on. `rack` is the bout to resume at;
 // an open draft is saved too (its card ids), and resumes at the bout just felled with the same cards.
 function saveRun(E, rack = state.rack) {
@@ -1833,6 +1861,8 @@ function inside(d, lx, ly, pad) {
 }
 const zoneScreenY = (L, zone) => L.floor + zone.y * L.H;
 
+// the overhead line: the hand above it (TUNING.attack.over.raise H over the guard) is raised for an overhead
+const overLine = (E) => guardPt(E)[1] - TUNING.attack.over.raise * myH(E);
 // the guard: a relaxed, half-bent arm in front of the body, in screen px, on the body as it stands now
 function guardPt(E) {
   const H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), g = TUNING.control.guard;
@@ -1849,7 +1879,11 @@ function poseYou(E, dt) {
   if (h.down && h.lock <= 0 && !state.away && state.exhaust <= 0 && state.endT <= 0 && state.fallT <= 0 && !(state.netT > 0 && TUNING.net.stuck)) {
     const [ox, oy] = relOff(), C = TUNING.control;
     tk = clamp((Math.hypot(ox, oy) / myArm(E) - C.lungeStart) / (C.lungeFull - C.lungeStart), 0, 1);
-    if (tk > 0.1 && !state.lunging) {
+    // step 24c: an overhead is planted: while the hand is above the overhead line, and from the blow's birth through its recovery until the thumb
+    // comes back inside the lunge's start, no lunge begins (one already begun ends where it is, with no step in)
+    if (h.atk && h.atk.kind === 'over') state.plant = true; else if (tk < 0.05) state.plant = false;
+    if (state.plant || h.hy < overLine(E)) { if (state.lunging) endLunge(E, false, true); tk = 0; }
+    else if (tk > 0.1 && !state.lunging) {
       const lc = LU.cost;
       if (state.stamina >= lc) {
         state.stamina -= lc; state.lastAtk = state.m; state.lunging = true; state.lunges++; state.mem.lunges.push(state.m); state.jabRun = state.mem.jabs = 0; swooshSound(E, 0.1);
@@ -1861,7 +1895,7 @@ function poseYou(E, dt) {
       else { tk = 0; tiredPop(E); }
     } else if (tk < 0.05) endLunge(E, true);
     if (state.lunging && state.lng) { commitLunge(E, Math.hypot(ox, oy), tk, dt); drive(E, tk, dt); }
-  } else endLunge(E);
+  } else { endLunge(E); state.plant = false; }
   y.lungeK += (tk - y.lungeK) * (1 - Math.exp(-dt / (tk > y.lungeK ? LU.tauIn : LU.tauOut)));
   const dOn = driving();
   if (!state.lunging && y.drive > 0) { y.drive *= Math.exp(-dt / LU.driveOut); if (y.drive < 1e-3) y.drive = 0; }
@@ -1878,6 +1912,8 @@ function poseYou(E, dt) {
   if (a && a.kind === 'slash' && h.down && h.lock <= 0 && h.sp >= TUNING.hit.mid * LN.fast) leanT += LN.max * clamp((Math.hypot(h.tgx - h.sx, h.tgy - h.sy) / L.H - LN.beyond) / LN.span, 0, 1);
   leanT = Math.min(leanT, LN.max) + LU.driveLean * y.dk - 0.22 * y.back;
   y.a += (leanT - y.a) * (1 - Math.exp(-dt / (leanT > y.a ? LN.tau : LN.back)));
+  // step 24c: a raised hand barely leans you back
+  if (h.hy < overLine(E)) y.a = Math.max(y.a, -TUNING.over.leanBack);
   sh.zy += (sh.zone.sy - sh.zy) * (1 - Math.exp(-dt / 0.05));
   sh.up += ((raised() ? 1 : 0) - sh.up) * (1 - Math.exp(-dt / (raised() ? 0.045 : 0.12)));
   const [cx, cy] = shieldPos();
@@ -1889,7 +1925,7 @@ function poseYou(E, dt) {
 }
 // walking in is the lunge: its recovery plants your feet up to a pace forward, taking back ground you gave, never past your mark. A lunge pulled back with
 // the thumb still down may be your own feint.
-function endLunge(E, pulled) {
+function endLunge(E, pulled, planted = false) {
   if (!state.lunging) return;
   state.lunging = false;
   // pulled back with the thumb down it may be a feint; anything else lands what the blade met
@@ -1897,7 +1933,7 @@ function endLunge(E, pulled) {
   if (!feint && state.lng && !state.lng.committed) commit(E);
   if (!feint && state.lng && !state.lng.hit && state.landM < state.lng.t0 && state.endT <= 0 && state.fallT <= 0 && !E.save.get('driveHint', 0)) state.lungeMiss = true;
   const T = TUNING.foot, ft = state.foot;
-  if (ft.pos >= 0) return;
+  if (ft.pos >= 0 || planted) return;
   ft.tgt = Math.min(0, Math.max(ft.tgt, ft.pos) + T.pace); ft.v = T.pace / T.gainDur * gripMul(); state.stepsIn++;
 }
 // The drive: a committed lunge (never a feint still open) held at full depth presses on in short stamping steps, burning stamina. Drawn back under full
@@ -2012,19 +2048,32 @@ const openNow = (p) => !!state.gapOpen && state.gapOpen.p === p && state.gapOpen
 // shield centre in body units: hanging at the hip, or raised to the zone
 // (two blades: the off hand's follow-up reaches out and back over TUNING.dual.swing)
 function shieldPos() {
+  // (step 24: the bow out, the far hand reaches for its string)
+  if (state.bowNock && bowShown()) return state.bowNock;
   const sh = state.sh, J = PARTS[4].joint, p = [lerp(J[0] + 0.3 * Math.cos(1.69), 0.2, sh.up), lerp(J[1] + 0.3 * Math.sin(1.69), sh.zy, sh.up)], D = TUNING.dual;
   const k = state.me && state.me.dual && state.offT > 0 ? Math.sin(Math.PI * (1 - state.offT / D.swing)) : 0;
   return k ? lerp2(p, D.reach, k) : p;
 }
 
+// Step 24c: the arm's reach (px from the shoulder to the fist) that brings the middle of the weapon's striking part (its swing's first, TUNING.strike)
+// down onto his head, its blade TUNING.over.lead ahead of the arm; null for fists, a weapon with no striking part in a swing, or no foe
+function overReach(E, sx, sy) {
+  const key = myKey(), S = TUNING.strike[key], z = S && S.swing[0];
+  if (!z || key === 'fist' || !state.foe || !state.foe.parts) return null;
+  const J = S.pin ? S : TUNING.kit.weapon[key], t = J.top || 0, l = (1 - ((z[0] + z[1]) / 2 - t) / (J.pin - t)) * myBlade(E), ph = TUNING.over.lead;
+  const [hx, hy] = foeAt(E, 'head', 0.8), q = (hx - sx) ** 2 + (hy - sy) ** 2 - (l * Math.sin(ph)) ** 2;
+  return q > 0 ? Math.sqrt(q) - l * Math.cos(ph) : 0;
+}
 // ----- the sword arm: the aim point follows the finger, the arm stays straight on a circle round the shoulder and bends when the finger draws in -----
 function solveArm(E, dt) {
   const h = state.hand, A = TUNING.arm, G = TUNING.grip, H = myH(E);
   const [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
   const arm = myArm(E), blade = myBlade(E);
   const ax = h.tgx - sx, ay = h.tgy - sy, d = Math.hypot(ax, ay) || 1, dx = ax / d, dy = ay / d;
-  const e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1);
-  const r = arm * (A.minFrac + (A.full - A.minFrac) * e);
+  const e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1), ov = h.ovK > 0.001 ? overReach(E, sx, sy) : null;
+  let r = arm * (A.minFrac + (A.full - A.minFrac) * e);
+  // step 24c: an overhead coming down reaches as far as brings its striking part onto his head (within what the arm can do)
+  if (ov != null) r = lerp(r, clamp(ov, arm * A.minFrac, arm * A.full), h.ovK);
   h.sx = sx; h.sy = sy; h.ang = Math.atan2(dy, dx);
   h.hx = sx + dx * r; h.hy = sy + dy * r;
   const half = r / 2, bend = Math.sqrt(Math.max(0, (arm / 2) ** 2 - half * half));
@@ -2033,7 +2082,9 @@ function solveArm(E, dt) {
   // the blade hangs from the fist: up from the arm line, more so when chambered, along the line in a thrust, trailing a swing
   const omega = dt > 0 ? wrap(h.ang - h.pang) / dt : 0; h.pang = h.ang;
   const thrust = clamp(h.along / 700, 0, 1);
-  const tg = h.ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust) - clamp(omega * G.trail, -0.5, 0.5);
+  let tg = h.ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust) - clamp(omega * G.trail, -0.5, 0.5);
+  // (and its blade leads the arm, so the head comes down first, not the haft)
+  if (ov != null) tg = lerp(tg, h.ang + TUNING.over.lead, h.ovK);
   h.ph = dt > 0 ? h.ph + wrap(tg - h.ph) * (1 - Math.exp(-dt / G.tau)) : tg;
   h.bx = Math.cos(h.ph); h.by = Math.sin(h.ph);
   h.ux = h.hx + h.bx * blade; h.uy = h.hy + h.by * blade;
@@ -2055,17 +2106,20 @@ function moveHand(E, dt) {
     h.tgx += (clamp(gx + ox, 10, E.w - 10) - h.tgx) * k; h.tgy += (clamp(gy + oy, E.safe.top + 40, E.h - 10) - h.tgy) * k;
     if (h.grip > 0) h.grip -= dt;
   } else {
-    const [rx, ry] = state.aim ? raisePt(E) : guardPt(E);
+    const [rx, ry] = bowShown() ? bowPt(E) : state.aim ? raisePt(E) : guardPt(E);
     const k = 1 - Math.exp(-dt / TUNING.control.back);
     h.tgx += (rx - h.tgx) * k; h.tgy += (ry - h.tgy) * k;
   }
+  // step 24c: an overhead coming down (born, or the hand coming down fast from above the line) is aimed at his head (overReach)
+  const AO = TUNING.attack.over, falling = h.down && h.lock <= 0 && ((h.atk && h.atk.kind === 'over' && !h.atk.done) || (h.hy < overLine(E) && h.tgy > h.ptgy + AO.minSpeed * 0.5 * dt));
+  h.ovK = (h.ovK || 0) + ((falling ? 1 : 0) - (h.ovK || 0)) * (1 - Math.exp(-dt / TUNING.over.tau));
   solveArm(E, dt);
   const iv = Math.max(dt, 0.001), vx = (h.ux - h.pux) / iv, vy = (h.uy - h.puy) / iv, inst = Math.hypot(vx, vy), kv = 1 - Math.exp(-dt / 0.03);
   h.vx += (vx - h.vx) * kv; h.vy += (vy - h.vy) * kv;
   // tip speed straight out from the shoulder
   h.along = h.vx * Math.cos(h.ang) + h.vy * Math.sin(h.ang);
   h.sp = h.down && h.lock <= 0 ? h.sp * 0.5 + inst * 0.5 : 0;
-  if (h.hy < guardPt(E)[1] - TUNING.attack.over.raise * L.H) h.raisedT = state.m;
+  if (h.hy < overLine(E)) h.raisedT = state.m;
   // (a fist's trail follows the fist, step 14)
   if (state.me.weapon === 'fist') state.trail.push({ x: h.hx, y: h.hy, life: 0.12 }); else state.trail.push({ x: h.ux, y: h.uy, life: 0.12 });
   for (const q of state.trail) q.life -= dt;
@@ -2171,7 +2225,9 @@ function updateDefence(dt, E) {
   if (state.away && !dg.down && state.dodgeT <= 0) { state.away = false; state.dodgeCool = D.cool; }
 }
 const steadyMul = () => Math.pow(TUNING.cards.steady, count('steady'));
-const shieldMax = () => TUNING.shield.hits + TUNING.cards.tough * count('tough');
+// (step 24: the reinforced shield, the Arms slot's plate, takes TUNING.purse.reinforce x the blows; never with two blades)
+const reinforced = () => !!state.me && !state.me.dual && (state.me.kit || []).includes('manica');
+const shieldMax = () => Math.round(TUNING.shield.hits * (reinforced() ? TUNING.purse.reinforce : 1)) + TUNING.cards.tough * count('tough');
 // Wide Stance (a tent ware): no push-back from a bash
 const noPush = () => has('stance');
 
@@ -2240,7 +2296,9 @@ function poseFoe(E, dt) {
 // Footwork: he drifts around the distance his weapon wants, steps to striking distance just before and while he attacks (and while open),
 // backs off when hurt (if this exchange's mood says so), and sidesteps your lunge once he has read it. No randomness here: the drift is a slow wave.
 function stepFoe(dt, E) {
-  const T = TUNING.step, st = state.step, f = state.foe, limp = (lamed('legs') ? TUNING.lame.legs : 1) * netMul(TUNING.me.net.step), tau = T.tau * statMul('spdStep', f.spd) * f.size.step / limp;
+  // step 24: your bow up, a man rushes in to striking distance at TUNING.bow.rush x his step (a beast pounces sooner instead: swapBow)
+  const rush = state.bowOut && !state.intro && !state.foe.beast ? TUNING.bow.rush : 1;
+  const T = TUNING.step, st = state.step, f = state.foe, limp = (lamed('legs') ? TUNING.lame.legs : 1) * netMul(TUNING.me.net.step), tau = T.tau * statMul('spdStep', f.spd) * f.size.step / limp / rush;
   st.dodgeT = Math.max(0, st.dodgeT - dt); st.dodgeCool = Math.max(0, st.dodgeCool - dt);
   const free = !state.sw && state.winded <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0 && !state.intro && state.endT <= 0;
   if (free && state.you.lungeK > 0.5 && st.dodgeCool <= 0 && (lungeRead() || f.spd >= 5)) {
@@ -2255,11 +2313,11 @@ function stepFoe(dt, E) {
   // a blow in flight keeps him at striking distance, whatever else he meant to do; a crouching lion gathers itself back, and stays back for a pounce
   const pounce = !!(state.plan && state.plan.q[0] && RANGED[state.plan.q[0].kind]);
   const want = sw ? (sw.pose === 'pounce' ? f.home + TUNING.moves.pounce.back : sw.kind === 'blink' ? f.home + TUNING.champs.hermes.start : RANGED[sw.kind] ? f.home : f.strike) : st.dodgeT > 0 ? f.home + T.dodge : state.retreat > 0 ? f.home + TUNING.retreat.dist
-    : state.chase > 0 || state.open > 0 || (!state.intro && state.swingIn < T.lead && !pounce) ? f.strike : f.home + wave;
+    : state.chase > 0 || state.open > 0 || rush > 1 || (!state.intro && state.swingIn < T.lead && !pounce) ? f.strike : f.home + wave;
   // the same footwork rules as yours: he keeps his distance from where you stand, walks no faster than his legs allow
   // (barely at all while winding up a blow), and stops at the wall behind him
   const FT = TUNING.foot, pos = state.foot.pos, wl = walls(E), lo = pos + gMin(E);
-  const goal = clamp(want + pos, lo, wl.fore), v = FT.foeV / (statMul('spdStep', f.spd) * f.size.step) * (state.sw && state.sw.fin <= 0 ? FT.commit : state.chase > 0 ? FT.chaseV : 1) * limp;
+  const goal = clamp(want + pos, lo, wl.fore), v = FT.foeV / (statMul('spdStep', f.spd) * f.size.step) * (state.sw && state.sw.fin <= 0 ? FT.commit : state.chase > 0 ? FT.chaseV : rush) * limp;
   st.x = clamp(st.x + clamp((goal - st.x) * (1 - Math.exp(-dt / tau)), -v * dt, v * dt), lo, wl.fore);
 }
 // your lunge from beyond his reach: he steps in behind its recovery and strikes soon after, so a missed long lunge leaves you open
@@ -3539,10 +3597,10 @@ function stunFoe(E, dur, label) {
   dropBlow(); state.stun = Math.max(state.stun, dur); state.swingIn = Math.max(state.swingIn, 0.6);
   const Ff = foeF(E); pop(Ff.x, Ff.y - 1.25 * Ff.H, label, '#a5b4fc', 20); E.haptic(20);
 }
-function staggerFoe(E) {
+function staggerFoe(E, quiet = false) {
   if (state.fallT > 0 || state.stagger > 0) return;
   dropBlow(); state.stagger = TUNING.shield.stagger; state.swingIn = Math.max(state.swingIn, 0.6); pushFoe(E);
-  const Ff = foeF(E); pop(Ff.x, Ff.y - 1.25 * Ff.H, 'STAGGERED!', '#fbbf24', 20);
+  const Ff = foeF(E); if (!quiet) pop(Ff.x, Ff.y - 1.25 * Ff.H, 'STAGGERED!', '#fbbf24', 20);
 }
 function disarmFoe(E, dur) {
   if (state.fallT > 0) return;
@@ -3641,16 +3699,17 @@ function finTouch(E, p) {
 // ----- step 22: the sidearm (⇄) and throwing knives, two round buttons at the bottom right -----
 // the purse's weapon id as the weapon wheel's (the mace is an axe that is a mace)
 const sideWield = (id) => [id === 'mace' ? 'axe' : id, id === 'mace'];
-// never in the training yard or the card lab
-const armsLive = (E) => !state.train && !state.lab && finLive(E);
+// never in the training yard (but its knife step, step 24) or the card lab
+const yardKnife = () => !!state.train && YARD[state.train.i].id === 'knife';
+const armsLive = (E) => (!state.train || yardKnife()) && !state.lab && finLive(E);
 // ⇄ in the corner while you carry a sidearm, the knife button above it (in the corner without one) while you carry a knife or aim one; w: the room
 // they take from the finisher button and the hints
 function armsBtns(E) {
   if (!state.me || !armsLive(E)) return null;
-  const B = TUNING.sidearm.btn, side = !!state.me.side, kn = state.knives > 0 || !!state.aim;
+  const B = TUNING.sidearm.btn, side = !!state.me.side, kn = !state.bowOut && (state.knives > 0 || (!!state.aim && !state.aim.bow));
   if (!side && !kn) return null;
   const x = E.w - 16 - E.safe.right - B.r, y0 = E.h - 10 - E.safe.bottom - B.r;
-  return { swap: side ? { x, y: y0, r: B.r } : null, knife: kn ? { x, y: side ? y0 - 2 * B.r - B.gap : y0, r: B.r } : null, w: 2 * B.r + B.gap };
+  return { swap: side && !state.train ? { x, y: y0, r: B.r } : null, knife: kn ? { x, y: side && !state.train ? y0 - 2 * B.r - B.gap : y0, r: B.r } : null, w: 2 * B.r + B.gap };
 }
 const armsW = (E) => { const b = armsBtns(E); return b ? b.w : 0; };
 const onRound = (b, p) => !!b && Math.hypot(p.x - b.x, p.y - b.y) <= b.r + TUNING.finBtn.reach;
@@ -3666,10 +3725,11 @@ function armsTouch(E, p) {
 function seenOpen() { if (!state.sw && inReach()) state.swingIn = Math.min(state.swingIn, TUNING.sidearm.punish); }
 // the swap: the weapon in your hand goes to your belt and the sidearm comes up; the hand is down for TUNING.sidearm.swap s (no swing), the shield too
 function startSwap(E) {
-  if (state.swapT > 0 || state.aim || !state.me.side) return;
+  if (state.swapT > 0 || (state.aim && !state.aim.bow) || !state.me.side) return;
+  if (state.me.side === 'bow') { swapBow(E); return; }
   const S = TUNING.sidearm, h = state.hand, [w, m] = sideWield(state.me.side), was = weaponKey(state.me.weapon, state.me.mace);
   state.me = { ...wield(state.me, w, m), side: was };
-  state.swapT = S.swap; state.mySwaps++;
+  state.swapT = S.swap; state.bowSwap = false; state.mySwaps++;
   h.atk = null; h.lock = S.swap; h.hvx = 0; h.hvy = 240; h.grip = 0;
   const Fy = youF(E); pop(Fy.x, Fy.y - 1.2 * Fy.H, weaponTitle(state.me).toUpperCase(), '#fde68a', 16);
   swooshSound(E, 0.1); E.haptic(10);
@@ -3678,7 +3738,7 @@ function startSwap(E) {
 // a knife raised: open (no block, no swing) until it is thrown or lowered. The aim ring shows at once, on his middle; a right-thumb touch moves it
 // (lift px above the thumb), and only a touch dragged TUNING.knives.drag px or more throws on its release: a tap just leaves the ring there
 function startAim(E) {
-  if (state.knives <= 0 || state.swapT > 0) return;
+  if (state.knives <= 0 || state.swapT > 0 || state.bowOut) return;
   const h = state.hand, F = foeF(E), rx = F.x, ry = F.y - TUNING.knives.rest * F.H;
   h.down = false; h.atk = null;
   state.aim = { t: 0, id: -1, rx, ry, x: rx, y: ry, tx: null, ty: null, sx: 0, sy: 0, drag: 0, go: false, over: knifeAt(E, rx, ry).kind };
@@ -3693,7 +3753,7 @@ function aimAt(E, p) {
   aimSnap(E);
 }
 // the thumb lifted: a drag throws (once the knife is up), a tap leaves it raised with the ring where it touched
-function aimUp(E) { const a = state.aim; a.id = -1; if (a.drag >= TUNING.knives.drag) a.go = true; }
+function aimUp(E) { const a = state.aim; if (a.bow) { bowRelease(E); return; } a.id = -1; if (a.drag >= TUNING.knives.drag) a.go = true; else if (state.train) yardKnifeTap(E); }
 // what a knife arriving at (x, y) meets now: an open gap, plate (or his shield or guard), bare skin, or nothing
 function knifeAt(E, x, y) {
   const K = TUNING.knives, F = foeF(E), fm = state.foe;
@@ -3741,17 +3801,164 @@ function throwKnife(E) {
 }
 function stepArms(E, dt) {
   state.swapT = Math.max(0, state.swapT - dt);
+  if (state.bowOut) state.bowTime += dt;
+  if (state.follow) state.follow.t -= dt;
   const a = state.aim;
   if (a && !armsLive(E)) state.aim = null;
+  else if (a && a.bow) { aimSnap(E); a.draw += dt; }
   else if (a) { aimSnap(E); if ((a.t += dt) >= TUNING.knives.aim && a.go) throwKnife(E); }
   const k = state.knife;
   if (k && (k.t += dt) >= k.dur) { state.knife = null; knifeLands(E, k); }
-  const q = state.knifeFall;
-  if (q) {
-    q.life -= dt; q.vy += 1600 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.rot += q.vr * dt;
-    if (q.y >= q.floor) { q.y = q.floor; q.vx = q.vy = q.vr = 0; q.rot = q.flat; }
-    if (q.life <= 0) state.knifeFall = null;
+  const r = state.arrow;
+  if (r && (r.t += dt) >= r.dur) { state.arrow = null; arrowLands(E, r); }
+  state.knifeFall = fallStep(state.knifeFall, dt);
+  state.arrowFall = fallStep(state.arrowFall, dt);
+  if (bowShown()) { const f = bowFrame(E), A = TUNING.bow.art; state.bowNock = toLocal(youF(E), ...f.pt(lerp(A.rest[0][0], A.nock, pullK(state.aim)), A.grip[1])); } else state.bowNock = null;
+}
+// a spent knife or arrow, falling to the sand and lying there a while
+function fallStep(q, dt) {
+  if (!q) return null;
+  q.life -= dt; q.vy += 1600 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.rot += q.vr * dt;
+  if (q.y >= q.floor) { q.y = q.floor; q.vx = q.vy = q.vr = 0; q.rot = q.flat; }
+  return q.life > 0 ? q : null;
+}
+// ----- step 24: the bow -----
+// ⇄ with the bow: it comes up (your blade to the belt, the shield to your back) or goes down again (both back), in TUNING.bow.swap s, open all the
+// while it is out; raising it brings him on (stepFoe), and a beast's next blow sooner
+function swapBow(E) {
+  const B = TUNING.bow, h = state.hand, sh = state.sh;
+  state.aim = null; state.bowOut = !state.bowOut; state.bowSwap = true; state.swapT = B.swap; state.mySwaps++;
+  h.atk = null; h.down = false; h.lock = B.swap; h.hvx = 0; h.hvy = 240; h.grip = 0;
+  sh.held = false; sh.hid = -1; sh.t = -1; sh.arm = 0;
+  const Fy = youF(E); pop(Fy.x, Fy.y - 1.2 * Fy.H, state.bowOut ? 'BOW' : weaponTitle(state.me).toUpperCase(), '#fde68a', 16);
+  if (state.bowOut && state.foe.beast) state.swingIn = Math.min(state.swingIn, B.pounce);
+  swooshSound(E, 0.1); E.haptic(10);
+  seenOpen();
+}
+// the right thumb down with the bow out starts the draw, and aims it as a knife is aimed (the ring lift px above the thumb, its snap onto a gap)
+function bowDown(E, p) {
+  const F = foeF(E);
+  state.aim = { bow: true, draw: 0, t: 0, id: -1, rx: F.x, ry: F.y - TUNING.knives.rest * F.H, x: F.x, y: F.y, tx: null, ty: null, sx: 0, sy: 0, drag: 0, go: false, over: 'miss' };
+  aimDown(E, p);
+  E.audio.beep({ freq: 180, dur: TUNING.bow.draw, type: 'triangle', slide: 1.4, gain: 0.05 }); E.haptic(6);
+}
+// the draw's share of full (0 to 1), and the hold past it toward full power (0 to 1)
+const pullK = (a) => (a && a.bow ? clamp(a.draw / TUNING.bow.draw, 0, 1) : 0);
+const holdK = (a) => { const B = TUNING.bow; return a && a.bow ? clamp((a.draw - B.draw) / (B.full - B.draw), 0, 1) : 0; };
+// the thumb lifted: a full draw looses (never inside his reach: TOO CLOSE); a short one looses nothing, TOO SOON, and the next draw starts from nothing
+function bowRelease(E) {
+  const B = TUNING.bow, a = state.aim, Fy = youF(E), at = [Fy.x + 0.3 * Fy.H, Fy.y - 1.05 * Fy.H];
+  state.aim = null;
+  if (a.draw < B.draw) { pop(at[0], at[1], 'TOO SOON', '#fdba74', 18); E.audio.beep({ freq: 220, dur: 0.1, type: 'triangle', slide: 0.7, gain: 0.08 }); return; }
+  if (inReach()) { pop(at[0], at[1], 'TOO CLOSE', '#fca5a5', 18); E.audio.beep({ freq: 200, dur: 0.12, type: 'sawtooth', slide: 0.7, gain: 0.07 }); return; }
+  const f = bowFrame(E, a), k = holdK(a), pw = 1 + (B.power - 1) * k, [x0, y0] = f.pt(TUNING.bow.art.nock, f.A.grip[1]), len = arrowLen(E);
+  const tx = x0 + f.ux * len, ty = y0 + f.uy * len, d = Math.hypot(a.x - tx, a.y - ty);
+  state.arrows++; state.follow = { x: a.x, y: a.y, t: B.follow };
+  state.arrow = { x0: tx, y0: ty, x1: a.x, y1: a.y, t: 0, dur: Math.max(0.03, d / (B.speed * pw * youF(E).H)), pw };
+  swooshSound(E, 0.12); E.audio.beep({ freq: 140, dur: 0.12, type: 'triangle', slide: 0.5, gain: 0.12 }); E.haptic(14);
+}
+// the ordinary gap hit: a gladius jab's in a gap, at your Strength and size
+const plainGap = () => Math.max(1, Math.round(TUNING.attack.jab.dmg * TUNING.me.str[state.me.str - 1] * meSize().dmg * TUNING.me.weapons.gladius.slot));
+// what the arrow meets where it arrives: a gap, TUNING.bow.gap x the ordinary gap hit (GAP!); bare skin, a light hit and a stagger (STAGGER); plate or
+// his shield or guard, nothing (PLATE, a clang, it drops); nothing, MISSED, it flies on into the sand. Harder by its hold (pw).
+function arrowLands(E, r) {
+  const B = TUNING.bow, J = TUNING.juice, f = state.foe, at = { x: r.x1, y: r.y1 }, ang = Math.atan2(r.y1 - r.y0, r.x1 - r.x0), { p, kind } = knifeAt(E, r.x1, r.y1), L = lay(E);
+  const fall = (vx, vy) => { state.arrowFall = { x: at.x, y: at.y, vx, vy, rot: ang, vr: (Math.random() < 0.5 ? -1 : 1) * 8, flat: Math.PI * (Math.random() < 0.5 ? 0.02 : 0.98), floor: L.floor - 2, life: B.fall }; };
+  if (kind === 'gap') {
+    const dealt = Math.round(plainGap() * B.gap * r.pw * 2) / 2;
+    p.cool = TUNING.hit.cool; p.flash = 0.16; state.gapHits++; state.slotHits++; state.arrowGaps++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1;
+    f.hp -= dealt;
+    blood(at.x, at.y, ang, J.blood.slot); ring(at.x, at.y, J.slotRing, '#ef4444'); slotSound(E); sliceSound(E, true);
+    pop(at.x, at.y - 30, 'GAP!', '#ffd24a', 22); dmgPop(E, at, dealt, '#ff6a4a'); shake(E, 8, 0.1); E.haptic(30); E.flash('#fff0b8', 0.07);
+    state.stop = Math.max(state.stop, J.slotStop);
+    crowdEvent(E, 'slot');
+    if (f.hp <= 0) fell(E); else setCover(p);
+    return;
   }
+  if (kind === 'skin') {
+    const dealt = Math.round(B.skin * r.pw * 2) / 2;
+    state.arrowSkin++; f.hp -= dealt;
+    blood(at.x, at.y, ang, 6); dullSound(E); pop(at.x, at.y - 30, 'STAGGER', '#fbbf24', 22); dmgPop(E, at, dealt, '#fca5a5'); E.haptic(16);
+    if (f.hp <= 0) fell(E); else staggerFoe(E, true);
+    return;
+  }
+  if (kind === 'plate') { state.arrowPlate++; p.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 12); ring(at.x, at.y, 30, '#cbd5e1'); clangSound(E, 0); pop(at.x, at.y - 24, 'PLATE', '#cbd5e1', 20); E.haptic(12); fall(-Math.cos(ang) * 120, -140); return; }
+  state.arrowMiss++; pop(at.x, at.y - 24, 'MISSED', '#e2e8f0', 20); E.audio.play('miss');
+  fall(Math.cos(ang) * 420, Math.sin(ang) * 420 - 80);
+}
+// where the bow sits: its grip in your fist, its belly toward where you aim (or along your arm) and its string toward you; pt maps a point of its
+// painting (TUNING.bow.art, px) to the screen
+function bowFrame(E, a = state.aim) {
+  const h = state.hand, A = TUNING.bow.art, k = TUNING.bow.len * myH(E) / (A.rest[1][1] - A.rest[0][1]);
+  let ux = Math.cos(h.ang), uy = Math.sin(h.ang);
+  if (a && a.bow) { const d = Math.hypot(a.x - h.hx, a.y - h.hy); if (d > 1) { ux = (a.x - h.hx) / d; uy = (a.y - h.hy) / d; } }
+  return { A, k, ux, uy, pt: (x, y) => [h.hx + (ux * (x - A.grip[0]) - uy * (y - A.grip[1])) * k, h.hy + (uy * (x - A.grip[0]) + ux * (y - A.grip[1])) * k] };
+}
+// the arrow's drawn length, nock to tip, at the bow painting's scale
+const arrowLen = (E) => { const B = TUNING.bow, R = B.arrow; return (R.tip[0] - R.nock[0]) * B.len * myH(E) / (B.art.rest[1][1] - B.art.rest[0][1]); };
+// where your sword hand holds the bow: the arm straight toward the ring while you draw (and for TUNING.bow.follow s after a loose), low and forward
+// with no thumb down
+function bowPt(E) {
+  const H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), a = state.aim;
+  const q = a && a.bow ? a : state.follow && state.follow.t > 0 ? state.follow : null;
+  if (q) { const d = Math.hypot(q.x - sx, q.y - sy) || 1, r = TUNING.arm.straightAt * H * 1.05; return [sx + (q.x - sx) / d * r, sy + (q.y - sy) / d * r]; }
+  return [sx + TUNING.bow.rest[0] * H, sy + TUNING.bow.rest[1] * H];
+}
+// the arrow, its nock at (x, y) and its point len px along ang: Pack 29's painting, or drawn
+function drawArrow(ctx, x, y, ang, len) {
+  const R = TUNING.bow.arrow, P = kitOn() && artPic('arrow', R, len * Math.min((ENG && ENG.dpr) || 1, TUNING.skin.maxDpr));
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  // (drawn thick x R.thick across, or the painted shaft is a hairline at game size)
+  if (P) { const k = len / (R.tip[0] - R.nock[0]); ctx.scale(k, k * R.thick); ctx.drawImage(P.im, -R.nock[0], -R.nock[1], R.size[0], R.size[1]); }
+  else {
+    ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = Math.max(1.5, len * 0.025); line(ctx, 0, 0, len * 0.92, 0);
+    ctx.fillStyle = '#3a3f47'; ctx.beginPath(); ctx.moveTo(len, 0); ctx.lineTo(len * 0.9, -len * 0.035); ctx.lineTo(len * 0.9, len * 0.035); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e8e2d2'; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(len * 0.02, 0); ctx.lineTo(len * 0.16, 0); ctx.lineTo(len * 0.05, sd * len * 0.04); ctx.closePath(); ctx.fill(); }
+  }
+  ctx.restore();
+}
+// the bow in your hand: Pack 29's bow at rest and drawn, crossfading as the draw fills (TUNING.bow.art.fade), its string's point coming back to
+// the drawn point; with no painting, a drawn one
+function drawBow(ctx, E) {
+  const B = TUNING.bow, A = B.art, a = state.aim && state.aim.bow ? state.aim : null, f = bowFrame(E, a), dk = pullK(a), px = (A.rest[1][1] - A.rest[0][1]) * f.k * Math.min(E.dpr || 1, TUNING.skin.maxDpr);
+  const R = kitOn() && artPic('weapon-bow', A, px), D = kitOn() && artPic('weapon-bow-drawn', A, px), nx = lerp(A.rest[0][0], A.nock, dk), ny = A.grip[1];
+  if (R && D) {
+    const o = f.pt(0, 0), x = clamp((dk - A.fade[0]) / (A.fade[1] - A.fade[0]), 0, 1), a0 = ctx.globalAlpha;
+    ctx.save(); ctx.transform(f.ux * f.k, f.uy * f.k, -f.uy * f.k, f.ux * f.k, o[0], o[1]);
+    // (the grip is the same in both, so it stays solid through the crossfade)
+    const [lo, hi, k] = x <= 0.5 ? [R, D, x * 2] : [D, R, (1 - x) * 2];
+    ctx.drawImage(lo.im, 0, 0, A.size[0], A.size[1]);
+    if (k > 0) { ctx.globalAlpha = a0 * k; ctx.drawImage(hi.im, 0, 0, A.size[0], A.size[1]); ctx.globalAlpha = a0; }
+    ctx.restore();
+  } else {
+    // drawn: two limbs bent back from the grip, the string from tip to tip through its point
+    const ends = A.rest.map((q, i) => lerp2(q, A.drawn[i], dk)), g = f.pt(...A.grip), t = ends.map((q) => f.pt(...q)), mid = (q) => f.pt(lerp(A.grip[0], q[0], 0.4) + 40, lerp(A.grip[1], q[1], 0.6));
+    ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = '#3b2412'; ctx.lineWidth = 0.022 * myH(E) + 2;
+    ctx.beginPath(); ctx.moveTo(...t[0]); ctx.quadraticCurveTo(...mid(ends[0]), ...g); ctx.quadraticCurveTo(...mid(ends[1]), ...t[1]); ctx.stroke();
+    ctx.strokeStyle = '#7a4a24'; ctx.lineWidth = 0.022 * myH(E); ctx.stroke();
+    ctx.strokeStyle = '#ece4cf'; ctx.lineWidth = 1.5; const s = f.pt(nx, ny); ctx.beginPath(); ctx.moveTo(...t[0]); ctx.lineTo(...s); ctx.lineTo(...t[1]); ctx.stroke();
+    ctx.restore();
+  }
+}
+// the arrow nocked on the drawn string, over your forearm (drawKnives, after the arm)
+function drawNocked(ctx, E) {
+  const a = state.aim, A = TUNING.bow.art;
+  if (!a || !a.bow || !bowShown()) return;
+  const f = bowFrame(E, a), [x0, y0] = f.pt(lerp(A.rest[0][0], A.nock, pullK(a)), A.grip[1]);
+  drawArrow(ctx, x0, y0, Math.atan2(f.uy, f.ux), arrowLen(E));
+}
+// your kit put away while the bow is out, in your body's frame (drawFighter, before the body): the blade (both, with two blades) hanging back from
+// the hip, and the shield slung on your back
+function drawSlung(ctx, E, H, lk) {
+  const me = state.me, K = TUNING.bow.hip, B = TUNING.bow.back;
+  if (me.weapon !== 'fist') for (const i of me.dual ? [1, 0] : [0]) {
+    ctx.save(); ctx.translate(K[0] * H, K[1] * H); ctx.rotate(K[2] + i * 0.35); ctx.translate(0, -ARM_LEN * H * K[3]);
+    drawWeapon(ctx, { weapon: iconWeapon(me.weapon), mace: me.mace }, H * K[3]); ctx.restore();
+  }
+  if (me.dual || state.sh.broken || noShield()) return;
+  ctx.save(); ctx.translate(B[0] * H, B[1] * H); ctx.rotate(B[3]); ctx.scale(B[4], 1);
+  shieldFace(ctx, E, B[2] * H, H, lk, !!(lk.kit && kitPic('upperarm', lk.kit.tier) && kitPic('forearm', lk.kit.tier)));
+  ctx.restore();
 }
 // what the knife meets where it arrives, and the word for it: GAP! (TUNING.knives.dmg); PLATE on plate, his shield or guard (a clang); SKIN off bare
 // skin (a glance); MISSED, into the sand
@@ -3790,11 +3997,14 @@ function drawKnife(ctx, x, y, ang, len) {
 // in the world: the raised knife in your fist, pointing at the aim ring (gold; green over a gap, red over plate) with a thin line down to your
 // thumb (or, before a thumb is down, to where it would be); the knife in flight; a spent one falling
 function drawKnives(ctx, E) {
-  const K = TUNING.knives, len = K.len * youF(E).H, a = state.aim, k = state.knife, q = state.knifeFall;
+  const K = TUNING.knives, B = TUNING.bow, len = K.len * youF(E).H, a = state.aim, k = state.knife, q = state.knifeFall;
+  drawNocked(ctx, E);
   if (a) {
-    const [hx, hy] = knifeHand(), ang = Math.atan2(a.y - hy, a.x - hx), col = a.over === 'gap' ? '#4ade80' : a.over === 'plate' ? '#f87171' : '#ffd24a';
-    ctx.save(); ctx.shadowColor = 'rgba(255,236,150,0.9)'; ctx.shadowBlur = 8; drawKnife(ctx, hx - Math.cos(ang) * len * 0.2, hy - Math.sin(ang) * len * 0.2, ang, len * K.held); ctx.restore();
-    const pulse = 0.5 + 0.5 * Math.sin(state.m * 10), r = K.ring + 2 * pulse, tx = a.tx == null ? a.rx : a.tx, ty = a.tx == null ? a.ry + K.lift : a.ty;
+    // (step 24: the bow's ring is grey inside his reach, and tightens from ring[0] to ring[1] px as a full draw is held; a gold arc fills with the draw)
+    const [hx, hy] = knifeHand(), ang = Math.atan2(a.y - hy, a.x - hx), close = a.bow && inReach(), col = close ? '#9ca3af' : a.over === 'gap' ? '#4ade80' : a.over === 'plate' ? '#f87171' : '#ffd24a';
+    if (!a.bow) { ctx.save(); ctx.shadowColor = 'rgba(255,236,150,0.9)'; ctx.shadowBlur = 8; drawKnife(ctx, hx - Math.cos(ang) * len * 0.2, hy - Math.sin(ang) * len * 0.2, ang, len * K.held); ctx.restore(); }
+    const pulse = 0.5 + 0.5 * Math.sin(state.m * 10), r = a.bow ? lerp(B.ring[0], B.ring[1], holdK(a)) : K.ring + 2 * pulse, tx = a.tx == null ? a.rx : a.tx, ty = a.tx == null ? a.ry + K.lift : a.ty;
+    if (a.bow && pullK(a) < 1) { ctx.save(); ctx.strokeStyle = 'rgba(255,214,110,0.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, r + 6, -Math.PI / 2, -Math.PI / 2 + TAU * pullK(a)); ctx.stroke(); ctx.restore(); }
     ctx.save(); ctx.strokeStyle = col; ctx.globalAlpha = 0.7; ctx.lineWidth = 1.5; line(ctx, a.x, a.y + r, tx, ty); ctx.restore();
     if (a.id < 0) { ctx.save(); ctx.globalAlpha = 0.6; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx, ty, 5, 0, TAU); ctx.stroke(); ctx.restore(); }
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4; ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, TAU); ctx.stroke();
@@ -3803,6 +4013,10 @@ function drawKnives(ctx, E) {
   }
   if (k) { const u = clamp(k.t / k.dur, 0, 1); drawKnife(ctx, lerp(k.x0, k.x1, u), lerp(k.y0, k.y1, u), Math.atan2(k.y1 - k.y0, k.x1 - k.x0), len); }
   if (q) { ctx.globalAlpha = clamp(q.life / 0.3, 0, 1); drawKnife(ctx, q.x, q.y, q.rot, len); ctx.globalAlpha = 1; }
+  // step 24: an arrow in flight (its point on the way to the ring), and one spent
+  const r = state.arrow, rq = state.arrowFall, al = arrowLen(E);
+  if (r) { const u = clamp(r.t / r.dur, 0, 1), an = Math.atan2(r.y1 - r.y0, r.x1 - r.x0), x = lerp(r.x0, r.x1, u), y = lerp(r.y0, r.y1, u); drawArrow(ctx, x - Math.cos(an) * al, y - Math.sin(an) * al, an, al); }
+  if (rq) { ctx.globalAlpha = clamp(rq.life / 0.3, 0, 1); drawArrow(ctx, rq.x - Math.cos(rq.rot) * al, rq.y - Math.sin(rq.rot) * al, rq.rot, al); ctx.globalAlpha = 1; }
 }
 // the round buttons: ⇄ (its ring fills while you swap) and the knife button with the knives left (red while one is raised: a tap lowers it)
 function drawArmsBtns(ctx, E) {
@@ -3811,9 +4025,9 @@ function drawArmsBtns(ctx, E) {
   const S = TUNING.sidearm;
   if (b.swap) {
     const c = b.swap, on = state.swapT > 0;
-    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, TAU); ctx.fillStyle = 'rgba(30,24,36,0.85)'; ctx.fill(); ctx.strokeStyle = state.aim ? '#6b7280' : '#e6c866'; ctx.lineWidth = 2; ctx.stroke();
-    if (on) { ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(c.x, c.y, c.r - 3, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - state.swapT / S.swap)); ctx.stroke(); }
-    E.text('⇄', c.x, c.y + 1, { size: 26, weight: '800', color: state.aim ? '#6b7280' : '#fde68a' });
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, TAU); ctx.fillStyle = 'rgba(30,24,36,0.85)'; ctx.fill(); ctx.strokeStyle = state.aim && !state.aim.bow ? '#6b7280' : '#e6c866'; ctx.lineWidth = 2; ctx.stroke();
+    if (on) { ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(c.x, c.y, c.r - 3, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - state.swapT / (state.bowSwap ? TUNING.bow.swap : S.swap))); ctx.stroke(); }
+    E.text('⇄', c.x, c.y + 1, { size: 26, weight: '800', color: state.aim && !state.aim.bow ? '#6b7280' : '#fde68a' });
   }
   if (b.knife) {
     const c = b.knife, on = !!state.aim;
@@ -4507,7 +4721,9 @@ const SHIPPED = new Set([
   'weapon-wooden-sword logo-arena ',
   // the beasts' barding (Pack 26b) and the laurel ring (Pack 26)
   'beast-lion-armour-head beast-lion-armour-chest beast-lion-armour-back beast-lion-armour-leg beast-bear-armour-head beast-bear-armour-chest ',
-  'beast-bear-armour-back beast-bear-armour-leg laurel-ring'
+  'beast-bear-armour-back beast-bear-armour-leg laurel-ring ',
+  // the bow at rest and drawn, and its arrow (Pack 29)
+  'weapon-bow weapon-bow-drawn arrow'
 ].join('').split(' '));
 // Pack 27: the helmets and head gear painted onto the head ship as <name>-worn.webp; their old pieces' files are retired
 const WORN = new Set(['kit-helmet-gallic', 'kit-helmet-murmillo', 'kit-helmet-thraex', 'kit-helmet-secutor', 'gear-bronze-crest', 'gear-plumed-helm', 'gear-phalanx-helm',
@@ -4584,6 +4800,7 @@ const tailorFile = (item, t) => `tailor-${item}-${TAILOR[item][t.i][0].toLowerCa
 // Step 14 (Packs 22 and 23): the weapons, the title, the tailor's looks
 for (const k of Object.keys(TUNING.kit.weapon)) if (TUNING.kit.weapon[k].size) ART_NAMES[weaponArt(k)] = k === 'wooden' ? 'Wooden sword (freedom)' : `Weapon: ${k}`;
 ART_NAMES['logo-arena'] = 'Title: ARENA';
+Object.assign(ART_NAMES, { 'weapon-bow': 'Weapon: bow, at rest', 'weapon-bow-drawn': 'Weapon: bow, drawn', arrow: 'Arrow' });
 for (const [item, sts] of Object.entries(TAILOR)) sts.forEach((q, i) => { ART_NAMES[tailorFile(item, { i })] = `Tailor: ${item}, ${q[0].toLowerCase()}`; });
 const artLabel = (name) => ART_NAMES[name] || (String(name).replace(/-+/g, ' ').trim().replace(/^./, (c) => c.toUpperCase()));
 // a portrait's crop (fractions x0 y0 x1 y1) at w x h px, cached at the screen's pixel ratio; null until it loads
@@ -6267,7 +6484,7 @@ function zoneFx() {
 // each weapon's kinds in at most two words, for the rack and the Weapon slot, in their colours
 const STRIKE_WORDS = { gladius: ['cut', 'pierce'], dagger: ['pierce', 'cut'], spear: ['pierce'], trident: ['pierce'], sica: ['cut'], axe: ['cut', 'crush'], mace: ['crush'], fist: ['crush'] };
 const KIND_WORD = { cut: 'Cut', pierce: 'Pierce', crush: 'Crush' };
-const kindSegs = (key) => (STRIKE_WORDS[key] || []).map((k) => [KIND_WORD[k], TUNING.strike.col[k]]);
+const kindSegs = (key) => (key === 'bow' ? [[KIND_WORD.pierce, TUNING.strike.col.pierce], ['Range', '#cbd5e1']] : (STRIKE_WORDS[key] || []).map((k) => [KIND_WORD[k], TUNING.strike.col[k]]));
 // The foe's weapon in his arm's frame: the fist at (0, ARM_LEN), the weapon along +y; frame -x is the edge that leads a chop.
 function drawWeapon(ctx, f, H, paint = true) {
   const W = f.weapon, y0 = ARM_LEN * H, len = W.len * H, key = weaponKey(W.id, f.mace), J = TUNING.kit.weapon[key];
@@ -6522,8 +6739,11 @@ function drawFighter(ctx, E, F, fm, who, ga = 1) {
   const sw = live ? state.sw : null, bashing = sw && sw.pose === 'bash', both = plateBoth(fm.parts);
   P('chest').both = both; P('belly').both = both;
   if (lk.gear && (lk.gear.cloak || (lk.tailor && lk.tailor.cloak))) { if (!fm.cloak) fm.cloak = mkPart(CLOAK, false); drawPart(ctx, E, fm.cloak, H, lk, null); }
+  // step 24: the bow out, your blade hangs at your hip and the shield is slung on your back
+  const slung = !isFoe && bowShown();
+  if (slung) drawSlung(ctx, E, H, lk);
   // two blades (step 18): the second is the same painting, gripped in the far fist, drawn under it (his, and yours in the kit)
-  if (isFoe ? fm.dual && !(live && state.disarm > 0) : !!state.me.dual && !!lk.kit) {
+  if (isFoe ? fm.dual && !(live && state.disarm > 0) : !!state.me.dual && !!lk.kit && !slung) {
     ctx.save(); inFrame(ctx, fm.fr.armB, H);
     if (isFoe) drawWeapon(ctx, fm, H, !!lk.kit); else offBlade(ctx, H, fm.fr.armB.rot, lk);
     ctx.restore();
@@ -6671,8 +6891,11 @@ function drawSwordArm(ctx, E) {
   const P = (t, s, len = blade, x0 = gx, y0 = gy) => [x0 + bx * len * t + nx * w * s, y0 + by * len * t + ny * w * s];
   const shape = (pts) => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); };
   // fists draw no weapon, as his fists when disarmed (the fist is the forearm's, drawn last); a painted one is pinned in the fist (step 14)
-  const painted = !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx, h.hy], [bx, by], blade, H, G.weapon, locked, zoneFx());
-  if (painted) { /* drawn */ } else if (pole) {
+  // step 24: the bow in your fist in place of your weapon, from halfway through the swap to it
+  const bowUp = bowShown();
+  if (bowUp) drawBow(ctx, E);
+  const painted = !bowUp && !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx, h.hy], [bx, by], blade, H, G.weapon, locked, zoneFx());
+  if (painted || bowUp) { /* drawn */ } else if (pole) {
     // a wooden shaft from behind the fist to the head
     ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H); ctx.lineTo(h.ux - bx * 0.02 * H, h.uy - by * 0.02 * H); ctx.stroke();
     ctx.strokeStyle = '#7a5532'; ctx.lineWidth = 0.03 * H; ctx.stroke();
@@ -6709,7 +6932,7 @@ function drawSwordArm(ctx, E) {
     const mid = wid === 'sica' ? [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.94].map((t) => P(t, sicaBow(t))) : [[gx + bx * 6, gy + by * 6], [h.ux - bx * 6, h.uy - by * 6]];
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); mid.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
   }
-  if (G.weapon && !bare && !painted) {
+  if (G.weapon && !bare && !painted && !bowUp) {
     const tip = [h.ux, h.uy], back = (k) => [h.ux - bx * k * H, h.uy - by * k * H], ts = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85];
     // the cutting edges (the saw teeth's lines) follow each blade or head as drawn above, never the shaft
     const sides = (f) => [1, -1].map((sd) => ts.map((t) => f(t, sd)));
@@ -6743,17 +6966,14 @@ function drawSwordArm(ctx, E) {
 
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
 function drawShield(ctx, E) {
-  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, lk = lookFor(state.you, false), g = lk.gear.shield, tp = !g && lk.tailor && lk.tailor.paint;
+  const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, lk = lookFor(state.you, false);
   if (sh.broken) return;
   const [hx, hy] = toScreen(Fy, ...shieldPos());
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
-  const r = lerp(0.11, 0.2, sh.up) * H, cx = hx, cy = hy, tower = g && g.id === 'ironwall';
-  const dk = Math.min(E.dpr || 1, TUNING.skin.maxDpr), kit = lk.kit && kitPic('upperarm', lk.kit.tier) && kitPic('forearm', lk.kit.tier);
-  // the kit: your type's painted shield (Iron Wall's tower: the scutum at the tower's size)
-  const kind = lk.kit && (tower ? 'scutum' : lk.kit.shield), TL = TUNING.kit.tall, rm = 0.2 * H * dk;
-  const spx = kind === 'scutum' ? rm * TL[1] * 2 : rm * 2, kS = kit && shieldPic(kind, spx), tall = tower || (kS && kind === 'scutum');
-  // the shield piece painted (step 6c-2): the tower's face is the tall shield, a round face the round shield's or an emblem on a tall one
-  const fc = kS && gearArt(lk, 'shield', spx), emb = fc && !fc.J.h && kind === 'scutum';
+  const kit = lk.kit && kitPic('upperarm', lk.kit.tier) && kitPic('forearm', lk.kit.tier);
+  const fist = () => { ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(hx, hy, 0.042 * H, 0, TAU); ctx.fill(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke(); };
+  // step 24: the bow is out: the shield (or the second blade) is away (drawFighter), the far hand reaches for the string
+  if (bowShown()) { if (!kit) { limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin); fist(); } return; }
   // the painted shield arm is your body's far arm, drawn behind the torso as his is (its fist under the shield), so it is not drawn again here
   // Two blades (step 18): no shield; the painted far arm grips its blade in drawFighter, the drawn one here
   if (state.me.dual) {
@@ -6778,11 +6998,21 @@ function drawShield(ctx, E) {
   if (!kit) limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
   // Untouchable: no shield at all, an empty fist (the kit's far arm ends in one)
   if (noShield() && kit) return;
-  if (noShield()) { ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(hx, hy, 0.042 * H, 0, TAU); ctx.fill(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke(); return; }
-  // the round bronze shield, or Iron Wall's tower shield, tall and square
+  if (noShield()) { fist(); return; }
+  ctx.save(); ctx.translate(hx, hy); shieldFace(ctx, E, lerp(0.11, 0.2, sh.up) * H, H, lk, !!kit); ctx.restore();
+}
+// your shield's face round (0, 0) at radius r (the arm's, or slung on your back): the round bronze shield, or Iron Wall's tower shield, tall and
+// square; the kit's painted one; its card face, paint and cracks
+function shieldFace(ctx, E, r, H, lk, kit) {
+  const sh = state.sh, g = lk.gear.shield, tp = !g && lk.tailor && lk.tailor.paint, tower = g && g.id === 'ironwall', dk = Math.min(E.dpr || 1, TUNING.skin.maxDpr);
+  // the kit: your type's painted shield (Iron Wall's tower: the scutum at the tower's size)
+  const kind = lk.kit && (tower ? 'scutum' : lk.kit.shield), TL = TUNING.kit.tall, rm = 0.2 * H * dk;
+  const spx = kind === 'scutum' ? rm * TL[1] * 2 : rm * 2, kS = kit && shieldPic(kind, spx), tall = tower || (kS && kind === 'scutum');
+  // the shield piece painted (step 6c-2): the tower's face is the tall shield, a round face the round shield's or an emblem on a tall one
+  const fc = kS && gearArt(lk, 'shield', spx), emb = fc && !fc.J.h && kind === 'scutum';
   const tw = tower ? 0.72 : TL[1], th = tower ? 1.2 : TL[0];
   const shape = (k) => (tall ? rrect(ctx, -r * tw * k, -r * th * k, r * tw * 2 * k, r * th * 2 * k, r * 0.2 * k) : (ctx.beginPath(), ctx.arc(0, 0, r * k, 0, TAU)));
-  ctx.save(); ctx.translate(cx, cy);
+  ctx.save();
   if (!fc && g && g.id === 'thorns') for (let i = 0; i < 10; i++) { const a = i * TAU / 10, ex = tall ? clamp(Math.cos(a) * r * tw * 2, -r * tw, r * tw) : Math.cos(a) * r * 0.92, ey = tall ? clamp(Math.sin(a) * r * th * 2, -r * th, r * th) : Math.sin(a) * r * 0.92; spike(ctx, ex, ey, a, r * 0.32, r * 0.16, BRONZE, true); }
   const gr = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, tower ? r * 1.3 : r);
   gr.addColorStop(0, '#b9803a'); gr.addColorStop(1, '#6d4519');
@@ -8411,6 +8641,25 @@ function rackWeapon(ctx, id, x, y, s, lit = false) {
   paintWeapon(ctx, id, A, [1, 0], L, s);
   ctx.restore();
 }
+// Step 24: the bow at rest, its grip at (x, y), its length turned ang from straight up (rad), h px tip to tip (Pack 29's painting, or drawn)
+function bowAt(ctx, x, y, ang, h) {
+  const A = TUNING.bow.art, k = h / (A.rest[1][1] - A.rest[0][1]), P = kitOn() && artPic('weapon-bow', A, h * Math.min((ENG && ENG.dpr) || 1, TUNING.skin.maxDpr));
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(k, k);
+  if (P) ctx.drawImage(P.im, -A.grip[0], -A.grip[1], A.size[0], A.size[1]);
+  else {
+    const [t, b] = A.rest.map((q) => [q[0] - A.grip[0], q[1] - A.grip[1]]);
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#7a4a24'; ctx.lineWidth = 40; ctx.beginPath(); ctx.moveTo(...t); ctx.quadraticCurveTo(60, 0, ...b); ctx.stroke();
+    ctx.strokeStyle = '#ece4cf'; ctx.lineWidth = 10; line(ctx, ...t, ...b);
+  }
+  ctx.restore();
+}
+// the rack's bow, lying with its belly up and an arrow under it, w px across, centred on (x, y)
+function rackBow(ctx, x, y, w) {
+  const A = TUNING.bow.art, k = w / (A.rest[1][1] - A.rest[0][1]), gy = y - (A.grip[0] - (A.rest[0][0] + A.size[0]) / 2) * k;
+  bowAt(ctx, x, gy, -Math.PI / 2, w);
+  const al = (TUNING.bow.arrow.tip[0] - TUNING.bow.arrow.nock[0]) * k;
+  drawArrow(ctx, x - al / 2, gy + (A.grip[0] - A.rest[0][0]) * k + 4, 0, al);
+}
 // Your card, in three columns under the story and your start card: your body as yet unarmed, your size, hearts and stats, then your tier and the purse
 // that buys your kit next (gold).
 function drawMeCard(ctx, E, me, x, y, w, h, gold) {
@@ -8461,9 +8710,12 @@ const INV_SLOTS = [
 // the card pieces that keep their own slots, on the Extras row; each card slot's word on a draft card's chip
 const EXTRAS = ['belt', 'cloak', 'shield'];
 const SLOT_WORD = { helmet: 'Head', chest: 'Chest', arms: 'Arms', legs: 'Legs', weapon: 'Weapon', belt: 'Belt', cloak: 'Cloak', shield: 'Shield face' };
-// what each plate does for you, in a few words under the purse's slot (step 23): a plate eases his blows at its height (ZONE_PART); none of them lands on
-// the shield arm, so its plate only costs stamina
-const PLATE_SAVES = { helmet: 'eases high blows', chest: 'eases mid blows', greaves: 'eases low blows', manica: 'no use' };
+// what each plate does for you, in a few words under the purse's slot (step 23): a plate eases his blows at its height (ZONE_PART); the Arms slot's is
+// a reinforced shield (step 24), and none with two blades
+const PLATE_SAVES = { helmet: 'eases high blows', chest: 'eases mid blows', greaves: 'eases low blows', manica: 'shield lasts longer' };
+// (squeezed beside the second blade's chip, "Reinforced / shield / lasts longer" reads on from the name)
+const PLATE_SQUEEZED = { manica: 'lasts longer' };
+const plateSaves = (k, me, squeezed = false) => (k === 'manica' && me.dual ? 'no shield' : (squeezed && PLATE_SQUEEZED[k]) || PLATE_SAVES[k]);
 // plain kit is grey (Common), a plate a plain bronze; card gear takes its card's tier colour (rarCol)
 const PLAIN_COL = '#a8adb5', PLATE_COL = '#d9a35e';
 const weaponTitle = (me) => (me.weapon === 'axe' ? (me.mace ? 'Mace' : 'Axe') : TUNING.me.wheels.weapon.find((e) => e[0] === me.weapon)[2]);
@@ -8471,7 +8723,7 @@ const weaponTitle = (me) => (me.weapon === 'axe' ? (me.mace ? 'Mace' : 'Axe') : 
 // slot's rect (its plate's tap target in the purse).
 function drawInventory(ctx, E, x, y, w, h, inv) {
   const { me, gear, buy } = inv, g = 8, ex = EXTRAS.some((k) => gear[k]), exH = ex ? 30 : 0;
-  const rh = (h - exH - (ex ? g : 0) - 2 * g) / 3, dw = clamp(w * 0.24, 76, 160), cw = (w - dw - 2 * g) / 2, rx = x + cw + dw + 2 * g, sd = !!(buy || me.side);
+  const rh = (h - exH - (ex ? g : 0) - 2 * g) / 3, dw = clamp(w * (buy && buy.dual ? 0.2 : 0.24), 76, 160), cw = (w - dw - 2 * g) / 2, rx = x + cw + dw + 2 * g, sd = !!(buy || me.side);
   // step 22: the Sidearm slot takes the Weapon slot's lower half, in the purse and whenever you carry one
   const box = { head: [x, y, rh], arms: [x, y + rh + g, rh], legs: [x, y + 2 * (rh + g), rh], chest: [rx, y, rh], weapon: [rx, y + rh + g, sd ? rh : 2 * rh + g], side: [rx, y + 2 * (rh + g), rh] };
   // the doll: your painted figure with the plates you wear, feet at the slots' foot
@@ -8489,7 +8741,8 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
     }
   }
   // the sidearm (step 22) at the hip, hanging back
-  const [sw0, sm0] = me.side ? sideWield(me.side) : ['fist', false];
+  const [sw0, sm0] = me.side && me.side !== 'bow' ? sideWield(me.side) : ['fist', false];
+  if (me.side === 'bow') { const k = TUNING.sidearm.hip; bowAt(ctx, dx + k[0] * s, fy + k[1] * s, -k[2], TUNING.bow.len * s * k[3]); }
   if (sw0 !== 'fist') {
     const k = TUNING.sidearm.hip;
     ctx.save(); ctx.translate(dx + k[0] * s, fy + k[1] * s); ctx.rotate(k[2]); ctx.translate(0, -ARM_LEN * s * k[3]);
@@ -8502,7 +8755,8 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
     line(ctx, bx < dx ? bx + cw : bx, by + rh / 2, px, py); ctx.beginPath(); ctx.arc(px, py, 2.5, 0, TAU); ctx.fill();
     E.roundRect(bx, by, cw, bh, 10, '#1f1a24', plated ? PLATE_COL : '#4a4252');
     // the Arms row's second blade (step 18): a chip under its price, on its right, its own tap target in the purse
-    const two = q.id === 'arms' && buy && buy.dual, chw = two ? Math.round(cw * 0.44) : 0, rtw = tw - chw;
+    // (the chip no wider than its words need, so the reinforced shield's words have room beside it)
+    const two = q.id === 'arms' && buy && buy.dual, chw = two ? Math.min(Math.round(cw * 0.44), (ctx.font = '800 14px system-ui, sans-serif', Math.ceil(ctx.measureText('BLADE').width) + 8)) : 0, rtw = two ? cw - chw - 14 : tw;
     if (two) {
       const D = buy.dual, cx0 = bx + cw - chw - 4, cy0 = by + lh + 6, chh = bh - lh - 10, col = D.on ? '#ffd24a' : D.none || D.short ? '#6b7280' : '#c4b99a';
       E.roundRect(cx0, cy0, chw, chh, 8, D.on ? '#3a2a10' : '#2a2016', col);
@@ -8525,8 +8779,11 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
     ly += lh;
     // the plate or the plain kit under it; the weapon slot, your weapon, its kinds, and its painting with its striking parts lit at the slot's foot
     // (step 21), its job between them in the purse as far as the slot holds it
-    put(q.id === 'weapon' ? weaponTitle(me) : plated ? PLATES[q.plate].name : q.plain, plated ? PLATE_COL : PLAIN_COL);
-    if (buy && q.plate) put(PLATE_SAVES[q.plate], plated ? '#e9c891' : '#9aa4b2', '600');
+    // (beside the second blade's chip, step 24's longer Arms words wrap onto the lines below)
+    const putW = (t, col, wt) => { const ls = two ? wrapPx(ctx, t, rtw, 14, wt) : [t]; if (ly + (ls.length - 1) * lh < by + bh - lh * 0.4) ls.forEach((l) => put(l, col, wt)); };
+    // (unbought beside the chip, what the plate does takes the place of the plain kit's name)
+    if (!(two && !plated && !me.dual)) putW(q.id === 'weapon' ? weaponTitle(me) : plated ? PLATES[q.plate].name : q.plain, plated ? PLATE_COL : PLAIN_COL, '700');
+    if (buy && q.plate) putW(plateSaves(q.plate, me, two && plated), plated ? '#e9c891' : '#9aa4b2', '600');
     const wk = weaponKey(me.weapon, me.mace), pic = q.id === 'weapon' && wk !== 'fist' && kitOn() && zonePic(wk) ? Math.min(TUNING.strike.slotH, bh - (ly - by) - lh) : 0;
     if (q.id === 'weapon') { segLine(ctx, E, kindSegs(wk), L, ly, rtw, 14, {}); ly += lh; }
     if (pic > 0) {
@@ -8547,9 +8804,9 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
     if (pk) { const u = 0.5 + 0.5 * Math.sin(S.t * 6); ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.4 + 0.5 * u})`; ctx.lineWidth = 2 + 2 * u; rrect(ctx, bx - 2, by - 2, cw + 4, bh + 4, 11); ctx.stroke(); ctx.restore(); }
     let ly = by + 4 + lh / 2;
     E.text('SIDEARM', L, ly, { size: 14, weight: '800', align: 'left', color: pk ? '#ffd24a' : '#c4b99a' });
-    if (buy && k) { const pr = `${TUNING.purse.weapon[k]}`, R = bx + cw - 8; E.text(pr, R, ly, { size: 14, weight: '800', align: 'right', color: PLATE_COL }); drawCoin(ctx, R - ctx.measureText(pr).width - 9, ly, 5.5); }
+    if (buy && k) { const pr = `${sidePrice(k)}`, R = bx + cw - 8; E.text(pr, R, ly, { size: 14, weight: '800', align: 'right', color: PLATE_COL }); drawCoin(ctx, R - ctx.measureText(pr).width - 9, ly, 5.5); }
     ly += lh;
-    E.text(clipLine(ctx, k ? weaponTitle({ weapon: sw0, mace: sm0 }) : 'None', tw, 14, '700'), L, ly, { size: 14, weight: '700', align: 'left', color: k ? PLATE_COL : PLAIN_COL }); ly += lh;
+    E.text(clipLine(ctx, k === 'bow' ? 'Bow' : k ? weaponTitle({ weapon: sw0, mace: sm0 }) : 'None', tw, 14, '700'), L, ly, { size: 14, weight: '700', align: 'left', color: k ? PLATE_COL : PLAIN_COL }); ly += lh;
     if (pk) E.text('Pick from the rack', L, ly, { size: 14, weight: '700', align: 'left', color: '#ffd24a' });
     else if (k) segLine(ctx, E, kindSegs(k), L, ly, tw, 14, {});
     else if (buy) E.text('Tap, then a weapon', L, ly, { size: 14, weight: '600', align: 'left', color: '#9aa4b2' });
@@ -8594,7 +8851,9 @@ function drawWearing(ctx, E) {
 // start cards' pieces (tap a slot to buy its plate, again to sell it back), the weapons in a rack on the right (fists free, the ludus's once bought),
 // and what is left with Fight!. P: the roll scene's purse.
 // the purse's price for a weapon (twice over with a second blade, step 18) and plates; step 22: a sidearm at its weapon's price, and knives
-const purseCost = (w, kit, dual = false, side = null, kn = 0) => TUNING.purse.weapon[w] * (dual ? 2 : 1) + kit.reduce((a, k) => a + TUNING.purse.plate[k], 0) + (side ? TUNING.purse.weapon[side] : 0) + kn * TUNING.knives.price;
+const purseCost = (w, kit, dual = false, side = null, kn = 0) => TUNING.purse.weapon[w] * (dual ? 2 : 1) + kit.reduce((a, k) => a + TUNING.purse.plate[k], 0) + (side ? sidePrice(side) : 0) + kn * TUNING.knives.price;
+// a sidearm's price: its weapon's, or the bow's (step 24)
+const sidePrice = (id) => (id === 'bow' ? TUNING.bow.price : TUNING.purse.weapon[id]);
 // the whole purse P as it would be with o changed
 const purseOf = (P, o = {}) => { const q = { ...P, ...o }; return purseCost(q.w, q.kit, q.dual && q.w !== 'fist', q.side, q.knives); };
 function drawPurse(ctx, E, P, me) {
@@ -8606,16 +8865,16 @@ function drawPurse(ctx, E, P, me) {
     : P.hint ? `Old Brutus: “${P.gold} gold. Fists are free. Tap a slot to plate it, and keep some for the tent.”` : `Old Brutus: “${P.gold} gold. Plates or a blade: not all of both.”`;
   sayLine(ctx, E, say, E.w / 2, top + 24, R - L, { size: 14, weight: '700', color: '#fde68a', fit: true }, 'brutus');
   const by = E.h - E.safe.bottom - 30, gy = top + 46, gh = by - 30 - gy, rw = clamp((R - L) * 0.36, 200, 300), rx = R - rw;
-  P.slots = drawInventory(ctx, E, L, gy, R - L - rw - 14, gh, { me: kit, gear: gearOf(startCards(me).map((c) => c.id)), buy: { short: (k) => !P.kit.includes(k) && purseOf(P, { kit: [...P.kit, k] }) > P.gold, job: MY_WEAPON_JOB[kit.weapon],
+  P.slots = drawInventory(ctx, E, L, gy, R - L - rw - 14, gh, { me: kit, gear: gearOf(startCards(me).map((c) => c.id)), buy: { short: (k) => noPlate(P, k) || (!P.kit.includes(k) && purseOf(P, { kit: [...P.kit, k] }) > P.gold), job: MY_WEAPON_JOB[kit.weapon],
     dual: { on: P.dual && P.w !== 'fist', price: P.w === 'fist' ? 0 : T.weapon[P.w], none: P.w === 'fist', short: !P.dual && purseOf(P, { dual: true }) > P.gold }, side: { pick: side, t: P.t } } });
   // the rack: two columns of weapons, each its name and price, its painting (step 14) with its striking parts lit and their kinds (step 21); with the
-  // Sidearm slot picked (step 22) it buys the sidearm, never fists or the weapon in hand
+  // Sidearm slot picked (step 22) it buys the sidearm, never fists or the weapon in hand, and the bow (step 24) takes the fists' place
   const rackLong = Math.max(...Object.keys(T.weapon).filter((id) => id !== 'fist').map(rackLen));
-  const ids = Object.keys(T.weapon).filter((id) => !LUDUS_LOCK.has(id) || (me.open || []).includes(id)), rows = Math.ceil(ids.length / 2), tw = (rw - gap) / 2, th = Math.min(64, (gh - gap * (rows - 1)) / rows);
+  const ids = Object.keys(T.weapon).filter((id) => !LUDUS_LOCK.has(id) || (me.open || []).includes(id)).map((id) => (side && id === 'fist' ? 'bow' : id)), rows = Math.ceil(ids.length / 2), tw = (rw - gap) / 2, th = Math.min(64, (gh - gap * (rows - 1)) / rows);
   P.tiles = ids.map((id, i) => {
-    const x = rx + (i % 2) * (tw + gap), y = gy + Math.floor(i / 2) * (th + gap), on = (side ? P.side : P.w) === id, pr = T.weapon[id];
+    const x = rx + (i % 2) * (tw + gap), y = gy + Math.floor(i / 2) * (th + gap), on = (side ? P.side : P.w) === id, pr = sidePrice(id);
     const short = side ? id === 'fist' || id === P.w || (!on && purseOf(P, { side: id }) > P.gold) : !on && purseOf(P, { w: id, side: P.side === id ? null : P.side }) > P.gold;
-    const nm = weaponName({ weapon: id === 'mace' ? 'axe' : id, mace: id === 'mace' }).split(' & ')[0];
+    const nm = id === 'bow' ? 'BOW' : weaponName({ weapon: id === 'mace' ? 'axe' : id, mace: id === 'mace' }).split(' & ')[0];
     ctx.globalAlpha = !ready ? 0.6 : short ? 0.45 : 1;
     E.roundRect(x, y, tw, th, 12, on ? '#3a2a10' : '#2a2016', on ? '#ffd24a' : '#c4b99a');
     const ty = y + 12, pt = pr ? `${pr}` : 'free', pc = on ? '#ffd24a' : short ? '#9aa4b2' : '#fbbf24';
@@ -8624,8 +8883,10 @@ function drawPurse(ctx, E, P, me) {
     E.text(pt, x + tw - 6, ty, { size: 14, weight: '800', align: 'right', color: pc });
     if (pr) drawCoin(ctx, x + tw - 6 - ctx.measureText(pt).width - 7, ty, 5.5);
     E.text(clipLine(ctx, nm, nw, ns, '800'), x + 7, ty, { size: ns, weight: '800', align: 'left', color: '#f0e6cc' });
-    if (id !== 'fist') rackWeapon(ctx, id, x + tw / 2, y + th / 2 + 1, (tw - 12) / rackLong, true);
-    segLine(ctx, E, kindSegs(id), x + tw / 2, y + th - 11, tw - 12, 14, { center: true });
+    if (id === 'bow') rackBow(ctx, x + tw / 2, y + th / 2 + 2, Math.min(tw * 0.62, th * 2.2));
+    else if (id !== 'fist') rackWeapon(ctx, id, x + tw / 2, y + th / 2 + 1, (tw - 12) / rackLong, true);
+    // (the bow's two words, a little tighter: they are the rack's longest)
+    segLine(ctx, E, kindSegs(id), x + tw / 2, y + th - 11, tw - 8, 14, id === 'bow' ? { center: true, sep: ' \u00b7 ', weight: '700' } : { center: true });
     return { id, x, y, w: tw, h: th };
   });
   ctx.globalAlpha = 1;
@@ -8643,9 +8904,11 @@ function drawPurse(ctx, E, P, me) {
   if (P.ask) drawBareAsk(ctx, E, P);
 }
 // the plate Buy a plate points at: the chest if the purse covers it, else the cheapest it covers; none when no plate is bought, or none is affordable
+// step 24: no reinforced shield with two blades
+const noPlate = (P, k) => k === 'manica' && P.dual && P.w !== 'fist';
 function purseNudge(P) {
   if (P.kit.length) return null;
-  const ok = Object.keys(PLATES).filter((k) => purseOf(P, { kit: [k] }) <= P.gold).sort((a, b) => (b === 'chest') - (a === 'chest') || TUNING.purse.plate[a] - TUNING.purse.plate[b]);
+  const ok = Object.keys(PLATES).filter((k) => !noPlate(P, k) && purseOf(P, { kit: [k] }) <= P.gold).sort((a, b) => (b === 'chest') - (a === 'chest') || TUNING.purse.plate[a] - TUNING.purse.plate[b]);
   return ok[0] || null;
 }
 // Fight! with no plate while one is affordable (step 23): Brutus asks once, Buy a plate or Fight bare
@@ -10045,8 +10308,9 @@ const roll = {
       return;
     }
     if (tile || slot || two) {
-      const w = tile ? tile.id : P.w, kit = slot ? Object.keys(PLATES).filter((k) => (k === slot.plate ? !P.kit.includes(k) : P.kit.includes(k))) : P.kit, dual = w !== 'fist' && (two ? !P.dual : P.dual), side = P.side === w ? null : P.side;
-      if ((two && w === 'fist') || purseOf(P, { w, kit, dual, side }) > P.gold) { E.audio.play('miss'); return; }
+      const w = tile ? tile.id : P.w, dual = w !== 'fist' && (two ? !P.dual : P.dual), side = P.side === w ? null : P.side;
+      const kit = (slot ? Object.keys(PLATES).filter((k) => (k === slot.plate ? !P.kit.includes(k) : P.kit.includes(k))) : P.kit).filter((k) => !(dual && k === 'manica'));
+      if ((two && w === 'fist') || (slot && noPlate({ ...P, w, dual }, slot.plate)) || purseOf(P, { w, kit, dual, side }) > P.gold) { E.audio.play('miss'); return; }
       P.w = w; P.kit = kit; P.dual = dual; P.side = side; E.audio.play('coin'); E.haptic(12);
       return;
     }
@@ -10079,6 +10343,8 @@ const YARD = [
   { id: 'dodge', line: 'Tap DODGE to step back.', ghost: 'tap', got: () => state.dodges, need: () => 1 },
   { id: 'hold', line: 'Hold DODGE to back off.', ghost: 'hold', got: (tr) => tr.held, need: () => 1 },
   { id: 'gap', line: 'See the glow? A gap. Hit it.', ghost: 'gap', got: (tr) => tr.gaps, need: () => 1 },
+  // step 24: a practice knife (TUNING.train.knife), raised with a tap and thrown with a drag; a tap on him throws nothing
+  { id: 'knife', line: () => (state.aim ? 'Drag onto the gap, and let go.' : 'Tap the knife to raise it.'), ghost: 'knife', got: () => state.knivesThrown, need: () => 1 },
   { id: 'read', line: "When he glows, he's about to swing.", ghost: 'read', got: (tr) => tr.read, need: () => 1 },
   // step 23b: the last two lessons
   { id: 'perfect', line: 'Block just as it lands: perfect.', ghost: 'perfect', got: () => state.perfects, need: () => TUNING.train.perfects },
@@ -10092,7 +10358,7 @@ const GHOST = {
 };
 // why an attempt didn't count
 const WHY = { slow: 'TOO SLOW', early: 'EARLY', late: 'TOO LATE', height: 'WRONG HEIGHT', missed: 'MISSED', gap: 'NOT A GAP', further: 'PUSH FURTHER', hold: 'HOLD IT LONGER',
-  block: 'DODGE, NOT BLOCK', jab: 'THAT WAS A JAB', slash: 'THAT WAS A SLASH', over: 'THAT WAS AN OVERHEAD' };
+  block: 'DODGE, NOT BLOCK', jab: 'THAT WAS A JAB', slash: 'THAT WAS A SLASH', over: 'THAT WAS AN OVERHEAD', tap: 'DRAG, THEN LET GO' };
 const yardDue = (E) => !state.drill && state.rack === 0 && firstRun(E) && !E.save.get('trainDone', 0);
 function startYard(E, drill = false) {
   state.intro = false; state.introGo = -1; state.hint = false; state.boutT0 = state.m;
@@ -10102,8 +10368,11 @@ function startYard(E, drill = false) {
 }
 function nextYard(E) {
   const tr = state.train;
+  // (the knife step's practice knives go back when it ends; your own were never touched)
+  if (tr.kn0 != null) { state.knives = tr.kn0; tr.kn0 = null; state.aim = null; }
   tr.i++; tr.t = 0; tr.doneT = -1; tr.sw = null; tr.wait = TUNING.train.gap;
   const st = YARD[tr.i];
+  if (st.id === 'knife') { tr.kn0 = state.knives; state.knives += TUNING.train.knife; }
   // (a hold made in the steps before counts for nothing)
   if (st.id === 'hold') { tr.press = null; tr.held = 0; }
   tr.base = st.got ? st.got(tr) : 0;
@@ -10224,7 +10493,7 @@ function updateYard(E, dt) {
   if (h.down) { if (tr.px != null) tr.move += Math.hypot(h.fx - tr.px, h.fy - tr.py); tr.px = h.fx; tr.py = h.fy; } else tr.px = tr.py = null;
   // a hold is DODGE kept pressed past a dodge's length, however soon the wall behind ends the backing off
   if (tr.press && state.m - tr.press.t0 > TUNING.dodge.dur + T.hold) tr.held = 1;
-  if (st.id === 'gap') state.openAll = Math.max(state.openAll, 0.5);
+  if (st.id === 'gap' || st.id === 'knife') state.openAll = Math.max(state.openAll, 0.5);
   yardStrokes(E, st);
   if (st.id === 'shield' || st.id === 'read' || st.id === 'perfect' || st.id === 'tell') {
     // the dodge in his tell: one made before his tell began is early
@@ -10236,7 +10505,34 @@ function updateYard(E, dt) {
   if (st.got(tr) - tr.base >= st.need()) {
     tr.doneT = tr.t; tr.log.push(yardEntry(st.id, tr.t, tr.fails));
     yardChime(E);
+    // (a knife thrown here is Step 22b's lesson learnt)
+    if (st.id === 'knife') E.save.set('knifeHint', 1);
   }
+}
+// the knife step: a raised knife let go of with no drag throws nothing; it says so, and the ghost starts over
+function yardKnifeTap(E) {
+  const tr = state.train;
+  if (!yardKnife() || tr.doneT >= 0) return;
+  const a = state.aim; yardMiss(E, 'tap', a ? a.x : E.w / 2, (a ? a.y : E.h / 2) - 30); tr.g0 = tr.t;
+}
+// the knife step's ghost: the knife button pulsing under a tapping thumb, then (raised) a drag from the right side to just under the gap and a lift
+function knifeGhost(ctx, E, u) {
+  const b = armsBtns(E), K = TUNING.knives, pulse = 0.5 + 0.5 * Math.sin(state.train.t * 8);
+  if (!state.aim) {
+    if (!b || !b.knife) return;
+    const c = b.knife;
+    ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.5 + 0.5 * pulse})`; ctx.lineWidth = 3 + 2 * pulse; ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 5, 0, TAU); ctx.stroke(); ctx.restore();
+    ghostThumb(ctx, c.x - c.r * 0.2, c.y + c.r * 0.1, ghostAt(GHOST.tap, u)[2]);
+    return;
+  }
+  const g = lessonGap(E);
+  if (!g) return;
+  gapRings(ctx, E, state.train.t, [g]);
+  const [gx, gy] = partCenter(foeF(E), state.foe, g), sx = E.w * K.ghost[0], sy = E.h * K.ghost[1], ey = gy + K.lift;
+  const keys = [[0, sx, sy, 1], [0.55, gx, ey, 1], [0.8, gx, ey, 1], [0.9, gx, ey, 0], [1, sx, sy, 0]];
+  ctx.save(); ctx.strokeStyle = 'rgba(248,241,228,0.35)'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]); line(ctx, sx, sy, gx, ey); ctx.restore();
+  const [x, y, dn] = ghostAt(keys, u);
+  ghostThumb(ctx, x, y, dn);
 }
 // a step done: the chime, and a tick that springs in at (cx, ty), u s after
 function yardChime(E) { E.audio.beep({ freq: 880, dur: 0.12, type: 'triangle', gain: 0.12 }); E.audio.beep({ freq: 1320, dur: 0.2, type: 'triangle', gain: 0.1, delay: 0.09 }); E.haptic(12); }
@@ -10376,6 +10672,7 @@ function drawYard(ctx, E) {
     return;
   }
   const k = E.h / 375;
+  if (st.ghost === 'knife') { knifeGhost(ctx, E, u); return; }
   if (st.ghost === 'hand') { const a = u * TAU; ghostThumb(ctx, ax + 28 * k * Math.cos(a), ay + 20 * k * Math.sin(a), 1); return; }
   const gp = ghostPath(E, st.ghost), [gx, gy] = guardPt(E), G = TUNING.control.gain;
   const keys = gp.keys.map(([ph, x, y, d]) => [ph, (x - gx) / G, (y - gy) / G, d]), GT = T.ghost, C = TUNING.control, arm = myArm(E);
@@ -10501,7 +10798,7 @@ const play = {
   state, lay, foeF, beginBout, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, strikeOf, zoneAt, foeStrike, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
-  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, knifeAt, startLesson, nextYard, aimSnap, raised, busy, purseCost, knifeBuy, partCenter,
+  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, swapBow, bowDown, bowRelease, arrowLands, bowShown, shieldMax, plainGap, overReach, inReach, aimAt, knifeAt, startLesson, nextYard, aimSnap, raised, busy, purseCost, knifeBuy, partCenter,
   ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateOff, YARD, endYard, tapCard, ghostPath, tipFor, guardPt, myH, yardFields, sizeOf, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
   enter(E, params) {
     // the menu's Training (step 23): the yard alone, with a stock fighter in the first run's kit against the Pit's sparring partner, saving nothing
@@ -10657,7 +10954,8 @@ const play = {
       shrugs: state.shrugs, gold: state.gold, goldEarned: state.goldEarned, bought: state.bought.join(','), wares: state.wares.join(','), tent: state.tentDone ? 1 : 0, fins: state.fins.join(','), bleedDmg: state.bleedDmg, lab: state.labUsed, meWeapon: me.weapon === 'axe' && me.mace ? 'mace' : me.weapon, token: state.tokenUsed, epicsSeen: state.epicsSeen, origin: me.origin, reason: me.reason, rival: champ.rival ? 1 : 0, rivalBeaten: state.rivalBeaten,
       arena: state.arena, fav: Math.round(state.fav), favAvg: Math.round(thumbFav()), thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1,
       meName: me.name, fame: fame.sum, vet: me.vid != null ? 1 : 0, myNets: state.netsCast, drives: state.drives, driveDist: Math.round(state.driveDist * 100) / 100, spoils: state.spoils, buy: state.buy, purseLeft: state.purseLeft,
-      knives: state.knivesThrown, knifeGaps: state.knifeGaps, knifePlate: state.knifePlate, knifeSkin: state.knifeSkin, knifeMiss: state.knifeMiss, swaps: state.mySwaps, foeSwaps: state.foeSwaps, ...yardFields() });
+      knives: state.knivesThrown, knifeGaps: state.knifeGaps, knifePlate: state.knifePlate, knifeSkin: state.knifeSkin, knifeMiss: state.knifeMiss, swaps: state.mySwaps, foeSwaps: state.foeSwaps, ...yardFields(),
+      arrows: state.arrows, arrowGaps: state.arrowGaps, arrowSkin: state.arrowSkin, arrowPlate: state.arrowPlate, arrowMiss: state.arrowMiss, bowTime: Math.round(state.bowTime) });
     E.setScene('over', { ...r, won, reached, gauntlet: g, me, results: state.results.slice(), best: Math.max(best, state.gapHits), isNew,
       picks: state.picks.slice(), grades: state.grades.slice(), wall, rivalBeaten: state.rivalBeaten, gold: state.gold, goldEarned: state.goldEarned, wares: state.wares.slice(),
       arena: state.arena, fav: state.arena === 'games' ? thumbFav() : state.fav, opened, fame });
@@ -10674,6 +10972,8 @@ const play = {
     // a raised knife: the right thumb aims it (the sword hand stays put), and a dragged thumb's release throws it; in the first-knife lesson the
     // sword thumb waits for the knife
     if (state.aim && p.startX >= E.w / 3) { if (state.aim.id < 0) aimDown(E, p); return; }
+    // step 24: with the bow out the right thumb draws and aims it (never the sword hand); not while it comes up or goes down
+    if (state.bowOut && p.startX >= E.w / 3) { if (state.swapT <= 0) bowDown(E, p); return; }
     if (state.kLesson && p.startX >= E.w / 3) return;
     if (p.startX < E.w / 3) {
       const b = buttonAt(E, p);
@@ -11050,7 +11350,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 18,
+  saveVersion: 19,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -11132,6 +11432,8 @@ export const game = {
       for (const me of [data.run && data.run.me, data.last && data.last.me]) if (me) me.side = null;
       if (data.run) Object.assign(data.run, { knives: 0, knivesThrown: 0, knifeGaps: 0, mySwaps: 0 });
     }
+    // v19 (v2 step 24, the bow): a saved run has loosed no arrows and had no bow out
+    if (fromVersion < 19 && data.run) Object.assign(data.run, { arrows: 0, arrowGaps: 0, arrowSkin: 0, arrowPlate: 0, arrowMiss: 0, bowTime: 0 });
     return data;
   },
   TUNING,
