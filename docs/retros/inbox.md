@@ -8,3 +8,5 @@ Things agents reported wrong, missing or out of date, and other notes for the ne
 - **A brief named `docs/games/arena/RULES.md` before it existed** (suite builder, 2026-11-14): two agents ran at once and one's output was the other's input.
 - **Arena `RECIPES.md`:** "start a run at bout N" and "a lift ends a blow" were added from builders' hunt notes (2026-11-14).
 - **The split cost about $6 and the suite about $7,** against $8 to $17 for the builds before the code map. Two data points; check the next five.
+- **Arena `RECIPES.md` is missing where effects are drawn** (Step 26 builder, 2026-11-14): particles render in `scenes.js`, and `Math.random` feeds the cracks. Add a recipe for "add a hit effect".
+- **`RULES.md` wasn't updated by the Step 26 landing** beyond its version line; rule 5 says every landing updates it. Do it with the 26b fix build.

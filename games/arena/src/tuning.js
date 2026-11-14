@@ -80,6 +80,36 @@ export const TUNING = {
     // a hit's damage number (step 9a): px from min at 1 to max at top and up, drawn up px above the hit, rising rise px over life s; a number that would
     // cross his face (his head's radius x face) is lifted gap px above his head
     num: { min: 15, max: 32, top: 6, up: 18, rise: 12, life: 0.6, face: 1.35, gap: 4 } },
+  // step 26, each blow looks like itself and each surface answers it (cosmetic, except the hit-stops). Reduced motion (juice.shakeOn 0) halves the
+  // particles below. stop: the least hit-stop (s) a blow of each kind gets on [plate, skin, gap]; the juice's own stop stands when longer.
+  // trail: s a blow's smear is drawn after its birth, and s of the tip's speed it reaches back (at least min H) when the blow has no path behind it yet; inner: where along the blade (0 the fist, 1 the point) the smear starts, per kind; alpha per kind;
+  // needle: the jab's streak width (px), its speed lines' spacing (px), and its length (H per px/s of tip speed, at least min, at most max).
+  // blade: radians a jab's drawn blade may turn into the arm's line, and the drawn blade's width while a slash rolls the wrist.
+  // body: the blow's body (H and radians), eased in over tauIn s and out over tauOut: a jab's shoulder drive, a slash's twist (x scale) and lean,
+  // an overhead's lean and sink.
+  // plate/skin/gap: per kind, the extra particles (n, plus perDmg a heart of damage), and the reshaping of the hit's own blood (speed x, spread x,
+  // size x); pre: s the new drops are thrown on before the hit-stop freezes them, so the frozen frame shows the splash; scrape: a slash's spark shower along len H; burst: the white star's radius (px) and spikes; ring: px; mark: the marks that stay for the
+  // bout on him (and you): a cut's length H per heart (lo to hi), most per part, a dent's radius H, and the share of the part's size a mark keeps inside. shake: a gap overhead's shake x. sound: the
+  // blow's own sound at its birth (tsk: freq, s, gain; whoosh: freq at rest, Hz per px/s, top, s, gain; whoomp: freq, s, gain).
+  look: {
+    stop: { jab: [0, 0, 0.06], slash: [0, 0, 0.08], over: [0.07, 0, 0.12] },
+    trail: { hold: 0.14, back: 0.05, min: 0.28, inner: { jab: 0.85, slash: 0.3, over: 0.15 }, alpha: { jab: 0.9, slash: 0.62, over: 0.7 } },
+    needle: { w: 3, lines: 5, k: 0.00028, min: 0.18, max: 0.5 },
+    blade: { snap: 0.3, roll: 0.6 },
+    body: { tauIn: 0.04, tauOut: 0.16, jab: { dx: 0.035, rot: 0.04 }, slash: { twist: 0.88, rot: 0.06 }, over: { rot: 0.1, dy: 0.02 } },
+    plate: { jab: { n: 5, perDmg: 0 }, slash: { n: 12, perDmg: 4 }, over: { n: 16, perDmg: 4 } },
+    skin: { jab: { n: 3, perDmg: 2, speed: 0.4, spread: 0.7, size: 1.3 }, slash: { n: 8, perDmg: 4, speed: 1.15, spread: 0.4, size: 1.35 },
+      over: { n: 14, perDmg: 5, speed: 1.2, spread: 1.4, size: 1.6 } },
+    gap: { jab: { n: 10, perDmg: 4, speed: 1.3, spread: 0.5, size: 1.6 }, slash: { n: 16, perDmg: 5, speed: 1.3, spread: 0.7, size: 1.6 },
+      over: { n: 26, perDmg: 6, speed: 1.4, spread: 1.6, size: 1.9 } },
+    pre: 0.035,
+    scrape: { len: 0.16 },
+    burst: { jab: [34, 8], slash: [38, 10], over: [56, 12], plate: [42, 10] },
+    ring: { jab: 40, slash: 46, over: 70 },
+    mark: { cut: [0.05, 0.11], max: 8, dent: 0.012, inside: 0.6 },
+    shake: 1.6,
+    sound: { tsk: [2600, 0.035, 0.1], whoosh: [260, 0.3, 1100, 0.15, 0.09], whoomp: [80, 0.24, 0.22] },
+  },
   foe: { swayX: 0.05, swayDeg: 3, kick: 0.9, hp: 22, tierHp: 0.1, champHp: 1.15, dmgCap: 3, coverShield: 0.2, coverGuard: 0.1, jabRun: 3, jabRead: 0.05 },  // hp scaled by size and tier; dmgCap: most hearts one blow takes; cover radii (H) with and without a shield
   // (step 23: from bout 2 on, after jabRun of your jabs in a row met his guard, his guard is over the next jab's mark jabRead s after it starts)
   cover: { dur: 3.2, slide: 0.07, jabTol: 0.8 },  // seconds the foe's guard stays on the part you hit; seconds to slide there; radians a jab may stray from the slit's axis

@@ -392,7 +392,7 @@ export function moveHand(E, dt) {
   h.sp = h.down && h.lock <= 0 ? h.sp * 0.5 + inst * 0.5 : 0;
   if (h.hy < overLine(E)) h.raisedT = state.m;
   // (a fist's trail follows the fist, step 14)
-  if (state.me.weapon === 'fist') state.trail.push({ x: h.hx, y: h.hy, life: 0.12 }); else state.trail.push({ x: h.ux, y: h.uy, life: 0.12 });
+  if (state.me.weapon === 'fist') state.trail.push({ x: h.hx, y: h.hy, hx: h.ex, hy: h.ey, m: state.m, life: 0.12 }); else state.trail.push({ x: h.ux, y: h.uy, hx: h.hx, hy: h.hy, m: state.m, life: 0.12 });
   for (const q of state.trail) q.life -= dt;
   state.trail = state.trail.filter((q) => q.life > 0);
 }
@@ -422,6 +422,7 @@ export function updateAttack(E, dt) {
       state.stamina = Math.max(0, state.stamina - cost);
       state.lastAtk = state.m;
       h.atk = { kind, tired, done: false, cost, lunge: !!(state.lunging && state.lng && !state.lng.committed) };
+      bornLook(E, kind, spv);
       if (kind === 'over') state.overheads++; else if (kind === 'jab') state.jabs++; else state.slashes++;
       // step 23: your jabs in a row (Brutus's nudge), and his read of them
       if (kind === 'jab') { state.jabRun++; readJab(E); } else state.jabRun = state.mem.jabs = 0;
@@ -859,6 +860,7 @@ function alongSlit(F, fm, p, wide = 1) {
 export function bounce(E, p, at, ang, sp, a, st = cleanStrike(a.kind)) {
   const h = state.hand, A = TUNING.armour, J = TUNING.juice, AT = TUNING.attack[a.kind], glance = a.kind === 'jab', S = TUNING.strike;
   state.clangs++; p.clang = 0.25; p.cool = 0.3;
+  const i0 = state.fx.length;
   const crusher = a.kind === 'slash' && sp >= TUNING.hit.mid && has('crusher'), anvil = !st.thud && a.kind === 'over' && has('anvil') && state.m - state.anvilM <= C_().anvilWin;
   const bite = st.thud ? 0 : st.crush ? 1 : st.cut ? S.cut.dent : 0;
   const dn = p.armour && bite && !meWeapon().noDent ? AT.dents * bite * (a.kind === 'over' ? Math.pow(TUNING.cards.heavy, count('heavy')) : crusher ? TUNING.cards.crusher : 1) : 0;
@@ -875,7 +877,9 @@ export function bounce(E, p, at, ang, sp, a, st = cleanStrike(a.kind)) {
     p.cracks.push(pts);
   }
   sparks(at.x, at.y, ang + Math.PI, glance ? 8 : 24); ring(at.x, at.y, glance ? 24 : 44, '#cbd5e1');
-  clangSound(E, 0); shake(E, glance ? 2 : 6, 0.12); E.haptic(glance ? 8 : 24);
+  // (a jab on a plate is a dull thud, not a clang)
+  if (glance && p.armour) dullSound(E); else clangSound(E, 0);
+  shake(E, glance ? 2 : 6, 0.12); E.haptic(glance ? 8 : 24);
   let stop = glance ? 0.01 : J.stopClang + 0.02;
   const breakAt = a.kind === 'over' && meWeapon().overBreak ? meWeapon().overBreak : state.foe.beast ? TUNING.beasts.armour.dents : A.dents;
   if (p.armour && (p.dents >= breakAt || (!st.thud && a.kind === 'over' && has('breaker')) || anvil)) {
@@ -887,6 +891,7 @@ export function bounce(E, p, at, ang, sp, a, st = cleanStrike(a.kind)) {
     E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 }); shake(E, 8, 0.2); E.haptic(30);
     stop = J.stopBreak + 0.04;
   }
+  stop = Math.max(stop, answer(E, { kind: a.kind, surf: 'plate', x: at.x, y: at.y, lx: at.lx, ly: at.ly, ang, dmg: AT.dmg, sp, p, F: foeF(E), fm: state.foe, i0 }));
   if (state.cover) state.cover.t = Math.max(state.cover.t, TUNING.cover.dur * 0.5);
   // his cover (a gap guard is not: it shuts its gap and costs him nothing); his Thorns make a blow on his guard cost you, his Riposte answers it
   const onGuard = !p.armour && !p.guard;
@@ -946,7 +951,7 @@ export function gapHit(E, p, at, ang, sp, a, thrust, st = cleanStrike(a.kind)) {
   // Bonebreaker: an overhead on a bare limb lames it at once
   if (!slot && kind === 'over' && LIMB[p.d.id] && has('bones')) p.hp = 0;
   if (!slot && !numb) { p.hp -= dmg * wm; p.gashes.push({ a: [at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], b: [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl], t: state.m }); }
-  const big = dealt >= 3;
+  const big = dealt >= 3, i0 = state.fx.length;
   blood(at.x, at.y, ang, Math.min(J.blood.max, J.blood.drops + J.blood.perDmg * dealt));
   dust(at.x, at.y, 3 + dealt * 3);
   sliceSound(E, big);
@@ -960,6 +965,7 @@ export function gapHit(E, p, at, ang, sp, a, thrust, st = cleanStrike(a.kind)) {
   let stop = dealt >= 3 ? J.stop3 : dealt >= 2 ? J.stop2 : J.stop1;
   // a gap hit: a short hit-stop, more blood from the gap with a red ring, and a deeper hit
   if (thrust) { stop = Math.max(stop, J.slotStop); blood(at.x, at.y, ang, J.blood.slot); ring(at.x, at.y, J.slotRing, '#ef4444'); slotSound(E); }
+  if (!numb) stop = Math.max(stop, answer(E, { kind, surf: slot ? 'gap' : 'skin', x: at.x, y: at.y, lx: at.lx, ly: at.ly, ang, dmg: dealt, sp, p, F: foeF(E), fm: f, i0, cut: st.cut, pierce: st.pierce }));
   if (!slot && p.hp <= 0) { disable(E, p, at, ang); stop += 0.04; }
   // step 21: the part that struck lights up; a cut on bare skin bleeds (the sica's hook more, and pulls him in); a crush counts to a stagger
   state.zfx = { st, m: state.m };
@@ -1217,8 +1223,16 @@ function resolveOne(E, sw) {
   state.you.a -= TUNING.juice.recoil; state.shatter = { i: Math.max(0, Math.ceil(state.hp)), n: Math.min(dmg, Math.ceil(state.hp + dmg)), t: TUNING.juice.shatter };
   // his Bloodlust (the wolf pelt): a blow that lands gives him stamina
   if (foeHas('bloodlust')) { const f = state.foe; f.sta = Math.min(f.staMax, f.sta + TUNING.foeGear.bloodlust); pop(Ff.x, Ff.y - 1.2 * Ff.H, 'HE DRINKS', '#f87171', 15); }
+  const i0 = state.fx.length;
   if (plated) { state.plateSaves++; part.clang = 0.25; const [px, py] = partCenter(Fy, state.you, part); sparks(px, py, Math.PI, 16); clangSound(E, 0); }
   else if (part) { const [px, py] = partCenter(Fy, state.you, part); blood(px, py, Math.PI, Math.min(TUNING.juice.blood.max, TUNING.juice.blood.drops + TUNING.juice.blood.perDmg * dmg)); }
+  // step 26: his blow's smear, and your plate or skin answers it as his does yours
+  const bk = blowOf(sw.pose);
+  if (part && bk) {
+    const [px, py] = partCenter(Fy, state.you, part), ang = bk === 'over' ? 0.7 * Math.PI : Math.PI, st = fs || { cut: true, pierce: true };
+    hisSmear(E, bk, Ff, Fy, zy);
+    answer(E, { kind: bk, surf: plated ? 'plate' : 'skin', x: px, y: py, lx: part.d.x + (rnd() - 0.5) * 0.06, ly: part.d.y + (rnd() - 0.5) * 0.08, ang, dmg, sp: TUNING.hit.mid, p: part, F: Fy, fm: state.you, i0, you: true, cut: st.cut, pierce: st.pierce });
+  }
   E.flash('#ff2a2a', plated ? 0.15 : 0.3); shake(E, 12 + 4 * sw.dmg, 0.35); E.haptic(50 + 20 * sw.dmg);
   E.audio.play('boom'); E.audio.play('lose', 0.5);
   // his ordinary blow gets its flash and sound; a word for a fake that fooled you, Juggernaut, or 2 or more hearts actually lost
@@ -1375,6 +1389,8 @@ export function stepJuice(E, dt) {
     if (state.m - state.ghostAt >= J.ghostEvery) { state.ghostAt = state.m; state.ghosts.push({ x: youF(E).x, life: J.ghost }); }
   }
   for (const g of state.ghosts) g.life -= dt;
+  for (const f of LOOK.fx) f.life -= dt;
+  LOOK.fx = LOOK.fx.filter((f) => f.life > 0);
   state.ghosts = state.ghosts.filter((g) => g.life > 0);
 }
 // your war paint glowing while a finisher fires
@@ -1489,3 +1505,129 @@ export function crowdVerdict(E) {
   A.play('win');
 }
 export function swooshSound(E, gain = 0.12) { E.audio.noise({ dur: 0.16, gain }); E.audio.beep({ freq: 700, dur: 0.14, type: 'sine', slide: 0.3, gain: gain * 0.4 }); }
+
+// ====== THE LOOK OF A BLOW (step 26): each blow's trail and body once it is classed, and each surface's answer to it (TUNING.look) ======
+// All of it only draws, so it is kept off `state` (a replay's dump never sees it) and draws its randomness from its own generator (Math.random's
+// draws, which the cracks, the sounds and a falling knife share, stay as they were). It is aged in stepJuice, so it freezes with the hit-stop.
+let lookS = 0x2f6b1a3d;
+function rnd() { lookS = (lookS + 0x6d2b79f5) >>> 0; let t = lookS; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+// fx: bursts and his blows' smears; marks: per part, what stays on it for the bout; bornM and kind: your last blow's birth; body: your body's look
+export const LOOK = { fx: [], marks: new WeakMap(), bornM: -9, kind: null, body: { dx: 0, dy: 0, rot: 0, sx: 1, w: 0, m: 0 } };
+const calm = () => !TUNING.juice.shakeOn;
+// his blow's kind by its pose: a beast's swipe is a slash and its maul an overhead
+export const blowOf = (pose) => (pose === 'thrust' ? 'jab' : pose === 'chop' || pose === 'maul' ? 'over' : pose === 'slash' || pose === 'sweep' || pose === 'swipe' ? 'slash' : null);
+// your blow is born: its trail and body switch to its kind, and it sounds like itself (a short tsk, a whoosh pitched by speed, a heavy whoomp)
+function bornLook(E, kind, sp) {
+  LOOK.bornM = state.m; LOOK.kind = kind;
+  const S = TUNING.look.sound, A = E.audio;
+  if (kind === 'jab') { A.noise({ dur: S.tsk[1], gain: S.tsk[2] }); A.beep({ freq: S.tsk[0], dur: S.tsk[1], type: 'square', slide: 0.6, gain: S.tsk[2] * 0.25 }); }
+  else if (kind === 'slash') { const w = S.whoosh; A.noise({ dur: w[3], gain: w[4] }); A.beep({ freq: Math.min(w[2], w[0] + w[1] * sp), dur: w[3], type: 'sine', slide: 0.45, gain: w[4] * 0.5 }); }
+  else { const w = S.whoomp; A.beep({ freq: w[0], dur: w[1], type: 'sine', slide: 0.55, gain: w[2] }); A.noise({ dur: w[1] * 0.7, gain: w[2] * 0.4 }); }
+}
+// a direction on screen in a part's own frame (his is mirrored and leans; a limb turns), for the marks that stay on it
+function localDir(F, fm, p, ang) {
+  let x = F.dir * Math.cos(ang), y = Math.sin(ang);
+  const c = Math.cos(F.a), s = Math.sin(F.a); [x, y] = [x * c + y * s, -x * s + y * c];
+  const fr = fm.fr[p.d.frame || p.d.id] || ZERO, fc = Math.cos(fr.rot), fs = Math.sin(fr.rot);
+  return [x * fc + y * fs, -x * fs + y * fc];
+}
+// (a mark is kept inside the part it is on, so a blow met at the edge of its reach never leaves a cut hanging in the air beside him)
+function mark(p, m) {
+  const d = p.d, K = TUNING.look.mark.inside;
+  // (a cut is drawn in toward the middle of what it opened, where it shows, not on the rim the blade first touched)
+  if (m.k === 'cut') { m.x = lerp(m.x, d.x, K); m.y = lerp(m.y, d.y, K * 0.5); }
+  if (d.shape === 'circle') {
+    const dx = m.x - d.x, dy = m.y - d.y, r = Math.hypot(dx, dy), R = d.r * K;
+    if (r > R) { m.x = d.x + dx / r * R; m.y = d.y + dy / r * R; }
+    if (m.s) m.s = Math.min(m.s, d.r * 2 * K);
+  } else {
+    m.x = clamp(m.x, d.x - d.w / 2 * K, d.x + d.w / 2 * K); m.y = clamp(m.y, d.y - d.h / 2 * K, d.y + d.h / 2 * K);
+    if (m.s) m.s = Math.min(m.s, Math.abs(m.ux) * d.w * K + Math.abs(m.uy) * d.h * K);
+  }
+  let a = LOOK.marks.get(p);
+  if (!a) LOOK.marks.set(p, (a = []));
+  a.push({ ...m, rk: state.rack, t: state.m });
+  if (a.length > TUNING.look.mark.max) a.shift();
+}
+const drop = (x, y, a, s, r, life, i) => { const P = TUNING.look.pre; state.fx.push({ k: 'b', x: x + Math.cos(a) * s * P, y: y + Math.sin(a) * s * P, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 90, g: 950, r, life, max: life, c: BLOOD[i % 3] }); };
+const spark = (x, y, a, s, life) => state.fx.push({ k: 'k', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 500, life, max: life, c: rnd() < 0.5 ? '#ffe9a8' : '#ffffff' });
+const burst = (x, y, [r, n], c, life = 0.16) => LOOK.fx.push({ k: 'burst', x, y, r, n, c, rot: rnd() * TAU, life, max: life });
+// What the surface answers a blow: o = { kind, surf ('plate', 'skin' or 'gap'), x, y, lx, ly (the point in the part's frame), ang, dmg, sp, p, F, fm,
+// i0 (where this hit's own particles begin in state.fx), you (his blow on you) }. Plate never bleeds, a gap is always the loudest, and it all scales
+// with the blow's damage (a slash's with its speed too). Returns the least hit-stop the blow gets (none on you).
+export function answer(E, o) {
+  const L = TUNING.look, k = o.kind, surf = o.surf;
+  if (!k) return 0;
+  if (k === 'jab' && !o.you) { const l = 0.3 * o.F.H; LOOK.fx.push({ k: 'needle', x1: o.x - Math.cos(o.ang) * l, y1: o.y - Math.sin(o.ang) * l, x2: o.x, y2: o.y, life: 0.12, max: 0.12 }); }
+  const R = L[surf][k], H = o.F.H, ang = o.ang, half = calm() ? 0.5 : 1;
+  // the hit's own drops, reshaped by the blow: a jab's puff, a slash's arc along the cut, an overhead's splash
+  for (let i = o.i0; i < state.fx.length; i++) {
+    const f = state.fx[i];
+    if (f.k !== 'b' || !R.speed) continue;
+    const a0 = Math.atan2(f.vy + 90, f.vx), s0 = Math.hypot(f.vx, f.vy + 90), a = ang + wrap(a0 - ang) * R.spread, s = s0 * R.speed;
+    f.vx = Math.cos(a) * s; f.vy = Math.sin(a) * s - 90; f.r *= R.size; f.x += Math.cos(a) * s * L.pre; f.y += Math.sin(a) * s * L.pre;
+    if (k === 'jab' && surf === 'skin') f.life = f.max = f.life * 0.7;
+  }
+  if (calm()) state.fx = state.fx.filter((f, i) => i < o.i0 || (i - o.i0) % 2 === 0);
+  const n = Math.round((R.n + R.perDmg * o.dmg) * (k === 'slash' ? clamp(o.sp / TUNING.hit.mid, 0.7, 1.6) : 1) * half);
+  const dx = Math.cos(ang), dy = Math.sin(ang), x = o.x, y = o.y, p = o.p, mk = p && o.lx != null && !p.slot;
+  if (surf === 'plate') {
+    if (k === 'jab') {
+      // a dull thud: a small spark at the point and a dent
+      for (let i = 0; i < n; i++) spark(x, y, ang + Math.PI + (rnd() - 0.5) * 1.2, 120 + rnd() * 160, 0.1 + rnd() * 0.08);
+      burst(x, y, [L.burst.jab[0] * 0.5, 6], '#fff7d6', 0.1);
+      if (mk && p.armour) mark(p, { k: 'dent', x: o.lx, y: o.ly, s: 1 });
+    } else if (k === 'slash') {
+      // the edge scrapes along the plate and glances off: its own sparks strung along the scrape, a shower more, a bright scratch that stays
+      const len = L.scrape.len * H;
+      for (let i = o.i0; i < state.fx.length; i++) {
+        const f = state.fx[i]; if (f.k !== 'k') continue;
+        const t = rnd() - 0.5, s = Math.hypot(f.vx, f.vy), a = ang + (rnd() - 0.5) * 0.9 - 0.25;
+        f.x = x + dx * len * t; f.y = y + dy * len * t; f.vx = Math.cos(a) * s; f.vy = Math.sin(a) * s;
+      }
+      for (let i = 0; i < n; i++) { const t = rnd() - 0.5; spark(x + dx * len * t, y + dy * len * t, ang + (rnd() - 0.5) * 0.8 - 0.3, 260 + rnd() * 360, 0.18 + rnd() * 0.22); }
+      if (mk && p.armour) { const [ux, uy] = localDir(o.F, o.fm, p, ang); mark(p, { k: 'scratch', x: o.lx, y: o.ly, ux, uy, s: 0.06 }); }
+    } else {
+      // the big clang: a white star, a fan of sparks up off the plate, a ring, a deep dent, a bell under the clang
+      burst(x, y, L.burst.plate, '#fff3c4', 0.18);
+      for (let i = 0; i < n; i++) spark(x, y, -Math.PI / 2 + (rnd() - 0.5) * 2.6, 240 + rnd() * 420, 0.2 + rnd() * 0.25);
+      ring(x, y, L.ring.over, '#fff3c4');
+      if (mk && p.armour) mark(p, { k: 'dent', x: o.lx, y: o.ly, s: 1.8 });
+      E.audio.beep({ freq: 140, dur: 0.35, type: 'triangle', slide: 0.7, gain: 0.18 }); E.audio.beep({ freq: 760, dur: 0.25, type: 'sine', gain: 0.05 });
+    }
+    return o.you ? 0 : L.stop[k][0];
+  }
+  if (surf === 'skin') {
+    if (k === 'jab') {
+      for (let i = 0; i < n; i++) drop(x, y, ang + (rnd() - 0.5) * 1.6, 60 + rnd() * 110, 1.5 + rnd() * 2, 0.25 + rnd() * 0.15, i);
+      if (mk && o.pierce) mark(p, { k: 'hole', x: o.lx, y: o.ly });
+    } else if (k === 'slash') {
+      // a blood arc along the cut, strung along its length, and the cut line that stays on him
+      const C = L.mark.cut, len = (C[0] + (C[1] - C[0]) * clamp((o.dmg - 1) / 2, 0, 1)) * H;
+      for (let i = 0; i < n; i++) { const t = rnd() - 0.5; drop(x + dx * len * t, y + dy * len * t, ang + (rnd() - 0.5) * 0.7 - 0.35, 180 + rnd() * 300, 1.5 + rnd() * 2.5, 0.4 + rnd() * 0.3, i); }
+      if (mk && o.cut) { const [ux, uy] = localDir(o.F, o.fm, p, ang), l = len / H; mark(p, { k: 'cut', x: o.lx + ux * l / 2, y: o.ly + uy * l / 2, ux, uy, s: l }); }
+    } else {
+      // a heavy splash, both ways off the blow
+      for (let i = 0; i < n; i++) drop(x, y, -Math.PI / 2 + (rnd() - 0.5) * 2.8, 160 + rnd() * 360, 2 + rnd() * 3, 0.45 + rnd() * 0.35, i);
+      if (mk && o.cut) { const [ux, uy] = localDir(o.F, o.fm, p, ang), l = L.mark.cut[1]; mark(p, { k: 'cut', x: o.lx + ux * l / 2, y: o.ly + uy * l / 2, ux, uy, s: l }); }
+    }
+    return o.you ? 0 : L.stop[k][1];
+  }
+  // a gap: the deep burst, a white star and a white ring over his red one, the most blood; the overhead's biggest, with a flash and a shake
+  burst(x, y, L.burst[k], '#ffffff', k === 'over' ? 0.22 : 0.16);
+  ring(x, y, L.ring[k], '#ffffff');
+  for (let i = 0; i < n; i++) drop(x, y, ang + (rnd() - 0.5) * R.spread * 1.6, 200 + rnd() * 380, (1.8 + rnd() * 2.8) * R.size, 0.45 + rnd() * 0.35, i);
+  if (k === 'over') {
+    for (let i = 0; i < n >> 1; i++) drop(x, y, -Math.PI / 2 + (rnd() - 0.5) * 2.8, 200 + rnd() * 380, 2 + rnd() * 3, 0.5 + rnd() * 0.3, i);
+    ring(x, y, L.ring.over * 1.6, '#ef4444'); E.flash('#fff0b8', 0.08);
+    shake(E, (2 + Math.min(o.dmg, 5) * 2.5) * L.shake, 0.1);
+  }
+  return o.you ? 0 : L.stop[k][2];
+}
+// his blow's own smear as it lands on you: a needle for a thrust, a crescent across you for a slash, a tall smear down onto you for a chop
+function hisSmear(E, kind, Ff, Fy, zy) {
+  const H = Fy.H, x = (Ff.x + Fy.x) / 2;
+  if (kind === 'jab') LOOK.fx.push({ k: 'needle', x1: Ff.x - 0.15 * H, y1: zy, x2: Fy.x + 0.1 * H, y2: zy, life: 0.14, max: 0.14 });
+  else if (kind === 'slash') LOOK.fx.push({ k: 'arc', x: x + 0.15 * H, y: zy - 0.05 * H, r: 0.32 * H, a0: -2.2, a1: -3.9, w: 0.1 * H, life: 0.16, max: 0.16, c: '255,236,230' });
+  else if (kind === 'over') LOOK.fx.push({ k: 'arc', x: Fy.x + 0.45 * H, y: zy + 0.05 * H, r: 0.42 * H, a0: -1.45, a1: -2.65, w: 0.14 * H, life: 0.2, max: 0.2, c: '255,240,220' });
+}

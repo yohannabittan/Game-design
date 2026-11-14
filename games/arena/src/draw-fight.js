@@ -5,7 +5,7 @@ import { clamp, lerp } from './engine.js';
 import { TUNING } from './tuning.js';
 import { bandOf, TAILOR, DECK, CARD, rarCol, gearOf, PARTS, ARM_LEN, SHOULDER, BEAST_BODY, POSE_NAME, mkPart } from './data.js';
 import { lay, beastOf, rearOf, youF, walls, myH, myBlade, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, shieldMax, beastRestQ,
-  knee, colRect, shieldBtns, myKey, sand } from './fight.js';
+  knee, colRect, shieldBtns, myKey, sand, LOOK } from './fight.js';
 import { hesitating, covering, covered, LIMB, lamed, edgeF, poseEdge } from './foe.js';
 import { perfectWin, finCost, finReady, finLive, finBtn, firstRun } from './cards.js';
 import { fitSize, wrapPx } from './screens.js';
@@ -1342,6 +1342,7 @@ function spriteOf(E, p, H, lk) {
 }
 // small red cut lines on bare hits, fading over a few seconds
 function cuts(ctx, p, H) {
+  scars(ctx, p, H);
   if (!p.gashes.length) return;
   const T = TUNING.skin.cutFade;
   p.gashes = p.gashes.filter((g) => state.m - g.t < T);
@@ -1350,6 +1351,32 @@ function cuts(ctx, p, H) {
     const k = 1 - (state.m - g.t) / T;
     ctx.strokeStyle = `rgba(110,14,10,${0.55 * k})`; ctx.lineWidth = Math.max(2, 0.011 * H); line(ctx, g.a[0] * H, g.a[1] * H, g.b[0] * H, g.b[1] * H);
     ctx.strokeStyle = `rgba(232,62,46,${k})`; ctx.lineWidth = Math.max(1, 0.005 * H); line(ctx, g.a[0] * H, g.a[1] * H, g.b[0] * H, g.b[1] * H);
+  }
+}
+// step 26: what stays on a part for the bout (fight.js LOOK.marks): a slash's thin red cut line, a jab's puncture, a dent or a bright scratch on a plate
+function scars(ctx, p, H) {
+  const ms = LOOK.marks.get(p);
+  if (!ms) return;
+  if (ms.some((m) => m.rk !== state.rack)) { LOOK.marks.delete(p); return; }
+  ctx.lineCap = 'round';
+  for (const m of ms) {
+    const x = m.x * H, y = m.y * H, fresh = clamp(1 - (state.m - m.t) / 0.4, 0, 1);
+    if (m.k === 'cut') {
+      const dx = m.ux * m.s * H / 2, dy = m.uy * m.s * H / 2;
+      ctx.strokeStyle = 'rgba(90,8,6,0.75)'; ctx.lineWidth = Math.max(2.2, 0.01 * H) + 2 * fresh; line(ctx, x - dx, y - dy, x + dx, y + dy);
+      ctx.strokeStyle = fresh > 0 ? `rgb(255,${Math.round(60 + 140 * fresh)},${Math.round(40 + 140 * fresh)})` : '#e3342b'; ctx.lineWidth = Math.max(1, 0.0045 * H); line(ctx, x - dx * 0.92, y - dy * 0.92, x + dx * 0.92, y + dy * 0.92);
+    } else if (m.k === 'hole') {
+      ctx.fillStyle = 'rgba(110,10,8,0.9)'; ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, 0.007 * H), 0, TAU); ctx.fill();
+    } else if (m.k === 'dent') {
+      const r = TUNING.look.mark.dent * m.s * H;
+      ctx.fillStyle = 'rgba(25,22,20,0.35)'; ctx.beginPath(); ctx.ellipse(x, y, r * 1.3, r, 0.4, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,250,230,0.65)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(x, y, r * 1.3, r, 0.4, 0.2, 2.2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(20,16,12,0.6)'; ctx.beginPath(); ctx.ellipse(x, y, r * 1.3, r, 0.4, 3.3, 5.3); ctx.stroke();
+    } else if (m.k === 'scratch') {
+      const dx = m.ux * m.s * H / 2, dy = m.uy * m.s * H / 2;
+      ctx.strokeStyle = 'rgba(30,26,22,0.5)'; ctx.lineWidth = 2; line(ctx, x - dx, y - dy + 1, x + dx, y + dy + 1);
+      ctx.strokeStyle = `rgba(255,252,236,${0.7 + 0.3 * fresh})`; ctx.lineWidth = 1.2; line(ctx, x - dx, y - dy, x + dx, y + dy);
+    }
   }
 }
 // A part in its frame: the sprite, its cuts, a shake and a bright wash while a plate clangs, a flash when hit.
@@ -1964,6 +1991,7 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath(); ctx.ellipse(F.x, L.floor + 3, H * 0.22, H * 0.035, 0, 0, 6.28); ctx.fill();
   ctx.save();
+  if (who === 'you' && ga === 1) { easeBody(); lookXf(ctx, E); }
   ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
   if (live && (state.stagger > 0 || state.winded > 0)) {
     const k = state.winded > 0 ? 0.35 + 0.25 * Math.sin(state.m * 9) : 0.45;
@@ -2090,12 +2118,13 @@ function liveArmGear(ctx, h, H, lk, aw = 0, px = 0) {
 export function drawSwordArm(ctx, E) {
   const h = state.hand, H = myH(E), locked = h.lock > 0, blade = myBlade(E), wid = state.me.weapon, bare = wid === 'fist';
   const w = (wid === 'dagger' ? 0.026 : wid === 'sica' ? 0.03 : 0.034) * H, pole = wid === 'spear' || wid === 'axe' || wid === 'trident';
-  const bx = h.bx, by = h.by, nx = -by, ny = bx;
+  // step 26: the blade as the blow is classed (drawn only; the hits use the hand's own blade): a jab's snaps into the arm's line, a slash's rolls
+  // its edge forward (drawn narrower); the shoulder rides your body's look
+  const LB = TUNING.look.blade, kind = blowKind(), bw = LOOK.body.w, ph = h.ph + (kind === 'jab' && !locked ? clamp(wrap(h.ang - h.ph), -LB.snap, LB.snap) * bw : 0);
+  const bx = Math.cos(ph), by = Math.sin(ph), nx = -by, ny = bx, ux = h.hx + bx * blade, uy = h.hy + by * blade, roll = kind === 'slash' && !bare ? 1 - (1 - LB.roll) * bw : 1;
+  const [sx, sy] = lookPt(E, h.sx, h.sy);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  if (state.trail.length > 1 && h.sp >= TUNING.hit.minSpeed) {
-    ctx.strokeStyle = 'rgba(125,227,255,0.35)'; ctx.lineWidth = 8; ctx.beginPath();
-    state.trail.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.stroke();
-  }
+  drawBlowTrail(ctx, E, kind, bare, ph, ux, uy);
   const lk = lookFor(state.you, false), G = lk.gear;
   // the kit: the painted upper arm now, the forearm and fist over the grip at the end (with the arm's gear on it)
   const aw = TUNING.kit.arm * H, kpx = aw * Math.min(E.dpr || 1, TUNING.skin.maxDpr), kU = lk.kit && kitPic('upperarm', lk.kit.tier, kpx), kF = lk.kit && kitPic('forearm', lk.kit.tier, kpx), kit = kU && kF;
@@ -2103,72 +2132,74 @@ export function drawSwordArm(ctx, E) {
   // way: the upper arm's back to the outside of the elbow, the fist's fingers toward the hilt (kept as they were when the arm is straight or the blade
   // runs along the forearm, so they never flicker).
   if (kit) {
-    const lu = Math.hypot(h.ex - h.sx, h.ey - h.sy) || 1, lf = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, F = TUNING.kit.flip;
-    const u = (-(h.ey - h.sy) * (h.ex - (h.sx + h.hx) / 2) + (h.ex - h.sx) * (h.ey - (h.sy + h.hy) / 2)) / (lu * lu), f = (-(h.hy - h.ey) * bx + (h.hx - h.ex) * by) / lf;
+    const lu = Math.hypot(h.ex - sx, h.ey - sy) || 1, lf = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, F = TUNING.kit.flip;
+    const u = (-(h.ey - sy) * (h.ex - (sx + h.hx) / 2) + (h.ex - sx) * (h.ey - (sy + h.hy) / 2)) / (lu * lu), f = (-(h.hy - h.ey) * bx + (h.hx - h.ex) * by) / lf;
     if (Math.abs(u) > F[0]) h.flipU = u < 0;
     if (Math.abs(f) > F[1]) h.flipF = f < 0;
     // the forearm under the upper arm, so the muscle at its top runs out of the elbow rather than bulging over it
     drawSeg(ctx, kF, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF);
-    drawSeg(ctx, kU, [h.sx, h.sy], [h.ex, h.ey], aw, !!h.flipU);
+    drawSeg(ctx, kU, [sx, sy], [h.ex, h.ey], aw, !!h.flipU);
   }
   else {
-    limb(ctx, [[h.sx, h.sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
+    limb(ctx, [[sx, sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
     liveArmGear(ctx, h, H, lk);
     ctx.fillStyle = YOU.tunic; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(h.sx, h.sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(sx, sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke();
   }
   // (the painted pauldrons ride the arm with its other pieces, and the painted black plate needs no shoulder)
   if ((G.arms && G.arms.id === 'jugg' && !(kit && gearArt(lk, 'arms'))) || (G.chest && G.chest.id === 'titan' && !(kit && gearArt(lk, 'chest')))) {
     // Juggernaut's iron pauldrons, or Titan's black shoulder: layered black lames and a spike over the weapon shoulder
     for (let i = 2; i >= 0; i--) {
-      const r = (0.075 - i * 0.012) * H, cy = h.sy - 0.012 * H + i * 0.024 * H;
-      ctx.beginPath(); ctx.ellipse(h.sx, cy, r * 1.15, r * 0.7, 0, Math.PI, TAU); ctx.closePath();
-      ctx.fillStyle = metalGrad(ctx, h.sx + r, cy - r, h.sx - r, cy, BLACK); ctx.fill(); ctx.strokeStyle = BLACK.edge; ctx.lineWidth = 1.5; ctx.stroke();
+      const r = (0.075 - i * 0.012) * H, cy = sy - 0.012 * H + i * 0.024 * H;
+      ctx.beginPath(); ctx.ellipse(sx, cy, r * 1.15, r * 0.7, 0, Math.PI, TAU); ctx.closePath();
+      ctx.fillStyle = metalGrad(ctx, sx + r, cy - r, sx - r, cy, BLACK); ctx.fill(); ctx.strokeStyle = BLACK.edge; ctx.lineWidth = 1.5; ctx.stroke();
     }
-    spike(ctx, h.sx, h.sy - 0.06 * H, -Math.PI / 2, 0.04 * H, 0.018 * H, BLACK, true);
+    spike(ctx, sx, sy - 0.06 * H, -Math.PI / 2, 0.04 * H, 0.018 * H, BLACK, true);
   } else if (lk.pauldron && !lk.kit) {
     // the brute's layered iron pauldron over the weapon shoulder (not on a painted man, who has no painted one)
     for (let i = 2; i >= 0; i--) {
-      const r = (0.07 - i * 0.012) * H, cy = h.sy - 0.01 * H + i * 0.022 * H;
-      ctx.beginPath(); ctx.ellipse(h.sx, cy, r * 1.15, r * 0.7, 0, Math.PI, TAU); ctx.closePath();
-      ctx.fillStyle = metalGrad(ctx, h.sx + r, cy - r, h.sx - r, cy, lk.metal); ctx.fill(); ctx.strokeStyle = lk.metal.edge; ctx.lineWidth = 1.5; ctx.stroke();
+      const r = (0.07 - i * 0.012) * H, cy = sy - 0.01 * H + i * 0.022 * H;
+      ctx.beginPath(); ctx.ellipse(sx, cy, r * 1.15, r * 0.7, 0, Math.PI, TAU); ctx.closePath();
+      ctx.fillStyle = metalGrad(ctx, sx + r, cy - r, sx - r, cy, lk.metal); ctx.fill(); ctx.strokeStyle = lk.metal.edge; ctx.lineWidth = 1.5; ctx.stroke();
     }
   }
   const a = h.atk, hot = a && !a.done && h.sp >= TUNING.hit.minSpeed && !locked;
   const gx = h.hx + bx * 0.05 * H, gy = h.hy + by * 0.05 * H, steel = locked ? '#ff8a7a' : '#dfe6ee';
   // Step 14: fists swing at the fist (its glow round it, its jab spark at the knuckles), never at a blade's length
   const FW = TUNING.me.weapons.fist, fl = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, kn = [h.hx + (h.hx - h.ex) / fl * FW.knuckle * H, h.hy + (h.hy - h.ey) / fl * FW.knuckle * H];
-  const tip = bare ? kn : [h.ux, h.uy], glow = hot && (a.kind === 'over' ? 'rgba(255,200,90,0.5)' : 'rgba(125,227,255,0.45)');
+  const tip = bare ? kn : [ux, uy], glow = hot && (a.kind === 'over' ? 'rgba(255,200,90,0.5)' : 'rgba(125,227,255,0.45)');
   if (hot && bare) { ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(h.hx, h.hy, FW.glow * H, 0, TAU); ctx.fill(); }
-  else if (hot) { ctx.strokeStyle = glow; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(h.ux, h.uy); ctx.stroke(); }
+  else if (hot) { ctx.strokeStyle = glow; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(ux, uy); ctx.stroke(); }
   const P = (t, s, len = blade, x0 = gx, y0 = gy) => [x0 + bx * len * t + nx * w * s, y0 + by * len * t + ny * w * s];
   const shape = (pts) => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); };
   // fists draw no weapon, as his fists when disarmed (the fist is the forearm's, drawn last); a painted one is pinned in the fist (step 14)
   // step 24: the bow in your fist in place of your weapon, from halfway through the swap to it
   const bowUp = bowShown();
   if (bowUp) drawBow(ctx, E);
+  ctx.save();
+  if (roll < 1) { ctx.translate(h.hx, h.hy); ctx.rotate(ph); ctx.scale(1, roll); ctx.rotate(-ph); ctx.translate(-h.hx, -h.hy); }
   const painted = !bowUp && !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx, h.hy], [bx, by], blade, H, G.weapon, locked, zoneFx());
   if (painted || bowUp) { /* drawn */ } else if (pole) {
     // a wooden shaft from behind the fist to the head
-    ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H); ctx.lineTo(h.ux - bx * 0.02 * H, h.uy - by * 0.02 * H); ctx.stroke();
+    ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H); ctx.lineTo(ux - bx * 0.02 * H, uy - by * 0.02 * H); ctx.stroke();
     ctx.strokeStyle = '#7a5532'; ctx.lineWidth = 0.03 * H; ctx.stroke();
     if (wid === 'spear') {
-      const hl = 0.13 * H, hx0 = h.ux - bx * hl, hy0 = h.uy - by * hl;
+      const hl = 0.13 * H, hx0 = ux - bx * hl, hy0 = uy - by * hl;
       shape([P(0, -0.6, hl, hx0, hy0), P(0.3, -1.1, hl, hx0, hy0), P(1, 0, hl, hx0, hy0), P(0.3, 1.1, hl, hx0, hy0), P(0, 0.6, hl, hx0, hy0)]);
       ctx.fillStyle = steel; ctx.fill(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 2; ctx.stroke();
     } else if (wid === 'trident') {
       // a crossbar behind the tip and three prongs: the middle one ends at the tip
-      const hl = 0.11 * H, cx0 = h.ux - bx * hl, cy0 = h.uy - by * hl, pw = 0.04 * H;
+      const hl = 0.11 * H, cx0 = ux - bx * hl, cy0 = uy - by * hl, pw = 0.04 * H;
       ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 0.016 * H + 2; line(ctx, cx0 - nx * pw, cy0 - ny * pw, cx0 + nx * pw, cy0 + ny * pw);
-      for (const k of [-1, 0, 1]) { const ex = h.ux - bx * (k ? 0.025 * H : 0) + nx * pw * k, ey = h.uy - by * (k ? 0.025 * H : 0) + ny * pw * k; ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 0.012 * H + 2; line(ctx, cx0 + nx * pw * k, cy0 + ny * pw * k, ex, ey); ctx.strokeStyle = steel; ctx.lineWidth = 0.012 * H; line(ctx, cx0 + nx * pw * k, cy0 + ny * pw * k, ex, ey); }
+      for (const k of [-1, 0, 1]) { const ex = ux - bx * (k ? 0.025 * H : 0) + nx * pw * k, ey = uy - by * (k ? 0.025 * H : 0) + ny * pw * k; ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 0.012 * H + 2; line(ctx, cx0 + nx * pw * k, cy0 + ny * pw * k, ex, ey); ctx.strokeStyle = steel; ctx.lineWidth = 0.012 * H; line(ctx, cx0 + nx * pw * k, cy0 + ny * pw * k, ex, ey); }
       ctx.strokeStyle = steel; ctx.lineWidth = 0.016 * H; line(ctx, cx0 - nx * pw, cy0 - ny * pw, cx0 + nx * pw, cy0 + ny * pw);
     } else if (state.me.mace) {
       ctx.fillStyle = locked ? '#ff8a7a' : '#5b616b'; ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(h.ux - bx * 0.04 * H, h.uy - by * 0.04 * H, 0.055 * H, 0, TAU); ctx.fill(); ctx.stroke();
-      for (let i = 0; i < 8; i++) { const an = i * 0.785, cx = h.ux - bx * 0.04 * H, cy = h.uy - by * 0.04 * H; line(ctx, cx + Math.cos(an) * 0.045 * H, cy + Math.sin(an) * 0.045 * H, cx + Math.cos(an) * 0.078 * H, cy + Math.sin(an) * 0.078 * H); }
+      ctx.beginPath(); ctx.arc(ux - bx * 0.04 * H, uy - by * 0.04 * H, 0.055 * H, 0, TAU); ctx.fill(); ctx.stroke();
+      for (let i = 0; i < 8; i++) { const an = i * 0.785, cx = ux - bx * 0.04 * H, cy = uy - by * 0.04 * H; line(ctx, cx + Math.cos(an) * 0.045 * H, cy + Math.sin(an) * 0.045 * H, cx + Math.cos(an) * 0.078 * H, cy + Math.sin(an) * 0.078 * H); }
     } else {
       // the axe head bites on the leading edge, behind the tip
-      const hx0 = h.ux - bx * 0.13 * H, hy0 = h.uy - by * 0.13 * H, k = 0.034 * H / w;
+      const hx0 = ux - bx * 0.13 * H, hy0 = uy - by * 0.13 * H, k = 0.034 * H / w;
       shape([P(0.05, k * 0.4, H, hx0, hy0), P(0.0, k * 3.4, H, hx0, hy0), P(0.06, k * 4.2, H, hx0, hy0), P(0.13, k * 3.6, H, hx0, hy0), P(0.11, k * 0.4, H, hx0, hy0)]);
       ctx.fillStyle = locked ? '#ff8a7a' : '#b7c0ca'; ctx.fill(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 2; ctx.stroke();
     }
@@ -2182,17 +2213,17 @@ export function drawSwordArm(ctx, E) {
     else shape([...LEAF.map(([t, q]) => P(t, -q)), ...LEAF.slice(0, -1).reverse().map(([t, q]) => P(t, q))]);
     ctx.fillStyle = steel; ctx.fill(); ctx.strokeStyle = '#1b2026'; ctx.lineWidth = 2; ctx.stroke();
     // the shine runs down the blade's middle: the sica's follows its bow, so it never cuts across the crescent's hollow
-    const mid = wid === 'sica' ? [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.94].map((t) => P(t, sicaBow(t))) : [[gx + bx * 6, gy + by * 6], [h.ux - bx * 6, h.uy - by * 6]];
+    const mid = wid === 'sica' ? [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.94].map((t) => P(t, sicaBow(t))) : [[gx + bx * 6, gy + by * 6], [ux - bx * 6, uy - by * 6]];
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); mid.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
   }
   if (G.weapon && !bare && !painted && !bowUp) {
-    const tip = [h.ux, h.uy], back = (k) => [h.ux - bx * k * H, h.uy - by * k * H], ts = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85];
+    const tip = [ux, uy], back = (k) => [ux - bx * k * H, uy - by * k * H], ts = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85];
     // the cutting edges (the saw teeth's lines) follow each blade or head as drawn above, never the shaft
     const sides = (f) => [1, -1].map((sd) => ts.map((t) => f(t, sd)));
     let edges;
     if (wid === 'spear') { const o = back(0.13); edges = sides((t, sd) => P(t, sd * halfAt(SPEARHEAD, t), 0.13 * H, o[0], o[1])); }
-    else if (wid === 'trident') { const pw = 0.04 * H + 0.006 * H; edges = [1, -1].map((k) => [0.11, 0.025].map((q) => [h.ux - bx * q * H + nx * pw * k, h.uy - by * q * H + ny * pw * k])); }
-    else if (wid === 'axe' && state.me.mace) edges = [ringPts(h.ux - bx * 0.04 * H, h.uy - by * 0.04 * H, 0.055 * H)];
+    else if (wid === 'trident') { const pw = 0.04 * H + 0.006 * H; edges = [1, -1].map((k) => [0.11, 0.025].map((q) => [ux - bx * q * H + nx * pw * k, uy - by * q * H + ny * pw * k])); }
+    else if (wid === 'axe' && state.me.mace) edges = [ringPts(ux - bx * 0.04 * H, uy - by * 0.04 * H, 0.055 * H)];
     else if (wid === 'axe') { const o = back(0.13), k = 0.034 * H / w; edges = [[P(0, k * 3.4, H, o[0], o[1]), P(0.06, k * 4.2, H, o[0], o[1]), P(0.13, k * 3.6, H, o[0], o[1])]]; }
     else if (wid === 'sica') edges = sides((t, sd) => P(t, sicaBow(t) + sd * 0.9 * (1 - t)));
     else edges = sides((t, sd) => P(t, sd * halfAt(LEAF, t)));
@@ -2200,6 +2231,7 @@ export function drawSwordArm(ctx, E) {
     else if (wid === 'axe') weaponGear(ctx, G.weapon, back(0.2), tip, 0.016 * H, [h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H], H, edges);
     else weaponGear(ctx, G.weapon, [gx, gy], tip, w, [h.hx - bx * 0.08 * H, h.hy - by * 0.08 * H], H, edges);
   }
+  ctx.restore();
   if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 6, 0, 6.28); ctx.fill(); }
   if (kit) { drawSeg(ctx, { ...kF, J: { ...kF.J, top: kF.J.a[1] + (kF.J.b[1] - kF.J.a[1]) * TUNING.kit.fist } }, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF); liveArmGear(ctx, h, H, lk, aw, kpx); }
   else {
@@ -2215,12 +2247,126 @@ export function drawSwordArm(ctx, E) {
   }
   if (a && a.kind !== 'raise' && a.kind !== 'pull' && !locked) E.text(a.kind === 'over' ? 'SMASH' : a.kind === 'jab' ? 'STAB' : a.kind.toUpperCase(), h.hx, h.hy - 0.12 * H, { size: 11, color: '#e2e8f0', alpha: 0.7, weight: '700' });
   if (locked) E.text('X', tip[0], tip[1] - 22, { size: 22, color: '#ff8a7a', weight: '800' });
+  drawLookFx(ctx);
 }
 
+// ----- step 26: the look of a blow (fight.js LOOK, TUNING.look) -----
+// your blow's kind while it is live or just landed (null when no blow is under way)
+function blowKind() {
+  const a = state.hand.atk;
+  if (a && (a.kind === 'jab' || a.kind === 'slash' || a.kind === 'over')) return a.kind;
+  return state.m - LOOK.bornM < TUNING.look.trail.hold ? LOOK.kind : null;
+}
+// your body's look eases toward the blow's (a jab's shoulder drive, a slash's twist, an overhead's lean and sink), on the fight's clock
+function easeBody() {
+  const B = TUNING.look.body, b = LOOK.body, k = blowKind(), dt = clamp(state.m - b.m, 0, 0.1); b.m = state.m;
+  const T = k ? { dx: 0, dy: 0, rot: 0, sx: 1, ...(k === 'jab' ? { dx: B.jab.dx, rot: B.jab.rot } : k === 'slash' ? { sx: B.slash.twist, rot: B.slash.rot } : { rot: B.over.rot, dy: B.over.dy }) } : { dx: 0, dy: 0, rot: 0, sx: 1 };
+  const e = 1 - Math.exp(-dt / (k ? B.tauIn : B.tauOut));
+  for (const q of ['dx', 'dy', 'rot', 'sx']) b[q] += (T[q] - b[q]) * e;
+  b.w += ((k ? 1 : 0) - b.w) * e;
+}
+// the body's look about your feet: on the canvas, or on a point (your shoulder, so the sword arm stays joined)
+function lookXf(ctx, E) {
+  const b = LOOK.body;
+  if (b.w < 0.002) return;
+  const F = youF(E);
+  ctx.translate(F.x, F.y); ctx.rotate(F.a); ctx.translate(b.dx * F.H, b.dy * F.H); ctx.rotate(b.rot); ctx.scale(b.sx, 1); ctx.rotate(-F.a); ctx.translate(-F.x, -F.y);
+}
+function lookPt(E, x, y) {
+  const b = LOOK.body;
+  if (b.w < 0.002) return [x, y];
+  const F = youF(E), c = Math.cos(F.a), s = Math.sin(F.a), r = Math.cos(b.rot), q = Math.sin(b.rot);
+  let px = x - F.x, py = y - F.y;
+  [px, py] = [px * c + py * s, -px * s + py * c]; px *= b.sx;
+  [px, py] = [px * r - py * q, px * q + py * r]; px += b.dx * F.H; py += b.dy * F.H;
+  return [F.x + px * c - py * s, F.y + px * s + py * c];
+}
+// your blow's trail, from the hand's recent path: a jab's short straight needle from the point, a slash's crescent smear the blade's length along
+// its arc, an overhead's taller, heavier smear with a bright edge
+function drawBlowTrail(ctx, E, kind, bare, ph, ux, uy) {
+  const T = TUNING.look.trail, h = state.hand, tr = state.trail;
+  if (tr.length < 2) return;
+  if (!kind || bare) {
+    if (h.sp < TUNING.hit.minSpeed) return;
+    ctx.strokeStyle = 'rgba(125,227,255,0.35)'; ctx.lineWidth = 8; ctx.beginPath();
+    tr.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.stroke();
+    return;
+  }
+  // (an overhead's smear starts at its birth, not on the raise before it; a slash's takes in the whole stroke, which is often born the frame it lands)
+  const pts = tr.filter((q) => q.hx != null && (kind !== 'over' || q.m >= LOOK.bornM - 0.034));
+  const A = T.alpha[kind], f = T.inner[kind], a = state.hand.atk, live = a && a.kind === kind && !a.done && h.lock <= 0;
+  ctx.save();
+  if (kind === 'jab') {
+    // a needle from the point, back along the blade, as long as the thrust is fast; thin and bright at the point, with faint speed lines beside it
+    if (!live) { ctx.restore(); return; }
+    const N = TUNING.look.needle, len = clamp(h.sp * N.k, N.min, N.max) * myH(E), bx = Math.cos(ph), by = Math.sin(ph), b = [ux, uy], o = [ux - bx * len, uy - by * len];
+    const g = ctx.createLinearGradient(o[0], o[1], b[0], b[1]);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, `rgba(255,255,255,${A})`);
+    ctx.strokeStyle = g; ctx.lineWidth = N.w * 3; ctx.globalAlpha = 0.35; line(ctx, o[0], o[1], b[0], b[1]);
+    ctx.globalAlpha = 1; ctx.lineWidth = N.w; line(ctx, o[0], o[1], b[0], b[1]);
+    ctx.lineWidth = 1; ctx.globalAlpha = 0.5;
+    for (const k of [-1, 1]) line(ctx, o[0] - by * N.lines * k, o[1] + bx * N.lines * k, b[0] - bx * len * 0.3 - by * N.lines * k, b[1] - by * len * 0.3 + bx * N.lines * k);
+  } else {
+    // a blow born the frame it lands has no path behind it yet: the smear is drawn back along the tip's speed (the fist moving less, so it curves)
+    const z = pts[pts.length - 1], v = Math.hypot(h.vx, h.vy) || 1, back = Math.max(v * T.back, T.min * myH(E)), bx = h.vx / v * back, by = h.vy / v * back;
+    if (z && a && a.kind === kind && h.lock <= 0 && Math.hypot(z.x - pts[0].x, z.y - pts[0].y) < back) {
+      pts.splice(0, pts.length - 1, { x: z.x - bx, y: z.y - by, hx: z.hx - bx * 0.5, hy: z.hy - by * 0.5, life: z.life });
+    }
+  }
+  if (kind !== 'jab' && pts.length >= 2) {
+    // the smear: the band the blade swept, interpolated as the blade turns (so it curves), from f of its length to the point, thin and faint at its
+    // old end, full and bright at its newest
+    const n = pts.length, m = 6, tip = [], inr = [];
+    const angOf = (q) => Math.atan2(q.y - q.hy, q.x - q.hx), lenOf = (q) => Math.hypot(q.x - q.hx, q.y - q.hy);
+    for (let i = 1; i < n; i++) {
+      const p = pts[i - 1], q = pts[i], a0 = angOf(p), da = wrap(angOf(q) - a0);
+      for (let j = i === 1 ? 0 : 1; j <= m; j++) {
+        const t = j / m, hx = lerp(p.hx, q.hx, t), hy = lerp(p.hy, q.hy, t), an = a0 + da * t, L = lerp(lenOf(p), lenOf(q), t), k = (i - 1 + t) / (n - 1);
+        const fi = 1 - (1 - f) * Math.pow(k, 0.6);
+        tip.push([hx + Math.cos(an) * L, hy + Math.sin(an) * L]); inr.push([hx + Math.cos(an) * L * fi, hy + Math.sin(an) * L * fi]);
+      }
+    }
+    const fade = Math.min(1, pts[n - 1].life / 0.06), c0 = tip[0], c1 = tip[tip.length - 1], col = kind === 'over' ? '255,246,226' : '236,246,255';
+    const g = ctx.createLinearGradient(c0[0], c0[1], c1[0], c1[1]);
+    g.addColorStop(0, `rgba(${col},0)`); g.addColorStop(1, `rgba(${col},${A * fade})`);
+    ctx.fillStyle = g; ctx.beginPath(); tip.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); for (let i = inr.length - 1; i >= 0; i--) ctx.lineTo(inr[i][0], inr[i][1]); ctx.closePath(); ctx.fill();
+    const e = ctx.createLinearGradient(c0[0], c0[1], c1[0], c1[1]);
+    e.addColorStop(0, 'rgba(255,255,255,0)'); e.addColorStop(1, `rgba(255,255,255,${(kind === 'over' ? 0.95 : 0.75) * fade})`);
+    ctx.strokeStyle = e; ctx.lineWidth = kind === 'over' ? 3 : 2; ctx.beginPath(); tip.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
+  }
+  ctx.restore();
+}
+// the look's own effects: a white star at a hit, his blows' needle and crescent smears
+function drawLookFx(ctx) {
+  ctx.save(); ctx.lineCap = 'round';
+  for (const f of LOOK.fx) {
+    const t = clamp(f.life / f.max, 0, 1);
+    if (f.k === 'burst') {
+      const u = 1 - t, r = f.r * (0.85 + 0.35 * u);
+      ctx.globalAlpha = Math.min(1, t * 2.2); ctx.fillStyle = f.c; ctx.beginPath();
+      for (let i = 0; i < f.n * 2; i++) { const a = f.rot + i * Math.PI / f.n, rr = i % 2 ? r * 0.32 : r * (i % 4 ? 0.8 : 1); i ? ctx.lineTo(Math.cos(a) * rr + f.x, Math.sin(a) * rr + f.y) : ctx.moveTo(Math.cos(a) * rr + f.x, Math.sin(a) * rr + f.y); }
+      ctx.closePath(); ctx.shadowColor = f.c; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
+    } else if (f.k === 'needle') {
+      ctx.globalAlpha = t; ctx.strokeStyle = 'rgba(255,220,210,0.4)'; ctx.lineWidth = 8 * t + 2; line(ctx, f.x1, f.y1, f.x2, f.y2);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; line(ctx, f.x1 + (f.x2 - f.x1) * 0.3, f.y1 + (f.y2 - f.y1) * 0.3, f.x2, f.y2);
+    } else if (f.k === 'arc') {
+      // a crescent: thick in its middle, thin at both ends
+      const m = 16;
+      ctx.globalAlpha = t * 0.75; ctx.fillStyle = `rgb(${f.c})`; ctx.beginPath();
+      for (let i = 0; i <= m; i++) { const a = f.a0 + (f.a1 - f.a0) * i / m; ctx.lineTo(f.x + Math.cos(a) * f.r, f.y + Math.sin(a) * f.r); }
+      for (let i = m; i >= 0; i--) { const a = f.a0 + (f.a1 - f.a0) * i / m, w = f.w * Math.sin(Math.PI * i / m); ctx.lineTo(f.x + Math.cos(a) * (f.r - w), f.y + Math.sin(a) * (f.r - w)); }
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
 export function drawShield(ctx, E) {
   const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, lk = lookFor(state.you, false);
   if (sh.broken) return;
+  ctx.save(); lookXf(ctx, E); shieldArm(ctx, E, sh, Fy, H, J, lk); ctx.restore();
+}
+function shieldArm(ctx, E, sh, Fy, H, J, lk) {
   const [hx, hy] = toScreen(Fy, ...shieldPos());
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
   const kit = lk.kit && kitPic('upperarm', lk.kit.tier) && kitPic('forearm', lk.kit.tier);
