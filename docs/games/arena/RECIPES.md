@@ -130,4 +130,6 @@ Watch out: a save given to `open` as plain data skips `migrate` (it is wrapped w
 8. To start partway through a run, resume a saved one: `resumeRun` and the `play` scene's `enter` take a saved run (its rack says which bout). The painted art loads in the background in real time, so let the loads settle before you compare frames.
 9. To prove a change left play alone: `node tools/replay.mjs tools/checks/replays/pit.json > before.json`, make the change, run it again, and compare. The three scripts there cover the Pit, a City pair bout and a beast bout.
 
+10. A check worth keeping goes in the permanent suite (`tools/checks/arena/`, run by `npm run check arena`), written on the fake clock with `tools/checks/exact.mjs`. Two traps: a lift ends a blow, so give every scripted stroke a few frames of rest before the thumb comes up; and the yard's sparring partner already stands at its own strike distance, so a reach bug only shows against a long weapon.
+
 Check: `npm run smoke` at the end, then `python3 tools/usage.py`.

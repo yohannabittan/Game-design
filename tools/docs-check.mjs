@@ -57,7 +57,9 @@ for (const slug of readdirSync(join(ROOT, 'games'))) {
 const team = has('docs/team.md') ? read('docs/team.md') : null;
 if (team != null) {
   const list = (d) => readdirSync(join(ROOT, d)).flatMap((f) => (statSync(join(ROOT, d, f)).isDirectory() ? (f === 'replays' ? [] : list(`${d}/${f}`)) : [`${d}/${f}`]));
-  for (const f of list('tools')) if (!team.includes(f)) FAIL(`${f} is not in docs/team.md's table of tools and who uses them`);
+  // a file in a game's check folder (tools/checks/<slug>/x.mjs) is covered when the table names the folder
+  const covered = (f) => team.includes(f) || (/^tools\/checks\/[^/]+\//.test(f) && team.includes(f.replace(/[^/]+$/, '')));
+  for (const f of list('tools')) if (!covered(f)) FAIL(`${f} is not in docs/team.md's table of tools and who uses them`);
 }
 
 // 5. Every tool is explained somewhere.

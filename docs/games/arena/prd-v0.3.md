@@ -2366,3 +2366,14 @@ The range sketch (`sketches/range.html`) is extended with three more modes: the 
 2. **The module split (ADR-0024).** No change in behaviour; proved by a same-seed replay.
 3. Step 26 (the look of each blow).
 4. Step 27 and 27b (Trials), once the extended range sketch is approved.
+
+## Step 26b (locked 2026-11-14, found by the check suite): a hurried overhead counts, and the ghost thumb moves fast enough to copy
+
+The permanent check suite found two faults on its first run, both in what the designer already reported ("it was really hard to get it to register an overhead"):
+
+- **A hurried overhead does nothing.** Up and straight down with no pause at the top stays a "raise" and no blow is born, at every screen size: the raise is still the attack in hand when the chop starts (`updateAttack`). The suite lists it as a known bug (`tools/checks/arena/overhead.mjs`).
+  - **The fix:** a raise that turns downward becomes an overhead without a pause. The three `KNOWN` checks become passes.
+- **The ghost thumb shows strokes too slowly to copy.** In the training yard, a stroke made at the speed the ghost moves is too slow to count as a blow, so a player who copies the ghost exactly may never pass the sword steps.
+  - **The fix:** the ghost moves at a speed that registers, with room to spare, for the jab, slash, overhead and lunge. A suite check replays each ghost path as a thumb and expects the step to pass.
+
+This changes controls, so it gets a verifier (`docs/team.md`).

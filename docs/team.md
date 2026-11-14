@@ -65,6 +65,7 @@ You get one task and no history. The orchestrator has the whole history, and thi
 | `tools/codemap.mjs` | the generated code index; `--where <word>`; `--check` | regenerates (inside land) | `--where`, reads `INDEX.md` | | | `--where` |
 | `tools/codemap-check.mjs` | the older check for hand-written maps (every game but Arena) | yes | | | | |
 | `tools/drive.mjs` | plays a game headlessly from a script: taps, frames, errors | yes | yes | to see the real game's look | | yes |
+| `tools/checks/run.mjs` (`npm run check arena`) | runs a game's permanent check suite: the files in `tools/checks/arena/`, on a fake clock (`tools/checks/exact.mjs`), about a minute; how to add a check is in `tools/checks/README.md` | yes, before landing any Arena build | yes: before reporting, and adds its step's key checks | | | yes |
 | `tools/checks/arena.mjs` | Arena's check helpers: saves, thumb paths, the yard, geometry | | yes, and adds to it | | | |
 | `tools/perf.mjs` | frame time, and a comparison against another copy | | yes, when drawing changes | | | yes |
 | `tools/sketch.mjs` | a GIF from a sketch page, or from frames of the real game | | yes, for anything that moves | yes | | |
@@ -85,7 +86,7 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
 - **Stay inside the PRD step,** and obey `CLAUDE.md`'s hard rules. If the step doesn't settle something, decide for the player (above) and list it in your report.
 - **Checks:** start from `tools/checks/arena.mjs` (Arena) and `tools/drive.mjs`. Run both phone sizes (667x375 and 844x390 in landscape games). No simulations of a player; time-box any one check to 20 minutes.
 - **Show the work the cheapest way that answers the question:** a still for a look, a GIF for anything that moves (`node tools/sketch.mjs frames <dir> <out.gif>`), under 3 MB and 667 px wide. Look at every frame yourself before you report.
-- **`npm run smoke`** from your worktree before you report.
+- **`npm run check arena`** (Arena's permanent suite) and **`npm run smoke`** from your worktree before you report. Add your step's key checks to the suite in the same build (`tools/checks/README.md`). A check you expect to change (a replay's hash, a number you meant to move) is accepted on purpose and named in your report.
 - **Your report,** under the word limit your brief gives:
   - what changed, and the `TUNING` numbers you added;
   - the best frames and GIFs, as paths;

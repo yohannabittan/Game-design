@@ -9,7 +9,8 @@
 // before it steps on: what a frame draws never depends on how fast the network was.
 // A script (JSON):
 //   { "slug": "arena", "w": 844, "h": 390, "seed": 1,              viewport and the Math.random seed
-//     "save": { ... },                                             save data written before boot (plain data, migrate skipped)
+//     "save": { ... },                                             save data written before boot (plain data, migrate skipped);
+//     "rawSave": { "__v": 17, "data": { ... } },                   or a save written as stored, so migrate runs from its version
 //     "tune": { "foe.hp": 4 },                                     TUNING paths set before the start, as the TUNE panel would
 //     "start": { "scene": "play", "params": { ... },               the scene to start and its params; for play, "me": { "roll", "weapon",
 //                "me": { "roll": 777, "weapon": "gladius", "kit": ["chest"], "side": null } },   "kit", "side" } builds the fighter in the page
@@ -127,8 +128,10 @@ export async function launch(script, { root = HERE } = {}) {
   ctx.on('requestfinished', () => { inflight--; lastNet = Date.now(); });
   ctx.on('requestfailed', () => { inflight--; lastNet = Date.now(); });
   await ctx.addInitScript(determinism, script.seed || 1);
-  if (script.save !== undefined) {
-    await ctx.addInitScript(([key, val]) => { try { localStorage.setItem(key, val); } catch (e) {} }, [`game:${slug}`, JSON.stringify({ __v: 999, data: script.save })]);
+  // a save as plain data skips migrate (it is wrapped at a huge version); `rawSave` ({ __v, data }) is written as it is, so migrate runs from __v
+  const stored = script.rawSave !== undefined ? script.rawSave : script.save !== undefined ? { __v: 999, data: script.save } : undefined;
+  if (stored !== undefined) {
+    await ctx.addInitScript(([key, val]) => { try { localStorage.setItem(key, val); } catch (e) {} }, [`game:${slug}`, JSON.stringify(stored)]);
   }
   const page = await ctx.newPage();
   page.on('console', (m) => { if (m.type() === 'error' && !/candidates\.json/.test(m.location().url || '')) errs.push(`console: ${m.text()}`); });
