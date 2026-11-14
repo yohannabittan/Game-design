@@ -4,7 +4,7 @@
 // Step 26b: each sword step's ghost thumb, copied as a thumb at the ghost's speed and size, passes the step, and still does a little slower and smaller.
 import { FRESH } from '../arena.mjs';
 
-const tr = (g) => g.ev(() => { const P = window.__engine.game.scenes.play, s = P.state, t = s.train; return t ? { id: P.YARD[t.i].id, done: t.doneT >= 0, fails: t.fails } : null; });
+export const tr = (g) => g.ev(() => { const P = window.__engine.game.scenes.play, s = P.state, t = s.train; return t ? { id: P.YARD[t.i].id, done: t.doneT >= 0, fails: t.fails } : null; });
 
 // from the purse (as a fresh run opens it) to the bout card and its tap
 async function toBout(t, save, w = 667, h = 375) {
@@ -48,7 +48,7 @@ const btn = (g, i) => g.ev((i) => { const E = window.__engine, b = E.game.scenes
 const waitBlow = (g) => g.until(() => { const s = window.__engine.game.scenes.play.state; return !!(s.train && s.train.sw && !s.train.sw.outcome); }, 600);
 
 // one try at the step the yard is on; true when it is done
-async function doStep(g, id, n = 0) {
+export async function doStep(g, id, n = 0) {
   const B = async (i) => btn(g, i);
   if (id === 'hand') {
     const c = await g.ev(() => { const E = window.__engine, T = E.game.scenes.play.TUNING.train.ghost; return [E.w * T.at[0], E.h * T.at[1]]; });

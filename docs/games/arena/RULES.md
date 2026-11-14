@@ -1,6 +1,6 @@
 # Arena: the rules as built
 
-What the game **is today**, build `arena-v72` (save version 19): Steps 26 and 26b, the honest-blows step, and the block warning drawn at your own body height. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
+What the game **is today**, build `arena-v73` (save version 19): Steps 26 and 26b, the honest-blows step, the block warning drawn at your own body height, and the long spear that chokes up. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
 
 Numbers are named by their `TUNING` path (in `games/arena/src/tuning.js`). Functions and tables are named, never located by line; find them with `node tools/codemap.mjs arena --where <name>`. `arena-v68` is `arena-v67` split into modules with no change in play (CHANGELOG, ADR-0024).
 
@@ -141,18 +141,20 @@ While the Trickster or Showman is shut, the scribe and the baker start with `STA
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Fists | 0 | 0.5 | 1.6 | 0.5 | 1 | 2 | crush, never dents (`me.weapons.fist.noDent`) |
 | Gladius | 15 | 1 | 1 | 1 | 1 | 3 | point pierce, edges cut |
-| Spear | 15 | 1.35 | 0.85 | 1 | 1 | 3 | head pierce; swing cut x 0.6 |
+| Spear | 15 | 2.55 (drawn as long as a foe's spear; chokes up when he is inside the point, `slide`) | 0.85 | 1 | 1 | 3 | head pierce; swing cut x 0.6 |
 | Axe | 20 | 0.9 | 0.75 | 1.7 | 1.4 | 3 (x `me.weapons.axe.slotDmg` 1.7) | spike pierce; blade cut and crush; overhead breaks at 2 |
 | Mace (an axe) | 20 | as the axe | | | | | crush |
 | Dagger | 15 | 0.65 | 1.4 | 0.75 | 1 | 4 | point pierce, edges cut |
-| Trident (ludus) | 20 | 1.5 | 0.8 | 1 | 1.1 | 3 | prongs pierce, wide; first perfect block a bout nets him (`me.net`) |
+| Trident (ludus) | 20 | 2.83 (chokes up as the spear) | 0.8 | 1 | 1.1 | 3 | prongs pierce, wide; first perfect block a bout nets him (`me.net`) |
 | Sica (ludus) | 15 | 0.8 | 1.2 | 1 | 1 | 3 | hooking cut x 1.2; its blade pierces on a jab x 0.75 |
+
+**Long weapons choke up** (the spear and the trident, `slide`): when he stands inside your point, the shaft slides back through your fist (eased over `slide.tau` 0.12 s, at most `slide.max` 0.6 of its length) until a straight jab's point sits `slide.depth` (0.06 H) past his front, so a push lands point first; the butt shows behind you. Strokes of every kind use the same grip. The hit's striking part is read along the whole weapon, so a choked spear's head is still its head. The camera frames your point where it can reach, not the weapon's whole length.
 
 **Plates** (`PLATES`, `purse.plate`): helmet 10 (head), chest plate 15 (chest and belly), greaves 10 (legs). The plate count sets stamina regen (`me.plateSets`, `me.armour`: none or 1 x1, 2 x0.92, 3+ x0.82).
 
 **The reinforced shield** (the Arms slot's `manica`, 10 gold): the shield takes x `purse.reinforce` (1.5) blows, 9 for 6 (`reinforced`). Not with two blades.
 
-**Two blades** (Arms slot, gladius or dagger, `dual.weapons`, at the weapon's price again): no shield. Crossed blades block, letting through x `dual.through` of a blow and costing `dual.cost` stamina; holding drains x `dual.holdDrain`. A perfect block ripostes with the off hand. A slash that lands is followed by the off hand for x `dual.part`.
+**Two blades** (Arms slot: a second copy of any weapon, at its price again; the gladius-and-dagger limit, `dual.weapons`, is for foes): no shield. Crossed blades block, letting through x `dual.through` of a blow and costing `dual.cost` stamina; holding drains x `dual.holdDrain`. A perfect block ripostes with the off hand. A slash that lands is followed by the off hand for x `dual.part`.
 
 **Sidearm** (purse's Sidearm slot, at its weapon's price, or the bow at `bow.price` 20; not fists, not the weapon in hand): a melee sidearm keeps the shield on the arm.
 

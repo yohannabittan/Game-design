@@ -22,6 +22,9 @@ export const TUNING = {
   },
   arm: { len: 0.45, minFrac: 0.35, full: 0.97, chamberAt: 0.16, straightAt: 0.5 },  // arm in H; finger distance (H) at which the arm is chambered and at which it is straight
   blade: { len: 0.36, pad: 5, jabPad: 10 },   // gladius length in H, hit pad px, the pad px of a jab's striking part (TUNING.strike)
+  // (2026-11-14) a spear or trident (weapons' slide) chokes up when he is inside its point: the shaft slides back through the fist until a straight
+  // jab's point sits depth H past his front, at most max of its length, easing over tau s
+  slide: { depth: 0.06, max: 0.6, tau: 0.12 },
   grip: { straight: -0.25, chamber: -0.6, tau: 0.045, trail: 0.018 },  // blade angle from the arm (radians, up is negative), smoothing, trail per rad/s of arm swing
   // body unit as a fraction of screen height, feet line, clear gap between the bodies (fraction of width), half body width in H; fit = the largest scale
   // drawn at full frame: a bigger fighter (a Giant) shrinks the whole frame so his head stays as high as that scale's would, clear of the HUD
@@ -260,12 +263,13 @@ export const TUNING = {
       // (Step 14: a fist's swing glow is glow H round the fist, its jab spark knuckle H past it, art only)
       fist: { name: 'FISTS', reach: 0.5, speed: 1.6, dmg: 0.5, cost: 1, slot: 2, slotDmg: 0.5, overBreak: 0, noDent: true, glow: 0.05, knuckle: 0.035 },
       gladius: { name: 'GLADIUS', reach: 1, speed: 1, dmg: 1, cost: 1, slot: 3, slotDmg: 1, overBreak: 0 },
-      spear: { name: 'SPEAR', reach: 1.35, speed: 0.85, dmg: 1, cost: 1, slot: 3, slotDmg: 1, overBreak: 0 },
+      // (2026-11-14: the spear's reach is drawn as long as his, fist to point: (his len + its painting's tip) / blade.len; the trident keeps its share over it)
+      spear: { name: 'SPEAR', reach: 2.55, speed: 0.85, dmg: 1, cost: 1, slot: 3, slotDmg: 1, overBreak: 0, slide: true },
       axe: { name: 'AXE', alt: 'MACE', reach: 0.9, speed: 0.75, dmg: 1.7, cost: 1.4, slot: 3, slotDmg: 1.7, overBreak: 2 },
       dagger: { name: 'DAGGER', reach: 0.65, speed: 1.4, dmg: 0.75, cost: 1, slot: 4, slotDmg: 1, overBreak: 0 },
       // the ludus's armoury (len: the length drawn on your card, H). The trident: the longest reach and the slowest hand, weak slashes, its net cast by
       // your first perfect block each bout (net). The sica: short and quick, its curved edge makes every slash cut deep.
-      trident: { name: 'TRIDENT & NET', reach: 1.5, speed: 0.8, dmg: 1, cost: 1.1, slot: 3, slotDmg: 1.15, overBreak: 0, net: true, len: 0.8 },
+      trident: { name: 'TRIDENT & NET', reach: 2.83, speed: 0.8, dmg: 1, cost: 1.1, slot: 3, slotDmg: 1.15, overBreak: 0, net: true, len: 0.8, slide: true },
       sica: { name: 'SICA', reach: 0.8, speed: 1.2, dmg: 1, cost: 1, slot: 3, slotDmg: 1, overBreak: 0, len: 0.3 },
     },
     // your net (the trident): it holds him dur s, his wind-ups wind x longer, his footwork at step x its speed

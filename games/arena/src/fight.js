@@ -42,7 +42,9 @@ function camSpan(E, L) {
   const f = state.foe, F = TUNING.fighter, k = meSize().scale, B = beastOf(f), kf = f.size ? drawK(f) : 1, yH = L.H * k, fH = L.H * kf;
   const yx = L.x0 - (k - 1) * F.body * L.H, fx = L.x1 + (f.home || 0) * L.H + (B ? kf * B.front - F.body : (kf - 1) * F.body) * L.H;
   const yBack = L.x0 + (F.body - (k - 1) * F.body - TUNING.pairs.fbody * k) * L.H, fBack = L.x1 + ((f.home || 0) - F.body + rearOf(f)) * L.H;
-  const yTip = yx + (SHOULDER[0] + TUNING.arm.len * meSize().arm + TUNING.blade.len * meWeapon().reach + TUNING.lunge.stride) * yH;
+  let yTip = yx + (SHOULDER[0] + TUNING.arm.len * meSize().arm + TUNING.blade.len * meWeapon().reach + TUNING.lunge.stride) * yH;
+  // (a long weapon chokes up: its point goes no further than slide.depth past his front)
+  if (meWeapon().slide) yTip = Math.min(yTip, fx + TUNING.slide.depth * fH);
   const fTip = B ? L.x1 + ((f.home || 0) - F.body) * L.H : fx - (SHOULDER[0] + ARM_LEN + (f.weapon.len || 0)) * fH;
   return [Math.min(yBack, fTip), Math.max(fBack, yTip)];
 }
@@ -105,6 +107,15 @@ export const inReach = (extra = 0) => state.step.x - bodyPos() <= state.foe.stri
 export const myH = (E) => lay(E).H * meSize().scale;
 export const myArm = (E) => TUNING.arm.len * myH(E) * meSize().arm;
 export const myBlade = (E) => TUNING.blade.len * myH(E) * meWeapon().reach;
+// a long weapon chokes up (TUNING.slide): the share of its length drawn back through the fist (hand.sl), and the fist-to-point length left
+export const myPoint = (E) => myBlade(E) * (1 - (state.hand.sl || 0));
+// the share that puts the point, at a straight jab from shoulder sx, slide.depth H past his front; none when he stands beyond the whole length
+function slideTo(E, sx) {
+  const S = TUNING.slide, f = state.foe;
+  if (!meWeapon().slide || !f || !f.size) return 0;
+  const F = foeF(E), b = myBlade(E);
+  return clamp((myArm(E) * TUNING.arm.full + b - (F.x + S.depth * F.H - sx)) / b, 0, S.max);
+}
 // the foe is drawn at his size: the frame's unit scales, his near edge (a beast's nose) stays where a medium fighter's would be
 export function foeF(E) {
   const L = lay(E), f = state.foe, k = f.size ? drawK(f) : 1, B = beastOf(f);
@@ -332,7 +343,7 @@ export function shieldPos() {
 export function overReach(E, sx, sy) {
   const key = myKey(), S = TUNING.strike[key], z = S && S.swing[0];
   if (!z || key === 'fist' || !state.foe || !state.foe.parts) return null;
-  const J = S.pin ? S : TUNING.kit.weapon[key], t = J.top || 0, l = (1 - ((z[0] + z[1]) / 2 - t) / (J.pin - t)) * myBlade(E), ph = TUNING.over.lead;
+  const J = S.pin ? S : TUNING.kit.weapon[key], t = J.top || 0, l = myPoint(E) - ((z[0] + z[1]) / 2 - t) / (J.pin - t) * myBlade(E), ph = TUNING.over.lead;
   const [hx, hy] = foeAt(E, 'head', 0.8), q = (hx - sx) ** 2 + (hy - sy) ** 2 - (l * Math.sin(ph)) ** 2;
   return q > 0 ? Math.sqrt(q) - l * Math.cos(ph) : 0;
 }
@@ -340,7 +351,9 @@ export function overReach(E, sx, sy) {
 export function solveArm(E, dt) {
   const h = state.hand, A = TUNING.arm, G = TUNING.grip, H = myH(E);
   const [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
-  const arm = myArm(E), blade = myBlade(E);
+  const arm = myArm(E), S = TUNING.slide, sl = slideTo(E, sx);
+  h.sl = h.sl == null ? sl : h.sl + (sl - h.sl) * (1 - Math.exp(-Math.max(0, dt) / S.tau));
+  const blade = myPoint(E);
   const ax = h.tgx - sx, ay = h.tgy - sy, d = Math.hypot(ax, ay) || 1, dx = ax / d, dy = ay / d;
   const e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1), ov = h.ovK > 0.001 ? overReach(E, sx, sy) : null;
   let r = arm * (A.minFrac + (A.full - A.minFrac) * e);
@@ -802,7 +815,7 @@ export function checkHits(E) {
     const hx = h.phx + (h.hx - h.phx) * f, hy = h.phy + (h.hy - h.phy) * f, tx = h.pux + (h.ux - h.pux) * f, ty = h.puy + (h.uy - h.puy) * f;
     const n = Math.max(1, Math.ceil(Math.hypot(tx - hx, ty - hy) / 8));
     for (let i = n; i >= 0; i--) {
-      const x = hx + (tx - hx) * i / n, y = hy + (ty - hy) * i / n, zi = zoneAt(key, att, 1 - i / n), pd = jab && zi >= 0 ? jpad : pad;
+      const x = hx + (tx - hx) * i / n, y = hy + (ty - hy) * i / n, zi = zoneAt(key, att, (1 - i / n) * (1 - (h.sl || 0))), pd = jab && zi >= 0 ? jpad : pad;
       const [lx, ly] = toLocal(F, x, y);
       for (const p of order) {
         if (p.cool > 0 || p.cut) continue;

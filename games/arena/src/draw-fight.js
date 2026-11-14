@@ -4,7 +4,7 @@
 import { clamp, lerp } from './engine.js';
 import { TUNING } from './tuning.js';
 import { bandOf, TAILOR, DECK, CARD, rarCol, gearOf, PARTS, ARM_LEN, SHOULDER, BEAST_BODY, POSE_NAME, mkPart } from './data.js';
-import { lay, beastOf, rearOf, youF, walls, myH, myBlade, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, shieldMax, beastRestQ,
+import { lay, beastOf, rearOf, youF, walls, myH, myBlade, myPoint, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, shieldMax, beastRestQ,
   knee, colRect, shieldBtns, myKey, sand, LOOK } from './fight.js';
 import { hesitating, covering, covered, LIMB, lamed, edgeF, poseEdge } from './foe.js';
 import { perfectWin, finCost, finReady, finLive, finBtn, firstRun } from './cards.js';
@@ -2116,7 +2116,7 @@ function liveArmGear(ctx, h, H, lk, aw = 0, px = 0) {
 }
 // Your weapon arm, in screen space: a gladius or dagger as a leaf blade (broad, tapering to a point), a spear's shaft and head, an axe or a mace.
 export function drawSwordArm(ctx, E) {
-  const h = state.hand, H = myH(E), locked = h.lock > 0, blade = myBlade(E), wid = state.me.weapon, bare = wid === 'fist';
+  const h = state.hand, H = myH(E), locked = h.lock > 0, blade = myPoint(E), wid = state.me.weapon, bare = wid === 'fist';
   const w = (wid === 'dagger' ? 0.026 : wid === 'sica' ? 0.03 : 0.034) * H, pole = wid === 'spear' || wid === 'axe' || wid === 'trident';
   // step 26: the blade as the blow is classed (drawn only; the hits use the hand's own blade): a jab's snaps into the arm's line, a slash's rolls
   // its edge forward (drawn narrower); the shoulder rides your body's look
@@ -2178,10 +2178,11 @@ export function drawSwordArm(ctx, E) {
   if (bowUp) drawBow(ctx, E);
   ctx.save();
   if (roll < 1) { ctx.translate(h.hx, h.hy); ctx.rotate(ph); ctx.scale(1, roll); ctx.rotate(-ph); ctx.translate(-h.hx, -h.hy); }
-  const painted = !bowUp && !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx, h.hy], [bx, by], blade, H, G.weapon, locked, zoneFx());
+  // (a long weapon choked up is painted whole, slid back through the fist by the share drawn back: myPoint)
+  const sl = myBlade(E) - blade, painted = !bowUp && !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx - bx * sl, h.hy - by * sl], [bx, by], blade + sl, H, G.weapon, locked, zoneFx());
   if (painted || bowUp) { /* drawn */ } else if (pole) {
     // a wooden shaft from behind the fist to the head
-    ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * 0.12 * H, h.hy - by * 0.12 * H); ctx.lineTo(ux - bx * 0.02 * H, uy - by * 0.02 * H); ctx.stroke();
+    ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * (0.12 * H + sl), h.hy - by * (0.12 * H + sl)); ctx.lineTo(ux - bx * 0.02 * H, uy - by * 0.02 * H); ctx.stroke();
     ctx.strokeStyle = '#7a5532'; ctx.lineWidth = 0.03 * H; ctx.stroke();
     if (wid === 'spear') {
       const hl = 0.13 * H, hx0 = ux - bx * hl, hy0 = uy - by * hl;

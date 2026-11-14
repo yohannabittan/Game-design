@@ -4,7 +4,7 @@
 import { clamp, lerp, ease } from '../engine.js';
 import { TUNING } from '../tuning.js';
 import { SHOULDER, ZONES, ZONE, playerParts } from '../data.js';
-import { lay, youF, gMin, inReach, myH, myArm, myBlade, foeF, toScreen, partCenter, guardPt, raised, shieldMax, shieldBtns, ring, pop } from '../fight.js';
+import { lay, youF, gMin, inReach, myH, myArm, myBlade, myPoint, foeF, toScreen, partCenter, guardPt, raised, shieldMax, shieldBtns, ring, pop } from '../fight.js';
 import { covered, buildMove, startMove } from '../foe.js';
 import { perfectWin, firstRun } from '../cards.js';
 import { sayLine, TAU, line, rrect } from '../draw-fight.js';
@@ -265,7 +265,7 @@ export function tipFor(E, tx, ty, thrust) {
   const A = TUNING.arm, G = TUNING.grip, H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
   const d = Math.hypot(tx - sx, ty - sy) || 1, ang = Math.atan2(ty - sy, tx - sx), e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1);
   const r = myArm(E) * (A.minFrac + (A.full - A.minFrac) * e), hx = sx + Math.cos(ang) * r, hy = sy + Math.sin(ang) * r;
-  const ph = ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust), b = myBlade(E);
+  const ph = ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust), b = myPoint(E);
   return { hx, hy, ux: hx + Math.cos(ph) * b, uy: hy + Math.sin(ph) * b };
 }
 // the hand's aim that brings the tip to (px, py), or as near as an aim within `reach` arm lengths of the guard gets it

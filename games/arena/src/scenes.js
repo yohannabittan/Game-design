@@ -1378,7 +1378,7 @@ export function initHand(E) {
   const h = state.hand, L = lay(E);
   const [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
   [h.tgx, h.tgy] = guardPt(E);
-  h.pang = Math.atan2(h.tgy - sy, h.tgx - sx);
+  h.pang = Math.atan2(h.tgy - sy, h.tgx - sx); h.sl = null;
   solveArm(E, 0);
   h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy; state.you.a = 0.05;
   poseYou(E, 0.016);
