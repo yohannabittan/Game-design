@@ -10,3 +10,5 @@ Things agents reported wrong, missing or out of date, and other notes for the ne
 - **The split cost about $6 and the suite about $7,** against $8 to $17 for the builds before the code map. Two data points; check the next five.
 - **Arena `RECIPES.md` is missing where effects are drawn** (Step 26 builder, 2026-11-14): particles render in `scenes.js`, and `Math.random` feeds the cracks. Add a recipe for "add a hit effect".
 - **`RULES.md` wasn't updated by the Step 26 landing** beyond its version line; rule 5 says every landing updates it. Do it with the 26b fix build.
+- 2026-11-14: `RULES.md` says two blades are gladius or dagger only; the purse sells a second copy of any weapon (the limit is for foes). Found when the designer bought two spears. Fix `RULES.md` in the next Arena build.
+- 2026-11-14: an accidental interrupt from the designer's phone killed three running agents, and killed agents cannot be resumed. Fresh agents picked up the uncommitted worktrees and it cost a few minutes. Worth knowing: a worktree outlives its builder, so nothing was lost.
