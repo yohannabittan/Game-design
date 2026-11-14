@@ -627,6 +627,28 @@ About 5 to 7 images, US$1 to 2.
 
 About 14 images, US$2 to 3.
 
+### Pack 31: Arena, a helmet that shows the fighter (a probe, added 2026-11-14)
+
+**For:** `docs/games/arena/steps/2026-11-14-helmets.md`. The designer isn't a fan of the full coverage helmets and wants them reworked, with the feel of film gladiators' helms.
+
+**A probe first: one helmet, three directions.** Take the murmillo. Its current worn painting is `docs/art/final/arena/kit-helmet-murmillo-worn.png` (the whole head painted wearing it, Pack 27), and the bare head it was painted onto is the Pack 27 head reference. Use Pack 27's method: edit the head painting by inpainting, so the helmet is worn, not stuck on, on the same canvas with the same pins.
+
+Keep the murmillo's silhouette (the broad brim, the tall fin crest) so it still reads as a murmillo at 64 px. Change only how much of the fighter shows:
+
+| Option | Direction |
+| --- | --- |
+| **A, open face** | no visor: a heavy brow band and broad cheek guards frame the face, which is fully visible from brow to chin |
+| **B, a half mask** | a bronze face plate covers the brow, nose and cheekbones, with **two large eye openings** through which the eyes show clearly; the mouth and jaw are bare |
+| **C, an open grille** | the grille stays but is cut back: a few thick bars, wide apart, with the eyes and brow plainly visible behind them |
+
+- **The film look, not a film's helmet.** Heavy, worn bronze and iron, dramatic shapes, as in gladiator films in general. Don't reproduce any specific film's helmet (the repo is public).
+- **The face under it** is the kit's head: the same skin, the same stern eyes, looking the same way.
+- **One image per option** (three in all), then a contact sheet: the three at game size beside today's murmillo, each also at 64 px, on a fighter's body if that's cheap to mock.
+- **The handoff** (`docs/art/HANDOFF-arena-pack31.md`): which option you'd pick and why, and whether the same treatment would work on the thraex, the secutor and the phalanx helm.
+- **Stop there.** The other helmets are painted after the designer picks a direction.
+
+About US$0.50.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
