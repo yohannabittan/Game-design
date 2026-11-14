@@ -12,40 +12,50 @@ ADR-0002 still holds: no bundler, no build step, no dependencies. Browsers load 
 
 ## Decision
 
-Split `games/arena/src/game.js` into native ES modules along the sections it already has, with no change in behaviour. `game.js` stays the entry point and keeps the game object, save and migrate.
+**Split Arena into about ten modules by lane: the areas that different steps work in.** That's not one file per section. The aim is parallel builds, not tidiness. Two builders can work at once when their steps sit in different lanes, and a three-way landing merges their files.
 
-| Module | Holds (today's section) |
-| --- | --- |
-| `tuning.js` | TUNING. It imports nothing, so every module can use it at load. |
-| `data.js` | the data tables: the gauntlet, story lines, the deck, body parts, zones, poses |
-| `state.js` | the run state and the small helpers (`state` is one exported object, mutated in place) |
-| `rolls.js` | the rolls: your fighter, the gauntlet, run and bout set-up from the seed |
-| `fighter.js` | the fighter model: layout, body, sword arm, footwork, defence |
-| `foe.js` | the foe AI |
-| `combat.js` | input and hit resolution |
-| `cards.js` | the card engine, and between bouts (the grade and the draft) |
-| `fx.js` | juice: particles and sounds |
-| `draw/fighter.js`, `draw/arena.js`, `draw/hud.js`, `draw/screens.js` | drawing, split four ways (the figures; the arena and backdrop; the HUD and in-bout UI; cards, wheels, the purse, the inventory and other screens) |
-| `meta.js` | fame, the ludus, the Wall of Champions |
-| `scenes/menu.js`, `scenes/roll.js`, `scenes/play.js`, `scenes/over.js`, `scenes/yard.js` | the scenes, one each (new scenes such as Trials get their own file) |
-| `game.js` | the game object, save, migrate and TUNE presets; it imports the scenes |
+The sizes below are today's line counts of the sections each module takes:
 
-**The rules for the modules:**
-- **Only `tuning.js` and `data.js` may be read while modules are loading.** Every other cross-module use happens inside functions, so the import cycles that game code naturally has are harmless.
-- **No module over about 2,000 lines.** A module that grows past that is split the same way.
-- **No new behaviour in the split.** It is a move, not a rewrite: the same names, the same code, re-exported where needed.
+| Module | Lane | Holds | Lines |
+| --- | --- | --- | --- |
+| `tuning.js` | shared | TUNING, with one block per lane. It imports nothing. | ~770 |
+| `data.js` | content | the gauntlet, story lines, the deck, champions, body parts, zones and poses | ~540 |
+| `fight.js` | feel | your fighter's model, input, hit resolution, juice | ~1,450 |
+| `foe.js` | foes | the foe AI: cover, memory, moves, champions' signatures | ~500 |
+| `cards.js` | builds | the card engine: events, Momentum, Bleed | ~510 |
+| `draw-fight.js` | feel | drawing the fighters, the arena and the HUD | ~2,000 |
+| `screens.js` | builds | between bouts (the grade, the draft), the purse, the inventory, meta (fame, the ludus, the Wall) and drawing those screens | ~2,500, split in two if it grows |
+| `scenes.js` | modes | the menu, roll, play and over scenes | ~2,000 |
+| `modes/yard.js` and later `modes/trials.js` | modes | one file per self-contained mode | — |
+| `game.js` | shared | run state, rolls, the game object, save, migrate, the export fields | ~530 |
+
+**The rules:**
+- **Only `tuning.js` and `data.js` may be read while modules are loading.** Every other cross-module use happens inside functions, so the import cycles game code naturally has are harmless.
+- **It's a move, not a rewrite:** the same names and the same code, imported where needed.
+- **A module past about 2,000 lines is split within its lane.**
+
+**Working in parallel:**
+- **Each PRD step names its lane and the modules it touches.** Two builders may run on Arena at once only if their steps are in different lanes. It's never two on the same mechanic, because a semantic clash isn't something a merge can catch.
+- **The shared files are merged, not owned:**
+  - a builder adds TUNING numbers in its lane's block;
+  - only one in-flight build may change the save shape (`saveVersion`), and the orchestrator says which;
+  - **builders don't bump `CACHE_VERSION`:** the orchestrator bumps it once when it lands a build.
+- **Landing is a three-way merge:** `tools/worktree.sh land` merges each file against the commit the worktree started from (`git merge-file`), so two builders' edits to the same file both land. A clash on the same lines stops with conflict markers for the orchestrator. `--copy` keeps the old whole-file copy.
 
 ## Consequences
 
-- **Builders read only the modules a step touches.** The CODEMAP becomes a module map: which file holds what.
-- **ADR-0007 is amended for Arena:** a build layer may edit any file under `games/arena/src/` except `engine.js`, still never DOM or dependencies. The other games keep one `game.js`.
-- **`sw.js` must list every module in its asset list,** so the game still works offline. The smoke test catches a missing one: it fails on any failed load.
-- **Proving nothing changed:** the split is checked by a **same-seed replay**, the same seeded run and the same scripted inputs before and after, with the run state and export compared field by field. Also all the existing scripted checks from Steps 21 to 24, perf within 5%, and `npm run smoke`.
-- **The release copy** (`tools/release.sh`) copies the whole game folder, so it needs no change.
-- **More files to keep consistent,** in return for builders who only need to read a few of them.
+- **The split is ten files, not twenty.** Each lane is one or two files a builder reads in full. A builder working on the fight's feel no longer reads the purse.
+- **Up to three builders can run** (the "keep it lean" cap): for example one on the feel lane, one on modes, one on builds.
+- **ADR-0007 is amended for Arena:** a build layer may edit the modules its step names, never `engine.js`, DOM or dependencies. The other games keep one `game.js`, and they get the three-way landing too.
+- **`sw.js` must list every module,** so the game still works offline. The smoke test fails on any failed load.
+- **Proving nothing changed:** a **same-seed replay**, the same seeded run and scripted inputs before and after, with the run state and export compared field by field. Also the scripted checks from Steps 21 to 24, perf within 5%, and `npm run smoke`.
+- **`tools/release.sh` copies the whole game folder,** so it needs no change.
+- **The CODEMAP becomes a module and lane map.**
 
 ## Alternatives considered
 
 - **Keep one file:** every future step gets slower and riskier. This is what ADR-0007 said to split on.
 - **A bundler or a build step:** breaks ADR-0002, and isn't needed when browsers load modules natively.
 - **Classes or a framework for the split:** a rewrite, not a move, and the risk with it.
+- **One module per section (about 20):** tidier, but more files for each builder to keep consistent and no extra parallelism. Lanes are what make work parallel, and the designer asked not to overdo it.
+- **Keeping one file, with only the three-way landing:** that already allows some parallel work, but every builder still reads 11,000 lines, and the clashes in one file are harder to see.
