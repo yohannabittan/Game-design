@@ -1,611 +1,650 @@
 {
-  "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29",
-  "assets": {
-    "arena-pit": [
-      "arena-pit-A.webp",
-      "arena-pit-B.webp"
-    ],
-    "arena-city": [
-      "arena-city-A.webp",
-      "arena-city-B.webp"
-    ],
-    "arena-colosseum": [
-      "arena-colosseum-A.webp",
-      "arena-colosseum-B.webp"
-    ],
-    "arena-grand": [
-      "arena-grand-A.webp",
-      "arena-grand-B.webp"
-    ],
-    "kit-base-head": [
-      "kit-base-head-A.png"
-    ],
-    "kit-base-torso": [
-      "kit-base-torso-A.png",
-      "kit-base-torso-B.png"
-    ],
-    "kit-base-upperarm": [
-      "kit-base-upperarm-A.png",
-      "kit-base-upperarm-B.png"
-    ],
-    "kit-base-forearm": [
-      "kit-base-forearm-A.png",
-      "kit-base-forearm-B.png"
-    ],
-    "kit-base-thigh": [
-      "kit-base-thigh-A.png",
-      "kit-base-thigh-B.png"
-    ],
-    "kit-base-shin": [
-      "kit-base-shin-A.png",
-      "kit-base-shin-B.png"
-    ],
-    "kit-helmet-gallic": [
-      "kit-helmet-gallic-A.png"
-    ],
-    "kit-shield-round": [
-      "kit-shield-round-A.png"
-    ],
-    "brutus": [
-      "brutus-A.webp",
-      "brutus-B.webp"
-    ],
-    "brutus-proud": [
-      "brutus-proud-A.webp",
-      "brutus-proud-B.webp"
-    ],
-    "champ-marcus": [
-      "champ-marcus-A.webp",
-      "champ-marcus-B.webp"
-    ],
-    "champ-aurelius": [
-      "champ-aurelius-A.webp"
-    ],
-    "champ-flamma": [
-      "champ-flamma-A.webp"
-    ],
-    "champ-varro": [
-      "champ-varro-A.webp"
-    ],
-    "champ-twins": [
-      "champ-twins-A.webp",
-      "champ-twins-B.webp"
-    ],
-    "champ-hermes": [
-      "champ-hermes-A.webp"
-    ],
-    "champ-carpophorus": [
-      "champ-carpophorus-A.webp"
-    ],
-    "champ-mevia": [
-      "champ-mevia-A.webp"
-    ],
-    "champ-aquila": [
-      "champ-aquila-A.webp"
-    ],
-    "emperor": [
-      "emperor-A.webp",
-      "emperor-B.webp"
-    ],
-    "kit-base-torso-lean": [
-      "kit-base-torso-lean-A.png",
-      "kit-base-torso-lean-B.png"
-    ],
-    "kit-base-torso-avg": [
-      "kit-base-torso-avg-A.png"
-    ],
-    "kit-base-upperarm-lean": [
-      "kit-base-upperarm-lean-A.png",
-      "kit-base-upperarm-lean-B.png"
-    ],
-    "kit-base-upperarm-avg": [
-      "kit-base-upperarm-avg-A.png"
-    ],
-    "kit-base-forearm-lean": [
-      "kit-base-forearm-lean-A.png",
-      "kit-base-forearm-lean-B.png"
-    ],
-    "kit-base-forearm-avg": [
-      "kit-base-forearm-avg-A.png"
-    ],
-    "kit-base-thigh-lean": [
-      "kit-base-thigh-lean-A.png",
-      "kit-base-thigh-lean-B.png"
-    ],
-    "kit-base-thigh-avg": [
-      "kit-base-thigh-avg-A.png"
-    ],
-    "kit-base-shin-lean": [
-      "kit-base-shin-lean-A.png",
-      "kit-base-shin-lean-B.png"
-    ],
-    "kit-base-shin-avg": [
-      "kit-base-shin-avg-A.png"
-    ],
-    "beast-lion-body": [
-      "beast-lion-body-A.png",
-      "beast-lion-body-B.png"
-    ],
-    "beast-bear-body": [
-      "beast-bear-body-A.png",
-      "beast-bear-body-B.png"
-    ],
-    "beast-lion-head": [
-      "beast-lion-head-A.png"
-    ],
-    "beast-bear-head": [
-      "beast-bear-head-A.png"
-    ],
-    "beast-lion-upperleg": [
-      "beast-lion-upperleg-A.png",
-      "beast-lion-upperleg-B.png"
-    ],
-    "beast-bear-upperleg": [
-      "beast-bear-upperleg-A.png",
-      "beast-bear-upperleg-B.png"
-    ],
-    "beast-lion-lowerleg": [
-      "beast-lion-lowerleg-A.png",
-      "beast-lion-lowerleg-B.png"
-    ],
-    "beast-bear-lowerleg": [
-      "beast-bear-lowerleg-A.png",
-      "beast-bear-lowerleg-B.png"
-    ],
-    "beast-lion-tail": [
-      "beast-lion-tail-A.png"
-    ],
-    "kit-helmet-murmillo": [
-      "kit-helmet-murmillo-A.png"
-    ],
-    "kit-helmet-thraex": [
-      "kit-helmet-thraex-A.png"
-    ],
-    "kit-helmet-secutor": [
-      "kit-helmet-secutor-A.png"
-    ],
-    "kit-galerus": [
-      "kit-galerus-A.png"
-    ],
-    "kit-shield-scutum": [
-      "kit-shield-scutum-A.png"
-    ],
-    "kit-shield-parma": [
-      "kit-shield-parma-A.png"
-    ],
-    "kit-plate-chest": [
-      "kit-plate-chest-A.png"
-    ],
-    "kit-plate-manica": [
-      "kit-plate-manica-A.png"
-    ],
-    "kit-plate-greave": [
-      "kit-plate-greave-A.png"
-    ],
-    "kit-wrap-trousers": [
-      "kit-wrap-trousers-A.png"
-    ],
-    "beast-lion-body-young": [
-      "beast-lion-body-B.png"
-    ],
-    "beast-lion-upperleg-young": [
-      "beast-lion-upperleg-B.png"
-    ],
-    "beast-lion-lowerleg-young": [
-      "beast-lion-lowerleg-B.png"
-    ],
-    "beast-bear-body-young": [
-      "beast-bear-body-B.png"
-    ],
-    "beast-bear-upperleg-young": [
-      "beast-bear-upperleg-B.png"
-    ],
-    "beast-bear-lowerleg-young": [
-      "beast-bear-lowerleg-B.png"
-    ],
-    "kit-base-upperarm-seg": [
-      "kit-base-upperarm-seg-A.png"
-    ],
-    "kit-base-upperarm-lean-seg": [
-      "kit-base-upperarm-lean-seg-A.png"
-    ],
-    "kit-base-upperarm-avg-seg": [
-      "kit-base-upperarm-avg-seg-A.png"
-    ],
-    "kit-base-thigh-seg": [
-      "kit-base-thigh-seg-A.png"
-    ],
-    "kit-base-thigh-lean-seg": [
-      "kit-base-thigh-lean-seg-A.png"
-    ],
-    "kit-base-thigh-avg-seg": [
-      "kit-base-thigh-avg-seg-A.png"
-    ],
-    "beast-lion-upperleg-seg": [
-      "beast-lion-upperleg-seg-A.png"
-    ],
-    "beast-lion-upperleg-young-seg": [
-      "beast-lion-upperleg-young-seg-A.png"
-    ],
-    "beast-bear-upperleg-seg": [
-      "beast-bear-upperleg-seg-A.png"
-    ],
-    "beast-bear-upperleg-young-seg": [
-      "beast-bear-upperleg-young-seg-A.png"
-    ],
-    "gear-bronze-bracers": [
-      "gear-bronze-bracers-A.png"
-    ],
-    "gear-barbed-bracers": [
-      "gear-barbed-bracers-A.png"
-    ],
-    "gear-matador-ribbons": [
-      "gear-matador-ribbons-A.png"
-    ],
-    "gear-iron-pauldrons": [
-      "gear-iron-pauldrons-A.png"
-    ],
-    "gear-knife-bracers": [
-      "gear-knife-bracers-A.png"
-    ],
-    "gear-gilt-armlets": [
-      "gear-gilt-armlets-A.png"
-    ],
-    "gear-bronze-crest": [
-      "gear-bronze-crest-A.png"
-    ],
-    "gear-blood-band": [
-      "gear-blood-band-A.png"
-    ],
-    "gear-ribbon-band": [
-      "gear-ribbon-band-A.png"
-    ],
-    "gear-horned-cap": [
-      "gear-horned-cap-A.png"
-    ],
-    "gear-dark-hood": [
-      "gear-dark-hood-A.png"
-    ],
-    "gear-plumed-helm": [
-      "gear-plumed-helm-A.png"
-    ],
-    "gear-bronze-phalerae": [
-      "gear-bronze-phalerae-A.png"
-    ],
-    "gear-ghost-silk": [
-      "gear-ghost-silk-A.png"
-    ],
-    "gear-black-plate": [
-      "gear-black-plate-A.png"
-    ],
-    "gear-eye-amulet": [
-      "gear-eye-amulet-A.png"
-    ],
-    "gear-gilded-harness": [
-      "gear-gilded-harness-A.png"
-    ],
-    "gear-bronze-boots": [
-      "gear-bronze-boots-A.png"
-    ],
-    "gear-dancers-sandals": [
-      "gear-dancers-sandals-A.png"
-    ],
-    "gear-spiked-boots": [
-      "gear-spiked-boots-A.png"
-    ],
-    "gear-soft-boots": [
-      "gear-soft-boots-A.png"
-    ],
-    "gear-gilded-greaves": [
-      "gear-gilded-greaves-A.png"
-    ],
-    "gear-hook-belt": [
-      "gear-hook-belt-A.png"
-    ],
-    "gear-ribbon-sash": [
-      "gear-ribbon-sash-A.png"
-    ],
-    "gear-chain-belt": [
-      "gear-chain-belt-A.png"
-    ],
-    "gear-coin-belt": [
-      "gear-coin-belt-A.png"
-    ],
-    "gear-wolf-pelt": [
-      "gear-wolf-pelt-A.png"
-    ],
-    "gear-flowing-cape": [
-      "gear-flowing-cape-A.png"
-    ],
-    "gear-puppeteers-mantle": [
-      "gear-puppeteers-mantle-A.png"
-    ],
-    "gear-purple-cloak": [
-      "gear-purple-cloak-A.png"
-    ],
-    "gear-lion-pelt": [
-      "gear-lion-pelt-A.png"
-    ],
-    "gear-spiked-shield": [
-      "gear-spiked-shield-A.png"
-    ],
-    "gear-tower-shield": [
-      "gear-tower-shield-A.png"
-    ],
-    "gear-spiral-shield": [
-      "gear-spiral-shield-A.png"
-    ],
-    "kit-net-draped": [
-      "kit-net-draped-A.png"
-    ],
-    "kit-arm-up-lean": [
-      "kit-arm-up-lean-A.png",
-      "kit-arm-up-lean-B.png"
-    ],
-    "kit-arm-lo-lean": [
-      "kit-arm-lo-lean-A.png",
-      "kit-arm-lo-lean-B.png"
-    ],
-    "kit-leg-up-lean": [
-      "kit-leg-up-lean-A.png",
-      "kit-leg-up-lean-B.png"
-    ],
-    "kit-leg-lo-lean": [
-      "kit-leg-lo-lean-A.png",
-      "kit-leg-lo-lean-B.png"
-    ],
-    "kit-arm-up-avg": [
-      "kit-arm-up-avg-A.png",
-      "kit-arm-up-avg-B.png"
-    ],
-    "kit-arm-lo-avg": [
-      "kit-arm-lo-avg-A.png",
-      "kit-arm-lo-avg-B.png"
-    ],
-    "kit-leg-up-avg": [
-      "kit-leg-up-avg-A.png",
-      "kit-leg-up-avg-B.png"
-    ],
-    "kit-leg-lo-avg": [
-      "kit-leg-lo-avg-A.png",
-      "kit-leg-lo-avg-B.png"
-    ],
-    "beast-lion-fore-up": [
-      "beast-lion-fore-up-A.png",
-      "beast-lion-fore-up-B.png"
-    ],
-    "beast-lion-fore-lo": [
-      "beast-lion-fore-lo-A.png",
-      "beast-lion-fore-lo-B.png"
-    ],
-    "beast-lion-hind-up": [
-      "beast-lion-hind-up-A.png",
-      "beast-lion-hind-up-B.png"
-    ],
-    "beast-lion-hind-lo": [
-      "beast-lion-hind-lo-A.png",
-      "beast-lion-hind-lo-B.png"
-    ],
-    "beast-lion-fore-up-young": [
-      "beast-lion-fore-up-young-A.png",
-      "beast-lion-fore-up-young-B.png"
-    ],
-    "beast-lion-fore-lo-young": [
-      "beast-lion-fore-lo-young-A.png",
-      "beast-lion-fore-lo-young-B.png"
-    ],
-    "beast-lion-hind-up-young": [
-      "beast-lion-hind-up-young-A.png",
-      "beast-lion-hind-up-young-B.png"
-    ],
-    "beast-lion-hind-lo-young": [
-      "beast-lion-hind-lo-young-A.png",
-      "beast-lion-hind-lo-young-B.png"
-    ],
-    "beast-bear-fore-up": [
-      "beast-bear-fore-up-A.png",
-      "beast-bear-fore-up-B.png"
-    ],
-    "beast-bear-fore-lo": [
-      "beast-bear-fore-lo-A.png",
-      "beast-bear-fore-lo-B.png"
-    ],
-    "beast-bear-hind-up": [
-      "beast-bear-hind-up-A.png",
-      "beast-bear-hind-up-B.png"
-    ],
-    "beast-bear-hind-lo": [
-      "beast-bear-hind-lo-A.png",
-      "beast-bear-hind-lo-B.png"
-    ],
-    "beast-bear-fore-up-young": [
-      "beast-bear-fore-up-young-A.png",
-      "beast-bear-fore-up-young-B.png"
-    ],
-    "beast-bear-fore-lo-young": [
-      "beast-bear-fore-lo-young-A.png",
-      "beast-bear-fore-lo-young-B.png"
-    ],
-    "beast-bear-hind-up-young": [
-      "beast-bear-hind-up-young-A.png",
-      "beast-bear-hind-up-young-B.png"
-    ],
-    "beast-bear-hind-lo-young": [
-      "beast-bear-hind-lo-young-A.png",
-      "beast-bear-hind-lo-young-B.png"
-    ],
-    "beast-lion-torso": [
-      "beast-lion-torso-A.png",
-      "beast-lion-torso-B.png"
-    ],
-    "beast-lion-torso-young": [
-      "beast-lion-torso-young-A.png",
-      "beast-lion-torso-young-B.png"
-    ],
-    "beast-bear-torso": [
-      "beast-bear-torso-A.png",
-      "beast-bear-torso-B.png"
-    ],
-    "beast-bear-torso-young": [
-      "beast-bear-torso-young-A.png",
-      "beast-bear-torso-young-B.png"
-    ],
-    "gear-bossed-shield": [
-      "gear-bossed-shield-A.png"
-    ],
-    "gear-phalanx-helm": [
-      "gear-phalanx-helm-A.png"
-    ],
-    "gear-bloodletters-belt": [
-      "gear-bloodletters-belt-A.png"
-    ],
-    "gear-crimson-cloak": [
-      "gear-crimson-cloak-A.png"
-    ],
-    "gear-shadow-sandals": [
-      "gear-shadow-sandals-A.png"
-    ],
-    "gear-wind-ribbons": [
-      "gear-wind-ribbons-A.png"
-    ],
-    "gear-crusher-gauntlets": [
-      "gear-crusher-gauntlets-A.png"
-    ],
-    "gear-colossus-plate": [
-      "gear-colossus-plate-A.png"
-    ],
-    "gear-smoke-pouch-belt": [
-      "gear-smoke-pouch-belt-A.png"
-    ],
-    "gear-mirror-cloak": [
-      "gear-mirror-cloak-A.png"
-    ],
-    "gear-laurel-wreath": [
-      "gear-laurel-wreath-A.png"
-    ],
-    "gear-idols-torc": [
-      "gear-idols-torc-A.png"
-    ],
-    "tailor-crest-bronze": [
-      "tailor-crest-bronze-A.png"
-    ],
-    "tailor-crest-silver": [
-      "tailor-crest-silver-A.png"
-    ],
-    "tailor-crest-gold": [
-      "tailor-crest-gold-A.png"
-    ],
-    "tailor-plume-red": [
-      "tailor-plume-red-A.png"
-    ],
-    "tailor-plume-white": [
-      "tailor-plume-white-A.png"
-    ],
-    "tailor-plume-black": [
-      "tailor-plume-black-A.png"
-    ],
-    "tailor-paint-wings": [
-      "tailor-paint-wings-A.png"
-    ],
-    "tailor-paint-bolt": [
-      "tailor-paint-bolt-A.png"
-    ],
-    "tailor-paint-sun": [
-      "tailor-paint-sun-A.png"
-    ],
-    "tailor-cloak-red": [
-      "tailor-cloak-red-A.png"
-    ],
-    "tailor-cloak-blue": [
-      "tailor-cloak-blue-A.png"
-    ],
-    "tailor-cloak-green": [
-      "tailor-cloak-green-A.png"
-    ],
-    "weapon-gladius": [
-      "weapon-gladius-A.png"
-    ],
-    "weapon-spear": [
-      "weapon-spear-A.png"
-    ],
-    "weapon-dagger": [
-      "weapon-dagger-A.png"
-    ],
-    "weapon-sica": [
-      "weapon-sica-A.png"
-    ],
-    "weapon-axe": [
-      "weapon-axe-A.png",
-      "weapon-axe-B.png"
-    ],
-    "weapon-mace": [
-      "weapon-mace-A.png"
-    ],
-    "weapon-trident": [
-      "weapon-trident-A.png"
-    ],
-    "weapon-wooden-sword": [
-      "weapon-wooden-sword-A.png"
-    ],
-    "logo-arena": [
-      "logo-arena-A.png",
-      "logo-arena-B.png",
-      "logo-arena-C.png"
-    ],
-    "kit-arm-up-musc": [
-      "kit-arm-up-musc-A.png",
-      "kit-arm-up-musc-B.png"
-    ],
-    "kit-arm-lo-musc": [
-      "kit-arm-lo-musc-A.png",
-      "kit-arm-lo-musc-B.png"
-    ],
-    "kit-leg-up-musc": [
-      "kit-leg-up-musc-A.png",
-      "kit-leg-up-musc-B.png"
-    ],
-    "kit-leg-lo-musc": [
-      "kit-leg-lo-musc-A.png",
-      "kit-leg-lo-musc-B.png"
-    ],
-    "beast-lion-armour-head": [
-      "beast-lion-armour-head-A.png"
-    ],
-    "beast-lion-armour-chest": [
-      "beast-lion-armour-chest-A.png"
-    ],
-    "beast-lion-armour-back": [
-      "beast-lion-armour-back-A.png"
-    ],
-    "beast-lion-armour-leg": [
-      "beast-lion-armour-leg-A.png"
-    ],
-    "beast-bear-armour-head": [
-      "beast-bear-armour-head-A.png"
-    ],
-    "beast-bear-armour-chest": [
-      "beast-bear-armour-chest-A.png"
-    ],
-    "beast-bear-armour-back": [
-      "beast-bear-armour-back-A.png"
-    ],
-    "beast-bear-armour-leg": [
-      "beast-bear-armour-leg-A.png"
-    ],
-    "laurel-ring": [
-      "laurel-ring-A.png",
-      "laurel-ring-B.png"
-    ],
-    "weapon-bow": [
-      "weapon-bow-A.png",
-      "weapon-bow-B.png",
-      "weapon-bow-C.png"
-    ],
-    "weapon-bow-drawn": [
-      "weapon-bow-drawn-A.png"
-    ],
-    "arrow": [
-      "arrow-A.png"
-    ]
-  }
+ "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29, 30",
+ "assets": {
+  "arena-pit": [
+   "arena-pit-A.webp",
+   "arena-pit-B.webp"
+  ],
+  "arena-city": [
+   "arena-city-A.webp",
+   "arena-city-B.webp"
+  ],
+  "arena-colosseum": [
+   "arena-colosseum-A.webp",
+   "arena-colosseum-B.webp"
+  ],
+  "arena-grand": [
+   "arena-grand-A.webp",
+   "arena-grand-B.webp"
+  ],
+  "kit-base-head": [
+   "kit-base-head-A.png"
+  ],
+  "kit-base-torso": [
+   "kit-base-torso-A.png",
+   "kit-base-torso-B.png"
+  ],
+  "kit-base-upperarm": [
+   "kit-base-upperarm-A.png",
+   "kit-base-upperarm-B.png"
+  ],
+  "kit-base-forearm": [
+   "kit-base-forearm-A.png",
+   "kit-base-forearm-B.png"
+  ],
+  "kit-base-thigh": [
+   "kit-base-thigh-A.png",
+   "kit-base-thigh-B.png"
+  ],
+  "kit-base-shin": [
+   "kit-base-shin-A.png",
+   "kit-base-shin-B.png"
+  ],
+  "kit-helmet-gallic": [
+   "kit-helmet-gallic-A.png"
+  ],
+  "kit-shield-round": [
+   "kit-shield-round-A.png"
+  ],
+  "brutus": [
+   "brutus-A.webp",
+   "brutus-B.webp"
+  ],
+  "brutus-proud": [
+   "brutus-proud-A.webp",
+   "brutus-proud-B.webp"
+  ],
+  "champ-marcus": [
+   "champ-marcus-A.webp",
+   "champ-marcus-B.webp"
+  ],
+  "champ-aurelius": [
+   "champ-aurelius-A.webp"
+  ],
+  "champ-flamma": [
+   "champ-flamma-A.webp"
+  ],
+  "champ-varro": [
+   "champ-varro-A.webp"
+  ],
+  "champ-twins": [
+   "champ-twins-A.webp",
+   "champ-twins-B.webp"
+  ],
+  "champ-hermes": [
+   "champ-hermes-A.webp"
+  ],
+  "champ-carpophorus": [
+   "champ-carpophorus-A.webp"
+  ],
+  "champ-mevia": [
+   "champ-mevia-A.webp"
+  ],
+  "champ-aquila": [
+   "champ-aquila-A.webp"
+  ],
+  "emperor": [
+   "emperor-A.webp",
+   "emperor-B.webp"
+  ],
+  "kit-base-torso-lean": [
+   "kit-base-torso-lean-A.png",
+   "kit-base-torso-lean-B.png"
+  ],
+  "kit-base-torso-avg": [
+   "kit-base-torso-avg-A.png"
+  ],
+  "kit-base-upperarm-lean": [
+   "kit-base-upperarm-lean-A.png",
+   "kit-base-upperarm-lean-B.png"
+  ],
+  "kit-base-upperarm-avg": [
+   "kit-base-upperarm-avg-A.png"
+  ],
+  "kit-base-forearm-lean": [
+   "kit-base-forearm-lean-A.png",
+   "kit-base-forearm-lean-B.png"
+  ],
+  "kit-base-forearm-avg": [
+   "kit-base-forearm-avg-A.png"
+  ],
+  "kit-base-thigh-lean": [
+   "kit-base-thigh-lean-A.png",
+   "kit-base-thigh-lean-B.png"
+  ],
+  "kit-base-thigh-avg": [
+   "kit-base-thigh-avg-A.png"
+  ],
+  "kit-base-shin-lean": [
+   "kit-base-shin-lean-A.png",
+   "kit-base-shin-lean-B.png"
+  ],
+  "kit-base-shin-avg": [
+   "kit-base-shin-avg-A.png"
+  ],
+  "beast-lion-body": [
+   "beast-lion-body-A.png",
+   "beast-lion-body-B.png"
+  ],
+  "beast-bear-body": [
+   "beast-bear-body-A.png",
+   "beast-bear-body-B.png"
+  ],
+  "beast-lion-head": [
+   "beast-lion-head-A.png"
+  ],
+  "beast-bear-head": [
+   "beast-bear-head-A.png"
+  ],
+  "beast-lion-upperleg": [
+   "beast-lion-upperleg-A.png",
+   "beast-lion-upperleg-B.png"
+  ],
+  "beast-bear-upperleg": [
+   "beast-bear-upperleg-A.png",
+   "beast-bear-upperleg-B.png"
+  ],
+  "beast-lion-lowerleg": [
+   "beast-lion-lowerleg-A.png",
+   "beast-lion-lowerleg-B.png"
+  ],
+  "beast-bear-lowerleg": [
+   "beast-bear-lowerleg-A.png",
+   "beast-bear-lowerleg-B.png"
+  ],
+  "beast-lion-tail": [
+   "beast-lion-tail-A.png"
+  ],
+  "kit-helmet-murmillo": [
+   "kit-helmet-murmillo-A.png"
+  ],
+  "kit-helmet-thraex": [
+   "kit-helmet-thraex-A.png"
+  ],
+  "kit-helmet-secutor": [
+   "kit-helmet-secutor-A.png"
+  ],
+  "kit-galerus": [
+   "kit-galerus-A.png"
+  ],
+  "kit-shield-scutum": [
+   "kit-shield-scutum-A.png"
+  ],
+  "kit-shield-parma": [
+   "kit-shield-parma-A.png"
+  ],
+  "kit-plate-chest": [
+   "kit-plate-chest-A.png"
+  ],
+  "kit-plate-manica": [
+   "kit-plate-manica-A.png"
+  ],
+  "kit-plate-greave": [
+   "kit-plate-greave-A.png"
+  ],
+  "kit-wrap-trousers": [
+   "kit-wrap-trousers-A.png"
+  ],
+  "beast-lion-body-young": [
+   "beast-lion-body-B.png"
+  ],
+  "beast-lion-upperleg-young": [
+   "beast-lion-upperleg-B.png"
+  ],
+  "beast-lion-lowerleg-young": [
+   "beast-lion-lowerleg-B.png"
+  ],
+  "beast-bear-body-young": [
+   "beast-bear-body-B.png"
+  ],
+  "beast-bear-upperleg-young": [
+   "beast-bear-upperleg-B.png"
+  ],
+  "beast-bear-lowerleg-young": [
+   "beast-bear-lowerleg-B.png"
+  ],
+  "kit-base-upperarm-seg": [
+   "kit-base-upperarm-seg-A.png"
+  ],
+  "kit-base-upperarm-lean-seg": [
+   "kit-base-upperarm-lean-seg-A.png"
+  ],
+  "kit-base-upperarm-avg-seg": [
+   "kit-base-upperarm-avg-seg-A.png"
+  ],
+  "kit-base-thigh-seg": [
+   "kit-base-thigh-seg-A.png"
+  ],
+  "kit-base-thigh-lean-seg": [
+   "kit-base-thigh-lean-seg-A.png"
+  ],
+  "kit-base-thigh-avg-seg": [
+   "kit-base-thigh-avg-seg-A.png"
+  ],
+  "beast-lion-upperleg-seg": [
+   "beast-lion-upperleg-seg-A.png"
+  ],
+  "beast-lion-upperleg-young-seg": [
+   "beast-lion-upperleg-young-seg-A.png"
+  ],
+  "beast-bear-upperleg-seg": [
+   "beast-bear-upperleg-seg-A.png"
+  ],
+  "beast-bear-upperleg-young-seg": [
+   "beast-bear-upperleg-young-seg-A.png"
+  ],
+  "gear-bronze-bracers": [
+   "gear-bronze-bracers-A.png"
+  ],
+  "gear-barbed-bracers": [
+   "gear-barbed-bracers-A.png"
+  ],
+  "gear-matador-ribbons": [
+   "gear-matador-ribbons-A.png"
+  ],
+  "gear-iron-pauldrons": [
+   "gear-iron-pauldrons-A.png"
+  ],
+  "gear-knife-bracers": [
+   "gear-knife-bracers-A.png"
+  ],
+  "gear-gilt-armlets": [
+   "gear-gilt-armlets-A.png"
+  ],
+  "gear-bronze-crest": [
+   "gear-bronze-crest-A.png"
+  ],
+  "gear-blood-band": [
+   "gear-blood-band-A.png"
+  ],
+  "gear-ribbon-band": [
+   "gear-ribbon-band-A.png"
+  ],
+  "gear-horned-cap": [
+   "gear-horned-cap-A.png"
+  ],
+  "gear-dark-hood": [
+   "gear-dark-hood-A.png"
+  ],
+  "gear-plumed-helm": [
+   "gear-plumed-helm-A.png"
+  ],
+  "gear-bronze-phalerae": [
+   "gear-bronze-phalerae-A.png"
+  ],
+  "gear-ghost-silk": [
+   "gear-ghost-silk-A.png"
+  ],
+  "gear-black-plate": [
+   "gear-black-plate-A.png"
+  ],
+  "gear-eye-amulet": [
+   "gear-eye-amulet-A.png"
+  ],
+  "gear-gilded-harness": [
+   "gear-gilded-harness-A.png"
+  ],
+  "gear-bronze-boots": [
+   "gear-bronze-boots-A.png"
+  ],
+  "gear-dancers-sandals": [
+   "gear-dancers-sandals-A.png"
+  ],
+  "gear-spiked-boots": [
+   "gear-spiked-boots-A.png"
+  ],
+  "gear-soft-boots": [
+   "gear-soft-boots-A.png"
+  ],
+  "gear-gilded-greaves": [
+   "gear-gilded-greaves-A.png"
+  ],
+  "gear-hook-belt": [
+   "gear-hook-belt-A.png"
+  ],
+  "gear-ribbon-sash": [
+   "gear-ribbon-sash-A.png"
+  ],
+  "gear-chain-belt": [
+   "gear-chain-belt-A.png"
+  ],
+  "gear-coin-belt": [
+   "gear-coin-belt-A.png"
+  ],
+  "gear-wolf-pelt": [
+   "gear-wolf-pelt-A.png"
+  ],
+  "gear-flowing-cape": [
+   "gear-flowing-cape-A.png"
+  ],
+  "gear-puppeteers-mantle": [
+   "gear-puppeteers-mantle-A.png"
+  ],
+  "gear-purple-cloak": [
+   "gear-purple-cloak-A.png"
+  ],
+  "gear-lion-pelt": [
+   "gear-lion-pelt-A.png"
+  ],
+  "gear-spiked-shield": [
+   "gear-spiked-shield-A.png"
+  ],
+  "gear-tower-shield": [
+   "gear-tower-shield-A.png"
+  ],
+  "gear-spiral-shield": [
+   "gear-spiral-shield-A.png"
+  ],
+  "kit-net-draped": [
+   "kit-net-draped-A.png"
+  ],
+  "kit-arm-up-lean": [
+   "kit-arm-up-lean-A.png",
+   "kit-arm-up-lean-B.png"
+  ],
+  "kit-arm-lo-lean": [
+   "kit-arm-lo-lean-A.png",
+   "kit-arm-lo-lean-B.png"
+  ],
+  "kit-leg-up-lean": [
+   "kit-leg-up-lean-A.png",
+   "kit-leg-up-lean-B.png"
+  ],
+  "kit-leg-lo-lean": [
+   "kit-leg-lo-lean-A.png",
+   "kit-leg-lo-lean-B.png"
+  ],
+  "kit-arm-up-avg": [
+   "kit-arm-up-avg-A.png",
+   "kit-arm-up-avg-B.png"
+  ],
+  "kit-arm-lo-avg": [
+   "kit-arm-lo-avg-A.png",
+   "kit-arm-lo-avg-B.png"
+  ],
+  "kit-leg-up-avg": [
+   "kit-leg-up-avg-A.png",
+   "kit-leg-up-avg-B.png"
+  ],
+  "kit-leg-lo-avg": [
+   "kit-leg-lo-avg-A.png",
+   "kit-leg-lo-avg-B.png"
+  ],
+  "beast-lion-fore-up": [
+   "beast-lion-fore-up-A.png",
+   "beast-lion-fore-up-B.png"
+  ],
+  "beast-lion-fore-lo": [
+   "beast-lion-fore-lo-A.png",
+   "beast-lion-fore-lo-B.png"
+  ],
+  "beast-lion-hind-up": [
+   "beast-lion-hind-up-A.png",
+   "beast-lion-hind-up-B.png"
+  ],
+  "beast-lion-hind-lo": [
+   "beast-lion-hind-lo-A.png",
+   "beast-lion-hind-lo-B.png"
+  ],
+  "beast-lion-fore-up-young": [
+   "beast-lion-fore-up-young-A.png",
+   "beast-lion-fore-up-young-B.png"
+  ],
+  "beast-lion-fore-lo-young": [
+   "beast-lion-fore-lo-young-A.png",
+   "beast-lion-fore-lo-young-B.png"
+  ],
+  "beast-lion-hind-up-young": [
+   "beast-lion-hind-up-young-A.png",
+   "beast-lion-hind-up-young-B.png"
+  ],
+  "beast-lion-hind-lo-young": [
+   "beast-lion-hind-lo-young-A.png",
+   "beast-lion-hind-lo-young-B.png"
+  ],
+  "beast-bear-fore-up": [
+   "beast-bear-fore-up-A.png",
+   "beast-bear-fore-up-B.png"
+  ],
+  "beast-bear-fore-lo": [
+   "beast-bear-fore-lo-A.png",
+   "beast-bear-fore-lo-B.png"
+  ],
+  "beast-bear-hind-up": [
+   "beast-bear-hind-up-A.png",
+   "beast-bear-hind-up-B.png"
+  ],
+  "beast-bear-hind-lo": [
+   "beast-bear-hind-lo-A.png",
+   "beast-bear-hind-lo-B.png"
+  ],
+  "beast-bear-fore-up-young": [
+   "beast-bear-fore-up-young-A.png",
+   "beast-bear-fore-up-young-B.png"
+  ],
+  "beast-bear-fore-lo-young": [
+   "beast-bear-fore-lo-young-A.png",
+   "beast-bear-fore-lo-young-B.png"
+  ],
+  "beast-bear-hind-up-young": [
+   "beast-bear-hind-up-young-A.png",
+   "beast-bear-hind-up-young-B.png"
+  ],
+  "beast-bear-hind-lo-young": [
+   "beast-bear-hind-lo-young-A.png",
+   "beast-bear-hind-lo-young-B.png"
+  ],
+  "beast-lion-torso": [
+   "beast-lion-torso-A.png",
+   "beast-lion-torso-B.png"
+  ],
+  "beast-lion-torso-young": [
+   "beast-lion-torso-young-A.png",
+   "beast-lion-torso-young-B.png"
+  ],
+  "beast-bear-torso": [
+   "beast-bear-torso-A.png",
+   "beast-bear-torso-B.png"
+  ],
+  "beast-bear-torso-young": [
+   "beast-bear-torso-young-A.png",
+   "beast-bear-torso-young-B.png"
+  ],
+  "gear-bossed-shield": [
+   "gear-bossed-shield-A.png"
+  ],
+  "gear-phalanx-helm": [
+   "gear-phalanx-helm-A.png"
+  ],
+  "gear-bloodletters-belt": [
+   "gear-bloodletters-belt-A.png"
+  ],
+  "gear-crimson-cloak": [
+   "gear-crimson-cloak-A.png"
+  ],
+  "gear-shadow-sandals": [
+   "gear-shadow-sandals-A.png"
+  ],
+  "gear-wind-ribbons": [
+   "gear-wind-ribbons-A.png"
+  ],
+  "gear-crusher-gauntlets": [
+   "gear-crusher-gauntlets-A.png"
+  ],
+  "gear-colossus-plate": [
+   "gear-colossus-plate-A.png"
+  ],
+  "gear-smoke-pouch-belt": [
+   "gear-smoke-pouch-belt-A.png"
+  ],
+  "gear-mirror-cloak": [
+   "gear-mirror-cloak-A.png"
+  ],
+  "gear-laurel-wreath": [
+   "gear-laurel-wreath-A.png"
+  ],
+  "gear-idols-torc": [
+   "gear-idols-torc-A.png"
+  ],
+  "tailor-crest-bronze": [
+   "tailor-crest-bronze-A.png"
+  ],
+  "tailor-crest-silver": [
+   "tailor-crest-silver-A.png"
+  ],
+  "tailor-crest-gold": [
+   "tailor-crest-gold-A.png"
+  ],
+  "tailor-plume-red": [
+   "tailor-plume-red-A.png"
+  ],
+  "tailor-plume-white": [
+   "tailor-plume-white-A.png"
+  ],
+  "tailor-plume-black": [
+   "tailor-plume-black-A.png"
+  ],
+  "tailor-paint-wings": [
+   "tailor-paint-wings-A.png"
+  ],
+  "tailor-paint-bolt": [
+   "tailor-paint-bolt-A.png"
+  ],
+  "tailor-paint-sun": [
+   "tailor-paint-sun-A.png"
+  ],
+  "tailor-cloak-red": [
+   "tailor-cloak-red-A.png"
+  ],
+  "tailor-cloak-blue": [
+   "tailor-cloak-blue-A.png"
+  ],
+  "tailor-cloak-green": [
+   "tailor-cloak-green-A.png"
+  ],
+  "weapon-gladius": [
+   "weapon-gladius-A.png"
+  ],
+  "weapon-spear": [
+   "weapon-spear-A.png"
+  ],
+  "weapon-dagger": [
+   "weapon-dagger-A.png"
+  ],
+  "weapon-sica": [
+   "weapon-sica-A.png"
+  ],
+  "weapon-axe": [
+   "weapon-axe-A.png",
+   "weapon-axe-B.png"
+  ],
+  "weapon-mace": [
+   "weapon-mace-A.png"
+  ],
+  "weapon-trident": [
+   "weapon-trident-A.png"
+  ],
+  "weapon-wooden-sword": [
+   "weapon-wooden-sword-A.png"
+  ],
+  "logo-arena": [
+   "logo-arena-A.png",
+   "logo-arena-B.png",
+   "logo-arena-C.png"
+  ],
+  "kit-arm-up-musc": [
+   "kit-arm-up-musc-A.png",
+   "kit-arm-up-musc-B.png"
+  ],
+  "kit-arm-lo-musc": [
+   "kit-arm-lo-musc-A.png",
+   "kit-arm-lo-musc-B.png"
+  ],
+  "kit-leg-up-musc": [
+   "kit-leg-up-musc-A.png",
+   "kit-leg-up-musc-B.png"
+  ],
+  "kit-leg-lo-musc": [
+   "kit-leg-lo-musc-A.png",
+   "kit-leg-lo-musc-B.png"
+  ],
+  "beast-lion-armour-head": [
+   "beast-lion-armour-head-A.png"
+  ],
+  "beast-lion-armour-chest": [
+   "beast-lion-armour-chest-A.png"
+  ],
+  "beast-lion-armour-back": [
+   "beast-lion-armour-back-A.png"
+  ],
+  "beast-lion-armour-leg": [
+   "beast-lion-armour-leg-A.png"
+  ],
+  "beast-bear-armour-head": [
+   "beast-bear-armour-head-A.png"
+  ],
+  "beast-bear-armour-chest": [
+   "beast-bear-armour-chest-A.png"
+  ],
+  "beast-bear-armour-back": [
+   "beast-bear-armour-back-A.png"
+  ],
+  "beast-bear-armour-leg": [
+   "beast-bear-armour-leg-A.png"
+  ],
+  "laurel-ring": [
+   "laurel-ring-A.png",
+   "laurel-ring-B.png"
+  ],
+  "weapon-bow": [
+   "weapon-bow-A.png",
+   "weapon-bow-B.png",
+   "weapon-bow-C.png"
+  ],
+  "weapon-bow-drawn": [
+   "weapon-bow-drawn-A.png"
+  ],
+  "arrow": [
+   "arrow-A.png"
+  ],
+  "range-target": [
+   "range-target-A.png",
+   "range-target-B.png",
+   "range-target-C.png"
+  ],
+  "knife-wheel": [
+   "knife-wheel-A.png",
+   "knife-wheel-B.png",
+   "knife-wheel-C.png"
+  ],
+  "fruit-seller": [
+   "fruit-seller-A.png",
+   "fruit-seller-B.png",
+   "fruit-seller-C.png"
+  ],
+  "fruit-pumpkin": [
+   "fruit-pumpkin-A.png"
+  ],
+  "fruit-watermelon": [
+   "fruit-watermelon-A.png"
+  ],
+  "fruit-pineapple": [
+   "fruit-pineapple-A.png"
+  ],
+  "fruit-pomegranate": [
+   "fruit-pomegranate-A.png"
+  ],
+  "fruit-apple": [
+   "fruit-apple-A.png"
+  ],
+  "pot-clay": [
+   "pot-clay-A.png"
+  ],
+  "pot-wineskin": [
+   "pot-wineskin-A.png"
+  ],
+  "knife-board": [
+   "knife-board-A.png"
+  ]
+ }
 }
