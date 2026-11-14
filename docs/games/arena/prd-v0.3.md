@@ -2201,7 +2201,7 @@ So an overhead is undone by the very motion it needs. The wind-up leans you back
 - Jabs, slashes and lunges still classify and step as before (Step 21's and Step 23b's checks).
 - A frame of a mace overhead landing its ball, from before and after the change.
 
-## Step 25 (drafted 2026-11-14, sketch first, builds after Step 24): the range, for the knives and the bow
+## Step 25 (drafted 2026-11-14, sketched; now two of Step 27's trials): the range, for the knives and the bow
 
 **The designer:** "It'd be nice to have a ranged practice for the knives and bow. And maybe we could have a fun challenge where you shoot smaller and smaller targets." This is the first of the queued Trials ("reusing what's built"), and it reuses the yard, the aim ring and the throws.
 
@@ -2230,4 +2230,78 @@ A touchable page of the Shrinking Target with the knife and bow aiming, so the d
 
 - Scripted checks: a hit shrinks the next target; 3 misses end the run; a bullseye gives a miss back; the best is saved per weapon.
 - Frames of practice, the challenge, and the end card. A GIF of a run of five.
+- `npm run smoke`.
+
+## Step 26 (locked 2026-11-14, from the sketch): each blow looks like itself, and each surface answers it
+
+**The designer**, on the attack GIFs (`sketches/jab.gif`, `sketches/slash.gif`, `sketches/overhead.gif`): "I like the fighting GIFs." Earlier: "Slash on plate makes sparks and slash on skin makes blood; jab on plate maybe thuds, and if it catches skin makes blood, and a gap makes more blood."
+
+**The target is the sketch:** make the real game look and feel like those three GIFs, with the painted fighters and weapons. Your thumb still steers every blow 1:1. The look switches the moment a blow is classed (Step 23b's classing), so a jab, a slash and an overhead each read as themselves.
+
+**1. How each blow looks:**
+
+| | Jab | Slash | Overhead |
+| --- | --- | --- | --- |
+| **Blade** | snaps in line with the arm, point leading | edge leading, angled across the arm, wrist rolled | high behind the head, then down vertical |
+| **Trail** | a short straight needle streak from the point | a crescent smear the length of the blade, along the arc | a tall vertical smear, heavier |
+| **Body** | the shoulder drives forward, the torso square | the torso twists through, the follow-through carries on | a lean into the chop, feet planted (Step 24c) |
+| **Sound** | a short sharp "tsk" | a whoosh pitched by speed | a heavy whoomp |
+
+**2. How each surface answers:**
+
+| | Plate | Skin | Gap |
+| --- | --- | --- | --- |
+| **Jab** | a dull thud, a small spark at the point, the blade recoils, a dent mark | a short blood puff at the point | a deep burst, a hit-stop (about 3 frames) and a ring |
+| **Slash** | a shower of sparks along the scrape, the blade glances off | a blood arc along the cut's direction, and a **thin red cut line that stays** on him for the bout | a bigger spray |
+| **Overhead** | a big clang, sparks, the plate dents or cracks | a heavy splash | the biggest burst, a hit-stop and a small screen shake |
+
+**The rules behind the table:**
+- **Plate never bleeds,** and **a gap is always the loudest.**
+- **Effects scale with the blow's damage:** a fast slash sprays more than a slow one.
+- **Reduced motion** turns off the screen shake and halves the particles, as the game's other effects already do.
+- **The numbers** go in `TUNING.look` (trails, streaks, sparks, blood, cut lines, hit-stops).
+- **Foes' blows on you** use the same table.
+
+### Acceptance
+
+- GIFs of the real game, made like the sketch: each blow on plate, skin and a gap, at 667x375, set beside the sketch GIFs for the designer.
+- A frame of a foe with several cut lines that have stayed.
+- Perf within 10% with a busy screen (a pair bout with bleeding), and `npm run smoke`.
+
+## Step 27 (locked 2026-11-14, "we should do the challenges, Trials mode"): Trials
+
+**The designer:** "I'm thinking we should do the challenges, Trials mode." This takes in Step 25 (the range) as two of its trials.
+
+- **Where:** a **Trials** button on the menu. It opens a grid of trial cards, each showing:
+  - its name;
+  - a one-line goal (at most eight words);
+  - its medal (bronze, silver or gold, or empty);
+  - your best.
+- **Every trial:**
+  - has a fixed loadout and a seeded set-up, with no purse, no cards and no run at stake;
+  - is built from the training yard's machinery (a scripted foe, the ghost thumb where useful, the why-words);
+  - **medals** by score or time, at thresholds in `TUNING.trials.<id>`;
+  - **a first gold gives fame** (`TUNING.trials.fame`), so trials feed the ludus;
+  - **retry is one tap** from its end card;
+  - **the export logs** each attempt: the id, the score, the time and the medal.
+- **The first eight trials:**
+
+| Trial | Goal | Loadout and set-up | Medals by |
+| --- | --- | --- | --- |
+| **Shrinking Target: knives** | Hit shrinking targets. 3 misses end it. | Step 25's range, practice knives | targets hit |
+| **Shrinking Target: bow** | The same, with the bow | the range, the bow | targets hit |
+| **Iron Wall** | Perfect blocks in a row | gladius and shield; a foe swinging at random heights, faster each block | longest streak |
+| **The Capuan Feint** | Read Varro's feint three times | Varro of Capua, his signature move often | reads, out of 5 feints |
+| **Gap Hunter** | 5 gap stabs before time runs out | dagger; a heavily plated foe | seconds |
+| **Breaker** | Break all his plates | mace; a plated foe who only guards | seconds |
+| **Knife Work** | Fell him with knives alone | 6 knives and fists; a light foe | knives left |
+| **Weather the Rage** | Survive Red Rage three times | gladius and shield; Marcus the Red | hearts left |
+
+- **Later trials** are data plus a scripted set-up: the other champions' moves, the beasts, the pairs.
+- **Before building (sketch before build):** a still of the Trials grid and one end card, and the range sketch's answers (the shrink, the misses, the sway) folded into the two range trials.
+
+### Acceptance
+
+- Scripted: each trial starts, can be passed, and records its medal and best; a first gold gives fame once; retry restarts it.
+- Frames of the grid and each trial's first moments, at 667x375 and 844x390.
 - `npm run smoke`.
