@@ -2165,3 +2165,14 @@ A tap that doesn't throw gets "DRAG, THEN LET GO", and the ghost replays. Step 2
   - The swap to or from the bow takes `TUNING.bow.swap`, about 0.7 s, slower than a melee swap (0.5 s), because the shield moves too.
 - **The reinforced shield does nothing while the bow is out,** since the shield isn't on the arm.
 - **Frames:** the shield on the back with the bow drawn, and the swap back mid-way.
+
+## Queued after Step 24 (approved 2026-11-14, "all of these sound good"): reusing what's built
+
+Each becomes its own step, written in full before it's built. Rough order:
+1. **Trials:** short drills with a goal, built on the training yard's machinery (a scripted foe, steps, the ghost thumb, why-words) and the champions' moves. Examples: 5 perfect blocks in a row, read 3 Capuan Feints, fell him with knives only.
+2. **A Daily run:** the same seeded fighter, arena and gauntlet for everyone that day.
+3. **The Hall:** fight your own Wall of Champions, as rival-style foes.
+4. **Legend cards:** a beaten champion's signature move as a rare card for you.
+5. **Emperor's decrees:** a one-run rule shown on the picker (everyone bleeds, no shields, bows only, beasts in the Pit).
+6. **New pairings:** a man with a beast, a two-blade champion with a bow. Data only.
+7. **Tinted gear:** bronze, iron and blackened kit tints in code, for foe variety.
