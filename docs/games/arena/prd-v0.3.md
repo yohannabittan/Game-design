@@ -2298,10 +2298,64 @@ A touchable page of the Shrinking Target with the knife and bow aiming, so the d
 | **Weather the Rage** | Survive Red Rage three times | gladius and shield; Marcus the Red | hearts left |
 
 - **Later trials** are data plus a scripted set-up: the other champions' moves, the beasts, the pairs.
-- **Before building (sketch before build):** a still of the Trials grid and one end card, and the range sketch's answers (the shrink, the misses, the sway) folded into the two range trials.
+- **The sketch** (`sketches/trials-grid.png`, `sketches/trials-end.png`) was approved by the designer on 2026-11-14 ("this looks pretty decent"). Build to it.
 
 ### Acceptance
 
 - Scripted: each trial starts, can be passed, and records its medal and best; a first gold gives fame once; retry restarts it.
 - Frames of the grid and each trial's first moments, at 667x375 and 844x390.
+- `npm run smoke`.
+
+## Step 27b (locked 2026-11-14): more trials: fists, ranges, the Apple Shot, the Knife Board and the Wheel
+
+**The designer:** "I think we could have some fist fight challenges. For the shrinking target we could have targets at different ranges. We could also have a William Tell mode, where you have to shoot progressively smaller fruits from the head of a guy without killing him. And for the knife throwing we could throw a knife at balloons around a guy, or even a guy on a spinning wheel."
+
+Balloons aren't Roman, so the knife acts use **clay pots and wine skins hung on a board**, which burst with a splash of red wine. Everything else is as the designer said.
+
+**1. The fist trials** (fists only, no shield):
+
+| Trial | Goal | Set-up | Medals by |
+| --- | --- | --- | --- |
+| **Bare Knuckles** | Fell him with your fists | a light foe, also with fists | hearts left |
+| **Stagger Him** | 5 staggers before time runs out | a big foe who guards | seconds |
+| **Brawl** | Fell two in a row | two fist-fighters, one after the other | hearts left |
+
+**2. Shrinking Target at three ranges.** The two range trials place targets at **near, mid and far** marks (`TUNING.range.marks`), cycling as the targets shrink. Far shots need a full bow draw, and the knife arcs a little at range.
+
+**3. The Apple Shot** (the bow):
+- A man stands at the far mark with **fruit on his head**: a pomegranate, then an apple, a fig, a plum and an olive, each smaller (`TUNING.trials.apple.fruits`).
+- Hit the fruit and it bursts; the next fruit is set on his head.
+- **Hit the man and the trial ends.** He yelps "OW!" and sits down hard. There's no blood: it's a comic beat.
+- From the third fruit, he gets nervous: a small sway that grows with each fruit.
+- **Medals** by fruits hit.
+
+**4. The Knife Board** (knives):
+- A man stands against a wooden board, with **clay pots and wine skins hung around him**, close to his head, arms and legs.
+- Each knife that bursts one sends a splash of red wine.
+- **Hit the man and it ends** (the same comic "OW!").
+- Clear the board and a new one is hung, with the pots smaller and closer to him.
+- **Medals** by pots burst.
+
+**5. The Wheel** (knives):
+- A man strapped to a **spinning wheel**, with pots fixed on the wheel around him.
+- It spins slowly at first, then faster with each board cleared, and from the second wheel it changes direction.
+- **Hit the man and it ends.**
+- **Medals** by pots burst.
+
+**The grid:** with 13 trials, the screen gets **tabs along the top: Range, Blades, Fists, Champions**, each with its own grid, so nothing scrolls.
+
+**The art:** the man, the fruits, the board, the pots and the wheel. Before any painting:
+- the man is a fighter figure without armour, reusing the kit;
+- the fruits, pots and wheel are drawn in code in the sketch.
+
+Art Pack 30 paints them once the sketch is approved.
+
+### Before building (sketch before build)
+
+The range sketch (`sketches/range.html`) is extended with three more modes: the Apple Shot, the Knife Board and the Wheel. The designer tries the pace on the phone (the sway, the spin speed, how close the pots sit) before this is built.
+
+### Acceptance (once the sketch is approved)
+
+- Scripted: each new trial can be passed and failed; hitting the man ends it; the wheel reverses; the ranges cycle.
+- Frames of each, and a GIF of the Wheel.
 - `npm run smoke`.
