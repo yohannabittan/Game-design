@@ -1,6 +1,6 @@
 // Helmets: the secutor's two-eyehole dome is retired (ADR-0005: the save never stored a helmet, only the weapon, so nothing migrates). A run, a last
 // fighter and a rival who carry the axe (the brute, who wore it) load wearing another helmet and the game never asks for the retired painting.
-// The tailor's tilted crests and plumes (bronze, silver, red, white) are mirrored to trail back (`flip` in TUNING.kit.tailor).
+// The tailor's gold crest and red and white plumes are mirrored to trail back (`flip` in TUNING.kit.tailor); bronze and silver are painted trailing back already.
 import { VET } from '../arena.mjs';
 import { bout } from '../exact.mjs';
 
@@ -31,7 +31,7 @@ export default async function (t) {
   await g.frames(120);
   const asked = await g.ev(() => performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes('secutor')));
   t.eq('a rival and a last fighter in axe load, and the retired helmet is never requested', asked, []);
-  const fl = await g.ev(() => { const T = window.__engine.game.scenes.play.TUNING.kit; return T.helm.secutor === undefined && ['tailor-crest-bronze', 'tailor-crest-silver', 'tailor-plume-red', 'tailor-plume-white'].every((n) => T.tailor[n].flip) && ['tailor-crest-gold', 'tailor-plume-black'].every((n) => !T.tailor[n].flip); });
-  t.ok('the secutor is gone from TUNING and the four tilted tailor pieces are mirrored', fl);
+  const fl = await g.ev(() => { const T = window.__engine.game.scenes.play.TUNING.kit; return T.helm.secutor === undefined && ['tailor-crest-gold', 'tailor-plume-red', 'tailor-plume-white'].every((n) => T.tailor[n].flip) && ['tailor-crest-bronze', 'tailor-crest-silver', 'tailor-plume-black'].every((n) => !T.tailor[n].flip); });
+  t.ok('the secutor is gone from TUNING and the gold crest and the red and white plumes are mirrored', fl);
 
 }
