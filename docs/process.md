@@ -123,6 +123,27 @@ Before writing an acceptance list, a shard brief or a review focus, the orchestr
 
 Say the cost in one line, with the cheaper alternative, and let the designer choose.
 
+## Sketch before build (2026-11-14)
+
+The designer: "If we can think of a little way to visualise things before putting them into a full build and playtest, it may be a more efficient way to build." A build plus a playtest costs about an hour and a round trip, and too many Arena rounds were spent finding out that something looked or felt wrong (the double arms, the slash that reads as nothing, the overhead that lunges).
+
+**When:** a step whose open question is *how it will look or feel*: a visual, an effect, an animation, a screen layout, a new weapon's motion. Logic, numbers and economy go straight to the PRD.
+
+**The cheapest form that answers the question:**
+
+| Form | For | Time |
+| --- | --- | --- |
+| **a still mock frame** (one PNG of the screen) | layouts, cards, HUD, text amounts | about 10 min |
+| **a GIF of the moment** (`tools/sketch.mjs`: a canvas page recorded with Playwright and ffmpeg) | motion, effects, animation, "what does a slash look like" | about 20 min |
+| **a tiny interactive page** the designer touches on the phone | control feel: gestures, timing, aiming | about 30 min |
+
+**How:**
+- **Who:** a Sonnet agent, working in the scratchpad, as a throwaway. It's never shipped and never reviewed; it isn't the game.
+- **The flow:** draft the PRD step, sketch, send it to the designer, take the reaction, lock the step, build.
+- **The handoff:** the builder's brief carries the picked sketch as the target ("make it look like this"). A kept sketch goes in `docs/games/<slug>/sketches/` (small files only; the repo is public).
+- **Time-box:** a sketch is 20 to 30 minutes. One that needs more means the question is too big; split it.
+- **Built work:** for something already built, record a GIF of the real game (`tools/drive.mjs` frames through ffmpeg) instead of stills whenever the thing in question moves.
+
 ## Always
 
 - **ADRs.** Any decision about how games are built, not what a game is, gets an ADR in `docs/adr/`. Changing the engine contract, adding a dependency, changing the deploy path, changing the save format policy. See `docs/adr/README.md`.
