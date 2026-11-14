@@ -1,4 +1,4 @@
-# ADR-0024: Arena's game.js is split into native ES modules along its existing sections
+# ADR-0024: Arena is split into about ten native ES modules by lane, so builders can run in parallel
 
 - **Date:** 2026-11-14
 - **Status:** accepted
