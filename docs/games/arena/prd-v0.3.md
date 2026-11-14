@@ -2100,3 +2100,50 @@ Each step also says, in a few words, why an attempt didn't count ("EARLY", "TOO 
 - Frames of the two new steps.
 - The `yard=` field in an export.
 - `npm run smoke`.
+
+## Step 24 (locked 2026-11-14): a bow to swap to, and knives in the training yard
+
+**The designer:** "The bow can be unlimited with a slow draw. Damage on bare skin, I think, so like staggering perhaps, and gaps are multiplied." On the knives that missed in v66: "Maybe I tapped instead of holding; it should be added to training."
+
+**1. The bow,** a sidearm bought in the purse's Sidearm slot (Step 22) at `TUNING.bow.price` (about 20 gold). In the tent's rack, its words are "Pierce · Range".
+- **Swapping:** ⇄ swaps to it, the same 0.5 s fast and open swap as any sidearm.
+- **While it's out,** your right thumb works the bow, not the sword:
+  - **the shield is slung on your back:** no HIGH, MID or LOW block at all. DODGE still works;
+  - **put your thumb down to start the draw.** The bow bends and the string comes back over `TUNING.bow.draw` (about 0.6 s). Drag to aim, with the knife's aim ring and line (Step 22b): green over a gap, red over plate, and the same small snap;
+  - **let go to loose** once the draw is full. Let go too soon and the arrow isn't loosed: "TOO SOON", and the draw starts again from nothing;
+  - **holding a full draw** longer, up to `TUNING.bow.full` (about 1.2 s), makes the arrow faster and harder. The ring tightens to show it;
+  - **arrows are unlimited.** The limit is the slow draw and the time you're open;
+  - **inside his reach you can't loose:** "TOO CLOSE". Swap back, or back off first.
+- **What an arrow does:**
+
+  | Lands on | Effect |
+  | --- | --- |
+  | a gap | the pierce gap hit, multiplied (`TUNING.bow.gap`, about 2x an ordinary gap hit) |
+  | bare skin | light damage and a **stagger**: he loses his step and his wind-up restarts |
+  | plate or a shield | nothing: a clang, and the arrow drops |
+  | nothing | it flies off, "MISSED" |
+
+  Each hit shows its word, the way knives do: GAP!, STAGGER, PLATE, MISSED.
+- **Foes answer it:** when you raise a bow, a foe rushes in (`TUNING.bow.rush`, a faster step). A beast pounces sooner.
+- **Knives and the bow:** the knife button is hidden while the bow is out.
+- **The art:** Pack 29, the painted bow at rest and drawn, and an arrow. Until it lands, the build draws the bow in code. The pack is wired when it lands.
+- **The export:** `arrows`, `arrowGaps`, `arrowSkin`, `arrowPlate`, `arrowMiss`, `bowTime` (the seconds the bow was out).
+
+**2. Knives in the training yard.** A step after "Hit a gap" teaches the throw. You're given one practice knife for the step (it doesn't count against what you've bought).
+1. "Tap the knife to raise it."
+2. "Drag onto the gap, and let go."
+
+A tap that doesn't throw gets "DRAG, THEN LET GO", and the ghost replays. Step 22b's once-ever knife lesson in a bout stays, for players who skipped the yard.
+
+### Acceptance
+
+- Scripted checks:
+  - the swap to the bow and back;
+  - no block while the bow is out;
+  - a full draw looses, and an early release doesn't;
+  - an arrow in a gap does the multiplied damage, one on skin staggers, and one on plate does nothing;
+  - "TOO CLOSE" inside his reach;
+  - a foe rushes once the bow is up;
+  - the yard's knife step completes with a drag, and a tap doesn't complete it.
+- Frames at 667x375 and 844x390: the bow in the purse's rack, at rest, drawing, at full draw with the ring, a gap hit, a stagger, a clang, "TOO CLOSE", and the yard's knife step.
+- Perf within 10%, and `npm run smoke`.

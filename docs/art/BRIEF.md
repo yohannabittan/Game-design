@@ -574,6 +574,27 @@ That is 12 edits, about US$1 to 2. Make a contact sheet: each piece on the head 
 
 Cost about US$0.20.
 
+### Pack 29: Arena, a bow (added 2026-11-14)
+
+**The designer:** a bow as a sidearm: you swap to it and shoot with the knife's aim, and while it's out you're open and can't block (`docs/games/arena/prd-v0.3.md`, "Step 24").
+
+Style reference: `docs/art/final/arena/weapon-gladius.png` and the round kit shield, so the bow matches Pack 23's weapons (side view, the same outline, light and wood).
+
+| File | What | Size |
+| --- | --- | --- |
+| `weapon-bow` | a gladiator's recurve bow, wood and horn with a leather grip, **strung and at rest**, straight up, side view, transparent; the string is a thin pale line | 4 heads tall at 256 px per head: about 1024 px high, width as painted |
+| `weapon-bow-drawn` | the same bow **fully drawn**: the limbs bent back, the string pulled to a point; the same grip in the same place | the same canvas as `weapon-bow`, so the grip doesn't move between the two |
+| `arrow` | one arrow, horizontal, point to the right: an iron head, a wooden shaft, three pale fletching feathers | about 1.6 heads long (410 px), as thin as it paints |
+
+- **Three options** of `weapon-bow`. Then make the drawn pose and the arrow from the pick, by inpainting the bow on its own canvas (Pack 26b's method), so all three match.
+- **The handoff** (`docs/art/HANDOFF-arena-pack29.md`) gives, in px:
+  - the grip's centre (where the hand closes) on both bow canvases;
+  - the string's ends, and its drawn point on `-drawn`;
+  - the arrow's tip, and its nock (the back end).
+- **The contact sheet:** the three options at game size beside the gladius, and the pick at rest, drawn, and with the arrow on the string.
+
+About 5 to 7 images, US$1 to 2.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
