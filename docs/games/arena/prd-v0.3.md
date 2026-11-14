@@ -2323,7 +2323,7 @@ Balloons aren't Roman, so the knife acts use **clay pots and wine skins hung on 
 **2. Shrinking Target at three ranges.** The two range trials place targets at **near, mid and far** marks (`TUNING.range.marks`), cycling as the targets shrink. Far shots need a full bow draw, and the knife arcs a little at range.
 
 **3. The Apple Shot** (the bow):
-- A man stands at the far mark with **fruit on his head**: a pomegranate, then an apple, a fig, a plum and an olive, each smaller (`TUNING.trials.apple.fruits`).
+- A man stands at the far mark with **fruit on his head**: a pumpkin, then a watermelon, a pineapple, a pomegranate and an apple, each smaller (`TUNING.trials.apple.fruits`). The designer: "pumpkin, watermelon, pineapple, down to apple; olive is way too small." After the apple, apples keep coming and his sway grows with each one.
 - Hit the fruit and it bursts; the next fruit is set on his head.
 - **Hit the man and the trial ends.** He yelps "OW!" and sits down hard. There's no blood: it's a comic beat.
 - From the third fruit, he gets nervous: a small sway that grows with each fruit.
