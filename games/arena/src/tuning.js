@@ -184,8 +184,8 @@ export const TUNING = {
     bear: { band: 'giant', draw: 0.92, front: 0.28, back: 0.37, tall: 0.8, range: -0.05, strike: -0.22, speed: 1.2, dmg: 1.15, wear: 2, moves: { maul: 3, shove: 1.4 }, zone: 0.5, counter: 'shove',
       prof: { brute: 3, duelist: 0.2, glass: 0.2, tank: 3, balanced: 1 } },
     // Step 16, barding (the Colosseum's arenas.*.armour bouts): each piece's part, a plate like a man's with the beast's gaps open round it, broken by
-    // dents blows (a man's TUNING.armour.dents); its painting is beastArt.armour
-    armour: { plates: { head: 'head', chest: 'chest', back: 'belly', leg: 'legF' }, dents: 3 },
+    // dents blows (a man's TUNING.armour.dents); its painting is beastArt.armour. Only the head and chest are barded: belly, back and legs are hide
+    armour: { plates: { head: 'head', chest: 'chest' }, dents: 3 },
   },
   // a beast's bout: the frame shrinks (never under min) until the beast, at its home plus room H, needs the frame to slide left by at most slide H
   beastFit: { room: 0.1, slide: 0.1, min: 0.7 },
@@ -366,14 +366,14 @@ export const TUNING = {
     foe: { chance: { pit: 0, city: 0.3, rome: 0.35, games: 0.4 }, carry: { spear: 'gladius' }, near: 0.12, far: 0.3, swap: 0.5 } },
   // Step 22, throwing knives: a consumable bought one at a time (price gold) in the purse, the tent and the bandage stall, at most max carried, kept
   // for the run. aim = s to raise the knife (open: no block, no swing) before a release throws it; lift = px the aim point sits above the thumb;
-  // speed = flight in H per s; dmg = a knife in a gap; pad = px of give round a part; len = the knife's drawn length (H); fall = s a spent knife
+  // speed = flight in H per s; dmg = a knife in a gap, skin = one on bare skin (a plate takes nothing); pad = px of give round a part; len = the knife's drawn length (H); fall = s a spent knife
   // lies in the sand; row = the Knives row's height and its - and + buttons' width (px)
   // Step 22b: drag = px the aiming thumb must travel from where it went down before its release throws (less is a tap, which only moves the aim);
   // snap = px from a gap's edge within which the aim snaps onto the gap (0: off); ring = the aim ring's radius (px); rest = where the ring sits
   // before a thumb is down (H above his feet); raise = where your hand holds the raised knife (H from the shoulder, forward and down), held = its drawn size there (x len);
   // glow = his open gaps' fill alpha and blur (px) while a knife is up; ghost = where the first-knife lesson's ghost thumb starts its drag (x the
   // screen's width, y its height)
-  knives: { price: 8, max: 6, aim: 0.25, lift: 50, speed: 5, dmg: 5, pad: 4, len: 0.13, fall: 1.2, row: [44, 44],
+  knives: { price: 8, max: 6, aim: 0.25, lift: 50, speed: 5, dmg: 12, skin: 4, pad: 4, len: 0.13, fall: 1.2, row: [44, 44],
     drag: 20, snap: 14, ring: 10, rest: 0.6, raise: [-0.06, -0.3], held: 1.4, glow: [0.4, 22], ghost: [0.56, 0.84] },
   // Step 24, the bow: a sidearm bought in the purse's Sidearm slot at price gold. swap = s the swap to it or back takes (no block, no swing), the shield
   // going to your back (or back to your arm) and the blade away (or back) halfway. While it is out the right thumb works it: down starts the draw, full
@@ -444,7 +444,7 @@ export const TUNING = {
   // Step 21, how each weapon hits (you and every foe alike). Each part of a weapon that strikes, for a jab and for a swing (a slash or an overhead): its
   // rows on its Pack 23 painting (the axe's on Pack 28's; fists on a scale of pin rows from knuckle to wrist), its kinds and its damage multiplier.
   // Anywhere else on the weapon is the haft: a thud (thud x the blow, a little push of push paces, no gap bonus, no bleed, no dent).
-  // cut: bare skin bleeds (bleed stacks a cut, kept as a part until whole), a plate dents only dent x; pierce: a jab into a gap is the gap hit, a plate never
+  // cut: bare skin bleeds (bleed stacks a cut, kept as a part until whole), a plate dents only dent x; pierce: a jab into a gap is the gap hit (x its row's multiplier), a plate never
   // dents; crush: dents a plate fully (fists never dent), and every stagger-th crush that lands, plate or flesh, staggers him. hook (the sica): its cuts bleed
   // hook.bleed x and pull him in hook.pull H. wide (the trident): its jab's pad and slit tolerance x wide. flash: s a clean hit lights its part (painted
   // in its kind's colour at flashA[0], then brightened at flashA[1]); his
@@ -456,7 +456,7 @@ export const TUNING = {
     dagger: { jab: [[0, 80, 'pierce', 1], [80, 205, 'cut', 0.5]], swing: [[0, 205, 'cut', 1]] },
     spear: { jab: [[0, 224, 'pierce', 1]], swing: [[0, 224, 'cut', 0.6]] },
     trident: { jab: [[0, 256, 'pierce', 1]], swing: [[0, 256, 'pierce', 0.5]], wide: 1.6 },
-    sica: { jab: [], swing: [[0, 408, 'cut', 1.2]], hook: true },
+    sica: { jab: [[0, 408, 'pierce', 0.75]], swing: [[0, 408, 'cut', 1.2]], hook: true },
     axe: { jab: [[7, 111, 'pierce', 1], [111, 368, 'crush', 0.5]], swing: [[80, 368, 'cut crush', 1], [7, 80, 'pierce', 0.5]] },
     mace: { jab: [[0, 224, 'crush', 1]], swing: [[0, 224, 'crush', 1]] },
     fist: { pin: 100, jab: [[0, 100, 'crush', 1]], swing: [[0, 100, 'crush', 1]] },

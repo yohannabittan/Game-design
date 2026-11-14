@@ -5,12 +5,12 @@ import { clamp, lerp } from '../engine.js';
 import { TUNING } from '../tuning.js';
 import { ARM_LEN, SHOULDER } from '../data.js';
 import { lay, youF, inReach, myH, foeF, toScreen, toLocal, partLocal, partCenter, inside, fell, blood, sparks, ring, pop, dmgPop, slotSound,
-  dullSound, sliceSound, clangSound, swooshSound } from '../fight.js';
+  dullSound, sliceSound, clangSound, swooshSound, dust, mark, localDir } from '../fight.js';
 import { covered, setCover } from '../foe.js';
 import { staggerFoe, finLive, crowdEvent } from '../cards.js';
 import { weaponKey, artPic, kitPic, TAU, line, lerp2, drawCoin, drawWeapon, shieldFace } from '../draw-fight.js';
 import { wield, iconWeapon, weaponTitle } from '../screens.js';
-import { state, noShield, shake, meSize, ENG, kitOn } from '../game.js';
+import { state, noShield, shake, meSize, ENG, kitOn, has, count } from '../game.js';
 import { YARD, GHOST, yardKnifeTap, yardChime, yardTick, yardPlate, gapRings, ghostThumb, ghostAt } from '../features/yard.js';
 
 // ====== RANGED: the sidearm, knives and the bow ======
@@ -81,7 +81,7 @@ export function knifeAt(E, x, y) {
   const [lx, ly] = toLocal(F, x, y);
   for (const p of fm.parts.filter((q) => q.slot).concat(fm.parts.filter((q) => !q.slot))) {
     const [qx, qy] = partLocal(p, fm, lx, ly);
-    if (inside(p.d, qx, qy, K.pad / F.H)) return { p, kind: p.slot && !covered(p) ? 'gap' : covered(p) ? 'plate' : 'skin' };
+    if (inside(p.d, qx, qy, K.pad / F.H)) return { p, kind: p.slot && !covered(p) ? 'gap' : covered(p) ? 'plate' : 'skin', lx: qx, ly: qy };
   }
   return { p: null, kind: 'miss' };
 }
@@ -280,13 +280,13 @@ export function drawSlung(ctx, E, H, lk) {
   shieldFace(ctx, E, B[2] * H, H, lk, !!(lk.kit && kitPic('upperarm', lk.kit.tier) && kitPic('forearm', lk.kit.tier)));
   ctx.restore();
 }
-// what the knife meets where it arrives, and the word for it: GAP! (TUNING.knives.dmg); PLATE on plate, his shield or guard (a clang); SKIN off bare
-// skin (a glance); MISSED, into the sand
+// what the knife meets where it arrives, and the word for it: GAP! (TUNING.knives.dmg); PLATE on plate, his shield or guard (a dull knock, nothing
+// taken); on bare skin a small wound (knives.skin) with its mark; MISSED, into the sand
 export function knifeLands(E, k) {
-  const K = TUNING.knives, at = { x: k.x1, y: k.y1 }, ang = Math.atan2(k.y1 - k.y0, k.x1 - k.x0), { p, kind } = knifeAt(E, k.x1, k.y1);
+  const K = TUNING.knives, at = { x: k.x1, y: k.y1 }, ang = Math.atan2(k.y1 - k.y0, k.x1 - k.x0), { p, kind, lx, ly } = knifeAt(E, k.x1, k.y1);
   if (kind === 'gap') { knifeGap(E, p, at, ang); return; }
-  if (kind === 'plate') { state.knifePlate++; p.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 12); ring(at.x, at.y, 30, '#cbd5e1'); clangSound(E, 0); pop(at.x, at.y - 24, 'PLATE', '#cbd5e1', 20); E.haptic(12); }
-  else if (kind === 'skin') { state.knifeSkin++; sparks(at.x, at.y, ang + Math.PI, 4); dullSound(E); pop(at.x, at.y - 24, 'SKIN', '#fca5a5', 20); }
+  if (kind === 'plate') { state.knifePlate++; p.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 6); dullSound(E); pop(at.x, at.y - 24, 'PLATE', '#cbd5e1', 20); E.haptic(8); }
+  else if (kind === 'skin') { state.knifeSkin++; knifeSkin(E, p, { ...at, lx, ly }, ang); }
   else { state.knifeMiss++; pop(at.x, at.y - 24, 'MISSED', '#e2e8f0', 20); E.audio.play('miss'); }
   const L = lay(E);
   state.knifeFall = { x: at.x, y: at.y, vx: -Math.cos(ang) * 90, vy: -120, rot: ang, vr: (Math.random() < 0.5 ? -1 : 1) * 14, flat: Math.PI * (Math.random() < 0.5 ? 0.02 : 0.98), floor: L.floor - 2, life: K.fall };
@@ -300,6 +300,18 @@ function knifeGap(E, p, at, ang) {
   pop(at.x, at.y - 30, 'GAP!', '#ffd24a', 22); dmgPop(E, at, dealt, '#ff6a4a'); shake(E, 8, 0.1); E.haptic(30); E.flash('#fff0b8', 0.07);
   state.stop = Math.max(state.stop, J.slotStop);
   crowdEvent(E, 'slot');
+  if (f.hp <= 0) fell(E); else setCover(p);
+}
+// a knife on bare skin: a small wound and its mark, by the rules of any bare hit (Haemorrhage: no bite; Sharp Edge adds), no bleed
+function knifeSkin(E, p, at, ang) {
+  const f = state.foe, numb = has('haem'), dealt = numb ? 0 : TUNING.knives.skin + TUNING.cards.edge * count('edge');
+  p.cool = TUNING.hit.cool; f.hp -= dealt;
+  if (numb) { dust(at.x, at.y, 3); dullSound(E); pop(at.x, at.y - 24, 'NO BITE', '#cbd5e1', 15); E.haptic(8); }
+  else {
+    p.flash = 0.16; blood(at.x, at.y, ang, TUNING.juice.blood.drops); sliceSound(E, false); dmgPop(E, at, dealt, '#fff0b8'); shake(E, 4, 0.08); E.haptic(16);
+    const [ux, uy] = localDir(foeF(E), f, p, ang), l = TUNING.look.mark.cut[0];
+    mark(p, { k: 'cut', x: at.lx - ux * l / 2, y: at.ly - uy * l / 2, ux, uy, s: l }); p.gashes.push({ a: [at.lx - ux * l, at.ly - uy * l], b: [at.lx, at.ly], t: state.m });
+  }
   if (f.hp <= 0) fell(E); else setCover(p);
 }
 // a small dark throwing knife, its point along ang from (x, y), len px from pommel to point

@@ -1,6 +1,6 @@
 # Arena: the rules as built
 
-What the game **is today**, build `arena-v70` (save version 19): Steps 26 and 26b. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
+What the game **is today**, build `arena-v71` (save version 19): Steps 26 and 26b, and the honest-blows step. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
 
 Numbers are named by their `TUNING` path (in `games/arena/src/tuning.js`). Functions and tables are named, never located by line; find them with `node tools/codemap.mjs arena --where <name>`. `arena-v68` is `arena-v67` split into modules with no change in play (CHANGELOG, ADR-0024).
 
@@ -76,12 +76,14 @@ A dodge at the wall is refused ("Back to the wall!", `backToWall`). A dodge begu
 | --- | --- | --- |
 | Gap hit | a piercing jab into a gap along its slit (within `cover.jabTol` rad; x `strike.trident.wide`), or a gap opened by a feint | damage x the weapon's `slot` (`gapHit`); a deep sound and ring |
 | Hit | bare flesh, or a gap struck the wrong way | damage x `dmg` x the part's multiplier; cuts bleed |
-| Clang | plate, a gap guard, his guard or shield (`covered`) | no damage; dents by kind (`bounce`); recoil `attack.<kind>.recoil` |
+| Clang | plate, a gap guard, his guard or shield (`covered`) | no damage; dents by kind (`bounce`), saying DENTED; recoil `attack.<kind>.recoil`. A plate that takes no dent says GLANCES OFF (THUD for the haft) with a few sparks, a dull knock, no shake and no hit-stop |
 | Thud | the haft meets him (`shaftHit`) | x `strike.thud` (0.25), a push of `strike.push`; no gap, bleed or dent |
 
 Damage (`gapHit`): the blow's base x `me.str` x size `dmg`, rounded, then x the weapon, to the half heart; x `foeSta.windedDmg` (1.5) when he is winded (PUNISH); x `shield.riposteMul` (2) within `shield.riposte` (1 s) of a perfect block (RIPOSTE); card multipliers capped at `cards.mulMax` (4).
 
-**Kinds** (`strikeOf`): **cut** bleeds bare skin (`strike.cut.bleed` 0.5 of a stack per cut, `cutBleed`) and dents a plate only x `strike.cut.dent`; **pierce** is the gap hit and never dents; **crush** dents fully and every `strike.crush.stagger` (3rd) crush that lands staggers him (`crushLands`). The sica's cut hooks: x `strike.hook.bleed` bleed and a pull of `strike.hook.pull` H.
+**Kinds** (`strikeOf`): **cut** bleeds bare skin (`strike.cut.bleed` 0.5 of a stack per cut, `cutBleed`) and dents a plate only x `strike.cut.dent`; **pierce** is the gap hit and never dents; **crush** dents fully and every `strike.crush.stagger` (3rd) crush that lands staggers him (`crushLands`). The sica's cut hooks: x `strike.hook.bleed` bleed and a pull of `strike.hook.pull` H. A jab's pierce row multiplies its gap hit as well as its skin hit: the sica's blade on a jab pierces at x 0.75 (`strike.sica.jab`), so a push is a gap hit or a skin wound at three quarters of a gladius jab's; only its grip thuds.
+
+**A blow that does nothing** (Haemorrhage's bare hit, a glance off plate) shows no blood, cut mark, cut sound or shake: a dull knock and its word (NO BITE, GLANCES OFF, THUD). If a card still makes it bleed, it shows that blood and BLEED.
 
 **Plates.** A plate breaks at `armour.dents` (3) dents (the axe's overhead at `me.weapons.axe.overBreak` 2; barding at `beasts.armour.dents`). A broken helmet opens his face as a gap (`FACE_SLOT`). His **gaps** are the neck, armpit, waist, elbow and knee (`SLOTS`); his armour set opens 3, 4 or 5 of them (`armourSets`), and gap guards shut some (`GUARDS`, `rollGuards`).
 
@@ -144,7 +146,7 @@ While the Trickster or Showman is shut, the scribe and the baker start with `STA
 | Mace (an axe) | 20 | as the axe | | | | | crush |
 | Dagger | 15 | 0.65 | 1.4 | 0.75 | 1 | 4 | point pierce, edges cut |
 | Trident (ludus) | 20 | 1.5 | 0.8 | 1 | 1.1 | 3 | prongs pierce, wide; first perfect block a bout nets him (`me.net`) |
-| Sica (ludus) | 15 | 0.8 | 1.2 | 1 | 1 | 3 | hooking cut x 1.2; no jab rows (see 12) |
+| Sica (ludus) | 15 | 0.8 | 1.2 | 1 | 1 | 3 | hooking cut x 1.2; its blade pierces on a jab x 0.75 |
 
 **Plates** (`PLATES`, `purse.plate`): helmet 10 (head), chest plate 15 (chest and belly), greaves 10 (legs). The plate count sets stamina regen (`me.plateSets`, `me.armour`: none or 1 x1, 2 x0.92, 3+ x0.82).
 
@@ -154,7 +156,7 @@ While the Trickster or Showman is shut, the scribe and the baker start with `STA
 
 **Sidearm** (purse's Sidearm slot, at its weapon's price, or the bow at `bow.price` 20; not fists, not the weapon in hand): a melee sidearm keeps the shield on the arm.
 
-**Knives** (`knives`): `knives.price` 8 each, at most `knives.max` 6, bought in the purse, the tent and the stall (`knifeRow`, `knifeBuy`), kept for the run. In a gap: `knives.dmg` 5 (`knifeGap`); on plate or skin: nothing; flight `knives.speed` H/s.
+**Knives** (`knives`): `knives.price` 8 each, at most `knives.max` 6, bought in the purse, the tent and the stall (`knifeRow`, `knifeBuy`), kept for the run. In a gap: `knives.dmg` 12 (`knifeGap`); on bare skin `knives.skin` 4 with a puncture mark, no bleed, by the bare-hit cards (Haemorrhage: NO BITE; Sharp Edge adds) (`knifeSkin`); on plate (PLATE, a dull knock) or in the air: nothing; flight `knives.speed` H/s.
 
 **The bow's arrows** (`arrowLands`): a gap takes `bow.gap` (2) x a gladius jab's gap hit (`plainGap`) x the draw's power; bare skin `bow.skin` (1) and a stagger; plate nothing. Raising it makes him rush in (x `bow.rush`) and a beast strike within `bow.pounce` s.
 
@@ -195,7 +197,7 @@ Each bout's weapon is a different one of the four foe weapons where it can be. H
 
 **Pairs** (`pairAt`, `updatePair`, `stepIn`): a second foe waits at the edge. When the first is winded or felled, the second steps in; both must fall. The first falling heals `pairs.heal` (2) hearts.
 
-**Beasts** (`BEASTS`, `beasts`, `rollBeast`): a lion (crouch then pounce, raised paw then swipe) and a bear (rear then maul, head down then shove). No shield, gear, guards or feints. Their gaps are the throat, a foreleg joint and the flank or belly (`BEAST_BODY`). A young beast is a band smaller (`beastYoung`); a barded beast wears plates (`beasts.armour`).
+**Beasts** (`BEASTS`, `beasts`, `rollBeast`): a lion (crouch then pounce, raised paw then swipe) and a bear (rear then maul, head down then shove). No shield, gear, guards or feints. Their gaps are the throat, a foreleg joint and the flank or belly (`BEAST_BODY`). A young beast is a band smaller (`beastYoung`); a barded beast wears plates on its head and upper chest only (`beasts.armour.plates`); its belly, back and legs are hide, so a level blow at belly height from the front meets hide.
 
 **Champions** (`CHAMPIONS`, `NEW_CHAMPS`; signatures in `champs`, `SIG_NAME`, `buildSig`). A signature waits `champs.<key>.every` exchanges, then comes at `champs.<key>.chance` (0.6), and surely after `champs.<key>.sure` (3):
 
@@ -309,10 +311,8 @@ Felling an arena's champion opens the next for good (save key `arenas`).
 **Oddities:**
 - `TUNING.hearts` (6) is read nowhere; hearts come from `me.sizes` and `me.heartsPerBase`.
 - `me.wheels.armour` and `me.wheels.weapon` are not spun; they record the purse's buy. `me.armour`'s `n` and `arm` are read only by `migrate`.
-- The sica has no jab rows (`strike.sica.jab` is empty), so every sica jab is a haft thud.
 - In `updateAttack`, the raise's upward share (0.7) and the blow's keep-alive speed (x 0.55) are inline numbers, not in `TUNING`.
 - The tent's iron plate offers only head, chest or legs, never the Arms slot.
-- A knife on bare skin does no damage, while an arrow on skin does.
 - Flamma, Aurelius and the Twins have no signature move.
 - `LUDUS`'s comment says five stations; there are six (the vault).
 - The file header's comment still says eight wheels and five opponents.

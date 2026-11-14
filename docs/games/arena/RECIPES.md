@@ -133,3 +133,13 @@ Watch out: a save given to `open` as plain data skips `migrate` (it is wrapped w
 10. A check worth keeping goes in the permanent suite (`tools/checks/arena/`, run by `npm run check arena` from your worktree: the runner loads the check files beside it, so `ROOT=<worktree>` from the main checkout runs the main checkout's checks against your game), written on the fake clock with `tools/checks/exact.mjs`. Two traps: a lift ends a blow, so give every scripted stroke a few frames of rest before the thumb comes up; and the yard's sparring partner already stands at its own strike distance, so a reach bug only shows against a long weapon.
 
 Check: `npm run smoke` at the end, then `python3 tools/usage.py`.
+
+## 12. Change what a blow does, or what it shows
+
+1. Your blow on him: `checkHits` finds the first part the weapon meets and its striking part (`zoneAt`, `strikeOf`); `land` sends it to `bounce` (plate, guard), `shaftHit` (the haft) or `gapHit` (skin or a gap). A knife is `knifeLands` (`knifeGap`, `knifeSkin`); an arrow `arrowLands`.
+2. Numbers: `gapHit`'s `wm` (a gap hit is `slotDmg` x the jab row's multiplier; any other hit `dmg` x the row's) and `strike` (in `TUNING`) rows; knives in `knives`.
+3. The show: blood (`blood`, `answer`'s drops), the mark that stays (`mark`, `p.gashes`), sound (`sliceSound`, `clangSound`, `dullSound`), `shake`, hit-stop (the returned `stop`) and the word (`pop`; a number is `dmgPop`). A blow that does nothing gets none of these but a dull knock and one word: reuse NO BITE, GLANCES OFF, THUD, DENTED.
+4. A beast's barding: which parts are plated is `beasts.armour.plates` (in `TUNING`); the parts' shapes are `BEAST_BODY`, and the painted pieces follow the same keys (`bardPic`, `beastPainted`).
+
+Check: `tools/checks/arena/blows.mjs` calls `land` and `knifeLands` on a chosen part and reads damage, drops in `state.fx`, the engine's shake and `state.pops`; `P.knifeAt` with `knives.pad` 0 maps what each point of him is.
+Watch out: a change to the show of a common blow (a glance's hit-stop, its sparks) moves the replays' timing, so their hashes change though no number did.

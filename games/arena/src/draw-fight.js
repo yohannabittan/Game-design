@@ -1762,7 +1762,7 @@ function zoneFx() {
   return k > 0 && z.st.key === myKey() ? { st: z.st, k } : null;
 }
 // each weapon's kinds in at most two words, for the rack and the Weapon slot, in their colours
-const STRIKE_WORDS = { gladius: ['cut', 'pierce'], dagger: ['pierce', 'cut'], spear: ['pierce'], trident: ['pierce'], sica: ['cut'], axe: ['cut', 'crush'], mace: ['crush'], fist: ['crush'] };
+const STRIKE_WORDS = { gladius: ['cut', 'pierce'], dagger: ['pierce', 'cut'], spear: ['pierce'], trident: ['pierce'], sica: ['cut', 'pierce'], axe: ['cut', 'crush'], mace: ['crush'], fist: ['crush'] };
 export const KIND_WORD = { cut: 'Cut', pierce: 'Pierce', crush: 'Crush' };
 export const kindSegs = (key) => (key === 'bow' ? [[KIND_WORD.pierce, TUNING.strike.col.pierce], ['Range', '#cbd5e1']] : (STRIKE_WORDS[key] || []).map((k) => [KIND_WORD[k], TUNING.strike.col[k]]));
 // The foe's weapon in his arm's frame: the fist at (0, ARM_LEN), the weapon along +y; frame -x is the edge that leads a chop.

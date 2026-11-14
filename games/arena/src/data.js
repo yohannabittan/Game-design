@@ -447,12 +447,13 @@ export const ARM_LEN = 0.30, SHOULDER = [0.05, -0.67];
 // 'body' (the torso, rearing about the hip), 'head' (the body's, dipped) and the near foreleg 'legF' (from the shoulder joint, like an arm); the hind
 // legs stand on the ground. Its gaps are its soft spots: the throat, the foreleg's joint, and the flank (lion) or belly (bear). sh, hp: the shoulders and
 // hips (near, far); feet: where each foot stands (fore near, fore far, hind near, hind far); leg: the upper and lower bone of a fore and a hind leg.
+// The chest is the upper front only, where its barding is painted; the belly runs under it to the front, so a barded beast is hide at belly height.
 export const BEAST_BODY = {
   lion: {
     parts: [
       { id: 'head', shape: 'circle', x: 0.17, y: -0.4, r: 0.075, frame: 'head' },
-      { id: 'chest', shape: 'rect', x: 0.04, y: -0.3, w: 0.18, h: 0.18, frame: 'body' },
-      { id: 'belly', shape: 'rect', x: -0.15, y: -0.29, w: 0.2, h: 0.15, frame: 'body' },
+      { id: 'chest', shape: 'rect', x: 0.04, y: -0.345, w: 0.18, h: 0.09, frame: 'body' },
+      { id: 'belly', shape: 'rect', x: -0.06, y: -0.29, w: 0.38, h: 0.16, frame: 'body' },
       { id: 'legF', shape: 'rect', x: 0, y: 0.145, w: 0.06, h: 0.29, joint: [0.05, -0.29] },
       { id: 'legs', shape: 'rect', x: -0.27, y: -0.16, w: 0.12, h: 0.32 },
     ],
@@ -466,8 +467,8 @@ export const BEAST_BODY = {
   bear: {
     parts: [
       { id: 'head', shape: 'circle', x: 0.17, y: -0.42, r: 0.08, frame: 'head' },
-      { id: 'chest', shape: 'rect', x: 0.03, y: -0.32, w: 0.2, h: 0.22, frame: 'body' },
-      { id: 'belly', shape: 'rect', x: -0.16, y: -0.31, w: 0.2, h: 0.2, frame: 'body' },
+      { id: 'chest', shape: 'rect', x: 0.03, y: -0.375, w: 0.2, h: 0.11, frame: 'body' },
+      { id: 'belly', shape: 'rect', x: -0.065, y: -0.31, w: 0.39, h: 0.2, frame: 'body' },
       { id: 'legF', shape: 'rect', x: 0, y: 0.15, w: 0.08, h: 0.3, joint: [0.05, -0.3] },
       { id: 'legs', shape: 'rect', x: -0.27, y: -0.18, w: 0.13, h: 0.36 },
     ],

@@ -868,7 +868,12 @@ export function bounce(E, p, at, ang, sp, a, st = cleanStrike(a.kind)) {
   const bite = st.thud ? 0 : st.crush ? 1 : st.cut ? S.cut.dent : 0;
   const dn = p.armour && bite && !meWeapon().noDent ? AT.dents * bite * (a.kind === 'over' ? Math.pow(TUNING.cards.heavy, count('heavy')) : crusher ? TUNING.cards.crusher : 1) : 0;
   const was = p.dents; p.dents += dn;
-  if (p.armour && !dn) pop(at.x, at.y - 30, st.thud ? 'THUD' : 'GLANCES OFF', '#cbd5e1', 15);
+  const breakAt = a.kind === 'over' && meWeapon().overBreak ? meWeapon().overBreak : state.foe.beast ? TUNING.beasts.armour.dents : A.dents;
+  const breaks = p.armour && (p.dents >= breakAt || (!st.thud && a.kind === 'over' && has('breaker')) || anvil);
+  // a plate that takes nothing looks and sounds like nothing (a few sparks, a dull knock, no shake) and says why; one that dents says so
+  const dull = p.armour && !dn && !breaks;
+  if (dull) pop(at.x, at.y - 30, st.thud ? 'THUD' : 'GLANCES OFF', '#cbd5e1', 15);
+  else if (p.armour && !breaks) pop(at.x, at.y - 30, 'DENTED', '#e2e8f0', 15);
   if (p.armour && st.crush && !st.thud) crushLands(E);
   if (dn) state.zfx = { st, m: state.m };
   const rv = glance ? clamp(sp * 0.3, 200, 420) : clamp(sp * A.kick, 450, 1300);
@@ -879,13 +884,10 @@ export function bounce(E, p, at, ang, sp, a, st = cleanStrike(a.kind)) {
     for (let k = 1; k <= 4; k++) { const b = a0 + (Math.random() - 0.5) * 0.9; pts.push([pts[0][0] + Math.cos(b) * sz * 0.5 * k * (0.8 + Math.random() * 0.4), pts[0][1] + Math.sin(b) * sz * 0.5 * k * (0.8 + Math.random() * 0.4)]); }
     p.cracks.push(pts);
   }
-  sparks(at.x, at.y, ang + Math.PI, glance ? 8 : 24); ring(at.x, at.y, glance ? 24 : 44, '#cbd5e1');
-  // (a jab on a plate is a dull thud, not a clang)
-  if (glance && p.armour) dullSound(E); else clangSound(E, 0);
-  shake(E, glance ? 2 : 6, 0.12); E.haptic(glance ? 8 : 24);
-  let stop = glance ? 0.01 : J.stopClang + 0.02;
-  const breakAt = a.kind === 'over' && meWeapon().overBreak ? meWeapon().overBreak : state.foe.beast ? TUNING.beasts.armour.dents : A.dents;
-  if (p.armour && (p.dents >= breakAt || (!st.thud && a.kind === 'over' && has('breaker')) || anvil)) {
+  if (dull) { sparks(at.x, at.y, ang + Math.PI, 6); dullSound(E); E.haptic(8); }
+  else { sparks(at.x, at.y, ang + Math.PI, glance ? 8 : 24); ring(at.x, at.y, glance ? 24 : 44, '#cbd5e1'); if (glance && p.armour) dullSound(E); else clangSound(E, 0); shake(E, glance ? 2 : 6, 0.12); E.haptic(glance ? 8 : 24); }
+  let stop = glance || dull ? 0.01 : J.stopClang + 0.02;
+  if (breaks) {
     p.armour = false; state.broken++;
     if (p.d.id === 'head' && !state.foe.beast && !state.foe.parts.some((q) => q.d === FACE_SLOT)) { const q = mkPart(FACE_SLOT, false); q.slot = true; state.foe.parts.push(q); }
     if (anvil) { state.anvilM = -9; pop(at.x, at.y - 48, 'HAMMER AND ANVIL', '#fbbf24', 18); }
@@ -894,7 +896,7 @@ export function bounce(E, p, at, ang, sp, a, st = cleanStrike(a.kind)) {
     E.audio.beep({ freq: 110, dur: 0.25, type: 'sine', slide: 0.4, gain: 0.3 }); shake(E, 8, 0.2); E.haptic(30);
     stop = J.stopBreak + 0.04;
   }
-  stop = Math.max(stop, answer(E, { kind: a.kind, surf: 'plate', x: at.x, y: at.y, lx: at.lx, ly: at.ly, ang, dmg: AT.dmg, sp, p, F: foeF(E), fm: state.foe, i0 }));
+  if (!dull) stop = Math.max(stop, answer(E, { kind: a.kind, surf: 'plate', x: at.x, y: at.y, lx: at.lx, ly: at.ly, ang, dmg: AT.dmg, sp, p, F: foeF(E), fm: state.foe, i0 }));
   if (state.cover) state.cover.t = Math.max(state.cover.t, TUNING.cover.dur * 0.5);
   // his cover (a gap guard is not: it shuts its gap and costs him nothing); his Thorns make a blow on his guard cost you, his Riposte answers it
   const onGuard = !p.armour && !p.guard;
@@ -924,8 +926,8 @@ export function gapHit(E, p, at, ang, sp, a, thrust, st = cleanStrike(a.kind)) {
   if (a.tired) dmg = Math.max(1, Math.floor(dmg * T.stamina.tired));
   dmg *= T.me.str[state.me.str - 1] * meSize().dmg;
   // the weapon multiplies after the usual rounding, to the nearest half, so the gladius (1x) adds no rounding of its own; a slot hit uses slotDmg, any
-  // other hit the weapon's dmg times its striking part's
-  const wm = thrust ? MW.slotDmg : MW.dmg * st.mul;
+  // other hit the weapon's dmg times its striking part's (a jab's slot hit too: the sica's point is 0.75)
+  const wm = thrust ? MW.slotDmg * (kind === 'jab' ? st.mul : 1) : MW.dmg * st.mul;
   const rip = state.riposte > 0, winded = state.winded > 0;
   if (rip) dmg *= T.shield.riposteMul;
   // the open window multiplies after rounding, so a punish is exactly 1.5x (health can hold halves)
@@ -948,33 +950,35 @@ export function gapHit(E, p, at, ang, sp, a, thrust, st = cleanStrike(a.kind)) {
   if (exec) { dealt = Math.max(dealt, f.hp); state.armed.exec = false; }
   if (!exec && !numb) dealt *= blowMul(E);
   if (kind === 'jab') state.mem.jabs = 0;
-  p.cool = T.hit.cool; p.flash = 0.16; state.gapHits++; if (thrust) { state.slotHits++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1; } if (winded) state.punishes++;
+  p.cool = T.hit.cool; if (!numb) p.flash = 0.16; state.gapHits++; if (thrust) { state.slotHits++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1; } if (winded) state.punishes++;
   f.hp -= dealt;
   const gl = kind === 'jab' ? 0.03 : 0.06;
   // Bonebreaker: an overhead on a bare limb lames it at once
   if (!slot && kind === 'over' && LIMB[p.d.id] && has('bones')) p.hp = 0;
   if (!slot && !numb) { p.hp -= dmg * wm; p.gashes.push({ a: [at.lx - Math.cos(ang) * gl, at.ly - Math.sin(ang) * gl], b: [at.lx + Math.cos(ang) * gl, at.ly + Math.sin(ang) * gl], t: state.m }); }
-  const big = dealt >= 3, i0 = state.fx.length;
-  blood(at.x, at.y, ang, Math.min(J.blood.max, J.blood.drops + J.blood.perDmg * dealt));
-  dust(at.x, at.y, 3 + dealt * 3);
-  sliceSound(E, big);
+  const big = dealt >= 3, i0 = state.fx.length, b0 = state.bleeds;
+  // (a bite that does nothing looks and sounds like nothing: no blood, cut sound or shake, a dull knock and its word)
+  if (numb) { dust(at.x, at.y, 3); dullSound(E); }
+  else { blood(at.x, at.y, ang, Math.min(J.blood.max, J.blood.drops + J.blood.perDmg * dealt)); dust(at.x, at.y, 3 + dealt * 3); sliceSound(E, big); }
   // a word for the moments that have one (an Execute, a bite that does nothing, a punish and the other multiplied hits); every other hit shows its number
   const word = exec ? 'EXECUTED!' : numb ? 'NO BITE' : please ? `CROWD PLEASER x${Math.round(dealt)}` : misd ? `MISDIRECTION x${Math.round(dealt)}` : slip ? `SLIP x${Math.round(dealt)}` : rip ? `RIPOSTE x${Math.round(dealt)}` : winded ? `PUNISH x${Math.round(dealt)}` : null;
-  const col = rip || please ? '#ffd24a' : misd ? '#c4b5fd' : thrust ? '#ff6a4a' : big ? '#ffb347' : '#fff0b8';
+  const col = numb ? '#cbd5e1' : rip || please ? '#ffd24a' : misd ? '#c4b5fd' : thrust ? '#ff6a4a' : big ? '#ffb347' : '#fff0b8';
   if (word) pop(at.x, at.y - 20, word, col, Math.min(34, 15 + dealt * 4)); else dmgPop(E, at, dealt, col);
-  state.kickV += T.foe.kick * (Math.cos(ang) > 0 ? -1 : 0.5) * (0.6 + Math.min(dealt, 4) * 0.4);
-  shake(E, 2 + Math.min(dealt, 5) * 2.5, 0.1); E.haptic(10 + Math.min(dealt, 5) * 8);
+  if (!numb) { state.kickV += T.foe.kick * (Math.cos(ang) > 0 ? -1 : 0.5) * (0.6 + Math.min(dealt, 4) * 0.4); shake(E, 2 + Math.min(dealt, 5) * 2.5, 0.1); }
+  E.haptic(numb ? 8 : 10 + Math.min(dealt, 5) * 8);
   if (big) E.flash('#fff0b8', 0.07);
-  let stop = dealt >= 3 ? J.stop3 : dealt >= 2 ? J.stop2 : J.stop1;
+  let stop = numb ? 0.01 : dealt >= 3 ? J.stop3 : dealt >= 2 ? J.stop2 : J.stop1;
   // a gap hit: a short hit-stop, more blood from the gap with a red ring, and a deeper hit
   if (thrust) { stop = Math.max(stop, J.slotStop); blood(at.x, at.y, ang, J.blood.slot); ring(at.x, at.y, J.slotRing, '#ef4444'); slotSound(E); }
   if (!numb) stop = Math.max(stop, answer(E, { kind, surf: slot ? 'gap' : 'skin', x: at.x, y: at.y, lx: at.lx, ly: at.ly, ang, dmg: dealt, sp, p, F: foeF(E), fm: f, i0, cut: st.cut, pierce: st.pierce }));
   if (!slot && p.hp <= 0) { disable(E, p, at, ang); stop += 0.04; }
   // step 21: the part that struck lights up; a cut on bare skin bleeds (the sica's hook more, and pulls him in); a crush counts to a stagger
-  state.zfx = { st, m: state.m };
+  if (!numb) state.zfx = { st, m: state.m };
   if (st.cut && !numb && dealt > 0) cutBleed(E, st);
   if (st.crush && dealt > 0) crushLands(E);
   emit(E, thrust ? 'slot' : 'hit', { p, kind, at, ang, cut: st.cut });
+  // (a bite that does nothing still bleeds him if a card says so: then it shows that blood)
+  if (numb && state.bleeds > b0) blood(at.x, at.y, ang, J.blood.drops);
   // two blades: the off hand follows a slash that lands, a moment later, for part of its damage
   if (kind === 'slash' && state.me.dual && dealt > 0) state.offHit = { f, p, t: T.dual.after, dmg: Math.max(0.5, Math.round(dealt * T.dual.part * 2) / 2), ang };
   if (kind === 'over') emit(E, 'over', { p, at });
@@ -1528,14 +1532,14 @@ function bornLook(E, kind, sp) {
   else { const w = S.whoomp; A.beep({ freq: w[0], dur: w[1], type: 'sine', slide: 0.55, gain: w[2] }); A.noise({ dur: w[1] * 0.7, gain: w[2] * 0.4 }); }
 }
 // a direction on screen in a part's own frame (his is mirrored and leans; a limb turns), for the marks that stay on it
-function localDir(F, fm, p, ang) {
+export function localDir(F, fm, p, ang) {
   let x = F.dir * Math.cos(ang), y = Math.sin(ang);
   const c = Math.cos(F.a), s = Math.sin(F.a); [x, y] = [x * c + y * s, -x * s + y * c];
   const fr = fm.fr[p.d.frame || p.d.id] || ZERO, fc = Math.cos(fr.rot), fs = Math.sin(fr.rot);
   return [x * fc + y * fs, -x * fs + y * fc];
 }
 // (a mark is kept inside the part it is on, so a blow met at the edge of its reach never leaves a cut hanging in the air beside him)
-function mark(p, m) {
+export function mark(p, m) {
   const d = p.d, K = TUNING.look.mark.inside;
   // (a cut is drawn in toward the middle of what it opened, where it shows, not on the rim the blade first touched)
   if (m.k === 'cut') { m.x = lerp(m.x, d.x, K); m.y = lerp(m.y, d.y, K * 0.5); }
