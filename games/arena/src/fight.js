@@ -497,6 +497,8 @@ function pushYou(E, k = 1) {
 }
 
 // ----- your defence: the shield and the backstep in time -----
+// whether a press on a block button would do anything now (the buttons glow only then)
+export const canBlock = () => !state.sh.broken && !noShield() && !busy() && !state.away && state.you.lungeK < 0.15;
 export const raised = () => !state.sh.broken && !noShield() && !busy() && state.sh.arm <= 0 && state.you.lungeK < 0.15 && (state.sh.held || (state.sh.t >= 0 && state.sh.t < TUNING.shield.dur));
 const blocks = (zone) => raised() && state.sh.zone === zone;
 export function updateDefence(dt, E) {

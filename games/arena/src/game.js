@@ -19,14 +19,14 @@ import { TUNING } from './tuning.js';
 import { GAUNTLET, PROFILES, NAMES, NEW_CHAMPS, BEASTS, ARENAS, ARENA, ORIGINS, START_FAM, START_ALT, MY_NAMES, herName, PROMISE_WON, brutus,
   BRUTUS_BG, REVENGE, denarii, bandOf, endingOf, LUDUS, LUDUS_LOCK, TAILOR, famOpen, cardOpen, DECK, CARD, cardNums, gearOf, PARTS, SLOTS, BEAST_BODY,
   beastParts, ZONES, ZONE, REST_TH, PLATES, playerParts, mkPart, lenN } from './data.js';
-import { lay, youF, walls, gapNow, inReach, myH, myBlade, foeF, toScreen, partCenter, guardPt, driving, fakeOut, openNow, overReach, solveArm, raised,
+import { lay, youF, walls, gapNow, inReach, myH, myBlade, foeF, toScreen, partCenter, guardPt, driving, fakeOut, openNow, overReach, solveArm, raised, canBlock,
   shieldMax, poseFoe, pushFoe, shieldBtns, raiseShield, dodge, zoneAt, strikeOf, checkHits, land, bounce, gapHit, disable, fell, resolveSwing,
   foeStrike, tellDodge, feintRead, updateOff, chant } from './fight.js';
 import { lamed, memoryOn, blockRun, buildMove, champKey, sigOf, buildSig, planExchange, startMove, startBlow, endBlow, windFoe, stepIn, updatePair,
   edgeF, settleFeint } from './foe.js';
 import { HOOKS, famN, perfectWin, gildedFree, finCost, finList, finReady, finBtn, fireFinisher, updateFinisher, emit, castNet, favour, crowdDrain,
   baitDrop, thumbFav, gainMom, addBleed, updateBleed } from './cards.js';
-import { artLabel, kitTier, lookFor, manArt, myLook, foeLook, canSprite } from './draw-fight.js';
+import { glowZones, artLabel, kitTier, lookFor, manArt, myLook, foeLook, canSprite } from './draw-fight.js';
 import { boutTally, gradeBout, heldFams, dealable, priceOf, boutLvl, dealDraft, boutGold, openDraft, spoilOf, wield, swapSpoil, applyCard,
   colossusHearts, openTent, buyWare, leaveTent, bandageDue, openBandage, buyBandage, pickCard, skipPay, skipDraft, rerollDraft, tapCard, purseCost,
   fameOf, fameFromLedger, carveChampion, vetArenas } from './screens.js';
@@ -896,7 +896,7 @@ Object.assign(play, {
   state, lay, foeF, beginBout, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, strikeOf, zoneAt, foeStrike, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
-  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, swapBow, bowDown, bowRelease, arrowLands, bowShown, shieldMax, plainGap, overReach, inReach, aimAt, knifeAt, startLesson, nextYard, aimSnap, raised, busy, purseCost, knifeBuy, partCenter,
+  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, swapBow, bowDown, bowRelease, arrowLands, bowShown, shieldMax, plainGap, overReach, inReach, aimAt, knifeAt, startLesson, nextYard, aimSnap, raised, canBlock, glowZones, busy, purseCost, knifeBuy, partCenter,
   ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateOff, YARD, endYard, tapCard, ghostPath, tipFor, guardPt, myH, yardFields, sizeOf, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
 });
 // ====== GAME OBJECT: save, migrate, TUNE presets ======

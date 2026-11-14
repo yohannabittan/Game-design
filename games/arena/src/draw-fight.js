@@ -4,7 +4,7 @@
 import { clamp, lerp } from './engine.js';
 import { TUNING } from './tuning.js';
 import { bandOf, TAILOR, DECK, CARD, rarCol, gearOf, PARTS, ARM_LEN, SHOULDER, BEAST_BODY, POSE_NAME, mkPart } from './data.js';
-import { lay, beastOf, rearOf, youF, walls, myH, myBlade, myPoint, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, shieldMax, beastRestQ,
+import { lay, beastOf, rearOf, youF, walls, myH, myBlade, myPoint, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, canBlock, shieldMax, beastRestQ,
   knee, colRect, shieldBtns, myKey, sand, LOOK } from './fight.js';
 import { hesitating, covering, covered, LIMB, lamed, edgeF, poseEdge } from './foe.js';
 import { perfectWin, finCost, finReady, finLive, finBtn, firstRun } from './cards.js';
@@ -2744,19 +2744,25 @@ export function drawBeast(ctx, E, F, fm, who, ga = 1) {
 
 // ----- the play screen: the left column, the walls, his cover and tell, the hint, the caption, the background -----
 // The shield buttons and DODGE. The shield button matching the foe's tell glows; the raised one is lit; DODGE lights while you are backed off and reddens at the wall.
+// Which block buttons call for a press: the foe's tell (and the feint's decoy), only while a press would block.
+export function glowZones() {
+  const sw = state.sw, shown = sw && sw.puppet && sw.fake && !sw.switched;
+  if (!canBlock()) return { tell: null, tell2: null, fakeBtn: null };
+  const tell = tellOn(sw) && !hesitating() && !shown ? sw.zone : null;
+  return { tell, tell2: tell && sw.zone2, fakeBtn: hesitating() || shown ? sw.zone : null };
+}
 export function drawShieldBtns(ctx, E) {
-  const sh = state.sh, sw = state.sw, shown = sw && sw.puppet && sw.fake && !sw.switched, tell = tellOn(sw) && !hesitating() && !shown ? sw.zone : null, fakeBtn = hesitating() || shown ? sw.zone : null;
-  const tell2 = tell && sw.zone2;
+  const sh = state.sh, sw = state.sw, { tell, tell2, fakeBtn } = glowZones(), can = canBlock();
   const pulse = 0.5 + 0.5 * Math.sin(state.m * 14);
   for (const b of shieldBtns(E)) {
     if (b.dodge) { drawDodgeBtn(ctx, E, b); continue; }
     const on = raised() && sh.zone === b.z, hot = tell === b.z || tell2 === b.z, perfect = hot && sw.wind - sw.t <= perfectWin();
     const fill = on ? 'rgba(214,162,74,0.85)' : hot ? `rgba(255,${perfect ? 220 : 120},60,${0.45 + 0.4 * pulse})` : sh.arm > 0 && sh.zone === b.z ? 'rgba(214,162,74,0.35)' : 'rgba(20,16,26,0.55)';
-    E.roundRect(b.x, b.y, b.w, b.h, 12, sh.broken || noShield() ? 'rgba(40,40,46,0.6)' : fill, hot ? '#ffd24a' : on ? '#fff0b8' : 'rgba(240,230,204,0.45)');
+    E.roundRect(b.x, b.y, b.w, b.h, 12, can || on ? fill : 'rgba(40,40,46,0.6)', hot ? '#ffd24a' : on ? '#fff0b8' : 'rgba(240,230,204,0.45)');
     if (hot) { ctx.save(); ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 18; E.roundRect(b.x, b.y, b.w, b.h, 12, null, '#ffb347'); ctx.restore(); }
     if (fakeBtn === b.z) E.roundRect(b.x, b.y, b.w, b.h, 12, `rgba(167,139,250,${0.2 + 0.25 * pulse})`, '#c4b5fd');
     if (state.snapT > 0 && hot) { const k = state.snapT / TUNING.moves.feint.snap; ctx.save(); ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 28 * k; E.roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 14, `rgba(255,255,255,${0.75 * k})`, '#ffffff'); ctx.restore(); }
-    E.text(b.z.label, b.x + b.w / 2, b.y + b.h / 2, { size: Math.round(clamp(b.h * 0.26, 15, 22)), weight: '800', color: on ? '#2a1c10' : '#f0e6cc' });
+    E.text(b.z.label, b.x + b.w / 2, b.y + b.h / 2, { size: Math.round(clamp(b.h * 0.26, 15, 22)), weight: '800', color: on ? '#2a1c10' : can ? '#f0e6cc' : '#8a8f99' });
   }
 }
 
