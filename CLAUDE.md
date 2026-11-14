@@ -23,7 +23,7 @@ This repository is a library of small, touch-first, offline-capable skill games 
 ## Hard rules for builder sessions
 
 1. **Plain Canvas and vanilla JavaScript.** No frameworks, bundlers, transpilers, or runtime dependencies (ADR-0002).
-2. **One file per layer.** A build layer rewrites `games/<slug>/src/game.js` and nothing else, unless the layer prompt explicitly allows assets (ADR-0007).
+2. **One file per layer.** A build layer rewrites `games/<slug>/src/game.js` and nothing else, unless the brief explicitly allows assets (ADR-0007). Arena is the exception: its builders edit the modules their brief names (ADR-0024).
 3. **Never edit a game's `engine.js`.** Engine changes go in `skeleton/src/engine.js` with an ADR, then get copied into the game being worked on (ADR-0006).
 4. **No DOM from games.** Everything is drawn on the canvas. The toast is the one exception, via `E.toast`.
 5. **Every tunable number lives in `TUNING`.** Level and wave data are plain arrays in `game.js`.
@@ -32,15 +32,17 @@ This repository is a library of small, touch-first, offline-capable skill games 
 8. **Saves go through `E.save`.** Changing the save shape means bumping `saveVersion` and writing `migrate` (ADR-0005).
 9. **Stay inside the PRD.** If it is not in the PRD it is not built. Open questions get the simplest option, noted in the changelog.
 10. **Smoke test before done.** `npm run smoke` must pass. It boots every game at phone size and fails on any console error, missing asset, or service worker failure.
-11. **Deploy hygiene.** Any deploy-worthy change bumps `CACHE_VERSION` in that game's `sw.js` and adds a line to `docs/games/<slug>/CHANGELOG.md`.
+11. **Deploy hygiene.** Any deploy-worthy change bumps `CACHE_VERSION` in that game's `sw.js` and adds a line to `docs/games/<slug>/CHANGELOG.md`. The builder bumps the version when its brief says so; with two builds in flight the orchestrator bumps it at landing. The orchestrator writes the changelog.
 
 ## Orchestration (ADR-0010)
 
 The session the designer talks to is the orchestrator. It writes and reviews documents and dispatches builds; it does not write `game.js` itself unless a builder has failed twice.
 
-- **Builder:** an `Agent` on `sonnet` by default, `opus` for feel-critical or high-risk layers. Prompt is the layer file from `prompts/` with placeholders filled, verbatim. Builders read the repo themselves.
-- **Reviewer:** an `Agent` on `sonnet` with fresh context running `prompts/08-review.md`. Reports, never edits.
-- **Artist:** a separate, long-lived Claude session (the art chat, on `sonnet`) that holds the image key and works from `docs/art/BRIEF.md` (ADR-0015). The orchestrator writes a pack into the brief and gives the designer one line to paste into the art chat (a Routine bound to that chat was tried on 2026-10-03 and does not work: each firing starts a new empty session instead). The artist shows the designer a contact sheet, the designer picks, and the artist pushes finals to `docs/art/final/<slug>/` with a `docs/art/HANDOFF-<topic>.md` reply. Art never runs ahead of a PRD; wiring is a build layer the orchestrator dispatches.
+- **Roles and their cards:** `docs/team.md` says, for each role, what it reads first, what it may change, which tools it uses and what its report holds. Every agent's brief starts "You are a <role>. Read `CLAUDE.md`, then your card in `docs/team.md`", and then gives only the task.
+- **Builder:** an `Agent` on `opus` for feel-critical or high-risk work, `sonnet` for small fixes. The brief is the Builder card plus the PRD step (the layer files in `prompts/` are for a new game's first layers). Builders read the repo themselves.
+- **Sketcher:** an `Agent` on `sonnet` making a throwaway still, GIF or touchable page before a look-or-feel step is built.
+- **Reviewer:** an `Agent` on `sonnet` with fresh context running `prompts/08-review.md`. Reports, never edits. The orchestrator reviews each build itself from its frames, GIFs and checks; a reviewer is called at milestones (a release, a large restructuring, or when checks and frames disagree).
+- **Artist:** a separate cloud session on `sonnet`, one per art pack, that works from `docs/art/BRIEF.md` (ADR-0015). The orchestrator writes the pack into the brief, opens the session on the working branch, and closes it when the pack's handoff (`docs/art/HANDOFF-<topic>.md`) lands. The image key is a network secret on the environment; no session holds or prints it. The artist proposes options on a contact sheet and the designer picks. Art never runs ahead of a PRD; wiring is a build the orchestrator dispatches.
 - **Escalation:** builder retry with findings, then next model up, then fix the PRD or prompt.
 - **Parallelism:** across games, and within a content layer as data shards merged by the orchestrator (ADR-0012). Never two builders on one game's mechanic. Arena (ADR-0024): two builders may run at once on different features, each new feature in its own module. `tools/worktree.sh land` merges three ways, and the orchestrator bumps `CACHE_VERSION` at landing.
 - **Log it:** each changelog line names the model that built the layer and whether it passed review first time.

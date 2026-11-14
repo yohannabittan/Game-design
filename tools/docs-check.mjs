@@ -3,7 +3,8 @@
 //   node tools/docs-check.mjs      prints one line per finding; exits 1 on any FAIL (a WARN does not fail).
 // `npm run smoke` runs it (FAILs count in the main checkout; a builder's worktree only gets notes).
 // FAIL: a statement that is now false and that a session would act on.
-//   - a repo path named in CLAUDE.md or docs/process.md that does not exist
+//   - a repo path named in CLAUDE.md, docs/process.md or docs/team.md that does not exist
+//   - a tool in tools/ that docs/team.md's table doesn't assign to anyone
 //   - an ADR file missing from docs/adr/README.md
 //   - a game whose current CACHE_VERSION is not in its CHANGELOG.md (CLAUDE.md rule 11)
 // WARN: drift worth a look at the next retro (docs/process.md, "Keep the method alive").
@@ -23,7 +24,7 @@ const FAIL = (m) => out.push(`FAIL docs-check: ${m}`), WARN = (m) => out.push(`W
 // 1. Paths named in CLAUDE.md and docs/process.md exist (placeholders like <slug> are skipped; a path inside a longer
 // command counts too, so `node tools/x.mjs page ...` is checked).
 const claude = read('CLAUDE.md');
-for (const doc of ['CLAUDE.md', 'docs/process.md']) {
+for (const doc of ['CLAUDE.md', 'docs/process.md', 'docs/team.md']) {
   if (!has(doc)) continue;
   const seen = new Set();
   for (const m of read(doc).matchAll(/`([^`\n]+)`/g)) for (const w of m[1].split(/\s+/)) {
@@ -49,6 +50,13 @@ for (const slug of readdirSync(join(ROOT, 'games'))) {
   const base = v.replace(/\d+$/, ''), now = +(v.match(/(\d+)$/) || [0, 0])[1];
   const said = [...handoff.matchAll(new RegExp(base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\d+)', 'g'))].map((m) => +m[1]);
   if (said.length && Math.max(...said) < now) WARN(`docs/HANDOFF-orchestrator.md says ${base}${Math.max(...said)}; the game is at ${v}`);
+}
+
+// 5a. Every tool has an owner: docs/team.md's table says which roles use it.
+const team = has('docs/team.md') ? read('docs/team.md') : null;
+if (team != null) {
+  const list = (d) => readdirSync(join(ROOT, d)).flatMap((f) => (statSync(join(ROOT, d, f)).isDirectory() ? (f === 'replays' ? [] : list(`${d}/${f}`)) : [`${d}/${f}`]));
+  for (const f of list('tools')) if (!team.includes(f)) FAIL(`${f} is not in docs/team.md's table of tools and who uses them`);
 }
 
 // 5. Every tool is explained somewhere.

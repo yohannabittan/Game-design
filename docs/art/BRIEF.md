@@ -1,16 +1,17 @@
-# Art pass brief (for the session that holds the image key)
+# Art pass brief (the artist's card)
 
-You are a Claude Code session with `OPENAI_API_KEY` in your environment, opened on this repository to generate image assets for the game library. A separate orchestrator session runs the game builds; this file is your whole handoff. Read it, then `CLAUDE.md`, then `docs/adr/0015-generated-assets.md` (the rules you work under).
+You are an art session: a separate cloud session opened by the orchestrator to make one pack of image assets for the game library. This file is your whole handoff. Read it, then `CLAUDE.md`, then the pack you were given. The team and its other roles are in `docs/team.md`.
 
 ## The designer
 
-Yohann, a CPO who does not code. He plays the games on his iPhone from a home-screen icon, offline. He picks; you propose. Show him options before anything is wired in.
+The designer doesn't code. They play the games on a phone from a home-screen icon, offline. They pick; you propose. Show options before anything is wired in.
 
 ## First checks (do these before anything else)
 
-1. Confirm the key without revealing it: `[ -n "$OPENAI_API_KEY" ] && echo present || echo missing`. Never print, log, echo, commit or write the key to any file. If it is missing, say so and stop.
-2. Confirm the image host is reachable through the proxy (a tiny, cheap request). If it is blocked, say so and stop; the designer fixes network access in the environment settings.
-3. The designer's Claude plan was near its weekly limit on 2026-10-02 (resets Monday evening). Keep your own work lean: write small scripts, no long loops.
+1. **The image key is a network secret on this environment:** the proxy adds it to requests to `api.openai.com`. There is no key in your environment variables, and you send no Authorization header yourself. Confirm it works with `curl -sS -o /dev/null -w "%{http_code}\n" https://api.openai.com/v1/models`, which should print 200. If it doesn't, say so and stop; the designer fixes it in the environment's settings.
+2. **Never print, log, echo, commit or write a key to any file,** and never ask for one in chat.
+3. **PIL is broken in the cloud container.** Resize, cut and build contact sheets in a headless browser (Playwright is installed; use a canvas and `toBlob`).
+4. Keep your own work lean: small scripts, no long loops.
 
 ## Rules (from ADR-0015, summarised)
 
@@ -640,25 +641,20 @@ Two new clients, 768 x 1024, a plain warm-lamp background, each in three express
 
 That is 8 images. Use one option each for the neutral, sad and kind images (from the happy or proud reference), and two options for each happy and for `rita-proud`. About US$2 to 3. They go into `docs/art/final/ink/`. In the handoff, list each portrait's skin patch rectangle in pixels (x, y, w, h).
 
-## Handoffs from the orchestrator (2026-10-03)
+## Handoffs from the orchestrator (2026-11-14)
 
-The designer pastes the orchestrator's one-line task into the art chat. (A Routine bound to the art chat was tried and does not reach it: each firing starts a new empty session.) The art session replies with a pushed `docs/art/HANDOFF-<topic>.md`, which the orchestrator reads when it pulls.
+The orchestrator opens one art session per pack, with the pack's name in its first message, and closes it when the pack lands. The art session replies with a pushed `docs/art/HANDOFF-<topic>.md`, which the orchestrator reads when it pulls.
 
 ## Process
 
 1. Generate **three options** per asset at medium quality (cheap), into `docs/art/candidates/<slug>/` (not under `games/`).
 2. Write **`docs/art/candidates/<slug>/candidates.json`** for the pack (ADR-0020): `{ "pack": "<n>", "assets": { "<asset-name>": ["<asset-name>-A.png", "<asset-name>-B.png"] } }`, with the asset names the game uses (the file names in the pack table, without extension). The designer can then pick in the game itself, from the ART tab on the menu (dev channel), and paste you a line like "Art picks, launch, pack 13: daifuku-window B, mochi-ring A". Also make one **contact sheet** per pack (a single PNG grid with each option labelled, for example "gun-pulse-rifle A / B / C") at `docs/art/candidates/<slug>/sheet.png`, commit and push, and give the designer its link: `https://yohannabittan.github.io/Game-design/docs/art/candidates/<slug>/sheet.png` (the branch is published by GitHub Pages; allow a minute after the push).
-3. When he picks, regenerate only the picks at high quality if needed, save them to `docs/art/final/<slug>/` with the file names above, delete the unpicked candidates, update the ledger, commit and push.
-4. Tell the designer it is ready for wiring, and that the orchestrator session builds it into the game (he can tell that session: "the art pack for <game> is in docs/art/final/<slug>").
+3. When they pick, regenerate only the picks at high quality if needed, save them to `docs/art/final/<slug>/` with the file names above, delete the unpicked candidates, update the ledger, commit and push.
+4. Tell the designer it is ready for wiring, and that the orchestrator session builds it into the game (they can tell that session: "the art pack for <game> is in docs/art/final/<slug>").
 
 ## Git
 
 - Branch: `claude/flash-game-dev-process-v7yrbe` only; never another branch, never a pull request.
 - Push with `git push -u origin claude/flash-game-dev-process-v7yrbe`; on a network error retry up to four times with backoff (2, 4, 8, 16 s).
 - Commit only `docs/art/` and `docs/assets-ledger.md`. Another session may have uncommitted game work in its own container; you are in a fresh container, so pull first (`git pull origin claude/flash-game-dev-process-v7yrbe`) and keep your commits to those paths.
-- End every commit message with:
-
-  ```
-  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  ```
-  and the `Claude-Session:` line for your own session.
+- End every commit message with the attribution lines your own session gives you (the `Co-Authored-By:` and `Claude-Session:` lines). Don't copy another session's.
