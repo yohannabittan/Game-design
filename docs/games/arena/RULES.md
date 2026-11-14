@@ -1,6 +1,6 @@
 # Arena: the rules as built
 
-What the game **is today**, build `arena-v69` (save version 19). The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
+What the game **is today**, build `arena-v70` (save version 19): Steps 26 and 26b. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
 
 Numbers are named by their `TUNING` path (in `games/arena/src/tuning.js`). Functions and tables are named, never located by line; find them with `node tools/codemap.mjs arena --where <name>`. `arena-v68` is `arena-v67` split into modules with no change in play (CHANGELOG, ADR-0024).
 
@@ -41,7 +41,7 @@ The left third of the screen is the left thumb's (buttons only). Any touch start
 | Guard | thumb down, hand slow | nothing | blade follows the thumb; lifting eases back over `control.back` s |
 | Jab | push along the guard line (cosine over `control.jabCone`, 0.68) at `attack.jab.minSpeed` (520) | `attack.jab.cost` 8 | `attack.jab.dmg` 2; the piercing point into a gap is a gap hit |
 | Slash | any other arc | `attack.slash.cost` 14 | `attack.slash.dmg` 1, or `attack.slash.fastDmg` 2 at `hit.mid` (950 px/s) |
-| Overhead | hand raised `attack.over.raise` (0.14 H) above the guard, then a stroke down (downward share over `attack.over.down`) within `attack.over.window` (0.8 s) at `attack.over.minSpeed` (520) | `attack.over.cost` 20 | `attack.over.dmg` 3, `attack.over.dents` 2; it is planted: no lunge and little lean back (`over.leanBack`) |
+| Overhead | hand raised `attack.over.raise` (0.14 H) above the guard, then a stroke down (downward share over `attack.over.down`) within `attack.over.window` (0.8 s) at `attack.over.minSpeed` (520); no pause at the top is needed: a raise still in hand that turns down at that speed becomes the overhead (Step 26b) | `attack.over.cost` 20 | `attack.over.dmg` 3, `attack.over.dents` 2; it is planted: no lunge and little lean back (`over.leanBack`) |
 | Raise | an upward stroke (hard-coded share, see 12) | nothing | no blow |
 | Lunge | thumb offset past `control.lungeStart` (1.3 arm lengths); full at `control.lungeFull` (1.7) | `lunge.cost` 10 | steps in up to `lunge.stride` (0.3 H); the recovery keeps up to a pace of ground (`foot.pace`) |
 | Drive | a committed lunge held at full depth for `lunge.driveNear` (0.2 s; `lunge.driveFar` 0 s when the foe stands beyond a plain lunge) | `lunge.driveCost` 25/s, plus one jab's cost as it starts | presses on at `lunge.drive` (0.6 H/s), up to `lunge.driveMax` (0.3 H); ends on a hit, his body or an empty tank (`drive`) |
@@ -90,6 +90,8 @@ Damage (`gapHit`): the blow's base x `me.str` x size `dmg`, rounded, then x the 
 **Bare-part damage and laming** (`disable`): a bare part takes `part.hp` (3) damage and goes DOWN. The head: stunned `stun` (1.2 s). A limb is lamed for the bout (`lame`): sword arm wind-ups +`lame.arm`; shield arm cover x `lame.cover` slower; legs x `lame.legs`.
 
 **Bleed** (`addBleed`, `updateBleed`): at most `bleed.max` (5) stacks, each `bleed.dur` (6 s), each tick (`bleed.tick` 1 s) dealing `bleed.dmg` (0.5).
+
+**The look of a blow** (Step 26; `bornLook`, `answer`, `TUNING.look`). The moment a blow is classed, its trail, blade and body switch to its kind: a jab's needle streak from the point, a slash's crescent smear with the wrist rolled and the torso twisting through, an overhead's tall vertical smear with a lean into the chop. Each has its own sound at its birth (`look.sound`: a tsk, a whoosh pitched by speed, a whoomp). Each surface answers (`answer`): **plate** sparks and never bleeds (a jab: a small spark and a dent mark; a slash: a spark shower along the scrape and a scratch; an overhead: a big clang, a star, a ring and a deep dent); **skin** bleeds (a jab's puff, a slash's arc and a thin red cut line, an overhead's splash); **a gap** is always the loudest (a burst and a ring). Particles scale with the damage (`look.plate`, `look.skin`, `look.gap`: `n` + `perDmg` per heart; a slash's also with its speed). Marks stay on the part for the bout (`look.mark`: cut lines, dents and scratches, at most `look.mark.max` per part). Hit-stops (`look.stop`, s, for plate, skin and gap): a jab into a gap 0.06, a slash into a gap 0.08, an overhead on plate 0.07 and into a gap 0.12; an overhead into a gap also flashes and shakes the screen (x `look.shake`). His blows on you get the same answers, with no hit-stop. Reduced motion halves the particles (`calm`). All of it only draws: it keeps its own random generator and stays out of `state`.
 
 **Stagger and stun** (`staggerFoe`, `stunFoe`): either drops his blow in the making; a stagger lasts `shield.stagger` (1 s) and pushes him back.
 
@@ -268,7 +270,8 @@ Felling an arena's champion opens the next for good (save key `arenas`).
 
 ## 10. First run and teaching
 
-- **Training yard** (`YARD`, `startYard`, `updateYard`): on the first run before bout 1 (`yardDue`; `trainDone` in the save), and from the menu's Training. Bout 1's sparring partner stands in; nobody loses hearts. Each step: one Brutus line, a ghost thumb fitted to the fight (`ghostPath`), no timer, a tick and chime when done, a "why it didn't count" word (`WHY`). Skip training ends it.
+- **Training yard** (`YARD`, `startYard`, `updateYard`): on the first run before bout 1 (`yardDue`; `trainDone` in the save), and from the menu's Training. Bout 1's sparring partner stands in; nobody loses hearts. Each step: one Brutus line, a ghost thumb fitted to the fight (`ghostPath`; the thumb's own path is `ghostStroke`), no timer, a tick and chime when done, a "why it didn't count" word (`WHY`). Skip training ends it.
+- **The ghost's speed** (Step 26b): a sword ghost's blow (the jab's push, the slash's sweep, the overhead's chop) moves at `train.ghost.blow` (550) thumb px/s on average at least: the thumb waits at the stroke's start, then goes. The jab's push goes on `train.path.thrust` (0.2 H) past the point it is for. A thumb that copies the ghost at its own speed and size, or at 1.25x its time and 0.85x its size, passes each sword step at every phone size (`tools/checks/arena/yard.mjs`).
 - **Steps:** hand, jab x `train.jabs` (2), slash x `train.slashes` (2), overhead x `train.overs` (1), lunge, shield at HIGH, MID, LOW, dodge tap, dodge hold, a gap, a knife throw (one practice knife, `train.knife`), a read, a perfect block, a dodge in his tell, "Now fight."
 - **First-run kit:** the purse opens with a gladius and a chest plate (`purse.first`). Fight! with no plate while one is affordable asks once: Buy a plate or Fight bare.
 - **One-time hints** (`updateHints`, each once ever): Brutus's jab nudge after `train.spam` (6) jabs in a row in the first `train.spamRuns` runs; then, never in the first run's bout 1: the HUD's bars (first run), the crowd's first third, full Momentum with no war paint, hearts after the first fell, the drive after a lunge that met nothing. Also the finisher button's first appearance (`updateFinisher`), the first bitten feint, and the first draft's "Pick one. Tap it."
@@ -301,7 +304,7 @@ Felling an arena's champion opens the next for good (save key `arenas`).
 5. Section D's tent sells "a respin or reroll token" and "a weapon one tier up". The code's token rerolls a draft only, and the weapon ware is a forge (x `tent.forge`).
 6. Section C says a low meter gets thumbs down. Step 10 made the thumb always up, and so does the code.
 7. Step 23 says every card of 67 gets a `short`; there are 73, all with one.
-8. Steps 25 to 27b (the range, blows that look like themselves, Trials) are locked or drafted but not built.
+8. Steps 25, 27 and 27b (the range, Trials) are locked or drafted but not built.
 
 **Oddities:**
 - `TUNING.hearts` (6) is read nowhere; hearts come from `me.sizes` and `me.heartsPerBase`.

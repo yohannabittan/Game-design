@@ -64,7 +64,7 @@ Watch out: the purse's price total and the run's carried count (the knives) are 
 1. `YARD`: a row (`id`, `line`, `ghost`, `got`, `need`; `want` for a sword stroke), before `go`.
 2. `train` (in `TUNING`): its counts and timings.
 3. `startYard`: the new counter on the `train` object. `nextYard`: reset it when the step starts.
-4. A sword step: `yardStrokes` and `yardLand` count it; its ghost path is `ghostPath`.
+4. A sword step: `yardStrokes` and `yardLand` count it; its ghost path is `ghostPath` (hand aims, a blow's key flagged), and `ghostStroke` turns it into the thumb's path the yard draws and the suite copies (`yard.mjs`, "a thumb copying the ... ghost"). Mark the key that ends a blow, so its stroke keeps `train.ghost.blow` speed.
 5. A step where he swings: add its id to the list in `updateYard`, and to `yardBlow` and `yardOutcome` (the blow's height is `YARD_BLOW`).
 6. `drawYard`: which button the ghost thumb touches. A new "why it didn't count" word goes in `WHY` and `yardMiss`.
 
@@ -130,6 +130,6 @@ Watch out: a save given to `open` as plain data skips `migrate` (it is wrapped w
 8. To start partway through a run, resume a saved one: `resumeRun` and the `play` scene's `enter` take a saved run (its rack says which bout). The painted art loads in the background in real time, so let the loads settle before you compare frames.
 9. To prove a change left play alone: `node tools/replay.mjs tools/checks/replays/pit.json > before.json`, make the change, run it again, and compare. The three scripts there cover the Pit, a City pair bout and a beast bout.
 
-10. A check worth keeping goes in the permanent suite (`tools/checks/arena/`, run by `npm run check arena`), written on the fake clock with `tools/checks/exact.mjs`. Two traps: a lift ends a blow, so give every scripted stroke a few frames of rest before the thumb comes up; and the yard's sparring partner already stands at its own strike distance, so a reach bug only shows against a long weapon.
+10. A check worth keeping goes in the permanent suite (`tools/checks/arena/`, run by `npm run check arena` from your worktree: the runner loads the check files beside it, so `ROOT=<worktree>` from the main checkout runs the main checkout's checks against your game), written on the fake clock with `tools/checks/exact.mjs`. Two traps: a lift ends a blow, so give every scripted stroke a few frames of rest before the thumb comes up; and the yard's sparring partner already stands at its own strike distance, so a reach bug only shows against a long weapon.
 
 Check: `npm run smoke` at the end, then `python3 tools/usage.py`.

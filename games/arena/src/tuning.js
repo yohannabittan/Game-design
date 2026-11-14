@@ -337,8 +337,10 @@ export const TUNING = {
   // why = s between two "why it didn't count" words, slow = a stroke too slow to count: tip px/s and the least H it travels; field = the export's
   // characters per yard field (the ledger keeps 80). Step 24: knife = practice knives the knife step gives (not your own)
   train: { jabIn: 0.1, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, knife: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
-    ghost: { loop: 1.6, w: 30, h: 40, alpha: 0.55, at: [0.58, 0.8] },
-    path: { reach: 1.1, lunge: 1.85, chamber: 0.2, over: 0.3, up: 0.06, through: 0.12, slash: [0.88, 0.3, 0.06, -0.06], front: 0.1, tip: 9 },
+    // blow: the least average thumb px/s a sword ghost's blow moves at (step 26b: a copy of it counts, with room to spare)
+    ghost: { loop: 1.6, w: 30, h: 40, alpha: 0.55, at: [0.58, 0.8], blow: 550 },
+    // thrust: H the jab's push goes on past the point it is for
+    path: { reach: 1.1, lunge: 1.85, chamber: 0.2, thrust: 0.2, over: 0.3, up: 0.06, through: 0.12, slash: [0.88, 0.3, 0.06, -0.06], front: 0.1, tip: 9 },
     why: 0.7, slow: { sp: 200, len: 0.25 }, field: 80 },
   // gold, per run: a fell, each feint read, perfect block and slot hit in the bout, and a bout with no hits taken
   gold: { fell: 20, read: 4, perfect: 2, slot: 2, clean: 15 },

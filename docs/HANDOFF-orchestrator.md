@@ -38,7 +38,7 @@ The designer is the first player, not a tester: the game has to be fun enough to
 
 | Game | Dev build | Notes |
 | --- | --- | --- |
-| Arena | `arena-v69` | PRD `docs/games/arena/prd-v0.3.md`, built through Step 24 with 24c (the training yard, the one-tap draft, the sidearm, throwing knives, the bow, the reinforced shield, planted overheads). The most active game. **Next, in this order** (the PRD's "Build order"): Step 26 (each blow's look, built to `sketches/*.gif`); Steps 27 and 27b (Trials; art Pack 30 is in `docs/art/final/arena/`). The reuse pack (a Daily run, the Hall, Legend cards, decrees) is queued in the PRD. |
+| Arena | `arena-v70` | PRD `docs/games/arena/prd-v0.3.md`, built through Step 24 with 24c (the training yard, the one-tap draft, the sidearm, throwing knives, the bow, the reinforced shield, planted overheads). The most active game. **Next, in this order** (the PRD's "Build order"): Step 26 (each blow's look, built to `sketches/*.gif`); Steps 27 and 27b (Trials; art Pack 30 is in `docs/art/final/arena/`). The reuse pack (a Daily run, the Hall, Legend cards, decrees) is queued in the PRD. |
 | Gravity Golf | `gravity-golf-v37` | PRD v0.16. A design discussion is open: Trials (below). |
 | Ink | `ink-v34` | Quiet. |
 | Recoil | `recoil-v33` | Quiet. |

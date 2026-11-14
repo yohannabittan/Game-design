@@ -1,6 +1,7 @@
 // Steps 23, 22b, 23b and 24: the training yard on a fresh save, played end to end by touch from the purse's Fight! to "Now fight." (sword strokes,
 // the shield and DODGE buttons, the knife's tap and drag); Skip ends it; a second run doesn't show it. Also the bugs it has had: the hold step
 // stuck when the wall cut a hold short (22b), marks so far apart that a plain jab fell short (23b), and a tap that threw no knife (24).
+// Step 26b: each sword step's ghost thumb, copied as a thumb at the ghost's speed and size, passes the step, and still does a little slower and smaller.
 import { FRESH } from '../arena.mjs';
 
 const tr = (g) => g.ev(() => { const P = window.__engine.game.scenes.play, s = P.state, t = s.train; return t ? { id: P.YARD[t.i].id, done: t.doneT >= 0, fails: t.fails } : null; });
@@ -32,6 +33,16 @@ const gapJab = (g, n) => g.ev((n) => {
   const dy = (gaps[n % gaps.length][1] - s.hand.uy) / P.TUNING.control.gain;
   return [[0, 0, 0], [6, -12, dy], [9, 30, dy - 4], [14, 30, dy - 4]];
 }, n);
+
+// the sword ghost's thumb as the yard draws it, sampled a frame at a time at `slow` x its time and `size` x its size: where it lands, and
+// [frame, dx, dy] from there until it lifts
+const ghostCopy = (g, id, slow, size) => g.ev(async ([id, slow, size]) => {
+  const E = window.__engine, P = E.game.scenes.play, Y = await import(new URL('src/features/yard.js', location.href).href);
+  const { keys, ax, ay } = Y.ghostStroke(E, id), n = P.TUNING.train.ghost.loop * 60 * slow, out = [];
+  for (let f = 0; f <= n; f++) { const [x, y, d] = Y.ghostAt(keys, f / n); if (!d) break; out.push([f, x, y]); }
+  const [, x0, y0] = out[0];
+  return { x: ax + x0, y: ay + y0, keys: out.map(([f, x, y]) => [f, (x - x0) * size, (y - y0) * size]) };
+}, [id, slow, size]);
 
 const btn = (g, i) => g.ev((i) => { const E = window.__engine, b = E.game.scenes.play.shieldBtns(E)[i]; return { x: b.x + b.w / 2, y: b.y + b.h / 2 }; }, i);
 const waitBlow = (g) => g.until(() => { const s = window.__engine.game.scenes.play.state; return !!(s.train && s.train.sw && !s.train.sw.outcome); }, 600);
@@ -138,6 +149,30 @@ export default async function (t) {
     await g.tap(q.x, q.y, 6); await g.frames(30);
     const r = await g.ev(() => { const P = window.__engine.game.scenes.play, s = P.state; return { done: s.train.doneT >= 0, thrown: s.knivesThrown, said: s.pops.map((q) => q.s).filter((q) => /[A-Z]{3}/.test(q)).join('|') }; });
     t.ok('the knife step: a tap on him throws nothing, and says DRAG, THEN LET GO', !r.done && r.thrown === 0 && /DRAG, THEN LET GO/.test(r.said), JSON.stringify(r));
+  }
+
+  // 2b. step 26b: the ghost is a gesture a person can copy: each sword step's ghost, replayed as a thumb, counts (a step that needs two counts one),
+  // at the ghost's own speed and size, and at 1.25 x its time and 0.85 x its size (a copy a little slow and small)
+  for (const [w, h] of [[667, 375], [844, 390], [874, 402]]) {
+    const g = await toBout(t, FRESH, w, h);
+    for (const id of ['jab', 'slash', 'over', 'lunge']) {
+      const bad = [];
+      for (const [slow, size] of [[1, 1], [1.25, 0.85]]) {
+        await g.ev((id) => { const E = window.__engine, P = E.game.scenes.play; P.state.train.i = P.YARD.findIndex((q) => q.id === id) - 1; P.nextYard(E); }, id);
+        await g.frames(20);
+        const c = await ghostCopy(g, id, slow, size), l0 = await g.ev(() => window.__engine.game.scenes.play.state.lunges);
+        await g.stroke(c.x, c.y, c.keys);
+        await g.frames(30);
+        // (a step that counted may already have moved on; a copy of a jab, slash or overhead never lunges)
+        const r = await g.ev(([id, l0]) => {
+          const P = window.__engine.game.scenes.play, s = P.state, tr = s.train, st = P.YARD[tr.i];
+          return { id: st.id, got: st.id === id ? st.got(tr) - tr.base : 0, done: st.id !== id || tr.doneT >= 0, lunged: s.lunges - l0 };
+        }, [id, l0]);
+        if (!r.done && r.got < 1) bad.push(`x${slow} time, x${size} size: ${JSON.stringify(r)}`);
+        if (id !== 'lunge' && r.lunged) bad.push(`x${slow} time, x${size} size lunged: ${JSON.stringify(r)}`);
+      }
+      t.ok(`${w}x${h}: a thumb copying the ${id} ghost passes, with room to spare`, !bad.length, bad.join('; '));
+    }
   }
 
   // 4. Skip ends it; 5. it doesn't show on a second run, nor once done

@@ -1,18 +1,20 @@
 // Steps 23b and 24c: a natural up-and-down overhead registers at each phone size, never lunges or steps you in, and from the weapon's own range
 // lands its striking part (the mace's ball, the axe's blade), not a THUD. Plain jab and slash strokes still class as themselves.
+// Step 26b: a hurried one (up and straight down, no pause at the top) is an overhead too, and from its own range lands like a clean one.
 import { VET } from '../arena.mjs';
 import { bout, still } from '../exact.mjs';
 
 const SIZES = [[667, 375], [844, 390], [874, 402]];
 // thumb paths, [frame, dx, dy] from where the thumb lands (24c's overheads, at 60 frames a second)
 // (the thumb rests 60 ms at the end before it lifts, as a thumb does; a lift ends the blow)
-// straight and long are clean; short, slow, hurried and sloppy (no pause at the top, a sideways wobble) are a thumb on a bad day
+// straight and long are clean; short, slow, hurried, snap and sloppy (no pause at the top, a sideways wobble) are a thumb on a bad day
 const OVER = {
   straight: [[0, 0, 0], [12, 0, -60], [19, 0, -60], [28, 25, 40], [32, 25, 40]],
   long: [[0, 0, 0], [13, -10, -80], [20, -10, -80], [29, 70, 45], [33, 70, 45]],
   short: [[0, 0, 0], [10, 0, -40], [15, 0, -40], [22, 15, 20], [26, 15, 20]],
   slow: [[0, 0, 0], [24, 0, -60], [36, 0, -60], [48, 25, 40], [52, 25, 40]],
   hurried: [[0, 0, 0], [6, 5, -60], [7, 5, -60], [12, 30, 40], [15, 30, 40]],
+  snap: [[0, 0, 0], [5, 0, -50], [10, 20, 35], [13, 20, 35]],
   sloppy: [[0, 0, 0], [8, -15, -45], [12, 12, -70], [17, -8, -55], [24, 35, 30], [27, 30, 35]],
 };
 const JAB = [[0, 0, 0], [6, -12, 4], [9, 30, -4], [14, 30, -4]];
@@ -52,13 +54,13 @@ export default async function (t) {
       const notOver = (n) => !/over/.test(r[n].kinds) || /jab|slash/.test(r[n].kinds);
       const bad = ['straight', 'long', 'short', 'slow', 'sloppy'].filter(notOver).map((n) => `${n}: ${r[n].kinds || 'nothing'}`);
       t.ok(`${w}x${h} ${wp}: an up-and-down overhead registers, clean, short, slow or wobbly`, !bad.length, bad.join('; '));
-      // found by this suite (2026-11-14): up and straight down with no pause at the top stays a 'raise' (the raise is still the attack in hand
-      // when the chop comes, so no overhead is born) and does nothing
-      if (wp === 'gladius') t.known(`${w}x${h}: a hurried overhead (no pause at the top) registers`, !notOver('hurried'), `hurried: ${r.hurried.kinds || 'nothing'}`);
+      // (found by this suite on 2026-11-14 and fixed in step 26b: up and straight down with no pause at the top stayed a raise)
+      const rush = ['hurried', 'snap'].filter(notOver).map((n) => `${n}: ${r[n].kinds || 'nothing'}`);
+      t.ok(`${w}x${h} ${wp}: a hurried overhead (no pause at the top) registers`, !rush.length, rush.join('; '));
       const moved = Object.entries(r).filter(([, v]) => v.lunges || v.stepsIn || Math.abs(v.foot) > 0.001).map(([n, v]) => `${n}: ${JSON.stringify(v)}`);
       t.ok(`${w}x${h} ${wp}: the overhead never lunges or steps you in`, !moved.length, moved.join('; '));
       if (wp !== 'gladius') {
-        const thud = Object.entries(r).filter(([n]) => n === 'straight' || n === 'long').filter(([, v]) => v.thud || !v.clean).map(([n, v]) => `${n}: ${JSON.stringify(v)}`);
+        const thud = Object.entries(r).filter(([n]) => n === 'straight' || n === 'long' || n === 'hurried').filter(([, v]) => v.thud || !v.clean).map(([n, v]) => `${n}: ${JSON.stringify(v)}`);
         t.ok(`${w}x${h} ${wp}: from its own range the overhead lands the ${wp === 'mace' ? 'ball' : 'blade'}, not a THUD`, !thud.length, thud.join('; '));
       }
     }

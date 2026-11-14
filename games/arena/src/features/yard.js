@@ -295,7 +295,7 @@ function yardGap(E) {
   }
   return best;
 }
-// A ghost's path: its keyframes [phase, x, y, pressed] as hand aims (screen px, the first the guard), its thrust, and the point on him it is for.
+// A ghost's path: its keyframes [phase, x, y, pressed, blow] as hand aims (screen px, the first the guard), its thrust, and the point on him it is for.
 // The thumb is a trackpad: wherever it touches is the guard, so the ghost's thumb draws each aim's offset from the guard, divided by the gain.
 export function ghostPath(E, id) {
   const chest = () => { const c = foeAt(E, 'chest', 0.6), F = foeF(E); return [c[0] + F.dir * TUNING.train.path.front * F.H, c[1]]; };
@@ -303,8 +303,10 @@ export function ghostPath(E, id) {
   if (id === 'jab' || id === 'gap') {
     // a jab: the hand drawn in toward the shoulder on the line to the point, then pushed straight out along it
     const at = id === 'gap' ? yardGap(E) || chest() : chest(), end = aimFor(E, at[0], at[1], 1, P.reach), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
+    // (and on through him, as a jab goes, so the push is long enough to be quick)
     const d = Math.hypot(end[0] - sx, end[1] - sy) || 1, st = [sx + (end[0] - sx) / d * P.chamber * H, sy + (end[1] - sy) / d * P.chamber * H];
-    return { thrust: 1, at, keys: [[0, gx, gy, 1], [0.22, ...st, 1], [0.3, ...end, 1], [0.5, ...end, 0], [1, gx, gy, 0]] };
+    const thru = [end[0] + (end[0] - sx) / d * P.thrust * H, end[1] + (end[1] - sy) / d * P.thrust * H];
+    return { thrust: 1, at, keys: [[0, gx, gy, 1], [0.22, ...st, 1], [0.3, ...thru, 1, 1], [0.5, ...thru, 0], [1, gx, gy, 0]] };
   }
   if (id === 'slash') {
     const [h0, h1, x0, x1] = P.slash, a = toScreen(F, x0, -h0), b = toScreen(F, x1, -h1);
@@ -312,7 +314,7 @@ export function ghostPath(E, id) {
     // a slash starts with the hand below the raise line, or it would be an overhead
     for (let i = 0; i < 6; i++) s0[1] += Math.max(0, line + P.up * H - tipFor(E, s0[0], s0[1], 0).hy);
     const s1 = aimFor(E, b[0], b[1], 0, P.reach);
-    return { thrust: 0, at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], keys: [[0, gx, gy, 1], [0.25, ...s0, 1], [0.3, ...s0, 1], [0.39, ...s1, 1], [0.55, ...s1, 0], [1, gx, gy, 0]] };
+    return { thrust: 0, at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], keys: [[0, gx, gy, 1], [0.25, ...s0, 1], [0.3, ...s0, 1], [0.39, ...s1, 1, 1], [0.55, ...s1, 0], [1, gx, gy, 0]] };
   }
   if (id === 'over') {
     // up: the arm swung up from the shoulder, from forward toward straight up, until the hand is well above your head and the tip above his
@@ -324,11 +326,27 @@ export function ghostPath(E, id) {
     }
     if (!up) up = [sx + Math.cos(-1.3) * r, sy + Math.sin(-1.3) * r];
     const dn = aimFor(E, hd[0], hd[1] + P.through * F.H, 0, P.reach);
-    return { thrust: 0, at: hd, keys: [[0, gx, gy, 1], [0.3, ...up, 1], [0.45, ...up, 1], [0.55, ...dn, 1], [0.7, ...dn, 0], [1, gx, gy, 0]] };
+    return { thrust: 0, at: hd, keys: [[0, gx, gy, 1], [0.3, ...up, 1], [0.45, ...up, 1], [0.55, ...dn, 1, 1], [0.7, ...dn, 0], [1, gx, gy, 0]] };
   }
   // the lunge: a long push past him, through his chest
   const c = chest(), d = Math.hypot(c[0] - gx, c[1] - gy) || 1, end = [gx + (c[0] - gx) / d * P.lunge * arm, gy + (c[1] - gy) / d * P.lunge * arm];
   return { thrust: 1, at: c, lunge: true, keys: [[0, gx, gy, 1], [0.35, ...end, 1], [0.75, ...end, 1], [0.85, ...end, 0], [1, gx, gy, 0]] };
+}
+// the sword ghost's thumb: its path's keyframes [phase, dx, dy, pressed] from TUNING.train.ghost.at (the checks replay it as a thumb)
+export function ghostStroke(E, id) {
+  const GT = TUNING.train.ghost, gp = ghostPath(E, id), [gx, gy] = guardPt(E), G = TUNING.control.gain, ax = E.w * GT.at[0], ay = E.h * GT.at[1];
+  const keys = [];
+  for (const [ph, x, y, d, blow] of gp.keys) {
+    const q = [ph, (x - gx) / G, (y - gy) / G, d], p = keys[keys.length - 1];
+    // step 26b: a blow's stroke averages blow thumb px/s at least (a copy of a slower one is too slow to count): the thumb waits where it was, then goes
+    const dur = blow && p ? Math.hypot(q[1] - p[1], q[2] - p[2]) / GT.blow / GT.loop : 0;
+    if (dur && ph - dur > p[0]) keys.push([ph - dur, p[1], p[2], p[3]]);
+    keys.push(q);
+  }
+  // (the whole path is lifted, or drawn in, to keep the thumb on the screen)
+  const ox = Math.min(0, E.w - E.safe.right - GT.w - ax - Math.max(...keys.map((q) => q[1]))), oy = Math.min(0, E.h - E.safe.bottom - GT.h - ay - Math.max(...keys.map((q) => q[2])));
+  for (const q of keys) { q[1] += ox; q[2] += oy; }
+  return { gp, keys, ax, ay };
 }
 export function drawYard(ctx, E) {
   const tr = state.train, st = YARD[tr.i], T = TUNING.train, top = E.safe.top, L = 16 + E.safe.left, R = E.w - 16 - E.safe.right - 182;
@@ -361,11 +379,7 @@ export function drawYard(ctx, E) {
   const k = E.h / 375;
   if (st.ghost === 'knife') { knifeGhost(ctx, E, u); return; }
   if (st.ghost === 'hand') { const a = u * TAU; ghostThumb(ctx, ax + 28 * k * Math.cos(a), ay + 20 * k * Math.sin(a), 1); return; }
-  const gp = ghostPath(E, st.ghost), [gx, gy] = guardPt(E), G = TUNING.control.gain;
-  const keys = gp.keys.map(([ph, x, y, d]) => [ph, (x - gx) / G, (y - gy) / G, d]), GT = T.ghost, C = TUNING.control, arm = myArm(E);
-  // (the whole path is lifted, or drawn in, to keep the thumb on the screen)
-  const ox = Math.min(0, E.w - E.safe.right - GT.w - ax - Math.max(...keys.map((q) => q[1]))), oy = Math.min(0, E.h - E.safe.bottom - GT.h - ay - Math.max(...keys.map((q) => q[2])));
-  for (const q of keys) { q[1] += ox; q[2] += oy; }
+  const { gp, keys } = ghostStroke(E, st.ghost), [gx, gy] = guardPt(E), C = TUNING.control, arm = myArm(E);
   // a lunge's tip goes on with your stride as the push passes its start
   const stride = (x, y) => (gp.lunge ? TUNING.lunge.stride * myH(E) * clamp((Math.hypot(x - gx, y - gy) / arm - C.lungeStart) / (C.lungeFull - C.lungeStart), 0, 1) : 0);
   // where the tip goes on him: a dotted trail along the pressed part of the path, and a ring on the point it is for

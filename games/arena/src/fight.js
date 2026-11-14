@@ -403,13 +403,16 @@ export function updateAttack(E, dt) {
   const h = state.hand, T = TUNING, AT = T.attack, S = T.stamina, sh = state.sh;
   const live = h.down && h.lock <= 0 && !state.away && state.endT <= 0 && state.fallT <= 0 && !busy();
   if (h.atk && (!live || (h.sp < T.hit.minSpeed * 0.55 && !lungeStab(h.atk) && !driveStab(h.atk)))) h.atk = null;
+  // (step 26b: a raise that turns straight down into a chop is an overhead, with no pause at the top)
+  const chop = (spv) => h.vy / spv > AT.over.down && h.tgy > h.ptgy && state.m - h.raisedT < AT.over.window;
+  if (h.atk && h.atk.kind === 'raise' && live && h.sp >= T.hit.minSpeed) { const spv = Math.hypot(h.vx, h.vy) || 1; if (spv >= AT.over.minSpeed && chop(spv)) h.atk = null; }
   if (!h.atk && live && h.sp >= T.hit.minSpeed) {
     const spv = Math.hypot(h.vx, h.vy) || 1, ux = h.vx / spv, uy = h.vy / spv;
     // a jab is a push forward along the guard line, whatever the arm's aim
     const ga = Math.atan2(TUNING.control.guard[1], TUNING.control.guard[0]), along = (h.vx * Math.cos(ga) + h.vy * Math.sin(ga)) / spv;
     // (a downward stroke from a hand raised above the head is an overhead before it is a jab; the thumb must be bringing it down, not drawing it in)
     let kind = null;
-    if (uy > AT.over.down && h.tgy > h.ptgy && state.m - h.raisedT < AT.over.window) { if (spv >= AT.over.minSpeed) kind = 'over'; }
+    if (chop(spv)) { if (spv >= AT.over.minSpeed) kind = 'over'; }
     else if (along > TUNING.control.jabCone) { if (spv >= AT.jab.minSpeed) kind = 'jab'; }
     else if (uy < -0.7) kind = 'raise';
     else kind = 'slash';
