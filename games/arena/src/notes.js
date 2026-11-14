@@ -1,0 +1,11 @@
+// Arena: what changed in each build, as things to try (shown by the menu's "What's new" card, newest first).
+// The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
+// then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
+export const NOTES = [
+  { v: 74, date: '14 Nov', lines: ['This card is new: tap the build number on the menu after any update.', 'Tap › for the builds before this one.', 'Today’s other updates: the long spear (v73), the block warning on small and big fighters (v72), heavier knives and the sica’s point (v71), the hurried overhead (v70).'] },
+  { v: 73, date: '14 Nov', lines: ['Take a spear: it is as long as his now.', 'Let a foe step in close and push: your hand slides up the shaft and the point still lands.', 'The trident does the same.'] },
+  { v: 72, date: '14 Nov', lines: ['Play a runt or a giant and watch the block warning: it sits on your own head, chest and legs now.'] },
+  { v: 71, date: '14 Nov', lines: ['Throw a knife into a gap: it now hits for 12, and 4 on bare skin.', 'Push with the sica: its point stabs now.', 'With Haemorrhage, a hit on bare skin shows NO BITE and nothing else.', 'Slash a plate: it says DENTED or GLANCES OFF.', 'Armoured bears and lions wear plate on the head and chest only.'] },
+  { v: 70, date: '14 Nov', lines: ['Throw an overhead in a hurry: lift and chop, no pause at the top.', 'A slash with a big back-swing is now an overhead: say if that catches you out.', 'In the training yard, copy the ghost thumb: it moves at a speed you can match.'] },
+  { v: 69, date: '14 Nov', lines: ['Each blow looks like itself: a jab’s streak, a slash’s smear, an overhead’s chop; sparks on plate, blood on skin.'] },
+];

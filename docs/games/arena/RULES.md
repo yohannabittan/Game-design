@@ -1,6 +1,6 @@
 # Arena: the rules as built
 
-What the game **is today**, build `arena-v73` (save version 19): Steps 26 and 26b, the honest-blows step, the block warning drawn at your own body height, and the long spear that chokes up. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
+What the game **is today**, build `arena-v74` (save version 19): Steps 26 and 26b, the honest-blows step, the block warning drawn at your own body height, and the long spear that chokes up. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
 
 Numbers are named by their `TUNING` path (in `games/arena/src/tuning.js`). Functions and tables are named, never located by line; find them with `node tools/codemap.mjs arena --where <name>`. `arena-v68` is `arena-v67` split into modules with no change in play (CHANGELOG, ADR-0024).
 
@@ -15,7 +15,7 @@ Numbers are named by their `TUNING` path (in `games/arena/src/tuning.js`). Funct
 ## 2. A run, start to end
 
 1. **Story.** A fresh save opens on Old Brutus's five animated cards (`STORY`, `story`; timings in `story`), with a Skip plaque. It can be replayed from the menu.
-2. **Menu** (`menu`): Play (or "Resume: arena, bout N" when a run is saved), New run, The Ludus (a gold dot when fame buys something, `ludusBuys`), Story, Sound, Training, and the two walls (champions carved in stone, the fallen in chalk).
+2. **Menu** (`menu`): Play (or "Resume: arena, bout N" when a run is saved), New run, The Ludus (a gold dot when fame buys something, `ludusBuys`), Story, Sound, Training, and the two walls (champions carved in stone, the fallen in chalk). Under the walls, a small plaque shows the build number ("v74 · NEW", from the top entry of `notes.js`); tapping it opens the "What's new" card (`menu.drawCard`): the last five builds, newest first, each a few things to try, turned by the arrows or a swipe, closed by Close or a tap outside. There is no unread memory in the save.
 3. **Arena picker** (`pickArena`): the arenas opened so far, plus the next one shut with its champion's silhouette. A veteran from the Wall of Champions may be picked instead of a roll, only in an open arena above the one they cleared (`vetArenas`, `vetMe`).
 4. **The roll** (`roll`): six wheels, one at a time: size, Strength, Speed, Stamina, origin, reason (`ME_WHEEL`, `rollMe`). Each stat wheel's odds are a named tier tilted by size and by the stat before it (`me.statTiers`, `me.tilt`, `me.chain`, `statTier`). The run's one token (`token`: 1) can Respin one body wheel here (`respinMe`) or Reroll a draft later.
 5. **The purse** (`drawPurse`, "THE ARMOURER'S TENT"): 45 gold in every arena (`purse.gold`) buys a weapon, plates by the slot, a sidearm, a second blade and knives (`purseCost`). Gold left over carries into the run.

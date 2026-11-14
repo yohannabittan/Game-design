@@ -7,6 +7,7 @@
 //   - a tool in tools/ that docs/team.md's table doesn't assign to anyone
 //   - an ADR file missing from docs/adr/README.md
 //   - a game whose current CACHE_VERSION is not in its CHANGELOG.md (CLAUDE.md rule 11)
+//   - a game with a src/notes.js (the in-game "What's new") whose top entry is not the shipped CACHE_VERSION's build number
 // WARN: drift worth a look at the next retro (docs/process.md, "Keep the method alive").
 //   - docs/HANDOFF-orchestrator.md names an older version of a game than the one shipped
 //   - a tool in tools/ that neither CLAUDE.md, docs/process.md nor its own header comment explains
@@ -48,6 +49,12 @@ for (const slug of readdirSync(join(ROOT, 'games'))) {
   const v = (read(sw).match(/CACHE_VERSION\s*=\s*'([^']+)'/) || [])[1];
   if (!v) continue;
   if (has(cl) && !read(cl).includes(v)) FAIL(`${cl} has no line for the shipped ${v}`);
+  const nf = `games/${slug}/src/notes.js`, shipped = (v.match(/(\d+)$/) || [])[1];
+  if (has(nf) && shipped) {
+    const all = [...read(nf).matchAll(/\bv:\s*(\d+)/g)].map((m) => m[1]);
+    if (!all.includes(shipped)) FAIL(`${nf} has no entry for the shipped ${v}; add one on top`);
+    else if (all[0] !== shipped) FAIL(`${nf}'s top entry is v${all[0]}, not the shipped ${v}; the menu's plaque shows the top one`);
+  }
   const base = v.replace(/\d+$/, ''), now = +(v.match(/(\d+)$/) || [0, 0])[1];
   const said = [...handoff.matchAll(new RegExp(base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\d+)', 'g'))].map((m) => +m[1]);
   if (said.length && Math.max(...said) < now) WARN(`docs/HANDOFF-orchestrator.md says ${base}${Math.max(...said)}; the game is at ${v}`);

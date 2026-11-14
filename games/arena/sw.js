@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'arena-v73';
+const CACHE_VERSION = 'arena-v74';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'arena-v';
 // The painted art (docs/art/final/arena, one webp each); the release channel shows it, the dev channel shows the candidates instead.
@@ -168,6 +168,7 @@ const ASSETS = [
   './src/draw-fight.js',
   './src/screens.js',
   './src/scenes.js',
+  './src/notes.js',
   './src/game.js',
   './src/features/yard.js',
   './src/features/ranged.js',

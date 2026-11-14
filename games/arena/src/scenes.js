@@ -3,6 +3,7 @@
 
 import { clamp, lerp, ease } from './engine.js';
 import { TUNING } from './tuning.js';
+import { NOTES } from './notes.js';
 import { NEW_CHAMPS, ARENAS, ARENA, ORIGINS, brutus, bandOf, endingOf, LUDUS, LUDUS_ITEM, TAILOR, FAMS, CARD, WARES, titleOf, PARTS, ARM_LEN,
   SHOULDER, PLATES, playerParts, mkPart, lenN } from './data.js';
 import { camUpdate, lay, youF, foeF, toScreen, guardPt, poseYou, solveArm, moveHand, updateAttack, checkExhaust, stepYou, raised, updateDefence,
@@ -103,8 +104,8 @@ function menuLay(E, run) {
   });
   btn.play = { x: cx - (cw - 10) / 2, y: py - M.play / 2, w: cw - 10, h: M.play };
   const wt = T + 56, wh = Math.min(M.wallH, (B - 8 - wt - 10) / 2), wy = wt + Math.max(0, (B - 8 - wt - 2 * wh - 10) / 2), wx = R - side;
-  const s = Math.min(M.fighter * E.h / 1.08, side / 0.75);
-  return { T, B, L, R, cx, cw, side, ts, ty, fy, btn, champs: { x: wx, y: wy, w: side, h: wh }, pit: { x: wx, y: wy + wh + 10, w: side, h: wh },
+  const s = Math.min(M.fighter * E.h / 1.08, side / 0.75), [nw, nh] = TUNING.notes.plaque, ni = TUNING.notes.inset;
+  return { T, B, L, R, cx, cw, side, ts, ty, fy, btn, notes: { x: wx + (side - nw) / 2, y: B - ni - Math.max(44, nh), w: nw, h: Math.max(44, nh) }, champs: { x: wx, y: wy, w: side, h: wh }, pit: { x: wx, y: wy + wh + 10, w: side, h: wh },
     fig: { x: L + side / 2, y: B - 14, s }, say: { x: cx - cw / 2, y: r2 + M.small / 2 + 8, w: cw, h: B - 8 - (r2 + M.small / 2 + 8) } };
 }
 // a painted piece of the menu, kept as a sprite per key at the screen's pixel ratio (drawn live without OffscreenCanvas)
@@ -253,6 +254,7 @@ function paintMenu(c, E, o) {
   laurel(c, Ly.cx - fw / 2 - 12, Ly.fy, 8);
   if (fame) liftInk(c, ft, Ly.cx + 6, Ly.fy, 16, '800', '#ffd24a');
   for (const k of Object.keys(B)) plaque(c, E, B[k], k === 'play' ? 'bronze' : 'stone', labels[k], false, k === 'play' ? 22 : 16);
+  plaque(c, E, Ly.notes, 'stone', labels.notes, false, 15);
   if (dot) {
     const D = TUNING.ludus.dot, b = B.ludus;
     c.fillStyle = '#ffd24a'; c.strokeStyle = '#3a2a08'; c.lineWidth = 2;
@@ -353,7 +355,7 @@ function menuMoving(c, E, o, dust, d) {
   menuFigure(c, E, o.m, Ly.fig.x, Ly.fig.y, Ly.fig.s, d);
 }
 // where no dust is drawn: in front of your fighter, the plaques, the walls and Brutus's line
-const dustOff = (Ly) => [figBox(Ly), ...Object.values(Ly.btn), Ly.champs, Ly.pit, Ly.say];
+const dustOff = (Ly) => [figBox(Ly), ...Object.values(Ly.btn), Ly.champs, Ly.pit, Ly.say, Ly.notes];
 // the boxes the menu repaints: what moves of your fighter (his cloak and the body above his hips; TUNING.menu.figBox, body units), each torch's
 // flame, a mote of dust
 const figBox = (Ly) => { const { x, y, s } = Ly.fig, B = TUNING.menu.figBox; return { x: x + B[0] * s, y: y + B[1] * s, w: (B[2] - B[0]) * s, h: (B[3] - B[1]) * s }; };
@@ -392,10 +394,40 @@ function menuLayer(ctx, E, key, o, dust) {
 }
 // a line over the painted backdrop, lifted off it by a dark copy under it
 function liftInk(c, t, x, y, size, weight, color, align = 'center') { ink(c, t, x + 1, y + 1.5, size, weight, 'rgba(8,5,4,0.8)', align); ink(c, t, x, y, size, weight, color, align); }
-const MENU_KEYS = ['play', 'new', 'ludus', 'story', 'sound', 'train', 'champs'];
+const MENU_KEYS = ['play', 'new', 'ludus', 'story', 'sound', 'train', 'champs', 'notes'];
+// the card's lines: each a bullet and its wrapped text, from the top of the body; bottom = where the last one ends (px from the card's top)
+const NOTES_TOP = 88;
+function notesBody(c, e, w) {
+  const N = TUNING.notes, tw = w - 64, rows = [];
+  e.lines.forEach((t) => wrapPx(c, t, tw, N.text, '600').forEach((r, j) => rows.push({ t: r, first: !j })));
+  return { rows, bottom: NOTES_TOP + rows.length * N.lh };
+}
+function paintNotes(c, L, pages, i) {
+  const { w, h } = L.box, N = TUNING.notes, e = pages[i], g = c.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#4a3a2a'); g.addColorStop(1, '#2a2018');
+  rrect(c, 0, 0, w, h, 10); c.fillStyle = g; c.fill(); c.lineWidth = 2; c.strokeStyle = '#a8742c'; c.stroke();
+  rrect(c, 6, 6, w - 12, h - 12, 7); c.lineWidth = 1; c.strokeStyle = 'rgba(20,14,8,0.6)'; c.stroke();
+  ink(c, 'WHAT’S NEW', w / 2, 26, 18, '800', '#ffd24a');
+  ink(c, `v${e.v} · ${e.date}${i ? '' : '  ·  newest'}`, w / 2, 58, 17, '800', '#f5f2ea');
+  c.strokeStyle = 'rgba(255,210,120,0.3)'; c.beginPath(); c.moveTo(30, 74); c.lineTo(w - 30, 74); c.stroke();
+  notesBody(c, e, w).rows.forEach((r, k) => {
+    const yy = NOTES_TOP + k * N.lh + N.lh / 2 - 4;
+    if (r.first) { c.fillStyle = '#e4b264'; c.beginPath(); c.arc(34, yy, 3, 0, TAU); c.fill(); }
+    ink(c, r.t, 48, yy, N.text, '600', '#efe6d2', 'left');
+  });
+  const by = L.close.y - L.box.y, cx = L.close.x - L.box.x, bh = L.close.h;
+  for (let k = 0; k < pages.length; k++) { c.fillStyle = k === i ? '#ffd24a' : 'rgba(255,255,255,0.25)'; c.beginPath(); c.arc(w / 2 + (k - (pages.length - 1) / 2) * 16, by - 12, 4, 0, TAU); c.fill(); }
+  const btn = (bx, bw, label, on, size) => {
+    rrect(c, bx, by, bw, bh, 8); c.fillStyle = on ? '#6a4a22' : 'rgba(255,255,255,0.06)'; c.fill(); c.lineWidth = 1.5; c.strokeStyle = on ? '#e4b264' : 'rgba(255,255,255,0.15)'; c.stroke();
+    ink(c, label, bx + bw / 2, by + bh / 2 + 1, size, '800', on ? '#fff0c4' : 'rgba(255,255,255,0.3)');
+  };
+  btn(cx, L.close.w, 'Close', true, 17);
+  btn(L.prev.x - L.box.x, bh, '‹', i > 0, 26);
+  btn(L.next.x - L.box.x, bh, '›', i < pages.length - 1, 26);
+}
 export const menu = {
   enter(E) {
-    this.btns = {}; this.press = null;
+    this.btns = {}; this.press = null; this.card = null;
     // a v6 save's won runs are only in the ledger, which migrate cannot read: checked once here, a won run opens the City
     if (E.save.get('arenasCheck', 0)) {
       if (E.ledger.entries.some((e) => e.k === 'result' && e.d && e.d.won === true)) E.save.set('arenas', Math.max(1, E.save.get('arenas', 0)));
@@ -419,13 +451,14 @@ export const menu = {
     if (!BOOT.done) { this.bootCard(ctx, E); gateUp(ctx, E); return; }
     const run = E.save.get('run', null), M = TUNING.menu, Ly = menuLay(E, run), m = this.look, B = Ly.btn, bd = artImg(BACKDROP[m.arena]), face = !!artImg(m.say.pic), logo = artImg('logo-arena');
     const fame = E.save.get('fame', 0), champs = E.save.get('champs', []).slice(0, M.names).map((q) => q.name), wall = E.save.get('wall', []).slice(0, M.names).map((q) => `${q.name} (${q.bout})`);
-    const labels = { play: run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', new: 'New run', ludus: 'The Ludus', story: 'Story', sound: E.audio.muted ? 'Sound: off' : 'Sound: on', train: 'Training' };
-    const dot = ludusBuys(E), key = `menu|${E.w}|${E.h}|${m.arena}|${bd ? artV : '-'}|${face ? artV : '-'}|${logo ? artV : '-'}|${Object.keys(B).map((k) => labels[k]).join('|')}|${fame}|${dot ? 1 : 0}|${champs.join(',')}|${wall.join(',')}|${m.say.line}`;
+    const labels = { play: run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', new: 'New run', ludus: 'The Ludus', story: 'Story', sound: E.audio.muted ? 'Sound: off' : 'Sound: on', train: 'Training', notes: `v${NOTES[0].v} \u00b7 NEW` };
+    const dot = ludusBuys(E), key = `menu|${E.w}|${E.h}|${m.arena}|${bd ? artV : '-'}|${face ? artV : '-'}|${logo ? artV : '-'}|${Object.keys(B).map((k) => labels[k]).join('|')}|${labels.notes}|${fame}|${dot ? 1 : 0}|${champs.join(',')}|${wall.join(',')}|${m.say.line}`;
     const o = { Ly, m, bd, face, logo, fame, champs, wall, labels, dot };
     if (canSprite) menuLayer(ctx, E, key, o, this.dust);
     else { paintMenu(ctx, E, o); menuMoving(ctx, E, o, this.dust, E.dpr || 1); }
-    if (this.press && this.press !== 'champs') plaque(ctx, E, B[this.press], this.press === 'play' ? 'bronze' : 'stone', labels[this.press], true, this.press === 'play' ? 22 : 16);
-    this.btns = { ...B, champs: Ly.champs };
+    if (this.press && this.press !== 'champs') plaque(ctx, E, this.press === 'notes' ? Ly.notes : B[this.press], this.press === 'play' ? 'bronze' : 'stone', labels[this.press], true, this.press === 'play' ? 22 : 16);
+    this.btns = { ...B, champs: Ly.champs, notes: Ly.notes };
+    if (this.card != null) this.drawCard(ctx, E);
     gateUp(ctx, E);
   },
   // the boot card: the dark sand, then (after TUNING.load.show) the bronze title and a thin bronze bar filling as the menu's paintings land
@@ -440,16 +473,47 @@ export const menu = {
     const g = ctx.createLinearGradient(0, y, 0, y + bh); g.addColorStop(0, '#f2c477'); g.addColorStop(1, '#8a5a1c');
     ctx.fillStyle = g; ctx.fillRect(x, y, bw * clamp(BOOT.bar, 0, 1), bh);
   },
-  onPointerDown(p, E) { this.press = !BOOT.done ? null : MENU_KEYS.find((k) => this.btns[k] && E.hit(this.btns[k], p)) || null; },
+  // the "What's new" card: the newest TUNING.notes.shown builds, one a page, turned by the arrows or a swipe; Close or a tap outside returns to the menu
+  cardLay(E) {
+    const N = TUNING.notes, w = Math.min(N.card[0], E.w - 2 * (N.margin + E.safe.left + E.safe.right)), h = Math.min(N.card[1], E.h - E.safe.top - E.safe.bottom - 2 * N.margin);
+    const x = Math.round((E.w - w) / 2), y = Math.round((E.h - h) / 2), [bw, bh] = N.btn, fy = y + h - N.foot / 2 - bh / 2;
+    return { box: { x, y, w, h }, close: { x: x + w / 2 - bw / 2, y: fy, w: bw, h: bh }, prev: { x: x + 10, y: fy, w: bh, h: bh }, next: { x: x + w - 10 - bh, y: fy, w: bh, h: bh } };
+  },
+  cardPages: () => NOTES.slice(0, TUNING.notes.shown),
+  cardTap(p, E) {
+    const L = this.cardLay(E), n = this.cardPages().length;
+    if (E.hit(L.close, p) || !E.hit(L.box, p)) { E.audio.play('tap'); this.card = null; }
+    else if (E.hit(L.prev, p) && this.card > 0) { E.audio.play('tap'); this.card--; }
+    else if (E.hit(L.next, p) && this.card < n - 1) { E.audio.play('tap'); this.card++; }
+  },
+  onSwipe(p) {
+    if (this.card == null) return;
+    const n = this.cardPages().length;
+    if (p.swipeDir === 'left') this.card = Math.min(n - 1, this.card + 1);
+    else if (p.swipeDir === 'right') this.card = Math.max(0, this.card - 1);
+  },
+  drawCard(ctx, E) {
+    const L = this.cardLay(E), { x, y } = L.box, i = this.card;
+    ctx.fillStyle = 'rgba(8,5,4,0.62)'; ctx.fillRect(0, 0, E.w, E.h);
+    ctx.save(); ctx.translate(x, y); paintNotes(ctx, L, this.cardPages(), i); ctx.restore();
+  },
+  // how far down each page's last line reaches and where the footer starts, for the checks that no line is clipped
+  cardFit(ctx, E) {
+    const L = this.cardLay(E), N = TUNING.notes;
+    return { room: L.box.h - N.foot - 18, pages: this.cardPages().map((e) => notesBody(ctx, e, L.box.w).bottom) };
+  },
+  onPointerDown(p, E) { this.press = !BOOT.done || this.card != null ? null : MENU_KEYS.find((k) => this.btns[k] && E.hit(this.btns[k], p)) || null; },
   onPointerUp() { this.press = null; },
   onTap(p, E) {
     if (!BOOT.done || portrait(E)) return;
+    if (this.card != null) { this.cardTap(p, E); return; }
     const b = this.btns, run = E.save.get('run', null), fresh = () => E.setScene('arenas');
     if (b.play && E.hit(b.play, p)) { E.audio.play('tap'); if (run) E.setScene('play', { resume: run }); else fresh(); }
     else if (b.new && E.hit(b.new, p)) { E.audio.play('tap'); E.save.set('run', null); fresh(); }
     else if (b.story && E.hit(b.story, p)) { E.audio.play('tap'); E.setScene('story', { replay: true }); }
     else if (b.ludus && E.hit(b.ludus, p)) { E.audio.play('tap'); E.setScene('ludus'); }
     else if (b.champs && E.hit(b.champs, p)) { E.audio.play('tap'); E.setScene('champs'); }
+    else if (b.notes && E.hit(b.notes, p)) { E.audio.play('tap'); this.card = 0; }
     else if (b.sound && E.hit(b.sound, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
     else if (b.train && E.hit(b.train, p)) { E.audio.play('tap'); E.setScene('play', { drill: true, seed: TUNING.menu.seed }); }
   },

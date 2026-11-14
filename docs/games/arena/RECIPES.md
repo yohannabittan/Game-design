@@ -143,3 +143,7 @@ Check: `npm run smoke` at the end, then `python3 tools/usage.py`.
 
 Check: `tools/checks/arena/blows.mjs` calls `land` and `knifeLands` on a chosen part and reads damage, drops in `state.fx`, the engine's shake and `state.pops`; `P.knifeAt` with `knives.pad` 0 maps what each point of him is.
 Watch out: a change to the show of a common blow (a glance's hit-stop, its sparks) moves the replays' timing, so their hashes change though no number did.
+
+## At a landing: add the entry to `notes.js`
+
+The orchestrator adds one entry on top of `NOTES` in `games/arena/src/notes.js`: `v` (the build number, the same as the new `CACHE_VERSION`), `date`, and two to five `lines`, each a thing to try in plain words. The menu's plaque and "What's new" card read it (`TUNING.notes.shown` builds are listed). `tools/docs-check.mjs` fails when the top entry is not the shipped `CACHE_VERSION`; the check `tools/checks/arena/notes.mjs` fails if a page's lines would reach the footer at either phone size.
