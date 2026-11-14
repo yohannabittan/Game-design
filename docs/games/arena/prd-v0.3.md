@@ -2200,3 +2200,34 @@ So an overhead is undone by the very motion it needs. The wind-up leans you back
   - from the weapon's own range, it lands with the striking part, not a THUD.
 - Jabs, slashes and lunges still classify and step as before (Step 21's and Step 23b's checks).
 - A frame of a mace overhead landing its ball, from before and after the change.
+
+## Step 25 (drafted 2026-11-14, sketch first, builds after Step 24): the range, for the knives and the bow
+
+**The designer:** "It'd be nice to have a ranged practice for the knives and bow. And maybe we could have a fun challenge where you shoot smaller and smaller targets." This is the first of the queued Trials ("reusing what's built"), and it reuses the yard, the aim ring and the throws.
+
+- **Where:** a **Range** button beside Training on the menu, in the training yard's arena, with no foe.
+- **Practice:**
+  - a straw target on a post at a middle distance;
+  - unlimited practice knives, and the bow (whether or not you own it), with the ⇄ swap to choose between them;
+  - nothing at stake, no timer;
+  - each hit shows its ring's score where it lands.
+- **The challenge, "Shrinking Target":**
+  - a target appears at a random height and distance (seeded per attempt);
+  - hit it, and the next one is smaller (`TUNING.range.shrink`, about 85%) and placed somewhere new;
+  - **3 misses end the run;** a bullseye gives one miss back;
+  - **the score** is the number of targets hit, with your best kept in the save (`rangeBest`) and shown on the button;
+  - **later targets sway on their post,** gently at first, so leading the shot matters;
+  - knives, the bow, or both: the player picks before starting, and each has its own best.
+- **Fame:** a new best gives a little fame (`TUNING.range.fame`, small), so practice pays a little toward the ludus.
+- **Art:** the target is drawn in code first (a straw butt with painted rings on a wooden post). If the sketch shows it needs painting, that becomes an art pack.
+- **The export:** `range` runs, with the mode, the score and the shots.
+
+### Before building (sketch before build)
+
+A touchable page of the Shrinking Target with the knife and bow aiming, so the designer can try the pace (the shrink, the sway, the 3 misses) on the phone. Then this step is locked.
+
+### Acceptance (once locked)
+
+- Scripted checks: a hit shrinks the next target; 3 misses end the run; a bullseye gives a miss back; the best is saved per weapon.
+- Frames of practice, the challenge, and the end card. A GIF of a run of five.
+- `npm run smoke`.
