@@ -11,7 +11,7 @@ import { camUpdate, lay, youF, foeF, toScreen, guardPt, poseYou, solveArm, moveH
   heartShatter, ringSound, clangSound, landChime, tickSound, ooh, crowdVerdict } from './fight.js';
 import { lamed, guardJab, sigOf, updateFoe, taunt, stepIn, updatePair, settleFeint } from './foe.js';
 import { updateFinisher, firstRun, runsDone, updateHints, finTouch, crowdDrain, twirl, baitDrop, thumbFav, addBleed, updateBleed } from './cards.js';
-import { weaponKey, weaponArt, picSprite, drawPic, sayLine, KIT_HELM, kitTier, kitPic, manArt, beastArt, dollArt, helmArt, gearPic, drawSeg,
+import { weaponKey, weaponArt, picSprite, drawPic, sayLine, KIT_HELM, meGm, kitTier, kitPic, manArt, beastArt, dollArt, helmArt, gearPic, drawSeg,
   torsoPlate, TAU, GTYPE, lookOf, LEGS, canSprite, shade, lw, line, face, lerp2, hudRow, heartAt, drawHudHeart, drawPips, foeHealth, drawCrowdMeter,
   crowdBar, drawCoin, drawEdge, warmPair, drawEdgeTag, drop, rrect, drawNet, netArt, netK, drapeNet, drawWeapon, blinkGhosts, capuanGhosts,
   blinkStreaks, readGlow, spearFlight, spearDown, flyingShield, emperorSignal, flyingWeapon, drawFighter, drawSwordArm, drawShield, shieldPaint,
@@ -312,7 +312,7 @@ function menuFigure(ctx, E, m, x, y, s, d = E.dpr || 1, box = null) {
 // the menu's look of your fighter: their rolls, plates and weapon (fists hold nothing)
 function menuLook(E) {
   const f = menuFighter(E), me = f.me, W = TUNING.weapons.find((q) => q.id === me.weapon) || (TUNING.me.weapons[me.weapon] && TUNING.me.weapons[me.weapon].len ? { id: me.weapon, ...TUNING.me.weapons[me.weapon] } : null);
-  return { ...f, parts: playerParts(me), gm: (GTYPE[me.weapon] || GTYPE.gladius).helm, weapon: W && { weapon: W, mace: !!me.mace }, say: menuBrutus(E) };
+  return { ...f, parts: playerParts(me), gm: meGm(me), weapon: W && { weapon: W, mace: !!me.mace }, say: menuBrutus(E) };
 }
 // The low crowd under the menu: a looping swell of filtered brown noise, its gain re-armed every half second so it dies away by itself when the menu
 // stops drawing (a hidden tab), cut on leaving or muting (cosmetic: Math.random)

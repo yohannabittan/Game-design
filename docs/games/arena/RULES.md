@@ -1,6 +1,6 @@
 # Arena: the rules as built
 
-What the game **is today**, build `arena-v74` (save version 19): Steps 26 and 26b, the honest-blows step, the block warning drawn at your own body height, and the long spear that chokes up. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
+What the game **is today**, build `arena-v75` (save version 19): Steps 26 and 26b, the honest-blows step, the block warning drawn at your own body height, the long spear that chokes up, the What's new card, and the retired two-eyehole helmet with crests that trail back. The code is the authority: where the PRDs (`prd-v0.1.md`, `prd-v0.2.md`, `prd-v0.3.md`) disagree, this file says what the code does, and section 12 lists the disagreement. A new PRD step is a change request against this file (`docs/process.md`, "Guard rails from the 2026-11-14 review", rule 5).
 
 Numbers are named by their `TUNING` path (in `games/arena/src/tuning.js`). Functions and tables are named, never located by line; find them with `node tools/codemap.mjs arena --where <name>`. `arena-v68` is `arena-v67` split into modules with no change in play (CHANGELOG, ADR-0024).
 
@@ -256,6 +256,10 @@ Each bout's weapon is a different one of the four foe weapons where it can be. H
 | Shrine | the promise reason 30 |
 | Tailor | crest, plume, shield paint 15, cloak 20 (looks; a tap cycles `TAILOR` styles) |
 | Vault | a scroll per family 45 (the Trickster's and Showman's need their family first) |
+
+The Tailor's crests and plumes always trail back: a painting delivered leaning forward (bronze and silver crests, red and white plumes) carries `flip` in `TUNING.kit.tailor` and is drawn mirrored about its base.
+
+Helmets on the painted men: murmillo type the murmillo helmet, hoplo the thraex helmet, cap the gallic. The brute (the axe's type) takes one of gallic, murmillo or thraex by his seed (a foe's `partSeed`, your name), so brutes differ. The secutor's two-eyehole helmet is retired; no save stores a helmet, only the weapon, so nothing migrates.
 
 A champion on the Wall can return as a veteran with +`ludus.vetUp` on one stat (at most `ludus.vetCap`).
 

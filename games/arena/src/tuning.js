@@ -600,7 +600,6 @@ export const TUNING = {
       gallic: { size: [266, 308], o: [10, 52], crest: -0.81 },
       murmillo: { size: [343, 455], o: [55, 199], closed: true, crest: -1.41 },
       thraex: { size: [312, 439], o: [43, 183], closed: true, crest: -1.35 },
-      secutor: { size: [270, 363], o: [10, 107], closed: true, crest: -1.42 },
     },
     // hole: its armhole (an ellipse's centre and radii, px), filled with the torso's painted shoulder; rim: the row of its bottom rim, where a
     // belt card is buckled when the plate covers the belly too
@@ -729,8 +728,8 @@ export const TUNING = {
     // at paint of its rim radius; the cloak hung as a card cloak (TUNING.kit.gear's a, b, w and at)
     tailor: {
       crest: { at: [-0.15, -0.62], w: 3.1 }, plume: { at: [-0.2, -0.68], top: -1.25, w: 1.9 }, paint: 0.84,
-      'tailor-crest-bronze': { size: [256, 128], a: [127, 126] }, 'tailor-crest-silver': { size: [256, 128], a: [127, 126] }, 'tailor-crest-gold': { size: [256, 128], a: [128, 126] },
-      'tailor-plume-red': { size: [256, 256], a: [88, 254] }, 'tailor-plume-white': { size: [256, 256], a: [73, 254] }, 'tailor-plume-black': { size: [256, 256], a: [206, 254] },
+      'tailor-crest-bronze': { size: [256, 128], a: [127, 126], flip: true }, 'tailor-crest-silver': { size: [256, 128], a: [127, 126], flip: true }, 'tailor-crest-gold': { size: [256, 128], a: [128, 126] },
+      'tailor-plume-red': { size: [256, 256], a: [88, 254], flip: true }, 'tailor-plume-white': { size: [256, 256], a: [73, 254], flip: true }, 'tailor-plume-black': { size: [256, 256], a: [206, 254] },
       'tailor-paint-wings': { size: [256, 256], r: 126 }, 'tailor-paint-bolt': { size: [256, 256], r: 126 }, 'tailor-paint-sun': { size: [256, 256], r: 126 },
       'tailor-cloak-red': { size: [384, 512], a: [191, 2], b: [191, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },
       'tailor-cloak-blue': { size: [384, 512], a: [182, 2], b: [182, 510], w: 384, at: [-0.05, -0.73, -0.14, -0.08, 0.27] },

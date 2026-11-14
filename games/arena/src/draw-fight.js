@@ -23,7 +23,7 @@ const ART_NAMES = {
   'champ-varro': 'Varro of Capua', 'champ-twins': 'Castor and Pollux', 'champ-hermes': 'Hermes the Swift', 'champ-carpophorus': 'Carpophorus the Beastmaster',
   'champ-mevia': 'Mevia the Huntress', 'champ-aquila': "Aquila, the Emperor's Blade", emperor: 'The Emperor',
   'kit-base-head': 'Head', 'kit-helmet-gallic': 'Gallic helmet', 'kit-shield-round': 'Round shield',
-  'kit-helmet-murmillo': 'Murmillo helmet', 'kit-helmet-thraex': 'Thracian helmet', 'kit-helmet-secutor': 'Secutor helmet', 'kit-galerus': 'Shoulder guard (galerus)',
+  'kit-helmet-murmillo': 'Murmillo helmet', 'kit-helmet-thraex': 'Thracian helmet', 'kit-galerus': 'Shoulder guard (galerus)',
   'kit-shield-scutum': 'Tall shield (scutum)', 'kit-shield-parma': 'Small round shield (parma)', 'kit-plate-chest': 'Chest plate', 'kit-plate-manica': 'Arm guard (manica)',
   'kit-plate-greave': 'Greave', 'kit-wrap-trousers': 'Leg wraps',
   'beast-lion-head': 'Lion, head', 'beast-lion-tail': 'Lion, tail', 'beast-bear-head': 'Bear, head', 'kit-base-upperarm-seg': 'Upper arm, muscular, one segment',
@@ -106,8 +106,18 @@ export const brutusFaceOn = () => !!artImg('brutus');
 export const cardGrow = () => (brutusFaceOn() ? TUNING.art.cardDrop : 0);
 // The kit: a man's look with the kit on, his muscle tier by Strength, whether he is you, and his painted pieces (step 6b: his type's helmet and shield,
 // the leg wraps of the types that wear them), all in the look's id, so his sprites repaint only when one of them changes; cached on the look
-export const KIT_HELM = { murmillo: 'murmillo', hoplo: 'thraex', open: 'secutor', cap: 'gallic' };
-export const KIT_SHIELD = { murmillo: 'scutum', hoplo: 'parma', open: 'round', cap: 'round' };
+// The brute's type (helm 'open') once wore the secutor's two-eyehole dome, retired: each brute now wears one of three, by his seed (hv), so brutes differ.
+export const KIT_HELM = { murmillo: 'murmillo', hoplo: 'thraex', open: 'gallic', open0: 'gallic', open1: 'murmillo', open2: 'thraex', cap: 'gallic' };
+export const KIT_SHIELD = { murmillo: 'scutum', hoplo: 'parma', open: 'round', open0: 'round', open1: 'round', open2: 'round', cap: 'round' };
+const hvOf = (seed) => (Math.imul((seed ^ (seed >>> 15)) >>> 0, 0x2c1b3c6d) >>> 0) % 3;
+const nameSeed = (n = '') => { let h = 2166136261; for (let i = 0; i < n.length; i++) h = Math.imul(h ^ n.charCodeAt(i), 16777619); return h >>> 0; };
+// hv is not enumerable: it is a look's cosmetic choice, kept out of the replay dumps
+const withHv = (lk, seed) => Object.defineProperty(lk, 'hv', { value: hvOf(seed) });
+const gmKey = (h, v) => (h === 'open' ? `open${v}` : h);
+const helmKey = (lk) => KIT_HELM[gmKey(lk.helm, lk.hv | 0)] || 'gallic';
+// the helm key the icons and the doll take (KIT_HELM's): for a foe (his partSeed) or for you (your name)
+export const foeGm = (f) => gmKey(GTYPE[f.weapon.id].helm, hvOf(f.partSeed >>> 0));
+export const meGm = (me) => gmKey((GTYPE[me.weapon] || GTYPE.gladius).helm, hvOf(nameSeed(me.name)));
 const KIT_WRAP = { hoplo: true };
 const KIT_GEAR = { plate: 'kit-plate-chest', manica: 'kit-plate-manica', greave: 'kit-plate-greave', wrap: 'kit-wrap-trousers', galerus: 'kit-galerus' };
 export function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean' : str <= T.avg ? 'avg' : 'musc'; }
@@ -119,7 +129,7 @@ export function lookFor(fm, isFoe) {
   if (!lk.kitL || lk.kitL.key !== key) {
     // until all of his paint is in (his weapon too, step 14), he keeps the drawn look whole (step 12)
     if (!artReady(manArt(lk, tier, wk))) { lk.kitL = { key, lk }; return lk; }
-    const helm = KIT_HELM[lk.helm] || 'gallic', shield = KIT_SHIELD[lk.helm] || 'round', wrap = !!KIT_WRAP[lk.helm];
+    const helm = helmKey(lk), shield = KIT_SHIELD[lk.helm] || 'round', wrap = !!KIT_WRAP[lk.helm];
     // the worn pieces whose paint has loaded (step 6c-2), so a part repaints when one arrives
     const ga = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)] && artImg(gearFile(c))).map((c) => c.id), ...tailorFiles(lk).filter((n) => artImg(n))].join('.');
     lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe, helm, shield, wrap }, id: `${lk.id}|kit${key}|${helm}.${shield}${wrap ? '.wrap' : ''}|ga${ga}` } };
@@ -173,7 +183,7 @@ const KIT_PARTS = ['head', 'torso', 'upperarm', 'forearm', 'thigh', 'shin'];
 export function manArt(lk, tier, wk = null) {
   const gear = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)]).map(gearFile), ...tailorFiles(lk), ...(wk && TUNING.kit.weapon[wk] ? [weaponArt(wk)] : [])];
   const tower = lk.gear && lk.gear.shield && lk.gear.shield.id === 'ironwall', wrap = KIT_WRAP[lk.helm] ? [KIT_GEAR.wrap] : [], gal = lk.galerus ? [KIT_GEAR.galerus] : [];
-  return { body: KIT_PARTS.map((p) => kitName(p, tier)), extra: [`kit-helmet-${KIT_HELM[lk.helm] || 'gallic'}`, `kit-shield-${tower ? 'scutum' : KIT_SHIELD[lk.helm] || 'round'}`, KIT_GEAR.plate, KIT_GEAR.manica, KIT_GEAR.greave, ...wrap, ...gal, ...gear] };
+  return { body: KIT_PARTS.map((p) => kitName(p, tier)), extra: [`kit-helmet-${helmKey(lk)}`, `kit-shield-${tower ? 'scutum' : KIT_SHIELD[lk.helm] || 'round'}`, KIT_GEAR.plate, KIT_GEAR.manica, KIT_GEAR.greave, ...wrap, ...gal, ...gear] };
 }
 // a beast's paint: every part beastKit pins (a young beast's own where it has one)
 export function beastArt(fm) {
@@ -432,10 +442,10 @@ export function myLook(me, ids = [], tailor = {}) {
   const lk = withGear({ ...G, metal: A.metal, trim: A.trim, skin: YOU.skin, hair: '#3a2414', tunic: YOU.tunic, hem: YOU.hem,
     crest: A.crest || G.crest || YOU.crest, band: G.band ? YOU.crest : YOU.tunic, beard: G.beard && !me.female }, ids, `you-${me.set}-${me.weapon}${me.female ? 'f' : ''}-${t}`);
   lk.tailor = tailor;
-  return lk;
+  return withHv(lk, nameSeed(me.name));
 }
 // his look: his type's, with his gear (rolled once per bout); the Huntress carries her net at her belt
-export const foeLook = (d) => withGear({ ...GTYPE[d.weapon.id], ...(TUNING.champs[d.ck] && TUNING.champs[d.ck].net ? { net: true } : {}) }, d.gear || [], GTYPE[d.weapon.id].id);
+export const foeLook = (d) => withHv(withGear({ ...GTYPE[d.weapon.id], ...(TUNING.champs[d.ck] && TUNING.champs[d.ck].net ? { net: true } : {}) }, d.gear || [], GTYPE[d.weapon.id].id), d.partSeed >>> 0);
 // yours is rebuilt only when your picks change
 export function lookOf(fm, isFoe) {
   if (isFoe) return fm.look || GTYPE[fm.weapon.id];
@@ -1163,7 +1173,12 @@ function paintLegGear(c, p, H, lk) {
 function tailorHead(c, x, y, r, H, T, lk) {
   // painted (step 14): each pinned by its base at (x, y) head radii from the head's centre, its canvas w head radii wide
   const TT = TUNING.kit.tailor, C = tailorArt(lk, 'crest'), Pl = tailorArt(lk, 'plume');
-  const pin = (P, at, w) => { const k = w * r / P.J.size[0]; c.drawImage(P.im, x + at[0] * r - P.J.a[0] * k, y + at[1] * r - P.J.a[1] * k, P.J.size[0] * k, P.J.size[1] * k); };
+  const pin = (P, at, w) => {
+    const k = w * r / P.J.size[0], W = P.J.size[0] * k, top = y + at[1] * r - P.J.a[1] * k;
+    if (!P.J.flip) { c.drawImage(P.im, x + at[0] * r - P.J.a[0] * k, top, W, P.J.size[1] * k); return; }
+    // painted leaning forward: mirrored about its base, which stays on the head
+    c.save(); c.translate(x + at[0] * r + P.J.a[0] * k, 0); c.scale(-1, 1); c.drawImage(P.im, 0, top, W, P.J.size[1] * k); c.restore();
+  };
   if (C) pin(C, TT.crest.at, TT.crest.w);
   if (Pl) pin(Pl, T.crest ? [TT.plume.at[0], TT.plume.top] : TT.plume.at, TT.plume.w);
   if (T.crest && !C) {

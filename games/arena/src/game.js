@@ -826,7 +826,7 @@ const SHIPPED = new Set([
   'champ-hermes champ-carpophorus champ-mevia champ-aquila emperor ',
   // the men: the muscular torso, limb halves of every tier, helmets, shields, plates, the net
   'kit-base-head kit-base-torso kit-helmet-gallic kit-shield-round kit-base-torso-lean kit-base-torso-avg ',
-  'kit-helmet-murmillo kit-helmet-thraex kit-helmet-secutor kit-galerus kit-shield-scutum kit-shield-parma kit-plate-chest kit-plate-manica ',
+  'kit-helmet-murmillo kit-helmet-thraex kit-galerus kit-shield-scutum kit-shield-parma kit-plate-chest kit-plate-manica ',
   'kit-plate-greave kit-wrap-trousers kit-net-draped kit-arm-up-musc kit-arm-lo-musc kit-leg-up-musc kit-leg-lo-musc kit-arm-up-lean kit-arm-lo-lean kit-leg-up-lean ',
   'kit-leg-lo-lean kit-arm-up-avg kit-arm-lo-avg kit-leg-up-avg kit-leg-lo-avg ',
   // the beasts
@@ -853,12 +853,12 @@ const SHIPPED = new Set([
   'weapon-bow weapon-bow-drawn arrow'
 ].join('').split(' '));
 // Pack 27: the helmets and head gear painted onto the head ship as <name>-worn.webp; their old pieces' files are retired
-const WORN = new Set(['kit-helmet-gallic', 'kit-helmet-murmillo', 'kit-helmet-thraex', 'kit-helmet-secutor', 'gear-bronze-crest', 'gear-plumed-helm', 'gear-phalanx-helm',
+const WORN = new Set(['kit-helmet-gallic', 'kit-helmet-murmillo', 'kit-helmet-thraex', 'gear-bronze-crest', 'gear-plumed-helm', 'gear-phalanx-helm',
   'gear-horned-cap', 'gear-dark-hood', 'gear-blood-band', 'gear-ribbon-band', 'gear-laurel-wreath']);
 const shippedSrc = (name) => `assets/${name}${WORN.has(name) ? '-worn' : ''}.webp`;
 // the art the game asks: E.art in the dev channel (candidates and the designer's picks), the shipped A picks in release
 export const shippedArt = { enabled: true, has: (n) => SHIPPED.has(n), choice: () => 0, url: shippedSrc, src: shippedSrc, on() {} };
-const RETIRED = /^(kit-base-(upperarm|forearm|thigh|shin)(-(lean|avg))?(-seg)?|beast-(lion|bear)-(body|upperleg|lowerleg)(-young)?(-seg)?|beast-(lion|bear)-upperleg-young-seg)$/;
+const RETIRED = /^(kit-helmet-secutor(-worn)?|kit-base-(upperarm|forearm|thigh|shin)(-(lean|avg))?(-seg)?|beast-(lion|bear)-(body|upperleg|lowerleg)(-young)?(-seg)?|beast-(lion|bear)-upperleg-young-seg)$/;
 function artSrc(name) {
   const u = LO_HALF.test(name) && ART.has(upHalf(name)) ? upHalf(name) : null;
   return (u && ART.url(name, ART.choice(u))) || ART.src(name, shippedSrc(name));

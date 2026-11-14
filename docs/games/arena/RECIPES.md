@@ -98,7 +98,7 @@ Watch out: his painting `champ-<key>` is recipe 9.
 
 1. The final goes in `docs/art/final/arena/`, and a `.webp` copy in `games/arena/assets/` (3x its largest size on screen, quality 85).
 2. `SHIPPED`: add the name (it needs its file and an `sw.js` entry, says the comment above it).
-3. `WORN`: a head piece or helmet ships as `<name>-worn.webp`, so list it here too.
+3. `WORN`: a head piece or helmet ships as `<name>-worn.webp`, so list it here too. To retire a painting: remove it from `SHIPPED`, `WORN`, `TUNING.kit`, `sw.js` and `games/arena/assets/`, and add its name to `RETIRED` (game.js) so the dev channel's candidate manifest stops loading it. A helmet is chosen by the look's type: `KIT_HELM` (draw-fight.js), and for the brute by `hv`.
 4. `kit` (in `TUNING`), `gear`: the pins under `gear-<name>`. Weapons are under `weapon`, limbs under `half` and `crop`.
 5. `sw.js`: the file in `ART`, and bump `CACHE_VERSION`. These two are not in the index (`sw.js` is not indexed).
 6. `ART_NAMES`: a plain name for the ART tab; optional.

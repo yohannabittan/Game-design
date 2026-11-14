@@ -9,7 +9,7 @@ import { PROFILES, NEW_CHAMPS, BEASTS, beastTitle, ARENAS, ARENA, champTie, cham
 import { partCenter, poseFoe, beastRest, knee, clangSound, chantN } from './fight.js';
 import { sigOf } from './foe.js';
 import { C_, famN, growth, firstRun } from './cards.js';
-import { weaponKey, drawPic, sayLines, sayLine, brutusFaceOn, cardGrow, KIT_HELM, KIT_SHIELD, kitTier, kitPic, dollArt, helmArt, gearPic, shieldPic,
+import { weaponKey, drawPic, sayLines, sayLine, brutusFaceOn, cardGrow, KIT_HELM, KIT_SHIELD, foeGm, meGm, kitTier, kitPic, dollArt, helmArt, gearPic, shieldPic,
   drawSeg, kitTorso, torsoPlate, plateBoth, TAU, GTYPE, LEGS, canSprite, shade, lw, line, lerp2, paintGuard, kitSlot, kitGuard, drawHeart, drawCoin,
   rrect, paintWeapon, zonePic, KIND_WORD, kindSegs, drawWeapon, drawBeast } from './draw-fight.js';
 import { WHEELS, openTo, laurel, champs, tapLive, over } from './scenes.js';
@@ -342,7 +342,7 @@ function cardBox(ctx, E, c, x, y, w, h) {
 function draftDoll(ctx, E) {
   const D = TUNING.draft.doll, s = D / 1.08, x = 16 + E.safe.left + 0.4 * s, y = E.safe.top + 6 + D;
   E.roundRect(x - 0.42 * s, y - D - 4, 0.84 * s, D + 8, 8, 'rgba(31,26,36,0.9)', '#4a4252');
-  armourIcon(ctx, E, playerParts({ plates: state.me.plates }), x, y, s, state.me.str, GTYPE[state.me.weapon].helm);
+  armourIcon(ctx, E, playerParts({ plates: state.me.plates }), x, y, s, state.me.str, meGm(state.me));
   return { x, y, s };
 }
 // a tap on a draft card takes it: it flies to the doll (play.update picks it when it lands); the gold card without the gold shakes
@@ -930,7 +930,7 @@ function gapGlow(ctx, cs) {
 }
 // a man's figure on the card (his plates painted, as the fight's), feet at (x, y), s px a body unit, its gaps lit
 function manFigure(ctx, E, f, parts, x, y, s) {
-  armourIcon(ctx, E, parts, x, y, s, f.str, GTYPE[f.weapon.id].helm);
+  armourIcon(ctx, E, parts, x, y, s, f.str, foeGm(f));
   gapGlow(ctx, parts.filter((q) => q.slot).map((q) => {
     const p = q.d, j = p.frame ? PARTS[pidx(p.frame)].joint : [0, 0], side = p.frame === 'armF' ? 0.11 : 0;
     return [x + (j[0] + side + p.x) * s, y + (j[1] + p.y) * s, p.w * s / 2, p.h * s / 2, !!q.guard];
@@ -1011,7 +1011,7 @@ function drawIntroFull(ctx, E) {
   E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40 - 2 * bw), weight: '800', color: '#f0e6cc' });
   if (sub) E.text(sub, cx, y + 72, { size: bw ? fitSize(ctx, sub, 15, w - 2 * bw - 16) : 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   const lx = x + 80, s = 96;
-  armourIcon(ctx, E, guardParts(foeParts(makeRng(d.partSeed), d.set, d.plus || 0, dualGaps(d)), d.guards), lx, y + b + 100, s, d.str, GTYPE[d.weapon.id].helm);
+  armourIcon(ctx, E, guardParts(foeParts(makeRng(d.partSeed), d.set, d.plus || 0, dualGaps(d)), d.guards), lx, y + b + 100, s, d.str, foeGm(d));
   E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 14, weight: '800', color: '#aab3bc' });
   const ng = (d.guards || []).length;
   E.text(ng ? `${d.set.slots - ng} open · ${ng} guarded` : `${d.set.slots} gaps open`, lx, y + b + 134, { size: 14, weight: '700', color: '#c4b99a' });
@@ -1132,7 +1132,7 @@ function pairCol(ctx, E, f, x, y, w, tag, ex) {
   E.text(tag, x + w / 2, y + 6, { size: 14, weight: '800', color: '#c4b99a' });
   const nm = (f.beast ? beastTitle(f) : f.name).toUpperCase();
   E.text(nm, x + w / 2, y + 26, { size: Math.max(14, fitSize(ctx, nm, 18, w - 8)), weight: '800', color: f.champion ? '#ffd24a' : '#f0e6cc' });
-  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, E, f.parts, x + 40, y + 122 + ex / 2, 80, f.str, GTYPE[f.weapon.id].helm);
+  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, E, f.parts, x + 40, y + 122 + ex / 2, 80, f.str, foeGm(f));
   const rx = x + 84, rw = w - 88, ng = (f.guards || []).length, T = (t, yy, col = '#e2e8f0', wt = '700') => E.text(t, rx, yy, { size: 14, weight: wt, align: 'left', color: col });
   T(clipLine(ctx, f.beast ? `${f.size.name} · ${BEASTS[f.beast].name.toUpperCase()}` : `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
   profLine(ctx, E, f, rx, y + 69, rw, ex);
@@ -1354,7 +1354,7 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
   const box = { head: [x, y, rh], arms: [x, y + rh + g, rh], legs: [x, y + 2 * (rh + g), rh], chest: [rx, y, rh], weapon: [rx, y + rh + g, sd ? rh : 2 * rh + g], side: [rx, y + 2 * (rh + g), rh] };
   // the doll: your painted figure with the plates you wear, feet at the slots' foot
   const fy = y + 3 * rh + 2 * g - 6, s = Math.min((3 * rh + 2 * g - 12) / 1.08, dw / 0.62), dx = x + cw + g + dw / 2;
-  armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, GTYPE[me.weapon].helm);
+  armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, meGm(me));
   // the weapon in its hand, held up as the menu's fighter holds it (step 14); a second blade (step 18) the same in the other hand, leaning the other way
   if (me.weapon !== 'fist') {
     const [hx, lean] = TUNING.kit.weapon.doll;
@@ -1363,7 +1363,7 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
       ctx.save(); ctx.translate(px, py); ctx.rotate(Math.PI + sd * lean); ctx.translate(0, -ARM_LEN * s);
       drawWeapon(ctx, { weapon: iconWeapon(me.weapon), mace: me.mace }, s); ctx.restore();
       ctx.save(); ctx.beginPath(); ctx.arc(px, py, TUNING.kit.weapon.fist * s, 0, TAU); ctx.clip();
-      armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, GTYPE[me.weapon].helm); ctx.restore();
+      armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, meGm(me)); ctx.restore();
     }
   }
   // the sidearm (step 22) at the hip, hanging back

@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'arena-v74';
+const CACHE_VERSION = 'arena-v75';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'arena-v';
 // The painted art (docs/art/final/arena, one webp each); the release channel shows it, the dev channel shows the candidates instead.
@@ -34,7 +34,6 @@ const ART = [
   './assets/beast-lion-tail.webp',
   './assets/kit-helmet-murmillo-worn.webp',
   './assets/kit-helmet-thraex-worn.webp',
-  './assets/kit-helmet-secutor-worn.webp',
   './assets/kit-galerus.webp',
   './assets/kit-shield-scutum.webp',
   './assets/kit-shield-parma.webp',

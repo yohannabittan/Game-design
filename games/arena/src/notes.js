@@ -2,6 +2,7 @@
 // The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
 // then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
 export const NOTES = [
+  { v: 75, date: '14 Nov', lines: ['Crests and plumes now sweep back over the head, as they should.', 'Fight an axe man: the round two-eyehole helmet is gone. He wears a Gallic, murmillo or Thracian helmet instead.'] },
   { v: 74, date: '14 Nov', lines: ['This card is new: tap the build number on the menu after any update.', 'Tap › for the builds before this one.', 'Today’s other updates: the long spear (v73), the block warning on small and big fighters (v72), heavier knives and the sica’s point (v71), the hurried overhead (v70).'] },
   { v: 73, date: '14 Nov', lines: ['Take a spear: it is as long as his now.', 'Let a foe step in close and push: your hand slides up the shaft and the point still lands.', 'The trident does the same.'] },
   { v: 72, date: '14 Nov', lines: ['Play a runt or a giant and watch the block warning: it sits on your own head, chest and legs now.'] },
