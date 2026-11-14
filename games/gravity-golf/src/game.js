@@ -81,6 +81,8 @@ const TUNING = {
   previewFullSeconds: 2.0,   // Length of the full preview in simulated seconds
   previewShortSeconds: 0.2,  // Length of the preview after the full-preview holes (PRD v0.16 A)
   readItLast: 2,         // PRD v0.16 A: the last this-many holes of every sector draw no preview, only the straight pointer (the 'Read it' holes)
+  retryMainHoles: 5, // holes 1 to this: on a 1 or 2 star card Retry is the main button, Next second
+  goalMax: 30, // the star target's headline on a 1 or 2 star card: largest size (it shrinks to fit)
   readItLabel: 'Read it', // Its end-card line
   previewDotEvery: 0.05, // Simulated seconds between preview dots
   physicsStep: 1 / 120,  // Fixed physics timestep in seconds
@@ -425,7 +427,7 @@ const TUNING = {
     },
     ghost: { dotR: 1.3, every: 2 }, // The last shot's ghost: dot radius, and one dot per this many trail samples
     retry: { pad: 14, icon: 7, iconW: 2.2, head: 4.5, gap: 9 }, // The HUD Tee +1 button: left padding, arrow radius, line width, arrowhead size, gap to the word (screen px)
-    hint: { text: 'Drag anywhere away from the ball to aim, release to shoot.', fade: 0.5, y: 0.14, pad: 14, lineH: 20, margin: 28 }, // The first-run hint: on a fresh save until the first release, then it fades (seconds; y as a fraction of the field's height from its top)
+    hint: { text: 'Drag back. Release. Dots show the shot.', fade: 0.5, y: 0.14, pad: 14, lineH: 20, margin: 28 }, // The first-run hint: on a fresh save until the first release, then it fades (seconds; y as a fraction of the field's height from its top)
     further: { text: 'Drag further', time: 1.2, dy: 30 }, // A release inside the dead zone: this call-out above the ball for `time` seconds (dy in design units)
     stuckShots: 3, // Shots from a planet (or sun) that end on the same one before the 'More power to leave the planet (sun)' toast, once per hole
     hudRun: { line1: 12, line2: 32 }, // The run counter and the landed mark, left of Tee +1: baselines below the HUD (screen px)
@@ -3806,6 +3808,7 @@ const over = {
     this.beat = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starPop * 0.6 + J.buttonGap;
     this.btnBlind = null; this.offer = p.has3 && !p.fourth; // the Expert button follows any finish (normal or Expert) of a three-starred hole, until its fourth star is won
     this.btnNext = null; this.btnMenu = null; this.btnRetry = null;
+    this.retryMain = p.stars < 3 && p.hole < T.retryMainHoles && p.hasNext; // a miss on the first holes: Retry is the main button, the next hole second
     this.mc = samPick(E, p); this.mcT = null; this.Lkey = ''; // Mission Control's line and fact for this card, chosen once
     this.badges = (p.badges || []).map(badgeById);
     this.badgeT = J.starDelay + Math.max(0, n - 1) * J.starStagger + J.starPop + J.badgeDelay; // the first badge pops after the stars
@@ -3878,7 +3881,11 @@ const over = {
     ctx.restore();
     if (p.tees > 0) E.text(`(including ${p.tees} tee ${p.tees === 1 ? 'penalty' : 'penalties'})`, cx, L.tee, TX.sm);
     E.text(`Par ${p.par}`, cx, L.par, TX.dim);
-    E.text(`3 stars: ${shots(p.three)}   2 stars: ${shots(p.par)}`, cx, L.rules, TX.sm);
+    if (p.stars < 3) { // the target is the headline of a card that missed it
+      if (p.stars < 2) E.text(`2 stars: ${shots(p.par)}`, cx, L.rules, TX.sm);
+      const goal = `3 stars: ${shots(p.three)}`;
+      E.text(goal, cx, L.line, { size: fitSize(ctx, goal, TY.heavy, T.goalMax, TY.md, pw - 32), color: P.green, weight: TY.heavy, alpha: clamp((t - J.starDelay) / J.lineFade, 0, 1) });
+    } else E.text(`3 stars: ${shots(p.three)}   2 stars: ${shots(p.par)}`, cx, L.rules, TX.sm);
     const BL = T.blind, four = p.has3 || p.blind; // a three-starred hole shows the fourth star's slot beside the three
     for (let i = 0; i < 3; i++) {
       const sx = cx + (four ? BL.cardStarsX[i] : (i - 1) * 64), sy = L.stars;
@@ -3907,12 +3914,12 @@ const over = {
     if (this.ready) {
       const bk = ease.outBack(clamp((t - this.beat) / J.buttonPop, 0, 1)), by = L.by;
       ctx.save(); ctx.translate(cx, by); ctx.scale(bk, bk); ctx.translate(-cx, -by);
-      this.btnNext = pill(E, p.hasNext ? 'Next' : 'Menu', cx, by, BTN.primary);
+      const rm = this.retryMain, sy2 = by + L.second;
+      if (rm) this.btnRetry = pill(E, 'Retry', cx, by, BTN.primary); else this.btnNext = pill(E, p.hasNext ? 'Next' : 'Menu', cx, by, BTN.primary);
       ctx.restore();
-      const hx = p.hasNext ? (BTN.secondCard.w + A.menu.rowGap) / 2 : 0; // Retry beside Menu (Retry alone when Menu is the main button)
-      const sy2 = by + L.second;
+      const hx = p.hasNext ? (BTN.secondCard.w + A.menu.rowGap) / 2 : 0; // the second row: Retry beside Menu, or Next beside Menu when Retry is the main button (Retry alone when Menu is the main button)
       ctx.save(); ctx.translate(cx, sy2); ctx.scale(bk, bk); ctx.translate(-cx, -sy2);
-      this.btnRetry = pill(E, 'Retry', cx - hx, sy2, BTN.secondCard);
+      if (rm) this.btnNext = pill(E, 'Next', cx - hx, sy2, BTN.secondCard); else this.btnRetry = pill(E, 'Retry', cx - hx, sy2, BTN.secondCard);
       if (p.hasNext) this.btnMenu = pill(E, 'Menu', cx + hx, sy2, BTN.secondCard);
       ctx.restore();
       if (this.offer) {
@@ -3949,11 +3956,16 @@ const over = {
       this.skip = (this.badges.length - 1) * R.dur + R.dur - R.settle + J.badgePop - (this.t - this.badgeT);
       return;
     }
-    if (!this.ready || !this.btnNext || p.startT < this.t0 + this.beat) return;
-    if (E.hit(this.btnNext, p)) { if (this.p.hasNext) toPlay(E, { hole: this.p.hole + 1, run: true }); else { endRun(E, false); E.setScene('menu'); } }
-    else if (this.btnMenu && E.hit(this.btnMenu, p)) { endRun(E, false); E.setScene('menu'); }
+    if (!this.ready || p.startT < this.t0 + this.beat) return;
+    if (this.btnNext && E.hit(this.btnNext, p)) { if (this.p.hasNext) this.leave(E, { hole: this.p.hole + 1, run: true }); else { endRun(E, false); this.leave(E, null); } }
+    else if (this.btnMenu && E.hit(this.btnMenu, p)) { endRun(E, false); this.leave(E, null); }
     else if (this.btnRetry && E.hit(this.btnRetry, p)) this.again(E, this.p.blind, 'card'); // the hole again, blind if it was blind
     else if (this.btnBlind && E.hit(this.btnBlind, p)) this.again(E, true, 'blind');
+  },
+  // Leaving hole 1's card on a fresh save: the cold open plays once, then on to `next` (null: the menu).
+  leave(E, next) {
+    if (this.p.hole === 0 && !E.save.get('openSeen', false)) E.setScene('story', { next });
+    else if (next) toPlay(E, next); else E.setScene('menu');
   },
   // The hole again; a full run goes on, this attempt's strokes still counted (v0.5 A2).
   again(E, blind, from) {
@@ -4536,7 +4548,7 @@ function cardsScene(def) {
 const story = cardsScene({
   cards: (E, p) => (p.replay ? [...OPEN, ...(E.save.get('turnSeen', false) ? TURN : []), ...(E.save.get('endSeen', false) ? END : [])] : OPEN),
   enter(E, p) { if (!p.replay) E.save.set('openSeen', true); E.ledger.add('story', { part: p.replay ? 'replay' : 'open' }); },
-  finish(E) { E.setScene('menu'); },
+  finish(E, self) { if (self.p.next) toPlay(E, self.p.next); else E.setScene('menu'); },
 });
 // The turn: the first time hole 26 opens, before its first shot (params are the play scene's).
 const turn = cardsScene({
@@ -4656,7 +4668,7 @@ export const game = {
     return data;
   },
   TUNING,
-  init(E) { loadArt(); warmUp(E.ctx); game.start = E.save.get('openSeen', false) ? 'menu' : 'story'; }, // a fresh save opens on the cold open
+  init(E) { loadArt(); warmUp(E.ctx); }, // a fresh save opens on the menu: Play is hole 1, and the cold open plays after its card
   // Playtest ranges for the engine's tune panel; physics reads them every step, so a change applies from the next shot.
   // PRD v0.3 D: gravity presets. The routes are proven at Heavy (the defaults) only.
   presets: [

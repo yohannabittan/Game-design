@@ -34,6 +34,7 @@ const TUNING = {
   cleanTraveller: 10,                     // a beeper with only harmless metal, left alone (a traveller who did not beep pays nothing)
   earlyMax: 3, earlyMin: 0.5,             // a bag catch: x3 entering at the top, x0.5 at the bottom; a body catch: x3 during the scan, x0.5 leaving
   streakSteps: [4, 8, 12, 16],            // x2 to x5 (bags and travellers both count)
+  forgive: { day: 1, count: 2 },          // on this day the first `count` false alarms cost no strike and say what the thing was
   falseLock: 0.6,                         // the time penalty of a false alarm: taps are ignored this long while the traveller grumbles
   swat: { bonus: 800, capShare: 0.33, min: 300, slow: 0.25, slowT: 1.3, len: 3.4, drop: 0.35, tackle: 0.6, drag: 2.5, zoom: 1.4 },   // bonus x early factor, the day's SWAT bonuses together capped at capShare of goodDay (a call always pays at least min); the belt and lane at `slow` for slowT s
   goodDay: [25500, 20500, 16500, 24500, 21000, 21000, 37000, 37000, 29000, 37500],   // a good day's score per day: the fast reader at normal speed, mean of 12 seeds (tools/sim-checkpoint.mjs prints it against the live value); the day's SWAT bonuses together are capped at capShare of it
@@ -912,13 +913,14 @@ function falseAlarm(E, b, it) {
   say(b.tr, 'false');
 }
 function raiseFalse(E, px, py, ux, uy, name) {
+  const free = S.shift === T.forgive.day && S.falseAlarms < T.forgive.count;
   S.falseAlarms++; S.lockUntil = S.time + T.falseLock;
   for (const t of J.tones.falseAlarm) tone(E, t);
   E.haptic(J.haptic.falseAlarm); E.shake(...J.shake.falseAlarm); E.flash(P.falseAlarm, J.screenFlash);
   burst(E, px, py, P.falseAlarm, J.burst.falseAlarm, J.burstSpeed * 0.7);
-  addFx('False alarm', ux, uy, P.falseAlarm);
-  S.log.push({ t: S.time, e: 'false', item: name }); S.faNames.push(name);
-  strike(E);
+  addFx(free ? `${name[0].toUpperCase()}${name.slice(1)}: fine` : 'False alarm', ux, uy, P.falseAlarm);
+  S.log.push({ t: S.time, e: 'false', item: name, free }); S.faNames.push(name);
+  if (!free) strike(E);
 }
 function missCost(E, tier, name, ghost) {
   S.misses++;
