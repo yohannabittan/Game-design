@@ -21,7 +21,7 @@
 - **The long spear is being used as a slashing weapon** (83 slashes to 22 jabs across the two spear runs). Whether that is taste or the jab not feeling worth it is for the designer to say.
 - **No-armour runs are now a real choice:** three of the five kept the gold, and the mace run reached the champion with 19 hits taken.
 - **The bout-2 beast is Rome's most common ending.** Three of these five runs ended on the young lion. Across the whole export, about a dozen Rome runs end in bout 2 on a young lion, a lion or a young bear, more than on any other single foe. Not raised as a fault: the designer called these good games. Worth watching whether it reads as "the wall" or as "the fight I look forward to".
-- **Overheads are in use** since the hurried overhead (v70): 8, 2, 5 and 2 in four of the runs.
+- **Overheads are in use** since the hurried overhead (v70): 8, 6, 2, 5 and 2 across the five runs.
 - No knives or arrows in these five.
 
 ## Next
