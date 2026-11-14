@@ -629,6 +629,8 @@ About 14 images, US$2 to 3.
 
 ### Pack 31: Arena, a helmet that shows the fighter (a probe, added 2026-11-14)
 
+**Cancelled the same day, before anything was made.** The designer looked again and likes the helmets as they are, except the two-eyehole dome, which is retired in code (`docs/games/arena/steps/2026-11-14-helmets.md`). Nothing to paint.
+
 **For:** `docs/games/arena/steps/2026-11-14-helmets.md`. The designer isn't a fan of the full coverage helmets and wants them reworked, with the feel of film gladiators' helms.
 
 **A probe first: one helmet, three directions.** Take the murmillo. Its current worn painting is `docs/art/final/arena/kit-helmet-murmillo-worn.png` (the whole head painted wearing it, Pack 27), and the bare head it was painted onto is the Pack 27 head reference. Use Pack 27's method: edit the head painting by inpainting, so the helmet is worn, not stuck on, on the same canvas with the same pins.
