@@ -3,33 +3,37 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Knife Aim Sketch</title>
 <style>
-html,body{margin:0;height:100%;background:#2b1d12;overflow:hidden;overscroll-behavior:none}
-canvas{display:block;width:100vw;height:100vh;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+html,body{margin:0;height:100%;background:#2b1d12;overflow:hidden;overscroll-behavior:none;position:fixed;inset:0;width:100%;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+canvas{display:block;width:100%;height:100%;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;outline:none}
 </style></head><body><canvas id="c"></canvas>
 <script>
 (()=>{
 const cv=document.getElementById('c'),g=cv.getContext('2d');
 const LH=402;                       // logical height; width follows the screen
-let LW=874,SC=1,DPR=1,GY=340,FX=0,HX=0,SHY=198;
-const T={tap:0.18,lift:50,snap:14,speed:2000,knives:5,dmg:5,klen:54,pre:0.6,grow:0.5,gain:2,ringR:12,fall:1500};
+let LW=874,SC=1,OY=0,DPR=1,GY=340,FX=0,HX=0,SHY=198;
+const T={tap:0.18,lift:50,snap:14,speed:2000,knives:5,dmg:12,skin:4,release:0.07,klen:54,pre:0.6,grow:0.5,gain:2,ringR:12,fall:1500};
 const GAPS=[ // relative to foe centre x, absolute y offset above feet
  {n:'neck',dx:0,dy:-190,w:32,h:12},{n:'pit',dx:-36,dy:-152,w:14,h:34},{n:'belt',dx:0,dy:-108,w:42,h:11},{n:'knee',dx:4,dy:-58,w:30,h:11}];
-const S={way:1,look:'a',now:0,raised:false,knives:T.knives,hits:0,miss:0,P:null,h:0,thr:-9,
+const SKIN=[{n:'face',dx:0,dy:-201,w:24,h:9},{n:'near arm',dx:-49,dy:-122,w:14,h:20},{n:'far arm',dx:39,dy:-122,w:14,h:20}];
+const S={way:1,look:'a',now:0,raised:false,knives:T.knives,hits:0,miss:0,pts:0,P:null,h:0,thr:-9,pend:null,tAng:0,
  ring:{x:0,y:0},proj:[],stuck:[],lying:[],fx:[],hint:'',hintT:0,demo:false,frozen:false};
 let BTN={};
 function layout(){
-  SC=innerHeight/LH;LW=innerWidth/SC;
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  SC=Math.min(innerWidth/715,innerHeight/LH);LW=innerWidth/SC;OY=(innerHeight-LH*SC)/2;
   cv.width=Math.round(innerWidth*DPR);cv.height=Math.round(innerHeight*DPR);
-  GY=340;FX=Math.round(LW*0.8);HX=Math.round(LW*0.16);
+  const ofx=FX;GY=340;FX=Math.round(LW*0.8);HX=Math.round(LW*0.16);
+  if(ofx&&ofx!==FX){const d=FX-ofx;S.ring.x+=d;for(const k of S.stuck)k.x+=d;for(const k of S.lying)k.x+=d}
   const bw=Math.min(206,(LW-150-12)/2);
   BTN.way={x:8,y:4,w:bw,h:44};BTN.look={x:16+bw,y:4,w:bw,h:44};
   BTN.reset={x:LW-62,y:4,w:54,h:44};
   BTN.knife={x:14,y:GY-30,w:100,h:44};
 }
 function gapRect(i){const q=GAPS[i];return{x:FX+q.dx,y:GY+q.dy,w:q.w,h:q.h}}
+function skinRect(i){const q=SKIN[i];return{x:FX+q.dx,y:GY+q.dy,w:q.w,h:q.h}}
 function inR(r,x,y){return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h}
 function resetAll(keepModes){
-  S.raised=false;S.knives=T.knives;S.hits=0;S.miss=0;S.P=null;S.h=0;S.thr=-9;S.proj=[];S.stuck=[];S.lying=[];S.fx=[];S.hint='';S.hintT=0;
+  S.raised=false;S.knives=T.knives;S.hits=0;S.miss=0;S.pts=0;S.P=null;S.h=0;S.thr=-9;S.pend=null;S.proj=[];S.stuck=[];S.lying=[];S.fx=[];S.hint='';S.hintT=0;
   S.ring={x:FX-8,y:GY-125};
 }
 // ---- audio (cosmetic)
@@ -41,66 +45,88 @@ const SFX={grab(){tone(900,900,0.04,0.05,'square')},hit(){tone(180,50,0.18,0.4)}
 function gapNear(p){let best=-1,bd=1e9;
   for(let i=0;i<GAPS.length;i++){const r=gapRect(i),cx=r.x,cy=r.y;const dx=Math.max(Math.abs(p.x-cx)-r.w/2,0),dy=Math.max(Math.abs(p.y-cy)-r.h/2,0),d=Math.hypot(dx,dy);if(d<=T.snap&&d<bd){bd=d;best=i}}
   return best}
-function aimPoint(){const gi=gapNear(S.ring);if(gi>=0){const r=gapRect(gi);return{x:r.x,y:r.y,gap:gi}}return{x:S.ring.x,y:S.ring.y,gap:-1}}
+function skinAt(p){for(let i=0;i<SKIN.length;i++){const r=skinRect(i);if(Math.abs(p.x-r.x)<=r.w/2+2&&Math.abs(p.y-r.y)<=r.h/2+2)return i}return -1}
+function aimPoint(){const si=skinAt(S.ring);if(si>=0)return{x:S.ring.x,y:S.ring.y,gap:-1,skin:si};
+  const gi=gapNear(S.ring);if(gi>=0){const r=gapRect(gi);return{x:r.x,y:r.y,gap:gi,skin:-1}}return{x:S.ring.x,y:S.ring.y,gap:-1,skin:-1}}
 function clampRing(p){return{x:Math.max(20,Math.min(LW-12,p.x)),y:Math.max(56,Math.min(GY+8,p.y))}}
 function knifeUp(){return S.way===1?S.raised:!!(S.P&&S.P.kind==='knife')}
-// hand and knife pose from state
+// hand and knife pose: wind-up (arm back, knife by the head), whip forward, follow-through, recover
+const lerp=(a,b,k)=>a+(b-a)*k,ease=k=>k*k*(3-2*k),cl01=k=>Math.max(0,Math.min(1,k));
+function rot(p,a){const hx=HX,hy=GY-72,c=Math.cos(a),s=Math.sin(a),dx=p.x-hx,dy=p.y-hy;return{x:hx+dx*c-dy*s,y:hy+dx*s+dy*c}}
 function pose(){
-  const sh={x:HX+4,y:SHY},up={x:HX+44,y:SHY+12};
-  const ap=aimPoint(),h=S.h;
-  const rest={x:HX+30,y:SHY+44};
-  let base=knifeUp()?up:rest;
-  let dir0=Math.atan2(ap.y-base.y,ap.x-base.x),idle=-1.05;
-  const ang=knifeUp()?idle+(dir0-idle)*Math.min(1,h):0.9;
-  const back=22*h,since=S.now-S.thr;
-  let kick=0;if(since>=0&&since<0.14)kick=16*(1-since/0.14);
-  const hand={x:base.x-Math.cos(ang)*back+Math.cos(ang)*kick,y:base.y-Math.sin(ang)*back+Math.sin(ang)*kick};
+  const ap=aimPoint(),e=ease(S.h),since=S.now-S.thr;
+  const S0={x:HX+4,y:SHY},U={x:HX+42,y:SHY+10},R={x:HX+30,y:SHY+44},C={x:HX-6,y:GY-190};
+  const whip=since>=0&&since<0.65&&S.h<0.05;
+  let la=-0.13*e,hand,ang,after=knifeUp()?U:R;
+  if(whip){
+    const k=cl01(since/0.10),k2=cl01((since-0.10)/0.18),k3=cl01((since-0.28)/0.37);
+    la=since<0.10?lerp(-0.13,0.2,ease(k)):since<0.28?0.2:lerp(0.2,0,ease(k3));
+    const sh=rot(S0,la),dx=Math.cos(S.tAng),dy=Math.sin(S.tAng);
+    const Cw=rot(C,-0.13),Ew={x:sh.x+dx*66,y:sh.y+dy*66};
+    if(since<0.10)hand={x:lerp(Cw.x,Ew.x,ease(k)),y:lerp(Cw.y,Ew.y,ease(k))};
+    else{const F={x:Ew.x+dx*8,y:Ew.y+dy*8+12},A=rot(after,la);
+      hand=since<0.28?{x:lerp(Ew.x,F.x,ease(k2)),y:lerp(Ew.y,F.y,ease(k2))}:{x:lerp(F.x,A.x,ease(k3)),y:lerp(F.y,A.y,ease(k3))}}
+    ang=S.tAng;
+  }else{
+    const b=knifeUp()?U:R;
+    const h0={x:lerp(b.x,C.x,e),y:lerp(b.y,C.y,e)};hand=rot(h0,la);
+    const toward=Math.atan2(ap.y-hand.y,ap.x-hand.x);
+    ang=knifeUp()?lerp(-1.05,toward,e):0.9;
+  }
+  const sh=rot(S0,la);
   const tip={x:hand.x+Math.cos(ang)*T.klen,y:hand.y+Math.sin(ang)*T.klen};
-  const gripAng=ang;
-  return{sh,hand,tip,ang:gripAng,up:knifeUp()||since<0.3&&since>=0}}
+  const has=!!S.pend||(S.knives>0&&(since<0||since>=0.45||S.h>0.05));
+  const offw=whip&&since<0.28?1:whip?1-cl01((since-0.28)/0.37):e;
+  return{sh,hand,tip,ang,la,e,has,offw}}
 // ---- input
 function pdown(id,x,y){
   audio();
-  if(inR(BTN.reset,x,y)){resetAll();return}
-  if(inR(BTN.way,x,y)){S.way=S.way===1?2:1;S.raised=false;S.P=null;return}
-  if(inR(BTN.look,x,y)){S.look=S.look==='a'?'b':'a';return}
-  if(S.P)return;
+  if(inR(BTN.reset,x,y)){resetAll();return'reset button'}
+  if(inR(BTN.way,x,y)){S.way=S.way===1?2:1;S.raised=false;S.P=null;return'way button'}
+  if(inR(BTN.look,x,y)){S.look=S.look==='a'?'b':'a';return'line button'}
+  if(S.P)return'ignored: another finger is down';
   if(inR(BTN.knife,x-6,y-6)||inR(BTN.knife,x+6,y+6)){
-    if(S.knives<=0)return;
-    if(S.way===1){S.raised=!S.raised;SFX.ready();say(S.raised?'knife up':'')}
-    else S.P={id,kind:'knife',t0:S.now,sx:x,sy:y,bx:S.ring.x,by:S.ring.y,held:false};
-    return}
-  if(S.way===1&&S.raised&&x>LW*0.4){
-    S.P={id,kind:'aim',t0:S.now,held:false};S.ring=clampRing({x,y:y-T.lift})}
-}
+    if(S.knives<=0)return'knife button: no knives';
+    if(S.way===1){S.raised=!S.raised;SFX.ready();say('');return'knife button: '+(S.raised?'raised':'lowered')}
+    S.P={id,kind:'knife',t0:S.now,sx:x,sy:y,bx:S.ring.x,by:S.ring.y,held:false};return'knife button: press (way 2)'}
+  if(S.way===1&&S.raised){S.P={id,kind:'aim',t0:S.now,held:false};S.ring=clampRing({x,y:y-T.lift});return'aim: press started'}
+  return S.way===1?'ignored: tap Knife first':'ignored: way 2 starts on the Knife button'}
 function pmove(id,x,y){const P=S.P;if(!P||P.id!==id)return;P.lx=x;P.ly=y;
   if(P.kind==='aim')S.ring=clampRing({x,y:y-T.lift});
   else S.ring=clampRing({x:P.bx+(x-P.sx)*T.gain,y:P.by+(y-P.sy)*T.gain})}
-function pup(id,x,y){const P=S.P;if(!P||P.id!==id)return;
-  if(P.held)doThrow();
-  else if(P.kind==='knife')say('tap: nothing (hold to take the knife)');
-  else say('short press: only moved the ring');
-  S.P=null}
+function pup(id,x,y){const P=S.P;if(!P||P.id!==id)return'ignored';
+  let d;
+  if(P.held){doThrow();d='released: THROW'}
+  else if(P.kind==='knife'){say('tap: nothing (hold to take the knife)');d='released: tap, nothing'}
+  else{say('short press: only moved the ring');d='released: short press, ring moved'}
+  S.P=null;return d}
+function pcancel(id){const P=S.P;if(!P||(id!==undefined&&P.id!==id))return'ignored';S.P=null;say('cancelled: knife stays in hand');return'CANCELLED: knife stays in hand'}
 function say(t){S.hint=t;S.hintT=S.now}
 function doThrow(){
   const p=pose(),ap=aimPoint();
-  S.knives--;S.thr=S.now;if(S.way===1)S.raised=false;
+  S.knives--;S.thr=S.now;if(S.way===1)S.raised=S.knives>0;
+  S.tAng=Math.atan2(ap.y-p.sh.y,ap.x-p.sh.x);
+  S.pend={t:S.now+T.release,ap};SFX.fly()}
+function spawn(){
+  const p=pose(),ap=S.pend.ap;S.pend=null;
   const d=Math.hypot(ap.x-p.tip.x,ap.y-p.tip.y)||1;
-  S.proj.push({x:p.tip.x,y:p.tip.y,tx:ap.x,ty:ap.y,gap:ap.gap,ang:Math.atan2(ap.y-p.tip.y,ap.x-p.tip.x),d,go:0,fall:null});
-  SFX.fly()}
+  S.proj.push({x:p.tip.x,y:p.tip.y,tx:ap.x,ty:ap.y,gap:ap.gap,skin:ap.skin,ang:Math.atan2(ap.y-p.tip.y,ap.x-p.tip.x),d,go:0,fall:null})}
 // ---- update
 function step(dt){
   S.now+=dt;const P=S.P;
+  if(S.pend&&S.now>=S.pend.t)spawn();
   if(P&&!P.held&&S.now-P.t0>=T.tap&&(P.kind==='knife'||S.raised)){P.held=true;P.heldAt=S.now;SFX.grab()}
-  const tgt=P&&P.held?1:(knifeUp()?0:0);
-  S.h+=Math.sign(tgt-S.h)*Math.min(Math.abs(tgt-S.h),dt/0.13);
+  const tgt=P&&P.held?1:0;
+  S.h+=Math.sign(tgt-S.h)*Math.min(Math.abs(tgt-S.h),dt/0.16);
   for(const q of S.proj){
     if(q.fall){q.vy+=T.fall*dt;q.x+=q.vx*dt;q.y+=q.vy*dt;q.ang+=q.spin*dt;if(q.y>=GY+14){q.y=GY+14;q.done=1;S.lying.push({x:q.x,y:q.y,ang:q.ang})}continue}
     q.go+=T.speed*dt;
     const f=Math.min(1,q.go/q.d);const sx=q.sx!==undefined?q.sx:(q.sx=q.x,q.sy=q.y,q.sx);
     q.px=q.sx+(q.tx-q.sx)*f;q.py=q.sy+(q.ty-q.sy)*f;
     if(f>=1){
-      if(q.gap>=0){S.hits++;S.stuck.push({x:q.tx,y:q.ty,ang:q.ang});S.fx.push({k:'num',x:q.tx,y:q.ty,t:S.now,txt:'+'+T.dmg});S.fx.push({k:'burst',x:q.tx,y:q.ty,t:S.now,c:'#ffd23f'});SFX.hit();q.done=1}
+      if(q.gap>=0||q.skin>=0){const big=q.gap>=0,pts=big?T.dmg:T.skin;S.hits++;S.pts+=pts;S.stuck.push({x:q.tx,y:q.ty,ang:q.ang});
+        S.fx.push({k:'num',x:q.tx,y:q.ty,t:S.now,txt:'+'+pts,c:big?'#ffd23f':'#ff9a6b'});
+        S.fx.push({k:big?'burst':'nick',x:q.tx,y:q.ty,t:S.now,c:'#ffd23f'});big?SFX.hit():SFX.dull();q.done=1}
       else{S.miss++;const onFoe=Math.abs(q.tx-FX)<52&&q.ty>100&&q.ty<GY;
         S.fx.push({k:'dull',x:q.tx,y:q.ty,t:S.now});SFX.dull();
         if(!onFoe)S.fx.push({k:'num',x:q.tx,y:q.ty,t:S.now,txt:'miss',c:'#bbb'});
