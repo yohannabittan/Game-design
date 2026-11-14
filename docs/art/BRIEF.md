@@ -12,6 +12,7 @@ The designer doesn't code. They play the games on a phone from a home-screen ico
 2. **Never print, log, echo, commit or write a key to any file,** and never ask for one in chat.
 3. **PIL is broken in the cloud container.** Resize, cut and build contact sheets in a headless browser (Playwright is installed; use a canvas and `toBlob`).
 4. Keep your own work lean: small scripts, no long loops.
+5. **If anything in this brief is wrong or out of date,** say so in your handoff, under "The brief". The orchestrator fixes the brief.
 
 ## Rules (from ADR-0015, summarised)
 

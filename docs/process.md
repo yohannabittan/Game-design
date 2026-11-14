@@ -170,6 +170,11 @@ The designer: "How can we improve this in the future and not let the tools and m
 - **What the designer had to say twice.** A thing repeated is a missing rule or a missing check.
 - **Out of it come at most three changes, and at least one removal.**
 
+**2b. The people who use an instruction report on it.** A check can tell when a document names something that's gone; it can't tell when an instruction is simply wrong. So:
+- every agent's report says what in its card or brief was wrong, missing or out of date (`docs/team.md`);
+- **one home per fact:** a brief that has to repeat or correct a card means the card gets fixed in the same turn;
+- at each retro the cards are read through once against how the last builds were actually run, and the team file's review date is moved. The docs check warns when that date is more than 30 days old.
+
 **3. Rules retire.** Every rule in `CLAUDE.md` and this file carries the date it was made. At a retro, a rule that didn't matter since the last one is cut or folded into another. A longer rulebook is read less.
 
 **4. When the model changes, question the scaffolding.** Much of the method exists to make up for what a model couldn't do: narrow briefs, one file per layer, heavy checks. A stronger model may not need a guard, and a guard nobody needs is cost. At the first retro after a model change, name one guard to try without, and say what would bring it back.

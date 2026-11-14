@@ -1,6 +1,8 @@
 # The team: who reads what, who may use what
 
-Every agent's brief starts: "You are a **<role>**. Read `CLAUDE.md`, then your card in `docs/team.md`." The card is the standing part of the brief; the orchestrator adds only the task. Reviewed on 2026-11-14; `tools/docs-check.mjs` fails if a tool in `tools/` is missing from the table below.
+Every agent's brief starts: "You are a **<role>**. Read `CLAUDE.md`, then your card in `docs/team.md`." The card is the standing part of the brief; the orchestrator adds only the task. Reviewed on 2026-11-14; `tools/docs-check.mjs` fails if a tool in `tools/` is missing from the table below, and warns when that review date is more than 30 days old.
+
+**One home per fact.** A standing instruction lives in one card and nowhere else. If a brief has to repeat or correct a card, the card is wrong: fix the card in the same turn, and don't patch around it in the brief. (The artist's brief told sessions to look for a key that had moved; for weeks the opening message corrected it and the brief stayed wrong.)
 
 ## Who is on the team
 
@@ -54,6 +56,7 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
   - the checks, perf and smoke: what passed, what didn't, and what you couldn't check;
   - each decision the PRD didn't settle;
   - **what you had to hunt for:** two or three lines on what took longest to find, and what would have sent you straight there;
+  - **what in your card or brief was wrong, missing or out of date,** if anything;
   - one changelog line in the game's style. Don't write the file.
 
 ## Sketcher card
@@ -65,13 +68,14 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
 - **A touchable page is one self-contained file:** everything inline, no outside requests, 44 px targets, sized for a phone (about 874x402 in landscape).
 - **A GIF:** `node tools/sketch.mjs page <file.html> <out.gif>`. Give the page `window.renderFrame(n)` and `window.FRAMES` and it's recorded exactly. Name the move in a corner caption.
 - **Check it at phone size and look at it yourself.** 20 to 30 minutes; if it needs more, say so and stop.
-- **Report:** the file paths, and what's rough or unverified.
+- **Report:** the file paths, what's rough or unverified, and anything in your card or brief that was wrong or out of date.
 
 ## Helper card
 
 - **One job, one file.** Write only the file your brief names. Don't commit.
 - **Verify what you write against the repo:** a function name with `node tools/codemap.mjs <slug> --where <name>`, a path by looking.
 - **Mark what you couldn't verify** as "not verified", in the file and in your report.
+- **Say in your report** if anything in your card or brief was wrong or out of date.
 
 ## Artist card
 

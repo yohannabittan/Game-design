@@ -16,10 +16,16 @@
 - The docs check's warnings (`node tools/docs-check.mjs`):
 - What builders "had to hunt for":
 - What the designer had to say twice:
+- What agents reported wrong or out of date in their cards and briefs (`docs/team.md`, `docs/art/BRIEF.md`):
+- Did any brief repeat or correct a card? (Then the card was wrong: fix it.)
 
 ## What we change (at most three)
 
 1.
+
+## The cards, read through once
+
+- Read `docs/team.md` top to bottom against how the last ten builds were actually run. Change what's no longer true, then update its "Reviewed on" date.
 
 ## What we remove (at least one rule, check or tool)
 

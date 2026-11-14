@@ -11,6 +11,7 @@
 //   - docs/HANDOFF-orchestrator.md names an older version of a game than the one shipped
 //   - a tool in tools/ that neither CLAUDE.md, docs/process.md nor its own header comment explains
 //   - a process document nobody has touched for 30 days while the games kept changing
+//   - docs/team.md's "Reviewed on" date is more than 30 days old
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -68,10 +69,17 @@ for (const f of readdirSync(join(ROOT, 'tools'))) {
   if (!claude.includes(f) && !process_.includes(f) && !/^\s*(\/\/|#(?!!))\s*\S/m.test(head)) WARN(`tools/${f} is not explained in CLAUDE.md, docs/process.md or its own header`);
 }
 
+// 5b. The team file's own review date: the cards are read through at each retro, and the date moved.
+if (team != null) {
+  const d = (team.match(/Reviewed on (\d{4}-\d{2}-\d{2})/) || [])[1];
+  if (!d) WARN('docs/team.md has no "Reviewed on YYYY-MM-DD" date');
+  else if ((Date.now() - Date.parse(d)) / 86400000 > 30) WARN(`docs/team.md was last reviewed on ${d}, more than 30 days ago; read the cards through at the next retro`);
+}
+
 // 6. Process documents left alone for 30 days while games changed.
 const age = (p) => { try { const t = execFileSync('git', ['log', '-1', '--format=%ct', '--', p], { cwd: ROOT }).toString().trim(); return t ? (Date.now() / 1000 - +t) / 86400 : null; } catch { return null; } };
 const gamesAge = age('games');
-for (const p of ['docs/process.md', 'docs/HANDOFF-orchestrator.md', 'prompts', 'skeleton/README.md']) {
+for (const p of ['docs/process.md', 'docs/HANDOFF-orchestrator.md', 'docs/art/BRIEF.md', 'prompts', 'skeleton/README.md']) {
   const a = age(p);
   if (a != null && gamesAge != null && a > 30 && gamesAge < 7) WARN(`${p} was last changed ${Math.round(a)} days ago; check it still describes how the work is done`);
 }
