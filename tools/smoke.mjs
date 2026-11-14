@@ -102,4 +102,22 @@ for (const folder of folders) {
   await ctx.close();
 }
 await browser.close(); server.close();
+// The code maps (tools/codemap.mjs): a game with an INDEX.md must have it up to date, and its RECIPES.md may only name
+// code that exists. Enforced in the main checkout, where builds land; in a builder's worktree it is a note, since
+// the builder does not edit docs and landing regenerates the index.
+{
+  const { execFileSync } = await import('node:child_process');
+  const { existsSync, readdirSync } = await import('node:fs');
+  const inWorktree = execFileSync('git', ['rev-parse', '--git-dir'], { cwd: ROOT }).toString().includes('worktrees');
+  const docs = join(ROOT, 'docs', 'games');
+  for (const slug of existsSync(docs) ? readdirSync(docs) : []) {
+    if (!existsSync(join(docs, slug, 'INDEX.md'))) continue;
+    try { console.log(execFileSync('node', [join(ROOT, 'tools', 'codemap.mjs'), slug, '--check'], { cwd: ROOT }).toString().trim()); }
+    catch (e) {
+      const out = String(e.stdout || e.message).trim();
+      if (inWorktree) console.log(`note ${out.replace(/\n/g, '\nnote ')}  (regenerated at landing)`);
+      else { failed++; console.log(`FAIL ${out.replace(/\n/g, '\nFAIL ')}`); }
+    }
+  }
+}
 process.exit(failed ? 1 : 0);

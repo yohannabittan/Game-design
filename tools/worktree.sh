@@ -53,6 +53,12 @@ case "$cmd" in
           cp "$f" "$ROOT/$rel"; echo "landed $rel (binary, copied)"
         fi
       done < <(for p in "$@"; do if [[ -d "$WT/$p" ]]; then find "$WT/$p" -type f -print0; else printf '%s\0' "$WT/$p"; fi; done)
+      # a landed change to a game's source refreshes that game's generated code index, so it never goes stale
+      for p in "$@"; do
+        if [[ "$p" =~ ^games/([^/]+)/src ]] && [[ -f "$ROOT/docs/games/${BASH_REMATCH[1]}/INDEX.md" ]]; then
+          node "$ROOT/tools/codemap.mjs" "${BASH_REMATCH[1]}" || true; break
+        fi
+      done
       exit $bad
     fi ;;
   drop)

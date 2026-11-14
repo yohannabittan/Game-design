@@ -6,7 +6,10 @@ The hand-written map that was here went stale (it described v36; the game is pas
 2. **`node tools/codemap.mjs arena --where <word>`**: where a word is declared, which TUNING blocks carry it, and which functions use it. Use it in place of a run of greps.
 3. **`INDEX.md`** (generated, never edited): every section and every top-level declaration, with its line, size and what its comment says, and TUNING's blocks. Regenerate it with `node tools/codemap.mjs arena`.
 
-**Keeping them true:**
-- The orchestrator regenerates `INDEX.md` at every landing.
-- Every builder's report ends with "what I had to hunt for"; the orchestrator adds that to `RECIPES.md`.
+**Keeping them true, by machine:**
+- `tools/worktree.sh land` regenerates `INDEX.md` whenever a build's source lands.
+- `npm run smoke` fails in the main checkout if `INDEX.md` is out of date, or if `RECIPES.md` names code that no longer exists (a renamed or removed function). In a builder's worktree it only prints a note.
+
+**Keeping them useful, by habit:**
+- Every builder's report ends with "what I had to hunt for" (`prompts/README.md`); the orchestrator adds that to `RECIPES.md`.
 - A function's first comment line is what the index shows, so write it as "what this is for".

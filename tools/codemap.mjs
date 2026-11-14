@@ -5,7 +5,10 @@
 //                                                 TUNING's blocks. Generated, never edited: run it after every landing.
 //   node tools/codemap.mjs <slug> --where <word>  prints where a word is declared, which TUNING blocks carry it, and
 //                                                 which functions use it (with counts), in place of a dozen greps.
-//   node tools/codemap.mjs <slug> --check         exits 1 if INDEX.md is out of date.
+//   node tools/codemap.mjs <slug> --check         exits 1 if INDEX.md is out of date, or if RECIPES.md names code that no
+//                                                 longer exists. `npm run smoke` runs this for every game with an INDEX.md
+//                                                 (in the main checkout; a builder's worktree only gets a note), and
+//                                                 `tools/worktree.sh land` regenerates the index, so neither can go stale.
 // Reads every .js under games/<slug>/src except engine.js, so it works for one game.js or for modules (ADR-0024).
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
@@ -97,10 +100,30 @@ for (const g of groups) {
   for (const d of g.items) md.push(`| ${d.line} | \`${d.name}\` | ${d.kind} | ${d.len} | ${esc(d.what)} |`);
 }
 const out = md.join('\n') + '\n', dest = join(ROOT, 'docs', 'games', slug, 'INDEX.md');
+// Names the recipes give in backticks must still exist: declared, a TUNING block, or a word in the game's source, its
+// sw.js, the check helpers or tools/drive.mjs. Paths, commands and anything with a space are not names and are skipped.
+function deadRecipeNames() {
+  const rec = join(ROOT, 'docs', 'games', slug, 'RECIPES.md');
+  if (!existsSync(rec)) return [];
+  const extra = [join(ROOT, 'games', slug, 'sw.js'), join(ROOT, 'tools', 'checks', `${slug}.mjs`), join(ROOT, 'tools', 'drive.mjs')].filter(existsSync).map((f) => readFileSync(f, 'utf8'));
+  const text = files.map((f) => f.lines.join('\n')).concat(extra).join('\n');
+  const dead = new Set();
+  for (const m of readFileSync(rec, 'utf8').matchAll(/`([^`\n]+)`/g)) {
+    const t = m[1].replace(/\(\)$/, '');
+    if (!/^[A-Za-z_$][\w$.]*$/.test(t)) continue;
+    const last = t.split('.').pop();
+    if (!text.includes(t) && !new RegExp(`\\b${last.replace(/\$/g, '\\$')}\\b`).test(text)) dead.add(m[1]);
+  }
+  return [...dead];
+}
 if (flag === '--check') {
-  const ok = existsSync(dest) && readFileSync(dest, 'utf8') === out;
-  console.log(ok ? `ok   ${slug}: INDEX.md is up to date` : `STALE ${slug}: run node tools/codemap.mjs ${slug}`);
-  process.exit(ok ? 0 : 1);
+  const fresh = existsSync(dest) && readFileSync(dest, 'utf8') === out, dead = deadRecipeNames();
+  if (!fresh) console.log(`STALE ${slug}: INDEX.md is out of date; run node tools/codemap.mjs ${slug}`);
+  if (dead.length) console.log(`STALE ${slug}: RECIPES.md names code that no longer exists: ${dead.join(', ')}`);
+  if (fresh && !dead.length) console.log(`ok   ${slug}: INDEX.md is up to date, and every name in RECIPES.md exists`);
+  process.exit(fresh && !dead.length ? 0 : 1);
 }
 writeFileSync(dest, out);
 console.log(`wrote ${relative(ROOT, dest)}: ${groups.length} sections, ${decls.length} declarations, ${tuning.length} TUNING blocks, ${Math.round(out.length / 1024)} KB`);
+const dead = deadRecipeNames();
+if (dead.length) console.log(`WARN ${slug}: RECIPES.md names code that no longer exists: ${dead.join(', ')}`);

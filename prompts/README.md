@@ -35,3 +35,7 @@ By hand, if you want to watch:
 5. Record tuning changes in the PRD's tuning table, not in chat.
 
 If a layer fails, do not patch in chat. Fix the PRD or the prompt so the next run lands, then re-run the layer. The point is that the documents get better, not just the game.
+
+## Every builder's report ends with "what I had to hunt for"
+
+Two or three lines: what took longest to find in the code, and what would have sent you straight there. The orchestrator adds it to the game's `RECIPES.md` (or fixes the function's first comment line, which is what the generated `INDEX.md` shows), so the next builder doesn't hunt for the same thing. The index and the recipes' names are machine-checked: `tools/worktree.sh land` regenerates the index, and `npm run smoke` fails in the main checkout if the index is out of date or a recipe names code that no longer exists.
