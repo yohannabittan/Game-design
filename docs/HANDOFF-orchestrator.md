@@ -26,20 +26,20 @@ For a new Claude Code session taking over as the orchestrator. Read `CLAUDE.md` 
   - the orchestrator writes a pack into `docs/art/BRIEF.md` and gives the designer one line to paste into the art chat;
   - the art chat pushes candidates to `docs/art/candidates/<slug>/` and a `docs/art/HANDOFF-*.md`;
   - the orchestrator then dispatches a wiring build.
-- **The environment:** in the old cloud container, PIL was broken late on. Build contact sheets in the browser through `tools/drive.mjs`, or list the frames instead. Earlier builders' render helpers lived in a scratchpad, so expect to rewrite them.
+- **The environment:** PIL is broken in the cloud container. Build contact sheets in the browser through `tools/drive.mjs`, and GIFs with `/usr/bin/ffmpeg`. Arena's check helpers are kept in `tools/checks/arena.mjs`.
 
 ## Where each game stands
 
 | Game | Dev build | Notes |
 | --- | --- | --- |
-| Arena | `arena-v48` | v2 PRD `docs/games/arena/prd-v0.3.md`, built through Step 12 (the inventory, the menu remake and graceful loading). The most active game. Open: dark blobs at foe elbows and knees in headless frames since v46 (ask whether the designer sees them); the menu runs 15% slower headless than v46 (`TUNING.menu.fps`). |
+| Arena | `arena-v66` | PRD `docs/games/arena/prd-v0.3.md`, built through Steps 22b and 23b (the training yard, the one-tap draft, the sidearm and throwing knives, the knife lesson, easier overheads). The most active game. **In flight:** Step 24 with 24c (the bow, the reinforced shield, a planted overhead). **Next, in this order** (the PRD's "Build order"): the module split (ADR-0024, with `tools/replay.mjs` first); Step 26 (each blow's look, built to `sketches/*.gif`); Steps 27 and 27b (Trials; art Pack 30 is in `docs/art/final/arena/`). The reuse pack (a Daily run, the Hall, Legend cards, decrees) is queued in the PRD. |
 | Gravity Golf | `gravity-golf-v36` | PRD v0.16. A design discussion is open: Trials (below). |
 | Ink | `ink-v33` | Quiet. |
 | Recoil | `recoil-v33` | Quiet. |
 | Launch | `launch-v18` | Quiet. |
 | Checkpoint | `checkpoint-v12` | Quiet. |
 
-Each game's history is in `docs/games/<slug>/CHANGELOG.md`. Arena's `CODEMAP.md` line numbers have drifted: run `node tools/codemap-check.mjs arena`.
+Each game's history is in `docs/games/<slug>/CHANGELOG.md`. To find code in Arena, start from `docs/games/arena/CODEMAP.md`: the recipes, `node tools/codemap.mjs arena --where <word>`, and the generated `INDEX.md`. `node tools/doctor.mjs` says when this document has fallen behind the games.
 
 ## Waiting on the designer
 
@@ -51,9 +51,9 @@ Each game's history is in `docs/games/<slug>/CHANGELOG.md`. Arena's `CODEMAP.md`
 2. **Gravity Golf Trials:** five-hole runs (never more than 10) under one rule (no landing, one shot per hole, no aim line, beat par, a stroke budget, a timer), with medals. Open question: a separate menu mode, or at the end of each sector?
    - If Trials go ahead, the "Read it" holes in the main course go and "no aim line" becomes a Trial rule. That settles the open "Read it vs Expert" question as option 1.
    - Trials need a PRD (v0.17).
-3. **Art Pack 22** (`docs/art/BRIEF.md`): the card vault's 12 gear pieces and the tailor's 12 painted looks. The designer said they would ask the art chat. When `docs/art/HANDOFF-arena-pack22.md` lands, dispatch a wiring build:
-   - fix the placeholder pins in `TUNING.kit.gear`;
-   - replace the tailor's flat-drawn crest, plume, shield paint and cloak.
+3. **Arena, the designer's open calls** (2026-11-14):
+   - the trial art picks from Pack 30 (suggested: target B, wheel C, fruit seller A);
+   - how the range sketch felt (`docs/games/arena/sketches/range.html`): the shrink, the three misses, the sway, the wheel's speed. The answers set Step 27's numbers.
 4. **The friendlies launch** (`docs/release-friendlies.md`). Still open:
    - the Gravity Golf "Read it" question (settled by item 2);
    - the feedback build (settled by item 1);
@@ -63,7 +63,6 @@ Each game's history is in `docs/games/<slug>/CHANGELOG.md`. Arena's `CODEMAP.md`
 
 - **Arena:**
   - **Fall scenes when you lose:** spared, executed, or mauled by a beast, chosen by crowd favour and foe type. Needs art.
-  - **Armoured beasts:** the designer said "later".
   - **Visuals to the next level:** hit feel, then light and colour per arena, then painted menus, then a living crowd, then more animation poses.
 - **Fellowship across all games:** see item 1.
 - **Expression:** thin outside Arena. For example, Ink colours, Launch critter looks, Recoil gun skins.

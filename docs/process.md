@@ -144,6 +144,27 @@ The designer: "If we can think of a little way to visualise things before puttin
 - **Time-box:** a sketch is 20 to 30 minutes. One that needs more means the question is too big; split it.
 - **Built work:** for something already built, record a GIF of the real game (`tools/drive.mjs` frames through ffmpeg) instead of stills whenever the thing in question moves.
 
+## Keep the method alive (2026-11-14)
+
+The designer: "How can we improve this in the future and not let the tools and methods go out of date?" Arena's hand-written code map sat stale for 30 builds, and the orchestrator's handoff sat 18 versions behind, because keeping them true was a chore someone had to remember.
+
+**1. If it can rot, generate it or test it.** A fact about the repo is never kept by hand when a tool can produce it or check it:
+- **generated:** the code index (`tools/codemap.mjs`), the usage ledger (`tools/usage.py`);
+- **checked:** `tools/doctor.mjs` (paths named in `CLAUDE.md` exist, every ADR is indexed, every shipped version is in its changelog, the handoff isn't behind the games, every tool is explained) and the recipes' names. Both run inside `npm run smoke`.
+- **A new document that states facts about the code gets its check in the same change,** or it isn't written.
+
+**2. A retro every ten builds or two weeks, whichever comes first,** fifteen minutes, written to `docs/retros/<date>.md` from `templates/retro.md`:
+- **The numbers** from the ledger: tokens per build, builds that passed review first time, rounds per step. Better or worse than the last retro?
+- **The doctor's warnings,** and what the builders "had to hunt for".
+- **What the designer had to say twice.** A thing repeated is a missing rule or a missing check.
+- **Out of it come at most three changes, and at least one removal.**
+
+**3. Rules retire.** Every rule in `CLAUDE.md` and this file carries the date it was made. At a retro, a rule that didn't matter since the last one is cut or folded into another. A longer rulebook is read less.
+
+**4. When the model changes, question the scaffolding.** Much of the method exists to make up for what a model couldn't do: narrow briefs, one file per layer, heavy checks. A stronger model may not need a guard, and a guard nobody needs is cost. At the first retro after a model change, name one guard to try without, and say what would bring it back.
+
+**5. The designer's friction is the trigger.** "Builders are slow", "I can't tell what a slash is", "it got stuck" start a method change the same day; they don't wait for a retro.
+
 ## Always
 
 - **ADRs.** Any decision about how games are built, not what a game is, gets an ADR in `docs/adr/`. Changing the engine contract, adding a dependency, changing the deploy path, changing the save format policy. See `docs/adr/README.md`.
