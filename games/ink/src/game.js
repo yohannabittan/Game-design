@@ -165,6 +165,8 @@ const TUNING = {
     titleImg: { w: 280, pad: 6, at3x: 2.5, src2: 'assets/title-ink@2x.png', src3: 'assets/title-ink@3x.png' }, // Generated tattoo-script title (ADR-0015): drawn this wide, 2x and 3x bitmaps, pad is blank space around it
     card: { h: 318, landH: 36, ruinedHeroY: 74, ruinedY: 109, w: 340, pad: 14, topPad: 26, pieceGap: 46, sidePad: 34, minScale: 0.3, maxScale: 1, starR: 17, starGap: 44, stampW: 112, stampH: 34, stampTilt: -0.1, blushMargin: 48, blushScale: 0.9, blush: 0.42, blushBlur: 34 }, // Result card
     intro: { sec: 5, fade: 0.5, bottom: 16, pad: 10, lineH: 18, maxW: 340, text: 'Land on the line. Skin is a blot, and three slips ruin the piece.' }, // Split stencils: a plate near the bottom of the screen (clear of the piece) for the first seconds after the piece opens
+    lesson: { inSec: 0.35, dragSec: 1.8, holdSec: 0.45, outSec: 0.45, gapSec: 0.5, from: 0.6, span: 0.3, inset: 12, pressFrom: 1.25, thumbR: 21, thumbLen: 150, thumbTilt: 0.35, thumbAlpha: 0.35, inkAlpha: 0.45, bottom: 16, pad: 10, h: 34, text: 'Drag to ink. The needle leads.' }, // The first piece of a fresh save (first-minute step): before the first touch a ghost thumb drags the needle along the inside of the line, looping, the needle always on screen. `from` and `span` pick the stretch of the outline (shares of its points), `inset` is how far inside the line the ghost runs (design units)
+    out: { sec: 1.8, fade: 0.4, pad: 8, h: 28, gap: 10, text: 'OUT', pulseSec: 0.6, pulseFrom: 1.7 }, // The first slip ever: a plate with OUT beside the red X, and the slip plate in the HUD pulses once
     callout: { sec: 2.6, fade: 0.5, gap: 8, pad: 8, h: 28, text: 'Blot: landed on skin' }, // The call-out above the first blot of a piece
     blot: { rim: 2, specks: 3, speckAngle: 0.9, speckStep: 2.1, speckDist: 5, speckR: 2.2, core: 0.35 }, // The blot mark (radius is TUNING.blotRadius): dark rim beyond the disc, the specks around it (count, first angle, angle step, distance beyond the disc, size), the dark core as a share of the radius
     cast: { sec: 4, fade: 0.5, top: 8, face: 36, pad: 6, gap: 10, maxW: 340, lineH: 18, clear: 8, bottomGap: 8 }, // The client of the day on the play intro (PRD v0.7 B): a plate under the HUD (at most two lines, so a fixed height) with the client's face and line; it is gone at the first touch. `clear` is the gap kept between the plate and a stencil's tip, `bottomGap` the least left under the piece: on a short screen the piece is moved down (never scaled) to clear the plate
@@ -959,7 +961,16 @@ function landing(E, x, y) {
   S.marks.push({ x, y, blot: true });
   E.audio.play('miss');
   fxSlip(E, x, y);
+  firstSlip(E, x, y, true);
   if (S.slips >= T.maxSlips) finish(E, 'ruined');
+}
+
+// The first slip ever (lesson stage 1) is made loud once: OUT by the mark (a blot has its own call-out) and the HUD's slip plate pulses.
+function firstSlip(E, x, y, blot) {
+  if (!S.slipLesson) return;
+  S.slipLesson = false;
+  S.outSlip = { x, y, t: E.time, blot };
+  E.save.set('lesson', 2);
 }
 
 // Count a slip if the needle had been inside and (x, y) is outside past the tolerance. Ink is never laid here.
@@ -972,6 +983,7 @@ function checkSlip(E, x, y) {
   S.marks.push({ x: e.x, y: e.y });
   E.audio.play('miss');
   fxSlip(E, e.x, e.y);
+  firstSlip(E, e.x, e.y, false);
   if (S.slips >= T.maxSlips) finish(E, 'ruined');
 }
 
@@ -1627,14 +1639,14 @@ function drawMachineBody(ctx, g, sk, base) {
   ctx.fillStyle = sk.band; ctx.fill(g.band);
 }
 
-function drawMachine(ctx, E) {
-  const f = S.finger; if (!f) return;
+function drawMachine(ctx, E, f = S.finger, alpha = 1) {
+  if (!f) return;
   const fx = S.fx, now = E.time, s = view(E).s, off = T.needleOffset, M = A.machine, sk = SK.m, g = machineGfx(ctx, sk);
   const out = fx.endT > 0 ? clamp((now - fx.endT) / J.machineFadeSec, 0, 1) : 0;
   if (out >= 1) return;
   const vib = now - fx.inkT < J.vibHold && !S.ended ? Math.sin(now * J.vibHz * 2 * Math.PI) * J.vibAmp : 0;
   ctx.save();
-  ctx.globalAlpha = 1 - out;
+  ctx.globalAlpha = (1 - out) * alpha;
   ctx.translate(f.x, f.y - off);
   const sc = pop(now - fx.downT, J.settleSec, J.settleFrom);
   ctx.scale(sc, sc);
@@ -1871,6 +1883,9 @@ function applyHint(E) {
   else if (T.hintPercent >= 101) T.hintPercent = T.hintOnPercent;
 }
 const blotsOf = () => S.marks.filter((k) => k.blot).length;
+// The first-minute lesson (saved as `lesson`): 0 the ghost drag is still to show, 1 shown (the first slip ever is still to be made loud), 2 done. The v12 migration gives a
+// save that has been played 2, so a veteran save never sees the lesson.
+const lessonStage = (E) => E.save.get('lesson', 0);
 
 // ---------- Scenes ----------
 
@@ -2195,7 +2210,9 @@ function drawHud(ctx, E) {
   const glowA = 1 - (now - f.pctStarT) / J.pctStarSec;
   if (glowA > 0 && glowA <= 1) { ctx.globalAlpha = glowA; plabel(ctx, pstr, m, ty + 1, pk, FONT.big, P.gold, 'left', 0); ctx.globalAlpha = 1; }
   // Slips: three pips, a ring until it is used and a red cross after; the newest one pops.
-  const pw = T.maxSlips * H.pipGap + 18, sx = E.w - 16 - pw;
+  const pw = T.maxSlips * H.pipGap + 18, sx = E.w - 16 - pw, oa = S.outSlip ? now - S.outSlip.t : -1, pulse = oa >= 0 && oa < A.out.pulseSec ? pop(oa, A.out.pulseSec, A.out.pulseFrom) : 1;
+  ctx.save();
+  if (pulse !== 1) { ctx.translate(sx + pw / 2, ty); ctx.scale(pulse, pulse); ctx.translate(-sx - pw / 2, -ty); }
   plate(ctx, sx, ty - ph / 2, pw, ph);
   const sk = pop(now - f.slipPopT, J.slipPopSec, J.slipPopFrom), r = H.pipR;
   ctx.lineCap = 'round';
@@ -2208,9 +2225,85 @@ function drawHud(ctx, E) {
         ctx.strokeStyle = pass ? P.slip : P.slipShadow; ctx.lineWidth = pass ? H.pipW : H.pipW + 2.4;
         ctx.beginPath(); ctx.moveTo(-r, -r); ctx.lineTo(r, r); ctx.moveTo(r, -r); ctx.lineTo(-r, r); ctx.stroke();
       }
-    } else { ctx.globalAlpha = 0.55; ctx.strokeStyle = P.cream; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke(); }
+    } else { ctx.globalAlpha = 0.55; ctx.strokeStyle = pulse !== 1 ? P.slip : P.cream; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke(); }
     ctx.restore();
   }
+  ctx.restore();
+}
+
+// The first slip ever: OUT on a plate beside the red X (above it, or below when the HUD is in the way), in slip red. A blot has its own call-out instead.
+function drawOut(ctx, E) {
+  const O = A.out, k = S.outSlip;
+  if (!k || k.blot) return;
+  const age = E.time - k.t;
+  if (age < 0 || age >= O.sec) return;
+  const v = view(E), mx = v.ox + k.x * v.s, my = v.oy + k.y * v.s, m = T.slipMarkSize * v.s;
+  ctx.font = FONT.mid;
+  const w = ctx.measureText(O.text).width + 2 * O.pad, x = clamp(mx - w / 2, 4, E.w - w - 4), hudBottom = E.safe.top + T.hudTop + 2 * A.hud.ring + 4;
+  let y = my - m - O.gap - O.h;
+  if (y < hudBottom) y = my + m + O.gap;
+  const a = clamp((O.sec - age) / O.fade, 0, 1), sk = pop(age, J.slipPopSec, J.slipPopFrom);
+  ctx.save(); ctx.translate(x + w / 2, y + O.h / 2); ctx.scale(sk, sk); ctx.translate(-x - w / 2, -y - O.h / 2);
+  fadePlate(ctx, x, y, w, O.h, a * 1.6);
+  ctx.globalAlpha = a;
+  label(ctx, O.text, x + w / 2, y + O.h / 2 + 1, FONT.mid, P.slip);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// The lesson's ghost path: a stretch of the outline (shares `from` to `from + span` of its points), pulled `inset` units in toward the middle. Design units.
+function lessonPath() {
+  const L = A.lesson, ring = S.st.shape[0], n = ring.length, bb = bboxOf(S.idx), out = [];
+  for (let i = 0; i <= Math.round(n * L.span); i++) {
+    const [px, py] = ring[(Math.round(n * L.from) + i) % n], dx = bb.cx - px, dy = bb.cy - py, d = Math.hypot(dx, dy) || 1;
+    out.push([px + (dx / d) * L.inset, py + (dy / d) * L.inset]);
+  }
+  return out;
+}
+// The point a share u (0 to 1) along a path, by length.
+function alongPath(pts, u) {
+  let L = 0;
+  for (let i = 1; i < pts.length; i++) L += dist(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
+  let t = u * L;
+  for (let i = 1; i < pts.length; i++) {
+    const d = dist(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
+    if (t <= d || i === pts.length - 1) { const k = d ? clamp(t / d, 0, 1) : 0; return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k, i]; }
+    t -= d;
+  }
+  return [pts[0][0], pts[0][1], 1];
+}
+// The first piece of a fresh save, before the first touch: the needle on the line, and a ghost thumb behind it that presses, drags one stroke along the inside of
+// the line (faint ink follows) and lifts; then the needle glides back and it loops. One short line on a plate at the bottom.
+function drawLesson(ctx, E) {
+  if (!S.lesson || S.started || S.ended) return;
+  const L = A.lesson, v = view(E), pts = S.lessonPts || (S.lessonPts = lessonPath()), loop = L.inSec + L.dragSec + L.holdSec + L.outSec + L.gapSec;
+  const t = (E.time - S.introT) % loop, tDrag = t - L.inSec, tOut = tDrag - L.dragSec - L.holdSec;
+  const u = tDrag < 0 ? 0 : tOut < 0 ? ease.inOut(clamp(tDrag / L.dragSec, 0, 1)) : 1 - ease.inOut(clamp(tOut / (L.outSec + L.gapSec), 0, 1));
+  const show = t < L.inSec ? t / L.inSec : tOut < 0 ? 1 : 1 - clamp(tOut / L.outSec, 0, 1); // thumb and ghost ink: in, held through the drag, out as it lifts
+  const [nx, ny, seg] = alongPath(pts, u), sx = v.ox + nx * v.s, sy = v.oy + ny * v.s;
+  if (show > 0 && tDrag > 0) { // the ghost ink, from the start to the needle (the whole stroke while it fades)
+    const upto = tOut < 0 ? seg : pts.length, [ex, ey] = tOut < 0 ? [nx, ny] : pts[pts.length - 1];
+    ctx.save(); ctx.globalAlpha = show * L.inkAlpha; ctx.strokeStyle = SK.i.ink; ctx.lineWidth = T.inkStrokeWidth * v.s; ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(v.ox + pts[0][0] * v.s, v.oy + pts[0][1] * v.s);
+    for (let i = 1; i < upto; i++) ctx.lineTo(v.ox + pts[i][0] * v.s, v.oy + pts[i][1] * v.s);
+    ctx.lineTo(v.ox + ex * v.s, v.oy + ey * v.s); ctx.stroke(); ctx.restore();
+  }
+  const finger = { x: sx, y: sy + T.needleOffset };
+  drawMachine(ctx, E, finger);
+  if (show > 0) { // a ghost thumb from the bottom right, its pad on the touch point and its nail showing, pressed in as it lands
+    const k = t < L.inSec ? L.pressFrom + (1 - L.pressFrom) * ease.outCubic(t / L.inSec) : 1, r = L.thumbR * k;
+    ctx.save(); ctx.translate(finger.x, finger.y); ctx.rotate(-L.thumbTilt);
+    const fade = ctx.createLinearGradient(0, 0, 0, L.thumbLen); fade.addColorStop(0, P.cream); fade.addColorStop(0.45, P.cream); fade.addColorStop(1, `${P.cream}00`); // the thumb fades out toward the hand
+    ctx.beginPath(); ctx.moveTo(r * 1.05, L.thumbLen); ctx.lineTo(r, 0); ctx.arc(0, 0, r, 0, Math.PI, true); ctx.lineTo(-r * 0.95, L.thumbLen);
+    ctx.globalAlpha = show * L.thumbAlpha; ctx.fillStyle = fade; ctx.fill();
+    ctx.globalAlpha = show * 0.85; ctx.strokeStyle = fade; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); rr(ctx, -r * 0.55, -r * 0.6, r * 1.1, r * 1.15, r * 0.45); ctx.globalAlpha = show * 0.6; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.restore();
+  }
+  ctx.font = FONT.small;
+  const w = Math.min(E.w - 2 * A.menu.margin, ctx.measureText(L.text).width + 2 * L.pad * 2), y = E.h - E.safe.bottom - L.bottom - L.h;
+  fadePlate(ctx, (E.w - w) / 2, y, w, L.h, 1.4);
+  label(ctx, L.text, E.w / 2, y + L.h / 2 + 1, FONT.small, P.cream);
 }
 
 // Split stencils judge the landing blind (the needle is not shown before it touches), so for the first seconds a plate near the bottom of the screen, clear of every piece, says how.
@@ -2241,7 +2334,7 @@ function drawCallout(ctx, E) {
 }
 
 const play = {
-  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); applyHint(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); S.hintOff = !hintOn(E); S.introT = E.time; const c = !daily && castOf(S.st); if (c) loadClient(c.id); },
+  enter(E, { stencil = 0, daily = false } = {}) { applySkins(E); applyHint(E); if (daily) dailyToday(E); newAttempt(daily ? DAILY_IDX : clamp(stencil, 0, STENCILS.length - 1), daily); S.hintOff = !hintOn(E); S.introT = E.time; const ls = lessonStage(E); S.lesson = !daily && ls === 0; S.slipLesson = S.lesson || ls === 1; S.outSlip = null; S.lessonPts = null; const c = !daily && castOf(S.st); if (c) loadClient(c.id); },
   update(dt, E) {
     holdStep(E, dt);
     hintStep(dt);
@@ -2294,6 +2387,7 @@ const play = {
   onPointerDown(p, E) {
     if (S.ended) return;
     if (S.pid !== null) { if (E.pointers.has(S.pid)) return; liftFinger(); } // a lost up or cancel must not lock out inking
+    if (S.lesson && !S.started) E.save.set('lesson', 1);
     S.pid = p.id; S.started = true; S.finger = { x: p.x, y: p.y };
     E.audio.play('tap');
     S.fx.downT = E.time;
@@ -2313,11 +2407,13 @@ const play = {
     const v = view(E);
     drawPiece(ctx, E, v, -1);
     if (S.ended) prepareCard(E);
+    drawLesson(ctx, E);
     drawMachine(ctx, E);
     drawHud(ctx, E);
     drawIntro(ctx, E);
     drawCast(ctx, E);
     drawCallout(ctx, E);
+    drawOut(ctx, E);
   },
 };
 
@@ -2366,10 +2462,18 @@ function prepareCard(E) {
   S.prep++;
 }
 const SLIPWORD = { 2: 'two', 3: 'three', 4: 'four', 5: 'five' };
+// Why a try ended, and what the next star needs, in one line: a ruin or a time-out. A finished piece needs no reason.
+function reasonLine(pct, stars) {
+  if (S.ended === 'ruined') { const w = SLIPWORD[T.maxSlips] || `${T.maxSlips}`; return `${w[0].toUpperCase()}${w.slice(1)} slips. Stay inside the line.`; } // a blot counts as a slip
+  if (S.ended !== 'time') return null;
+  const next = stars < T.starPercents.length ? ` ${T.starPercents[stars]}% for ${stars ? `${stars + 1} stars` : 'a star'}.` : '';
+  return `Time ran out at ${pct}%.${next}`;
+}
 const over = {
   enter(E, params) {
     this.p = params;
     this.btnMain = null; this.btnMenu = null;
+    this.reason = reasonLine(params.pct, params.stars);
     this.t = 0; this.coins = 0; this.box = { x: 0, y: 0, w: 0, h: 0 };
     this.head = params.daily ? `DAILY   ${S.st.name.toUpperCase()}` : `${params.boss ? 'BOSS   ' : ''}No. ${params.idx + 1}   ${S.st.name.toUpperCase()}`;
     this.badgeAt = this.starsEndFor(params.stars) + A.badge.delay; this.badgeDone = false;
@@ -2433,8 +2537,8 @@ const over = {
     drawPin(ctx, cx, y + 1, 6);
     label(ctx, this.head, x + 20, y + 30, FONT.small, P.textMute, 'left');
     label(ctx, this.bestStr, x + w - 20, y + 30, FONT.small, P.textMute, 'right');
-    label(ctx, PCT[p.pct], cx, y + (p.ruined ? C.ruinedHeroY : 80), FONT.hero, P.textDark);
-    if (p.ruined) label(ctx, `Ruined at ${p.pct}%: ${SLIPWORD[T.maxSlips] || T.maxSlips} slips`, cx, y + C.ruinedY, FONT.small, P.textDark); // a blot counts as a slip
+    label(ctx, PCT[p.pct], cx, y + (this.reason ? C.ruinedHeroY : 80), FONT.hero, P.textDark);
+    if (this.reason) label(ctx, this.reason, cx, y + C.ruinedY, FONT.small, P.textDark);
     for (let i = 0; i < 5; i++) {
       const sx = cx + (i - 2) * C.starGap;
       if (i >= p.stars) { drawStar(ctx, sx, y + 134, C.starR, false); continue; }
@@ -2535,9 +2639,9 @@ const over = {
       const sx = this.starX(L, i), sk = i < p.stars ? clamp((t - (J.starDelay + i * J.starStagger)) / J.starSec, 0, 1) : 0;
       if (sk > 0) drawStar(ctx, sx, sy, R.starR * ease.outBack(sk), true); else drawStar(ctx, sx, sy, R.starR * k, false);
     }
-    const extra = p.ruined ? `Ruined: ${SLIPWORD[T.maxSlips] || T.maxSlips} slips` : S.st.parts ? `Landings ${p.cleanLand} / ${p.landings} clean` : null; // a blot counts as a slip
+    const extra = this.reason || (S.st.parts ? `Landings ${p.cleanLand} / ${p.landings} clean` : null);
     label(ctx, this.bestStr, x + sp, my - (extra ? R.metaLineH / 2 : 0), FONT.small, P.textMute, 'left');
-    if (extra) label(ctx, extra, x + sp, my + R.metaLineH / 2, FONT.small, p.ruined ? P.textDark : p.landings > 0 && p.cleanLand === p.landings ? P.stamp : P.textMute, 'left');
+    if (extra) label(ctx, extra, x + sp, my + R.metaLineH / 2, FONT.small, this.reason ? P.textDark : p.landings > 0 && p.cleanLand === p.landings ? P.stamp : P.textMute, 'left');
     if (p.clean && t >= this.sweepAt) this.drawStamp(ctx, x + w - sp - A.card.stampW * R.stampScale / 2, my, pop(t - this.sweepAt, J.cleanPopSec, 0) * R.stampScale);
   },
   // The badge tickets over the card, the lowest one ending at `bottom`: a paper strip per new badge (up to max, the highest tier nearest the card) with the tier's medal and the badge's name; "+n" counts the ones
@@ -2925,7 +3029,7 @@ export const game = {
   slug: 'ink',
   title: 'Ink',
   init(E) { ART = E.art; ART.on(reloadArt); loadTitleImage(); game.start = E.save.get('openSeen', false) ? 'menu' : 'story'; }, // a fresh save opens on the cold open
-  saveVersion: 11,
+  saveVersion: 12,
   // v1 saved only best percentages: derive stars and the unlock from them. v3 kept bests per needle mode; v4 has one needle, so the dynamic bests become the bests
   // and every earlier best (all made with the classic needle) is dropped. Stars, clean and unlocks are kept.
   migrate(data, fromVersion) {
@@ -2986,6 +3090,13 @@ export const game = {
       // stencil (index 17), whose unlock was clamped to itself, so a save that has a star on it now opens index 18.
       data.ritaSeen = false; data.shopYours = false;
       if (((data.stars || {})[17] || 0) > 0) data.unlocked = Math.max(Number(data.unlocked) || 0, Math.min(18, STENCILS.length - 1));
+    }
+    if (fromVersion < 12) {
+      // v12 (first-minute step): `lesson` (0 to show the ghost drag, 1 shown, 2 done). A save with anything played in it is a veteran and has done the lesson; a daily entry the
+      // menu made unplayed (first -1) does not count.
+      const total = Object.values(data.stars || {}).reduce((n, v) => n + (v || 0), 0);
+      const played = total > 0 || Object.keys(data.best || {}).length > 0 || (data.unlocked || 0) > 0 || Object.values(data.daily || {}).some((d) => d && d.first >= 0);
+      data.lesson = played ? 2 : 0;
     }
     return data;
   },

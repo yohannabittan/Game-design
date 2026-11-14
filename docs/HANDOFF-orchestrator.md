@@ -40,9 +40,9 @@ The designer is the first player, not a tester: the game has to be fun enough to
 | --- | --- | --- |
 | Arena | `arena-v69` | PRD `docs/games/arena/prd-v0.3.md`, built through Step 24 with 24c (the training yard, the one-tap draft, the sidearm, throwing knives, the bow, the reinforced shield, planted overheads). The most active game. **Next, in this order** (the PRD's "Build order"): Step 26 (each blow's look, built to `sketches/*.gif`); Steps 27 and 27b (Trials; art Pack 30 is in `docs/art/final/arena/`). The reuse pack (a Daily run, the Hall, Legend cards, decrees) is queued in the PRD. |
 | Gravity Golf | `gravity-golf-v37` | PRD v0.16. A design discussion is open: Trials (below). |
-| Ink | `ink-v33` | Quiet. |
+| Ink | `ink-v34` | Quiet. |
 | Recoil | `recoil-v33` | Quiet. |
-| Launch | `launch-v18` | Quiet. |
+| Launch | `launch-v19` | Quiet. |
 | Checkpoint | `checkpoint-v13` | Quiet. |
 
 Each game's history is in `docs/games/<slug>/CHANGELOG.md`. To find code in Arena, start from `docs/games/arena/CODEMAP.md`: the recipes, `node tools/codemap.mjs arena --where <word>`, and the generated `INDEX.md`. `node tools/docs-check.mjs` says when this document has fallen behind the games.

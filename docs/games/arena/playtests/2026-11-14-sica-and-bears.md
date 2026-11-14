@@ -15,13 +15,16 @@
   - The bears made 12 mauls and 20 shoves; 11 of your bashes landed.
   - One knife thrown, into a gap (`knifeGaps=1`): the first knife to land in the ledger.
 
-## What the tuning file says (to be confirmed in the running game)
+## What was found (`../steps/2026-11-14-sica-bear-finding.md`)
 
-- **Sica:** `strike.sica` has no jab rows, so every sica jab is a haft thud; and `strike.edges.sica` is `[0]`, one edge, where the gladius, dagger and spear have two. So the designer's guess looks right: it cuts one way.
-- **Bear hide:** not yet known what a blow on hide does away from a gap. Rome's beasts at bouts 2 and 4 are barded, so much of what can be reached is plate.
+The orchestrator's first guess (a one-edged blade, read from `strike.edges`) was **wrong**: that value only paints the blade. Measured in the running game:
 
-A helper is measuring both: `docs/games/arena/steps/2026-11-14-sica-bear-finding.md`.
+- **"Sica" and "no bite" were the same thing: the Haemorrhage card.** It was bought in the bear run. Its gear turns your weapon into a "Hooked Sica", and its rule is "hits on bare skin do nothing": each one shows NO BITE. The hit still sprays a little blood, makes the slice sound and shakes the screen, so it looks like it should have hurt.
+- **A barded bear is almost all plate.** At bout 4 in Rome: about 62% barding, 25% hide (the hind legs only), 12.5% gap. A level slash from the front meets plate on 94% of heights and hide on none. Plate takes no damage, and a slash on it shows sparks and no word.
+- **So with Haemorrhage against a barded bear, almost nothing hurts:** only a jab into a gap (6), and bleed carried over.
+- **The real sica** (the Games run earlier) has its own fault: any push toward him is read as a jab, and a sica jab is always a thud (0.5, no bleed), where a gladius jab does 2 on skin and 6 in a gap. Its slashes cut in every direction.
 
 ## Read
 
-- Both complaints are of the same kind as the two-weapon one: **the blow lands, and the game doesn't say why it did nothing.** Design principle 19 (each verb looks and sounds like itself) covers this.
+- All of it is the same kind of fault as two weapons: **the blow lands, looks like a hit, and the game doesn't say why it did nothing.** Design principle 19 (each verb looks and sounds like itself).
+- Haemorrhage is a card that asks you to play one way (bleed only). Against a barded beast it leaves no way at all, and the draft doesn't warn of that.

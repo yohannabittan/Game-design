@@ -310,6 +310,12 @@ const TUNING = {
   // version the story version `openSeen` records; arrivalTime the seconds a gift line shows; portrait the largest result-card
   // portrait in px; windowChance: Daifuku's window inset shows one new best in this many.
   story: { skipW: 96, skipH: 44, tapGap: 0.25, autoGap: 1, dur: [2.8, 3.2, 3.2, 3.6], proposalDur: [2.6, 3, 2.6, 3], version: 2, arrivalTime: 2.4, portrait: 84, windowChance: 3 },
+  // The first three flights' lessons (principle 18): one verb a flight, a ghost thumb showing it. When it shows, the flight
+  // runs at rate (flight seconds per real second) for up to wait real seconds or until a thumb touches; it stays until the
+  // verb is done. at: the ghost's place as a share of the screen (right of the mochi, above the ground it reads); loop: one pass of its
+  // gesture in seconds; swipe: its travel in px; w, h: the thumb; fade: seconds it fades once done; why: seconds a wrong
+  // try's word shows; slamLook: seconds between checks for a jelly a slam would land on; slamUp: the least height for that.
+  lesson: { rate: 0.12, wait: 2.6, at: [0.8, 0.42], loop: 1.5, swipe: 70, w: 34, h: 46, alpha: 0.9, fade: 0.45, why: 1.2, slamLook: 0.1, slamUp: 140 },
 };
 const T = TUNING;
 const STEP = T.physicsStep;
@@ -2233,6 +2239,9 @@ const play = {
     S.banner = { text: `★ ${PLACES[0].name}`, t: J.bannerTime };
     S.zonePop = null; S.arc = null; S.arcPts = new Float64Array(800); S.callouts = []; S.endWait = T.endDelay;
     S.teachBird = !E.save.get('birdTaught', false); S.teachMud = !E.save.get('mudTaught', false);
+    const nL = LESSONS.length; S.lesson = E.save.get('lesson', 0);
+    if (S.lesson < nL) { E.save.set('lesson', S.lesson); E.save.set('actionsTaught', true); } // the ghost takes the three-action pill's place
+    S.lessonOn = false; S.lessonDone = false; S.lessonWait = 0; S.lessonT0 = 0; S.ghostFade = 0; S.why = null; S.slamLook = 0;
     S.teachAct = !E.save.get('actionsTaught', false); S.prevVy = 0; S.quit = false; S.propose = E.save.get('home', false) && !E.save.get('proposed', false); // a save that met her before v0.6 owes the proposal after this flight
   },
   // Flight time now: the steps run, the remainder carried, and the real time since this frame began at the current rate.
@@ -2262,7 +2271,10 @@ const play = {
   update(dt, E) {
     S.frameReal = performance.now();
     for (const k of ['speedT', 'gaugePop', 'distPop', 'comboT', 'dialT', 'actT', 'homeT', 'pumpT', 'glowT', 'slowT', 'streakT']) if (S[k] > 0) S[k] -= dt;
+    for (const k of ['lessonWait', 'ghostFade', 'slamLook']) if (S[k] > 0) S[k] -= dt;
+    if (S.why) { S.why.t -= dt; if (S.why.t <= 0) S.why = null; }
     S.rate = S.slowT > 0 ? J.slowMoRate : 1;
+    if (S.lessonWait > 0) S.rate = Math.min(S.rate, T.lesson.rate); // the flight waits a beat for the lesson's gesture
     if (S.sq.t > 0) S.sq.t -= dt;
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
     if (S.zonePop) { S.zonePop.t -= dt; if (S.zonePop.t <= 0) S.zonePop = null; }
@@ -2277,10 +2289,13 @@ const play = {
     if (Math.random() < dt * 1.5) emit('steam', -80 * MACHINE, 76 * MACHINE, 1, { angle: Math.PI / 2, spread: 0.5, speed: 30, g: 20, life: 1.2, size: 3, color: P.steam }); // the chimney idles
     if (!r) return;
     const g = S.gest;
-    if (g && !g.kind && !r.ended && this.stamp(r) - g.t0 >= T.gestureWindow) { g.kind = 'boost'; queueInput(r, Math.max(g.t0 + T.gestureWindow, flightTime(r)), 'boostOn'); }
+    if (g && !g.kind && !r.ended && this.stamp(r) - g.t0 >= T.gestureWindow) { g.kind = 'boost'; queueInput(r, Math.max(g.t0 + T.gestureWindow, flightTime(r)), 'boostOn'); this.did('boost', E); }
     for (const [k, off] of [[' ', 'boostOff'], ['ArrowUp', 'chuteOff']]) if (S.keyDown[k] && !E.keys.has(k)) { S.keyDown[k] = false; if (!r.ended) queueInput(r, this.stamp(r), off); }
     advance(r, dt * S.rate);
     if (S.teachAct && r.mode === 'air' && S.prevVy > 0 && r.vy <= 0) { S.teachAct = false; S.actT = J.actionHint; E.save.set('actionsTaught', true); } // the top of the first arc
+    if (!S.lessonOn && !S.lessonDone && S.lesson < LESSONS.length && !r.ended && r.mode === 'air' && this.lessonDue(r)) {
+      S.lessonOn = true; S.lessonWait = T.lesson.wait; S.lessonT0 = E.time; E.haptic(J.haptic.lock);
+    }
     S.prevVy = r.vy;
     for (const e of r.ev) this.onEvent(e, E);
     r.ev.length = 0;
@@ -2292,7 +2307,32 @@ const play = {
       if (Math.random() < 0.5) emit('cola', r.x, r.y + T.critterR, 1, { angle: back, spread: 0.6, speed: 120, g: 0, life: J.fizzLife, size: 2.6, color: P.soda });
       S.whooshT -= dt; if (S.whooshT <= 0) { S.whooshT = J.whoosh; SFX.whoosh(E); }
     }
-    if (r.ended) { S.endT += dt; if (S.endT >= S.endWait) E.setScene(S.propose ? 'proposal' : 'over', finishFlight(E, r)); }
+    if (r.ended) {
+      S.endT += dt;
+      if (S.endT >= S.endWait) {
+        const p = finishFlight(E, r);
+        if (S.lesson < LESSONS.length && !S.lessonDone) p.tryVerb = LESSONS[S.lesson].say; // the card says what to try, not "New best!"
+        E.setScene(S.propose ? 'proposal' : 'over', p);
+      }
+    }
+  },
+  // When this flight's lesson shows: boost and glide at the top of the first arc; slam once falling, high enough, over a
+  // jelly or a downhill a slam would meet now.
+  lessonDue(r) {
+    if (LESSONS[S.lesson].kind !== 'drop') return S.prevVy > 0 && r.vy <= 0;
+    if (r.vy >= 0 || r.ball || r.y < T.lesson.slamUp || S.slamLook > 0) return false;
+    S.slamLook = T.lesson.slamLook;
+    const x = predictLanding({ ...r, ball: true, chute: false, boost: false, vy: Math.min(r.vy, -T.condenseDrop) }), on = slamOf(groundAt(r.field, x), x).on;
+    return on === 'centre' || on === 'jelly' || on === 'down';
+  },
+  // A gesture was made (boost, chute, drop or a plain tap): the lesson's own is done once, anything else says why it wasn't.
+  did(kind, E) {
+    const ls = LESSONS[S.lesson];
+    if (!ls || S.lessonDone) return;
+    if (kind === ls.kind) {
+      S.lessonDone = true; S.lessonWait = 0; S.ghostFade = S.lessonOn ? T.lesson.fade : 0; S.why = null;
+      E.save.set('lesson', S.lesson + 1);
+    } else if (S.lessonOn) S.why = { text: ls.why[kind], t: T.lesson.why };
   },
   squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
   onEvent(e, E) {
@@ -2415,7 +2455,8 @@ const play = {
       return;
     }
     if (r.ended || p.id === S.launchPid) return;
-    if (S.gest) this.release(S.gest, this.stamp(r), true); // a second thumb takes over
+    S.lessonWait = 0; // a thumb is down: the flight runs on at full speed
+    if (S.gest) this.release(S.gest, this.stamp(r), true, E); // a second thumb takes over
     S.gest = { id: p.id, t0: this.stamp(r), y0: p.y, kind: null };
   },
   onPointerMove(p, E) {
@@ -2425,18 +2466,19 @@ const play = {
     if (Math.abs(dy) < T.swipeMin || at - g.t0 > T.gestureWindow) return;
     g.kind = dy < 0 ? 'chute' : 'drop';
     queueInput(r, at, dy < 0 ? 'chuteOn' : 'condense');
+    this.did(g.kind, E);
   },
   onPointerUp(p, E) {
     if (p.id === S.launchPid) { S.launchPid = null; return; }
     const g = S.gest, r = S.run;
     if (!g || g.id !== p.id) return;
     S.gest = null;
-    if (r && !r.ended) this.release(g, this.stamp(r), p.cancelled);
+    if (r && !r.ended) this.release(g, this.stamp(r), p.cancelled, E);
   },
   // A press ends: a quick tap is a short burst; a held boost or an open wing stops.
-  release(g, at, cancelled) {
+  release(g, at, cancelled, E) {
     const r = S.run;
-    if (!g.kind) { if (!cancelled) queueInput(r, at, 'burst'); }
+    if (!g.kind) { if (!cancelled) { queueInput(r, at, 'burst'); this.did('tap', E); } }
     else if (g.kind === 'boost') queueInput(r, at, 'boostOff');
     else if (g.kind === 'chute') queueInput(r, at, 'chuteOff');
   },
@@ -2444,9 +2486,10 @@ const play = {
     const r = S.run;
     if (!r) { if (k === ' ' || k === 'Enter') this.onPointerDown({ id: 'key' }, E); return; }
     if (r.ended) return;
-    if (k === ' ' && !S.keyDown[' ']) { S.keyDown[' '] = true; queueInput(r, this.stamp(r), 'boostOn'); }
-    else if (k === 'ArrowUp' && !S.keyDown.ArrowUp) { S.keyDown.ArrowUp = true; queueInput(r, this.stamp(r), 'chuteOn'); }
-    else if (k === 'ArrowDown') queueInput(r, this.stamp(r), 'condense');
+    S.lessonWait = 0;
+    if (k === ' ' && !S.keyDown[' ']) { S.keyDown[' '] = true; queueInput(r, this.stamp(r), 'boostOn'); this.did('boost', E); }
+    else if (k === 'ArrowUp' && !S.keyDown.ArrowUp) { S.keyDown.ArrowUp = true; queueInput(r, this.stamp(r), 'chuteOn'); this.did('chute', E); }
+    else if (k === 'ArrowDown') { queueInput(r, this.stamp(r), 'condense'); this.did('drop', E); }
   },
   render(ctx, E) {
     const v = view(E), r = S.run, sf = E.safe, gy = v.oy + T.groundY * v.s;
@@ -2486,6 +2529,7 @@ const play = {
       if (c.arrow) drawUpArrow(E.ctx, b.x + 24, b.y + b.h - 5 - 2 * Math.sin(E.time * 6), 1);
       E.ctx.globalAlpha = 1;
     }
+    drawLesson(E);
   },
   onPause(E) { // backgrounding mid-flight ends it: logged once as a quit; back to the menu
     const r = S.run;
@@ -2496,6 +2540,54 @@ const play = {
     E.setScene('menu');
   },
 };
+
+// ---------- Lessons (principle 18) ----------
+// A fresh save's first three flights teach one verb each, by doing. Each: the gesture kind that does it (as the play scene
+// names them), its label, the ghost's loop as keyframes [phase, dx, dy, pressed] (dy in swipes, a hold grows a ring), and the
+// word for a try that was something else.
+const LESSONS = [
+  { kind: 'boost', say: 'Hold to boost', ring: true, keys: [[0, 0, 0, 0], [0.12, 0, 0, 1], [0.85, 0, 0, 1], [1, 0, 0, 0]], why: { tap: 'Hold it down', chute: 'Just hold', drop: 'Just hold' } },
+  { kind: 'chute', say: 'Swipe up to glide', keys: [[0, 0, 0.5, 0], [0.15, 0, 0.5, 1], [0.4, 0, -0.5, 1], [0.85, 0, -0.5, 1], [1, 0, -0.5, 0]], why: { tap: 'Swipe up', boost: 'Swipe up', drop: 'Up, not down' } },
+  { kind: 'drop', say: 'Swipe down to slam', keys: [[0, 0, -0.5, 0], [0.2, 0, -0.5, 1], [0.45, 0, 0.5, 1], [0.55, 0, 0.5, 0], [1, 0, 0.5, 0]], why: { tap: 'Swipe down', boost: 'Swipe down', chute: 'Down, not up' } },
+];
+
+// A keyframed loop at phase u: [dx, dy, pressed].
+function ghostAt(keys, u) {
+  let i = 0;
+  while (i < keys.length - 2 && keys[i + 1][0] <= u) i++;
+  const [t0, x0, y0, d0] = keys[i], [t1, x1, y1] = keys[i + 1], k = ease.inOut(clamp((u - t0) / Math.max(1e-3, t1 - t0), 0, 1));
+  return [x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, d0];
+}
+
+// The lesson: a ghost thumb low on the right doing the gesture over and over, its label under it, and why a try didn't count
+// over it. Fades once the verb is done.
+function drawLesson(E) {
+  const L = T.lesson, ls = LESSONS[S.lesson];
+  const a = !ls ? 0 : S.lessonDone ? clamp(S.ghostFade / L.fade, 0, 1) : S.lessonOn ? clamp((E.time - S.lessonT0) / 0.2, 0, 1) : 0;
+  if (a <= 0) return;
+  const ctx = E.ctx, sf = E.safe, x0 = sf.left + (E.w - sf.left - sf.right) * L.at[0], y0 = sf.top + (E.h - sf.top - sf.bottom) * L.at[1];
+  const u = ((E.time - S.lessonT0) % L.loop) / L.loop, [dx, dy, dn] = ghostAt(ls.keys, u), x = x0 + dx * L.swipe, y = y0 + dy * L.swipe;
+  ctx.save(); ctx.globalAlpha = a; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (!ls.ring) { // the swipe's track, an arrow the way to go
+    const k = ls.kind === 'chute' ? -1 : 1, ya = y0 - k * L.swipe / 2, yb = y0 + k * L.swipe / 2;
+    ctx.globalAlpha = a * 0.45; ctx.strokeStyle = P.text; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(x0, ya); ctx.lineTo(x0, yb); ctx.moveTo(x0 - 10, yb - k * 10); ctx.lineTo(x0, yb); ctx.lineTo(x0 + 10, yb - k * 10); ctx.stroke();
+  }
+  ctx.globalAlpha = a * L.alpha * (0.4 + 0.6 * dn);
+  ctx.fillStyle = P.text; ctx.strokeStyle = P.ink; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x + 4, y + L.h * 0.32, L.w / 2, L.h / 2, -0.25, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = P.textDim; ctx.beginPath(); ctx.ellipse(x + 2, y + L.h * 0.1, L.w * 0.3, L.h * 0.22, -0.25, 0, Math.PI * 2); ctx.fill();
+  if (ls.ring && dn) { // a hold fills a ring of fizz
+    const k = clamp((u - 0.12) / 0.73, 0, 1);
+    ctx.globalAlpha = a; ctx.strokeStyle = P.coin; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y, L.w * 0.8, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+  E.ctx.globalAlpha = a;
+  pill(E, ls.say, x0, y0 + L.swipe / 2 + L.h + 14, TY.md, 'center', P.text);
+  if (S.why) { E.ctx.globalAlpha = a * clamp(S.why.t / 0.25, 0, 1); pill(E, S.why.text, x0, y0 - L.swipe / 2 - 30, TY.md, 'center', P.zones[0]); }
+  E.ctx.globalAlpha = 1;
+}
 
 // A zone's colour for text on an ink panel (Weak's slate is too dark there).
 const zoneText = (z) => (z === 3 ? P.textDim : P.zones[z]);
@@ -2512,10 +2604,10 @@ function drawUpArrow(ctx, x, y, s) {
 // 14, 18 and 44 only.
 const over = {
   enter(E, p) {
-    p.look = p.look || (p.isNew ? 'happy' : p.why === 'mud' || p.crashes > 0 ? 'dizzy' : 'determined'); // Mochi's face and line, kept when the shop hands the card back
+    p.look = p.look || (p.tryVerb ? 'determined' : p.isNew ? 'happy' : p.why === 'mud' || p.crashes > 0 ? 'dizzy' : 'determined'); // Mochi's face and line, kept when the shop hands the card back
     const pool = E.save.get('proposed', false) && p.look !== 'dizzy' ? HONEYMOON : SAY[p.look]; // after the proposal the happy lines are the honeymoon's
     p.say = p.say || pool[Math.floor(Math.random() * pool.length)]; // cosmetic
-    if (p.window === undefined) p.window = p.isNew && Math.random() * T.story.windowChance < 1 ? Math.floor(Math.random() * WINDOW_SAY.length) : -1; // Daifuku's window, one new best in three
+    if (p.window === undefined) p.window = p.isNew && !p.tryVerb && Math.random() * T.story.windowChance < 1 ? Math.floor(Math.random() * WINDOW_SAY.length) : -1; // Daifuku's window, one new best in three
     this.p = p; this.k = p.again ? 1 : 0; this.t0 = p.again ? -Infinity : E.time;
     if (!p.again) E.tween(J.cardSlide, (t) => { this.k = t; }, ease.outBack); // the card slides up; the buttons come after it
   },
@@ -2531,7 +2623,8 @@ const over = {
     const lw = Math.round(pw * 0.38), cx = px + lw / 2, count = clamp((E.time - this.t0 - J.cardSlide) / J.countUp, 0, 1);
     E.text(p.why === 'mud' ? 'Stuck in caramel' : 'Flight over', cx, py + 26, { size: TY.sm, color: P.textDim, weight: '600' });
     E.text(`${p.m} m`, cx, py + 68, { size: TY.xl, weight: '800', color: P.text });
-    E.text(p.isNew ? 'New best!' : `Best ${p.best} m`, cx, py + 108, { size: TY.md, color: p.isNew ? P.tealLight : P.textDim, weight: '600' });
+    if (p.tryVerb) E.text(p.tryVerb, cx, py + 108, { size: TY.md, color: P.zones[0], weight: '800' }); // a lesson not yet done: what to try
+    else E.text(p.isNew ? 'New best!' : `Best ${p.best} m`, cx, py + 108, { size: TY.md, color: p.isNew ? P.tealLight : P.textDim, weight: '600' });
     E.text(`+${Math.round(p.earned * count)} sugar`, cx, py + 138, { size: TY.md, color: P.coin, weight: '800' });
     const zc = zoneText(p.zone);
     E.text(`${ZONES[p.zone].replace('!', '')} launch${p.chainMax >= 2 ? `, combo x${p.chainMax}` : ''}`, cx, py + 166, { size: TY.sm, color: zc, weight: '600' });
@@ -3037,7 +3130,7 @@ function landscapeOnly(scene) {
 export const game = {
   slug: 'launch',
   title: 'Launch',
-  saveVersion: 10,
+  saveVersion: 11,
   // v1 was the skeleton demo (Tap Rush): its score-based best and runs mean nothing here. v2 is { best, coins, ms, flights }.
   // v3 adds `up`, the bought upgrade levels, all 0 for an older save (coins carry over to spend). v4 adds `holdTaught`.
   // v5 (PRD v0.2 B): coins become sugar one for one; `up.steady` at 0; goals start at the top of the list with every distance
@@ -3072,6 +3165,7 @@ export const game = {
       data.placesSeen = Math.min(4, T.milestones.filter((m) => (data.best || 0) >= m).length);
     }
     if (fromVersion < 10) { data.openSeen = data.openSeen ? 1 : 0; data.proposed = false; data.placesSeen = 0; } // every save finds each gift once
+    if (fromVersion < 11) data.lesson = (data.flights || 0) > 0 ? LESSONS.length : 0; // v11 (first-minute step): a save that flew before the lessons has done them all
     return data;
   },
   TUNING,
