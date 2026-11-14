@@ -35,11 +35,16 @@ case "$cmd" in
       base_rev=$(git -C "$WT" rev-parse HEAD); bad=0
       while IFS= read -r -d '' f; do
         rel=${f#"$WT/"}
-        if ! git -C "$WT" cat-file -e "$base_rev:$rel" 2>/dev/null || [[ ! -e "$ROOT/$rel" ]]; then
-          [[ -e "$ROOT/$rel" ]] && cmp -s "$f" "$ROOT/$rel" && continue
+        if ! git -C "$WT" cat-file -e "$base_rev:$rel" 2>/dev/null; then
+          if [[ -e "$ROOT/$rel" ]]; then
+            # added on both sides (two builders made the same new file), or deleted here: never overwrite silently
+            cmp -s "$f" "$ROOT/$rel" || { echo "CONFLICT in $rel: it exists here with different content and has no common start; merge by hand or use --copy" >&2; bad=1; }
+            continue
+          fi
           mkdir -p "$(dirname "$ROOT/$rel")"; cp "$f" "$ROOT/$rel"; echo "landed $rel (new)"; continue
         fi
         git -C "$WT" diff --quiet "$base_rev" -- "$rel" && continue
+        [[ -e "$ROOT/$rel" ]] || { echo "CONFLICT in $rel: changed by the builder, deleted here" >&2; bad=1; continue; }
         if grep -qI . "$f" || [[ ! -s "$f" ]]; then
           tmp=$(mktemp); git -C "$WT" show "$base_rev:$rel" > "$tmp"
           if git merge-file -L here -L start -L builder "$ROOT/$rel" "$tmp" "$f"; then echo "landed $rel (merged)"; else echo "CONFLICT in $rel: resolve the <<<<<<< markers" >&2; bad=1; fi
