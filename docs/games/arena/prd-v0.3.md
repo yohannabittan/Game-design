@@ -2359,3 +2359,10 @@ The range sketch (`sketches/range.html`) is extended with three more modes: the 
 - Scripted: each new trial can be passed and failed; hitting the man ends it; the wheel reverses; the ranges cycle.
 - Frames of each, and a GIF of the Wheel.
 - `npm run smoke`.
+
+## Build order (2026-11-14)
+
+1. Step 24 (with 24c), building now.
+2. **The module split (ADR-0024).** No change in behaviour; proved by a same-seed replay.
+3. Step 26 (the look of each blow).
+4. Step 27 and 27b (Trials), once the extended range sketch is approved.

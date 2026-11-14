@@ -42,3 +42,4 @@ How: copy `templates/adr.md` to `docs/adr/NNNN-short-title.md` with the next num
 | [0021](0021-cutout-fighter-art.md) | Painted cut-out art on a hit-tested rig (Arena pilot) | accepted |
 | [0022](0022-art-picks-show-the-art.md) | The ART tab shows the art (thumbnails, plain names, hold to enlarge) | accepted |
 | [0023](0023-friends-share-daily-and-challenge-codes.md) | Friends features: a share card, a daily seed, and "beat my run" codes, engine-owned, no server | proposed |
+| [0024](0024-arena-split-into-modules.md) | Arena's game.js is split into native ES modules along its sections, no bundler (amends 0007 for Arena) | accepted |
