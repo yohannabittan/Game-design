@@ -2155,3 +2155,13 @@ A tap that doesn't throw gets "DRAG, THEN LET GO", and the ghost replays. Step 2
 - **Two blades:** with two blades (no shield) the slot reads "no shield" and can't be bought.
 - **Saves:** the same slot, price and save key (`manica`), so nothing migrates.
 - **Check:** with it bought, the shield breaks at 9 blocks, not 6.
+
+**4. The shield and sidearms** (added 2026-11-14; the designer: "it's decent").
+- **A melee sidearm keeps the shield on the arm** (Step 22). ⇄ only swaps the weapon in your hand.
+- **The bow:**
+  - The shield is drawn slung on your back while the bow is out.
+  - Swapping back brings the sword and the shield back to the arm within that same swap.
+  - With two blades, both are put away and both come back.
+  - The swap to or from the bow takes `TUNING.bow.swap`, about 0.7 s, slower than a melee swap (0.5 s), because the shield moves too.
+- **The reinforced shield does nothing while the bow is out,** since the shield isn't on the arm.
+- **Frames:** the shield on the back with the bow drawn, and the swap back mid-way.
