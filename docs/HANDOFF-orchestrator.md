@@ -55,10 +55,11 @@ Each game's history is in `docs/games/<slug>/CHANGELOG.md`. To find code in Aren
 2. **Gravity Golf Trials:** five-hole runs (never more than 10) under one rule (no landing, one shot per hole, no aim line, beat par, a stroke budget, a timer), with medals. Open question: a separate menu mode, or at the end of each sector?
    - If Trials go ahead, the "Read it" holes in the main course go and "no aim line" becomes a Trial rule. That settles the open "Read it vs Expert" question as option 1.
    - Trials need a PRD (v0.17).
-3. **Arena, the designer's open calls** (2026-11-14):
+3. **Friends' release v1.6 is cut and tested, not yet live** (2026-11-14). It sits in the worktree `/home/user/wt-release16` (Arena at `arena-v66`, the last build the designer played). The gate passed: all six games boot, saves from v1.5 carry over, nothing dev-only shows. Known flaws: Arena's Arms slot still reads "no use" (fixed in v67), and the traits text on the rolled-fighter card is clipped. On the designer's go: `tools/worktree.sh land release16 release`, smoke, commit, push. The gate's harness is in the scratchpad `release16/` folder; keep it under `tools/checks/` when landing (and add it to `docs/team.md`), since `tools/drive.mjs`'s `save:` option can't reach a release copy (its save key is `game:<slug>.release`).
+4. **Arena, the designer's open calls** (2026-11-14):
    - the trial art picks from Pack 30 (suggested: target B, wheel C, fruit seller A);
    - how the range sketch felt (`docs/games/arena/sketches/range.html`): the shrink, the three misses, the sway, the wheel's speed. The answers set Step 27's numbers.
-4. **The friendlies launch** (`docs/release-friendlies.md`). Still open:
+5. **The friendlies launch** (`docs/release-friendlies.md`). Still open:
    - the Gravity Golf "Read it" question (settled by item 2);
    - the feedback build (settled by item 1);
    - the release gate: `tools/release.sh v1.6`, smoke the release copies, and look at each game's first run.
