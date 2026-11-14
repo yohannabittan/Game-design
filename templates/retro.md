@@ -2,6 +2,13 @@
 
 **Since the last retro:** N builds, on these games: ...
 
+## Is it fun? (first, before any number)
+
+- What did the designer say they enjoyed, in their words?
+- **The pull,** read off the exports they chose to send (never asked for): runs in one sitting, and how often a loss was followed straight away by another run.
+- What did they not feel like playing? That is a finding, not a gap in testing.
+- What would make their next session more fun?
+
 ## The numbers (from `docs/usage/`)
 
 | | Last retro | Now |

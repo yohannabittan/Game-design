@@ -185,6 +185,8 @@ The designer: "How can we improve this in the future and not let the tools and m
 
 The orchestrator listed the process's weaknesses and the designer said: "I like all of these; you should do them." Each rule below answers one weakness, with the evidence for it.
 
+**0. Fun comes first, and the designer is the first player** (added the same day, in the designer's words in `CLAUDE.md`, "Who this is for"). None of the rules below matters if the game isn't fun enough to distract the person making it. The rules exist to keep bugs and clutter from getting between them and that. When a rule gets in the way of something they're excited to play, the rule gives way.
+
 **1. A build that changes how the game is played is verified by someone who didn't build it.**
 - **Why:** builders wrote their own checks and chose their own frames, and the orchestrator reviewed from those. Four bugs got through builds that "passed review first time": the double arms (twice), a stuck training step, knives nobody could learn, a jab that fell short on the designer's phone.
 - **The rule:** any build that changes controls, the first run, or the save gets a **Verifier** (`docs/team.md`): a fresh agent that writes its own checks from the PRD's acceptance list without reading the builder's, tries to break the build, and watches it move. The build lands when the verifier's report is clean, or the orchestrator says in the changelog what it accepted and why.
@@ -201,7 +203,7 @@ The orchestrator listed the process's weaknesses and the designer said: "I like 
 **4. A playtest gate on new features.**
 - **Why:** six features landed between two playtests, about fifteen more were queued, and the sidearm went unused for three runs.
 - **The rules:**
-  - **At most two feature builds may be landed and unplaytested.** After that, only fixes and work on the core (feel, onboarding, polish) start until the designer has played.
+  - **At most two feature builds may be landed and unplayed.** After that, the orchestrator prefers fixes and work on the core (feel, onboarding, polish). This is a brake on the orchestrator's queue, never a duty on the designer: **if the designer wants to play something, it gets built,** gate or not, and nobody asks them to play in order to unblock work. A build they don't feel like playing is itself the finding (`CLAUDE.md`, "Who this is for").
   - **A feature is done when it shows up in a playtest's export,** not when it lands.
   - **A feature unused in three playtests** goes to the retro: fold it into something, change it, or cut it.
   - **The queue shows the next five steps.** Everything else lives in an ideas list, unordered.

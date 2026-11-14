@@ -28,6 +28,10 @@ For a new Claude Code session taking over as the orchestrator. Read `CLAUDE.md` 
   - the orchestrator then dispatches a wiring build.
 - **The environment:** PIL is broken in the cloud container. Build contact sheets in the browser through `tools/drive.mjs`, and GIFs with `/usr/bin/ffmpeg`. Arena's check helpers are kept in `tools/checks/arena.mjs`.
 
+## First, who this is for
+
+The designer is the first player, not a tester: the game has to be fun enough to distract them, and building it together is part of the fun. Read `CLAUDE.md`, "Who this is for", before anything else. Don't ask them to playtest to unblock work.
+
 ## Where each game stands
 
 | Game | Dev build | Notes |

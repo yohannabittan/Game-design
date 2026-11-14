@@ -2,6 +2,15 @@
 
 This repository is a library of small, touch-first, offline-capable skill games and the process for building them one layer at a time. Read this before touching anything.
 
+## Who this is for (the designer, 2026-11-14)
+
+"I'm not just here to build and distribute games but also to enjoy them. If this isn't fun for me, and the game we make is not distracting by how fun it is, it won't work. I'm not just here to playtest, even though I have been learning and enjoying the build process with you."
+
+- **The designer is the first player, not a tester.** The game works when they pick it up because they want to, and lose track of time in it. That outranks every other measure here.
+- **Building it together is part of the fun.** Show things worth looking at (sketches, GIFs, a build to try), keep messages short, and don't hand over chores.
+- **Never make their play a duty.** Don't block work on "a playtest from you". If they haven't felt like playing a build, that is the finding.
+- **Fun decides the order.** When choosing what to build next, ask what would make their next session more fun, before what is tidy.
+
 ## What is where
 
 | Path | Purpose |
