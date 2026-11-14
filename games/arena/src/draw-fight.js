@@ -1174,10 +1174,11 @@ function tailorHead(c, x, y, r, H, T, lk) {
   // painted (step 14): each pinned by its base at (x, y) head radii from the head's centre, its canvas w head radii wide
   const TT = TUNING.kit.tailor, C = tailorArt(lk, 'crest'), Pl = tailorArt(lk, 'plume');
   const pin = (P, at, w) => {
-    const k = w * r / P.J.size[0], W = P.J.size[0] * k, top = y + at[1] * r - P.J.a[1] * k;
-    if (!P.J.flip) { c.drawImage(P.im, x + at[0] * r - P.J.a[0] * k, top, W, P.J.size[1] * k); return; }
+    const nx = P.J.nudge ? P.J.nudge[0] : 0, ny = P.J.nudge ? P.J.nudge[1] : 0;
+    const k = w * r / P.J.size[0], W = P.J.size[0] * k, top = y + (at[1] + ny) * r - P.J.a[1] * k;
+    if (!P.J.flip) { c.drawImage(P.im, x + (at[0] + nx) * r - P.J.a[0] * k, top, W, P.J.size[1] * k); return; }
     // painted leaning forward: mirrored about its base, which stays on the head
-    c.save(); c.translate(x + at[0] * r + P.J.a[0] * k, 0); c.scale(-1, 1); c.drawImage(P.im, 0, top, W, P.J.size[1] * k); c.restore();
+    c.save(); c.translate(x + (at[0] + nx) * r + P.J.a[0] * k, 0); c.scale(-1, 1); c.drawImage(P.im, 0, top, W, P.J.size[1] * k); c.restore();
   };
   if (C) pin(C, TT.crest.at, TT.crest.w);
   if (Pl) pin(Pl, T.crest ? [TT.plume.at[0], TT.plume.top] : TT.plume.at, TT.plume.w);
