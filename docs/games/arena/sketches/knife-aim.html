@@ -17,6 +17,8 @@ const GAPS=[ // relative to foe centre x, absolute y offset above feet
 const SKIN=[{n:'face',dx:0,dy:-201,w:24,h:9},{n:'near arm',dx:-49,dy:-122,w:14,h:20},{n:'far arm',dx:39,dy:-122,w:14,h:20}];
 const S={way:1,look:'a',btn:'L',tgt:'ring',snap:true,now:0,raised:false,knives:T.knives,hits:0,miss:0,pts:0,P:null,h:0,thr:-9,pend:null,tAng:0,
  ring:{x:0,y:0},proj:[],stuck:[],lying:[],fx:[],hint:'',hintT:0,demo:false,frozen:false};
+// a link can start it set up: ?btn=R&tgt=none&way=2&snap=0&line=b
+try{const q=new URLSearchParams(location.search);if(q.get('btn')==='R')S.btn='R';if(q.get('tgt')==='none'){S.tgt='none';S.look='a'}if(q.get('way')==='2')S.way=2;if(q.get('snap')==='0')S.snap=false;if(q.get('line')==='b'&&S.tgt!=='none')S.look='b'}catch(e){}
 let BTN={};
 function layout(){
   DPR=Math.min(window.devicePixelRatio||1,2);
