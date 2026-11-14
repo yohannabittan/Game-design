@@ -17,7 +17,7 @@ This repository is a library of small, touch-first, offline-capable skill games 
 | `prompts/` | One prompt per build layer |
 | `skeleton/` | The template every game is copied from. `skeleton/README.md` is the engine contract. |
 | `games/<slug>/` | One folder per game, self-contained and deployable |
-| `tools/` | `new-game.sh`, `make-icons.py`, `smoke.mjs`, `usage.py` (token ledger) |
+| `tools/` | `new-game.sh`, `make-icons.py`, `smoke.mjs`, `usage.py` (token ledger), `codemap.mjs` (code index and lookup), `worktree.sh`, `drive.mjs`, `perf.mjs` |
 | `docs/usage/` | Token ledger: API-equivalent cost by game, role, model and day (`tools/usage.py`) |
 
 ## Hard rules for builder sessions
@@ -44,7 +44,7 @@ The session the designer talks to is the orchestrator. It writes and reviews doc
 - **Escalation:** builder retry with findings, then next model up, then fix the PRD or prompt.
 - **Parallelism:** across games, and within a content layer as data shards merged by the orchestrator (ADR-0012). Never two builders on one game's mechanic. Arena (ADR-0024): two builders may run at once on different features, each new feature in its own module. `tools/worktree.sh land` merges three ways, and the orchestrator bumps `CACHE_VERSION` at landing.
 - **Log it:** each changelog line names the model that built the layer and whether it passed review first time.
-- **Keep it lean (2026-10-03):** at most three heavy agents at once (builders, reviewers, content shards); a fresh builder per round with a short brief, never a builder resumed across rounds; builders work in their own worktree (`tools/worktree.sh`) and the orchestrator merges a passed build; browser checks use `tools/drive.mjs`, frame time uses `tools/perf.mjs`, and each game's `docs/games/<slug>/CODEMAP.md` says which part of `game.js` to read.
+- **Keep it lean (2026-10-03):** at most three heavy agents at once (builders, reviewers, content shards); a fresh builder per round with a short brief, never a builder resumed across rounds; builders work in their own worktree (`tools/worktree.sh`) and the orchestrator merges a passed build; browser checks use `tools/drive.mjs`, frame time uses `tools/perf.mjs`, and each game's `docs/games/<slug>/CODEMAP.md` says which part of `game.js` to read. For finding code: `node tools/codemap.mjs <slug>` writes a generated `INDEX.md` (rerun at every landing), and `--where <word>` shows where a word is declared and used; Arena also has `RECIPES.md` (the places to touch for each common kind of change), which grows from each builder's "what I had to hunt for".
 - **Cost before rigour (2026-10-07):** before dispatching, question every heavy check, test or simulation: what real failure has it caught, what is the cheapest check that catches it, and does it run per attempt or once per batch? Feel and difficulty are judged by the designer's playtest, not by simulation. Raise the cost with the designer, with a cheaper alternative, when a per-item time-box passes about 20 minutes. See `docs/process.md`, "Cost before rigour".
 - **Sketch before build (2026-11-14):** when a step's open question is how something looks or feels, a throwaway Sonnet sketch (a still, a GIF, or a tiny interactive page) goes to the designer before the build. See `docs/process.md`, "Sketch before build".
 - **Count it:** after a build or review lands, run `python3 tools/usage.py` and commit `docs/usage/` with it, so the ledger outlives the container.
