@@ -172,26 +172,38 @@ function knife(x,y,ang,sc){g.save();g.translate(x,y);g.rotate(ang);const L=T.kle
   g.fillStyle='#5b3a1e';rr(-14,-3.5,14,7,3);g.fill();g.fillStyle='#caa24a';g.fillRect(-1,-6,3,12);g.restore()}
 function stuckKnife(k){g.save();g.translate(k.x,k.y);g.rotate(k.ang);g.fillStyle='#e6ebf0';g.fillRect(-2,-2,16,4);g.fillStyle='#5b3a1e';rr(-26,-3.5,26,7,3);g.fill();g.fillStyle='#caa24a';g.fillRect(-15,-6,3,12);g.restore()}
 function limb(a,b,w,col){g.strokeStyle=col;g.lineWidth=w;g.lineCap='round';g.beginPath();g.moveTo(a.x,a.y);g.lineTo(b.x,b.y);g.stroke()}
+function arm(a,h,w,skin,bendBack){
+  const d=Math.hypot(h.x-a.x,h.y-a.y),L=36,dd=Math.min(d,2*L-0.5),hh=Math.sqrt(Math.max(0,L*L-dd*dd/4));
+  const hx=a.x+(h.x-a.x)*Math.min(1,(2*L-0.5)/(d||1)),hy=a.y+(h.y-a.y)*Math.min(1,(2*L-0.5)/(d||1));
+  const mx=(a.x+hx)/2,my=(a.y+hy)/2,nx=-(hy-a.y)/(dd||1),ny=(hx-a.x)/(dd||1);
+  const e1={x:mx+nx*hh,y:my+ny*hh},e2={x:mx-nx*hh,y:my-ny*hh};
+  const sc=q=>q.x-q.y*0.05,e=sc(e1)<sc(e2)?e1:e2;
+  const hand={x:hx,y:hy};
+  g.lineCap='round';g.lineJoin='round';
+  for(const pass of [0,1]){g.strokeStyle=pass?skin:'#2a1a10';g.lineWidth=pass?w:w+4;g.beginPath();g.moveTo(a.x,a.y);g.lineTo(e.x,e.y);g.lineTo(hand.x,hand.y);g.stroke()}
+  g.fillStyle='#2a1a10';g.beginPath();g.arc(hand.x,hand.y,w*0.62+2,0,7);g.fill();g.fillStyle=skin;g.beginPath();g.arc(hand.x,hand.y,w*0.62,0,7);g.fill();
+  return{e,hand}}
 function drawFighter(p){
-  const x=HX,y=GY;
+  const x=HX,y=GY,skin='#f2c697';
+  // legs, planted
   limb({x:x-8,y:y-78},{x:x-12,y:y-4},12,'#3a2f2a');limb({x:x+8,y:y-78},{x:x+14,y:y-4},12,'#3a2f2a');
   g.fillStyle='#5b3a1e';rr(x-24,y-8,22,8,3);g.fill();rr(x+3,y-8,24,8,3);g.fill();
-  g.fillStyle='#b8432f';rr(x-17,y-146,34,76,10);g.fill();
-  g.fillStyle='#6b2a1e';g.fillRect(x-17,y-100,34,6);
-  // off arm hangs
-  limb({x:x-12,y:SHY+2},{x:x-18,y:SHY+44},9,'#e8b88a');
-  g.fillStyle='#e8b88a';g.beginPath();g.arc(x,y-166,16,0,7);g.fill();
+  // torso and head turn about the hips
+  g.save();g.translate(x,y-72);g.rotate(p.la);g.translate(-x,-(y-72));
+  const tw=34-8*p.e;
+  g.fillStyle='#b8432f';rr(x+4-tw/2-4,y-146,tw,76,10);g.fill();
+  g.fillStyle='#6b2a1e';g.fillRect(x+4-tw/2-4,y-100,tw,6);
+  g.fillStyle=skin;g.beginPath();g.arc(x,y-166,16,0,7);g.fill();
   g.fillStyle='#2a1a10';g.beginPath();g.arc(x,y-170,16,Math.PI,0);g.fill();g.fillRect(x+5,y-168,3,3);
-  // throwing arm: two bones
-  const s=p.sh,h=p.hand,d=Math.hypot(h.x-s.x,h.y-s.y),L=36,dd=Math.min(d,2*L-1),hh=Math.sqrt(Math.max(0,L*L-dd*dd/4));
-  const mx=(s.x+h.x)/2,my=(s.y+h.y)/2,nx=-(h.y-s.y)/(d||1),ny=(h.x-s.x)/(d||1);
-  const el={x:mx+nx*hh*(ny>0?-1:-1)*-1*-1,y:my+ny*hh*-1};
-  const el2={x:mx+(-nx)*hh*-1,y:my+(-ny)*hh*-1};
-  const e=el2.y>el.y?el2:el;
-  limb(s,e,10,'#e8b88a');limb(e,h,9,'#e8b88a');
-  g.fillStyle='#e8b88a';g.beginPath();g.arc(h.x,h.y,6,0,7);g.fill();
-  if(p.up&&S.knives>=0&&(knifeUp()||S.now-S.thr<0.3&&S.now-S.thr>=0)&&!(S.now-S.thr>=0&&S.now-S.thr<0.3)){knife(h.x,h.y,p.ang)}
-  else if(!knifeUp()&&S.knives>0)knife(h.x-4,h.y+4,0.9,0.8);
+  g.restore();
+  // off arm: hangs, then points at the target as the throw is drawn
+  const os=rot({x:x-10,y:SHY+2},p.la),oh={x:lerp(x-18,x+34,p.offw),y:lerp(SHY+44,SHY-18,p.offw)};
+  g.lineCap='round';
+  for(const pass of [0,1]){g.strokeStyle=pass?skin:'#2a1a10';g.lineWidth=pass?9:13;g.beginPath();g.moveTo(os.x,os.y);g.lineTo(oh.x,oh.y);g.stroke()}
+  // throwing arm: outlined skin over the tunic, bent at the elbow
+  const A=arm(p.sh,p.hand,11,skin);
+  if(p.has){knife(A.hand.x-Math.cos(p.ang)*2,A.hand.y-Math.sin(p.ang)*2,p.ang);
+    g.fillStyle='#2a1a10';g.beginPath();g.arc(A.hand.x,A.hand.y,5,0,7);g.fill();g.fillStyle=skin;g.beginPath();g.arc(A.hand.x,A.hand.y,3.6,0,7);g.fill()}
 }
 function dotsLine(a,b,frac,big){
   const D=Math.hypot(b.x-a.x,b.y-a.y);if(D<20)return;
