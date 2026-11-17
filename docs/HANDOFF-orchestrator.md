@@ -44,6 +44,7 @@ The designer is the first player, not a tester: the game has to be fun enough to
 | Recoil | `recoil-v33` | Quiet. |
 | Launch | `launch-v19` | Quiet. |
 | Checkpoint | `checkpoint-v13` | Quiet. |
+| Ronin | `ronin-v1` | An exploration (2026-11-17): swipe to dash-slash, one-shot layer 1 from `docs/games/ronin/prd-v0.1.md`. Waiting on the designer's "more" or drop it. |
 
 Each game's history is in `docs/games/<slug>/CHANGELOG.md`. To find code in Arena, start from `docs/games/arena/CODEMAP.md`: the recipes, `node tools/codemap.mjs arena --where <word>`, and the generated `INDEX.md`. `node tools/docs-check.mjs` says when this document has fallen behind the games.
 

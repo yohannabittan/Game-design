@@ -37,5 +37,11 @@
     "status": "v1: roll a gladiator on the wheels of fate, then fight a gauntlet of five; read tells and feints, slip the blade into armour gaps, draft upgrades between bouts",
     "release": true,
     "orientation": "landscape"
+  },
+  {
+    "slug": "ronin",
+    "title": "Ronin",
+    "status": "v0.1 in progress",
+    "release": false
   }
 ]

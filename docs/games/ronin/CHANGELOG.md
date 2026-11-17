@@ -1,0 +1,5 @@
+# Ronin changelog
+
+## v0.1 (unreleased)
+- Created from skeleton.
+- Layer 1, the mechanic (`prd-v0.1.md`, `prompts/01-mechanic.md`), built in one shot by Opus 5.5 (14 min against an estimate of 35). Cache `ronin-v1`. An exploration: the designer wanted to see what a one-shot of the samurai dash-slash would give. Swipe anywhere to dash and cut (the dash starts once the thumb has moved 24 px; a swipe during a dash is buffered); a kill refills one air dash and pops you upward, so chains stay in the air; sword bandits (a white tell, then a strike in front) and archers (a dotted line, then a slow arrow you can cut); three hearts; one climb to the roof bell; best chain and time saved. Changed from the PRD: `dash.len` 0.34, `dash.time` 0.11, gravity in screen widths, aim assist of 14 degrees toward a bandit in reach, the level about two screens tall. Checks: `tools/checks/ronin/climb.mjs` (a fixed route rings the bell at 390x844 and 375x667; the staircase chains three; strike, tell-kill and arrow-cut). No verifier: a two-way door, a new game nobody depends on. Known: a near-flat dash leans like a dive; arrows are small; chain pops can overlap.
