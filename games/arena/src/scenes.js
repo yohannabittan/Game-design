@@ -396,35 +396,49 @@ function menuLayer(ctx, E, key, o, dust) {
 // a line over the painted backdrop, lifted off it by a dark copy under it
 function liftInk(c, t, x, y, size, weight, color, align = 'center') { ink(c, t, x + 1, y + 1.5, size, weight, 'rgba(8,5,4,0.8)', align); ink(c, t, x, y, size, weight, color, align); }
 const MENU_KEYS = ['play', 'new', 'ludus', 'story', 'sound', 'train', 'champs', 'notes'];
-// the card's lines: each a bullet and its wrapped text, from the top of the body; bottom = where the last one ends (px from the card's top)
-const NOTES_TOP = 88;
-function notesBody(c, e, w) {
+// the card's body: for each build a heading row and its lines (bullet, wrapped text); y is px from the top of the list, h the list's height
+const NOTES_TOP = 46;
+function notesBody(c, list, w, seen) {
   const N = TUNING.notes, tw = w - 64, rows = [];
-  e.lines.forEach((t) => wrapPx(c, t, tw, N.text, '600').forEach((r, j) => rows.push({ t: r, first: !j })));
-  return { rows, bottom: NOTES_TOP + rows.length * N.lh };
+  let y = 0;
+  list.forEach((e, i) => {
+    if (i) y += N.gap;
+    rows.push({ head: e, y, fresh: e.v > seen, newest: !i }); y += N.headH;
+    e.lines.forEach((t) => wrapPx(c, t, tw, N.text, '600').forEach((r, j) => { rows.push({ t: r, first: !j, y }); y += N.lh; }));
+  });
+  return { rows, h: y + 8 };
 }
-function paintNotes(c, L, pages, i) {
-  const { w, h } = L.box, N = TUNING.notes, e = pages[i], g = c.createLinearGradient(0, 0, 0, h);
+function paintNotes(c, L, list, seen, scroll) {
+  const { w, h } = L.box, N = TUNING.notes, g = c.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, '#4a3a2a'); g.addColorStop(1, '#2a2018');
   rrect(c, 0, 0, w, h, 10); c.fillStyle = g; c.fill(); c.lineWidth = 2; c.strokeStyle = '#a8742c'; c.stroke();
   rrect(c, 6, 6, w - 12, h - 12, 7); c.lineWidth = 1; c.strokeStyle = 'rgba(20,14,8,0.6)'; c.stroke();
-  ink(c, 'WHAT’S NEW', w / 2, 26, 18, '800', '#ffd24a');
-  ink(c, `v${e.v} · ${e.date}${i ? '' : '  ·  newest'}`, w / 2, 58, 17, '800', '#f5f2ea');
-  c.strokeStyle = 'rgba(255,210,120,0.3)'; c.beginPath(); c.moveTo(30, 74); c.lineTo(w - 30, 74); c.stroke();
-  notesBody(c, e, w).rows.forEach((r, k) => {
-    const yy = NOTES_TOP + k * N.lh + N.lh / 2 - 4;
-    if (r.first) { c.fillStyle = '#e4b264'; c.beginPath(); c.arc(34, yy, 3, 0, TAU); c.fill(); }
-    ink(c, r.t, 48, yy, N.text, '600', '#efe6d2', 'left');
+  ink(c, 'WHAT’S NEW', w / 2, 24, 18, '800', '#ffd24a');
+  c.strokeStyle = 'rgba(255,210,120,0.3)'; c.beginPath(); c.moveTo(30, 40); c.lineTo(w - 30, 40); c.stroke();
+  const vh = L.view.h, body = notesBody(c, list, w, seen);
+  c.save(); c.beginPath(); c.rect(8, NOTES_TOP, w - 16, vh); c.clip();
+  body.rows.forEach((r) => {
+    const yy = NOTES_TOP + r.y - scroll;
+    if (yy < NOTES_TOP - N.headH || yy > NOTES_TOP + vh) return;
+    if (r.head) {
+      const e = r.head, hy = yy + N.headH / 2 + 4;
+      ink(c, `v${e.v} · ${e.date}`, 30, hy, 17, '800', '#f5f2ea', 'left');
+      if (r.fresh) { const tw = 46, tx = 30 + 110; rrect(c, tx, hy - 10, tw, 20, 10); c.fillStyle = '#ffd24a'; c.fill(); ink(c, 'NEW', tx + tw / 2, hy + 1, 13, '800', '#2a2018'); }
+      c.strokeStyle = 'rgba(255,210,120,0.2)'; c.beginPath(); c.moveTo(30, yy + N.headH - 2); c.lineTo(w - 30, yy + N.headH - 2); c.stroke();
+      return;
+    }
+    const ly = yy + N.lh / 2 - 1;
+    if (r.first) { c.fillStyle = '#e4b264'; c.beginPath(); c.arc(34, ly, 3, 0, TAU); c.fill(); }
+    ink(c, r.t, 48, ly, N.text, '600', '#efe6d2', 'left');
   });
+  c.restore();
+  if (L.max > 0) {
+    const tr = vh - 8, th = Math.max(24, tr * vh / (vh + L.max)), ty = NOTES_TOP + 4 + (tr - th) * scroll / L.max;
+    c.fillStyle = 'rgba(255,255,255,0.28)'; rrect(c, w - 12, ty, 3, th, 1.5); c.fill();
+  }
   const by = L.close.y - L.box.y, cx = L.close.x - L.box.x, bh = L.close.h;
-  for (let k = 0; k < pages.length; k++) { c.fillStyle = k === i ? '#ffd24a' : 'rgba(255,255,255,0.25)'; c.beginPath(); c.arc(w / 2 + (k - (pages.length - 1) / 2) * 16, by - 12, 4, 0, TAU); c.fill(); }
-  const btn = (bx, bw, label, on, size) => {
-    rrect(c, bx, by, bw, bh, 8); c.fillStyle = on ? '#6a4a22' : 'rgba(255,255,255,0.06)'; c.fill(); c.lineWidth = 1.5; c.strokeStyle = on ? '#e4b264' : 'rgba(255,255,255,0.15)'; c.stroke();
-    ink(c, label, bx + bw / 2, by + bh / 2 + 1, size, '800', on ? '#fff0c4' : 'rgba(255,255,255,0.3)');
-  };
-  btn(cx, L.close.w, 'Close', true, 17);
-  btn(L.prev.x - L.box.x, bh, '‹', i > 0, 26);
-  btn(L.next.x - L.box.x, bh, '›', i < pages.length - 1, 26);
+  rrect(c, cx, by, L.close.w, bh, 8); c.fillStyle = '#6a4a22'; c.fill(); c.lineWidth = 1.5; c.strokeStyle = '#e4b264'; c.stroke();
+  ink(c, 'Close', cx + L.close.w / 2, by + bh / 2 + 1, 17, '800', '#fff0c4');
 }
 export const menu = {
   enter(E) {
@@ -474,37 +488,46 @@ export const menu = {
     const g = ctx.createLinearGradient(0, y, 0, y + bh); g.addColorStop(0, '#f2c477'); g.addColorStop(1, '#8a5a1c');
     ctx.fillStyle = g; ctx.fillRect(x, y, bw * clamp(BOOT.bar, 0, 1), bh);
   },
-  // the "What's new" card: the newest TUNING.notes.shown builds, one a page, turned by the arrows or a swipe; Close or a tap outside returns to the menu
+  // the "What's new" card: every build since the card was last opened (at least TUNING.notes.min, at most TUNING.notes.shown), newest first in one list that a thumb drag scrolls; Close or a tap outside returns to the menu
   cardLay(E) {
     const N = TUNING.notes, w = Math.min(N.card[0], E.w - 2 * (N.margin + E.safe.left + E.safe.right)), h = Math.min(N.card[1], E.h - E.safe.top - E.safe.bottom - 2 * N.margin);
     const x = Math.round((E.w - w) / 2), y = Math.round((E.h - h) / 2), [bw, bh] = N.btn, fy = y + h - N.foot / 2 - bh / 2;
-    return { box: { x, y, w, h }, close: { x: x + w / 2 - bw / 2, y: fy, w: bw, h: bh }, prev: { x: x + 10, y: fy, w: bh, h: bh }, next: { x: x + w - 10 - bh, y: fy, w: bh, h: bh } };
+    const view = { x, y: y + NOTES_TOP, w, h: h - NOTES_TOP - N.foot };
+    const box = { x, y, w, h }, max = Math.max(0, (this.cardH || 0) - view.h);
+    return { box, view, max, close: { x: x + w / 2 - bw / 2, y: fy, w: bw, h: bh } };
   },
-  cardPages: () => NOTES.slice(0, TUNING.notes.shown),
+  cardList: (seen) => NOTES.slice(0, Math.min(TUNING.notes.shown, Math.max(TUNING.notes.min, NOTES.filter((e) => e.v > seen).length))),
+  openCard(E) {
+    const seen = E.save.get('notesSeen', 0);
+    this.card = 0; this.cardSeen = seen; this.cardItems = this.cardList(seen); this.cardScroll = 0; this.cardDrag = null; this.cardH = 0;
+    E.save.set('notesSeen', NOTES[0].v);
+  },
   cardTap(p, E) {
-    const L = this.cardLay(E), n = this.cardPages().length;
+    const L = this.cardLay(E);
     if (E.hit(L.close, p) || !E.hit(L.box, p)) { E.audio.play('tap'); this.card = null; }
-    else if (E.hit(L.prev, p) && this.card > 0) { E.audio.play('tap'); this.card--; }
-    else if (E.hit(L.next, p) && this.card < n - 1) { E.audio.play('tap'); this.card++; }
   },
-  onSwipe(p) {
-    if (this.card == null) return;
-    const n = this.cardPages().length;
-    if (p.swipeDir === 'left') this.card = Math.min(n - 1, this.card + 1);
-    else if (p.swipeDir === 'right') this.card = Math.max(0, this.card - 1);
+  cardMove(p, E) {
+    if (!this.cardDrag) return;
+    this.cardScroll = clamp(this.cardDrag.s - (p.y - this.cardDrag.y), 0, this.cardLay(E).max);
   },
   drawCard(ctx, E) {
-    const L = this.cardLay(E), { x, y } = L.box, i = this.card;
+    this.cardH = notesBody(ctx, this.cardItems, this.cardLay(E).box.w, this.cardSeen).h;
+    const L = this.cardLay(E), { x, y } = L.box;
+    this.cardScroll = clamp(this.cardScroll, 0, L.max);
     ctx.fillStyle = 'rgba(8,5,4,0.62)'; ctx.fillRect(0, 0, E.w, E.h);
-    ctx.save(); ctx.translate(x, y); paintNotes(ctx, L, this.cardPages(), i); ctx.restore();
+    ctx.save(); ctx.translate(x, y); paintNotes(ctx, L, this.cardItems, this.cardSeen, this.cardScroll); ctx.restore();
   },
-  // how far down each page's last line reaches and where the footer starts, for the checks that no line is clipped
+  // the list's height and the room it has, for the checks that nothing is clipped without a way to scroll to it
   cardFit(ctx, E) {
-    const L = this.cardLay(E), N = TUNING.notes;
-    return { room: L.box.h - N.foot - 18, pages: this.cardPages().map((e) => notesBody(ctx, e, L.box.w).bottom) };
+    const L = this.cardLay(E), h = notesBody(ctx, this.cardItems, L.box.w, this.cardSeen).h;
+    return { room: L.view.h, h, max: Math.max(0, h - L.view.h) };
   },
-  onPointerDown(p, E) { this.press = !BOOT.done || this.card != null ? null : MENU_KEYS.find((k) => this.btns[k] && E.hit(this.btns[k], p)) || null; },
-  onPointerUp() { this.press = null; },
+  onPointerDown(p, E) {
+    if (this.card != null) { this.press = null; this.cardDrag = { y: p.y, s: this.cardScroll }; return; }
+    this.press = !BOOT.done ? null : MENU_KEYS.find((k) => this.btns[k] && E.hit(this.btns[k], p)) || null;
+  },
+  onPointerMove(p, E) { if (this.card != null) this.cardMove(p, E); },
+  onPointerUp() { this.press = null; this.cardDrag = null; },
   onTap(p, E) {
     if (!BOOT.done || portrait(E)) return;
     if (this.card != null) { this.cardTap(p, E); return; }
@@ -514,7 +537,7 @@ export const menu = {
     else if (b.story && E.hit(b.story, p)) { E.audio.play('tap'); E.setScene('story', { replay: true }); }
     else if (b.ludus && E.hit(b.ludus, p)) { E.audio.play('tap'); E.setScene('ludus'); }
     else if (b.champs && E.hit(b.champs, p)) { E.audio.play('tap'); E.setScene('champs'); }
-    else if (b.notes && E.hit(b.notes, p)) { E.audio.play('tap'); this.card = 0; }
+    else if (b.notes && E.hit(b.notes, p)) { E.audio.play('tap'); this.openCard(E); }
     else if (b.sound && E.hit(b.sound, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
     else if (b.train && E.hit(b.train, p)) { E.audio.play('tap'); E.setScene('play', { drill: true, seed: TUNING.menu.seed }); }
   },

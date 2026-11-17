@@ -1,5 +1,5 @@
 // The menu's "What's new" plaque and card: on the menu at both phone sizes, 44 px to touch, clear of every other button, newest build on top,
-// five builds reachable, no line clipped, Close and a tap outside both return to the menu, the number shown is the shipped CACHE_VERSION.
+// unseen builds listed together (2 to 5), scrollable, no line unreachable, Close and a tap outside both return to the menu, the number shown is the shipped CACHE_VERSION.
 import { readFileSync } from 'node:fs';
 import { ROOT } from '../arena.mjs';
 
@@ -18,16 +18,27 @@ export default async function (t) {
     await g.frames(5);
     const c = await g.ev(() => {
       const E = window.__engine, s = E.game.scenes.menu, cv = document.createElement('canvas').getContext('2d');
-      return { card: s.card, fit: s.cardFit(cv, E), v: E.game.scenes.menu.cardPages()[0].v, n: s.cardPages().length, L: s.cardLay(E) };
+      return { card: s.card, fit: s.cardFit(cv, E), vs: s.cardItems.map((e) => e.v), seen: s.cardSeen, saved: E.save.get('notesSeen', 0), L: s.cardLay(E) };
     });
-    t.eq(`${w}x${h}: a tap on the plaque opens the card on the newest build`, c.card, 0);
-    t.eq(`${w}x${h}: the newest build shown is the shipped CACHE_VERSION`, c.v, shipped);
-    t.eq(`${w}x${h}: five builds can be reached`, c.n, 5);
-    t.ok(`${w}x${h}: no page's last line reaches the footer`, c.fit.pages.every((b) => b <= c.fit.room), JSON.stringify(c.fit));
-    for (let i = 0; i < 4; i++) { await g.tap(c.L.next.x + c.L.next.w / 2, c.L.next.y + c.L.next.h / 2); await g.frames(3); }
-    t.eq(`${w}x${h}: the next arrow reaches the fifth build`, await g.ev(() => window.__engine.game.scenes.menu.card), 4);
+    t.eq(`${w}x${h}: a tap on the plaque opens the card`, c.card, 0);
+    t.eq(`${w}x${h}: the first time it shows the five newest, newest first, the newest being the shipped CACHE_VERSION`, c.vs.map((v, i) => v === shipped - i).every(Boolean) && c.vs.length, 5);
+    t.eq(`${w}x${h}: opening it saves the newest build as seen`, c.saved, shipped);
+    t.ok(`${w}x${h}: what does not fit can be scrolled to`, c.fit.h <= c.fit.room || c.fit.max > 0, JSON.stringify(c.fit));
+    const y0 = c.L.view.y + c.L.view.h / 2;
+    await g.stroke(c.L.view.x + 100, y0 + 60, [[0, 0, 0], [6, 0, -120]]); await g.frames(3);
+    const sc = await g.ev(() => window.__engine.game.scenes.menu.cardScroll);
+    t.ok(`${w}x${h}: a thumb drag scrolls the list when it is taller than the card`, c.fit.max === 0 || sc > 0, `scroll ${sc}, max ${c.fit.max}`);
+    t.eq(`${w}x${h}: the card is still open after a drag`, await g.ev(() => window.__engine.game.scenes.menu.card), 0);
     await g.tap(c.L.close.x + c.L.close.w / 2, c.L.close.y + c.L.close.h / 2); await g.frames(3);
     t.eq(`${w}x${h}: Close returns to the menu`, await g.ev(() => window.__engine.game.scenes.menu.card), null);
+    await g.tap(m.n.x + m.n.w / 2, m.n.y + m.n.h / 2); await g.frames(3);
+    const again = await g.ev(() => { const s = window.__engine.game.scenes.menu; return s.cardItems.length; });
+    t.eq(`${w}x${h}: opened again with nothing new it shows the last 2`, again, 2);
+    await g.tap(c.L.box.x + c.L.box.w / 2, 4); await g.frames(3);
+    await g.ev((v) => window.__engine.save.set('notesSeen', v - 3), shipped);
+    await g.tap(m.n.x + m.n.w / 2, m.n.y + m.n.h / 2); await g.frames(3);
+    t.eq(`${w}x${h}: with three builds unseen, exactly those three are listed`, await g.ev(() => window.__engine.game.scenes.menu.cardItems.map((e) => e.v)), [shipped, shipped - 1, shipped - 2]);
+    await g.tap(c.L.close.x + c.L.close.w / 2, c.L.close.y + c.L.close.h / 2); await g.frames(3);
     await g.tap(m.n.x + m.n.w / 2, m.n.y + m.n.h / 2); await g.frames(3);
     await g.tap(c.L.box.x + c.L.box.w / 2, 4); await g.frames(3);
     t.eq(`${w}x${h}: a tap outside returns to the menu`, await g.ev(() => ({ card: window.__engine.game.scenes.menu.card, scene: window.__engine.sceneName })), { card: null, scene: 'menu' });
