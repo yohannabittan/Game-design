@@ -73,6 +73,7 @@ You get one task and no history. The orchestrator has the whole history, and thi
 | `tools/checks/arena.mjs` | Arena's check helpers: saves, thumb paths, the yard, geometry | | yes, and adds to it | | | |
 | `tools/verify.mjs` | the verifier's kit, base build against candidate: `save` (an old save into the new build), `replays` (stored replays diffed), `strokes` (what each stroke becomes, side by side), `shots` (one PNG at the standard sizes); `--help` | | | | | yes, first |
 | `tools/perf.mjs` | frame time, and a comparison against another copy | | yes, when drawing changes | | | yes |
+| `tools/playtest.mjs` | reads the designer's pasted Arena export: a table of the last N runs (or `--since`) and a summary of all runs (per arena, lost to, picks, jab:slash); `--md` for a playtest note | yes, to write the playtest note | | | | |
 | `tools/film.mjs` | sets up an Arena moment (loadout, foe, sizes, his tell held, knife or bow up) and films a script of strokes and throws: a still PNG, or a GIF under 3 MB plus a contact sheet, with thumb disc and captions; `--help` | | yes, to show any moment or motion | yes, for Arena | | yes |
 | `tools/checks/scene.mjs` | `scene(g, {...})` sets up a test moment on `exact.mjs`'s `boot`; `stroke`, `throwKnife`, `holdTell`, `knifeUp`, `bowUp`; for checks and one-off scripts | | yes | | | yes, first |
 | `tools/sketch.mjs` | a GIF from a sketch page, or from frames of the real game | | yes, for anything that moves | yes | | |
