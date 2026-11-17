@@ -24,6 +24,7 @@ import { arena, state, easeOut, wrap, pidx, noShield, ME_WHEEL, rollMe, kitMe, w
   newRound, saveRun, resumeRun, ART, artV, artImg, artState, artSettled, artFade, shippedArt, BACKDROP, champPic, kitOn } from './game.js';
 import { yardDue, startYard, endYard, yardFields, yardRelease, updateYard, drawYard } from './features/yard.js';
 import { startDual, updateDual, dualTouch } from './features/dual.js';
+import { startTrial, updateTrial, drawTrial, trialTap } from './features/trials.js';
 import { armsTouch, aimDown, aimAt, aimUp, stepArms, bowDown, drawKnives, drawArmsBtns, knifeBuy, lessonDue, startLesson, updateLesson, drawLesson } from './features/ranged.js';
 
 // ====== JUICE (continued) ======
@@ -41,7 +42,7 @@ export const WHEELS = [
 ].map((wh) => ({ ...wh, list: (me) => wheelList(wh.k, me.idx, me.open || []), at: (me) => me.idx[wh.k] }));
 // ====== SCENES: menu, roll, play, over ======
 export const portrait = (E) => E.h > E.w;
-function rotateCard(ctx, E) {
+export function rotateCard(ctx, E) {
   ctx.fillStyle = '#14101a'; ctx.fillRect(0, 0, E.w, E.h);
   const w = Math.min(E.w - 32, 320), h = 190, x = (E.w - w) / 2, y = (E.h - h) / 2;
   E.roundRect(x, y, w, h, 18, '#241c2e', '#e6c866');
@@ -99,7 +100,7 @@ function menuLay(E, run) {
   const ty = T + 10 + ts * 0.55, fy = ty + ts * 0.5 + 14, py = fy + 22 + M.play / 2;
   const r1 = py + M.play / 2 + M.gap + M.small / 2, r2 = r1 + M.small + M.gap, btn = {};
   // (step 23: Training, the yard again, on the second row)
-  (run ? [['new', 'ludus'], ['story', 'sound', 'train']] : [['ludus', 'story'], ['sound', 'train']]).forEach((row, j) => {
+  (run ? [['new', 'ludus', 'trials'], ['story', 'sound', 'train']] : [['ludus', 'trials'], ['story', 'sound', 'train']]).forEach((row, j) => {
     const n = row.length, gw = (cw - 10 - (n - 1) * M.gap) / n;
     row.forEach((k, i) => { const x = cx + (i - (n - 1) / 2) * (gw + M.gap); btn[k] = { x: x - gw / 2, y: (j ? r2 : r1) - M.small / 2, w: gw, h: M.small }; });
   });
@@ -395,7 +396,7 @@ function menuLayer(ctx, E, key, o, dust) {
 }
 // a line over the painted backdrop, lifted off it by a dark copy under it
 function liftInk(c, t, x, y, size, weight, color, align = 'center') { ink(c, t, x + 1, y + 1.5, size, weight, 'rgba(8,5,4,0.8)', align); ink(c, t, x, y, size, weight, color, align); }
-const MENU_KEYS = ['play', 'new', 'ludus', 'story', 'sound', 'train', 'champs', 'notes'];
+const MENU_KEYS = ['play', 'new', 'ludus', 'story', 'sound', 'train', 'trials', 'champs', 'notes'];
 // the card's body: for each build a heading row and its lines (bullet, wrapped text); y is px from the top of the list, h the list's height
 const NOTES_TOP = 46;
 function notesBody(c, list, w, seen) {
@@ -466,7 +467,7 @@ export const menu = {
     if (!BOOT.done) { this.bootCard(ctx, E); gateUp(ctx, E); return; }
     const run = E.save.get('run', null), M = TUNING.menu, Ly = menuLay(E, run), m = this.look, B = Ly.btn, bd = artImg(BACKDROP[m.arena]), face = !!artImg(m.say.pic), logo = artImg('logo-arena');
     const fame = E.save.get('fame', 0), champs = E.save.get('champs', []).slice(0, M.names).map((q) => q.name), wall = E.save.get('wall', []).slice(0, M.names).map((q) => `${q.name} (${q.bout})`);
-    const labels = { play: run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', new: 'New run', ludus: 'The Ludus', story: 'Story', sound: E.audio.muted ? 'Sound: off' : 'Sound: on', train: 'Training', notes: `v${NOTES[0].v} \u00b7 NEW` };
+    const labels = { play: run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', new: 'New run', ludus: 'The Ludus', story: 'Story', sound: E.audio.muted ? 'Sound: off' : 'Sound: on', train: 'Training', trials: 'Trials', notes: `v${NOTES[0].v} \u00b7 NEW` };
     const dot = ludusBuys(E), key = `menu|${E.w}|${E.h}|${m.arena}|${bd ? artV : '-'}|${face ? artV : '-'}|${logo ? artV : '-'}|${Object.keys(B).map((k) => labels[k]).join('|')}|${labels.notes}|${fame}|${dot ? 1 : 0}|${champs.join(',')}|${wall.join(',')}|${m.say.line}`;
     const o = { Ly, m, bd, face, logo, fame, champs, wall, labels, dot };
     if (canSprite) menuLayer(ctx, E, key, o, this.dust);
@@ -540,6 +541,7 @@ export const menu = {
     else if (b.notes && E.hit(b.notes, p)) { E.audio.play('tap'); this.openCard(E); }
     else if (b.sound && E.hit(b.sound, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
     else if (b.train && E.hit(b.train, p)) { E.audio.play('tap'); E.setScene('play', { drill: true, seed: TUNING.menu.seed }); }
+    else if (b.trials && E.hit(b.trials, p)) { E.audio.play('tap'); E.setScene('trials'); }
   },
 };
 
@@ -1502,7 +1504,8 @@ export const tapLive = () => state.introT > 0.35 && !(state.introGo >= 0);
 export const play = {
   enter(E, params) {
     // the menu's Training (step 23): the yard alone, with a stock fighter in the first run's kit against the Pit's sparring partner, saving nothing
-    state.drill = !!params.drill; state.train = null;
+    state.drill = !!params.drill; state.train = null; delete state.trial;
+    if (params.trial) { startTrial(E, params.trial); return; }
     if (state.drill) {
       const P = TUNING.purse.first;
       newRound(E, params.seed, kitMe(rollMe(TUNING.menu.seed), P.w, P.kit), null, 'pit', null); newRack(E); initHand(E); startYard(E, true);
@@ -1590,6 +1593,7 @@ export const play = {
     updateDefence(dt, E);
     checkExhaust(E, dt);
     if (state.train) { updateYard(E, dt); if (E.scene !== this) return; }
+    if (state.trial) { updateTrial(E, dt); if (E.scene !== this) return; }
     crowdDrain(E, dt);
     state.foe.shown += (Math.max(0, state.foe.hp) - state.foe.shown) * (1 - Math.exp(-dt / 0.25));
     state.favShown += (state.fav - state.favShown) * (1 - Math.exp(-dt / 0.2)); state.favT = Math.max(0, state.favT - dt);
@@ -1601,7 +1605,7 @@ export const play = {
       if (state.edge && !state.edge.down) {
         if (state.fallT >= TUNING.resetDelay - TUNING.pairs.taunt && !state.tauntT && !state.swapping) { state.swapping = true; taunt(E, 'fell'); }
         if (state.fallT >= TUNING.resetDelay) stepIn(E);
-      } else if (state.fallT >= TUNING.resetDelay) {
+      } else if (state.fallT >= TUNING.resetDelay && !state.trial) {
         if (state.rack + 1 >= Math.min(TUNING.bouts, state.gauntlet.length)) { this.finish(E); return; }
         openDraft(E); return;
       }
@@ -1618,7 +1622,7 @@ export const play = {
     for (const q of state.pops) q.life -= dt;
     state.pops = state.pops.filter((q) => q.life > 0);
 
-    if (state.endT > 0) { state.endT -= dt; if (state.endT <= 0) this.finish(E); }
+    if (state.endT > 0 && !state.trial) { state.endT -= dt; if (state.endT <= 0) this.finish(E); }
   },
   finish(E) {
     if (state.done) return; state.done = true;
@@ -1802,6 +1806,7 @@ export const play = {
     if (h.down && h.id === p.id) { h.fx = p.x; h.fy = p.y; }
   },
   onTap(p, E) {
+    if (state.trial && trialTap(E, p)) return;
     if (state.train && state.train.skip && E.hit(state.train.skip, p)) { E.audio.play('tap'); endYard(E, true); return; }
     const tt = state.tent;
     if (tt) {
@@ -1932,7 +1937,7 @@ export const play = {
 
     // HUD, inside the safe area
     const top = 10 + E.safe.top, l = 16 + E.safe.left, r = 16 + E.safe.right, TS = TUNING.stamina;
-    if (!state.train && !state.kLesson) {
+    if (!state.train && !state.kLesson && !state.trial) {
       E.text(`BOUT ${state.rack + 1}/${state.gauntlet.length}`, l, top + 12, { size: TUNING.hud.bout, align: 'left', weight: '800', color: state.foe.champion ? '#ffd24a' : '#e6e6e6' });
       drawCrowdMeter(ctx, E, l, top + 31);
     }
@@ -1959,7 +1964,7 @@ export const play = {
       ctx.fillStyle = state.sh.broken || noShield() ? '#3b3f46' : i < state.sh.hits ? '#d6a24a' : '#3b3f46';
       ctx.fillRect(bx + i * (bw / nsh), sy, bw / nsh - 4, 7);
     }
-    if (!state.draft && !state.tent && !state.train && !state.kLesson) foeHealth(ctx, E);
+    if (!state.draft && !state.tent && !state.train && !state.kLesson && !(state.trial && state.trial.immortal)) foeHealth(ctx, E);
     if (state.edge && !state.edge.down && !state.intro && !state.draft && !state.tent) drawEdgeTag(ctx, E);
     if (state.netT > 0) E.text('NETTED: slow hand, no lunge', bx + bw, sy + 34, { size: 14, align: 'right', color: '#e2e8f0', weight: '700' });
     if (state.hint && !state.intro && !state.caption) drawHint(ctx, E);
@@ -1967,6 +1972,7 @@ export const play = {
     drawArmsBtns(ctx, E);
     drawRightHints(E);
     if (state.train) drawYard(ctx, E);
+    if (state.trial) drawTrial(ctx, E);
     if (state.kLesson) drawLesson(ctx, E);
     if (state.intro) { drawIntro(ctx, E); if (E.channel !== 'release') { const t = labTab(E); E.roundRect(t.x, t.y, t.w, t.h, 10, '#1f2937', '#e879f9'); E.text('LAB', t.x + t.w / 2, t.y + t.h / 2, { size: 15, weight: '800', color: '#f5d0fe' }); } }
     if (state.lab) drawLab(ctx, E);

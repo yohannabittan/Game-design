@@ -979,7 +979,7 @@ export function gapHit(E, p, at, ang, sp, a, thrust, st = cleanStrike(a.kind)) {
   if (exec) { dealt = Math.max(dealt, f.hp); state.armed.exec = false; }
   if (!exec && !numb) dealt *= blowMul(E);
   if (kind === 'jab') state.mem.jabs = 0;
-  p.cool = T.hit.cool; if (!numb) p.flash = 0.16; state.gapHits++; if (thrust) { state.slotHits++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1; } if (winded) state.punishes++;
+  p.cool = T.hit.cool; if (!numb) p.flash = 0.16; state.gapHits++; if (kind === 'jab' && st.pierce && !numb && state.trial) state.trial.stabs++; if (thrust) { state.slotHits++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1; } if (winded) state.punishes++;
   f.hp -= dealt;
   const gl = kind === 'jab' ? 0.03 : 0.06;
   // Bonebreaker: an overhead on a bare limb lames it at once
@@ -1280,7 +1280,7 @@ function resolveOne(E, sw) {
 // lunge never carries you inside it); none for a beast, a bash, a net, a throw, or his fists
 export function foeStrike(sw) {
   const f = state.foe, att = sw.pose === 'thrust' ? 'jab' : ['chop', 'slash', 'sweep'].includes(sw.pose) ? 'swing' : null;
-  if (f.beast || !att || state.disarm > 0) return null;
+  if (f.beast || !att || state.disarm > 0 || f.weapon.id === 'fist') return null;
   const key = weaponKey(f.weapon.id, f.mace), J = TUNING.kit.weapon[key];
   return strikeOf(key, att, zoneAt(key, att, clamp((f.strike - gapNow()) / ((f.weapon.len + J.tip) * drawK(f)), 0, 1)));
 }

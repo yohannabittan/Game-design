@@ -123,7 +123,7 @@ export const RANGED = { pounce: true, blink: true, throw: true };
 // ----- step 18, the champions' signature moves -----
 // his key in TUNING.champs: a later champion's own, a Pit champion's first name
 export const champKey = (f) => (!f || f.beast ? null : f.ck || (f.champion ? f.name.split(' ')[0].toLowerCase() : null));
-export const sigOf = (f) => { const C = TUNING.champs[champKey(f)]; return C && C.sig ? C : null; };
+export const sigOf = (f) => { const k = champKey(f), C = (state.trial && state.trial.champs && state.trial.champs[k]) || TUNING.champs[k]; return C && C.sig ? C : null; };
 export const SIG_NAME = { rage: 'RED RAGE', capuan: 'CAPUAN FEINT', blink: 'BLINK', throw: "HUNTRESS'S THROW", twin: 'TWO BLADES' };
 // a champion whose move strikes from where he stands plans each exchange as he gets ready
 const plansEarly = (f) => { const C = sigOf(f); return !!C && (C.sig === 'blink' || C.sig === 'throw'); };

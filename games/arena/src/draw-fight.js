@@ -125,7 +125,7 @@ export function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ?
 export function lookFor(fm, isFoe) {
   const lk = lookOf(fm, isFoe);
   if (!kitOn() || fm.beast) return lk;
-  const tier = kitTier(isFoe ? fm.str : state.me.str), wk = isFoe ? fm.weapon && weaponKey(fm.weapon.id, fm.mace) : state.me.weapon !== 'fist' && weaponKey(state.me.weapon, state.me.mace);
+  const tier = kitTier(isFoe ? fm.str : state.me.str), wk = isFoe ? fm.weapon && fm.weapon.id !== 'fist' && weaponKey(fm.weapon.id, fm.mace) : state.me.weapon !== 'fist' && weaponKey(state.me.weapon, state.me.mace);
   const key = `${tier}|${isFoe ? '' : 'y'}|${wk}|${artV}`;
   if (!lk.kitL || lk.kitL.key !== key) {
     // until all of his paint is in (his weapon too, step 14), he keeps the drawn look whole (step 12)
@@ -1784,6 +1784,7 @@ export const KIND_WORD = { cut: 'Cut', pierce: 'Pierce', crush: 'Crush' };
 export const kindSegs = (key) => (key === 'bow' ? [[KIND_WORD.pierce, TUNING.strike.col.pierce], ['Range', '#cbd5e1']] : (STRIKE_WORDS[key] || []).map((k) => [KIND_WORD[k], TUNING.strike.col[k]]));
 // The foe's weapon in his arm's frame: the fist at (0, ARM_LEN), the weapon along +y; frame -x is the edge that leads a chop.
 export function drawWeapon(ctx, f, H, paint = true) {
+  if (f.weapon.id === 'fist') return;
   const W = f.weapon, y0 = ARM_LEN * H, len = W.len * H, key = weaponKey(W.id, f.mace), J = TUNING.kit.weapon[key];
   if (J && paint && paintWeapon(ctx, key, [0, y0], [0, 1], len + J.tip * H, H, f.look && f.look.gear.weapon)) return;
   ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
@@ -2843,8 +2844,8 @@ export function drawZone(ctx, E) {
     ctx.beginPath(); ctx.moveTo(ax - s, yy - s); ctx.lineTo(ax - 2 * s, yy); ctx.lineTo(ax - s, yy + s); ctx.stroke();
   }
   const pose = sw.fake && !sw.switched ? sw.fakePose : sw.pose, name = sw.kind === 'combo' ? `COMBO ${sw.idx + 1}/${sw.n}` : POSE_NAME[pose];
-  const what = pose === 'bash' ? 'BASH: DODGE' : pose === 'net' ? 'NET: DODGE' : null, zl = sw.zone2 ? `${sw.zone.label} / ${sw.zone2.label}` : sw.zone.label, ly = (sw.zone2 ? Math.min(y, zoneScreenY(L, sw.zone2, Fy.H)) : y) - bh - 10;
-  zoneLbl = shown ? { t: `FEINT: NOT ${sw.fake.label}`, y: y - bh - 10, color: '#c4b5fd', alpha: 1 } : { t: what || (perfect ? `${zl} NOW` : inWin ? `SHIELD ${zl}` : `${sw.counter ? 'COUNTER ' : ''}${name} ${zl}`), y: ly, color: `rgb(${rgb})`, alpha: 1 };
+  const bare = noShield(), what = pose === 'bash' ? 'BASH: DODGE' : pose === 'net' ? 'NET: DODGE' : null, zl = sw.zone2 ? `${sw.zone.label} / ${sw.zone2.label}` : sw.zone.label, ly = (sw.zone2 ? Math.min(y, zoneScreenY(L, sw.zone2, Fy.H)) : y) - bh - 10;
+  zoneLbl = shown ? { t: `FEINT: NOT ${sw.fake.label}`, y: y - bh - 10, color: '#c4b5fd', alpha: 1 } : { t: what || (perfect ? (bare ? 'DODGE NOW' : `${zl} NOW`) : inWin ? (bare ? 'DODGE' : `SHIELD ${zl}`) : `${sw.counter ? 'COUNTER ' : ''}${name} ${zl}`), y: ly, color: `rgb(${rgb})`, alpha: 1 };
 }
 // The tell's label, drawn after the shield and sword arm so they never cover it: centred over the foe, kept on screen, so it never sits under your arm.
 export function drawZoneLabel(ctx, E) {

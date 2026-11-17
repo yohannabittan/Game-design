@@ -569,6 +569,27 @@ export const TUNING = {
   // sides; title px (least, most, share of the height); backdrop wash and vignette alphas; torches at dx px either side of the title's centre, glow r
   // px, flicker share; dust motes, their px/s drift; the fighter's height (share of the height), the cut at his hips (body units), breath (rise as a share of s, rad/s), cloak sway (body units, rad/s)
   // and colour; Brutus's face px; names per wall; wall height px (most); the painted logo's box (title px, step 14); plaques' heights px; repaints a second of what moves (your fighter, the flames, the dust); the crowd murmur's gain, low-pass Hz, loop s and swells a loop
+  // Step 27 (Trials): short drills with a goal, a medal and a best. seed: every trial's set-up; fame: a first gold's, once per trial; end: s the last
+  // moment plays before the end card; intro: s the goal line shows (he holds his first blow that long); me: the stock fighter (band, each stat, origin,
+  // reason). Each trial's medals are [bronze, silver, gold]: a count to reach, or (time) seconds to beat; limit: s before a timed trial is failed.
+  // ironwall: his scripted blows wind wind s, x faster after each perfect block, never under min, gap s apart. capuan: Varro's signature (as
+  // TUNING.champs, every exchanges between); feints: how many come; a read is his fakes let pass and his real blow perfect-blocked. rage: Marcus's,
+  // his rage coming once your blows since the last reach wound health (below: the mark it dips under then). note: s the read's word shows. fist: his fists, a TUNING.weapons row.
+  trials: {
+    seed: 20261117, fame: 5, end: 1.4, intro: 1.8, note: 1.4,
+    me: { size: 'medium', stat: 3, origin: 'gaul', reason: 'debt' },
+    ironwall: { medals: [3, 6, 10], wind: 1.0, faster: 0.93, min: 0.42, gap: 0.6 },
+    capuan: { medals: [3, 4, 5], feints: 5, every: 1, chance: 1, sure: 1 },
+    gaphunter: { medals: [70, 45, 30], need: 5, limit: 90 },
+    breaker: { medals: [75, 50, 30], limit: 90 },
+    rage: { medals: [1, 7, 11], rages: 3, every: 1, chance: 1, sure: 1, below: 0.9, wound: 4, limit: 90 },
+    knuckles: { medals: [1, 6, 10] },
+    stagger: { medals: [40, 25, 15], need: 5, limit: 60 },
+    brawl: { medals: [1, 5, 9] },
+    fist: { id: 'fist', name: 'FISTS', range: 0.02, strike: -0.18, speed: 0.8, dmg: 0.6, len: 0, moves: { chop: 1, thrust: 3, sweep: 1, combo: 3, feint: 1 }, combo: [2, 3], shield: 0, drain: 0, wear: 1 },
+    // the grid: columns, a card's height (x the room under the tabs, at most max px), the tab bar's height; the end card's w x h (at most)
+    grid: { cols: 3, gap: 10, max: 180, tab: 44, card: [620, 300] },
+  },
   menu: { seed: 20261103, col: [0.4, 270, 340], gap: 12, title: [40, 56, 0.12], wash: 0.22, vignette: 0.8, torchDx: 118, torchR: 64, flicker: 0.22,
     dust: 16, dustV: [6, 16], fighter: 0.6, hips: -0.45, breath: [0.012, 1.7], sway: [0.05, 1.2], cloak: '#8e2a26', face: 52, names: 3, wallH: 100,
     logo: [3.8, 1.25], play: 56, small: 46, fps: 5, figBox: [-0.5, -1.8, 0.58, -0.03], murmur: 0.05, murmurHz: 600, murmurLoop: 3, swells: 2,

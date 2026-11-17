@@ -22,3 +22,16 @@
 3. The block and dodge lessons still work: his blows reach you.
 4. `npm run check arena` and `npm run smoke` pass; replay hashes named if they move (the fold fix may move them).
 5. For the designer: the same two moments as the screenshots, before and after, side by side.
+
+## After two build rounds (2026-11-17, parked for the designer)
+
+Two Opus rounds (9 and 16 min) did not finish it; per the escalation rule the step is what needs fixing. Unlanded work is in the worktree `/home/user/wt-arena-yarddist` (probes in the scratchpad folder `arena-yarddist/`).
+
+**Kept from the rounds (worth landing with the final fix):** the arm never folds the blade back at you (`solveArm` keeps the aim `arm.front` ahead of the shoulder; it moves the city replay hash); the spear's slide no longer feeds back into the stand-off; the ring sits on his chest; small screens start you back to make room.
+
+**The real finding: the step's two wants barely fit this arm.** At guard the arm is already nearly straight: a push gains only about 0.14 H of reach over the guard tip (gladius, medium). Keeping the tip a quarter blade short of him (about 0.09 H) and landing the push 0.04 H into him uses nearly all of it, so a slightly short or flat push misses (two yard checks fail on exactly that). And a flat push from the high guard lands on his head, not his chest.
+
+**The fork (a feel question, so it goes to the designer as a sketch, not a build):**
+1. **A more chambered guard** (the hand held further back, `control.guard[0]` smaller): a push then has room to travel, as a real fighter draws back to jab. It changes the guard pose in every fight.
+2. **A smaller gap** (`train.guardOff` about 0.1, `jabIn` about 0.1): the guard stays; the tip sits only just short of him in training.
+3. **Keep the guard, let the ghost show a longer push** (close to before, with the fold fix).

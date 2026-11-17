@@ -33,6 +33,7 @@ import { boutTally, gradeBout, heldFams, dealable, priceOf, boutLvl, dealDraft, 
 import { menu, story, pickArena, ludus, champs, roll, beginBout, introReady, play, over } from './scenes.js';
 import { YARD, nextYard, endYard, yardFields, tipFor, ghostPath } from './features/yard.js';
 import { startDual, updateDual } from './features/dual.js';
+import { trials } from './features/trials.js';
 import { bowShown, armsBtns, startSwap, startAim, aimAt, knifeAt, aimSnap, swapBow, bowDown, bowRelease, plainGap, arrowLands, knifeLands, knifeBuy,
   startLesson } from './features/ranged.js';
 
@@ -76,7 +77,7 @@ export const has = (id) => (!!state.picks && state.picks.includes(id)) || (!!sta
 export const count = (id) => (state.picks ? state.picks.filter((q) => q === id).length : 0) + (state.wares ? state.wares.filter((q) => q === id).length : 0);
 // what the keystones take away
 export const noDodge = () => has('ironwall') || has('titan');
-export const noShield = () => has('untouch');
+export const noShield = () => has('untouch') || !!(state.trial && state.trial.bare);
 // step 22: swapping to your sidearm or aiming a knife leaves you open: no block, no swing; step 24: so does the bow, all the while it is out
 export const busy = () => state.swapT > 0 || !!state.aim || !!state.bowOut;
 export function pickW(rng, list) { let tot = 0; for (const e of list) tot += e[1]; let r = rng() * tot; for (const e of list) { r -= e[1]; if (r < 0) return e[0]; } return list[list.length - 1][0]; }
@@ -907,7 +908,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 19,
+  saveVersion: 20,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -991,6 +992,8 @@ export const game = {
     }
     // v19 (v2 step 24, the bow): a saved run has loosed no arrows and had no bow out
     if (fromVersion < 19 && data.run) Object.assign(data.run, { arrows: 0, arrowGaps: 0, arrowSkin: 0, arrowPlate: 0, arrowMiss: 0, bowTime: 0 });
+    // v20 (step 27, Trials): no trial played yet (each trial's best, medal and whether its first gold's fame was given)
+    if (fromVersion < 20) data.trials = {};
     return data;
   },
   TUNING,
@@ -1036,5 +1039,5 @@ export const game = {
     artTabNames(E);
     kitSwitch(E);
   },
-  scenes: { menu, story, arenas: pickArena, ludus, champs, roll, play, over },
+  scenes: { menu, story, arenas: pickArena, ludus, champs, roll, play, over, trials },
 };

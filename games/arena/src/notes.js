@@ -2,6 +2,7 @@
 // The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
 // then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
 export const NOTES = [
+  { v: 84, date: '17 Nov', lines: ['New: tap Trials on the menu. Eight short drills, each with a goal, a medal and a best.', 'Try Iron Wall (perfect blocks in a row) and Gap Hunter (five stabs into gaps).', 'The Capuan Feint: let his fakes pass, then block the real blow.', 'A first gold gives fame. Retry is one tap. The Range tab is coming.'] },
   { v: 83, date: '17 Nov', lines: ['Tap the build number on the menu: every build since you last looked is on one card, newest first.', 'Drag inside the card to scroll; new builds are marked NEW.'] },
   { v: 82, date: '17 Nov', lines: ['Buy knives and hold KNIFE (bottom right): slide up or down to aim, let go to throw.', 'Only height matters: the dotted line shows what the knife will hit.', 'A plain press throws at bare skin for 4; find a gap for 12.', 'Your sword leaves your hand while you throw.'] },
   { v: 81, date: '17 Nov', lines: ['Training (Skip or replay it from the menu): your partner is now your own size, so blows land where your arm goes.'] },
