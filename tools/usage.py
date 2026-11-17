@@ -192,9 +192,52 @@ def report(rows):
     lines += ['### Most expensive agents', '', '| Agent | Game | Role | Model | API-equivalent | Output tokens |', '| --- | --- | --- | --- | --- | --- |']
     for (desc, game, role, model), a in top:
         lines.append(f"| {desc} | {game} | {role} | {model} | ${a['usd']:,.2f} | {mtok(a['output'])} |")
+    lines += estimates(rows)
     with open(os.path.join(OUT, 'README.md'), 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')
     return total
+
+
+def minutes(r):
+    try:
+        a = datetime.fromisoformat(r['start'].replace('Z', '+00:00')); b = datetime.fromisoformat(r['end'].replace('Z', '+00:00'))
+        return (b - a).total_seconds() / 60
+    except (KeyError, ValueError, AttributeError):
+        return None
+
+
+# Estimates (docs/usage/estimates.csv, written by the orchestrator at dispatch) against the agent's real run time (start to
+# end of its log), joined by the agent's description, once the row is marked done; and, where filled in at landing, the estimate to live against the real.
+def estimates(rows):
+    path = os.path.join(OUT, 'estimates.csv')
+    if not os.path.exists(path):
+        return []
+    with open(path, newline='', encoding='utf-8') as f:
+        est = list(csv.DictReader(f))
+    took = defaultdict(float)
+    for r in rows:
+        m = minutes(r)
+        if m is not None:
+            took[r['description']] += m
+    out = ['### Estimates against actuals', '',
+           'From `estimates.csv` (the estimate is written at dispatch, before the work) and the agents\' logs. Ratio = actual / estimate; over 1 means it took longer.', '',
+           '| Day | Work | Kind | Model | Estimate | Actual | Ratio | To live: estimate | To live: actual |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- |']
+    ratios = defaultdict(list)
+    for e in est:
+        a = took.get(e['agent']) if (e.get('done') or '').strip() == 'yes' else None
+        try:
+            m = float(e['estimate_min'])
+        except ValueError:
+            m = None
+        r = a / m if a and m else None
+        if r:
+            ratios[(e['kind'], e['model'])].append(r)
+        out.append(f"| {e['day']} | {e['agent']} | {e['kind']} | {e['model']} | {e['estimate_min']} min | {f'{a:.0f} min' if a else 'running'} | {f'{r:.1f}' if r else '-'} | {e.get('live_est_min') or '-'} | {e.get('live_actual_min') or '-'} |")
+    out += ['', '| Kind | Model | Runs | Median ratio |', '| --- | --- | --- | --- |']
+    for (k, mo), rs in sorted(ratios.items()):
+        rs = sorted(rs)
+        out.append(f'| {k} | {mo} | {len(rs)} | {rs[len(rs) // 2]:.1f} |')
+    return out + ['']
 
 
 if __name__ == '__main__':
