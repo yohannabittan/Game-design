@@ -1,4 +1,5 @@
 day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
-2026-11-17,Arena: jabs land when meant,build,claude-opus-5-5,25,,60,,estimated 10 min after dispatch; to live includes a verifier and landing
+2026-11-17,Arena: jabs land when meant,build,claude-opus-5-5,25,yes,60,,estimated 10 min after dispatch; to live includes a verifier and landing
 2026-11-17,Arena: knife throw by angle,build,claude-opus-5-5,35,yes,75,,estimated 10 min after dispatch; to live includes a verifier and landing
 2026-11-17,Verify Arena knife throw,verify,claude-sonnet-5-5,18,,,,
+2026-11-17,Verify Arena jabs land,verify,claude-sonnet-5-5,12,,,,short brief: four risks only
