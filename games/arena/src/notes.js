@@ -2,6 +2,7 @@
 // The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
 // then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
 export const NOTES = [
+  { v: 80, date: '17 Nov', lines: ['Push your thumb straight at him: it is a jab now, with every weapon, one or two.', 'Try a spear or an axe: pushes no longer come out as slashes or as nothing.', 'A very slow push still does nothing: push like you mean it.'] },
   { v: 79, date: '14 Nov', lines: ['Buy a second weapon in the Arms slot: you now hold both forward.', 'Your blows go hand to hand: right, left, right, left. Keep your thumb down and push again: the free hand is already up.', 'No shield: block with crossed blades, as before.'] },
   { v: 78, date: '14 Nov', lines: ['Tailor crests sit a little further back on the head; the gold one a little higher too.'] },
   { v: 77, date: '14 Nov', lines: ['Wear a crest from the Tailor: bronze, silver and gold now hang their tail down the back of your neck. v75 had them the wrong way round.'] },

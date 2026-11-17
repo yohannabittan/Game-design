@@ -44,9 +44,10 @@ export const TUNING = {
   // the arm (rad) as an overhead comes down, with the arm's reach set so the middle of its striking part comes down on his head; tau = s it eases in
   over: { leanBack: 0.035, lead: 0.1, tau: 0.03 },
   dodge: { dur: 0.35, back: 0.32, hop: 0.1, cost: 12, cool: 0.2, drain: 14 },  // dur: a tap's sidestep; a hold stays back and drains stamina per second
-  hit: { minSpeed: 400, mid: 950, cool: 0.2 },   // tip px/s: slash threshold, slash damage 2; seconds before a part can be hit again
+  hit: { minSpeed: 400, mid: 950, cool: 0.2 },   // tip px/s: a slash or jab is born and lands above it, slash damage 2 above mid; seconds before a part can be hit again
   attack: {
-    jab: { cost: 8, minSpeed: 520, dmg: 2, recoil: 0.18, dents: 1 },  // dents: a crush jab's (step 21)
+    // push: fist px/s along the guard line that makes a jab (the fist, not the point, so a long or short blade jabs alike); hold: s the push counts after
+    jab: { cost: 8, push: 400, hold: 0.06, dmg: 2, recoil: 0.18, dents: 1 },  // dents: a crush jab's (step 21)
     slash: { cost: 14, dmg: 1, fastDmg: 2, recoil: 0.5, dents: 1 },
     // raise: the hand this far (H) above the guard (about the top of your head); window: seconds it counts after; down: the stroke's downward share that makes it a chop
     over: { cost: 20, minSpeed: 520, dmg: 3, recoil: 0.7, dents: 2, raise: 0.14, window: 0.8, down: 0.25 },
@@ -543,8 +544,8 @@ export const TUNING = {
   // the blows go right, left, right, left, the thumb passing to the other hand when a blow is over, the one that struck easing back to its guard over
   // back s; a
   // stroke drawn back toward you (direction share past pull) is the thumb's return, not a blow; after a bounce the free hand waits overlap x the
-  // struck hand's recoil; after reset s with no blow the next is the main hand's; the off hand's jab is born at offJab x attack.jab.minSpeed (its
-  // lower guard gives the same thumb push a slower point)
+  // struck hand's recoil; after reset s with no blow the next is the main hand's; the off hand's jab is born at offJab x attack.jab.push (its
+  // lower guard gives the same thumb push a slower fist)
   dual: { weapons: ['gladius', 'dagger'], gaps: 1, rest: -1.3, follow: 0.8, cover: 0.12, drain: 2, breakAt: 3, broken: 2.5,
     through: 0.5, cost: 6, holdDrain: 1.6, swing: 0.24, guard: [-0.25, -1.3, 0.55], reach: [0.32, -0.62], thrust: 0.1,
     hold: [0.36, 0.04], back: 0.08, pull: 0.7, overlap: 0.3, reset: 0.8, offJab: 0.85 },

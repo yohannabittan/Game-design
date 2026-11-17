@@ -399,6 +399,8 @@ export function moveHand(E, dt) {
   solveArm(E, dt);
   const iv = Math.max(dt, 0.001), vx = (h.ux - h.pux) / iv, vy = (h.uy - h.puy) / iv, inst = Math.hypot(vx, vy), kv = 1 - Math.exp(-dt / 0.03);
   h.vx += (vx - h.vx) * kv; h.vy += (vy - h.vy) * kv;
+  // the fist's own motion: the thumb's push, without the blade turning about the fist (a long blade's point swings down as a push straightens it)
+  h.fvx = (h.hx - h.phx) / iv; h.fvy = (h.hy - h.phy) / iv;
   // tip speed straight out from the shoulder
   h.along = h.vx * Math.cos(h.ang) + h.vy * Math.sin(h.ang);
   h.sp = h.down && h.lock <= 0 ? h.sp * 0.5 + inst * 0.5 : 0;
@@ -409,7 +411,14 @@ export function moveHand(E, dt) {
   state.trail = state.trail.filter((q) => q.life > 0);
 }
 
-// An attack is born when the tip gets fast, and is named by how it moves: down after the hand was above the head (overhead), straight out from the shoulder (jab),
+// A jab is the fist pushed forward along the guard line, whatever the arm's aim and however the blade turns about the fist (a long blade's point
+// swings down as a push straightens it, which made a spear's push read as a slash): fwd is the fist's heading's share along the line, sp its speed
+// along the line (px/s) while that share is inside the jab cone, else 0
+export function pushOf(h) {
+  const C = TUNING.control, ga = Math.atan2(C.guard[1], C.guard[0]), fs = Math.hypot(h.fvx || 0, h.fvy || 0), fwd = fs > 0 ? (h.fvx * Math.cos(ga) + h.fvy * Math.sin(ga)) / fs : 0;
+  return { fwd, sp: fwd > C.jabCone ? fs * fwd : 0 };
+}
+// An attack is born when the tip gets fast, and is named by how it moves: down after the hand was above the head (overhead), the fist pushed out (jab),
 // up (a free raise, no blow), or any other arc (slash). The cost is paid then.
 export function updateAttack(E, dt) {
   const h = state.hand, T = TUNING, AT = T.attack, S = T.stamina, sh = state.sh;
@@ -418,14 +427,20 @@ export function updateAttack(E, dt) {
   // (step 26b: a raise that turns straight down into a chop is an overhead, with no pause at the top)
   const chop = (spv) => h.vy / spv > AT.over.down && h.tgy > h.ptgy && state.m - h.raisedT < AT.over.window;
   if (h.atk && h.atk.kind === 'raise' && live && h.sp >= T.hit.minSpeed) { const spv = Math.hypot(h.vx, h.vy) || 1; if (spv >= AT.over.minSpeed && chop(spv)) h.atk = null; }
+  // a push counts for jab.hold s, so a point still fast just after the fist has stopped is that jab, not a slash; and a push too slow for a jab is
+  // no slash either for as long (the point swinging down as the arm straightens is no stroke of the thumb's)
+  const push = pushOf(h), since = (m) => state.m - (m == null ? -9 : m) <= AT.jab.hold;
+  if (live && push.sp > 0) h.fwdT = state.m;
+  if (live && push.sp >= jabNeed(h)) h.pushT = state.m;
+  // (a jab's draw-back can lift a long point fast enough to read as a free raise; the push after it is still the jab)
+  if (h.atk && h.atk.kind === 'raise' && live && since(h.pushT)) h.atk = null;
   if (!h.atk && live && h.sp >= T.hit.minSpeed) {
     const spv = Math.hypot(h.vx, h.vy) || 1, ux = h.vx / spv, uy = h.vy / spv;
-    // a jab is a push forward along the guard line, whatever the arm's aim
-    const ga = Math.atan2(TUNING.control.guard[1], TUNING.control.guard[0]), along = (h.vx * Math.cos(ga) + h.vy * Math.sin(ga)) / spv;
     // (a downward stroke from a hand raised above the head is an overhead before it is a jab; the thumb must be bringing it down, not drawing it in)
     let kind = null;
     if (chop(spv)) { if (spv >= AT.over.minSpeed) kind = 'over'; }
-    else if (along > TUNING.control.jabCone) { if (spv >= jabNeed(h)) kind = 'jab'; }
+    else if (since(h.pushT)) kind = 'jab';
+    else if (since(h.fwdT)) kind = null;
     else if (uy < -0.7) kind = 'raise';
     else kind = 'slash';
     // the hand's motion just after your feint is its recovery, not a blow (and with two weapons, the thumb coming back after a blow)
@@ -802,7 +817,7 @@ const cleanStrike = (kind, key = myKey()) => strikeOf(key, attOf(kind), TUNING.s
 export function checkHits(E) {
   const h = state.hand, T = TUNING, a = h.atk;
   if (!a || a.done || h.lock > 0 || state.fallT > 0 || state.endT > 0 || state.away || busy()) return;
-  const need = a.kind === 'jab' ? jabNeed(h) : a.kind === 'over' ? T.attack.over.minSpeed : T.hit.minSpeed;
+  const need = a.kind === 'over' ? T.attack.over.minSpeed : T.hit.minSpeed;
   if (h.sp < need && !lungeStab(a) && !driveStab(a)) return;
   // a lunge that has not committed (the Feint worn) holds what its blade meets until it commits
   const F = foeF(E), fm = state.foe, jab = a.kind === 'jab', held = state.lunging && state.lng && !state.lng.committed;

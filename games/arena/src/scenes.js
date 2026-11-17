@@ -1765,8 +1765,8 @@ export const play = {
     const h = state.hand;
     if (h.down) return;
     h.down = true; h.id = p.id; h.fx = p.x; h.fy = p.y;
-    // (a raise before the thumb lifted makes no overhead of this touch's first stroke)
-    h.ax = p.x; h.ay = p.y; h.raisedT = -9;
+    // (a raise before the thumb lifted makes no overhead of this touch's first stroke, and the last touch's push no jab of it)
+    h.ax = p.x; h.ay = p.y; h.raisedT = -9; h.pushT = h.fwdT = null;
     if (h.lock <= 0) {
       [h.tgx, h.tgy] = guardPt(E);
       h.grip = 0; solveArm(E, 0);

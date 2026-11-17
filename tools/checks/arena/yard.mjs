@@ -26,12 +26,13 @@ const STROKES = {
   over: [[0, 0, 0], [5, 0, -70], [10, 5, -140], [18, 5, -140], [20, 10, -40], [22, 15, 60], [26, 15, 60]],
   lunge: [[0, 0, 0], [6, 60, -5], [12, 140, -10], [18, 190, -10], [45, 190, -10]],
 };
-// the gap step's jab: the thumb first brought down (or up) by the height from the tip to the gap nearest his chest, then the same push
+// the gap step's jab: the thumb first brought down (or up) by the height from the tip to the gap nearest his chest, then the same push (the aim
+// unhurried and its own move: brought down fast in the draw-back it was a slash, which passed this step only when the slash found the gap)
 const gapJab = (g, n) => g.ev((n) => {
   const E = window.__engine, P = E.game.scenes.play, s = P.state, F = P.foeF(E), [, cy] = P.partCenter(F, s.foe, s.foe.parts.find((q) => q.d.id === 'chest'));
   const gaps = s.foe.parts.filter((q) => q.slot && !q.guard && !q.cut).map((q) => P.partCenter(F, s.foe, q)).sort((a, b) => Math.abs(a[1] - cy) - Math.abs(b[1] - cy));
   const dy = (gaps[n % gaps.length][1] - s.hand.uy) / P.TUNING.control.gain;
-  return [[0, 0, 0], [6, -12, dy], [9, 30, dy - 4], [14, 30, dy - 4]];
+  return [[0, 0, 0], [12, 0, dy], [16, 0, dy], [22, -12, dy], [25, 30, dy - 4], [30, 30, dy - 4]];
 }, n);
 
 // the sword ghost's thumb as the yard draws it, sampled a frame at a time at `slow` x its time and `size` x its size: where it lands, and

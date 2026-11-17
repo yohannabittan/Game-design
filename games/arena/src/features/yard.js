@@ -4,7 +4,7 @@
 import { clamp, lerp, ease } from '../engine.js';
 import { TUNING } from '../tuning.js';
 import { SHOULDER, ZONES, ZONE, playerParts } from '../data.js';
-import { lay, youF, gMin, inReach, myH, myArm, myBlade, myPoint, foeF, toScreen, partCenter, guardPt, raised, shieldMax, shieldBtns, ring, pop } from '../fight.js';
+import { lay, youF, gMin, inReach, myH, myArm, myBlade, myPoint, foeF, toScreen, partCenter, guardPt, raised, shieldMax, shieldBtns, ring, pop, pushOf } from '../fight.js';
 import { covered, buildMove, startMove } from '../foe.js';
 import { perfectWin, firstRun } from '../cards.js';
 import { sayLine, TAU, line, rrect } from '../draw-fight.js';
@@ -12,6 +12,7 @@ import { fitSize } from '../screens.js';
 import { initHand, beginBout } from '../scenes.js';
 import { state, easeOut, meSize, newRack, RUN_KEYS } from '../game.js';
 import { yardKnife, armsBtns, lessonGap } from '../features/ranged.js';
+import { jabNeed } from './dual.js';
 
 // ====== YARD: the training yard ======
 // ----- step 23: the training yard -----
@@ -155,12 +156,12 @@ function yardStrokes(E, st) {
   if (st.id !== 'jab' && st.id !== 'slash' && st.id !== 'gap') return;
   if (h.down && h.sp >= SL.sp) {
     const r = tr.run || (tr.run = { x: h.ux, y: h.uy, peak: 0, born: false });
-    r.peak = Math.max(r.peak, h.sp); r.ex = h.ux; r.ey = h.uy; if (real(a)) r.born = true;
+    r.peak = Math.max(r.peak, h.sp); r.push = Math.max(r.push || 0, pushOf(h).sp); r.ex = h.ux; r.ey = h.uy; if (real(a)) r.born = true;
   } else if (tr.run) {
     const r = tr.run, dx = r.ex - r.x, dy = r.ey - r.y, d = Math.hypot(dx, dy), C = TUNING.control, ga = Math.atan2(C.guard[1], C.guard[0]);
-    const fwd = d > 0 && (dx * Math.cos(ga) + dy * Math.sin(ga)) / d > C.jabCone, need = st.id === 'slash' ? TUNING.hit.minSpeed : AT.jab.minSpeed;
+    const fwd = d > 0 && (dx * Math.cos(ga) + dy * Math.sin(ga)) / d > C.jabCone, slow = st.id === 'slash' ? r.peak < TUNING.hit.minSpeed : r.push < jabNeed(h);
     tr.run = null;
-    if (!r.born && r.peak < need && d >= SL.len * myH(E) && fwd === (st.id !== 'slash')) yardMiss(E, 'slow', r.ex, r.ey - 34);
+    if (!r.born && slow && d >= SL.len * myH(E) && fwd === (st.id !== 'slash')) yardMiss(E, 'slow', r.ex, r.ey - 34);
   }
 }
 // DODGE let go in the hold step before it became a hold

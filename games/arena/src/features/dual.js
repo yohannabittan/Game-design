@@ -53,9 +53,9 @@ export function offFist(E) { const o = offRec(); return toLocal(youF(E), o.hx, o
 // the movement of the touch that just ended a blow (h.cont, set at the swap): a fresh touch's draw-back before a push is the start of a blow.
 export const returnStroke = (ux) => !!state.duo && !!state.me.dual && !!state.hand.cont && ux < -TUNING.dual.pull;
 
-// The off hand's lower guard gives the same push of the thumb a slower point (about 0.85 to 0.93 of the main hand's), so its jab is born at offJab x
-// the speed (a slash or an overhead is named before this gate and is the same for both hands).
-export const jabNeed = (h) => TUNING.attack.jab.minSpeed * (h.off ? TUNING.dual.offJab : 1);
+// The push of the fist that makes a jab (attack.jab.push, fight.js pushOf); the off hand's lower guard can give the same thumb a slower push, so its
+// jab is born at offJab x that (a slash or an overhead is named before this gate and is the same for both hands).
+export const jabNeed = (h) => TUNING.attack.jab.push * (h.off ? TUNING.dual.offJab : 1);
 
 // After each blow the thumb goes to the other hand: once the blow is over (landed and slowed, missed, bounced or lifted), never in a lunge. After
 // dual.reset s with no blow (while the thumb is up: a touch the off hand began stays its own), a raised block, the bow or a knife, the main hand
