@@ -70,6 +70,7 @@ You get one task and no history. The orchestrator has the whole history, and thi
 | `tools/drive.mjs` | plays a game headlessly from a script: taps, frames, errors | yes | yes | to see the real game's look | | yes |
 | `tools/checks/run.mjs` (`npm run check arena`) | runs a game's permanent check suite: the files in `tools/checks/arena/`, on a fake clock (`tools/checks/exact.mjs`), about a minute; how to add a check is in `tools/checks/README.md` | yes, before landing any Arena build | yes: before reporting, and adds its step's key checks | | | yes |
 | `tools/checks/arena.mjs` | Arena's check helpers: saves, thumb paths, the yard, geometry | | yes, and adds to it | | | |
+| `tools/verify.mjs` | the verifier's kit, base build against candidate: `save` (an old save into the new build), `replays` (stored replays diffed), `strokes` (what each stroke becomes, side by side), `shots` (one PNG at the standard sizes); `--help` | | | | | yes, first |
 | `tools/perf.mjs` | frame time, and a comparison against another copy | | yes, when drawing changes | | | yes |
 | `tools/sketch.mjs` | a GIF from a sketch page, or from frames of the real game | | yes, for anything that moves | yes | | |
 | `tools/replay.mjs` | replays a recorded run on a fake clock and dumps the run state, so "nothing changed" can be proved exactly; the scripts are in `tools/checks/replays/` | yes, before landing a restructuring | yes, before and after any change that must not alter play | | | yes |
@@ -119,6 +120,7 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
 
 ## Verifier card
 
+- **Start with `node tools/verify.mjs --help`:** the old-save round trip, the replay diff, the stroke table and the side-by-side shots are one command each (base = the main checkout, `--cand` = the builder's worktree), so your minutes go on ways to break the build, not on plumbing.
 - **You didn't build this, and your job is to find what's wrong with it.** A report of "all fine" from a verifier who only re-ran the builder's checks is worth nothing.
 - **Write your own checks from the PRD step's acceptance list,** before you read the builder's checks or report. Then compare: what did the builder not test?
 - **Try to break it the way a person would:**

@@ -4,4 +4,5 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-17,Verify Arena knife throw,verify,claude-sonnet-5-5,18,yes,,,
 2026-11-17,Verify Arena jabs land,verify,claude-sonnet-5-5,12,,,,short brief: four risks only
 2026-11-17,Arena knife throw: fix round,fix,claude-opus-5-5,20,,,,four fixes: plain press at chest; hide sword; preview equals result; waist band
-2026-11-17,Build the verifier's kit,tool,claude-sonnet-5-5,20,,,,save round trip, replay diff, stroke table, shots
+2026-11-17,Build the verifier's kit,tool,claude-sonnet-5-5,20,yes,,,save round trip, replay diff, stroke table, shots
+2026-11-17,Arena: yard partner your size,build,claude-sonnet-5-5,10,,25,,quick build
