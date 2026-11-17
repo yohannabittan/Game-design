@@ -1501,6 +1501,21 @@ export function introReady(E) {
 }
 // "Tap to fight" pulses once the card takes a tap, and dims again while a tap waits for the paint
 export const tapLive = () => state.introT > 0.35 && !(state.introGo >= 0);
+// the sword thumb lands at x, y
+function swordDown(E, x, y, id) {
+  dualTouch(E);
+  const h = state.hand;
+  if (h.down) return;
+  h.down = true; h.id = id; h.fx = x; h.fy = y;
+  // (a raise before the thumb lifted makes no overhead of this touch's first stroke, and the last touch's push no jab of it)
+  h.ax = x; h.ay = y; h.raisedT = -9; h.pushT = h.fwdT = null;
+  if (h.lock <= 0) {
+    // (and the last overhead's reach is let go: easing out from under the new touch, it swept the hand back fast enough to read as a slash)
+    [h.tgx, h.tgy] = guardPt(E);
+    h.grip = 0; h.ovK = 0; solveArm(E, 0);
+    h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy; h.sp = 0; h.vx = h.vy = 0;
+  }
+}
 export const play = {
   enter(E, params) {
     // the menu's Training (step 23): the yard alone, with a stock fighter in the first run's kit against the Pit's sparring partner, saving nothing
@@ -1788,17 +1803,9 @@ export const play = {
       else if (b) raiseShield(E, b.z, p.id);
       return;
     }
-    dualTouch(E);
-    const h = state.hand;
-    if (h.down) return;
-    h.down = true; h.id = p.id; h.fx = p.x; h.fy = p.y;
-    // (a raise before the thumb lifted makes no overhead of this touch's first stroke, and the last touch's push no jab of it)
-    h.ax = p.x; h.ay = p.y; h.raisedT = -9; h.pushT = h.fwdT = null;
-    if (h.lock <= 0) {
-      [h.tgx, h.tgy] = guardPt(E);
-      h.grip = 0; solveArm(E, 0);
-      h.pux = h.ux; h.puy = h.uy; h.phx = h.hx; h.phy = h.hy; h.sp = 0; h.vx = h.vy = 0;
-    }
+    // (a sword touch that lands in a hit-stop cuts the stop short, so the touch is live from its first frame: a fast second push still counts)
+    if (state.stop > 0 && !state.hand.down) state.stop = Math.min(state.stop, TUNING.look.stopCut);
+    swordDown(E, p.x, p.y, p.id);
   },
   onPointerMove(p, E) {
     const h = state.hand;

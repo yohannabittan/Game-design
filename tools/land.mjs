@@ -314,8 +314,10 @@ if (exists(rulesPath)) {
 // ---- 5. changelog, handoff, recipes ----
 {
   const cl = read(changelogPath);
-  step('changelog line', `- ${o.change}`.slice(0, 110));
-  write(changelogPath, cl + (cl.endsWith('\n') ? '' : '\n') + `- ${o.change}\n`); touch(changelogPath);
+  // (docs-check wants the shipped cache named in the changelog: add it when the text doesn't)
+  const line = o.change.includes(newVer) ? o.change : `${o.change.replace(/\s+$/, '')} Cache \`${newVer}\`.`;
+  step('changelog line', `- ${line}`.slice(0, 110));
+  write(changelogPath, cl + (cl.endsWith('\n') ? '' : '\n') + `- ${line}\n`); touch(changelogPath);
 }
 if (exists(handoffPath)) {
   const h = read(handoffPath), re = new RegExp(`^(\\|[^|]*\\|\\s*)\`${slug}-v\\d+\``, 'm');

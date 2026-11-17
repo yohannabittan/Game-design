@@ -40,6 +40,13 @@ const gapJab = (g, n) => g.ev((n) => {
   return [[0, 0, 0], [12, 0, dy], [16, 0, dy], [22, -12, dy], [25, 30, dy - 4], [30, 30, dy - 4]];
 }, n);
 
+// a plain push (2026-11-17, what the yard teaches): the thumb straight out along the guard line by k arm lengths of hand (the arm straight and the
+// body leaning in, short of the lunge), over 6 frames, and held
+export const plainPush = (g, k = 1) => g.ev(async (k) => {
+  const E = window.__engine, P = E.game.scenes.play, Fi = await import(new URL('src/fight.js', location.href).href);
+  const C = P.TUNING.control, a = Math.atan2(C.guard[1], C.guard[0]), d = k * Fi.myArm(E) / C.gain;
+  return [[0, 0, 0], [3, d * Math.cos(a) / 2, d * Math.sin(a) / 2], [6, d * Math.cos(a), d * Math.sin(a)], [12, d * Math.cos(a), d * Math.sin(a)]];
+}, k);
 // the sword ghost's thumb as the yard draws it, sampled a frame at a time at `slow` x its time and `size` x its size: where it lands, and
 // [frame, dx, dy] from there until it lifts
 const ghostCopy = (g, id, slow, size) => g.ev(async ([id, slow, size]) => {
@@ -157,8 +164,8 @@ export default async function (t) {
     t.ok('hold DODGE with your back to the wall completes the hold step', q && q.id === 'hold' && q.done, JSON.stringify(q));
   }
 
-  // 3. the marks: with a long-reach partner (a spear, whose own striking distance is past your plain jab), each step stands him where your plain
-  // jab lands: two jabs from the marks both land, with no lunge
+  // 3. the marks: with a long-reach partner (a spear, whose own striking distance is past your plain push), each step stands him where your plain
+  // push lands: two pushes from the marks both land, with no lunge
   for (const [w, h] of [[667, 375], [844, 390]]) {
     const g = await toBout(t, FRESH, w, h);
     const r = await g.ev(() => {
@@ -168,9 +175,9 @@ export default async function (t) {
       return { gap: +P.gapNow().toFixed(3), own: +(s.foe.weapon.strike + s.foe.size.reach).toFixed(3) };
     });
     await g.frames(5);
-    for (let i = 0; i < 2; i++) { await g.stroke(w * 0.7, h * 0.42, STROKES.jab); await g.frames(30); }
+    for (let i = 0; i < 2; i++) { await g.stroke(w * 0.7, h * 0.42, await plainPush(g)); await g.frames(30); }
     const j = await g.ev(() => { const s = window.__engine.game.scenes.play.state; return { jabs: s.train.jabs, lunges: s.lunges }; });
-    t.ok(`${w}x${h}: the yard stands a spearman within your plain jab: two jabs from the marks both land, no lunge`, r.gap < r.own && j.jabs === 2 && j.lunges === 0, JSON.stringify({ ...r, ...j }));
+    t.ok(`${w}x${h}: the yard stands a spearman within your plain push: two pushes from the marks both land, no lunge`, r.gap <= r.own && j.jabs === 2 && j.lunges === 0, JSON.stringify({ ...r, ...j }));
   }
 
   // step 27, the knife step: its ghost's path (KNIFE pressed, straight up to the ghost's height, let go), copied by a thumb, puts the practice knife

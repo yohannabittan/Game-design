@@ -4,7 +4,7 @@
 import { clamp, lerp, ease } from '../engine.js';
 import { TUNING } from '../tuning.js';
 import { SHOULDER, ZONES, ZONE, playerParts } from '../data.js';
-import { lay, youF, gMin, inReach, myH, myArm, myBlade, myPoint, foeF, toScreen, partCenter, guardPt, raised, shieldMax, shieldBtns, ring, pop, pushOf } from '../fight.js';
+import { lay, youF, gMin, inReach, myH, myArm, myBlade, myPoint, foeF, toScreen, toLocal, partLocal, inside, walls, slideTo, partCenter, guardPt, raised, shieldMax, shieldBtns, ring, pop, pushOf } from '../fight.js';
 import { covered, buildMove, startMove } from '../foe.js';
 import { perfectWin, firstRun } from '../cards.js';
 import { sayLine, TAU, line, rrect } from '../draw-fight.js';
@@ -69,17 +69,57 @@ export function nextYard(E) {
   tr.base = st.got ? st.got(tr) : 0;
   // what the step's "why it didn't count" watches: the stroke in hand, a raise not yet used, the dodges before his tell, Brutus's second line
   Object.assign(tr, { fails: 0, whyM: -9, atk: state.hand.atk, run: null, rz: state.hand.raisedT, d0: state.dodges, endM: -9, higher: false, g0: 0 });
-  // every step starts with both of you back on your marks, mid-ring, with ground behind you to give; he stands where your jab lands on him
-  const gap = yardStand(E, state.foe);
-  state.foe.strike = gap;
-  Object.assign(state.foot, { pos: 0, tgt: 0, v: 1 }); Object.assign(state.step, { x: gap, tgt: 0 });
+  // every step starts with both of you on your marks, mid-ring, with ground behind you to give; he stands where your guard is short of him and a
+  // plain push lands. A ring too small for that gap starts you back of your mark (the step's own mark: you don't drift up from it)
+  const gap = yardStand(E, state.foe), wl = walls(E), mark = clamp(wl.fore - gap, wl.back, 0);
+  state.foe.strike = gap; tr.mark = mark;
+  Object.assign(state.foot, { pos: mark, tgt: mark, v: 1 }); Object.assign(state.step, { x: Math.min(wl.fore, mark + gap), tgt: 0 });
 }
-// the gap (H) the yard stands him at: his own striking distance, drawn in until your plain jab (shoulder, straight arm and blade, no lunge) reaches
-// jabIn H into his front, never nearer than the bodies can stand. His blows still reach you (inReach follows his strike)
+// the gap (H) the yard stands him at (2026-11-17): where a plain push (the arm straight at his chest, the body leaning into it, no lunge) goes
+// jabIn H into him, never nearer than the bodies can stand nor farther than his own striking distance. The chambered guard is then well short of him. A long weapon's slide is worked out at
+// each gap tried, since it shortens the point as he comes in. His blows still reach you (inReach follows his strike)
 function yardStand(E, f) {
-  const L = lay(E), Fy = youF(E), B = TUNING.fighter.body, own = f.weapon.strike + f.size.reach;
-  const tip = L.x0 - (meSize().scale - 1) * B * L.H + SHOULDER[0] * Fy.H + myArm(E) + myBlade(E) - TUNING.train.jabIn * myH(E);
-  return clamp((tip - L.x1 + B * L.H) / L.H, gMin(E), own);
+  const L = lay(E), ft = state.foot, keep = [ft.pos, f.dx], own = f.weapon.strike + f.size.reach;
+  // worked out with you on the mark and him at gap 0, then moved out by the gap tried
+  ft.pos = 0; f.dx = 0;
+  const fr = frontOf(E), fx = foeF(E).x, c0 = foeAt(E, 'chest', 0.6);
+  const land = (g) => { const q = pushTip(E, [c0[0] + g * L.H, c0[1]], fx + g * L.H), m = fr.meet(q.sx, q.sy, q.ux, q.uy, g * L.H); return m == null ? -1 : q.r - TUNING.train.jabIn * myH(E) - m; };
+  let lo = gMin(E), hi = 2;
+  for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (land(mid) > 0) lo = mid; else hi = mid; }
+  ft.pos = keep[0]; f.dx = keep[1]; state.hand.sl = null;
+  return Math.min(lo, own);
+}
+// a plain push at his chest c (his frame at fx; both where they stand now when not given): the shoulder as the body leans train.lean of the way
+// into it (TUNING.thrust), the line from it to his chest, and how far along it the point goes (the arm straight, the blade along it, as the slide leaves it)
+function pushTip(E, c = foeAt(E, 'chest', 0.6), fx = foeF(E).x) {
+  const [sx, sy] = toScreen({ ...youF(E), a: TUNING.lean.base + TUNING.thrust.lean * TUNING.train.lean }, SHOULDER[0], SHOULDER[1]), pt = myBlade(E) * (1 - slideTo(E, sx, fx));
+  const d = Math.hypot(c[0] - sx, c[1] - sy) || 1;
+  return { sx, sy, ux: (c[0] - sx) / d, uy: (c[1] - sy) / d, r: myArm(E) * TUNING.arm.full + pt };
+}
+// his front as he stands now, row by row (screen px): meet(sx, sy, ux, uy, d) how far along a
+// ray from (sx, sy) it first reaches him with him moved d px back; null where nothing of him is
+function frontOf(E) {
+  const F = foeF(E), fm = state.foe, rows = new Map();
+  const row = (y) => {
+    const k = Math.round(y / 2);
+    if (!rows.has(k)) {
+      let x = null;
+      for (let lx = 0.6; lx > -0.3 && x == null; lx -= 0.006) {
+        const [qx, qy] = toLocal(F, F.x - lx * F.H, k * 2);
+        if (fm.parts.some((p) => { if (p.cut) return false; const [px, py] = partLocal(p, fm, qx, qy); return inside(p.d, px, py, 0); })) x = F.x - lx * F.H;
+      }
+      rows.set(k, x);
+    }
+    return rows.get(k);
+  };
+  return {
+    meet(sx, sy, ux, uy, d = 0) { for (let r = 0; r < 3 * F.H; r += 2) { const x = sx + ux * r, y = sy + uy * r, f = row(y); if (f != null && x >= f + d) return r; } return null; },
+  };
+}
+// the jab step's ring: where a plain push meets him, on his chest
+function pushMark(E) {
+  const q = pushTip(E), m = frontOf(E).meet(q.sx, q.sy, q.ux, q.uy);
+  return m == null ? null : [q.sx + q.ux * m, q.sy + q.uy * m];
 }
 // the yard as the export writes it: `hand2,jab4/1,over31/6,...` (seconds, and failed attempts when there were any)
 const yardEntry = (id, t, fails) => `${id}${Math.round(t)}${fails ? `/${fails}` : ''}`;
@@ -242,7 +282,7 @@ export function ghostAt(keys, u) {
 // Where your hand and tip would be with the hand aimed at (tx, ty), as solveArm puts them (thrust 1: the blade along the arm, as in a jab).
 export function tipFor(E, tx, ty, thrust) {
   const A = TUNING.arm, G = TUNING.grip, H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
-  const d = Math.hypot(tx - sx, ty - sy) || 1, ang = Math.atan2(ty - sy, tx - sx), e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1);
+  const ax = Math.max(tx - sx, A.front * H), d = Math.hypot(ax, ty - sy) || 1, ang = Math.atan2(ty - sy, ax), e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1);
   const r = myArm(E) * (A.minFrac + (A.full - A.minFrac) * e), hx = sx + Math.cos(ang) * r, hy = sy + Math.sin(ang) * r;
   const ph = ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust), b = myPoint(E);
   return { hx, hy, ux: hx + Math.cos(ph) * b, uy: hy + Math.sin(ph) * b };
@@ -281,10 +321,14 @@ export function ghostPath(E, id) {
   const P = TUNING.train.path, [gx, gy] = guardPt(E), F = foeF(E), arm = myArm(E), H = myH(E), line = gy - TUNING.attack.over.raise * H;
   if (id === 'jab' || id === 'gap') {
     // a jab: the hand drawn in toward the shoulder on the line to the point, then pushed straight out along it
-    const at = id === 'gap' ? yardGap(E) || chest() : chest(), end = aimFor(E, at[0], at[1], 1, P.reach), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
+    const at = (id === 'gap' ? yardGap(E) : pushMark(E)) || chest(), end = aimFor(E, at[0], at[1], 1, P.reach), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
     // (and on through him, as a jab goes, so the push is long enough to be quick)
     const d = Math.hypot(end[0] - sx, end[1] - sy) || 1, st = [sx + (end[0] - sx) / d * P.chamber * H, sy + (end[1] - sy) / d * P.chamber * H];
-    const thru = [end[0] + (end[0] - sx) / d * P.thrust * H, end[1] + (end[1] - sy) / d * P.thrust * H];
+    // (short of the lunge: the body's lean, not the feet, carries a jab the last of the way)
+    const far = (TUNING.control.lungeStart - 0.15) * arm, ex = end[0] + (end[0] - sx) / d * P.thrust * H - gx, ey = end[1] + (end[1] - sy) / d * P.thrust * H - gy, eo = Math.hypot(ex, ey) || 1;
+    // (the jab step's ghost is the whole plain push, from guard along the shoulder's line to the ring, however he sways: a copy a little short still lands)
+    const jx = at[0] - sx, jy = at[1] - sy, jo = Math.hypot(jx, jy) || 1;
+    const thru = id === 'jab' ? [gx + jx / jo * far, gy + jy / jo * far] : [gx + ex * Math.min(1, far / eo), gy + ey * Math.min(1, far / eo)];
     return { thrust: 1, at, keys: [[0, gx, gy, 1], [0.22, ...st, 1], [0.3, ...thru, 1, 1], [0.5, ...thru, 0], [1, gx, gy, 0]] };
   }
   if (id === 'slash') {

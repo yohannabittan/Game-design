@@ -13,14 +13,17 @@ export const TUNING = {
   // Circuses' hearts and the tent's heart ware; damage, stamina, the crowd and finisher costs stay as they are
   boutLength: 1,
   // the sword thumb is a trackpad: gain = hand px per thumb px; guard = the hand at touch-down, from the shoulder (H); the lunge starts and is full at
-  // these thumb offsets x gain, in arm lengths; back = seconds to ease to guard on lift; jabCone = cosine of the widest push angle off the guard line that is still a jab
-  control: { gain: 1.6, guard: [0.38, -0.08], lungeStart: 1.3, lungeFull: 1.7, back: 0.12, jabCone: 0.68 },
+  // these thumb offsets x gain, in arm lengths; back = seconds to ease to guard on lift; jabCone = cosine of the widest push angle off the guard line that is still a jab.
+  // (2026-11-17) the guard is chambered, the hand held back near the body; a push straightens the arm, then the body leans into it (thrust), then the feet lunge
+  control: { gain: 1.6, guard: [0.24, -0.05], lungeStart: 1.3, lungeFull: 1.7, back: 0.12, jabCone: 0.68 },
+  // a push's body (2026-11-17): the thumb's offset along the guard line (arm lengths, x gain) where the torso starts to lean into it and leans fully, and that lean (rad)
+  thrust: { start: 0.55, full: 1.2, lean: 0.2 },
   hand: {
     lag: 0.035,            // seconds of weight in the hand
     regrip: 0.12,          // lag while the hand recovers from a bounce
     tiredLag: 2.4,         // lag multiplier at zero stamina
   },
-  arm: { len: 0.45, minFrac: 0.35, full: 0.97, chamberAt: 0.16, straightAt: 0.5 },  // arm in H; finger distance (H) at which the arm is chambered and at which it is straight
+  arm: { len: 0.45, minFrac: 0.35, full: 0.97, chamberAt: 0.16, straightAt: 0.5, front: 0.04 },  // arm in H; finger distance (H) at which the arm is chambered and at which it is straight; front: the least H the arm's aim stays ahead of the shoulder (the blade never folds back at you)
   blade: { len: 0.36, pad: 5, jabPad: 10 },   // gladius length in H, hit pad px, the pad px of a jab's striking part (TUNING.strike)
   // (2026-11-14) a spear or trident (weapons' slide) chokes up when he is inside its point: the shaft slides back through the fist until a straight
   // jab's point sits depth H past his front, at most max of its length, easing over tau s
@@ -97,6 +100,7 @@ export const TUNING = {
   // blow's own sound at its birth (tsk: freq, s, gain; whoosh: freq at rest, Hz per px/s, top, s, gain; whoomp: freq, s, gain).
   look: {
     stop: { jab: [0, 0, 0.06], slash: [0, 0, 0.08], over: [0.07, 0, 0.12] },
+    stopCut: 0,          // (2026-11-17) s of a hit-stop left when a fresh sword touch lands in it: the touch is live at once
     trail: { hold: 0.14, back: 0.05, min: 0.28, inner: { jab: 0.85, slash: 0.3, over: 0.15 }, alpha: { jab: 0.9, slash: 0.62, over: 0.7 } },
     needle: { w: 3, lines: 5, k: 0.00028, min: 0.18, max: 0.5 },
     blade: { snap: 0.3, roll: 0.6 },
@@ -341,9 +345,10 @@ export const TUNING = {
   // toward you from the middle), tip = the dotted trail's dots;
   // why = s between two "why it didn't count" words, slow = a stroke too slow to count: tip px/s and the least H it travels; field = the export's
   // characters per yard field (the ledger keeps 80). Step 24: knife = practice knives the knife step gives (not your own)
-  train: { jabIn: 0.1, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, knife: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
+  train: { jabIn: 0.1, lean: 0.2, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, knife: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
     // blow: the least average thumb px/s a sword ghost's blow moves at (step 26b: a copy of it counts, with room to spare)
     ghost: { loop: 1.6, w: 30, h: 40, alpha: 0.55, at: [0.58, 0.8], blow: 550 },
+    // the yard's stand-off (2026-11-17): jabIn: H a plain push (arm straight at his chest, the body lean share of the way into it, no lunge) goes into him.
     // thrust: H the jab's push goes on past the point it is for
     path: { reach: 1.1, lunge: 1.85, chamber: 0.2, thrust: 0.2, over: 0.3, up: 0.06, through: 0.12, slash: [0.88, 0.3, 0.06, -0.06], front: 0.1, tip: 9 },
     why: 0.7, slow: { sp: 200, len: 0.25 }, field: 80 },

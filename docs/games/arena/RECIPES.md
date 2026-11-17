@@ -154,3 +154,4 @@ To undo a landed build: `node tools/land.mjs arena --revert <commit> --msg "Aren
 ## Found while building
 - Save keys: a new key read with `E.save.get(key, default)` needs no saveVersion bump; the check harness has `g.stroke` but no drag or swipe helper; the engine fires a swipe hook for any drag (the card no longer uses one) (What's new build, 2026-11-17).
 - A mode that runs a bout but is not a run (Trials): see `features/trials.js` for how a bout ends (`fell`, `youDown`, the `fallT` and `endT` blocks in `play.update`) and how it skips the draft; a foe with fists needs guards in `drawWeapon`, `lookFor` and `foeStrike`; any new `state` key moves the replay hashes, even when null.
+- A new sword touch must let go of what the last stroke carried: scenes.js swordDown() (h.ovK, h.grip, h.pushT); a touch in a hit-stop cuts the stop (look.stopCut).
