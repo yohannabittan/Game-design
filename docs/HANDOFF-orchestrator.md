@@ -82,3 +82,13 @@ Each game's history is in `docs/games/<slug>/CHANGELOG.md`. To find code in Aren
 ## Spend so far
 
 The token ledger (`docs/usage/README.md`) reads about US$2,080 API-equivalent. Art is in `docs/assets-ledger.md`, about US$50.
+
+## Queue, 2026-11-17 evening (the designer said go on all of it)
+
+In flight: the knife throw's second fix round (`wt-arena-knife`), Trials T1 (`wt-arena-trials1`), the land command (`wt-tools-land`). Next, as slots free (at most three heavy agents, two Arena builders):
+1. **What's new as one list** (`docs/games/arena/steps/2026-11-17-whats-new-list.md`), Sonnet quick build, after the knife lands.
+2. **Test moment and film tools** (a helper to set up a fight moment: loadout, foe, size, a tell held; a `film` command: scripted strokes or throws to frames, thumb overlay, caption, GIF and contact sheet), Sonnet, after the land command.
+3. **Playtest export reader** (a pasted export to a table of new runs), Sonnet.
+4. **Sketch kit** for touchable sketch pages (figure, foe with gaps, phone touch handling, link options, GIF mode), Sonnet.
+5. **Trials T2** (the range trials) after the knife lands and T1 is verified.
+Each dispatch gets a row in `docs/usage/estimates.csv`; each landing moves the builder's "what I had to hunt for" into RECIPES.md.
