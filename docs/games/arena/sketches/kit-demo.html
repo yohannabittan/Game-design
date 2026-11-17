@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Kit Demo</title></head><body>
+<script src="kit.js"></script>
+<script>
+// Starting point for a touch sketch: tap the stage and a line flies from the weapon through your finger at the foe.
+// Link options: ?weapon=spear&helmet=off&line=stop
+const st = Kit.stage({ w: 874, h: 402, bg: '#2b1d12' }), g = st.g, FLOOR = 340;
+const sw = Kit.switches(st, [
+  { key: 'weapon', label: 'WEAPON', values: ['knife', 'sword', 'spear'] },
+  { key: 'helmet', label: 'FOE HELMET', values: ['on', 'off'] },
+  { key: 'line', label: 'LINE', values: ['through', 'stop'] }]);
+const me = Kit.fighter({ x: 130, floor: FLOOR, weapon: sw.get('weapon'), helmet: true });
+let foe = Kit.foe({ x: 700, floor: FLOOR, helmet: sw.get('helmet') === 'on' });
+const S = { now: 0, last: null, aim: { x: 500, y: 200 } };
+const COL = { gap: '#6cff7a', skin: '#ffb347', plate: '#9fb0c4', miss: '#ff5a4d' };
+function apply() { me.weapon = sw.get('weapon'); foe = Kit.foe({ x: 700, floor: FLOOR, helmet: sw.get('helmet') === 'on' }); }
+function throwAt(x, y) { // the line runs from the weapon tip through (x,y), on to the foe's far side
+  me.aimAt(x, y); const a = me.tip(), dx = x - a.x, dy = y - a.y, L = Math.hypot(dx, dy) || 1;
+  const reach = sw.get('line') === 'stop' ? L : Math.max(L, (foe.x + 70 - a.x) / Math.max(0.05, dx / L));
+  const x1 = a.x + dx / L * reach, y1 = a.y + dy / L * reach;
+  S.last = { t: S.now, a, x1, y1, hit: foe.lineHits(a.x, a.y, x1, y1) };
+}
+Kit.touch(st, {
+  down(id, x, y) {
+    if (sw.tap(x, y)) { apply(); return 'switch'; }
+    S.aim = { x, y }; me.aimAt(x, y); throwAt(x, y); return 'throw: ' + S.last.hit.kind + ' ' + S.last.hit.name;
+  },
+  move(id, x, y) { S.aim = { x, y }; me.aimAt(x, y); },
+  cancel() { return 'cancelled'; }
+});
+function draw() {
+  st.begin();
+  const gr = g.createLinearGradient(0, 0, 0, FLOOR); gr.addColorStop(0, '#3b2a1b'); gr.addColorStop(1, '#6b4a2c');
+  g.fillStyle = gr; g.fillRect(0, 0, st.w, FLOOR); g.fillStyle = '#c9a066'; g.fillRect(0, FLOOR, st.w, st.h - FLOOR); g.fillStyle = '#b08850'; g.fillRect(0, FLOOR, st.w, 4);
+  foe.draw(g, { glow: false }); me.draw(g);
+  const s = S.last;
+  if (s) {
+    const age = S.now - s.t, k = Kit.cl01(age / 0.15), h = s.hit, col = COL[h.kind];
+    const ex = Kit.lerp(s.a.x, h.x, Kit.ease(k)), ey = Kit.lerp(s.a.y, h.y, Kit.ease(k));
+    g.strokeStyle = 'rgba(20,12,6,.7)'; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(s.a.x, s.a.y); g.lineTo(ex, ey); g.stroke();
+    g.strokeStyle = '#fff6c8'; g.lineWidth = 3; g.beginPath(); g.moveTo(s.a.x, s.a.y); g.lineTo(ex, ey); g.stroke();
+    if (k >= 1) {
+      const a = Kit.cl01(1.6 - age); g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = 3; g.beginPath(); g.arc(h.x, h.y, 10 + (age - 0.15) * 30, 0, 7); g.stroke();
+      g.font = 'bold 22px system-ui,sans-serif'; g.textAlign = 'center'; g.lineWidth = 4; g.strokeStyle = '#241a12';
+      const t = h.kind === 'miss' ? 'MISS' : h.kind.toUpperCase() + (h.name ? ' · ' + h.name : '');
+      g.strokeText(t, Math.min(st.w - 80, Math.max(80, h.x)), 96); g.fillStyle = col; g.fillText(t, Math.min(st.w - 80, Math.max(80, h.x)), 96); g.globalAlpha = 1;
+    }
+  }
+  g.textAlign = 'center'; g.font = '13px system-ui,sans-serif'; g.fillStyle = '#e6c68a'; g.fillText('tap anywhere to throw a line at the foe', st.w / 2, FLOOR + 46);
+  sw.draw(); Kit.readout(st);
+  st.end();
+}
+Kit.run({ update(dt) { S.now += dt; }, draw });
+// recording: four scripted taps, 3.6 s. Each frame rebuilds its state from the time alone, so it is exact.
+const TAPS = [[0.3, 700, 150], [1.2, 700, 214], [2.1, 704, 282], [2.9, 600, 120]];
+Kit.record({ frames: 66, fps: 18, frame(n, t) {
+  S.now = t; S.last = null; me.aimAt(500, 200);
+  for (const [tt, x, y] of TAPS) if (tt <= t) { const keep = S.now; S.now = tt; throwAt(x, y); S.now = keep; Kit.note('pointerdown', x, y, 'throw: ' + S.last.hit.kind); }
+  draw();
+} });
+</script></body></html>

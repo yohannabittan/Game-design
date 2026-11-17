@@ -111,6 +111,7 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
 - **Work in the scratchpad.** Don't touch a game. Write into `docs/games/<slug>/sketches/` only when your brief names the file.
 - **Match the game's real look:** open the game with `tools/drive.mjs`, take a frame, and match its fonts, colours and shapes. You may use images from the game's `assets/`.
 - **A touchable page is one self-contained file:** everything inline, no outside requests, 44 px targets, sized for a phone (about 874x402 in landscape).
+- **Start from the kit:** copy `docs/games/arena/sketches/kit-demo.html` and keep `<script src="kit.js"></script>`. It gives you a stage that fits any phone orientation, touch that survives iPhone Safari (`pointercancel` is not a release), the fighter and foe with their gaps and `hitAt`/`lineHits`, URL-linked switches, an input readout, and exact GIF recording. Don't rebuild these per sketch.
 - **A GIF:** `node tools/sketch.mjs page <file.html> <out.gif>`. Give the page `window.renderFrame(n)` and `window.FRAMES` and it's recorded exactly. Name the move in a corner caption.
 - **Check it at phone size and look at it yourself.** 20 to 30 minutes; if it needs more, say so and stop.
 - **Report:** the file paths, what's rough or unverified, and anything in your card or brief that was wrong or out of date.
