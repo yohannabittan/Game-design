@@ -34,4 +34,4 @@ The chosen tester settings: **WAY 2 one press, KNIFE button on the right, TARGET
 ## Amendment (2026-11-17, after the first build)
 
 - **A plain press aims at his middle** (the designer chose this). Pressing KNIFE starts the line at his chest; sliding up or down moves it from there, by the same amount of thumb per px of line. Only the height of the slide matters; sideways still does nothing. A plain press and release never throws into the sand.
-- **The throwing arm** stays the sword hand for now (the designer: leave it, play it first).
+- **The throwing arm** stays the sword hand, but **the sword is hidden while the knife is up and through the throw** (the designer: "We should hide the sword when doing the knife throwing"): the hand holds only the knife, and the sword comes back when the arm returns to guard.
