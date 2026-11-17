@@ -149,6 +149,8 @@ Watch out: a change to the show of a common blow (a glance's hit-stop, its spark
 
 Land with `tools/land.mjs`: `--note "line"` (two to five, repeated) adds this entry, bumps `CACHE_VERSION` and sets RULES line 3 in the same run. By hand, the orchestrator adds one entry on top of `NOTES` in `games/arena/src/notes.js`: `v` (the build number, the same as the new `CACHE_VERSION`), `date`, and two to five `lines`, each a thing to try in plain words. The menu's plaque and "What's new" card read it (`TUNING.notes.shown` builds are listed). `tools/docs-check.mjs` fails when the top entry is not the shipped `CACHE_VERSION`; the check `tools/checks/arena/notes.mjs` fails if a page's lines would reach the footer at either phone size.
 
+To undo a landed build: `node tools/land.mjs arena --revert <commit> --msg "Arena vN: rolled back ..."` (forward-only: the new build number, a new top note and changelog line; it stops on a `saveVersion` change or a conflict).
+
 ## Found while building
 - Save keys: a new key read with `E.save.get(key, default)` needs no saveVersion bump; the check harness has `g.stroke` but no drag or swipe helper; the engine fires a swipe hook for any drag (the card no longer uses one) (What's new build, 2026-11-17).
 - A mode that runs a bout but is not a run (Trials): see `features/trials.js` for how a bout ends (`fell`, `youDown`, the `fallT` and `endT` blocks in `play.update`) and how it skips the draft; a foe with fists needs guards in `drawWeapon`, `lookFor` and `foeStrike`; any new `state` key moves the replay hashes, even when null.

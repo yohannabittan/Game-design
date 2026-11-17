@@ -101,3 +101,7 @@ Each dispatch gets a row in `docs/usage/estimates.csv`; each landing moves the b
 - **Explore and exploit:** most effort stays on Arena; one cheap exploration a week (a sketch or touchable prototype of something new, made with `sketches/kit.js`), judged by two minutes of the designer's play: "more" or drop it.
 - **Doors:** steps are labelled one-way or two-way (Orchestrator card). `tools/land.mjs --revert` is being added.
 - **A roadmap per game** is being drafted with the designer; write it to `docs/roadmap.md` once they have answered.
+- **Landed tonight after this note:** Trials T1 as `arena-v84` (save v20); `tools/land.mjs --revert` and `--help`.
+- **Parked:** the yard distance (`docs/games/arena/steps/2026-11-17-yard-distance.md`, worktree `/home/user/wt-arena-yarddist`): two rounds found a fork about the guard pose; next is a sketch of three guard poses for the designer (kit.js), not a build.
+- **Known, for after the designer plays:** fist trials golded by slash spam; the trials check adds about 3 minutes to the suite (trim it); Trials T2 (range) waits for play.
+- **Roadmap draft sent to the designer** with three questions (which mini games they would pick up again; friends features go or not; which exploration first, the samurai dash-slash recommended).
