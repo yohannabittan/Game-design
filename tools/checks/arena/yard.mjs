@@ -1,11 +1,16 @@
 // Steps 23, 22b, 23b and 24: the training yard on a fresh save, played end to end by touch from the purse's Fight! to "Now fight." (sword strokes,
-// the shield and DODGE buttons, the knife's tap and drag); Skip ends it; a second run doesn't show it. Also the bugs it has had: the hold step
+// the shield and DODGE buttons, the knife: KNIFE held, slid up and let go); Skip ends it; a second run doesn't show it. Also the bugs it has had: the hold step
 // stuck when the wall cut a hold short (22b), marks so far apart that a plain jab fell short (23b), and a tap that threw no knife (24).
 // Step 26b: each sword step's ghost thumb, copied as a thumb at the ghost's speed and size, passes the step, and still does a little slower and smaller.
 import { FRESH } from '../arena.mjs';
 
 export const tr = (g) => g.ev(() => { const P = window.__engine.game.scenes.play, s = P.state, t = s.train; return t ? { id: P.YARD[t.i].id, done: t.doneT >= 0, fails: t.fails } : null; });
 
+// the knife step's ghost: from the middle of KNIFE straight up to the height whose line meets the ringed gap (the page's own knifeGhost sums)
+const knifeGhostPath = (g) => g.ev(async () => {
+  const E = window.__engine, P = E.game.scenes.play, R = await import('./src/features/ranged.js'), b = P.armsBtns(E).knife, gp = R.lessonGap(E);
+  return { x: b.x, y: b.y, gy: Math.round(R.knifeThumb(E, ...P.partCenter(P.foeF(E), P.state.foe, gp), b.y)) };
+});
 // from the purse (as a fresh run opens it) to the bout card and its tap
 async function toBout(t, save, w = 667, h = 375) {
   const g = await t.boot({ w, h, save });
@@ -73,10 +78,8 @@ export async function doStep(g, id, n = 0, ghost = false) {
   } else if (id === 'hold') {
     const b = await B(3); await g.down(b.x, b.y, 4); await g.frames(60); await g.up(b.x, b.y, 4);
   } else if (id === 'knife') {
-    const k = await g.ev(() => { const E = window.__engine, b = E.game.scenes.play.armsBtns(E); return b && b.knife; });
-    await g.tap(k.x, k.y, 5); await g.frames(20);
-    const q = await g.ev(() => { const E = window.__engine, P = E.game.scenes.play, s = P.state, K = P.TUNING.knives, p = s.foe.parts.find((q) => q.slot && !q.guard && !q.cut), [x, y] = P.partCenter(P.foeF(E), s.foe, p); return { sx: E.w * K.ghost[0], sy: E.h * K.ghost[1], x, y: y + K.lift }; });
-    await g.stroke(q.sx, q.sy, [[0, 0, 0], [20, q.x - q.sx, q.y - q.sy], [26, q.x - q.sx, q.y - q.sy]], 6);
+    const q = await knifeGhostPath(g);
+    await g.stroke(q.x, q.y, [[0, 0, 0], [20, 0, q.gy - q.y], [26, 0, q.gy - q.y]], 6);
   } else if (id === 'perfect') {
     if (!(await waitBlow(g))) return false;
     await g.until(() => { const P = window.__engine.game.scenes.play, sw = P.state.sw; return !sw || sw.wind - sw.t <= P.perfectWin() * 0.5; }, 400);
@@ -170,18 +173,16 @@ export default async function (t) {
     t.ok(`${w}x${h}: the yard stands a spearman within your plain jab: two jabs from the marks both land, no lunge`, r.gap < r.own && j.jabs === 2 && j.lunges === 0, JSON.stringify({ ...r, ...j }));
   }
 
-  // the knife step: a tap on him throws nothing and doesn't complete it (DRAG, THEN LET GO)
-  {
-    const g = await toBout(t, FRESH);
+  // step 27, the knife step: its ghost's path (KNIFE pressed, straight up to the ghost's height, let go), copied by a thumb, puts the practice knife
+  // in the ringed gap and completes the step, at each phone size
+  for (const [w, h] of [[667, 375], [874, 402]]) {
+    const g = await toBout(t, FRESH, w, h);
     await g.ev(() => { const E = window.__engine, P = E.game.scenes.play, tr = P.state.train; tr.i = P.YARD.findIndex((q) => q.id === 'knife') - 1; P.nextYard(E); });
     await g.frames(5);
-    const k = await g.ev(() => { const E = window.__engine, b = E.game.scenes.play.armsBtns(E); return b && b.knife; });
-    await g.tap(k.x, k.y, 5); await g.frames(20);
-    const q = await g.ev(() => { const E = window.__engine, P = E.game.scenes.play, s = P.state, p = s.foe.parts.find((q) => q.slot && !q.guard && !q.cut), [x, y] = P.partCenter(P.foeF(E), s.foe, p); return { x, y: y + P.TUNING.knives.lift }; });
-    await g.ev(() => { window.__engine.game.scenes.play.state.pops = []; });
-    await g.tap(q.x, q.y, 6); await g.frames(30);
-    const r = await g.ev(() => { const P = window.__engine.game.scenes.play, s = P.state; return { done: s.train.doneT >= 0, thrown: s.knivesThrown, said: s.pops.map((q) => q.s).filter((q) => /[A-Z]{3}/.test(q)).join('|') }; });
-    t.ok('the knife step: a tap on him throws nothing, and says DRAG, THEN LET GO', !r.done && r.thrown === 0 && /DRAG, THEN LET GO/.test(r.said), JSON.stringify(r));
+    const q = await knifeGhostPath(g), g0 = await g.ev(() => window.__engine.game.scenes.play.state.knifeGaps);
+    await g.stroke(q.x, q.y, [[0, 0, 0], [20, 0, q.gy - q.y], [26, 0, q.gy - q.y]], 6); await g.frames(40);
+    const r = await g.ev(() => { const s = window.__engine.game.scenes.play.state; return { done: s.train.doneT >= 0, thrown: s.knivesThrown, gaps: s.knifeGaps }; });
+    t.ok(`${w}x${h}: the knife step: the ghost's path, copied, puts the knife in the gap and completes the step`, r.done && r.thrown === 1 && r.gaps - g0 === 1, JSON.stringify({ q, r }));
   }
 
   // 2b. step 26b: the ghost is a gesture a person can copy: each sword step's ghost, replayed as a thumb, counts (a step that needs two counts one),

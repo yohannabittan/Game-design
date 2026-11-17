@@ -11,7 +11,7 @@ import { perfectWin, finCost, finReady, finLive, finBtn, firstRun } from './card
 import { fitSize, wrapPx } from './screens.js';
 import { ink, over } from './scenes.js';
 import { arena, bg, state, easeOut, wrap, pidx, noDodge, noShield, meSize, meWeapon, ART, artV, ENG, IMGS, artImg, artReady, BACKDROP, kitOn } from './game.js';
-import { bowShown, armsW, drawBow, drawSlung } from './features/ranged.js';
+import { bowShown, knifeShown, armsW, drawBow, drawSlung } from './features/ranged.js';
 import { offRec } from './features/dual.js';
 
 // ====== DRAWING: the fighters, the arena, the HUD, cards and wheels ======
@@ -2197,13 +2197,14 @@ function drawArm(ctx, E, h, live, part) {
   const shape = (pts) => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.closePath(); };
   // fists draw no weapon, as his fists when disarmed (the fist is the forearm's, drawn last); a painted one is pinned in the fist (step 14)
   // step 24: the bow in your fist in place of your weapon, from halfway through the swap to it
-  const bowUp = !far && bowShown();
+  // step 27: a knife up, and through its throw until the arm is back on guard, the fist holds only the knife (drawKnives): no blade
+  const bowUp = !far && bowShown(), knifeUp = !far && h === state.hand && knifeShown();
   if (bowUp) drawBow(ctx, E);
   ctx.save();
   if (roll < 1) { ctx.translate(h.hx, h.hy); ctx.rotate(ph); ctx.scale(1, roll); ctx.rotate(-ph); ctx.translate(-h.hx, -h.hy); }
   // (a long weapon choked up is painted whole, slid back through the fist by the share drawn back: myPoint)
-  const sl = myBlade(E) - blade, painted = !bowUp && !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx - bx * sl, h.hy - by * sl], [bx, by], blade + sl, H, G.weapon, locked, live ? zoneFx() : null);
-  if (painted || bowUp) { /* drawn */ } else if (pole) {
+  const sl = myBlade(E) - blade, painted = !bowUp && !knifeUp && !bare && !!lk.kit && paintWeapon(ctx, weaponKey(wid, state.me.mace), [h.hx - bx * sl, h.hy - by * sl], [bx, by], blade + sl, H, G.weapon, locked, live ? zoneFx() : null);
+  if (painted || bowUp || knifeUp) { /* drawn */ } else if (pole) {
     // a wooden shaft from behind the fist to the head
     ctx.strokeStyle = '#1b1610'; ctx.lineWidth = 0.03 * H + 2; ctx.beginPath(); ctx.moveTo(h.hx - bx * (0.12 * H + sl), h.hy - by * (0.12 * H + sl)); ctx.lineTo(ux - bx * 0.02 * H, uy - by * 0.02 * H); ctx.stroke();
     ctx.strokeStyle = '#7a5532'; ctx.lineWidth = 0.03 * H; ctx.stroke();
@@ -2240,7 +2241,7 @@ function drawArm(ctx, E, h, live, part) {
     const mid = wid === 'sica' ? [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.94].map((t) => P(t, sicaBow(t))) : [[gx + bx * 6, gy + by * 6], [ux - bx * 6, uy - by * 6]];
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); mid.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
   }
-  if (G.weapon && !bare && !painted && !bowUp) {
+  if (G.weapon && !bare && !painted && !bowUp && !knifeUp) {
     const tip = [ux, uy], back = (k) => [ux - bx * k * H, uy - by * k * H], ts = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85];
     // the cutting edges (the saw teeth's lines) follow each blade or head as drawn above, never the shaft
     const sides = (f) => [1, -1].map((sd) => ts.map((t) => f(t, sd)));

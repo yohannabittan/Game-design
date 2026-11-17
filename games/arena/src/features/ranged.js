@@ -4,18 +4,20 @@
 import { clamp, lerp } from '../engine.js';
 import { TUNING } from '../tuning.js';
 import { ARM_LEN, SHOULDER } from '../data.js';
-import { lay, youF, inReach, myH, foeF, toScreen, toLocal, partLocal, partCenter, inside, fell, blood, sparks, ring, pop, dmgPop, slotSound,
+import { lay, youF, inReach, myH, foeF, toScreen, toLocal, partLocal, partCenter, guardPt, inside, fell, blood, sparks, ring, pop, dmgPop, slotSound,
   dullSound, sliceSound, clangSound, swooshSound, dust, mark, localDir } from '../fight.js';
 import { covered, setCover } from '../foe.js';
 import { staggerFoe, finLive, crowdEvent } from '../cards.js';
 import { weaponKey, artPic, kitPic, TAU, line, lerp2, drawCoin, drawWeapon, shieldFace } from '../draw-fight.js';
 import { wield, iconWeapon, weaponTitle } from '../screens.js';
 import { state, noShield, shake, meSize, ENG, kitOn, has, count } from '../game.js';
-import { YARD, GHOST, yardKnifeTap, yardChime, yardTick, yardPlate, gapRings, ghostThumb, ghostAt } from '../features/yard.js';
+import { YARD, GHOST, yardChime, yardTick, yardPlate, gapRings, ghostThumb, ghostAt } from '../features/yard.js';
 
 // ====== RANGED: the sidearm, knives and the bow ======
 // step 24: the bow is in your hand, from halfway through the swap to it until halfway through the swap back (the shield on your back the same)
 export const bowShown = () => (state.swapT > 0 && state.bowSwap ? !!state.bowOut === state.swapT <= TUNING.bow.swap / 2 : !!state.bowOut);
+// step 27: a knife up, or in its throw until the arm is back on guard: the sword hand holds only the knife
+export const knifeShown = () => (!!state.aim && !state.aim.bow) || !!state.whip;
 // ----- step 22: the sidearm (⇄) and throwing knives, two round buttons at the bottom right -----
 // the purse's weapon id as the weapon wheel's (the mace is an axe that is a mace)
 export const sideWield = (id) => [id === 'mace' ? 'axe' : id, id === 'mace'];
@@ -29,16 +31,17 @@ export function armsBtns(E) {
   const B = TUNING.sidearm.btn, side = !!state.me.side, kn = !state.bowOut && (state.knives > 0 || (!!state.aim && !state.aim.bow));
   if (!side && !kn) return null;
   const x = E.w - 16 - E.safe.right - B.r, y0 = E.h - 10 - E.safe.bottom - B.r;
-  return { swap: side && !state.train ? { x, y: y0, r: B.r } : null, knife: kn ? { x, y: side && !state.train ? y0 - 2 * B.r - B.gap : y0, r: B.r } : null, w: 2 * B.r + B.gap };
+  // (KNIFE in the upper place, with or without ⇄ under it: the thumb slides down from it to aim low)
+  return { swap: side && !state.train ? { x, y: y0, r: B.r } : null, knife: kn ? { x, y: y0 - 2 * B.r - B.gap, r: B.r } : null, w: 2 * B.r + B.gap };
 }
 export const armsW = (E) => { const b = armsBtns(E); return b ? b.w : 0; };
 const onRound = (b, p) => !!b && Math.hypot(p.x - b.x, p.y - b.y) <= b.r + TUNING.finBtn.reach;
-// a touch on ⇄ swaps; on the knife button it raises a knife, or lowers the one raised
+// a touch on ⇄ swaps; a thumb down on the knife button raises a knife, and that thumb aims and throws it
 export function armsTouch(E, p) {
   const b = armsBtns(E);
   if (!b) return false;
   if (onRound(b.swap, p)) { startSwap(E); return true; }
-  if (onRound(b.knife, p)) { if (state.aim) { state.aim = null; E.audio.play('tap'); } else startAim(E); return true; }
+  if (onRound(b.knife, p)) { if (!state.aim) startAim(E, p); return true; }
   return false;
 }
 // he sees you open: within his reach, his next blow comes soon
@@ -55,31 +58,46 @@ export function startSwap(E) {
   swooshSound(E, 0.1); E.haptic(10);
   seenOpen();
 }
-// a knife raised: open (no block, no swing) until it is thrown or lowered. The aim ring shows at once, on his middle; a right-thumb touch moves it
-// (lift px above the thumb), and only a touch dragged TUNING.knives.drag px or more throws on its release: a tap just leaves the ring there
-export function startAim(E) {
+// step 27, one press: the thumb down on KNIFE raises a knife, the arm drawn back; open (no block, no swing) until it is thrown or put away. That
+// thumb's height alone aims it (knifeAim); its release throws once the knife is up (TUNING.knives.aim s). With no thumb (p), the line is at rest.
+export function startAim(E, p) {
   if (state.knives <= 0 || state.swapT > 0 || state.bowOut) return;
-  const h = state.hand, F = foeF(E), rx = F.x, ry = F.y - TUNING.knives.rest * F.H;
+  const h = state.hand;
   h.down = false; h.atk = null;
-  state.aim = { t: 0, id: -1, rx, ry, x: rx, y: ry, tx: null, ty: null, sx: 0, sy: 0, drag: 0, go: false, over: knifeAt(E, rx, ry).kind };
+  state.aim = { t: 0, id: p ? p.id : -1, ty: p ? p.y : null, sy: p ? p.y : 0, k0: chestK(E), go: false, x: 0, y: 0, over: 'miss' };
+  knifeAim(E);
   E.audio.beep({ freq: 880, dur: 0.06, type: 'triangle', gain: 0.08 }); E.haptic(8);
   seenOpen();
 }
-export function aimDown(E, p) { const a = state.aim; a.id = p.id; a.sx = p.x; a.sy = p.y; a.drag = 0; aimAt(E, p); }
+// the bow's draw: the ring lift px above the thumb (a knife's thumb is its own, from the press)
+export function aimDown(E, p) { const a = state.aim; if (!a.bow) return; a.id = p.id; a.sx = p.x; a.sy = p.y; a.drag = 0; aimAt(E, p); }
 export function aimAt(E, p) {
   const a = state.aim;
+  if (!a.bow) { a.ty = p.y; return; }
   a.tx = p.x; a.ty = p.y; a.drag = Math.max(a.drag, Math.hypot(p.x - a.sx, p.y - a.sy));
   a.rx = clamp(p.x, 10, E.w - 10); a.ry = clamp(p.y - TUNING.knives.lift, E.safe.top + 10, E.h - 10);
   aimSnap(E);
 }
-// the thumb lifted: a drag throws (once the knife is up), a tap leaves it raised with the ring where it touched
-export function aimUp(E) { const a = state.aim; if (a.bow) { bowRelease(E); return; } a.id = -1; if (a.drag >= TUNING.knives.drag) a.go = true; else if (state.train) yardKnifeTap(E); }
-// what a knife arriving at (x, y) meets now: an open gap, plate (or his shield or guard), bare skin, or nothing
-export function knifeAt(E, x, y) {
+// the thumb lifted: the knife flies along its line, however short the press (once it is up). Only a thumb slid down off the bottom edge puts it
+// away, and says so (back over the button is his chest again, where a plain press aims, so it throws)
+export function aimUp(E, p) {
+  const a = state.aim, K = TUNING.knives;
+  if (a.bow) { bowRelease(E); return; }
+  a.id = -1;
+  if (p && (p.cancelled || (p.y >= E.h - K.edge && p.y > a.sy))) {
+    const [hx, hy] = knifeHand();
+    state.aim = null; pop(hx, hy - 24, 'NO THROW', '#e2e8f0', 18); E.audio.beep({ freq: 520, dur: 0.1, type: 'triangle', slide: 0.6, gain: 0.07 }); E.haptic(6);
+    return;
+  }
+  a.go = true;
+}
+// what a knife arriving at (x, y) meets now: an open gap, plate (or his shield or guard), bare skin, or nothing (his parts, slots first: order)
+const slotsFirst = (fm) => fm.parts.filter((q) => q.slot).concat(fm.parts.filter((q) => !q.slot));
+export function knifeAt(E, x, y, order = null) {
   const K = TUNING.knives, F = foeF(E), fm = state.foe;
   if (state.fallT > 0 || fm.hp <= 0 || !fm.parts) return { p: null, kind: 'miss' };
   const [lx, ly] = toLocal(F, x, y);
-  for (const p of fm.parts.filter((q) => q.slot).concat(fm.parts.filter((q) => !q.slot))) {
+  for (const p of order || slotsFirst(fm)) {
     const [qx, qy] = partLocal(p, fm, lx, ly);
     if (inside(p.d, qx, qy, K.pad / F.H)) return { p, kind: p.slot && !covered(p) ? 'gap' : covered(p) ? 'plate' : 'skin', lx: qx, ly: qy };
   }
@@ -109,15 +127,101 @@ export function aimSnap(E) {
   if (t.kind === 'gap' && a.over !== 'gap') E.audio.beep({ freq: 1500, dur: 0.03, type: 'triangle', gain: 0.05 });
   a.over = t.kind;
 }
-// where the raised knife is held: in your sword hand, which goes up beside your head (moveHand)
+// where the raised knife is held: in your sword hand, drawn back beside your head (moveHand)
 function knifeHand() { return [state.hand.hx, state.hand.hy]; }
-export function raisePt(E) { const Fy = youF(E), R = TUNING.knives.raise, [sx, sy] = toScreen(Fy, SHOULDER[0], SHOULDER[1]); return [sx + R[0] * Fy.dir * Fy.H, sy + R[1] * Fy.H]; }
-// thrown: spent, hit or miss; it flies to the aim point at TUNING.knives.speed and finds what is there when it arrives
+const wrapA = (x) => Math.atan2(Math.sin(x), Math.cos(x));
+const backPt = (E) => { const Fy = youF(E), R = TUNING.knives.raise, [sx, sy] = toScreen(Fy, SHOULDER[0], SHOULDER[1]); return [sx + R[0] * Fy.dir * Fy.H, sy + R[1] * Fy.H]; };
+// where the sword hand goes with a knife up: drawn back; in a throw (state.whip) it whips forward along the throw, follows through, and goes
+// back to guard, on the whip's own clock (the third value says: no easing in moveHand)
+export function raisePt(E) {
+  const w = state.whip, back = backPt(E);
+  if (!w) return back;
+  const K = TUNING.knives, Fy = youF(E), H = Fy.H, [t1, t2, t3] = K.whip, [sx, sy] = toScreen(Fy, SHOULDER[0], SHOULDER[1]), e = (u) => { const v = clamp(u, 0, 1); return v * v * (3 - 2 * v); };
+  const fw = [sx + w.ux * K.fwd[0] * H, sy + w.uy * K.fwd[0] * H], ft = [fw[0] + w.ux * K.fwd[1] * H, fw[1] + w.uy * K.fwd[1] * H + K.fwd[2] * H];
+  // (round the shoulder, over the head, not across the face)
+  if (w.t < t1) {
+    const u = e(w.t / t1), [fx, fy] = [w.from[0] - sx, w.from[1] - sy], a0 = Math.atan2(fy, fx), a1 = Math.atan2(w.uy, w.ux), r = lerp(Math.hypot(fx, fy), K.fwd[0] * H, u), an = a0 + wrapA(a1 - a0) * u;
+    return [sx + Math.cos(an) * r, sy + Math.sin(an) * r, true];
+  }
+  if (w.t < t2) return [...lerp2(fw, ft, e((w.t - t1) / (t2 - t1))), true];
+  return [...lerp2(ft, guardPt(E), e((w.t - t2) / (t3 - t2))), true];
+}
+// the line's height at his middle, as the share k of TUNING.knives.at (0: at[0], 1: at[1]), that runs through (x, y)
+function lineK(E, x, y) {
+  const K = TUNING.knives, F = foeF(E), [ox, oy] = backPt(E), yF = oy + (y - oy) * (F.x - ox) / (x - ox || 1);
+  return (K.at[0] - (F.y - yF) / F.H) / (K.at[0] - K.at[1]);
+}
+// where a plain press aims: the bare skin nearest his chest (a line that crosses no gap: a stray press is no gap hit), a little inside it, as he
+// breathes; with no bare skin near, the plate nearest; else his chest's middle
+function chestK(E) {
+  const fm = state.foe, c = fm && fm.parts && fm.parts.find((q) => q.d.id === 'chest'), K = TUNING.knives, st = 0.004;
+  if (!c) return (K.at[0] - K.rest) / (K.at[0] - K.at[1]);
+  const k0 = clamp(lineK(E, ...partCenter(foeF(E), fm, c)), 0, 1), memo = new Map(), at = (k) => { if (!memo.has(k)) memo.set(k, lineAt(E, k)); return memo.get(k); };
+  for (const want of ['skin', 'plate']) {
+    for (let j = 0; j <= 80; j++) for (const dir of [-1, 1]) {
+      const k = k0 + dir * j * st;
+      if (k < 0 || k > 1 || at(k).over !== want) continue;
+      // (on into that part the way it was found, K.inside of k, or to its middle if it is narrower than twice that)
+      let m = 0; const n = Math.round(2 * K.inside / st), kk = (i) => k + dir * i * st, p = at(k).hit;
+      while (m < n && kk(m + 1) >= 0 && kk(m + 1) <= 1 && at(kk(m + 1)).over === want && at(kk(m + 1)).hit === p) m++;
+      return kk(Math.floor(m / 2));
+    }
+  }
+  return k0;
+}
+let chestMemo = { t: -1, k: 0 };
+const chestNow = (E) => { if (state.m !== chestMemo.t) chestMemo = { t: state.m, k: chestK(E) }; return chestMemo.k; };
+// the knife's line: from the drawn-back hand to his middle at a height set by the thumb: the press aims at the skin nearest his chest (a.k0), and
+// the thumb's slide up or down from where it went down moves the line from there, TUNING.knives.gain's shares of the screen's height for all of .at
+// (up, down); sideways counts for nothing. Where it goes (a.x, a.y, a.over, a.hit): an open gap the line crosses on him (of two, the one it runs nearer the middle of); else the
+// first thing on him it meets (plate, skin); else nothing, on past him. a.x, a.y is a point on the line inside that part, the nearest to the middle
+// of the line's run through it. Checked every frame, as he moves; a release takes it as it is (throwKnife), and that is what happens.
+function knifeAim(E) {
+  const a = state.aim, dy = a.ty == null ? 0 : a.ty - a.sy, k = clamp(a.k0 + dy / (TUNING.knives.gain[dy < 0 ? 0 : 1] * E.h), 0, 1);
+  Object.assign(a, lineAt(E, k), { k });
+}
+export function lineAt(E, k) {
+  const K = TUNING.knives, F = foeF(E), [ox, oy] = backPt(E), floor = lay(E).floor;
+  const ex = F.x, ey = F.y - lerp(K.at[0], K.at[1], k) * F.H, d = Math.hypot(ex - ox, ey - oy) || 1, ux = (ex - ox) / d, uy = (ey - oy) / d;
+  const runs = new Map(), order = state.foe.parts ? slotsFirst(state.foe) : null;
+  let first = null, gap = null, end = d + F.H / 2;
+  // (from half his height before his middle to as far past it)
+  for (let s = Math.max(0, d - F.H / 2); s <= end; s += 2) {
+    const x = ox + ux * s, y = oy + uy * s;
+    if (y >= floor) { end = s; break; }
+    const t = knifeAt(E, x, y, order);
+    if (t.kind === 'miss') continue;
+    const r = runs.get(t.p) || { p: t.p, kind: t.kind, at: [] };
+    r.at.push(s); runs.set(t.p, r);
+    if (t.kind === 'gap') {
+      const [cx, cy] = partCenter(F, state.foe, t.p), off = Math.abs((cx - ox) * uy - (cy - oy) * ux);
+      if (!gap || (gap.p !== t.p && off < gap.off)) gap = { p: t.p, off };
+    } else if (!first) first = { p: t.p };
+  }
+  const q = gap || first, r = q && runs.get(q.p);
+  let sm = end;
+  if (r) { const mid = (r.at[0] + r.at[r.at.length - 1]) / 2; sm = r.at.reduce((b, v) => (Math.abs(v - mid) < Math.abs(b - mid) ? v : b), r.at[0]); }
+  return { ex, ey, x: ox + ux * sm, y: Math.min(floor, oy + uy * sm), over: r ? r.kind : 'miss', part: r ? r.p.d.id : null, hit: r ? r.p : null };
+}
+// the thumb height (px) whose line runs through (x, y): for the lesson's ghost, and the checks
+// (from a thumb gone down on the knife button at (bx, by))
+export function knifeThumb(E, x, y, by) {
+  const dk = lineK(E, x, y) - chestNow(E);
+  return by + dk * TUNING.knives.gain[dk < 0 ? 0 : 1] * E.h;
+}
+// thrown: spent at once, and what it hits decided now, as its line showed it (the part, and the point on him in his own frame, so his breathing and
+// steps carry the point and change nothing); the arm whips forward along the throw and the knife leaves the hand TUNING.knives.release s in
 function throwKnife(E) {
-  const K = TUNING.knives, a = state.aim, [x0, y0] = knifeHand(), d = Math.hypot(a.x - x0, a.y - y0);
+  const a = state.aim, h = state.hand, [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), d = Math.hypot(a.x - sx, a.y - sy) || 1;
   state.aim = null; state.knives--; state.knivesThrown++;
-  state.knife = { x0, y0, x1: a.x, y1: a.y, t: 0, dur: Math.max(0.05, d / (K.speed * youF(E).H)) };
+  state.whip = { t: 0, out: false, x1: a.x, y1: a.y, at: toLocal(foeF(E), a.x, a.y), p: a.hit, kind: a.over, ux: (a.x - sx) / d, uy: (a.y - sy) / d, from: [h.tgx, h.tgy] };
   swooshSound(E, 0.1); E.haptic(10);
+}
+// the knife leaves the hand, and flies to its point at TUNING.knives.speed; it finds what is there when it arrives
+function loose(E, w) {
+  const [x1, y1] = toScreen(foeF(E), ...w.at), [x0, y0] = knifeHand(), d = Math.hypot(x1 - x0, y1 - y0);
+  w.out = true;
+  state.knife = { x0, y0, x1, y1, at: w.at, p: w.p, kind: w.kind, t: 0, dur: Math.max(0.05, d / (TUNING.knives.speed * youF(E).H)) };
 }
 export function stepArms(E, dt) {
   state.swapT = Math.max(0, state.swapT - dt);
@@ -126,8 +230,11 @@ export function stepArms(E, dt) {
   const a = state.aim;
   if (a && !armsLive(E)) state.aim = null;
   else if (a && a.bow) { aimSnap(E); a.draw += dt; }
-  else if (a) { aimSnap(E); if ((a.t += dt) >= TUNING.knives.aim && a.go) throwKnife(E); }
+  else if (a) { knifeAim(E); if ((a.t += dt) >= TUNING.knives.aim && a.go) throwKnife(E); }
+  const w = state.whip;
+  if (w) { w.t += dt; if (!w.out && w.t >= TUNING.knives.release) loose(E, w); if (w.t >= TUNING.knives.whip[2]) state.whip = null; }
   const k = state.knife;
+  if (k && k.at) [k.x1, k.y1] = toScreen(foeF(E), ...k.at);
   if (k && (k.t += dt) >= k.dur) { state.knife = null; knifeLands(E, k); }
   const r = state.arrow;
   if (r && (r.t += dt) >= r.dur) { state.arrow = null; arrowLands(E, r); }
@@ -282,8 +389,10 @@ export function drawSlung(ctx, E, H, lk) {
 }
 // what the knife meets where it arrives, and the word for it: GAP! (TUNING.knives.dmg); PLATE on plate, his shield or guard (a dull knock, nothing
 // taken); on bare skin a small wound (knives.skin) with its mark; MISSED, into the sand
+// a thrown knife (k.kind) lands on what its line showed at the release; one with no line (k.kind unset) on what is at (x1, y1) as it arrives
 export function knifeLands(E, k) {
-  const K = TUNING.knives, at = { x: k.x1, y: k.y1 }, ang = Math.atan2(k.y1 - k.y0, k.x1 - k.x0), { p, kind, lx, ly } = knifeAt(E, k.x1, k.y1);
+  const K = TUNING.knives, at = { x: k.x1, y: k.y1 }, ang = Math.atan2(k.y1 - k.y0, k.x1 - k.x0), fm = state.foe, gone = state.fallT > 0 || fm.hp <= 0 || !fm.parts;
+  const { p, kind, lx, ly } = k.kind == null ? knifeAt(E, k.x1, k.y1) : gone || !k.p ? { p: null, kind: 'miss' } : { p: k.p, kind: k.kind, ...partAt(E, k.p, k.x1, k.y1) };
   if (kind === 'gap') { knifeGap(E, p, at, ang); return; }
   if (kind === 'plate') { state.knifePlate++; p.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 6); dullSound(E); pop(at.x, at.y - 24, 'PLATE', '#cbd5e1', 20); E.haptic(8); }
   else if (kind === 'skin') { state.knifeSkin++; knifeSkin(E, p, { ...at, lx, ly }, ang); }
@@ -291,6 +400,7 @@ export function knifeLands(E, k) {
   const L = lay(E);
   state.knifeFall = { x: at.x, y: at.y, vx: -Math.cos(ang) * 90, vy: -120, rot: ang, vr: (Math.random() < 0.5 ? -1 : 1) * 14, flat: Math.PI * (Math.random() < 0.5 ? 0.02 : 0.98), floor: L.floor - 2, life: K.fall };
 }
+const partAt = (E, p, x, y) => { const [lx, ly] = partLocal(p, state.foe, ...toLocal(foeF(E), x, y)); return { lx, ly }; };
 // a knife in a gap: a big piercing hit, the gap's ring and sound; he covers it after, as after any blow
 function knifeGap(E, p, at, ang) {
   const J = TUNING.juice, f = state.foe, dealt = TUNING.knives.dmg;
@@ -326,17 +436,31 @@ function drawKnife(ctx, x, y, ang, len) {
   ctx.strokeStyle = 'rgba(203,213,225,0.7)'; ctx.beginPath(); ctx.moveTo(len * 0.04, -w * 0.15); ctx.lineTo(len * 0.5, 0); ctx.stroke();
   ctx.restore();
 }
-// in the world: the raised knife in your fist, pointing at the aim ring (gold; green over a gap, red over plate) with a thin line down to your
-// thumb (or, before a thumb is down, to where it would be); the knife in flight; a spent one falling
+// in the world: the raised knife in your fist, drawn back and pointing along its line, and the line as dots from its point, TUNING.knives.pre of
+// the way to him (step 27: no ring, no snap); in a throw, the knife in the whipping fist until it leaves; the knife in flight; a spent one falling.
+// The bow's aim: its ring (gold; green over a gap, red over plate) with a thin line down to your thumb
 export function drawKnives(ctx, E) {
-  const K = TUNING.knives, B = TUNING.bow, len = K.len * youF(E).H, a = state.aim, k = state.knife, q = state.knifeFall;
+  const K = TUNING.knives, B = TUNING.bow, len = K.len * youF(E).H, a = state.aim, k = state.knife, q = state.knifeFall, w = state.whip;
   drawNocked(ctx, E);
-  if (a) {
+  if ((a && !a.bow) || (w && !w.out)) {
+    const [hx, hy] = knifeHand(), ang = a ? Math.atan2(a.ey - hy, a.ex - hx) : Math.atan2(w.uy, w.ux), kl = len * K.held;
+    ctx.save(); ctx.shadowColor = 'rgba(255,236,150,0.9)'; ctx.shadowBlur = 8; drawKnife(ctx, hx - Math.cos(ang) * kl * 0.15, hy - Math.sin(ang) * kl * 0.15, ang, kl); ctx.restore();
+    if (a) {
+      const tx = hx + Math.cos(ang) * kl * 0.45, ty = hy + Math.sin(ang) * kl * 0.45, D = Math.hypot(a.ex - tx, a.ey - ty), L = D * K.pre * clamp(a.t / K.aim, 0, 1);
+      ctx.save();
+      for (let d = 10; d <= L; d += 13) {
+        const r = 3.2 - (d / Math.max(L, 1)), x = tx + (a.ex - tx) / D * d, y = ty + (a.ey - ty) / D * d;
+        ctx.fillStyle = 'rgba(20,12,6,0.7)'; ctx.beginPath(); ctx.arc(x, y, r + 1.6, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#fff6c8'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+  if (a && a.bow) {
     // (step 24: the bow's ring is grey inside his reach, and tightens from ring[0] to ring[1] px as a full draw is held; a gold arc fills with the draw)
-    const [hx, hy] = knifeHand(), ang = Math.atan2(a.y - hy, a.x - hx), close = a.bow && inReach(), col = close ? '#9ca3af' : a.over === 'gap' ? '#4ade80' : a.over === 'plate' ? '#f87171' : '#ffd24a';
-    if (!a.bow) { ctx.save(); ctx.shadowColor = 'rgba(255,236,150,0.9)'; ctx.shadowBlur = 8; drawKnife(ctx, hx - Math.cos(ang) * len * 0.2, hy - Math.sin(ang) * len * 0.2, ang, len * K.held); ctx.restore(); }
-    const pulse = 0.5 + 0.5 * Math.sin(state.m * 10), r = a.bow ? lerp(B.ring[0], B.ring[1], holdK(a)) : K.ring + 2 * pulse, tx = a.tx == null ? a.rx : a.tx, ty = a.tx == null ? a.ry + K.lift : a.ty;
-    if (a.bow && pullK(a) < 1) { ctx.save(); ctx.strokeStyle = 'rgba(255,214,110,0.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, r + 6, -Math.PI / 2, -Math.PI / 2 + TAU * pullK(a)); ctx.stroke(); ctx.restore(); }
+    const close = inReach(), col = close ? '#9ca3af' : a.over === 'gap' ? '#4ade80' : a.over === 'plate' ? '#f87171' : '#ffd24a';
+    const r = lerp(B.ring[0], B.ring[1], holdK(a)), tx = a.tx == null ? a.rx : a.tx, ty = a.tx == null ? a.ry + K.lift : a.ty;
+    if (pullK(a) < 1) { ctx.save(); ctx.strokeStyle = 'rgba(255,214,110,0.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, r + 6, -Math.PI / 2, -Math.PI / 2 + TAU * pullK(a)); ctx.stroke(); ctx.restore(); }
     ctx.save(); ctx.strokeStyle = col; ctx.globalAlpha = 0.7; ctx.lineWidth = 1.5; line(ctx, a.x, a.y + r, tx, ty); ctx.restore();
     if (a.id < 0) { ctx.save(); ctx.globalAlpha = 0.6; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx, ty, 5, 0, TAU); ctx.stroke(); ctx.restore(); }
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4; ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, TAU); ctx.stroke();
@@ -350,7 +474,7 @@ export function drawKnives(ctx, E) {
   if (r) { const u = clamp(r.t / r.dur, 0, 1), an = Math.atan2(r.y1 - r.y0, r.x1 - r.x0), x = lerp(r.x0, r.x1, u), y = lerp(r.y0, r.y1, u); drawArrow(ctx, x - Math.cos(an) * al, y - Math.sin(an) * al, an, al); }
   if (rq) { ctx.globalAlpha = clamp(rq.life / 0.3, 0, 1); drawArrow(ctx, rq.x - Math.cos(rq.rot) * al, rq.y - Math.sin(rq.rot) * al, rq.rot, al); ctx.globalAlpha = 1; }
 }
-// the round buttons: ⇄ (its ring fills while you swap) and the knife button with the knives left (red while one is raised: a tap lowers it)
+// the round buttons: ⇄ (its ring fills while you swap) and the knife button with the knives left (red while one is raised)
 export function drawArmsBtns(ctx, E) {
   const b = armsBtns(E);
   if (!b) return;
@@ -426,9 +550,7 @@ export function rackBow(ctx, x, y, w) {
 // ----- step 22b: the first-knife lesson -----
 // The first bout ever begun with knives on your belt (knifeHint in the save), Brutus walks you through one throw the training yard's way: his line
 // at the top, a ghost thumb and a pulse, and no timer; a tick and a chime as each step is done. He holds still (stepFoe) and the sword thumb waits.
-const KNIFE_LESSON = ['Tap the knife to raise it.', 'Drag onto a glowing gap.', 'Let go to throw.'];
-// the ghost thumb lifting off, keyframed as GHOST's
-const GHOST_LIFT = [[0, 0, 0, 1], [0.45, 0, 0, 1], [0.65, 0, -16, 0], [1, 0, -16, 0]];
+const KNIFE_LESSON = ['Hold the knife.', 'Up or down to aim. Let go.'];
 export const lessonDue = (E) => state.knives > 0 && !state.drill && !state.lab && !E.save.get('knifeHint', 0);
 export function startLesson() { state.kLesson = { i: 0, t: 0, doneT: -1, base: state.knivesThrown }; state.hint = false; }
 function endLesson(E) { state.kLesson = null; E.save.set('knifeHint', 1); state.swingIn = 1.2; }
@@ -439,7 +561,7 @@ export function updateLesson(E, dt) {
   if (ls.doneT >= 0) { if (ls.t - ls.doneT >= TUNING.train.next) { if (ls.i >= KNIFE_LESSON.length - 1) endLesson(E); else { ls.i++; ls.doneT = -1; } } return; }
   // the knife lowered before it was thrown: back to raising it
   if (ls.i > 0 && !a && !thrown) ls.i = 0;
-  const got = ls.i === 0 ? !!a : ls.i === 1 ? !!a && a.id >= 0 && a.over === 'gap' && a.drag >= TUNING.knives.drag : thrown;
+  const got = ls.i === 0 ? !!a : thrown;
   if (got) { ls.doneT = ls.t; yardChime(E); }
 }
 // the open gap the lesson points at: the one nearest his middle
@@ -454,33 +576,22 @@ export function lessonGap(E) {
   return best;
 }
 export function drawLesson(ctx, E) {
-  const ls = state.kLesson, T = TUNING.train, K = TUNING.knives, L = 16 + E.safe.left, w = E.w - 16 - E.safe.right - 182 - L, cx = L + w / 2;
+  const ls = state.kLesson, T = TUNING.train, L = 16 + E.safe.left, w = E.w - 16 - E.safe.right - 182 - L, cx = L + w / 2;
   yardPlate(ctx, E, L, w, KNIFE_LESSON[ls.i], ls.doneT >= 0);
   if (ls.doneT >= 0) { yardTick(ctx, cx, E.safe.top + 90, ls.t - ls.doneT); return; }
-  const u = (ls.t % T.ghost.loop) / T.ghost.loop, pulse = 0.5 + 0.5 * Math.sin(ls.t * 8), b = armsBtns(E);
-  // 1: the knife button pulses, and the ghost thumb taps it
-  if (ls.i === 0) {
-    if (!b || !b.knife) return;
-    const c = b.knife;
-    ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.5 + 0.5 * pulse})`; ctx.lineWidth = 3 + 2 * pulse; ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 5, 0, TAU); ctx.stroke(); ctx.restore();
-    ghostThumb(ctx, c.x - c.r * 0.2, c.y + c.r * 0.1, ghostAt(GHOST.tap, u)[2]);
-    return;
-  }
-  // 2: the gap rings, and the ghost thumb drags from the right side to just under it (the ring sits lift px above the thumb)
-  if (ls.i === 1) {
-    const g = lessonGap(E);
-    if (!g) return;
-    gapRings(ctx, E, ls.t, [g]);
-    const [gx, gy] = partCenter(foeF(E), state.foe, g), sx = E.w * K.ghost[0], sy = E.h * K.ghost[1], ey = gy + K.lift;
-    const keys = [[0, sx, sy, 1], [0.55, gx, ey, 1], [0.8, gx, ey, 1], [0.9, gx, ey, 0], [1, sx, sy, 0]];
-    ctx.save(); ctx.strokeStyle = 'rgba(248,241,228,0.35)'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]); line(ctx, sx, sy, gx, ey); ctx.restore();
-    const [x, y, dn] = ghostAt(keys, u);
-    ghostThumb(ctx, x, y, dn);
-    return;
-  }
-  // 3: the ghost thumb lifts off where yours is, in a growing ring (seen on a pale loincloth too)
-  const a = state.aim;
-  if (!a || a.tx == null) return;
-  const [dx, dy, dn] = ghostAt(GHOST_LIFT, u);
-  ghostThumb(ctx, a.tx + dx, a.ty + dy, dn, 0.2 + 0.6 * u);
+  knifeGhost(ctx, E, (ls.t % T.ghost.loop) / T.ghost.loop, ls.t);
+}
+// the knife's ghost (the lesson's and the yard's): the knife button pulsing; a ghost thumb pressing it, sliding straight up to the height whose line
+// meets the gap nearest his middle (ringed), and letting go
+export function knifeGhost(ctx, E, u, t) {
+  const b = armsBtns(E), g = lessonGap(E), pulse = 0.5 + 0.5 * Math.sin(t * 8);
+  if (!b || !b.knife) return;
+  const c = b.knife;
+  if (!state.aim) { ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.5 + 0.5 * pulse})`; ctx.lineWidth = 3 + 2 * pulse; ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 5, 0, TAU); ctx.stroke(); ctx.restore(); }
+  if (!g) { ghostThumb(ctx, c.x - c.r * 0.2, c.y + c.r * 0.1, ghostAt(GHOST.tap, u)[2]); return; }
+  gapRings(ctx, E, t, [g]);
+  const gy = knifeThumb(E, ...partCenter(foeF(E), state.foe, g), c.y), keys = [[0, c.x, c.y, 0], [0.15, c.x, c.y, 1], [0.6, c.x, gy, 1], [0.8, c.x, gy, 1], [0.9, c.x, gy, 0], [1, c.x, c.y, 0]];
+  ctx.save(); ctx.strokeStyle = 'rgba(248,241,228,0.35)'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]); line(ctx, c.x, c.y, c.x, gy); ctx.restore();
+  const [x, y, dn] = ghostAt(keys, u);
+  ghostThumb(ctx, x, y, dn);
 }

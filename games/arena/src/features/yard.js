@@ -11,7 +11,7 @@ import { sayLine, TAU, line, rrect } from '../draw-fight.js';
 import { fitSize } from '../screens.js';
 import { initHand, beginBout } from '../scenes.js';
 import { state, easeOut, meSize, newRack, RUN_KEYS } from '../game.js';
-import { yardKnife, armsBtns, lessonGap } from '../features/ranged.js';
+import { knifeGhost } from '../features/ranged.js';
 import { jabNeed } from './dual.js';
 
 // ====== YARD: the training yard ======
@@ -31,8 +31,8 @@ export const YARD = [
   { id: 'dodge', line: 'Tap DODGE to step back.', ghost: 'tap', got: () => state.dodges, need: () => 1 },
   { id: 'hold', line: 'Hold DODGE to back off.', ghost: 'hold', got: (tr) => tr.held, need: () => 1 },
   { id: 'gap', line: 'See the glow? A gap. Hit it.', ghost: 'gap', got: (tr) => tr.gaps, need: () => 1 },
-  // step 24: a practice knife (TUNING.train.knife), raised with a tap and thrown with a drag; a tap on him throws nothing
-  { id: 'knife', line: () => (state.aim ? 'Drag onto the gap, and let go.' : 'Tap the knife to raise it.'), ghost: 'knife', got: () => state.knivesThrown, need: () => 1 },
+  // step 24: a practice knife (TUNING.train.knife); step 27: one press raises it, the thumb's height aims it, and letting go throws it
+  { id: 'knife', line: () => (state.aim ? 'Up or down to aim. Let go.' : 'Hold the knife.'), ghost: 'knife', got: () => state.knivesThrown, need: () => 1 },
   { id: 'read', line: "When he glows, he's about to swing.", ghost: 'read', got: (tr) => tr.read, need: () => 1 },
   // step 23b: the last two lessons
   { id: 'perfect', line: 'Block just as it lands: perfect.', ghost: 'perfect', got: () => state.perfects, need: () => TUNING.train.perfects },
@@ -46,7 +46,7 @@ export const GHOST = {
 };
 // why an attempt didn't count
 const WHY = { slow: 'TOO SLOW', early: 'EARLY', late: 'TOO LATE', height: 'WRONG HEIGHT', missed: 'MISSED', gap: 'NOT A GAP', further: 'PUSH FURTHER', hold: 'HOLD IT LONGER',
-  block: 'DODGE, NOT BLOCK', jab: 'THAT WAS A JAB', slash: 'THAT WAS A SLASH', over: 'THAT WAS AN OVERHEAD', tap: 'DRAG, THEN LET GO' };
+  block: 'DODGE, NOT BLOCK', jab: 'THAT WAS A JAB', slash: 'THAT WAS A SLASH', over: 'THAT WAS AN OVERHEAD' };
 export const yardDue = (E) => !state.drill && state.rack === 0 && firstRun(E) && !E.save.get('trainDone', 0);
 export function startYard(E, drill = false) {
   state.intro = false; state.introGo = -1; state.hint = false; state.boutT0 = state.m;
@@ -199,31 +199,6 @@ export function updateYard(E, dt) {
     // (a knife thrown here is Step 22b's lesson learnt)
     if (st.id === 'knife') E.save.set('knifeHint', 1);
   }
-}
-// the knife step: a raised knife let go of with no drag throws nothing; it says so, and the ghost starts over
-export function yardKnifeTap(E) {
-  const tr = state.train;
-  if (!yardKnife() || tr.doneT >= 0) return;
-  const a = state.aim; yardMiss(E, 'tap', a ? a.x : E.w / 2, (a ? a.y : E.h / 2) - 30); tr.g0 = tr.t;
-}
-// the knife step's ghost: the knife button pulsing under a tapping thumb, then (raised) a drag from the right side to just under the gap and a lift
-function knifeGhost(ctx, E, u) {
-  const b = armsBtns(E), K = TUNING.knives, pulse = 0.5 + 0.5 * Math.sin(state.train.t * 8);
-  if (!state.aim) {
-    if (!b || !b.knife) return;
-    const c = b.knife;
-    ctx.save(); ctx.strokeStyle = `rgba(255,210,74,${0.5 + 0.5 * pulse})`; ctx.lineWidth = 3 + 2 * pulse; ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 5, 0, TAU); ctx.stroke(); ctx.restore();
-    ghostThumb(ctx, c.x - c.r * 0.2, c.y + c.r * 0.1, ghostAt(GHOST.tap, u)[2]);
-    return;
-  }
-  const g = lessonGap(E);
-  if (!g) return;
-  gapRings(ctx, E, state.train.t, [g]);
-  const [gx, gy] = partCenter(foeF(E), state.foe, g), sx = E.w * K.ghost[0], sy = E.h * K.ghost[1], ey = gy + K.lift;
-  const keys = [[0, sx, sy, 1], [0.55, gx, ey, 1], [0.8, gx, ey, 1], [0.9, gx, ey, 0], [1, sx, sy, 0]];
-  ctx.save(); ctx.strokeStyle = 'rgba(248,241,228,0.35)'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]); line(ctx, sx, sy, gx, ey); ctx.restore();
-  const [x, y, dn] = ghostAt(keys, u);
-  ghostThumb(ctx, x, y, dn);
 }
 // a step done: the chime, and a tick that springs in at (cx, ty), u s after
 export function yardChime(E) { E.audio.beep({ freq: 880, dur: 0.12, type: 'triangle', gain: 0.12 }); E.audio.beep({ freq: 1320, dur: 0.2, type: 'triangle', gain: 0.1, delay: 0.09 }); E.haptic(12); }
@@ -381,7 +356,7 @@ export function drawYard(ctx, E) {
     return;
   }
   const k = E.h / 375;
-  if (st.ghost === 'knife') { knifeGhost(ctx, E, u); return; }
+  if (st.ghost === 'knife') { knifeGhost(ctx, E, u, state.train.t); return; }
   if (st.ghost === 'hand') { const a = u * TAU; ghostThumb(ctx, ax + 28 * k * Math.cos(a), ay + 20 * k * Math.sin(a), 1); return; }
   const { gp, keys } = ghostStroke(E, st.ghost), [gx, gy] = guardPt(E), C = TUNING.control, arm = myArm(E);
   // a lunge's tip goes on with your stride as the push passes its start

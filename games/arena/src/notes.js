@@ -2,6 +2,7 @@
 // The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
 // then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
 export const NOTES = [
+  { v: 82, date: '17 Nov', lines: ['Buy knives and hold KNIFE (bottom right): slide up or down to aim, let go to throw.', 'Only height matters: the dotted line shows what the knife will hit.', 'A plain press throws at bare skin for 4; find a gap for 12.', 'Your sword leaves your hand while you throw.'] },
   { v: 81, date: '17 Nov', lines: ['Training (Skip or replay it from the menu): your partner is now your own size, so blows land where your arm goes.'] },
   { v: 80, date: '17 Nov', lines: ['Push your thumb straight at him: it is a jab now, with every weapon, one or two.', 'Try a spear or an axe: pushes no longer come out as slashes or as nothing.', 'A very slow push still does nothing: push like you mean it.'] },
   { v: 79, date: '14 Nov', lines: ['Buy a second weapon in the Arms slot: you now hold both forward.', 'Your blows go hand to hand: right, left, right, left. Keep your thumb down and push again: the free hand is already up.', 'No shield: block with crossed blades, as before.'] },

@@ -1,5 +1,5 @@
-// Steps 22, 22b and 24: the sidearm, the knives and the bow. The swaps by the ⇄ button, blocks by the shield buttons, draws and throws by the
-// right thumb, all on exact frames; where a knife or an arrow lands is resolved in the page (knifeLands, arrowLands).
+// Steps 22, 22b, 24 and 27: the sidearm, the knives and the bow. The swaps by the ⇄ button, blocks by the shield buttons, draws and throws by the
+// right thumb (step 27's throw by angle in detail: knife.mjs), all on exact frames; where a knife or an arrow lands is resolved in the page (knifeLands, arrowLands).
 import { VET } from '../arena.mjs';
 import { bout, still } from '../exact.mjs';
 
@@ -47,19 +47,17 @@ export default async function (t) {
     return { gap, plate, miss: h2 - f.hp, dmg: P.TUNING.knives.dmg }; });
   t.ok('a knife in a gap wounds for knives.dmg; on plate or a miss, nothing', kn.gap === kn.dmg && kn.plate === 0 && kn.miss === 0, JSON.stringify(kn));
 
-  // a tap on him with a knife raised throws nothing; a drag and release throws one
+  // step 27, one press: KNIFE held raises a knife and throws nothing while the thumb stays down (slid wherever); its release throws it, spent
   await bout(g, { w: 'gladius', kit: ['chest'], arena: 'city', rack: 1, knives: 3 });
   await g.ev(() => { window.__engine.save.set('knifeHint', 1); });
   await still(g);
   await g.frames(5);
   const kb = await btn(g, 'knife');
-  await g.tap(kb.x, kb.y, 8); await g.frames(20);
-  const gp = await g.ev(() => { const E = window.__engine, P = E.game.scenes.play, s = P.state, q = s.foe.parts.find((p) => p.slot && !p.guard), [x, y] = P.partCenter(P.foeF(E), s.foe, q); return [x, y + P.TUNING.knives.lift]; });
-  await g.tap(gp[0], gp[1], 21); await g.frames(30);
+  await g.down(kb.x, kb.y, 21); await g.frames(10); await g.move(kb.x - 30, kb.y - 120, 21); await g.frames(30);
   const k1 = await g.ev(() => { const s = window.__engine.game.scenes.play.state; return { knives: s.knives, thrown: s.knivesThrown, aim: !!s.aim }; });
-  await g.stroke(gp[0] + 60, gp[1] + 40, [[0, 0, 0], [10, -60, -40], [14, -60, -40]], 22); await g.frames(30);
-  const k2 = await g.ev(() => { const s = window.__engine.game.scenes.play.state; return { knives: s.knives, thrown: s.knivesThrown, gaps: s.knifeGaps }; });
-  t.ok("a tap with a knife raised doesn't throw it; a drag onto a gap and a release does, and it's spent", k1.knives === 3 && k1.thrown === 0 && k1.aim && k2.knives === 2 && k2.thrown === 1 && k2.gaps === 1, JSON.stringify({ afterTap: k1, afterDrag: k2 }));
+  await g.up(kb.x - 30, kb.y - 120, 21); await g.frames(40);
+  const k2 = await g.ev(() => { const s = window.__engine.game.scenes.play.state; return { knives: s.knives, thrown: s.knivesThrown, aim: !!s.aim }; });
+  t.ok('KNIFE held raises a knife and throws nothing while held; the release throws it, and it is spent', k1.knives === 3 && k1.thrown === 0 && k1.aim && k2.knives === 2 && k2.thrown === 1 && !k2.aim, JSON.stringify({ held: k1, released: k2 }));
 
   // the bow: ⇄ takes 0.7 s, the shield can't come up in it or after it, it needs a full draw, and it won't loose inside his reach
   await bout(g, { w: 'gladius', side: 'bow', kit: ['chest'], rack: 1 });

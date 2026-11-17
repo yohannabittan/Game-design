@@ -1814,7 +1814,7 @@ export const play = {
   onPointerUp(p, E) {
     if (state.draft) state.draft.press = null;
     if (state.train && state.train.press && state.train.press.id === p.id) { yardRelease(E, state.train.press); state.train.press = null; }
-    if (state.aim && state.aim.id === p.id) { aimUp(E); return; }
+    if (state.aim && state.aim.id === p.id) { aimUp(E, p); return; }
     const s = state.sh, h = state.hand, dg = state.dg;
     if (dg.down && dg.id === p.id) { dg.down = false; dg.id = -1; }
     else if (s.hid === p.id) { s.held = false; s.hid = -1; baitDrop(E); }

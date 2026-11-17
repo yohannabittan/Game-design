@@ -373,13 +373,19 @@ export const TUNING = {
   // for the run. aim = s to raise the knife (open: no block, no swing) before a release throws it; lift = px the aim point sits above the thumb;
   // speed = flight in H per s; dmg = a knife in a gap, skin = one on bare skin (a plate takes nothing); pad = px of give round a part; len = the knife's drawn length (H); fall = s a spent knife
   // lies in the sand; row = the Knives row's height and its - and + buttons' width (px)
-  // Step 22b: drag = px the aiming thumb must travel from where it went down before its release throws (less is a tap, which only moves the aim);
-  // snap = px from a gap's edge within which the aim snaps onto the gap (0: off); ring = the aim ring's radius (px); rest = where the ring sits
-  // before a thumb is down (H above his feet); raise = where your hand holds the raised knife (H from the shoulder, forward and down), held = its drawn size there (x len);
-  // glow = his open gaps' fill alpha and blur (px) while a knife is up; ghost = where the first-knife lesson's ghost thumb starts its drag (x the
-  // screen's width, y its height)
+  // Step 22b (the bow aims this way too): snap = px from a gap's edge within which the aim snaps onto the gap (0: off); rest = where the ring sits
+  // before a thumb is down (H above his feet); raise = where your hand holds the raised knife, drawn back (H from the shoulder, forward and down),
+  // held = its drawn size there (x len); glow = his open gaps' fill alpha and blur (px) while a knife is up.
+  // Step 27 (the throw by angle, one press): at = the line's height where it crosses his middle (his H above his feet) at the top and the bottom of
+  // the aim; a press aims at the bare skin nearest his chest (inside = how far into it, as a share of at), and the thumb's slide up or down from
+  // where it went down moves the line from there, gain[0] (up) or gain[1] (down) of the screen's height for all of at: only the thumb's height
+  // counts (less room under KNIFE than over it, so down is quicker: his knees within a short slide). pre = the share of the
+  // way to him the dotted line reaches; edge = px from the bottom edge a thumb slid down there cancels at; whip = s at which the arm is forward, at
+  // the end of its follow-through, and back on guard; fwd = the hand's reach forward (H from the shoulder along the throw), then its
+  // follow-through on (H) and down (H); release = s into the whip the knife leaves the hand
   knives: { price: 8, max: 6, aim: 0.25, lift: 50, speed: 5, dmg: 12, skin: 4, pad: 4, len: 0.13, fall: 1.2, row: [44, 44],
-    drag: 20, snap: 14, ring: 10, rest: 0.6, raise: [-0.06, -0.3], held: 1.4, glow: [0.4, 22], ghost: [0.56, 0.84] },
+    snap: 14, rest: 0.6, raise: [-0.12, -0.36], held: 1.4, glow: [0.4, 22],
+    gain: [1.1, 0.4], inside: 0.03, at: [0.98, -0.3], pre: 0.6, edge: 8, whip: [0.14, 0.3, 0.65], fwd: [0.3, 0.035, 0.055], release: 0.1 },
   // Step 24, the bow: a sidearm bought in the purse's Sidearm slot at price gold. swap = s the swap to it or back takes (no block, no swing), the shield
   // going to your back (or back to your arm) and the blade away (or back) halfway. While it is out the right thumb works it: down starts the draw, full
   // after draw s; a release sooner looses nothing (TOO SOON) and the draw starts again. Held on to full s the arrow flies and hits up to power x

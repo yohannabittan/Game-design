@@ -389,8 +389,8 @@ export function moveHand(E, dt) {
     h.tgx += (clamp(gx + ox, 10, E.w - 10) - h.tgx) * k; h.tgy += (clamp(gy + oy, E.safe.top + 40, E.h - 10) - h.tgy) * k;
     if (h.grip > 0) h.grip -= dt;
   } else {
-    const [rx, ry] = bowShown() ? bowPt(E) : state.aim ? raisePt(E) : guardPt(E);
-    const k = 1 - Math.exp(-dt / TUNING.control.back);
+    const [rx, ry, now] = bowShown() ? bowPt(E) : state.aim || state.whip ? raisePt(E) : guardPt(E);
+    const k = now ? 1 : 1 - Math.exp(-dt / TUNING.control.back);
     h.tgx += (rx - h.tgx) * k; h.tgy += (ry - h.tgy) * k;
   }
   // step 24c: an overhead coming down (born, or the hand coming down fast from above the line) is aimed at his head (overReach)
