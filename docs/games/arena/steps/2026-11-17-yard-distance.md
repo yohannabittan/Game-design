@@ -25,7 +25,7 @@
 
 ## After two build rounds (2026-11-17, parked for the designer)
 
-Two Opus rounds (9 and 16 min) did not finish it; per the escalation rule the step is what needs fixing. Unlanded work is saved as `2026-11-17-yard-distance.patch` (against `arena-v84`, commit d79834d; three rounds of work; also in the worktree `/home/user/wt-arena-guard` while this container lives) (probes in the scratchpad folder `arena-yarddist/`).
+Two Opus rounds (9 and 16 min) did not finish it; per the escalation rule the step is what needs fixing.
 
 **Kept from the rounds (worth landing with the final fix):** the arm never folds the blade back at you (`solveArm` keeps the aim `arm.front` ahead of the shoulder; it moves the city replay hash); the spear's slide no longer feeds back into the stand-off; the ring sits on his chest; small screens start you back to make room.
 
@@ -54,3 +54,14 @@ This replaces the fork above and the first version's "what the player gets" wher
 8. A GIF for the designer: guard at rest, a push with the body, a push that becomes a lunge; gladius and spear.
 
 One-way or two-way: **two-way** (dev channel, no save change), but it changes the controls' feel in every fight, so a short kit verifier checks the strokes table.
+
+## Landed as arena-v85 (2026-11-17)
+
+Five rounds in all: two on the first version of the step (unfinished: its wants didn't fit the arm), the build of the designer's call, a finishing round, and a fix round after the verifier's three findings.
+
+- **Built:** `control.guard` [0.24, -0.05]; `TUNING.thrust` (the body's lean into a push); `arm.front` (the blade never folds back at you); the yard's stand-off as one bisection with `train.jabIn` and `train.lean`; the jab ghost always shows the whole plain push.
+- **A fast second push counts:** a fresh sword touch that lands in a hit-stop cuts the stop short (`look.stopCut` 0). A first attempt saved the touch and replayed it; the verifier showed the hand falling behind the thumb, so it was replaced.
+- **Back-to-back overheads:** a new touch lets go of the last overhead's reach (`h.ovK`), which had read as a slash from the longer guard.
+- **Checks kept:** `tools/checks/arena/guard.mjs` (gap at rest, push lands on the ring, no fold, reach against v84) and four in `jabs.mjs` (touches in a stop, knife after a touch in a stop, overheads at six frames' rest).
+- **For play to judge:** the lean is subtle (0.2 rad); the hit pause is shorter when you attack fast; in the yard the partner stands a little closer than the first GIFs.
+- Before and after: `../sketches/guard-before-after.png`; GIFs `../sketches/guard-thrust-gladius.gif`, `guard-thrust-spear.gif`.
