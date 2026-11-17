@@ -35,3 +35,5 @@ The chosen tester settings: **WAY 2 one press, KNIFE button on the right, TARGET
 
 - **A plain press aims at his middle** (the designer chose this). Pressing KNIFE starts the line at his chest; sliding up or down moves it from there, by the same amount of thumb per px of line. Only the height of the slide matters; sideways still does nothing. A plain press and release never throws into the sand.
 - **The throwing arm** stays the sword hand, but **the sword is hidden while the knife is up and through the throw** (the designer: "We should hide the sword when doing the knife throwing"): the hand holds only the knife, and the sword comes back when the arm returns to guard.
+- **A plain press lands on bare skin** (the designer, after the first fix round showed a plain press hitting the armpit gap for 12 on four of five foes: "Nearest bare skin"): the bare skin nearest his chest, for 4; plate if none. Gaps need a slide.
+- **Every gap from neck to knee is reachable** by height, on every foe and size (common sense; the first fix round left the knee out of reach). The bottom-edge cancel may go.
