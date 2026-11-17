@@ -35,3 +35,22 @@ Two Opus rounds (9 and 16 min) did not finish it; per the escalation rule the st
 1. **A more chambered guard** (the hand held further back, `control.guard[0]` smaller): a push then has room to travel, as a real fighter draws back to jab. It changes the guard pose in every fight.
 2. **A smaller gap** (`train.guardOff` about 0.1, `jabIn` about 0.1): the guard stays; the tip sits only just short of him in training.
 3. **Keep the guard, let the ghost show a longer push** (close to before, with the fold fix).
+
+## The designer's call (2026-11-17): the guard, the body, then the lunge
+
+"Hold the guard further back and extend the body and then lunge if needed."
+
+This replaces the fork above and the first version's "what the player gets" where they differ. It applies in every fight, not only the yard.
+
+- **The guard is held further back** (chambered): at rest the hand sits nearer the body and the blade's tip is well short of him. A push has room to travel.
+- **A push extends the body too:** as the arm straightens, the shoulders and torso lean into the thrust (a real thrust comes from the body, not only the arm), so a push from the chambered guard reaches at least as far as today's jab.
+- **Then a lunge if needed:** if the push still doesn't reach him, pushing on steps in, as the lunge does today (`control.lungeStart`, `lunge.stride`). Keep the lunge's cost and rules; retune where it starts so arm, then body, then feet happen in that order as the thumb pushes further.
+- In the yard, he stands where your chambered guard is clearly short of him and a plain push (arm and body, no lunge) lands on the chest ring.
+- Kept from the first rounds: the arm never folds the blade back at you; the spear's slide doesn't feed back into the stand-off; the ring on his chest; room on small screens.
+
+**Acceptance (added):**
+6. At rest, in a fight and in the yard, the tip is short of a foe at striking distance by a clearly visible gap, for gladius, dagger, spear and axe, at every body size.
+7. A plain push reaches at least as far as a jab does in `arena-v84` (compare with `node tools/verify.mjs strokes`), with the torso visibly leaning in; a longer push lunges. Jab, slash and overhead still class as in v84 (the `jabs` check), with one or two weapons.
+8. A GIF for the designer: guard at rest, a push with the body, a push that becomes a lunge; gladius and spear.
+
+One-way or two-way: **two-way** (dev channel, no save change), but it changes the controls' feel in every fight, so a short kit verifier checks the strokes table.

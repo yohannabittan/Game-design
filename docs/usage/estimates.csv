@@ -19,3 +19,5 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-17,Arena: yard distance round 2,build,claude-opus-5-5,35,yes,,,from the first round's diff
 2026-11-17,Tools: film --yard,tool,claude-sonnet-5-5,5,yes,,,
 2026-11-17,Tools: land --revert and --help,tool,claude-sonnet-5-5,3,yes,,,two-way door
+2026-11-17,Arena: chambered guard and body thrust,build,claude-opus-5-5,40,,90,,third round of the yard distance step; includes a short verifier
+2026-11-17,Ronin: v0.1 one-shot,build,claude-opus-5-5,35,,45,,exploration; new game from the skeleton
