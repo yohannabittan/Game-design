@@ -8,3 +8,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-17,Arena: yard partner your size,build,claude-sonnet-5-5,10,yes,25,17,quick build
 2026-11-17,Arena knife throw: second fix round,fix,claude-opus-5-5,15,,,,plain press on bare skin; knee reachable
 2026-11-17,Arena: Trials T1 screen and eight trials,build,claude-opus-5-5,60,,120,,new screen, runner, save, eight trials
+2026-11-17,Tools: the land command,tool,claude-sonnet-5-5,20,,,,
