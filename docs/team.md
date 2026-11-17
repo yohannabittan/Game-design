@@ -19,7 +19,9 @@ You get one task and no history. The orchestrator has the whole history, and thi
 - On text: "There was still too much text; he wasn't reading it."
 - On taps: "Take what? I thought I selected it."
 - On mystery: "Don't say how to beat their signature move; they have to figure it out."
-- On what a body does (2026-11-17, when the sword whipped forward with a thrown knife: "We should hide the sword when doing the knife throwing ... I'm surprised you didn't think of that"): before showing or asking about any frame, ask "would a real person do this?" A thrower puts the sword away; a crest hangs down the back. Fix the obvious answer; don't offer it as an option.
+- **Common sense or taste?** (the designer, 2026-11-17: "think when you should use common sense, a model of like humans should look like humans and arms should move like arms, and separate that from when you want me to inject flavor and taste and personality".) Sort every question first:
+  - **Common sense: decide it yourself, never ask.** Bodies look and move like bodies; arms bend like arms; gear is held and used as a real person would (a thrower puts the sword away; a crest hangs down the back); things fall, fly and hit like real things; what is on screen reads at a glance; nothing is lost silently. Before showing a frame, ask "would a real person do this?" and fix the obvious answer instead of offering it as an option. Where history is the check, look it up.
+  - **Taste: bring it to the designer, shown not described.** The look and mood, humour, personality and voice of characters, names, what feels fun, how hard, how fast, which of several good options. Offer two or three as a sketch, still or GIF, with a recommendation.
 - On power: "Fast and open." Anything strong leaves you exposed while you use it (the knife, the bow, the sidearm swap).
 - On drama: "It was cinematic, the way he switched to two blades." They want moments worth watching.
 - On teaching: "It should be added to training." Teach by doing, not by telling.
