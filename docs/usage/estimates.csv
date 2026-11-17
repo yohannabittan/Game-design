@@ -11,3 +11,5 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-17,Tools: the land command,tool,claude-sonnet-5-5,20,yes,,,
 2026-11-17,Arena: What's new as one list,build,claude-sonnet-5-5,12,yes,30,9,quick build
 2026-11-17,Tools: test moment and film,tool,claude-sonnet-5-5,25,yes,,,
+2026-11-17,Tools: playtest export reader,tool,claude-sonnet-5-5,15,,,,
+2026-11-17,Tools: sketch kit,tool,claude-sonnet-5-5,20,,,,

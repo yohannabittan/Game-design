@@ -6,7 +6,7 @@
 //       frame is drawn by number (exact and repeatable); otherwise it is recorded as it plays for --secs.
 //   node tools/sketch.mjs frames <dir> <out.gif> [--fps 18]
 //       encodes PNG frames already captured (for example with g.shot in a check script), in name order.
-// Also importable: recordPage(file, out, opts) and framesToGif(dir, out, fps).
+// Also importable: recordPage(file, out, opts) and framesToGif(dir, out, fps, width) (width: scale to that many pixels wide; 0 keeps the size).
 // Needs ffmpeg on the path. GIFs are 128 colours with a per-clip palette: keep them under about 3 MB and 667 px wide.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, rmSync, statSync, copyFileSync } from 'node:fs';
@@ -15,14 +15,14 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadPlaywright } from './drive.mjs';
 
-export function framesToGif(dir, out, fps = 18) {
+export function framesToGif(dir, out, fps = 18, width = 0) {
   const frames = readdirSync(dir).filter((f) => f.endsWith('.png')).sort();
   if (!frames.length) throw new Error(`no PNG frames in ${dir}`);
   // ffmpeg wants numbered names: copy the frames, in order, into a scratch folder
   const tmp = mkdtempSync(join(tmpdir(), 'sketch-'));
   frames.forEach((f, i) => copyFileSync(join(dir, f), join(tmp, `${String(i).padStart(5, '0')}.png`)));
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(fps), '-i', join(tmp, '%05d.png'),
-    '-vf', 'split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle',
+    '-vf', `${width ? `scale=${width}:-1:flags=lanczos,` : ''}split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`,
     '-loop', '0', out]);
   rmSync(tmp, { recursive: true, force: true });
   return { frames: frames.length, kb: Math.round(statSync(out).size / 1024) };

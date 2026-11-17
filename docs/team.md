@@ -73,6 +73,8 @@ You get one task and no history. The orchestrator has the whole history, and thi
 | `tools/checks/arena.mjs` | Arena's check helpers: saves, thumb paths, the yard, geometry | | yes, and adds to it | | | |
 | `tools/verify.mjs` | the verifier's kit, base build against candidate: `save` (an old save into the new build), `replays` (stored replays diffed), `strokes` (what each stroke becomes, side by side), `shots` (one PNG at the standard sizes); `--help` | | | | | yes, first |
 | `tools/perf.mjs` | frame time, and a comparison against another copy | | yes, when drawing changes | | | yes |
+| `tools/film.mjs` | sets up an Arena moment (loadout, foe, sizes, his tell held, knife or bow up) and films a script of strokes and throws: a still PNG, or a GIF under 3 MB plus a contact sheet, with thumb disc and captions; `--help` | | yes, to show any moment or motion | yes, for Arena | | yes |
+| `tools/checks/scene.mjs` | `scene(g, {...})` sets up a test moment on `exact.mjs`'s `boot`; `stroke`, `throwKnife`, `holdTell`, `knifeUp`, `bowUp`; for checks and one-off scripts | | yes | | | yes, first |
 | `tools/sketch.mjs` | a GIF from a sketch page, or from frames of the real game | | yes, for anything that moves | yes | | |
 | `tools/replay.mjs` | replays a recorded run on a fake clock and dumps the run state, so "nothing changed" can be proved exactly; the scripts are in `tools/checks/replays/` | yes, before landing a restructuring | yes, before and after any change that must not alter play | | | yes |
 | `tools/arena-split.mjs` | the script that split Arena into modules (ADR-0024); kept so the move can be re-run | only for a re-split | | | | |
@@ -90,7 +92,7 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
 - **Find your way first** (Arena): `docs/games/arena/CODEMAP.md` leads to `RECIPES.md`, to `node tools/codemap.mjs arena --where <word>` and to the generated `INDEX.md`. Don't read the whole source.
 - **Stay inside the PRD step,** and obey `CLAUDE.md`'s hard rules. If the step doesn't settle something, decide for the player (above) and list it in your report.
 - **Checks:** start from `tools/checks/arena.mjs` (Arena) and `tools/drive.mjs`. Run both phone sizes (667x375 and 844x390 in landscape games). No simulations of a player; time-box any one check to 20 minutes.
-- **Show the work the cheapest way that answers the question:** a still for a look, a GIF for anything that moves (`node tools/sketch.mjs frames <dir> <out.gif>`), under 3 MB and 667 px wide. Look at every frame yourself before you report.
+- **Set up moments with the helper, film with the tool** (Arena): `scene(g, { weapon, dual, side, knives, foe, foeSize, size, arena, bout, tell: 'low', ... })` from `tools/checks/scene.mjs` boots a fight with a loadout, a foe and a held tell, and `stroke`, `throwKnife` play into it; don't hand-roll the tell pin, the foe hold or the hit-stop waits. `node tools/film.mjs --help`: a still of a moment, or a GIF (under 3 MB) and a contact sheet of a script of actions, with a thumb disc and captions. Look at every frame yourself before you report. (Other games: `node tools/sketch.mjs frames <dir> <out.gif>`.)
 - **`npm run check arena`** (Arena's permanent suite) and **`npm run smoke`** from your worktree before you report. Add your step's key checks to the suite in the same build (`tools/checks/README.md`). A check you expect to change (a replay's hash, a number you meant to move) is accepted on purpose and named in your report.
 - **Your report,** under the word limit your brief gives:
   - what changed, and the `TUNING` numbers you added;
@@ -129,7 +131,7 @@ Scripts are not team members: they have no AI in them, cost nothing, and change 
   - the smallest and the largest phone size the game supports, and the designer's (874x402 for Arena);
   - at the edges: against a wall, at the ring's limit, with no gold, with a full belt, mid-swap, right after another move;
   - quick, sloppy and repeated input, not only clean strokes.
-- **Watch it move.** Record a GIF of each thing the step changed (`node tools/sketch.mjs frames <dir> <out.gif>`) and look at it frame by frame: limbs, weapons, text that overlaps, things that float.
+- **Watch it move.** Film each thing the step changed (`node tools/film.mjs --help`: set the moment with flags, play a script of strokes and throws, get a GIF and a contact sheet; for your own checks, `scene()` in `tools/checks/scene.mjs`) and look at it frame by frame: limbs, weapons, text that overlaps, things that float.
 - **Run the game's whole suite** under `tools/checks/`, and `npm run smoke`.
 - **Add the checks worth keeping to the suite.** Don't change the game.
 - **Report:** each problem with a frame or GIF and the steps to see it, most serious first; what you couldn't check; and what in your card or brief was wrong or out of date.

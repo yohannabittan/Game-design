@@ -26,7 +26,7 @@ This repository is a library of small, touch-first, offline-capable skill games 
 | `prompts/` | One prompt per build layer |
 | `skeleton/` | The template every game is copied from. `skeleton/README.md` is the engine contract. |
 | `games/<slug>/` | One folder per game, self-contained and deployable |
-| `tools/` | `new-game.sh`, `make-icons.py`, `smoke.mjs`, `usage.py` (token ledger), `codemap.mjs` (code index and lookup), `docs-check.mjs` (checks the docs still describe the repo), `sketch.mjs` (records a sketch page or game frames as a GIF), `worktree.sh`, `land.mjs` (lands a build in one command, stopping at the first failure), `drive.mjs`, `perf.mjs`, `verify.mjs` (the verifier's kit: base build against candidate) |
+| `tools/` | `new-game.sh`, `make-icons.py`, `smoke.mjs`, `usage.py` (token ledger), `codemap.mjs` (code index and lookup), `docs-check.mjs` (checks the docs still describe the repo), `sketch.mjs` (records a sketch page or game frames as a GIF), `film.mjs` (sets up an Arena moment and films it: a still, or a GIF and contact sheet; the moment helper is `checks/scene.mjs`), `worktree.sh`, `land.mjs` (lands a build in one command, stopping at the first failure), `drive.mjs`, `perf.mjs`, `verify.mjs` (the verifier's kit: base build against candidate) |
 | `docs/usage/` | Token ledger: API-equivalent cost by game, role, model and day (`tools/usage.py`) |
 
 ## Hard rules for builder sessions

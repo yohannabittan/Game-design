@@ -119,6 +119,7 @@ Watch out: a save given to `open` as plain data skips `migrate` (it is wrapped w
 
 ## 11. Write a scripted check and capture frames
 
+0. **Setting up a moment and filming it are one call each:** `scene(g, { weapon, dual, side, knives, kit, foe, foeSize, size, arena, bout, tell: 'low', bow, knifeUp })` in `tools/checks/scene.mjs` (on `exact.mjs`'s `boot`) does steps 4 to 6 below for you, with `stroke(g, 'JAB')` and `throwKnife(g, 'neck')` to play into it; `node tools/film.mjs --help` films a moment (a still, or a GIF and contact sheet) without any script of your own. Hand-roll only what they don't cover, and add it there.
 1. Work in a worktree (`tools/worktree.sh`). Start from `tools/checks/arena.mjs`: `open`, the `VET` and `FRESH` saves, `ptr`, `stroke`, `yardAt`, `logAtk`, `geo`. Add a helper there when you write one worth keeping.
 2. Saves: a veteran one (all unlocks, every hint key set, so no hints) and a fresh one (`{ storySeen: 1 }`, so the yard, hints and first-run purse show).
 3. Sizes: 667x375 and 844x390 landscape. Always run both.
