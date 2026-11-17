@@ -30,3 +30,8 @@ The chosen tester settings: **WAY 2 one press, KNIFE button on the right, TARGET
 
 - **The bow** keeps its own aim (draw with the right thumb, its ring and snap) for now. If the designer wants it to aim by angle too, that is a later step.
 - The knife arcs a little at range only in the range trials (Step 27b); in a fight the line is straight.
+
+## Amendment (2026-11-17, after the first build)
+
+- **A plain press aims at his middle** (the designer chose this). Pressing KNIFE starts the line at his chest; sliding up or down moves it from there, by the same amount of thumb per px of line. Only the height of the slide matters; sideways still does nothing. A plain press and release never throws into the sand.
+- **The throwing arm** stays the sword hand for now (the designer: leave it, play it first).
