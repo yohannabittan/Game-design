@@ -91,4 +91,5 @@ In flight: the knife throw's second fix round (`wt-arena-knife`), Trials T1 (`wt
 3. **Playtest export reader** (a pasted export to a table of new runs), Sonnet.
 4. **Sketch kit** for touchable sketch pages (figure, foe with gaps, phone touch handling, link options, GIF mode), Sonnet.
 5. **Trials T2** (the range trials) after the knife lands and T1 is verified.
+6. **A plumbing measure in the ledger** (promised to the designer): per build, tool calls and how many ran throwaway scripts (node on scratchpad files), so the real-work to plumbing ratio can be seen to move. Today's split by time (since 14 Nov): Opus builders 48% model, 49% scripts, 3% reading; verifiers 26/62/12.
 Each dispatch gets a row in `docs/usage/estimates.csv`; each landing moves the builder's "what I had to hunt for" into RECIPES.md.
