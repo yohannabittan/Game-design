@@ -3,6 +3,7 @@
 //   import { boot } from './exact.mjs';  import { VET } from './arena.mjs';  import { scene, stroke, throwKnife, release, STROKES } from './scene.mjs';
 //   const g = await boot({ w: 874, h: 402, save: VET });
 //   const info = await scene(g, { weapon: 'spear', dual: true, foe: 'hermes', tell: 'low' });   // info says what was set up
+//   { yard: 'jab' } starts the training yard at that step (name or index); frontAt(g, y) gives his body front (screen x) at a screen height.
 //   await stroke(g, 'JAB'); await stroke(g, [[0,0,0],[6,-12,4],[9,30,-4]]); await throwKnife(g, 'neck');
 // Every option is optional; node tools/film.mjs --help lists them (the film tool takes the same ones as flags).
 //
@@ -65,8 +66,10 @@ export async function scene(g, o = {}) {
     if (o.foeHp !== 0) f.hp = f.maxHp = o.foeHp || 999;
     return { foe: `${f.name}${f.beast ? ` (${f.beast})` : ''}`, foeWeapon: f.weapon && f.weapon.id, foeSize: f.size && f.size.id, arena: s.arena && (s.arena.id || s.arena), bout: s.rack + 1, weapon: s.me.weapon, dual: !!s.me.dual, side: s.me.side || null, knives: s.knives, kit: s.me.kit };
   }, [o, pick.rack, kit]);
+  // 2b. the training yard (the menu's Training button), advanced to the named step: the yard stands him and runs its own steps, so he is not held still
+  if (o.yard != null) info.yard = await startYardAt(g, o.yard);
   // 3. he holds still (and the tell, if asked, is pinned)
-  if (o.still !== false) await holdStill(g);
+  else if (o.still !== false) await holdStill(g);
   await g.frames(o.settle == null ? 30 : o.settle);
   if (o.tell) { info.tell = await holdTell(g, o.tell, o.tellKind, o.tellAt); await g.until(() => { const w = window.__engine.game.scenes.play.state.sw; return !w || w.t >= window.__holdTell * w.wind - 0.02; }, 180); await g.frames(2); }
   if (o.bow) await bowUp(g, o.bow === 'drawn');
@@ -74,6 +77,33 @@ export async function scene(g, o = {}) {
   info.you = await g.ev(() => { const P = window.__engine.game.scenes.play; return { size: P.state.me.size, hp: P.state.hp }; });
   return info;
 }
+
+// Start the training yard as the menu's Training button does (startYard(E, true)) and go on to a step, by index or id (hand, jab, slash, over, lunge,
+// shield, dodge, hold, gap, knife, read, perfect, tell, go). Returns { step, i, steps }. Call after a bout is begun (scene() does).
+export async function startYardAt(g, step) {
+  const r = await g.ev(async (want) => {
+    const E = window.__engine, P = E.game.scenes.play, base = new URL('src/', location.href).href;
+    const G = await import(base + 'game.js'), Y = await import(base + 'features/yard.js');
+    const ids = Y.YARD.map((q) => q.id), k = /^\d+$/.test(String(want)) ? +want : ids.indexOf(String(want));
+    if (k < 0 || k >= ids.length) return { bad: ids };
+    Y.startYard(E, true);                    // lands on step 0
+    for (let i = 0; i < k; i++) Y.nextYard(E);
+    return { step: ids[k], i: k, steps: ids };
+  }, step);
+  if (r.bad) throw new Error(`scene: unknown yard step "${step}" (have ${r.bad.join(', ')}, or an index 0-${r.bad.length - 1})`);
+  return r;
+}
+
+// His body's front as it stands now: the screen x of the nearest point of his body to you at screen height y (his part shapes, not his box), or null when
+// nothing of him is at that height. (The training yard's own measure: sweeps heights and local x until a live part holds the point.)
+export const frontAt = (g, y) => g.ev(async (y) => {
+  const E = window.__engine, s = E.game.scenes.play.state, M = await import(new URL('src/fight.js', location.href).href), F = M.foeF(E), fm = s.foe;
+  for (let lx = 0.6; lx > -0.3; lx -= 0.004) {
+    const [qx, qy] = M.toLocal(F, F.x - lx * F.H, y);
+    if (fm.parts.some((p) => { if (p.cut) return false; const [px, py] = M.partLocal(p, fm, qx, qy); return M.inside(p.d, px, py, 0); })) return F.x - lx * F.H;
+  }
+  return null;
+}, y);
 
 // He stands still and never swings: every frame (from the page's own loop) his swing timer is held off, his plan and cover cleared, his stamina full,
 // and the gap kept at his home distance. Unlike exact.mjs's still(), a tell started by holdTell() is left alone (that is pinned by its own loop).

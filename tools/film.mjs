@@ -27,6 +27,7 @@ The moment (every flag optional; fake clock, so a run is the same every time):
   --foe NAME         a champion or beast to fight: hermes, twins, carpophorus, mevia, aquila, lion, bear, Flamma ... (found for you, any arena)
   --foe-size S       runt lean medium big giant (his body)      --size S   your body      --bare   no armour or guards on him (so gaps show)
   --arena A          pit, city, rome, games (default pit)      --bout N   1-5      --seed N      --begin   keep the intro card and lessons
+  --yard STEP        the training yard (the menu's Training), at a step: hand jab slash over lunge shield dodge hold gap knife read perfect tell go (or 0-13)
   --tell Z           his tell held up: high, mid or low       --tell-kind chop|thrust|sweep|combo|feint      --tell-at 0.7   how far into the wind-up
   --bow out|drawn    the bow raised, or drawn and held        --knife-up   a knife raised and held       --live   he fights back (default: he stands still)
   --view WxH[,WxH]   screen size(s); one file each if several (default 874x402; also 667x375, 844x390)
@@ -50,7 +51,7 @@ The film:
   --help             this text
 Needs ffmpeg for GIFs and sheets. A film of 5 strokes takes about a minute; a still takes under 10 seconds.`;
 
-const SHORT = ['weapon', 'dual', 'side', 'knives', 'kit', 'foe', 'foe-size', 'size', 'bare', 'arena', 'bout', 'seed', 'begin', 'tell', 'tell-kind', 'tell-at', 'bow', 'knife-up', 'live'];
+const SHORT = ['weapon', 'dual', 'side', 'knives', 'kit', 'foe', 'foe-size', 'size', 'bare', 'arena', 'bout', 'seed', 'begin', 'tell', 'tell-kind', 'tell-at', 'bow', 'knife-up', 'live', 'yard'];
 
 export function parseArgs(argv) {
   const o = {};
@@ -77,7 +78,7 @@ const num = (v, d) => (v === undefined || v === true || Number.isNaN(+v) ? d : +
 const sceneOpts = (o) => ({
   weapon: o.weapon, dual: !!o.dual, side: o.side, knives: num(o.knives, 0), kit: o.kit === 'none' ? 'none' : o.kit ? String(o.kit).split(',') : undefined,
   foe: o.foe, foeSize: o['foe-size'], size: o.size, bare: !!o.bare, arena: o.arena, bout: num(o.bout, 1), seed: o.seed ? +o.seed : undefined, begin: !!o.begin,
-  tell: o.tell, tellKind: o['tell-kind'], tellAt: num(o['tell-at'], 0.7), bow: o.bow, knifeUp: !!o['knife-up'], still: o.live ? false : true,
+  yard: o.yard === true ? undefined : o.yard, tell: o.tell, tellKind: o['tell-kind'], tellAt: num(o['tell-at'], 0.7), bow: o.bow, knifeUp: !!o['knife-up'], still: o.live ? false : true,
 });
 
 const OVERLAY = () => {
