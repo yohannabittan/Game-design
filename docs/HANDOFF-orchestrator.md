@@ -87,7 +87,7 @@ The token ledger (`docs/usage/README.md`) reads about US$2,080 API-equivalent. A
 ## Queue, 2026-11-17 evening (the designer said go on all of it)
 
 In flight: the knife throw's second fix round (`wt-arena-knife`), Trials T1 (`wt-arena-trials1`), the land command (`wt-tools-land`). Next, as slots free (at most three heavy agents, two Arena builders):
-0. **The yard distance** (`docs/games/arena/steps/2026-11-17-yard-distance.md`): the designer's screenshots show the partner inside your guard and the arm folding back; Opus, next free Arena slot, with a verifier (controls).
+0. **The yard distance: landed as `arena-v85`** (2026-11-17, `docs/games/arena/steps/2026-11-17-yard-distance.md`, "Landed as arena-v85"): chambered guard, body lean, then the lunge; a sword touch in a hit-stop cuts the stop (`look.stopCut`). Unplayed. For play to judge: the lean (0.2 rad) and the shorter hit pause.
 1. **What's new as one list** (landed v83) (`docs/games/arena/steps/2026-11-17-whats-new-list.md`), Sonnet quick build, after the knife lands.
 2. **Test moment and film tools** (a helper to set up a fight moment: loadout, foe, size, a tell held; a `film` command: scripted strokes or throws to frames, thumb overlay, caption, GIF and contact sheet), Sonnet, after the land command.
 3. **Playtest export reader** (a pasted export to a table of new runs), Sonnet.
@@ -103,6 +103,6 @@ Each dispatch gets a row in `docs/usage/estimates.csv`; each landing moves the b
 - **Doors:** steps are labelled one-way or two-way (Orchestrator card). `tools/land.mjs --revert` is being added.
 - **A roadmap per game** is being drafted with the designer; write it to `docs/roadmap.md` once they have answered.
 - **Landed tonight after this note:** Trials T1 as `arena-v84` (save v20); `tools/land.mjs --revert` and `--help`.
-- **Parked:** the yard distance (`docs/games/arena/steps/2026-11-17-yard-distance.md`, worktree `/home/user/wt-arena-yarddist`): two rounds found a fork about the guard pose; next is a sketch of three guard poses for the designer (kit.js), not a build.
+- **The yard distance is no longer parked:** the designer chose the guard ("Hold the guard further back and extend the body and then lunge if needed"); landed as `arena-v85`.
 - **Known, for after the designer plays:** fist trials golded by slash spam; the trials check adds about 3 minutes to the suite (trim it); Trials T2 (range) waits for play.
 - **Roadmap draft sent to the designer** with three questions (which mini games they would pick up again; friends features go or not; which exploration first, the samurai dash-slash recommended).
