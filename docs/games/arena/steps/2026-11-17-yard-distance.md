@@ -25,7 +25,7 @@
 
 ## After two build rounds (2026-11-17, parked for the designer)
 
-Two Opus rounds (9 and 16 min) did not finish it; per the escalation rule the step is what needs fixing. Unlanded work is saved as `2026-11-17-yard-distance.patch` (against commit 7e62c0b; also in the worktree `/home/user/wt-arena-yarddist` while this container lives) (probes in the scratchpad folder `arena-yarddist/`).
+Two Opus rounds (9 and 16 min) did not finish it; per the escalation rule the step is what needs fixing. Unlanded work is saved as `2026-11-17-yard-distance.patch` (against `arena-v84`, commit d79834d; three rounds of work; also in the worktree `/home/user/wt-arena-guard` while this container lives) (probes in the scratchpad folder `arena-yarddist/`).
 
 **Kept from the rounds (worth landing with the final fix):** the arm never folds the blade back at you (`solveArm` keeps the aim `arm.front` ahead of the shoulder; it moves the city replay hash); the spear's slide no longer feeds back into the stand-off; the ring sits on his chest; small screens start you back to make room.
 

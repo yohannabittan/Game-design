@@ -1,5 +1,5 @@
 diff --git a/games/arena/src/features/yard.js b/games/arena/src/features/yard.js
-index 3f1f597..e122264 100644
+index 3f1f597..debacf3 100644
 --- a/games/arena/src/features/yard.js
 +++ b/games/arena/src/features/yard.js
 @@ -4,7 +4,7 @@
@@ -11,7 +11,7 @@ index 3f1f597..e122264 100644
  import { covered, buildMove, startMove } from '../foe.js';
  import { perfectWin, firstRun } from '../cards.js';
  import { sayLine, TAU, line, rrect } from '../draw-fight.js';
-@@ -69,17 +69,66 @@ export function nextYard(E) {
+@@ -69,17 +69,57 @@ export function nextYard(E) {
    tr.base = st.got ? st.got(tr) : 0;
    // what the step's "why it didn't count" watches: the stroke in hand, a raise not yet used, the dodges before his tell, Brutus's second line
    Object.assign(tr, { fails: 0, whyM: -9, atk: state.hand.atk, run: null, rz: state.hand.raisedT, d0: state.dodges, endM: -9, higher: false, g0: 0 });
@@ -27,38 +27,31 @@ index 3f1f597..e122264 100644
  }
 -// the gap (H) the yard stands him at: his own striking distance, drawn in until your plain jab (shoulder, straight arm and blade, no lunge) reaches
 -// jabIn H into his front, never nearer than the bodies can stand. His blows still reach you (inReach follows his strike)
-+// the gap (H) the yard stands him at (2026-11-17): far enough that your guard's tip stands guardOff of its length short of him, and no farther than a
-+// plain push (the hand aimed at his chest, push H past the guard, the blade along the arm) goes jabIn H into him; never nearer than the bodies can
-+// stand. A long weapon's slide is worked out at each gap tried, since it shortens the point as he comes in. His blows still reach you (inReach
-+// follows his strike)
++// the gap (H) the yard stands him at (2026-11-17): where a plain push (the arm straight at his chest, the body leaning into it, no lunge) goes
++// jabIn H into him, never nearer than the bodies can stand nor farther than his own striking distance. The chambered guard is then well short of him. A long weapon's slide is worked out at
++// each gap tried, since it shortens the point as he comes in. His blows still reach you (inReach follows his strike)
  function yardStand(E, f) {
 -  const L = lay(E), Fy = youF(E), B = TUNING.fighter.body, own = f.weapon.strike + f.size.reach;
 -  const tip = L.x0 - (meSize().scale - 1) * B * L.H + SHOULDER[0] * Fy.H + myArm(E) + myBlade(E) - TUNING.train.jabIn * myH(E);
 -  return clamp((tip - L.x1 + B * L.H) / L.H, gMin(E), own);
-+  const T = TUNING.train, L = lay(E), H = myH(E), ft = state.foot, keep = [ft.pos, f.dx];
++  const L = lay(E), ft = state.foot, keep = [ft.pos, f.dx], own = f.weapon.strike + f.size.reach;
 +  // worked out with you on the mark and him at gap 0, then moved out by the gap tried
 +  ft.pos = 0; f.dx = 0;
-+  // (short of him near the tip's height; a long point held up over his head is short of the top of him)
-+  const fr = frontOf(E), fx = foeF(E).x, c0 = foeAt(E, 'chest', 0.6), top = fr.top();
-+  const at = (g) => {
-+    const q = yardTips(E, [c0[0] + g * L.H, c0[1]], fx + g * L.H), off = T.guardOff * q.pt, d = g * L.H;
-+    const fg = fr.span(q.guard.uy - off, Math.max(q.guard.uy, top) + off), m = fr.meet(q.sx, q.sy, q.ux, q.uy, d);
-+    return { far: fg == null ? -1 : q.guard.ux + off - (fg + d), land: m == null ? -1 : Math.hypot(q.push.ux - q.sx, q.push.uy - q.sy) - T.jabIn * H - m };
-+  };
-+  // both shrink as he stands farther: the least gap whose guard is short enough, and the most a plain push still reaches
-+  const root = (k) => { let lo = gMin(E), hi = 2; for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (at(mid)[k] > 0) lo = mid; else hi = mid; } return hi; };
-+  const gap = Math.min(root('far'), root('land'));
++  const fr = frontOf(E), fx = foeF(E).x, c0 = foeAt(E, 'chest', 0.6);
++  const land = (g) => { const q = pushTip(E, [c0[0] + g * L.H, c0[1]], fx + g * L.H), m = fr.meet(q.sx, q.sy, q.ux, q.uy, g * L.H); return m == null ? -1 : q.r - TUNING.train.jabIn * myH(E) - m; };
++  let lo = gMin(E), hi = 2;
++  for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (land(mid) > 0) lo = mid; else hi = mid; }
 +  ft.pos = keep[0]; f.dx = keep[1]; state.hand.sl = null;
-+  return gap;
++  return Math.min(lo, own);
 +}
-+// your guard's tip, and a plain push's, for his chest at c and his frame at fx (his frame and his chest where they stand now when not given): the push
-+// aims the hand at his chest, push H past the guard's reach, thrust 1 (the blade along the arm); the point as the slide would leave it there
-+function yardTips(E, c = foeAt(E, 'chest', 0.6), fx = foeF(E).x) {
-+  const [gx, gy] = guardPt(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), pt = myBlade(E) * (1 - slideTo(E, sx, fx));
-+  const d = Math.hypot(c[0] - sx, c[1] - sy) || 1, ux = (c[0] - sx) / d, uy = (c[1] - sy) / d, R = Math.hypot(gx - sx, gy - sy) + TUNING.train.push * myH(E);
-+  return { guard: tipFor(E, gx, gy, 0, pt), push: tipFor(E, sx + ux * R, sy + uy * R, 1, pt), pt, sx, sy, ux, uy };
++// a plain push at his chest c (his frame at fx; both where they stand now when not given): the shoulder as the body leans train.lean of the way
++// into it (TUNING.thrust), the line from it to his chest, and how far along it the point goes (the arm straight, the blade along it, as the slide leaves it)
++function pushTip(E, c = foeAt(E, 'chest', 0.6), fx = foeF(E).x) {
++  const [sx, sy] = toScreen({ ...youF(E), a: TUNING.lean.base + TUNING.thrust.lean * TUNING.train.lean }, SHOULDER[0], SHOULDER[1]), pt = myBlade(E) * (1 - slideTo(E, sx, fx));
++  const d = Math.hypot(c[0] - sx, c[1] - sy) || 1;
++  return { sx, sy, ux: (c[0] - sx) / d, uy: (c[1] - sy) / d, r: myArm(E) * TUNING.arm.full + pt };
 +}
-+// his front as he stands now, row by row (screen px): span(y0, y1) the nearest x of him between two heights, meet(sx, sy, ux, uy, d) how far along a
++// his front as he stands now, row by row (screen px): meet(sx, sy, ux, uy, d) how far along a
 +// ray from (sx, sy) it first reaches him with him moved d px back; null where nothing of him is
 +function frontOf(E) {
 +  const F = foeF(E), fm = state.foe, rows = new Map();
@@ -75,34 +68,26 @@ index 3f1f597..e122264 100644
 +    return rows.get(k);
 +  };
 +  return {
-+    top() { const F0 = F.y - 1.4 * F.H; for (let y = F0; y < F.y; y += 2) if (row(y) != null) return y; return F.y; },
-+    span(y0, y1) { let best = null; for (let y = y0; y <= y1 + 1; y += 2) { const x = row(y); if (x != null && (best == null || x < best)) best = x; } return best; },
 +    meet(sx, sy, ux, uy, d = 0) { for (let r = 0; r < 3 * F.H; r += 2) { const x = sx + ux * r, y = sy + uy * r, f = row(y); if (f != null && x >= f + d) return r; } return null; },
 +  };
 +}
 +// the jab step's ring: where a plain push meets him, on his chest
 +function pushMark(E) {
-+  const q = yardTips(E), m = frontOf(E).meet(q.sx, q.sy, q.ux, q.uy);
++  const q = pushTip(E), m = frontOf(E).meet(q.sx, q.sy, q.ux, q.uy);
 +  return m == null ? null : [q.sx + q.ux * m, q.sy + q.uy * m];
  }
  // the yard as the export writes it: `hand2,jab4/1,over31/6,...` (seconds, and failed attempts when there were any)
  const yardEntry = (id, t, fails) => `${id}${Math.round(t)}${fails ? `/${fails}` : ''}`;
-@@ -240,11 +289,11 @@ export function ghostAt(keys, u) {
- }
- // ----- step 23b: the ghost's paths, worked out from the fight as it stands this frame -----
+@@ -242,7 +282,7 @@ export function ghostAt(keys, u) {
  // Where your hand and tip would be with the hand aimed at (tx, ty), as solveArm puts them (thrust 1: the blade along the arm, as in a jab).
--export function tipFor(E, tx, ty, thrust) {
-+export function tipFor(E, tx, ty, thrust, point = myPoint(E)) {
+ export function tipFor(E, tx, ty, thrust) {
    const A = TUNING.arm, G = TUNING.grip, H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
 -  const d = Math.hypot(tx - sx, ty - sy) || 1, ang = Math.atan2(ty - sy, tx - sx), e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1);
 +  const ax = Math.max(tx - sx, A.front * H), d = Math.hypot(ax, ty - sy) || 1, ang = Math.atan2(ty - sy, ax), e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1);
    const r = myArm(E) * (A.minFrac + (A.full - A.minFrac) * e), hx = sx + Math.cos(ang) * r, hy = sy + Math.sin(ang) * r;
--  const ph = ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust), b = myPoint(E);
-+  const ph = ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust), b = point;
+   const ph = ang + (G.straight + (G.chamber - G.straight) * (1 - e)) * (1 - thrust), b = myPoint(E);
    return { hx, hy, ux: hx + Math.cos(ph) * b, uy: hy + Math.sin(ph) * b };
- }
- // the hand's aim that brings the tip to (px, py), or as near as an aim within `reach` arm lengths of the guard gets it
-@@ -281,7 +330,7 @@ export function ghostPath(E, id) {
+@@ -281,10 +321,12 @@ export function ghostPath(E, id) {
    const P = TUNING.train.path, [gx, gy] = guardPt(E), F = foeF(E), arm = myArm(E), H = myH(E), line = gy - TUNING.attack.over.raise * H;
    if (id === 'jab' || id === 'gap') {
      // a jab: the hand drawn in toward the shoulder on the line to the point, then pushed straight out along it
@@ -110,9 +95,15 @@ index 3f1f597..e122264 100644
 +    const at = (id === 'gap' ? yardGap(E) : pushMark(E)) || chest(), end = aimFor(E, at[0], at[1], 1, P.reach), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]);
      // (and on through him, as a jab goes, so the push is long enough to be quick)
      const d = Math.hypot(end[0] - sx, end[1] - sy) || 1, st = [sx + (end[0] - sx) / d * P.chamber * H, sy + (end[1] - sy) / d * P.chamber * H];
-     const thru = [end[0] + (end[0] - sx) / d * P.thrust * H, end[1] + (end[1] - sy) / d * P.thrust * H];
+-    const thru = [end[0] + (end[0] - sx) / d * P.thrust * H, end[1] + (end[1] - sy) / d * P.thrust * H];
++    // (short of the lunge: the body's lean, not the feet, carries a jab the last of the way)
++    const far = (TUNING.control.lungeStart - 0.15) * arm, ex = end[0] + (end[0] - sx) / d * P.thrust * H - gx, ey = end[1] + (end[1] - sy) / d * P.thrust * H - gy, eo = Math.hypot(ex, ey) || 1;
++    const thru = [gx + ex * Math.min(1, far / eo), gy + ey * Math.min(1, far / eo)];
+     return { thrust: 1, at, keys: [[0, gx, gy, 1], [0.22, ...st, 1], [0.3, ...thru, 1, 1], [0.5, ...thru, 0], [1, gx, gy, 0]] };
+   }
+   if (id === 'slash') {
 diff --git a/games/arena/src/fight.js b/games/arena/src/fight.js
-index 4295bfd..4df072e 100644
+index 5e6a71f..3bb2b84 100644
 --- a/games/arena/src/fight.js
 +++ b/games/arena/src/fight.js
 @@ -111,11 +111,12 @@ export const myBlade = (E) => TUNING.blade.len * myH(E) * meWeapon().reach;
@@ -130,7 +121,31 @@ index 4295bfd..4df072e 100644
  }
  // the foe is drawn at his size: the frame's unit scales, his near edge (a beast's nose) stays where a medium fighter's would be
  export function foeF(E) {
-@@ -215,8 +216,8 @@ function endLunge(E, pulled, planted = false) {
+@@ -155,6 +156,14 @@ export function guardPt(E, off = !!state.hand.off) {
+ }
+ // thumb offset from the anchor, times the gain, px
+ function relOff() { const h = state.hand, G = TUNING.control.gain; return [(h.fx - h.ax) * G, (h.fy - h.ay) * G]; }
++// how far the body leans into a push (0 to 1): the thumb's offset along the guard line past the straight arm, before the lunge; never with the hand
++// raised for an overhead
++export function thrustK(E) {
++  const h = state.hand, C = TUNING.control, T = TUNING.thrust;
++  if (!h.down || h.lock > 0 || state.away || h.hy < overLine(E)) return 0;
++  const [ox, oy] = relOff(), ga = Math.atan2(C.guard[1], C.guard[0]), along = (ox * Math.cos(ga) + oy * Math.sin(ga)) / myArm(E);
++  return clamp((along - T.start) / (T.full - T.start), 0, 1);
++}
+ export function poseYou(E, dt) {
+   const L = { H: myH(E) }, y = state.you, D = TUNING.dodge, h = state.hand, sh = state.sh;
+   const LU = TUNING.lunge;
+@@ -195,7 +204,7 @@ export function poseYou(E, dt) {
+   // upright, sword leading; lean only on a fast slash whose aim lies past the straight arm's reach
+   let leanT = LN.base;
+   if (a && a.kind === 'slash' && h.down && h.lock <= 0 && h.sp >= TUNING.hit.mid * LN.fast) leanT += LN.max * clamp((Math.hypot(h.tgx - h.sx, h.tgy - h.sy) / L.H - LN.beyond) / LN.span, 0, 1);
+-  leanT = Math.min(leanT, LN.max) + LU.driveLean * y.dk - 0.22 * y.back;
++  leanT = Math.min(leanT, LN.max) + LU.driveLean * y.dk - 0.22 * y.back + TUNING.thrust.lean * thrustK(E);
+   y.a += (leanT - y.a) * (1 - Math.exp(-dt / (leanT > y.a ? LN.tau : LN.back)));
+   // step 24c: a raised hand barely leans you back
+   if (h.hy < overLine(E)) y.a = Math.max(y.a, -TUNING.over.leanBack);
+@@ -215,8 +224,8 @@ function endLunge(E, pulled, planted = false) {
    if (!feint && state.lng && !state.lng.committed) commit(E);
    if (!feint && state.lng && !state.lng.hit && state.landM < state.lng.t0 && state.endT <= 0 && state.fallT <= 0 && !E.save.get('driveHint', 0)) state.lungeMiss = true;
    const T = TUNING.foot, ft = state.foot;
@@ -141,7 +156,7 @@ index 4295bfd..4df072e 100644
  }
  // The drive: a committed lunge (never a feint still open) held at full depth presses on in short stamping steps, burning stamina. Drawn back under full
  // depth it holds its ground until the lunge ends; what the blade meets, an empty tank or his body ends it for good. The recovery gives the ground back.
-@@ -352,7 +353,8 @@ export function solveArm(E, dt, h = state.hand) {
+@@ -352,7 +361,8 @@ export function solveArm(E, dt, h = state.hand) {
    const arm = myArm(E), S = TUNING.slide, sl = slideTo(E, sx);
    h.sl = h.sl == null ? sl : h.sl + (sl - h.sl) * (1 - Math.exp(-Math.max(0, dt) / S.tau));
    const blade = myBlade(E) * (1 - h.sl);
@@ -151,7 +166,23 @@ index 4295bfd..4df072e 100644
    const e = clamp((d / H - A.chamberAt) / (A.straightAt - A.chamberAt), 0, 1), ov = h.ovK > 0.001 ? overReach(E, sx, sy) : null;
    let r = arm * (A.minFrac + (A.full - A.minFrac) * e);
    // step 24c: an overhead coming down reaches as far as brings its striking part onto his head (within what the arm can do)
-@@ -486,15 +488,17 @@ function backToWall(E) {
+@@ -425,11 +435,13 @@ export function updateAttack(E, dt) {
+   const live = h.down && h.lock <= 0 && !state.away && state.endT <= 0 && state.fallT <= 0 && !busy();
+   if (h.atk && (!live || (h.sp < T.hit.minSpeed * 0.55 && !lungeStab(h.atk) && !driveStab(h.atk)))) h.atk = null;
+   // (step 26b: a raise that turns straight down into a chop is an overhead, with no pause at the top)
+-  const chop = (spv) => h.vy / spv > AT.over.down && h.tgy > h.ptgy && state.m - h.raisedT < AT.over.window;
++  // (from the chambered guard the raised hand sits over your head, so its blow starts forward: still above the line and coming down, it is a chop)
++  const chop = (spv) => (h.vy / spv > AT.over.down || h.hy < overLine(E)) && h.tgy > h.ptgy && state.m - h.raisedT < AT.over.window;
+   if (h.atk && h.atk.kind === 'raise' && live && h.sp >= T.hit.minSpeed) { const spv = Math.hypot(h.vx, h.vy) || 1; if (spv >= AT.over.minSpeed && chop(spv)) h.atk = null; }
+   // a push counts for jab.hold s, so a point still fast just after the fist has stopped is that jab, not a slash; and a push too slow for a jab is
+   // no slash either for as long (the point swinging down as the arm straightens is no stroke of the thumb's)
+-  const push = pushOf(h), since = (m) => state.m - (m == null ? -9 : m) <= AT.jab.hold;
++  // (a hand above the overhead line is no push: from the chambered guard, a raised hand swinging forward over the head is an overhead's start)
++  const push = h.hy < overLine(E) ? { sp: 0 } : pushOf(h), since = (m) => state.m - (m == null ? -9 : m) <= AT.jab.hold;
+   if (live && push.sp > 0) h.fwdT = state.m;
+   if (live && push.sp >= jabNeed(h)) h.pushT = state.m;
+   // (a jab's draw-back can lift a long point fast enough to read as a free raise; the push after it is still the jab)
+@@ -486,15 +498,17 @@ function backToWall(E) {
    ft.wallT = state.m; state.wallHits++;
    const Fy = youF(E); pop(Fy.x + 30, Fy.y - 1.1 * Fy.H, 'Back to the wall!', '#fca5a5', 24); E.haptic(18); shake(E, 3, 0.1);
  }
@@ -172,10 +203,22 @@ index 4295bfd..4df072e 100644
    ft.tgt = clamp(ft.tgt, wl.back, hi);
    ft.pos = clamp(ft.pos + clamp(ft.tgt - ft.pos, -ft.v * dt, ft.v * dt), wl.back, hi);
 diff --git a/games/arena/src/tuning.js b/games/arena/src/tuning.js
-index 34b3713..883da95 100644
+index 45aed74..b46a010 100644
 --- a/games/arena/src/tuning.js
 +++ b/games/arena/src/tuning.js
-@@ -20,7 +20,7 @@ export const TUNING = {
+@@ -13,14 +13,17 @@ export const TUNING = {
+   // Circuses' hearts and the tent's heart ware; damage, stamina, the crowd and finisher costs stay as they are
+   boutLength: 1,
+   // the sword thumb is a trackpad: gain = hand px per thumb px; guard = the hand at touch-down, from the shoulder (H); the lunge starts and is full at
+-  // these thumb offsets x gain, in arm lengths; back = seconds to ease to guard on lift; jabCone = cosine of the widest push angle off the guard line that is still a jab
+-  control: { gain: 1.6, guard: [0.38, -0.08], lungeStart: 1.3, lungeFull: 1.7, back: 0.12, jabCone: 0.68 },
++  // these thumb offsets x gain, in arm lengths; back = seconds to ease to guard on lift; jabCone = cosine of the widest push angle off the guard line that is still a jab.
++  // (2026-11-17) the guard is chambered, the hand held back near the body; a push straightens the arm, then the body leans into it (thrust), then the feet lunge
++  control: { gain: 1.6, guard: [0.24, -0.05], lungeStart: 1.3, lungeFull: 1.7, back: 0.12, jabCone: 0.68 },
++  // a push's body (2026-11-17): the thumb's offset along the guard line (arm lengths, x gain) where the torso starts to lean into it and leans fully, and that lean (rad)
++  thrust: { start: 0.55, full: 1.2, lean: 0.2 },
+   hand: {
+     lag: 0.035,            // seconds of weight in the hand
      regrip: 0.12,          // lag while the hand recovers from a bounce
      tiredLag: 2.4,         // lag multiplier at zero stamina
    },
@@ -184,17 +227,15 @@ index 34b3713..883da95 100644
    blade: { len: 0.36, pad: 5, jabPad: 10 },   // gladius length in H, hit pad px, the pad px of a jab's striking part (TUNING.strike)
    // (2026-11-14) a spear or trident (weapons' slide) chokes up when he is inside its point: the shaft slides back through the fist until a straight
    // jab's point sits depth H past his front, at most max of its length, easing over tau s
-@@ -341,10 +341,11 @@ export const TUNING = {
+@@ -341,9 +344,10 @@ export const TUNING = {
    // toward you from the middle), tip = the dotted trail's dots;
    // why = s between two "why it didn't count" words, slow = a stroke too slow to count: tip px/s and the least H it travels; field = the export's
    // characters per yard field (the ledger keeps 80). Step 24: knife = practice knives the knife step gives (not your own)
 -  train: { jabIn: 0.1, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, knife: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
-+  train: { jabIn: 0.04, guardOff: 0.25, push: 0.2, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, knife: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
++  train: { jabIn: 0.1, lean: 0.5, jabs: 2, slashes: 2, overs: 1, lunges: 1, perfects: 1, knife: 1, move: 60, wind: 1.6, gap: 0.9, hold: 0.05, next: 0.8, go: 1.2, spam: 6, spamRuns: 2,
      // blow: the least average thumb px/s a sword ghost's blow moves at (step 26b: a copy of it counts, with room to spare)
      ghost: { loop: 1.6, w: 30, h: 40, alpha: 0.55, at: [0.58, 0.8], blow: 550 },
--    // thrust: H the jab's push goes on past the point it is for
-+    // the yard's stand-off (2026-11-17): jabIn: H a plain push (the hand aimed at his chest, push H past the guard's reach) goes into him; guardOff:
-+    // the share of the point your guard tip stands short of him. thrust: H the jab's push goes on past the point it is for
++    // the yard's stand-off (2026-11-17): jabIn: H a plain push (arm straight at his chest, the body lean share of the way into it, no lunge) goes into him.
+     // thrust: H the jab's push goes on past the point it is for
      path: { reach: 1.1, lunge: 1.85, chamber: 0.2, thrust: 0.2, over: 0.3, up: 0.06, through: 0.12, slash: [0.88, 0.3, 0.06, -0.06], front: 0.1, tip: 9 },
      why: 0.7, slow: { sp: 200, len: 0.25 }, field: 80 },
-   // gold, per run: a fell, each feint read, perfect block and slot hit in the bout, and a bout with no hits taken
