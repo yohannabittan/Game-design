@@ -15,7 +15,7 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-17,Tools: sketch kit,tool,claude-sonnet-5-5,20,yes,,,
 2026-11-17,Arena: yard distance and arm fold,build,claude-opus-5-5,25,yes,60,,includes a verifier
 2026-11-17,Verify Arena Trials T1,verify,claude-sonnet-5-5,15,yes,,,with the new verify and film tools
-2026-11-17,Arena Trials T1: fix round,fix,claude-opus-5-5,25,,,,six findings; medals need skill
+2026-11-17,Arena Trials T1: fix round,fix,claude-opus-5-5,25,yes,,,six findings; medals need skill
 2026-11-17,Arena: yard distance round 2,build,claude-opus-5-5,35,,,,from the first round's diff
 2026-11-17,Tools: film --yard,tool,claude-sonnet-5-5,5,yes,,,
 2026-11-17,Tools: land --revert and --help,tool,claude-sonnet-5-5,3,,,,two-way door
