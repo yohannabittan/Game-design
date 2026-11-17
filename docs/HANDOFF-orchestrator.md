@@ -94,3 +94,10 @@ In flight: the knife throw's second fix round (`wt-arena-knife`), Trials T1 (`wt
 5. **Trials T2** (the range trials) after the knife lands and T1 is verified.
 6. **A plumbing measure in the ledger** (promised to the designer): per build, tool calls and how many ran throwaway scripts (node on scratchpad files), so the real-work to plumbing ratio can be seen to move. Today's split by time (since 14 Nov): Opus builders 48% model, 49% scripts, 3% reading; verifiers 26/62/12.
 Each dispatch gets a row in `docs/usage/estimates.csv`; each landing moves the builder's "what I had to hunt for" into RECIPES.md.
+
+## Agreed with the designer, 2026-11-17 night
+
+- **Enough building tonight.** Only the two builds in flight finish and land (Trials T1 fix round, yard distance round 2). Nothing new starts until the designer has played: two weapons (v79), jabs (v80), the knife throw (v82) and Trials are all unplayed beyond stills.
+- **Explore and exploit:** most effort stays on Arena; one cheap exploration a week (a sketch or touchable prototype of something new, made with `sketches/kit.js`), judged by two minutes of the designer's play: "more" or drop it.
+- **Doors:** steps are labelled one-way or two-way (Orchestrator card). `tools/land.mjs --revert` is being added.
+- **A roadmap per game** is being drafted with the designer; write it to `docs/roadmap.md` once they have answered.
