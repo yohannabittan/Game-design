@@ -49,7 +49,7 @@ const btn = (g, i) => g.ev((i) => { const E = window.__engine, b = E.game.scenes
 const waitBlow = (g) => g.until(() => { const s = window.__engine.game.scenes.play.state; return !!(s.train && s.train.sw && !s.train.sw.outcome); }, 600);
 
 // one try at the step the yard is on; true when it is done
-export async function doStep(g, id, n = 0) {
+export async function doStep(g, id, n = 0, ghost = false) {
   const B = async (i) => btn(g, i);
   if (id === 'hand') {
     const c = await g.ev(() => { const E = window.__engine, T = E.game.scenes.play.TUNING.train.ghost; return [E.w * T.at[0], E.h * T.at[1]]; });
@@ -58,6 +58,8 @@ export async function doStep(g, id, n = 0) {
     await g.frames(1); await g.up(c[0] + 28, c[1]);
   } else if (id === 'gap') {
     await g.stroke(g.w * 0.7, g.h * 0.42, await gapJab(g, n));
+  } else if (STROKES[id] && ghost && id !== 'lunge') {
+    const c = await ghostCopy(g, id, 1, 1); await g.stroke(c.x, c.y, c.keys);
   } else if (STROKES[id]) {
     await g.stroke(g.w * (id === 'lunge' ? 0.5 : 0.7), g.h * (id === 'lunge' ? 0.6 : 0.42), STROKES[id]);
   } else if (id === 'shield' || id === 'read') {
@@ -110,6 +112,36 @@ export default async function (t) {
     const all = await g.ev(() => window.__engine.game.scenes.play.YARD.map((q) => q.id).filter((q) => q !== 'go'));
     t.ok(`${w}x${h}: every step completes by touch`, !stuck.length && seen.join() === all.join(), `stuck at ${stuck.join()}; steps done: ${seen.join()}`);
     t.ok(`${w}x${h}: the yard ends into the bout, marked done, its practice knife given back`, !end.train && end.scene === 'play' && end.trainDone === 1 && end.knives === 0 && /tell/.test(end.yard || ''), JSON.stringify(end));
+  }
+
+  // 1b. the partner is your size: a runt and a giant you each train against a partner of your size, every step completes, and the first bout's
+  // foe after the yard is exactly as rolled (size, seed, look), also after Skip
+  for (const [w, h] of [[667, 375], [874, 402]]) for (const band of ['runt', 'giant']) for (const skip of [false, true]) {
+    const g = await toBout(t, FRESH, w, h);
+    const a = await g.ev(async (band) => {
+      const Y = await import(new URL('src/features/yard.js', location.href).href), G = await import(new URL('src/game.js', location.href).href), E = window.__engine, P = E.game.scenes.play, s = P.state;
+      Object.assign(s, s.train.snap); s.me.size = band; s.me.vary = 0; G.newRack(E);
+      const rolled = JSON.stringify([s.foe.size, s.foe.partSeed, s.foe.set && s.foe.set.id, s.foe.name, s.foe.str, s.foe.hp]);
+      Y.startYard(E);
+      return { rolled, mine: s.me.size, scale: s.foe.size.scale, mineScale: P.TUNING.sizes.find((q) => q.id === band).scale, reach: s.foe.size.reach, home: s.foe.home };
+    }, band);
+    const seen = [], stuck = [];
+    await g.frames(10);
+    if (skip) await g.tapRect(await g.ev(() => window.__engine.game.scenes.play.state.train.skip));
+    else for (let n = 0; n < 40; n++) {
+      const q = await tr(g);
+      if (!q || q.id === 'go') break;
+      if (seen[seen.length - 1] !== q.id) seen.push(q.id);
+      let tries = 0;
+      while (!(await doStep(g, q.id, tries, true))) if (++tries >= 6) { stuck.push(q.id); break; }
+      if (stuck.length) break;
+      await g.until(() => { const s = window.__engine.game.scenes.play.state; return !s.train || s.train.doneT < 0; }, 120);
+    }
+    await g.until(() => !window.__engine.game.scenes.play.state.train, 300);
+    const z = await g.ev(() => { const s = window.__engine.game.scenes.play.state; return { train: !!s.train, now: JSON.stringify([s.foe.size, s.foe.partSeed, s.foe.set && s.foe.set.id, s.foe.name, s.foe.str, s.foe.hp]) }; });
+    const tag = `${w}x${h}, a ${band} you${skip ? ', skipped' : ''}`;
+    t.ok(`${tag}: the partner is your size`, Math.abs(a.scale - a.mineScale) < 1e-6, JSON.stringify(a));
+    t.ok(`${tag}: ${skip ? 'Skip ends the yard' : 'every step completes'} and the first foe is as rolled`, !z.train && !stuck.length && z.now === a.rolled, `${stuck.join()} ${z.now} vs ${a.rolled}`);
   }
 
   // 2. the hold step from the wall: you backed to the wall as it starts (the dodge ends at once), DODGE held

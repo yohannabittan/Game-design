@@ -52,6 +52,9 @@ export function startYard(E, drill = false) {
   state.intro = false; state.introGo = -1; state.hint = false; state.boutT0 = state.m;
   state.train = { i: -1, drill, snap: JSON.parse(JSON.stringify(Object.fromEntries(RUN_KEYS.map((k) => [k, state[k]])))), move: 0, px: null, py: null, jabs: 0, gaps: 0,
     blocked: 0, held: 0, read: 0, dodged: 0, sw: null, wait: 0, skip: null, press: null, log: [] };
+  // the partner is your size (the snapshot above keeps the foe as rolled; endYard puts him back)
+  const f = state.foe;
+  if (!f.beast) { f.home += meSize().reach - f.size.reach; f.size = { ...meSize() }; }
   nextYard(E);
 }
 export function nextYard(E) {
