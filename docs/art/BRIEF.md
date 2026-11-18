@@ -667,6 +667,26 @@ About 9 images for the probe (US$1), 20 more after (US$2 to 3).
 
 **The designer's pick (2026-11-18): style B, the painted coin with relief** ("I think B style is better"). The probe's handoff found B's emblem melts into the coin at 56 px, so in the full run: **the emblem stands out from its coin** (a darker, deeper relief with a dark edge line round the emblem, and a field one step darker or lighter than the emblem), and **the coin's metal climbs the ladder**: dull iron with rope edging (1 to 3), bronze (4 to 9), deep bronze with red enamel (10 to 14), silver (15 to 17), gold (18 and 19), and plain worn wood with a laurel for Free (20). Redo ranks 1, 7 and 20 in B with these rules, then the other seventeen; one option each, a second only where an emblem is unclear at 56 px. Contact sheet of all twenty in order at 160 px and 56 px.
 
+### Pack 33: Arena, a picture for every unlock on the rank path (added 2026-11-18)
+
+**For:** `docs/games/arena/steps/2026-11-18-fame-ranks.md` (locked). The ludus is now a path of 20 unlocks, each shown on a card (about 64 px, 160 px when Brutus hands it over at a rank-up). The designer: "we need images for all the unlockables". Six already have art and are reused, not painted: the sica and the trident (`weapon-sica`, `weapon-trident`), and the Tailor's crest, plume, shield paint and cloak (`tailor-*`).
+
+**Style:** the game's painted objects, as the gear icons (`docs/art/final/arena/gear-*.png`) and the weapons (Pack 23's outline, light and palette). Transparent PNG, one object, nothing else, reading at 64 px. The three fighters are busts like the champions' (512 x 512, cut at the chest, `champ-*.png` as the reference). No text on any image.
+
+| File | What |
+| --- | --- |
+| `unlock-fourth` | four wax tablets or playing cards fanned in a hand: one more card to pick from |
+| `unlock-slot` | a sealed scroll with a wax seal: the card you start every run with |
+| `unlock-trick` | a theatre mask, half smiling, half sly: the Trickster's cards |
+| `unlock-show` | a red rose thrown from the stands, and a few coins: the Showman's cards |
+| `unlock-promise` | a small bronze pendant on a cord, a sister's keepsake: the promise to free her |
+| `unlock-vault-wall`, `-blood`, `-dancer`, `-brute`, `-trick`, `-show` | one old scroll, tied, each with a seal in its family's colour and sign (Wall: a shield, light blue; Blood: a drop, red; Dancer: a feather, green; Brute: a fist, amber; Trickster: a mask, violet; Showman: a rose, pink) |
+| `fighter-sparta` | bust of a Spartan gladiatrix: a woman, bronze helm pushed back, red cloak, fierce |
+| `fighter-egypt` | bust of a freed slave from Egypt: a man, broken iron collar still at his neck, kohl at the eyes, proud |
+| `fighter-circus` | bust of a chariot driver from the Circus: a lean man or woman, leather cap and arm straps, a team's coloured tunic, a grin |
+
+**Steps:** three options for `unlock-fourth`, `unlock-trick` and `fighter-sparta` to set the look; one option each for the rest, made to match. Contact sheet: all at 64 px and 160 px on the ludus card colour (`#1b1a24`), the reused six beside them for comparison. The handoff (`docs/art/HANDOFF-arena-pack33.md`) lists the files. About 20 images, US$2 to 3.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
