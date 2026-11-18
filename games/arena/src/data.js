@@ -179,13 +179,13 @@ export function endingOf(arenaId, me, fav) {
 }
 export const storyLine = (me) => `${me.name}, ${ORIGINS[me.origin].text}. Fights for: ${REASON_NAME[me.reason]}.`;
 
-// Brutus's ludus (E): five stations, each unlock one tap for its price in fame (TUNING.ludus.price). Until bought, the armoury's weapons are not in the
-// purse, and the barracks' origins and the shrine's reason weigh nothing on their wheels (LUDUS_LOCK), and the Trickster's and the Showman's cards are never dealt. The training
-// ground's two are the only power. The tailor's are looks: a tap on one you own steps through its styles (TAILOR), then off.
+// Brutus's ludus (E): what each unlock is, by station; since ranks (step 2026-11-18) Brutus hands them out one a rank along PATH, and nothing is bought. Until
+// yours, the armoury's weapons are not in the purse, and the barracks' origins and the shrine's reason weigh nothing on their wheels (LUDUS_LOCK), and the Trickster's
+// and the Showman's cards are never dealt. The training ground's two are the only power. The tailor's are looks: a tap on one you own steps through its styles (TAILOR), then off.
 export const LUDUS = [
   { id: 'armoury', name: 'The Armoury', line: 'New weapons for sale before your first bout', brutus: 'Steel is steel. How you hold it is everything.', items: [
-    { id: 'trident', name: 'Trident and net', line: 'A new weapon to buy before your first bout. Longest reach, slow. Your first well-timed block each bout nets him and slows him.' },
-    { id: 'sica', name: 'The sica', line: 'A new weapon to buy before your first bout. A short curved blade: quick, and its slashes cut deep.' }] },
+    { id: 'trident', name: 'Trident and net', line: 'A new weapon for sale before your first bout. Longest reach, slow. Your first well-timed block each bout nets him and slows him.' },
+    { id: 'sica', name: 'The sica', line: 'A new weapon for sale before your first bout. A short curved blade: quick, and its slashes cut deep.' }] },
   { id: 'barracks', name: 'The Barracks', line: 'New fighters and new card families', brutus: 'New blood in the barracks. Make room.', items: [
     { id: 'sparta', name: 'A gladiatrix', line: 'A new fighter on your origin wheel: a Spartan woman. She starts with a Wall card.' },
     { id: 'egypt', name: 'A freed slave', line: 'A new fighter on your origin wheel, from Egypt. Starts with a Brute card.' },
@@ -211,6 +211,11 @@ export const LUDUS = [
 ];
 export const LUDUS_ITEM = Object.fromEntries(LUDUS.flatMap((s) => s.items.map((q) => [q.id, { ...q, station: s.id }])));
 export const LUDUS_LOCK = new Set(['trident', 'sica', 'sparta', 'egypt', 'circus', 'promise']);
+// Brutus's path: what each rank hands you (index = rank - 1; rank 1 is where everyone starts, with nothing), and each rank's name (one a rank)
+export const PATH = [[], ['sica'], ['fourth'], ['crest'], ['trick'], ['trident'], ['sparta'], ['plume'], ['slot'], ['show'], ['egypt'], ['paint'], ['promise'], ['circus'],
+  ['cloak'], ['vault-wall'], ['vault-blood'], ['vault-dancer'], ['vault-brute'], ['vault-trick', 'vault-show']];
+export const RANK_NAMES = ['Chained', 'Fresh Meat', 'Sand Rat', 'Recruit', 'Bloodied', 'Brawler', 'Bladesman', "Crowd's Pet", 'Veteran', 'Butcher of the Pit', 'Ironhide',
+  'Crowd Favourite', "Champion's Shadow", 'Champion Slayer', 'Lion of Capua', 'Terror of the Sand', 'Darling of Rome', "Emperor's Chosen", 'Living Legend', 'Free'];
 // the tailor's styles: [name, colour]
 export const TAILOR = { crest: [['Bronze', '#c8963e'], ['Silver', '#d5dce4'], ['Gold', '#ffd24a']], plume: [['Red', '#c8372a'], ['White', '#efe6cf'], ['Black', '#2a2420']],
   paint: [['Wings', '#efe6cf'], ['Bolt', '#ffd24a'], ['Sun', '#f97316']], cloak: [['Red', '#9b2f2f'], ['Blue', '#2f4a8a'], ['Green', '#2f6d3d']] };

@@ -17,7 +17,7 @@
 import { makeRng, clamp } from './engine.js';
 import { TUNING } from './tuning.js';
 import { GAUNTLET, PROFILES, NAMES, NEW_CHAMPS, BEASTS, ARENAS, ARENA, ORIGINS, START_FAM, START_ALT, MY_NAMES, herName, PROMISE_WON, brutus,
-  BRUTUS_BG, REVENGE, denarii, bandOf, endingOf, LUDUS, LUDUS_LOCK, TAILOR, famOpen, cardOpen, DECK, CARD, cardNums, gearOf, PARTS, SLOTS, BEAST_BODY,
+  BRUTUS_BG, REVENGE, denarii, bandOf, endingOf, LUDUS, LUDUS_LOCK, PATH, TAILOR, famOpen, cardOpen, DECK, CARD, cardNums, gearOf, PARTS, SLOTS, BEAST_BODY,
   beastParts, ZONES, ZONE, REST_TH, PLATES, playerParts, mkPart, lenN } from './data.js';
 import { lay, youF, walls, gapNow, inReach, myH, myBlade, foeF, toScreen, partCenter, guardPt, driving, fakeOut, openNow, overReach, solveArm, raised, canBlock,
   shieldMax, poseFoe, pushFoe, shieldBtns, raiseShield, dodge, zoneAt, strikeOf, checkHits, land, bounce, gapHit, disable, fell, resolveSwing,
@@ -29,7 +29,7 @@ import { HOOKS, famN, perfectWin, gildedFree, finCost, finList, finReady, finBtn
 import { glowZones, artLabel, kitTier, lookFor, manArt, myLook, foeLook, canSprite } from './draw-fight.js';
 import { boutTally, gradeBout, heldFams, dealable, priceOf, boutLvl, dealDraft, boutGold, openDraft, spoilOf, wield, swapSpoil, applyCard,
   colossusHearts, openTent, buyWare, leaveTent, bandageDue, openBandage, buyBandage, pickCard, skipPay, skipDraft, rerollDraft, tapCard, purseCost,
-  fameOf, fameFromLedger, carveChampion, vetArenas } from './screens.js';
+  fameOf, fameFromLedger, carveChampion, vetArenas, rankOf, rankAt, grantTo, grantRanks } from './screens.js';
 import { menu, story, pickArena, ludus, champs, roll, beginBout, introReady, play, over } from './scenes.js';
 import { YARD, nextYard, endYard, yardFields, tipFor, ghostPath } from './features/yard.js';
 import { startDual, updateDual } from './features/dual.js';
@@ -900,7 +900,7 @@ Object.assign(play, {
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, strikeOf, zoneAt, foeStrike, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
   sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, swapBow, bowDown, bowRelease, arrowLands, bowShown, shieldMax, plainGap, overReach, inReach, aimAt, knifeAt, startLesson, nextYard, aimSnap, raised, canBlock, glowZones, busy, purseCost, knifeBuy, partCenter,
-  ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateDual, YARD, endYard, tapCard, ghostPath, tipFor, guardPt, myH, yardFields, sizeOf, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
+  ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, PATH, rankOf, rankAt, grantRanks, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateDual, YARD, endYard, tapCard, ghostPath, tipFor, guardPt, myH, yardFields, sizeOf, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
 });
 // ====== GAME OBJECT: save, migrate, TUNE presets ======
 const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 'shield.perfect': 0.15, 'shield.hits': 4, 'shield.drain': 6, 'open.dur': 0.8, 'swing.windup': 0.7, 'swing.gap': 2.0, 'counter.windup': 0.55, 'dodge.cost': 18 };
@@ -908,7 +908,7 @@ const STD = { 'hit.minSpeed': 450, 'stamina.regen': 32, 'attack.over.cost': 28, 
 export const game = {
   slug: 'arena',
   title: 'Arena',
-  saveVersion: 20,
+  saveVersion: 21,
   // v2 adds the rival champion and the pit wall of fallen names; v3 counts the bouts begun, for the hint, and a player who has fought before has seen it;
   // v4 (v1) adds the run saved at each bout's start and drops the prototypes' old keys (best, runs). The rival, the wall, the feint lesson and boutsSeen carry over.
   // v5 (v2, the new deck): a run saved mid-gauntlet restarts at bout 1 with the same fighter (its picks came from the old deck, and the old perks are gone).
@@ -994,6 +994,15 @@ export const game = {
     if (fromVersion < 19 && data.run) Object.assign(data.run, { arrows: 0, arrowGaps: 0, arrowSkin: 0, arrowPlate: 0, arrowMiss: 0, bowTime: 0 });
     // v20 (step 27, Trials): no trial played yet (each trial's best, medal and whether its first gold's fame was given)
     if (fromVersion < 20) data.trials = {};
+    // v21 (step 2026-11-18, fame becomes rank): fame is all ever earned (what was held, and what the ludus took for each unlock bought; the Trickster and the
+    // Showman a pre-ludus save was given are not counted), everything bought stays, everything on the path up to that rank is handed over, and those
+    // ranks count as seen (no run's end hands them out again)
+    if (fromVersion < 21) {
+      const gift = fromVersion < 10 ? ['trick', 'show'] : [], L = Array.isArray(data.ludus) ? data.ludus : [];
+      data.fame = (data.fame || 0) + L.filter((id) => !gift.includes(id)).reduce((a, id) => a + (TUNING.ludus.price[id] || 0), 0);
+      const r = rankOf(data.fame), G = grantTo(L, data.tailor || {}, r);
+      Object.assign(data, { ludus: G.ludus, tailor: G.tailor, rankSeen: r });
+    }
     return data;
   },
   TUNING,

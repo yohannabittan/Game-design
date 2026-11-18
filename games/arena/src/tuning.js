@@ -280,12 +280,18 @@ export const TUNING = {
     // your net (the trident): it holds him dur s, his wind-ups wind x longer, his footwork at step x its speed
     net: { dur: 3, wind: 0.3, step: 0.5 },
   },
-  // fame, kept for good (E): a champion felled, an arena's first clear, the Emperor's thumbs up, bout fame for every bout won (a lost run too), and 1 for each goldPer gold left when a run ends
-  fame: { champ: 10, clear: 25, thumbUp: 10, goldPer: 50, bout: 3 },
-  // Brutus's ludus: each unlock's price in fame (the vault's six family scrolls too); the Wall of Champions keeps the newest wallMax fighters; a veteran gains vetUp on one stat
+  // fame, kept for good and never spent (E): every bout won (a lost run too) gives bout[arena] + step x its place in the run (bout 1 is place 0), x its
+  // grade (grade; C is none), x champBout for the champion's; then a champion felled, an arena's first clear, the Emperor's thumbs up, and 1 for each goldPer gold left
+  fame: { bout: { pit: 4, city: 6, rome: 8, games: 10 }, step: 1, grade: { S: 2, A: 1.5, B: 1.2, C: 1 }, champBout: 2, champ: 10, clear: 25, thumbUp: 10, goldPer: 50 },
+  // rank (step 2026-11-18): rank r needs first + grow x (r - 2) more fame than rank r - 1 (rank 2 at first); the run's end counts each fame row in count s
+  // apart, then fills the bar over fill s; the ludus's path shows cards of at most card px wide, a rank's line node r px; emblem: the rank's image, px
+  // across, on the menu beside your rank, at the run's end's rank-up and in the ludus's head
+  ranks: { first: 25, grow: 10, count: 0.3, fill: 1.4, card: 132, node: 13, emblem: { menu: 26, up: 64, ludus: 44 } },
+  // Brutus's ludus: what each unlock cost in fame before ranks (a v20 save's spending counts toward its rank: migrate); the Wall of Champions keeps the newest
+  // wallMax fighters; a veteran gains vetUp on one stat
   ludus: { price: { trident: 30, sica: 30, sparta: 25, egypt: 25, circus: 25, trick: 40, show: 40, slot: 60, fourth: 50, promise: 30, crest: 15, plume: 15, paint: 15, cloak: 20,
     'vault-wall': 45, 'vault-blood': 45, 'vault-dancer': 45, 'vault-brute': 45, 'vault-trick': 45, 'vault-show': 45 },
-    wallMax: 30, vetUp: 1, vetCap: 4, dot: { r: 6, inset: 9 }, rowBase: 38, rowLine: 17, rowMin: 72, rowLines: 5, hubLines: 5, hubIcon: 36 },  // rowBase + rowLine x lines is an item's row height on a station page (at least rowMin, at most rowLines lines); the courtyard card's line shows hubLines lines, its icon hubIcon at least
+    wallMax: 30, vetUp: 1, vetCap: 4 },
   // your own feint (the Trickster's enabler). With the Feint worn a lunge commits, and only then does what its blade met land, once the thumb has stayed
   // within slack (arm lengths of hand travel) of its furthest reach for settle s, or hold s after it began. A lunge
   // pulled back under the lunge's start with the thumb still down before it commits, having reached depth of a full lunge and touched nothing, no sooner than

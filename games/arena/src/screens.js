@@ -3,9 +3,9 @@
 
 import { makeRng, clamp, lerp, ease } from './engine.js';
 import { TUNING } from './tuning.js';
-import { PROFILES, NEW_CHAMPS, BEASTS, beastTitle, ARENAS, ARENA, champTie, champLine, ORIGINS, TRAITS, DRIVES, REVENGE, denarii, storyLine, LUDUS,
+import { PROFILES, NEW_CHAMPS, BEASTS, beastTitle, ARENAS, ARENA, champTie, champLine, ORIGINS, TRAITS, DRIVES, REVENGE, denarii, storyLine,
   LUDUS_LOCK, cardOpen, SCARS, FAMS, SLOT_NAMES, DECK, CARD, cardNums, WARES, DUO_GOLD, TIER_TINT, rarCol, titleOf, gearOf, GUARDS, PARTS, ARM_LEN,
-  beastParts, PLATES, playerParts, lenN } from './data.js';
+  beastParts, PLATES, playerParts, lenN, PATH, RANK_NAMES, TAILOR } from './data.js';
 import { partCenter, poseFoe, beastRest, knee, clangSound, chantN } from './fight.js';
 import { sigOf } from './foe.js';
 import { C_, famN, growth, firstRun } from './cards.js';
@@ -1562,15 +1562,40 @@ export function meMini(ctx, E, me, x, y, w, h, picks = []) {
 }
 
 // ====== META: fame, the ludus, the Wall of Champions ======
-// A run's fame (TUNING.fame, E): every bout won, a champion felled, the arena's first clear, the Emperor's thumbs up, and the gold left over; each with its reason
-export function fameOf(won, first, thumbUp, gold, bouts = 0) {
-  const F = TUNING.fame, g = Math.floor(gold / F.goldPer), items = [];
-  if (bouts > 0) items.push(['bouts won', bouts * F.bout]);
-  if (won) items.push(['champion', F.champ]);
-  if (first) items.push(['first clear', F.clear]);
-  if (thumbUp) items.push(['a full crowd', F.thumbUp]);
+// A run's fame (TUNING.fame, E): each bout won by its arena, its place and its grade (the champion's x champBout), then a champion felled, the arena's first
+// clear, the Emperor's thumbs up and the gold left over. o: { arena, n (bouts in the run), results, grades (one per bout won, in order), won, first, thumbUp, gold }.
+// Each item is [what, fame], and a bout's also its grade and its place.
+export function fameOf(o) {
+  const F = TUNING.fame, base = F.bout[o.arena] || F.bout.pit, g = Math.floor((o.gold || 0) / F.goldPer), items = [];
+  let k = 0;
+  (o.results || []).forEach((r, i) => {
+    if (r !== 'felled') return;
+    const gr = (o.grades || [])[k++] || 'C', champ = i === o.n - 1;
+    items.push([champ ? 'champion' : `bout ${i + 1}`, Math.round((base + F.step * i) * (F.grade[gr] || 1) * (champ ? F.champBout : 1)), gr, i]);
+  });
+  if (o.won) items.push(['champion felled', F.champ]);
+  if (o.first) items.push(['first clear', F.clear]);
+  if (o.thumbUp) items.push(['a full crowd', F.thumbUp]);
   if (g > 0) items.push(['gold left', g]);
   return { sum: items.reduce((a, e) => a + e[1], 0), items };
+}
+// Rank (TUNING.ranks): fame climbs and is never spent; the fame rank r needs from rank r - 1, the lifetime fame rank r starts at, and the rank a fame reaches
+export const rankStep = (r) => TUNING.ranks.first + TUNING.ranks.grow * (r - 2);
+export const rankAt = (r) => { let f = 0; for (let k = 2; k <= r; k++) f += rankStep(k); return f; };
+export const rankOf = (fame) => { let r = 1; while (r < PATH.length && fame >= rankAt(r + 1)) r++; return r; };
+export const rankName = (r) => RANK_NAMES[r - 1];
+// what the path holds up to rank r, and what of it a ludus list lacks (a tailor's piece is worn in its first style)
+export const pathTo = (r) => PATH.slice(0, r).flat();
+export function grantTo(ludus, tailor, r) {
+  const add = pathTo(r).filter((id) => !ludus.includes(id)), T = { ...tailor };
+  for (const id of add) if (TAILOR[id] && T[id] == null) T[id] = 0;
+  return { ludus: [...ludus, ...add], tailor: T, add };
+}
+// Brutus hands you everything on the path up to your rank (a run's end, the ludus, a pre-fame save's first menu); returns the rank
+export function grantRanks(E) {
+  const r = rankOf(E.save.get('fame', 0)), G = grantTo(ludusOf(E), E.save.get('tailor', {}), r);
+  if (G.add.length) { E.save.set('ludus', G.ludus); E.save.set('tailor', G.tailor); }
+  return r;
 }
 // A save from before fame (migrate sets fameCheck; the ledger is the engine's, so it is read here once): each cleared arena's first clear, each won run's
 // fame (a cleared arena with no win left in the ledger still counts its champion), its fighters on the Wall of Champions (the ledger kept no names, and
@@ -1578,7 +1603,10 @@ export function fameOf(won, first, thumbUp, gold, bouts = 0) {
 export function fameFromLedger(E) {
   const F = TUNING.fame, res = E.ledger.entries.filter((e) => e.k === 'result' && e.d), wins = res.filter((e) => e.d.won === true), cleared = E.save.get('arenas', 0);
   let fame = cleared * F.clear + Math.max(0, cleared - wins.length) * F.champ;
-  for (const e of wins) fame += fameOf(true, false, e.d.arena === 'games' && e.d.thumb === 2, e.d.gold || 0).sum;
+  for (const e of wins) {
+    const n = String(e.d.sizes || '').length || 5;
+    fame += fameOf({ arena: e.d.arena, n, results: Array(n).fill('felled'), grades: String(e.d.grades || '').split(''), won: true, thumbUp: e.d.arena === 'games' && e.d.thumb === 2, gold: e.d.gold || 0 }).sum;
+  }
   const champs = wins.slice().reverse().map((e) => {
     const w = e.d.meWeapon === 'mace' ? 'axe' : e.d.meWeapon;
     return { id: e.t, name: 'Nameless', female: false, origin: ORIGINS[e.d.origin] ? e.d.origin : null, weapon: TUNING.me.weapons[w] ? w : null, mace: e.d.meWeapon === 'mace', arena: ARENA[e.d.arena] ? e.d.arena : 'pit', me: null };
@@ -1610,8 +1638,6 @@ export function carveChampion(E, me, arenaId, champName) {
 export const vetArenas = (E, c) => (c && c.me ? ARENAS.map((a, i) => i).filter((i) => i > ARENAS.findIndex((a) => a.id === c.arena) && i <= openTo(E)) : []);
 // what the ludus has opened, and your start-card pick (the training ground's slot, a card you have picked before)
 export const ludusOf = (E) => E.save.get('ludus', []);
-// true while your fame buys at least one unlock you do not own (the menu's gold dot on The Ludus)
-export const ludusBuys = (E) => { const L = ludusOf(E), fame = E.save.get('fame', 0); return LUDUS.some((st) => st.items.some((q) => !L.includes(q.id) && (!q.needs || L.includes(q.needs)) && TUNING.ludus.price[q.id] <= fame)); };
 // only a common or a rare card, never a keystone or an epic: the slot is a small step
 export const startable = (id) => { const c = CARD[id]; return !!c && !c.duo && !c.key && c.tier <= 1; };
 export const startPick = (E) => { const id = E.save.get('startPick', ''), L = ludusOf(E); return L.includes('slot') && startable(id) && E.save.get('picked', []).includes(id) ? id : ''; };

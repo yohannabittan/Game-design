@@ -4,7 +4,7 @@
 import { clamp, lerp, ease } from './engine.js';
 import { TUNING } from './tuning.js';
 import { NOTES } from './notes.js';
-import { NEW_CHAMPS, ARENAS, ARENA, ORIGINS, brutus, bandOf, endingOf, LUDUS, LUDUS_ITEM, TAILOR, FAMS, CARD, WARES, titleOf, PARTS, ARM_LEN,
+import { NEW_CHAMPS, ARENAS, ARENA, ORIGINS, brutus, bandOf, endingOf, LUDUS_ITEM, PATH, TAILOR, FAMS, CARD, WARES, titleOf, PARTS, ARM_LEN,
   SHOULDER, PLATES, playerParts, mkPart, lenN } from './data.js';
 import { camUpdate, lay, youF, foeF, toScreen, guardPt, poseYou, solveArm, moveHand, updateAttack, checkExhaust, stepYou, raised, updateDefence,
   shieldMax, poseFoe, stepFoe, knee, buttonAt, raiseShield, dodge, checkHits, bounce, dust, ring, stepJuice, paintGlow, drawBanner,
@@ -19,7 +19,7 @@ import { weaponKey, weaponArt, picSprite, drawPic, sayLine, KIT_HELM, meGm, kitT
 import { openDraft, swapSpoil, buyWare, leaveTent, buyBandage, pickCard, skipDraft, rerollDraft, famGlyph, drawIcon, tapCard, drawDraft, drawTent,
   drawBandage, labTab, drawLab, labTap, tokenButton, heroArm, heroPose, kitIconSprite, armourIcon, weaponIcon, keyIcon, fitSize, wrapPx, drawIntro,
   clipLine, miniCard, TIER_COL, sliceArcs, wheelRest, sliceCol, drawWheel, spinRot, pegsPassed, iconWeapon, drawMeCard, purseOf, drawPurse, noPlate,
-  purseNudge, meMini, fameOf, fameFromLedger, carveChampion, vetArenas, ludusOf, ludusBuys, startable, startPick } from './screens.js';
+  purseNudge, meMini, fameOf, fameFromLedger, carveChampion, vetArenas, ludusOf, startable, startPick, rankOf, rankAt, rankStep, rankName, grantRanks } from './screens.js';
 import { arena, state, easeOut, wrap, pidx, noShield, ME_WHEEL, rollMe, kitMe, wheelList, statTier, deriveMe, respinMe, vetMe, rivalOf, newRack,
   newRound, saveRun, resumeRun, ART, artV, artImg, artState, artSettled, artFade, shippedArt, BACKDROP, champPic, kitOn } from './game.js';
 import { yardDue, startYard, endYard, yardFields, yardRelease, updateYard, drawYard } from './features/yard.js';
@@ -58,7 +58,7 @@ const STORY = ['So. Another nobody from the pit.', 'I am Brutus. I make champion
   'Five bouts stand between you and the end of it. The last is the champion.', 'Win, and Rome remembers you. Fall, and I chalk your name on the wall.'];
 // The menu (step 12), built from the art that ships: the arena you last fought in behind, darkened at its edges, two torches flickering either side of
 // the bronze title and dust drifting; your last fighter (or a fresh roll's look) on the sand at the left, breathing, cloak swaying, Old Brutus beside
-// them with one line for your progress; Play a bronze gate plaque (Resume when a run was saved), the Ludus (its dot), Story and Sound stone plaques (New
+// them with one line for your progress; Play a bronze gate plaque (Resume when a run was saved), the Ludus, Story and Sound stone plaques (New
 // run beside them with a run); the Wall of Champions a carved stone tablet (a tap opens it) and the Pit Wall a chalked board at the right, three names
 // each; a low crowd murmur with the sound on. Before the first menu (or the story) a boot card waits for its paintings (TUNING.load).
 const BOOT = { done: false, t0: -1, bar: 0 };
@@ -241,27 +241,23 @@ function menuFlames(ctx, E, xs, y) {
   };
   flame('#ff8a2a', 6, 0.4, 1); flame('#ffe08a', 3.5, 0.3, 0.62);
 }
-// The menu's still layer: the backdrop, the torches' brackets and glow, your fighter's shadow, the title and the fame laurel, the plaques (the Ludus's dot), the two walls and
+// The menu's still layer: the backdrop, the torches' brackets and glow, your fighter's shadow, the title and your rank, the plaques, the two walls and
 // Old Brutus with his line
 function paintMenu(c, E, o) {
-  const { Ly, m, bd, face, fame, champs, wall, labels, dot } = o, M = TUNING.menu, B = Ly.btn;
+  const { Ly, m, bd, face, fame, champs, wall, labels } = o, M = TUNING.menu, B = Ly.btn;
   paintMenuBack(c, E, bd);
   for (const sd of [-1, 1]) paintTorch(c, Ly.cx + sd * M.torchDx, Ly.ty - 4);
   // your fighter's shadow on the sand
   c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.ellipse(Ly.fig.x, Ly.fig.y + 2, 0.26 * Ly.fig.s, 0.035 * Ly.fig.s, 0, 0, TAU); c.fill();
   menuBlit(c, E, `title|${Ly.ts}|${o.logo ? artV : '-'}`, Ly.cx - Ly.ts * 2, Ly.ty - Ly.ts * 0.8, Ly.ts * 4, Ly.ts * 1.6, (q) => paintTitle(q, Ly.ts, Ly.ts * 4, Ly.ts * 1.6, o.logo));
-  const ft = `${fame} fame`;
+  // your rank where the fame count was: its emblem, then the rank and its name
+  const r = rankOf(fame), ft = `Rank ${r} \u00b7 ${rankName(r)}`, es = TUNING.ranks.emblem.menu;
   c.font = '800 16px system-ui, sans-serif';
-  const fw = fame ? c.measureText(ft).width : -12;
-  laurel(c, Ly.cx - fw / 2 - 12, Ly.fy, 8);
-  if (fame) liftInk(c, ft, Ly.cx + 6, Ly.fy, 16, '800', '#ffd24a');
+  const fw = c.measureText(ft).width;
+  rankEmblem(c, r, Ly.cx - fw / 2 - es / 2 + 2, Ly.fy, es);
+  liftInk(c, ft, Ly.cx + es / 2 + 6, Ly.fy, 16, '800', '#ffd24a');
   for (const k of Object.keys(B)) plaque(c, E, B[k], k === 'play' ? 'bronze' : 'stone', labels[k], false, k === 'play' ? 22 : 16);
   plaque(c, E, Ly.notes, 'stone', labels.notes, false, 15);
-  if (dot) {
-    const D = TUNING.ludus.dot, b = B.ludus;
-    c.fillStyle = '#ffd24a'; c.strokeStyle = '#3a2a08'; c.lineWidth = 2;
-    c.beginPath(); c.arc(b.x + b.w - D.inset, b.y + D.inset, D.r, 0, TAU); c.fill(); c.stroke();
-  }
   c.font = '800 14px system-ui, sans-serif';
   const C = Ly.champs, P = Ly.pit, head = c.measureText('WALL OF CHAMPIONS').width <= C.w - 20 ? 'WALL OF CHAMPIONS' : 'CHAMPIONS';
   c.save(); c.translate(C.x, C.y); paintWall(c, C.w, C.h, head, champs, 'Fell a champion to be carved here', true); c.restore();
@@ -449,7 +445,7 @@ export const menu = {
       if (E.ledger.entries.some((e) => e.k === 'result' && e.d && e.d.won === true)) E.save.set('arenas', Math.max(1, E.save.get('arenas', 0)));
       E.save.set('arenasCheck', 0);
     }
-    if (E.save.get('fameCheck', 0)) fameFromLedger(E);
+    if (E.save.get('fameCheck', 0)) { fameFromLedger(E); E.save.set('rankSeen', grantRanks(E)); }
     this.look = menuLook(E);
     if (BOOT.t0 < 0) BOOT.t0 = E.time;
     const M = TUNING.menu;
@@ -468,8 +464,8 @@ export const menu = {
     const run = E.save.get('run', null), M = TUNING.menu, Ly = menuLay(E, run), m = this.look, B = Ly.btn, bd = artImg(BACKDROP[m.arena]), face = !!artImg(m.say.pic), logo = artImg('logo-arena');
     const fame = E.save.get('fame', 0), champs = E.save.get('champs', []).slice(0, M.names).map((q) => q.name), wall = E.save.get('wall', []).slice(0, M.names).map((q) => `${q.name} (${q.bout})`);
     const labels = { play: run ? `Resume: ${(ARENA[run.arena] || ARENAS[0]).short}, bout ${run.rack + 1}` : 'Play', new: 'New run', ludus: 'The Ludus', story: 'Story', sound: E.audio.muted ? 'Sound: off' : 'Sound: on', train: 'Training', trials: 'Trials', notes: `v${NOTES[0].v} \u00b7 NEW` };
-    const dot = ludusBuys(E), key = `menu|${E.w}|${E.h}|${m.arena}|${bd ? artV : '-'}|${face ? artV : '-'}|${logo ? artV : '-'}|${Object.keys(B).map((k) => labels[k]).join('|')}|${labels.notes}|${fame}|${dot ? 1 : 0}|${champs.join(',')}|${wall.join(',')}|${m.say.line}`;
-    const o = { Ly, m, bd, face, logo, fame, champs, wall, labels, dot };
+    const key = `menu|${E.w}|${E.h}|${m.arena}|${bd ? artV : '-'}|${face ? artV : '-'}|${logo ? artV : '-'}|${Object.keys(B).map((k) => labels[k]).join('|')}|${labels.notes}|${fame}|${champs.join(',')}|${wall.join(',')}|${m.say.line}`;
+    const o = { Ly, m, bd, face, logo, fame, champs, wall, labels };
     if (canSprite) menuLayer(ctx, E, key, o, this.dust);
     else { paintMenu(ctx, E, o); menuMoving(ctx, E, o, this.dust, E.dpr || 1); }
     if (this.press && this.press !== 'champs') plaque(ctx, E, this.press === 'notes' ? Ly.notes : B[this.press], this.press === 'play' ? 'bronze' : 'stone', labels[this.press], true, this.press === 'play' ? 22 : 16);
@@ -1012,36 +1008,6 @@ function drawCourtyard(ctx, E) {
   ctx.fillRect(0, ay - ah - aw / 2 - 10, E.w, 10);
   ctx.restore();
 }
-// each station's mark, s px tall, centred at (x, y): a weapon rack, the barracks' roof and door, the training post, the shrine's temple, the vault's
-// strongbox, the tailor's plume
-function stationIcon(ctx, id, x, y, s) {
-  ctx.save(); ctx.translate(x, y); ctx.strokeStyle = '#e6c866'; ctx.fillStyle = '#e6c866'; ctx.lineWidth = Math.max(2, s * 0.05); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  const u = s / 2;
-  if (id === 'armoury') {
-    line(ctx, -u * 0.8, u * 0.8, u * 0.7, -u * 0.8); line(ctx, u * 0.8, u * 0.8, -u * 0.7, -u * 0.8);
-    for (const k of [-0.18, 0, 0.18]) line(ctx, u * 0.7 + k * u, -u * 0.8, u * 0.7 + k * u * 1.6, -u * 1.05);
-    line(ctx, -u * 0.55, -u * 0.55, -u * 0.85, -u * 0.25); line(ctx, -u, u * 0.95, u, u * 0.95);
-  } else if (id === 'barracks') {
-    ctx.beginPath(); ctx.moveTo(-u, -u * 0.15); ctx.lineTo(0, -u * 0.9); ctx.lineTo(u, -u * 0.15); ctx.stroke();
-    ctx.strokeRect(-u * 0.8, -u * 0.15, u * 1.6, u * 1.05); ctx.fillRect(-u * 0.2, u * 0.3, u * 0.4, u * 0.6);
-    for (const k of [-0.55, 0.35]) ctx.strokeRect(k * u, u * 0.05, u * 0.2, u * 0.2);
-  } else if (id === 'training') {
-    ctx.fillStyle = '#8a5a2b'; ctx.fillRect(-u * 0.12, -u * 0.6, u * 0.24, u * 1.55); ctx.fillRect(-u * 0.65, -u * 0.25, u * 1.3, u * 0.18);
-    ctx.fillStyle = '#e6c866'; ctx.beginPath(); ctx.arc(0, -u * 0.78, u * 0.24, 0, TAU); ctx.fill(); line(ctx, -u * 0.8, u * 0.95, u * 0.8, u * 0.95);
-  } else if (id === 'shrine') {
-    ctx.beginPath(); ctx.moveTo(-u, -u * 0.45); ctx.lineTo(0, -u * 0.95); ctx.lineTo(u, -u * 0.45); ctx.closePath(); ctx.stroke();
-    for (const k of [-0.75, -0.25, 0.25, 0.75]) line(ctx, k * u, -u * 0.35, k * u, u * 0.7);
-    ctx.fillRect(-u, u * 0.72, u * 2, u * 0.2);
-  } else if (id === 'vault') {
-    ctx.strokeRect(-u * 0.85, -u * 0.35, u * 1.7, u * 1.2); line(ctx, -u * 0.85, u * 0.05, u * 0.85, u * 0.05);
-    ctx.beginPath(); ctx.moveTo(-u * 0.85, -u * 0.35); ctx.quadraticCurveTo(0, -u * 1.0, u * 0.85, -u * 0.35); ctx.stroke();
-    ctx.fillRect(-u * 0.16, -u * 0.05, u * 0.32, u * 0.36); ctx.fillStyle = '#2a2016'; ctx.beginPath(); ctx.arc(0, u * 0.1, u * 0.07, 0, TAU); ctx.fill();
-  } else {
-    for (const k of [-0.5, 0, 0.5]) { ctx.save(); ctx.rotate(k); ctx.beginPath(); ctx.ellipse(0, -u * 0.35, u * 0.22, u * 0.62, 0, 0, TAU); ctx.fillStyle = k ? '#c8372a' : '#efe6cf'; ctx.fill(); ctx.restore(); }
-    line(ctx, -u * 0.8, u * 0.85, u * 0.6, u * 0.25); ctx.beginPath(); ctx.arc(u * 0.68, u * 0.2, u * 0.08, 0, TAU); ctx.stroke();
-  }
-  ctx.restore();
-}
 // an unlock's mark in a roundel of radius r: its weapon, a fighter's shape, its family's mark, a vault scroll, the cards, her key, or the tailor's colour
 function unlockMark(ctx, q, x, y, r, style) {
   const id = q.id;
@@ -1081,61 +1047,61 @@ function unlockMark(ctx, q, x, y, r, style) {
   }
 }
 
-// Brutus's ludus (E): the courtyard's six stations in a row, each its mark, its name, one line and how much of it you have opened; a station's page,
-// its unlocks in two columns, each its mark, its name, one line, and its price (OPEN once bought, or the style you wear); one tap buys one, or steps a
-// tailor's look through its styles and off. The training ground's slot opens the cards you have picked before. Principle 11: three text items an element.
+// Brutus's ludus (E), since ranks (step 2026-11-18) Brutus's path: your rank and its name, the bar to the next, then the path sideways, one card a rank
+// (its node on the line, its mark, its name, YOURS or the rank it comes at; the next one gilded). Drag it sideways. A tap on a tailor's piece you own steps
+// it through its styles and off; a tap on the Start card picks the card you start with. Principle 11: three text items an element.
 export const ludus = {
   ...SCROLLS,
-  enter(E, params = {}) { this.st = params.station || null; this.pick = false; this.scroll = 0; this.maxScroll = 0; this.drag = null; this.cards = []; this.rows = []; this.back = null; },
+  enter(E) { grantRanks(E); this.pick = false; this.scroll = 0; this.maxScroll = 0; this.drag = null; this.px = null; this.rows = []; this.back = null; },
+  onPointerDown(p) { if (this.pick) SCROLLS.onPointerDown.call(this, p); else this.drag = { x: p.x, s: this.px || 0 }; },
+  onPointerMove(p) { if (this.pick) SCROLLS.onPointerMove.call(this, p); else if (this.drag) this.px = clamp(this.drag.s - (p.x - this.drag.x), 0, this.maxPx || 0); },
   render(ctx, E) {
-    this.cards = []; this.rows = []; this.back = null;
+    this.rows = []; this.back = null;
     if (portrait(E)) { rotateCard(ctx, E); return; }
     drawCourtyard(ctx, E);
     if (this.pick) { this.drawPick(ctx, E); return; }
-    const S = LUDUS.find((q) => q.id === this.st);
-    if (S) { this.drawStation(ctx, E, S); return; }
-    this.back = pageHead(ctx, E, 'THE LUDUS', 'My school. Your fame pays for it.');
-    const L = ludusOf(E), n = LUDUS.length, gap = 10, top = E.safe.top + 80, w = Math.min(180, (E.w - 32 - E.safe.left - E.safe.right - gap * (n - 1)) / n);
-    const h = Math.min(240, E.h - top - 12 - E.safe.bottom), x0 = (E.w - (w * n + gap * (n - 1))) / 2, LT = TUNING.ludus;
-    const nameL = (S2) => wrapPx(ctx, S2.name.toUpperCase(), w - 12, 14, '800').slice(0, 3), lineL = (S2) => wrapPx(ctx, S2.line, w - 14, 14, '600').slice(0, LT.hubLines);
-    // the icon takes what the tallest name and line leave (name, gap, line, then the count at the foot)
-    const textH = Math.max(...LUDUS.map((S2) => (nameL(S2).length + lineL(S2).length) * 17 + 6)), ih = Math.max(LT.hubIcon, Math.min(64, h * 0.28, h - 26 - 16 - 22 - textH));
-    LUDUS.forEach((S2, i) => {
-      const x = x0 + i * (w + gap), cx = x + w / 2, got = S2.items.filter((q) => L.includes(q.id)).length, all = got === S2.items.length;
-      E.roundRect(x, top, w, h, 14, 'rgba(34,26,18,0.92)', all ? '#ffd24a' : '#e6c866');
-      stationIcon(ctx, S2.id, cx, top + 12 + ih / 2, ih);
-      // the name (wrapped, one item), its line (wrapped, one item), how much is open
-      let y = top + 26 + ih;
-      for (const t of nameL(S2)) { E.text(t, cx, y, { size: 14, weight: '800', color: '#f0e6cc' }); y += 17; }
-      y += 6;
-      for (const t of lineL(S2)) { E.text(t, cx, y, { size: 14, color: '#cbd5e1' }); y += 17; }
-      E.text(all ? 'All open' : `${got} of ${S2.items.length} open`, cx, top + h - 16, { size: 14, weight: '800', color: all ? '#ffd24a' : '#86efac' });
-      this.cards.push({ x, y: top, w, h, id: S2.id });
-    });
-  },
-  drawStation(ctx, E, S) {
-    this.back = pageHead(ctx, E, S.name.toUpperCase(), S.brutus);
-    const L = ludusOf(E), T = E.save.get('tailor', {}), fame = E.save.get('fame', 0), sp = startPick(E), cols = E.w >= 560 ? 2 : 1;
-    const LT = TUNING.ludus, lw = (E.w - 32 - E.safe.left - E.safe.right - 10 * (cols - 1)) / cols - 74;
-    const rowLines = Math.max(...S.items.map((q) => Math.min(LT.rowLines, wrapPx(ctx, q.line, lw, 14, '600').length)));
-    const G = scrollGrid(E, S.items.length, E.safe.top + 80, Math.max(LT.rowMin, LT.rowBase + LT.rowLine * rowLines), cols, this.scroll);
-    this.scroll = G.s; this.maxScroll = G.max;
-    ctx.save(); ctx.beginPath(); ctx.rect(0, G.y0 - 4, E.w, G.bot - G.y0 + 8); ctx.clip();
-    S.items.forEach((q0, i) => {
-      const q = LUDUS_ITEM[q0.id], r = G.rects[i], own = L.includes(q.id), price = TUNING.ludus.price[q.id], st = TAILOR[q.id] ? (T[q.id] != null ? T[q.id] : 0) : 0;
-      const wait = !own && q.needs && !L.includes(q.needs), can = fame >= price && !wait;
-      const tag = wait ? 'Barracks first' : !own ? `${price} fame` : TAILOR[q.id] ? (st >= 0 ? TAILOR[q.id][st][0] : 'Off') : q.id === 'slot' ? (sp ? CARD[sp].name : 'None') : 'OPEN';
-      const tc = !own ? (can ? '#ffd24a' : '#9aa4b2') : TAILOR[q.id] || q.id === 'slot' ? '#c4b5fd' : '#4ade80';
-      E.roundRect(r.x, r.y, r.w, r.h, 12, own ? 'rgba(29,42,34,0.94)' : 'rgba(42,32,22,0.94)', own ? '#4ade80' : can ? '#e6c866' : 'rgba(240,230,204,0.3)');
-      unlockMark(ctx, q, r.x + 32, r.y + r.h / 2, 20, st);
-      ctx.font = '800 14px system-ui, sans-serif';
-      const tw = ctx.measureText(tag).width, nx = r.x + 62;
-      E.text(clipLine(ctx, q.name, r.w - 62 - tw - 22, 16, '800'), nx, r.y + 20, { size: 16, weight: '800', align: 'left', color: '#f0e6cc' });
-      E.text(tag, r.x + r.w - 12, r.y + 20, { size: 14, weight: '800', align: 'right', color: tc });
-      wrapPx(ctx, q.line, r.w - 74, 14, '600').slice(0, LT.rowLines).forEach((t, k) => E.text(t, nx, r.y + 42 + k * LT.rowLine, { size: 14, align: 'left', color: '#cbd5e1' }));
-      if (r.y + r.h > G.y0 && r.y < G.bot) this.rows.push({ ...r, q });
-    });
+    this.back = pageHead(ctx, E, 'THE LUDUS', null);
+    const R = TUNING.ranks, fame = E.save.get('fame', 0), r = rankOf(fame), L = ludusOf(E), T = E.save.get('tailor', {}), sp = startPick(E);
+    const x0 = 16 + E.safe.left, x1 = E.w - 16 - E.safe.right, top = E.safe.top + 54;
+    // the rank: Brutus, the rank and its name, the bar, what the bar needs and what it brings
+    const hh = 66, fs = R.emblem.ludus, nx = x0 + fs + 26;
+    E.roundRect(x0, top, x1 - x0, hh, 12, 'rgba(26,20,30,0.92)', 'rgba(230,200,102,0.5)');
+    rankEmblem(ctx, r, x0 + 12 + fs / 2, top + hh / 2, fs);
+    E.text(`Rank ${r}`, nx, top + 18, { size: 22, weight: '800', align: 'left', color: '#ffd24a' });
+    ctx.font = '800 22px system-ui, sans-serif';
+    E.text(rankName(r), nx + ctx.measureText(`Rank ${r}`).width + 14, top + 19, { size: 16, weight: '800', align: 'left', color: '#f0e6cc' });
+    const last = r >= PATH.length, have = fame - rankAt(r), need = last ? 1 : rankStep(r + 1), bw = x1 - 12 - nx;
+    rankBar(ctx, nx, top + 38, bw, 10, last ? 1 : have / need, null);
+    const nextQ = last ? null : LUDUS_ITEM[PATH[r][0]];
+    E.text(last ? 'The path is walked. Every unlock is yours.' : `${have} / ${need} fame to rank ${r + 1}`, nx, top + 56, { size: 14, weight: '700', align: 'left', color: '#c4b99a' });
+    if (nextQ) E.text(clipLine(ctx, `Next: ${pathName(r + 1)}`, bw * 0.5, 14, '800'), x1 - 12, top + 56, { size: 14, weight: '800', align: 'right', color: '#ffd24a' });
+    // the path: a line of rank nodes over one card a rank, from rank 2
+    const n = PATH.length - 1, gap = 10, cw = Math.min(R.card, (x1 - x0 - gap * 5) / 5.5), ly = top + hh + 26, cy = ly + R.node + 10, ch = Math.min(190, E.h - E.safe.bottom - 34 - cy);
+    this.maxPx = Math.max(0, n * (cw + gap) - gap - (x1 - x0));
+    if (this.px == null) this.px = clamp((r - 2) * (cw + gap) - (cw + gap) * 1.5, 0, this.maxPx);
+    this.px = clamp(this.px, 0, this.maxPx);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, ly - R.node - 4, E.w, E.h - ly + R.node + 4); ctx.clip();
+    ctx.strokeStyle = 'rgba(203,213,225,0.35)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(E.w, ly); ctx.stroke();
+    for (let k = 2; k <= PATH.length; k++) {
+      const x = x0 + (k - 2) * (cw + gap) - this.px, cx = x + cw / 2;
+      if (x > E.w || x + cw < 0) continue;
+      const ids = PATH[k - 1], own = ids.every((id) => L.includes(id)), next = !own && k === r + 1, q = LUDUS_ITEM[ids[0]];
+      ctx.fillStyle = k <= r ? '#ffd24a' : next ? '#ffd24a' : '#475569'; ctx.beginPath(); ctx.arc(cx, ly, next ? R.node + 3 : R.node, 0, TAU); ctx.fill();
+      E.text(`${k}`, cx, ly + 1, { size: 14, weight: '800', color: k <= r || next ? '#2a1d08' : '#cbd5e1' });
+      E.roundRect(x, cy, cw, ch, 12, next ? 'rgba(58,44,14,0.95)' : 'rgba(26,20,30,0.92)', next ? '#ffd24a' : own ? 'rgba(74,222,128,0.6)' : 'rgba(240,230,204,0.22)');
+      const st = TAILOR[q.id] && own ? (T[q.id] != null ? T[q.id] : 0) : 0, ir = Math.min(26, cw * 0.22);
+      ctx.save(); if (!own && !next) ctx.globalAlpha = 0.45;
+      ids.forEach((id, j) => unlockMark(ctx, LUDUS_ITEM[id], cx + (j - (ids.length - 1) / 2) * ir * 1.9, cy + 14 + ir, ir, st));
+      wrapPx(ctx, pathName(k), cw - 12, 14, '800').slice(0, 2).forEach((t, j) => E.text(t, cx, cy + 32 + ir * 2 + j * 17, { size: 14, weight: '800', color: '#f0e6cc' }));
+      ctx.restore();
+      const tag = !own ? (next ? 'NEXT' : `Rank ${k}`) : TAILOR[q.id] ? (st >= 0 ? TAILOR[q.id][st][0] : 'Off') : q.id === 'slot' ? (sp ? CARD[sp].name : 'Pick one') : 'YOURS ✓';
+      const tc = !own ? (next ? '#ffd24a' : '#94a3b8') : TAILOR[q.id] || q.id === 'slot' ? '#c4b5fd' : '#4ade80';
+      E.text(clipLine(ctx, tag, cw - 10, 14, '800'), cx, cy + ch - (next ? 34 : 18), { size: 14, weight: '800', color: tc });
+      if (next) E.text(`Rank ${k}`, cx, cy + ch - 16, { size: 14, weight: '700', color: '#c4b99a' });
+      if (own && (TAILOR[q.id] || q.id === 'slot')) this.rows.push({ x, y: cy, w: cw, h: ch, q });
+    }
     ctx.restore();
+    E.text(`Drag for the rest of the path, up to ${rankName(PATH.length)} at rank ${PATH.length}`, E.w / 2, E.h - E.safe.bottom - 16, { size: 14, weight: '800', color: '#fde68a' });
   },
   // the training ground's slot: the cards you have picked before (and none), one a tap
   drawPick(ctx, E) {
@@ -1154,33 +1120,36 @@ export const ludus = {
     });
     ctx.restore();
   },
-  buy(E, q, r) {
-    const L = ludusOf(E), price = TUNING.ludus.price[q.id], fame = E.save.get('fame', 0);
-    if (q.needs && !L.includes(q.needs)) { E.audio.play('miss'); E.toast(`Open ${FAMS[q.needs].name} in the Barracks first.`); return; }
-    if (fame < price) { E.audio.play('miss'); E.toast(`${q.name} needs ${price} fame. You have ${fame}.`); return; }
-    E.save.set('fame', fame - price); E.save.set('ludus', [...L, q.id]);
-    if (TAILOR[q.id]) E.save.set('tailor', { ...E.save.get('tailor', {}), [q.id]: 0 });
-    E.audio.play('coin'); E.haptic(20);
-    E.particles.emit({ x: r.x + 32, y: r.y + r.h / 2, count: 30, speed: 240, life: 0.8, size: 4, color: '#ffd24a', gravity: 200 });
-  },
   onTap(p, E) {
     if (portrait(E)) return;
-    if (this.back && E.hit(this.back, p)) { E.audio.play('tap'); if (this.pick) this.pick = false; else if (this.st) this.st = null; else E.setScene('menu'); this.scroll = 0; return; }
-    if (this.pick) {
-      const r = this.rows.find((q) => E.hit(q, p)); if (!r) return;
-      E.save.set('startPick', r.card); E.audio.play('tap'); this.pick = false; this.scroll = 0; return;
-    }
-    if (!this.st) { const c = this.cards.find((q) => E.hit(q, p)); if (c) { E.audio.play('tap'); this.st = c.id; this.scroll = 0; } return; }
+    if (this.back && E.hit(this.back, p)) { E.audio.play('tap'); if (this.pick) { this.pick = false; this.scroll = 0; } else E.setScene('menu'); return; }
     const r = this.rows.find((q) => E.hit(q, p)); if (!r) return;
+    if (this.pick) { E.save.set('startPick', r.card); E.audio.play('tap'); this.pick = false; this.scroll = 0; return; }
     const q = r.q;
-    if (!ludusOf(E).includes(q.id)) { this.buy(E, q, r); return; }
     if (TAILOR[q.id]) {
       const T = E.save.get('tailor', {}), n = TAILOR[q.id].length, cur = T[q.id] != null ? T[q.id] : 0;
       E.save.set('tailor', { ...T, [q.id]: cur + 1 >= n ? -1 : cur + 1 }); E.audio.play('tap'); E.haptic(8);
-    } else if (q.id === 'slot') { this.pick = true; this.scroll = 0; E.audio.play('tap'); }
-    else E.audio.play('tap');
+    } else { this.pick = true; this.scroll = 0; E.audio.play('tap'); }
   },
 };
+// a rank's unlock in words: its item, or the path's pair (the last rank's two scrolls)
+const pathName = (k) => PATH[k - 1].length > 1 ? 'Trickster and Showman scrolls' : LUDUS_ITEM[PATH[k - 1][0]].name;
+// a rank's emblem, s px across, centred at (x, y): a bronze medallion with the rank's number. The artist's rank-01 to rank-20 will take its place here.
+function rankEmblem(ctx, r, x, y, s) {
+  const R = s / 2;
+  ctx.save(); ctx.fillStyle = r >= PATH.length ? '#ffd24a' : '#b7832f'; ctx.strokeStyle = '#3a2a08'; ctx.lineWidth = Math.max(1.5, s * 0.06);
+  ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(58,42,8,0.6)'; ctx.lineWidth = Math.max(1, s * 0.03); ctx.beginPath(); ctx.arc(x, y, R * 0.78, 0, TAU); ctx.stroke();
+  ctx.fillStyle = '#2a1d08'; ctx.font = `800 ${Math.round(s * (r >= 10 ? 0.42 : 0.5))}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${r}`, x, y + s * 0.03); ctx.restore();
+}
+// the fame bar: a track, gold to k (0 to 1), and a mark at k0 (where the run began) when given
+function rankBar(ctx, x, y, w, h, k, k0) {
+  ctx.fillStyle = 'rgba(71,85,105,0.55)'; rrect(ctx, x, y, w, h, h / 2); ctx.fill();
+  const f = clamp(k, 0, 1) * w;
+  if (f > 0) { ctx.fillStyle = '#e0a83e'; rrect(ctx, x, y, Math.max(h, f), h, h / 2); ctx.fill(); }
+  if (k0 != null && k0 > 0 && k0 < k) { ctx.fillStyle = 'rgba(120,72,20,0.65)'; rrect(ctx, x, y, Math.max(h, k0 * w), h, h / 2); ctx.fill(); }
+}
 
 // The Wall of Champions (E): every fighter who cleared an arena, newest first, each a stone plaque: their name, origin and weapon, and the arena they
 // cleared. A plaque with an open arena above it is gilded: a tap starts a run with them as a veteran (the arena picker shows where they may fight).
@@ -1699,8 +1668,14 @@ export const play = {
     if (won && ai + 1 > was) E.save.set('arenas', ai + 1);
     const wall = won ? E.save.get('wall', []) : E.save.set('wall', [{ name: me.name, bout: reached, female: me.female }, ...E.save.get('wall', [])].slice(0, 8));
     // fame for good, and a won run's fighter on the Wall of Champions
-    const thumbUp = won && state.arena === 'games' && bandOf(thumbFav()) === 2, fame = fameOf(won, won && ai + 1 > was, thumbUp, state.gold, state.results.filter((q) => q === 'felled').length);
-    E.save.set('fame', E.save.get('fame', 0) + fame.sum);
+    const thumbUp = won && state.arena === 'games' && bandOf(thumbFav()) === 2;
+    const fame = fameOf({ arena: state.arena, n: g.length, results: state.results, grades: state.grades, won, first: won && ai + 1 > was, thumbUp, gold: state.gold });
+    // the fame climbs your rank: Brutus hands over what the path holds up to it, and the run's end shows each rank not yet seen (a trial's gold may have crossed one)
+    const fame0 = E.save.get('fame', 0), seen = E.save.get('rankSeen', rankOf(fame0));
+    E.save.set('fame', fame0 + fame.sum);
+    const rank = grantRanks(E), ups = Array.from({ length: Math.max(0, rank - seen) }, (_, i) => seen + 1 + i);
+    E.save.set('rankSeen', Math.max(seen, rank));
+    fame.from = fame0; fame.ups = ups;
     if (won) carveChampion(E, me, state.arena, champ.name);
     E.ledger.add('result', {
       ...r,
@@ -1756,6 +1731,7 @@ export const play = {
       thumb: won && state.arena === 'games' ? bandOf(thumbFav()) : -1,
       meName: me.name,
       fame: fame.sum,
+      rank,
       vet: me.vid != null ? 1 : 0,
       myNets: state.netsCast,
       drives: state.drives,
@@ -2003,10 +1979,10 @@ function rain(ctx, E, t, n, fall) {
 // The end: an epilogue card first when the champion fell, then the end card (your card and theirs, your upgrades, the pit wall when you fell).
 export const over = {
   enter(E, params) {
-    this.p = params; this.page = params.won ? 0 : 1; this.t = 0; this.details = 0; this.heard = false;
+    this.p = params; this.page = params.won ? 0 : 1; this.t = 0; this.t1 = 0; this.details = 0; this.heard = false; this.upShown = 0;
     E.audio.play(params.won ? 'win' : 'lose');
   },
-  update(dt) { this.t += dt; },
+  update(dt) { this.t += dt; if (this.page === 1) this.t1 += dt; },
   epilogue(ctx, E) {
     const p = this.p, me = p.me, w = Math.min(E.w - 32, 620), h = Math.min(E.h - 40, 230), x = (E.w - w) / 2, y = (E.h - h) / 2;
     E.roundRect(x, y, w, h, 18, '#221a2b', '#ffd24a');
@@ -2070,26 +2046,85 @@ export const over = {
     E.text('Tap to continue', cx, y + h - 18, { size: 14, weight: '800', color: '#ffd24a', alpha: t > T.tap ? 0.6 + 0.4 * Math.sin(E.time * 4) : 0.3 });
   },
   render(ctx, E) {
-    const p = this.p, g = p.gauntlet;
+    const p = this.p;
     if (portrait(E)) { this.btnAgain = this.btnMenu = this.btnDetails = null; rotateCard(ctx, E); return; }
     if (this.page === 0) { this.btnAgain = this.btnMenu = this.btnDetails = null; if (p.arena === 'games') this.thumb(ctx, E); else this.epilogue(ctx, E); return; }
-    const last = g[p.reached - 1], me = p.me, by = E.h - 30 - E.safe.bottom, F = p.fame || { sum: 0, items: [] };
+    const by = E.h - 30 - E.safe.bottom;
     this.btnDetails = E.button(['Details', 'Counts', 'Hide details'][this.details], E.w / 2 - 160, by, { w: 150, h: 48, size: 16, fill: '#1f2937' });
     this.btnAgain = E.button('Again', E.w / 2, by, { w: 150, h: 48, size: 18 });
     this.btnMenu = E.button('Menu', E.w / 2 + 160, by, { w: 150, h: 48, size: 18, fill: '#334155' });
     // Details, page 1: the run (the fighters, gear, gold, fame, the wall); page 2: the counts
     if (this.details === 1) { this.run(ctx, E, E.safe.top + 10, by - 30); return; }
     if (this.details === 2) { this.stats(ctx, E, E.safe.top + 10, by - 30); return; }
-    // the card keeps: the headline (with the champion's face), one summary line, then Brutus's line (a win: its ending and what it opened), centred above the buttons
-    const c = (E.safe.top + 8 + by - 34) / 2, t = `Reached bout ${p.reached} of ${g.length}${F.sum ? `  ·  +${F.sum} fame` : ''}`;
-    sayLine(ctx, E, p.won ? 'CHAMPION FELLED' : `Cut down by ${last.beast ? `a ${last.name.toLowerCase()}` : last.name}`, E.w / 2, c - 44, E.w - 32, { size: 24, weight: '800', color: p.won ? '#ffd24a' : '#ef4444' }, p.won ? null : champPic(last), TUNING.art.faceBig);
-    E.text(t, E.w / 2, c - 12, { size: 16, weight: '700', color: '#fbbf24' });
-    if (!p.won) sayLine(ctx, E, `Old Brutus: “${brutus(me, 'lost')}”`, E.w / 2, c + 36, E.w - 32, { size: 14, weight: '700', color: '#fde68a' }, 'brutus', TUNING.art.faceCard);
-    else {
-      const ending = endingOf(p.arena, me, p.fav);
-      E.text(ending, E.w / 2, c + 28, { size: fitSize(ctx, ending, 14, E.w - 32, '700'), weight: '700', color: '#fde68a' });
-      if (p.opened) E.text(`Opened: ${p.opened.name}, ${p.opened.place}`, E.w / 2, c + 52, { size: 14, weight: '800', color: '#ffd24a' });
+    this.fameCard(ctx, E, by - 30);
+  },
+  // The run's end (step 2026-11-18): the headline, then each bout's fame counted in with its grade, the rest of the run's fame, the total, and the bar to
+  // the next rank filling from where the run began; on the right, Brutus: a rank crossed is his unlock handed over (two, one after the other), else his
+  // line and what the next rank brings. A tap before it is all in shows it all.
+  fameCard(ctx, E, yb) {
+    const p = this.p, g = p.gauntlet, me = p.me, F = p.fame || { sum: 0, items: [] }, R = TUNING.ranks, last = g[p.reached - 1];
+    const x0 = 16 + E.safe.left, x1 = E.w - 16 - E.safe.right, top = E.safe.top + 8, rw = Math.min(300, (x1 - x0) * 0.36), lx1 = x1 - rw - 14;
+    sayLine(ctx, E, p.won ? 'CHAMPION FELLED' : `Cut down by ${last.beast ? `a ${last.name.toLowerCase()}` : last.name}`, (x0 + lx1) / 2, top + 18, lx1 - x0, { size: 22, weight: '800', color: p.won ? '#ffd24a' : '#ef4444', fit: true }, p.won ? null : champPic(last), TUNING.art.face);
+    // the rows: a bout each, then the rest in one row
+    const bouts = F.items.filter((e) => e.length > 2), rest = F.items.filter((e) => e.length === 2), rows = bouts.length + (rest.length ? 1 : 0);
+    const y0 = top + 50, rh = Math.min(28, (yb - 64 - y0) / Math.max(4, rows)), shown = Math.min(rows, Math.floor(this.t1 / R.count));
+    const GC = { S: '#ffd24a', A: '#e2e8f0', B: '#c98a4a', C: '#64748b' };
+    E.text('FAME EARNED', x0 + 4, y0 - 8, { size: 14, weight: '800', align: 'left', color: '#c4b99a' });
+    for (let i = 0; i < shown; i++) {
+      const y = y0 + 4 + i * rh, champ = i < bouts.length && bouts[i][3] === g.length - 1;
+      E.roundRect(x0, y, lx1 - x0, rh - 4, 8, champ ? 'rgba(58,44,14,0.95)' : 'rgba(30,41,59,0.8)', champ ? '#ffd24a' : null);
+      const cy = y + (rh - 4) / 2;
+      if (i < bouts.length) {
+        const [, n, gr, at] = bouts[i], d = g[at];
+        E.text(champ ? 'Champion' : `Bout ${at + 1}`, x0 + 12, cy, { size: 15, weight: '800', align: 'left', color: champ ? '#ffd24a' : '#f0e6cc' });
+        E.text(clipLine(ctx, d.name, lx1 - x0 - 190, 14, '700'), x0 + 96, cy, { size: 14, weight: '700', align: 'left', color: '#94a3b8' });
+        if (gr !== 'C') { E.roundRect(lx1 - 86, cy - 10, 22, 20, 5, GC[gr]); E.text(gr, lx1 - 75, cy + 1, { size: 14, weight: '800', color: '#1a1422' }); }
+        E.text(`+${n}`, lx1 - 12, cy, { size: 16, weight: '800', align: 'right', color: '#f0e6cc' });
+      } else {
+        E.text(clipLine(ctx, rest.map((e) => e[0][0].toUpperCase() + e[0].slice(1)).join(', '), lx1 - x0 - 90, 14, '700'), x0 + 12, cy, { size: 14, weight: '700', align: 'left', color: '#fde68a' });
+        E.text(`+${rest.reduce((a, e) => a + e[1], 0)}`, lx1 - 12, cy, { size: 16, weight: '800', align: 'right', color: '#f0e6cc' });
+      }
     }
+    if (!rows) E.text('No bout won, no fame this time', (x0 + lx1) / 2, y0 + 20, { size: 14, weight: '700', color: '#94a3b8' });
+    // the total and the bar: fame from where the run began to where it ends, filling once the rows are in
+    const from = F.from != null ? F.from : rankAt(rankOf(0)), to = from + F.sum, k = easeOut(clamp((this.t1 - rows * R.count) / R.fill, 0, 1)), f = Math.round(from + (to - from) * k);
+    const r = rankOf(f), top20 = r >= PATH.length, base = rankAt(r), need = top20 ? 1 : rankStep(r + 1), by2 = yb - 40;
+    if (k > 0) E.text(`+${Math.round(F.sum * k)} fame`, lx1, by2 - 22, { size: 16, weight: '800', align: 'right', color: '#4ade80' });
+    E.text(`Rank ${r} \u00b7 ${rankName(r)}`, x0 + 4, by2 - 22, { size: 14, weight: '800', align: 'left', color: '#fde68a' });
+    rankBar(ctx, x0 + 4, by2 - 6, lx1 - x0 - 8, 12, top20 ? 1 : (f - base) / need, rankOf(from) === r && !top20 ? (from - base) / need : null);
+    E.text(top20 ? 'Every rank is yours.' : `${f - base} / ${need} to rank ${r + 1}`, lx1 - 4, by2 + 18, { size: 14, weight: '700', align: 'right', color: '#c4b99a' });
+    // Brutus's panel: the ranks this run crossed so far (the last big, an earlier one under it), else his line and the next unlock
+    const ups = (F.ups || []).filter((q) => q <= r), px = lx1 + 14, py = top + 4, ph = yb - 6 - py;
+    if (ups.length > this.upShown) { this.upShown = ups.length; E.audio.play('coin'); E.haptic(20); E.particles.emit({ x: px + rw / 2, y: py + 50, count: 40, speed: 260, life: 0.9, size: 4, color: '#ffd24a', gravity: 220 }); }
+    E.roundRect(px, py, rw, ph, 14, 'rgba(34,26,18,0.95)', ups.length ? '#ffd24a' : 'rgba(230,200,102,0.45)');
+    const es = Math.min(R.emblem.up, ph * 0.3), u = ups[ups.length - 1];
+    if (u) {
+      rankEmblem(ctx, u, px + 14 + es / 2, py + 12 + es / 2, es);
+      E.text('RANK UP', px + es + 26, py + 22, { size: 14, weight: '800', align: 'left', color: '#fde68a' });
+      E.text(`Rank ${u}`, px + es + 26, py + 46, { size: 22, weight: '800', align: 'left', color: '#ffd24a' });
+      E.text(clipLine(ctx, rankName(u), rw - es - 36, 15, '800'), px + es + 26, py + 68, { size: 15, weight: '800', align: 'left', color: '#f0e6cc' });
+      const uy = py + es + 30;
+      sayLine(ctx, E, 'Brutus gives you', px + rw / 2, uy, rw - 16, { size: 14, weight: '700', color: '#c4b99a' }, 'brutus', TUNING.art.faceCard);
+      this.unlockBox(ctx, E, u, px + 10, uy + 18, rw - 20, Math.min(96, ph - (uy + 18 - py) - (ups.length > 1 ? 30 : 10)));
+      if (ups.length > 1) E.text(clipLine(ctx, `And rank ${ups[ups.length - 2]}: ${pathName(ups[ups.length - 2])}`, rw - 20, 14, '800'), px + rw / 2, py + ph - 16, { size: 14, weight: '800', color: '#ffd24a' });
+    } else {
+      const line = p.won ? (p.opened ? `Opened: ${p.opened.name}, ${p.opened.place}` : endingOf(p.arena, me, p.fav)) : `Old Brutus: \u201c${brutus(me, 'lost')}\u201d`;
+      wrapPx(ctx, line, rw - 24, 14, '700').slice(0, 4).forEach((t, i) => E.text(t, px + rw / 2, py + 24 + i * 18, { size: 14, weight: '700', color: '#fde68a' }));
+      if (!top20) {
+        E.text(`Next, at rank ${r + 1}`, px + rw / 2, py + 108, { size: 14, weight: '800', color: '#c4b99a' });
+        this.unlockBox(ctx, E, r + 1, px + 10, py + 122, rw - 20, Math.min(96, ph - 132));
+      }
+    }
+  },
+  // one rank's unlock: its mark (two for the last rank's scrolls), its name and its line
+  unlockBox(ctx, E, k, x, y, w, h) {
+    const ids = PATH[k - 1], q = LUDUS_ITEM[ids[0]], ir = Math.min(22, h * 0.3);
+    E.roundRect(x, y, w, h, 12, 'rgba(26,20,10,0.9)', '#e6c866');
+    ids.forEach((id, j) => unlockMark(ctx, LUDUS_ITEM[id], x + 12 + ir + j * ir * 1.2, y + h / 2 - j * ir * 0.5, ir, 0));
+    const tx = x + 22 + ir * 2 + (ids.length - 1) * ir * 1.2, tw = x + w - 10 - tx;
+    E.text(clipLine(ctx, pathName(k), tw, 16, '800'), tx, y + 18, { size: 16, weight: '800', align: 'left', color: '#ffd24a' });
+    const line = ids.length > 1 ? 'New cards in your picks: both families\u2019 epics and legendaries.' : q.line;
+    wrapPx(ctx, line, tw, 14, '600').slice(0, Math.max(1, Math.floor((h - 30) / 17))).forEach((t, i) => E.text(t, tx, y + 40 + i * 17, { size: 14, align: 'left', color: '#e2e8f0' }));
   },
   // Details, page 1: your card and every bout's, your gear, the grades, fame and gold, and (a fall) the wall sentence and the pit wall
   run(ctx, E, y0, y1) {
@@ -2155,8 +2190,10 @@ export const over = {
   },
   onTap(p, E) {
     if (this.page === 0) { if (this.t > (this.p.arena === 'games' ? TUNING.thumb.tap : 0.5)) { this.page = 1; E.audio.play('tap'); } return; }
+    const F = this.p.fame || { items: [] }, end = F.items.length * TUNING.ranks.count + TUNING.ranks.fill;
     if (this.btnDetails && E.hit(this.btnDetails, p)) { this.details = (this.details + 1) % 3; E.audio.play('tap'); }
     else if (this.btnAgain && E.hit(this.btnAgain, p)) E.setScene('roll', { seed: (Math.random() * 2 ** 32) >>> 0, arena: this.p.arena });
     else if (this.btnMenu && E.hit(this.btnMenu, p)) E.setScene('menu');
+    else if (this.t1 < end) this.t1 = end;
   },
 };

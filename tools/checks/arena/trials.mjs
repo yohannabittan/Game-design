@@ -146,5 +146,6 @@ export default async function (t) {
   await g2.frames(60);
   t.eq('a v19 save migrates to no trials played', await g2.ev(() => window.__engine.save.get('trials', null)), {});
   await g2.ev(() => window.__engine.setScene('trials')); await g2.frames(5);
-  t.eq('the old save opens the grid', await g2.ev(() => [window.__engine.sceneName, window.__engine.save.get('fame', 0)]), ['trials', VET.fame]);
+  // (since ranks, v21, the fame a v20 save spent in the ludus counts too: ranks.mjs checks how much)
+  t.eq('the old save opens the grid, its fame kept', await g2.ev(([f]) => [window.__engine.sceneName, window.__engine.save.get('fame', 0) >= f], [VET.fame]), ['trials', true]);
 }
