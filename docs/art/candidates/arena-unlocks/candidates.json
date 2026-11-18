@@ -1,0 +1,53 @@
+{
+ "pack": "33",
+ "assets": {
+  "unlock-fourth": [
+   "unlock-fourth-A.png",
+   "unlock-fourth-B.png",
+   "unlock-fourth-C.png"
+  ],
+  "unlock-trick": [
+   "unlock-trick-A.png",
+   "unlock-trick-B.png",
+   "unlock-trick-C.png"
+  ],
+  "fighter-sparta": [
+   "fighter-sparta-A.png",
+   "fighter-sparta-B.png",
+   "fighter-sparta-C.png"
+  ],
+  "unlock-slot": [
+   "unlock-slot-A.png"
+  ],
+  "unlock-show": [
+   "unlock-show-A.png"
+  ],
+  "unlock-promise": [
+   "unlock-promise-A.png"
+  ],
+  "unlock-vault-wall": [
+   "unlock-vault-wall-A.png"
+  ],
+  "unlock-vault-blood": [
+   "unlock-vault-blood-A.png"
+  ],
+  "unlock-vault-dancer": [
+   "unlock-vault-dancer-A.png"
+  ],
+  "unlock-vault-brute": [
+   "unlock-vault-brute-A.png"
+  ],
+  "unlock-vault-trick": [
+   "unlock-vault-trick-A.png"
+  ],
+  "unlock-vault-show": [
+   "unlock-vault-show-A.png"
+  ],
+  "fighter-egypt": [
+   "fighter-egypt-A.png"
+  ],
+  "fighter-circus": [
+   "fighter-circus-A.png"
+  ]
+ }
+}
