@@ -651,6 +651,20 @@ Keep the murmillo's silhouette (the broad brim, the tall fin crest) so it still 
 
 About US$0.50.
 
+### Pack 32: Arena, an emblem for each of the 20 ranks (added 2026-11-18)
+
+**For:** `docs/games/arena/steps/2026-11-18-fame-ranks.md` (locked). Fame becomes rank: 20 ranks, each with its own name, from a chained slave to a free legend. The designer wants **a little image for every rank**, shown when you rank up (beside Brutus, about 160 px) and on the menu beside your rank name (about 56 px), so each must read at 56 px.
+
+**The ranks:** 1 Chained, 2 Fresh Meat, 3 Sand Rat, 4 Recruit, 5 Bloodied, 6 Brawler, 7 Bladesman, 8 Crowd's Pet, 9 Veteran, 10 Butcher of the Pit, 11 Ironhide, 12 Crowd Favourite, 13 Champion's Shadow, 14 Champion Slayer, 15 Lion of Capua, 16 Terror of the Sand, 17 Darling of Rome, 18 Emperor's Chosen, 19 Living Legend, 20 Free (a gladiator given the wooden sword, the *rudis*, was free).
+
+**Style:** an emblem, not a scene: one bold object or creature on a round medallion, in the game's painted look (the style references are `docs/art/final/arena/weapon-gladius.png` and the round kit shield: Pack 23's outline, light and palette). The medallion's metal climbs with the ladder (iron and rope for the first ranks, bronze, then silver, then gold, and the wooden sword's rank plain worn wood with a laurel), so a glance says how far you've come. Transparent PNG, 512 x 512, the medallion filling it. No text and no numbers on the image (the game writes the name). Nothing from any real film or game; the repo is public.
+
+**A probe first:** three ranks, three style options each (A, B, C), so the designer picks the look before the twenty are made: **1 Chained** (broken shackles or a chain), **7 Bladesman** (a crossed gladius), **20 Free** (the wooden *rudis* with a laurel). Options differ in style (e.g. A a flat bold badge, B a painted coin with relief, C a shield-boss with an engraved emblem). Contact sheet: the nine at 160 px and 56 px on the dark menu colour (`#0f1320`). Then stop and hand off (`docs/art/HANDOFF-arena-pack32.md`): your pick and why.
+
+**After the designer picks:** the other seventeen in that style, one option each (a second option only where an emblem is unclear at 56 px), each an object that says its name at a glance (e.g. Fresh Meat a hook of meat, Sand Rat a rat on sand, Bloodied a bloody fist, Crowd's Pet a rose thrown from the stands, Butcher of the Pit a cleaver, Ironhide a riveted bracer, Lion of Capua a lion's head, Darling of Rome a laurel and roses, Emperor's Chosen the Emperor's thumb, Living Legend a carved stone face). Files `rank-01.png` to `rank-20.png` in `docs/art/final/arena/`; a contact sheet of all twenty in order at 56 px; the handoff updated.
+
+About 9 images for the probe (US$1), 20 more after (US$2 to 3).
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
