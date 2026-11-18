@@ -665,6 +665,8 @@ About US$0.50.
 
 About 9 images for the probe (US$1), 20 more after (US$2 to 3).
 
+**The designer's pick (2026-11-18): style B, the painted coin with relief** ("I think B style is better"). The probe's handoff found B's emblem melts into the coin at 56 px, so in the full run: **the emblem stands out from its coin** (a darker, deeper relief with a dark edge line round the emblem, and a field one step darker or lighter than the emblem), and **the coin's metal climbs the ladder**: dull iron with rope edging (1 to 3), bronze (4 to 9), deep bronze with red enamel (10 to 14), silver (15 to 17), gold (18 and 19), and plain worn wood with a laurel for Free (20). Redo ranks 1, 7 and 20 in B with these rules, then the other seventeen; one option each, a second only where an emblem is unclear at 56 px. Contact sheet of all twenty in order at 160 px and 56 px.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
