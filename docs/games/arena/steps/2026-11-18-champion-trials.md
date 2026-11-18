@@ -30,3 +30,22 @@
 6. Sketch approved in shape (`../sketches/champion-trials-tab.png`, `champion-trials-pick.png`); unlock per champion beaten, not per arena. Winning a tier also marks the easier tiers as beaten. For the designer after the build: a still of the tab and of a picker.
 
 One-way or two-way: **one-way** (the save changes): a verifier and an old-save round trip.
+
+## Rewards (the designer, 2026-11-18: "more fame, more ludus stuff, the champion's card, and then a title if you get gold"; draft, not locked)
+
+- **Fame for each tier, the first time:** bronze 10, silver 15, gold 25 (`TUNING.trials.champFame`); this replaces the trials' flat first-gold 5 for champion trials.
+- **His card in the ludus:** beating his trial at any tier puts **his card** on sale in a new ludus station, the Hall of Champions, for fame (`TUNING.ludus.price`). Bought, it can be dealt in runs' drafts like any card.
+- **A title for gold:** "Bane of Varro" and so on, shown under your name on the menu and carved with you on the Wall of Champions; the newest gold's title is worn.
+- **The nine cards (proposals, the designer's to change):**
+
+| Champion | Card | What it does |
+| --- | --- | --- |
+| Marcus the Red | Red Rage | Below half hearts, your next three blows (high, mid, low) come fast and hit harder |
+| Varro of Capua | Capuan Feint | Your feint shows two fakes; a block on either leaves him open |
+| Flamma the Unbroken | Unbroken | Once a bout, a blow that would take your last heart leaves you half a heart |
+| Aurelius the Golden | Golden | The crowd's favour fills faster and its gold doubles |
+| Castor and Pollux | Brothers | After you fell the first of a pair, the second starts winded |
+| Hermes the Swift | Blink | A dodge just after his blow dashes in and strikes |
+| Carpophorus | Beastmaster | Beasts hesitate before their first blow; your blows on beasts hit harder |
+| Mevia the Huntress | Huntress's Throw | Once a bout, throw your spear from range |
+| Aquila | The Emperor's Blade | At half health, draw a second gladius |
