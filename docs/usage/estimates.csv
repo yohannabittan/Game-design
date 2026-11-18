@@ -27,6 +27,7 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-18,Tools: playtest reads trial lines,tool,claude-sonnet-5-5,8,yes,,,second time trial lines were read by hand
 2026-11-18,Arena: does a Capuan read score,verify,claude-sonnet-5-5,20,yes,,,0 of 5 in play; no check plays a real read
 2026-11-18,Arena sketch: champion trials tab,sketch,claude-sonnet-5-5,12,yes,,,locked and open cards; the three-tier picker
-2026-11-18,Arena: knife trials,build,claude-opus-5-5,50,,80,,T2 part 1: Shrinking Target knives, Knife Work, Knife Board, Wheel
+2026-11-18,Arena: knife trials,build,claude-opus-5-5,50,yes,80,,T2 part 1: Shrinking Target knives, Knife Work, Knife Board, Wheel
 2026-11-18,Arena sketch: fame ranks and the path,sketch,claude-sonnet-5-5,15,yes,,,the run-end rank-up and the ludus as a path
 2026-11-18,Arena: fame ranks,build,claude-opus-5-5,60,,120,,one-way: save v21; verifier and a fix round in the live estimate
+2026-11-18,Arena knife trials: fix round,fix,claude-opus-5-5,25,,,,no fight HUD; man-sized man; spread on the wheel; knife hits what is there on arrival
