@@ -669,7 +669,7 @@ About 9 images for the probe (US$1), 20 more after (US$2 to 3).
 
 ### Pack 33: Arena, a picture for every unlock on the rank path (added 2026-11-18)
 
-**For:** `docs/games/arena/steps/2026-11-18-fame-ranks.md` (locked). The ludus is now a path of 20 unlocks, each shown on a card (about 64 px, 160 px when Brutus hands it over at a rank-up). The designer: "we need images for all the unlockables". Six already have art and are reused, not painted: the sica and the trident (`weapon-sica`, `weapon-trident`), and the Tailor's crest, plume, shield paint and cloak (`tailor-*`).
+**For:** `docs/games/arena/steps/2026-11-18-fame-ranks.md` (locked). The ludus is now a path of 20 unlocks, each shown on a card (about 64 px, 160 px when Brutus hands it over at a rank-up). The designer: "we need images for all the unlockables". All twenty get their own icon (the designer, 2026-11-18: "we shouldn't reuse; the trident would look better as an icon, otherwise it looks too thin"): a long thin weapon at 64 px is a line. **Every icon fills its square:** the object large and bold, set diagonally when it is long, with a thick dark outline.
 
 **Style:** the game's painted objects, as the gear icons (`docs/art/final/arena/gear-*.png`) and the weapons (Pack 23's outline, light and palette). Transparent PNG, one object, nothing else, reading at 64 px. The three fighters are busts like the champions' (512 x 512, cut at the chest, `champ-*.png` as the reference). No text on any image.
 
@@ -681,11 +681,13 @@ About 9 images for the probe (US$1), 20 more after (US$2 to 3).
 | `unlock-show` | a red rose thrown from the stands, and a few coins: the Showman's cards |
 | `unlock-promise` | a small bronze pendant on a cord, a sister's keepsake: the promise to free her |
 | `unlock-vault-wall`, `-blood`, `-dancer`, `-brute`, `-trick`, `-show` | one old scroll, tied, each with a seal in its family's colour and sign (Wall: a shield, light blue; Blood: a drop, red; Dancer: a feather, green; Brute: a fist, amber; Trickster: a mask, violet; Showman: a rose, pink) |
+| `unlock-sica`, `unlock-trident` | the sica, and the trident with its net draped over it, each set diagonally and bold enough to read at 64 px (the weapon paintings `weapon-sica`, `weapon-trident` as the reference) |
+| `unlock-crest`, `unlock-plume`, `unlock-paint`, `unlock-cloak` | a helmet wearing a bronze crest; a helmet with a red plume; a round shield painted with wings; a red cloak folded with a brooch (the `tailor-*` paintings as the reference) |
 | `fighter-sparta` | bust of a Spartan gladiatrix: a woman, bronze helm pushed back, red cloak, fierce |
 | `fighter-egypt` | bust of a freed slave from Egypt: a man, broken iron collar still at his neck, kohl at the eyes, proud |
 | `fighter-circus` | bust of a chariot driver from the Circus: a lean man or woman, leather cap and arm straps, a team's coloured tunic, a grin |
 
-**Steps:** three options for `unlock-fourth`, `unlock-trick` and `fighter-sparta` to set the look; one option each for the rest, made to match. Contact sheet: all at 64 px and 160 px on the ludus card colour (`#1b1a24`), the reused six beside them for comparison. The handoff (`docs/art/HANDOFF-arena-pack33.md`) lists the files. About 20 images, US$2 to 3.
+**Steps:** three options for `unlock-fourth`, `unlock-trick`, `unlock-trident` and `fighter-sparta` to set the look; one option each for the rest, made to match. (Added after the first session started: the six icons `unlock-sica` to `unlock-cloak`. If they were not made in the first pass, the follow-up session after the designer's picks makes them.) Contact sheet: all at 64 px and 160 px on the ludus card colour (`#1b1a24`), the reused six beside them for comparison. The handoff (`docs/art/HANDOFF-arena-pack33.md`) lists the files. About 26 images, US$2.5 to 3.5.
 
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
