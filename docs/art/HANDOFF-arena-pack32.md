@@ -1,33 +1,32 @@
-# Handoff: Pack 32, Arena rank emblems (style probe only)
+# Handoff: Pack 32, Arena rank emblems (all twenty, style B)
 
-Status: **probe done, waiting for the designer's style pick.** The other seventeen ranks are not made.
+Status: **done.** Twenty emblems in the designer's pick, style B (the painted coin with relief).
 
-Sheet (nine at 160 px and 56 px on `#0f1320`): `docs/art/candidates/arena-ranks/sheet.png`
+Contact sheet (all twenty in order, each at 160 px and 56 px on `#0f1320`): `docs/art/candidates/arena-ranks/sheet.png`
 Link: https://yohannabittan.github.io/Game-design/docs/art/candidates/arena-ranks/sheet.png (allow a minute after the push)
-Candidates: `docs/art/candidates/arena-ranks/rank-{01,07,20}-{A,B,C}.png` (512 px, transparent), `candidates.json` (pack "32", assets `rank-01`, `rank-07`, `rank-20`).
+Finals: `docs/art/final/arena/rank-01.png` to `rank-20.png`, 512 x 512 transparent PNG, the coin filling the canvas, no text. The unpicked probe candidates (A, C and the first B) are deleted.
 
-## The three styles
-- **A, flat bold badge:** solid colour field, thick ring, dark outline, few colours.
-- **B, painted coin with relief:** embossed emblem, beaded rim, one metal colour.
-- **C, shield-boss:** domed plate, rivet rim, emblem inlaid on the dome.
+## How the rules were applied
+- **Emblem stands out from the coin:** every prompt asks for a darker field, a thick dark edge line round the emblem, a lighter emblem. Worked well for 4 to 16 and 18 to 20.
+- **The metal climbs:** iron with rope rim (1 to 3), bronze (4 to 9), deep bronze with a red enamel ring (10 to 14), silver (15 to 17), gold (18, 19), plain worn wood with a laurel (20).
+- Emblems: 1 broken shackles, 2 meat on a hook, 3 rat on sand, 4 plain helmet, 5 wrapped fist with red stains, 6 studded knuckle guard, 7 crossed gladii, 8 thrown rose, 9 scarred crested helmet, 10 cleaver, 11 riveted bracer, 12 heart between palm branches, 13 helmet with a shadow copy, 14 sword through a laurel, 15 lion's head, 16 scorpion, 17 laurel and roses, 18 thumbs-up with purple cuff, 19 carved stone face with laurel, 20 rudis and laurel.
 
-## My pick: A (decided by the designer, not me)
-- **It is the only one that reads at 56 px.** Chain, crossed swords and sword-with-laurel are all clear in A. In B and C the emblem is bronze on bronze, so at 56 px the emblem melts into the coin (rank 1 and 7 worst).
-- A's dark outline and flat field match the game's own look (the weapon and shield references) best.
-- C's rank 20 came out as a metal shield, not the plain worn wood the ladder needs; A and B kept the wood.
+## Where it is weakest (designer's call, a redo costs $0.06 each)
+- **1 Chained** is the dullest at 56 px: iron on iron. Two tries; lighter shackles on a dark field is the best. It reads as shackles at 160 px.
+- **17 Darling of Rome** has an empty silver centre inside the wreath, with the roses at its foot; the wreath reads at 56 px, the roses are small. Two tries at a bold rose in the middle both came back with a stray number, so I kept the clean one.
+- **14 Champion Slayer** reads as a sword in a laurel wreath more than a snapped crown.
+- **5 Bloodied** and **6 Brawler** are bronze fists on bronze coins: legible, close in colour to each other and to 4.
+- Bronze coins 4 to 9 are fairly alike in tone; the emblems tell them apart, not the metal.
 
-## What A still gets wrong (fix in the full run)
-- **The metal ladder is carried by the field and ring, not by metal.** A's rank 1 has a gold ring and red field; rank 1 should be dull iron with rope. Plan: field and ring colour climb by tier: iron grey and rope (1-3), bronze (4-9), deeper bronze with red (10-13), silver (14-17), gold (18-19), worn wood and laurel (20). I will state the ring metal and a hex for each tier in the prompt ("hard colour rules beat adjectives").
-- Rank 7's red field is also rank 1's field, so colour alone would not climb; the tier colours above fix that.
-- Rank 1's chain is the busiest emblem; keep each later emblem to one bold object.
+## What I learned
+- Putting "rank 17 of 20" in the prompt makes the model paint the number on the coin (17 twice). The kept 01 and 17 were made without that wording.
+- A strong "much lighter than the field, thick black outline" sentence fixed 5 and 6 (bronze on bronze) and 3 (dark rat); it was not enough for iron on iron.
+
+## For the wiring build
+- Each file is about 470 KB (9.4 MB for the set). Convert to WebP at 160 px x3 density (about 192 to 256 px) before they go into `games/arena/assets/`, or the 1.5 MB assets limit is gone at once. The 56 px menu use can share the same file.
 
 ## Cost and files
-- 9 images, medium, US$0.54 (ledger estimate). Ledger total now US$62.64 of the US$80 budget. The full run (17 more, a few redos) is about US$1.5 to 2.
-- Ledger rows written. Nothing under `games/` touched.
+- 27 images (20 kept, 7 discarded redos), medium, US$1.62. Ledger total US$64.26 of the US$80 budget. Ledger rows written. Nothing under `games/` touched.
 
 ## The brief
-- No errors found. The brief's one-line cost for the probe (US$1) was high; it was US$0.54.
-- Contact sheet: the brief asks for the nine at both sizes; done in one image, three rows.
-
-## For the designer to paste
-"Art picks, arena rank emblems, pack 32: style A" (or B, or C; or "A, but gold for 1 to 3", etc.).
+- Pack 32 text is accurate. Note for the brief: "rank N of 20" in a prompt can print the number on the image; word the metal tier instead.
