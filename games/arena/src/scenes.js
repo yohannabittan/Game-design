@@ -25,6 +25,7 @@ import { arena, state, easeOut, wrap, pidx, noShield, ME_WHEEL, rollMe, kitMe, w
 import { yardDue, startYard, endYard, yardFields, yardRelease, updateYard, drawYard } from './features/yard.js';
 import { startDual, updateDual, dualTouch } from './features/dual.js';
 import { startTrial, updateTrial, drawTrial, trialTap } from './features/trials.js';
+import { drawRange, holdRange } from './features/range.js';
 import { armsTouch, aimDown, aimAt, aimUp, stepArms, bowDown, drawKnives, drawArmsBtns, knifeBuy, lessonDue, startLesson, updateLesson, drawLesson } from './features/ranged.js';
 
 // ====== JUICE (continued) ======
@@ -1488,7 +1489,7 @@ function swordDown(E, x, y, id) {
 export const play = {
   enter(E, params) {
     // the menu's Training (step 23): the yard alone, with a stock fighter in the first run's kit against the Pit's sparring partner, saving nothing
-    state.drill = !!params.drill; state.train = null; delete state.trial;
+    state.drill = !!params.drill; state.train = null; delete state.trial; delete state.range;
     if (params.trial) { startTrial(E, params.trial); return; }
     if (state.drill) {
       const P = TUNING.purse.first;
@@ -1558,6 +1559,8 @@ export const play = {
     }
     stepFoe(dt, E);
     stepYou(E, dt);
+    // (the range keeps you on your mark before the arm is solved, so arm and body are drawn at one place)
+    if (state.range) holdRange(E);
     stepJuice(E, dt);
 
     poseFoe(E, dt);
@@ -1774,6 +1777,7 @@ export const play = {
     if (state.bowOut && p.startX >= E.w / 3) { if (state.swapT <= 0) bowDown(E, p); return; }
     if (state.kLesson && p.startX >= E.w / 3) return;
     if (p.startX < E.w / 3) {
+      if (state.range) return;
       const b = buttonAt(E, p);
       if (b && b.dodge) { dodge(E, p.id); if (state.train) state.train.press = { id: p.id, t0: state.m }; }
       else if (b) raiseShield(E, b.z, p.id);
@@ -1840,6 +1844,7 @@ export const play = {
     }
     drawBackground(ctx, E);
     drawWalls(ctx, E);
+    if (state.range) drawRange(ctx, E);
     if (state.spearAt != null) spearDown(ctx, E);
     if (state.sw && state.sw.ghostX) drawFighter(ctx, E, { ...youF(E), x: state.sw.ghostX }, state.you, 'you', 0.3 + 0.1 * Math.sin(state.m * 20));
     for (const g of state.ghosts) drawFighter(ctx, E, { ...youF(E), x: g.x }, state.you, 'you', 0.3 * g.life / TUNING.juice.ghost);
@@ -1852,7 +1857,7 @@ export const play = {
     if (state.edge && !state.edge.down) drawEdge(ctx, E);
     if (state.sw && state.sw.kind === 'blink' && state.sw.fin <= 0) { blinkGhosts(ctx, E); if (state.sw.spring) blinkStreaks(ctx, E); }
     if (state.sw && state.sw.dud && state.sw.fin <= 0) capuanGhosts(ctx, E);
-    drawFighter(ctx, E, foeF(E), state.foe, 'foe');
+    if (!state.range) drawFighter(ctx, E, foeF(E), state.foe, 'foe');
     if (state.sw && state.sw.kind === 'throw' && state.sw.thrown && state.sw.fin <= 0) spearFlight(ctx, E);
     if (state.flyS > 0) flyingShield(ctx, E);
     if (state.foeNet > 0 && state.fallT <= 0 && !netArt()) { const Ff = foeF(E); drawNet(ctx, Ff.x, Ff.y - 0.5 * Ff.H, 0.36 * Ff.H * netK(state.foeNet)); }
@@ -1902,7 +1907,8 @@ export const play = {
     ctx.globalAlpha = 1;
     ctx.restore();
     // the left column and the caption stay still while the camera punches in
-    drawShieldBtns(ctx, E);
+    // (the range trials are no fight: no shield column, no hearts or stamina)
+    if (!state.range) drawShieldBtns(ctx, E);
     drawCaption(ctx, E);
 
     if (state.hurt > 0) {
@@ -1925,11 +1931,12 @@ export const play = {
       drawCrowdMeter(ctx, E, l, top + 31);
     }
     // a dark plate under the right column, so a tall foe's helmet passing behind it never hides a row
-    const H2 = hudRow();
+    const H2 = hudRow(), bw = 110, bx = E.w - r - bw, sy = top + H2.shield;
+    if (!state.range) {
     E.roundRect(E.w - r - 176, top - 6, 182, H2.shield + 18, 8, 'rgba(18,12,22,0.72)', null);
     drawHudHeart(ctx, E);
     if (state.shatter) { const [hx, hy] = heartAt(E); heartShatter(ctx, hx, hy, 1 - state.shatter.t / TUNING.juice.shatter); }
-    const bw = 110, bx = E.w - r - bw, sf = state.stamina / state.staMax;
+    const sf = state.stamina / state.staMax;
     drawPips(ctx, E, bx, bw, top + H2.pips);
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(bx - 1, top + H2.sta - 1, bw + 2, 11);
     const flashOn = state.exhaust > 0 && Math.floor(state.m * 8) % 2 === 0;
@@ -1940,12 +1947,12 @@ export const play = {
       if (state.burnT > 0 && state.burn > state.stamina) { ctx.globalAlpha = Math.min(1, 2 * state.burnT / TUNING.lunge.driveBurn); ctx.fillStyle = '#fde68a'; ctx.fillRect(bx + bw * sf, top + H2.sta, bw * (Math.min(state.burn, state.staMax) - state.stamina) / state.staMax, 9); ctx.globalAlpha = 1; }
     }
     if (state.exhaust > 0) E.text('EXHAUSTED', bx - 6, top + H2.sta + 6, { size: 14, align: 'right', color: '#fca5a5', weight: '800' });
-    const sy = top + H2.shield;
     // crossed blades (step 18) never wear out, so their row stays empty
     const nsh = state.me.dual ? 0 : shieldMax();
     for (let i = 0; i < nsh; i++) {
       ctx.fillStyle = state.sh.broken || noShield() ? '#3b3f46' : i < state.sh.hits ? '#d6a24a' : '#3b3f46';
       ctx.fillRect(bx + i * (bw / nsh), sy, bw / nsh - 4, 7);
+    }
     }
     if (!state.draft && !state.tent && !state.train && !state.kLesson && !(state.trial && state.trial.immortal)) foeHealth(ctx, E);
     if (state.edge && !state.edge.down && !state.intro && !state.draft && !state.tent) drawEdgeTag(ctx, E);

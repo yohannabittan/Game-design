@@ -597,10 +597,36 @@ export const TUNING = {
     knuckles: { medals: [1, 6, 10] },
     stagger: { medals: [40, 25, 15], need: 5, limit: 60 },
     brawl: { medals: [1, 5, 9] },
+    // step 27b, the range: targets hit, knives left, pots burst
+    shrinkKnives: { medals: [4, 8, 12] },
+    knifeWork: { medals: [0, 2, 3], knives: 6 },
+    board: { medals: [5, 10, 16] },
+    wheel: { medals: [4, 9, 14] },
     fist: { id: 'fist', name: 'FISTS', range: 0.02, strike: -0.18, speed: 0.8, dmg: 0.6, len: 0, moves: { chop: 1, thrust: 3, sweep: 1, combo: 3, feint: 1 }, combo: [2, 3], shield: 0, drain: 0, wear: 1 },
     // the grid: columns, a card's height (x the room under the tabs, at most max px), the tab bar's height; the end card's w x h (at most)
     grid: { cols: 3, gap: 10, max: 180, tab: 44, card: [620, 300] },
   },
+  // Step 27b, the range trials (features/range.js), the range sketch's numbers (sketches/range.html) in its px at a 402 px tall screen. marks = near, mid
+  // and far as shares of the width; misses end it; span = the knife line's heights at the scene's middle (px above the sand, px below); top = px kept
+  // clear under the HUD; you = where you stand (share of the width: the sketch's hand was at 0.17, the game's fighter needs the
+  // left column's room, so the marks keep the sketch's spacing from you); arc = px the knife rises in flight at range; pad = px of slack round a pot or the man; knives = shown on hand
+  // (always refilled); park = his H off screen; between = s after a target and after a board or wheel; ending = s after the last miss; hurt = s of
+  // the OW before the end; sit = s of his sit-down; wine = drops in a burst.
+  range: { you: 0.32, marks: [0.57, 0.68, 0.78], misses: 3, span: [330, 40], top: 96, arc: 34, pad: 2, knives: 9, park: 60, between: [0.55, 1.0],
+    ending: 0.9, hurt: 1.6, sit: 0.25, wine: 22,
+    // the target: R px, x shrink each, at least min; jitter px across its mark; rise = px its top may stand over the sand, foot = px under it; it sways
+    // from the swayFrom'th by sway[0] px, sway[1] more each, sway[2] at most, at swayHz; rings = its 10 and 5 as shares of R
+    target: { R: 44, shrink: 0.85, min: 7, jitter: 16, rise: 175, foot: 24, swayFrom: 5, sway: [5, 3.5, 38], swayHz: 1.5, rings: [0.2, 0.55] },
+    // the board: x = share of the width, w x h in his heights (he is as tall as you); pots at [x, y] in his heights from his feet, R in his heights,
+    // each board x shrink (at least min) and close nearer his middle (mid) by close (to closeMin). (Your hand is at his head's height, so a pot on his
+    // far side is hidden behind him unless it hangs as high as his head: three hang on your side, one high on his.)
+    board: { x: 0.64, w: 1.1, h: 1.06, R: 0.127, shrink: 0.85, min: 0.06, close: 0.12, closeMin: 0.78, mid: -0.51,
+      pots: [[-0.3, -1.0], [0.3, -1.0], [-0.42, -0.66], [-0.32, -0.24]] },
+    // the wheel: x = share of the width; man = his height in its radius (he is as tall as you); turns speed rad/s, step more each wheel (steps of them
+    // at most), the other way from the second; mid = his middle on the hub (his heights); straps = his wrists' and ankles' straps in its radius from
+    // the hub (Pack 30); pots at the angles at (degrees from the top, clear of his limbs), r of its radius out, potR of its radius, x shrink each (at least min)
+    wheel: { x: 0.63, man: 1.7, speed: 0.6, step: 0.35, steps: 8, mid: 0.5, straps: [[-0.467, -0.696], [0.467, -0.696], [-0.717, 0.5], [0.717, 0.5]],
+      at: [70, 105, 180, 255, 290], r: 0.74, potR: 0.13, shrink: 0.92, min: 0.08 } },
   menu: { seed: 20261103, col: [0.4, 270, 340], gap: 12, title: [40, 56, 0.12], wash: 0.22, vignette: 0.8, torchDx: 118, torchR: 64, flicker: 0.22,
     dust: 16, dustV: [6, 16], fighter: 0.6, hips: -0.45, breath: [0.012, 1.7], sway: [0.05, 1.2], cloak: '#8e2a26', face: 52, names: 3, wallH: 100,
     logo: [3.8, 1.25], play: 56, small: 46, fps: 5, figBox: [-0.5, -1.8, 0.58, -0.03], murmur: 0.05, murmurHz: 600, murmurLoop: 3, swells: 2,

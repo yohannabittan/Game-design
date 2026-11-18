@@ -10,18 +10,19 @@ import { rrect, weaponArt } from '../draw-fight.js';
 import { fitSize } from '../screens.js';
 import { initHand, beginBout, portrait, rotateCard } from '../scenes.js';
 import { state, rollMe, kitMe, newRound, newRack, sizeOf, artImg } from '../game.js';
+import { startRange, updateRange, rangeCount } from './range.js';
 
 // ====== TRIALS ======
 // Each trial: its tab, name, goal (eight words at most), what its best is (label) and how it is scored (time: seconds, less is better; else a count).
 // soon: shown on the grid, not yet playable (the range, T2).
 export const TABS = [['range', 'Range'], ['blades', 'Blades'], ['fists', 'Fists'], ['champions', 'Champions']];
 export const TRIALS = [
-  { id: 'shrinkKnives', tab: 'range', name: 'Shrinking Target: knives', goal: 'Hit shrinking targets. 3 misses end it.', label: 'TARGETS', icon: 'knives', soon: true },
+  { id: 'shrinkKnives', tab: 'range', name: 'Shrinking Target: knives', goal: 'Hit shrinking targets. 3 misses end it.', label: 'TARGETS', icon: 'knives' },
   { id: 'shrinkBow', tab: 'range', name: 'Shrinking Target: bow', goal: 'The same, with the bow.', label: 'TARGETS', icon: 'bow', soon: true },
-  { id: 'knifeWork', tab: 'range', name: 'Knife Work', goal: 'Fell him with knives alone.', label: 'KNIVES LEFT', icon: 'knives', soon: true },
+  { id: 'knifeWork', tab: 'range', name: 'Knife Work', goal: 'Fell him with knives alone.', label: 'KNIVES LEFT', icon: 'knives' },
   { id: 'apple', tab: 'range', name: 'The Apple Shot', goal: 'Shoot the fruit, not the man.', label: 'FRUITS', icon: 'bow', soon: true },
-  { id: 'board', tab: 'range', name: 'The Knife Board', goal: 'Burst the pots, not the man.', label: 'POTS', icon: 'knives', soon: true },
-  { id: 'wheel', tab: 'range', name: 'The Wheel', goal: 'Burst the pots as he spins.', label: 'POTS', icon: 'knives', soon: true },
+  { id: 'board', tab: 'range', name: 'The Knife Board', goal: 'Burst the pots, not the man.', label: 'POTS', icon: 'knives' },
+  { id: 'wheel', tab: 'range', name: 'The Wheel', goal: 'Burst the pots as he spins.', label: 'POTS', icon: 'knives' },
   { id: 'ironwall', tab: 'blades', name: 'Iron Wall', goal: 'Perfect blocks in a row.', label: 'STREAK', icon: 'gladius' },
   { id: 'gaphunter', tab: 'blades', name: 'Gap Hunter', goal: '5 gap stabs before time runs out.', label: 'BEST TIME', time: true, icon: 'dagger' },
   { id: 'breaker', tab: 'blades', name: 'Breaker', goal: 'Break all his plates.', label: 'BEST TIME', time: true, icon: 'mace' },
@@ -44,6 +45,11 @@ const SETUP = {
   brawl: { me: ['fist', []], bare: true, foe: { name: 'Titus', band: 'medium', weapon: 'fist', set: 'light', stats: [2, 3, 2] }, pair: { name: 'Quintus', band: 'medium', weapon: 'fist', set: 'light', stats: [3, 2, 2] } },
   capuan: { me: ['gladius', ['helmet']], foe: { name: 'Varro of Capua', band: 'medium', weapon: 'gladius', set: 'medium', stats: [3, 4, 3], shield: false, champion: true }, immortal: true, sig: 'varro' },
   rage: { me: ['gladius', ['helmet']], foe: { name: 'Marcus the Red', band: 'big', weapon: 'gladius', set: 'medium', stats: [4, 3, 3], shield: false, champion: true }, immortal: true, sig: 'marcus' },
+  // step 27b, the range (features/range.js): knives only; the range's man is a sparring foe, parked and unarmoured
+  knifeWork: { me: ['fist', []], bare: true, foe: { name: 'Sextus the Swift', band: 'lean', weapon: 'gladius', set: 'light', stats: [2, 3, 2] } },
+  shrinkKnives: { me: ['gladius', []], bare: true, range: true, foe: { name: 'The man', band: 'medium', weapon: 'fist', set: 'light', stats: [1, 1, 1] }, immortal: true, calm: true },
+  board: { me: ['gladius', []], bare: true, range: true, foe: { name: 'The man', band: 'medium', weapon: 'fist', set: 'light', stats: [1, 1, 1] }, immortal: true, calm: true },
+  wheel: { me: ['gladius', []], bare: true, range: true, foe: { name: 'The man', band: 'medium', weapon: 'fist', set: 'light', stats: [1, 1, 1] }, immortal: true, calm: true },
 };
 
 const SAVE = 'trials';
@@ -92,6 +98,9 @@ export function startTrial(E, id) {
   beginBout(E);
   state.hint = false; state.swingIn = Math.max(state.swingIn, T.intro);
   state.trial.plates = state.foe.parts.filter((p) => p.armour).length;
+  delete state.range;
+  if (S.range) startRange(E, id);
+  if (id === 'knifeWork') state.knives = T.knifeWork.knives;
 }
 
 // One frame of the trial: keep his health (immortal) or his blows (calm) in hand, count toward the goal, and end it when it is decided.
@@ -110,6 +119,8 @@ export function updateTrial(E, dt) {
     case 'gaphunter': if (tr.stabs >= C.need) win(E, tr.t); else if (lost || timeUp) fail(E, timeUp); break;
     case 'breaker': if (!f.parts.some((p) => p.armour)) win(E, tr.t); else if (lost || timeUp) fail(E, timeUp); break;
     case 'stagger': if ((tr.staggers || 0) >= C.need) win(E, tr.t); else if (lost || timeUp) fail(E, timeUp); break;
+    case 'shrinkKnives': case 'board': case 'wheel': { const n = updateRange(E, dt); if (n != null) win(E, n); break; }
+    case 'knifeWork': knifeWork(E, tr, f); break;
     case 'knuckles': case 'brawl': if (state.felled > 0) win(E, Math.max(0, Math.ceil(state.hp))); else if (lost) fail(E); break;
     case 'capuan': {
       const n = state.specials.capuan || [0, 0];
@@ -124,6 +135,13 @@ export function updateTrial(E, dt) {
       break;
     }
   }
+}
+// Knife Work: only knives wear him down (a punch's harm is taken back); felled, it scores the knives left; out of knives with him standing, it fails
+function knifeWork(E, tr, f) {
+  const K = TUNING.knives, cut = state.knifeGaps * K.dmg + state.knifeSkin * K.skin;
+  if (state.fallT <= 0 && f.hp > 0) f.hp = Math.max(f.hp, f.maxHp - cut);
+  if (state.felled > 0) win(E, state.knives);
+  else if (state.hp <= 0 || (state.knives <= 0 && !state.aim && !state.whip && !state.knife)) fail(E);
 }
 // Iron Wall: he swings at a set run of heights, each wound up a little faster than the last; anything but a perfect block ends it
 function ironWall(E, tr, C, dt) {
@@ -179,7 +197,7 @@ function showEnd(E) {
   if (medal === 3 && !rec.gold) { rec.gold = 1; fame = TUNING.trials.fame; E.save.set('fame', E.save.get('fame', 0) + fame); }
   all[id] = rec; E.save.set(SAVE, all);
   E.ledger.add('trial', { id, score: pass ? score : -1, time, medal });
-  state.trial = null; state.drill = false;
+  state.trial = null; state.drill = false; delete state.range;
   E.setScene('trials', { end: { id, score, pass, late, medal, fame, isBest, best: rec.best } });
 }
 
@@ -214,6 +232,8 @@ function liveCount(tr, C) {
     case 'stagger': return `STAGGERS ${Math.min(tr.staggers || 0, C.need)}/${C.need}  ·  ${left.toFixed(0)}s`;
     case 'capuan': return `READS ${tr.score}/${t.of}`;
     case 'rage': return `RAGES ${Math.min(tr.score, C.rages)}/${C.rages}  ·  ${left.toFixed(0)}s`;
+    case 'shrinkKnives': case 'board': case 'wheel': return rangeCount();
+    case 'knifeWork': return `KNIVES ${state.knives}`;
     case 'brawl': return state.edge && !state.edge.down ? 'FOE 1/2' : 'FOE 2/2';
     default: return '';
   }
@@ -221,7 +241,7 @@ function liveCount(tr, C) {
 export function trialTap(E, p) {
   const tr = state.trial;
   if (!tr || !tr.quit || !E.hit(tr.quit, p)) return false;
-  E.audio.play('tap'); state.trial = null; state.drill = false; E.setScene('trials', { tab: TRIAL[tr.id].tab });
+  E.audio.play('tap'); state.trial = null; state.drill = false; delete state.range; E.setScene('trials', { tab: TRIAL[tr.id].tab });
   return true;
 }
 

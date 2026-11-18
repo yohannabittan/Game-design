@@ -853,7 +853,9 @@ const SHIPPED = new Set([
   'beast-lion-armour-head beast-lion-armour-chest beast-lion-armour-back beast-lion-armour-leg beast-bear-armour-head beast-bear-armour-chest ',
   'beast-bear-armour-back beast-bear-armour-leg laurel-ring ',
   // the bow at rest and drawn, and its arrow (Pack 29)
-  'weapon-bow weapon-bow-drawn arrow'
+  'weapon-bow weapon-bow-drawn arrow ',
+  // the range trials' target, board, wheel and pots (Pack 30)
+  'range-target knife-board knife-wheel pot-clay pot-wineskin'
 ].join('').split(' '));
 // Pack 27: the helmets and head gear painted onto the head ship as <name>-worn.webp; their old pieces' files are retired
 const WORN = new Set(['kit-helmet-gallic', 'kit-helmet-murmillo', 'kit-helmet-thraex', 'gear-bronze-crest', 'gear-plumed-helm', 'gear-phalanx-helm',

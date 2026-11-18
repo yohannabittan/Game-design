@@ -156,3 +156,4 @@ To undo a landed build: `node tools/land.mjs arena --revert <commit> --msg "Aren
 - A mode that runs a bout but is not a run (Trials): see `features/trials.js` for how a bout ends (`fell`, `youDown`, the `fallT` and `endT` blocks in `play.update`) and how it skips the draft; a foe with fists needs guards in `drawWeapon`, `lookFor` and `foeStrike`; any new `state` key moves the replay hashes, even when null.
 - A new sword touch must let go of what the last stroke carried: scenes.js swordDown() (h.ovK, h.grip, h.pushT); a touch in a hit-stop cuts the stop (look.stopCut).
 - A ludus unlock: LUDUS, LUDUS_LOCK and its place on PATH (data.js); rank names in RANK_NAMES; the rank emblem is drawn by rankEmblem (scenes.js).
+- Anything that moves you must run before moveHand in play.update (the arm keeps its shoulder in state.hand.sx); range trials put you on your mark in holdRange (features/range.js).
