@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Champion Trials Sketch</title>
+<style>html,body{margin:0;height:100%;background:#0e1117;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style></head><body>
+<canvas id="c" width="1748" height="804"></canvas>
+<script>
+// Throwaway sketch: Champions tab as rematches, and a tier picker. ?view=tab (default) or ?view=pick&who=varro
+const A = '../../../../games/arena/assets/champ-';
+const Q = new URLSearchParams(location.search), VIEW = Q.get('view') || 'tab', WHO = Q.get('who') || 'varro';
+const cv = document.getElementById('c'), g = cv.getContext('2d'); g.scale(2, 2);
+const W = 874, H = 402;
+const C = { bg: '#0e1117', card: '#181d26', edge: '#3a4150', gold: '#e8c660', txt: '#f3e9d2', dim: '#9aa0ab', band0: '#c98a3e', band1: '#8a5a26',
+  bronze: '#c98a4b', silver: '#c9d0da', goldm: '#f1c24a', open: '#e0a64a' };
+const CH = [
+  { k: 'marcus', n: 'Marcus the Red', open: 1, line: 'Red Rage' },
+  { k: 'varro', n: 'Varro of Capua', open: 1, medal: 'silver', line: 'The Capuan Feint' },
+  { k: 'flamma', n: 'Flamma the Unbroken', open: 1, line: 'Never stays down' },
+  { k: 'aurelius', n: 'Aurelius the Golden', open: 1, line: 'Golden guard' },
+  { k: 'twins', n: 'Castor and Pollux', arena: 'the City', line: 'Two at once' },
+  { k: 'hermes', n: 'Hermes the Swift', arena: 'the City', line: 'Fast and gone' },
+  { k: 'carpophorus', n: 'Carpophorus and lion', arena: 'the Colosseum', line: 'Beast at his side' },
+  { k: 'mevia', n: 'Mevia the Huntress', arena: 'the Colosseum', line: 'Bow and spear' },
+  { k: 'aquila', n: 'Aquila', arena: 'the Grand Games', line: 'The emperor\'s own' },
+];
+const img = {}; let left = CH.length;
+CH.forEach((c) => { const i = new Image(); i.onload = i.onerror = () => { if (!--left) draw(); }; i.src = A + c.k + '.webp'; img[c.k] = i; });
+const rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+function text(s, x, y, size, col, o) { o = o || {}; g.font = (o.w || 600) + ' ' + size + 'px Inter,Helvetica,Arial,sans-serif'; g.fillStyle = col; g.textAlign = o.a || 'left'; g.textBaseline = o.b || 'alphabetic';
+  if (o.fit) { while (g.measureText(s).width > o.fit && size > 8) { size -= .5; g.font = (o.w || 600) + ' ' + size + 'px Inter,Helvetica,Arial,sans-serif'; } } g.fillText(s, x, y); }
+function medal(x, y, r, col, on) { // coin with ribbon
+  if (!on) { g.save(); g.setLineDash([3, 3]); g.strokeStyle = '#3a4150'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); g.restore(); return; }
+  g.fillStyle = '#a02a2a'; g.fillRect(x - r * .55, y - r * 1.5, r * .5, r * 1.1); g.fillRect(x + r * .05, y - r * 1.5, r * .5, r * 1.1);
+  g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1.2; g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(x, y, r * .62, 0, 7); g.stroke(); }
+function portrait(c, x, y, w, h, dim) { const i = img[c.k]; if (!i.naturalWidth) return; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  const s = Math.max(w / i.naturalWidth, h / i.naturalHeight * 1.0); const sw = w / s, sh = h / s; g.drawImage(i, (i.naturalWidth - sw) / 2, 0, sw, sh, x, y, w, h);
+  if (dim) { g.fillStyle = 'rgba(14,17,23,.72)'; g.fillRect(x, y, w, h); } g.restore(); }
+function band(x, y, w, h) { const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, C.band0); gr.addColorStop(1, C.band1); g.fillStyle = gr; g.fillRect(x, y, w, h); }
+function header(sub) {
+  g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+  rr(10, 8, 74, 32, 9); g.fillStyle = '#243046'; g.fill(); g.strokeStyle = '#3a4a66'; g.lineWidth = 1.5; g.stroke(); text('Back', 47, 29, 14, C.txt, { a: 'center', w: 700 });
+  text('TRIALS', W / 2, 31, 22, C.gold, { a: 'center', w: 800 }); text(sub, W - 12, 29, 12, C.dim, { a: 'right' });
+}
+function tabs(active) { const names = ['Range', 'Blades', 'Fists', 'Champions'], w = (W - 20 - 18) / 4;
+  names.forEach((n, i) => { const x = 10 + i * (w + 6), on = i === active; rr(x, 48, w, 30, 9); g.fillStyle = on ? '#2a2210' : '#1a202b'; g.fill(); g.strokeStyle = on ? C.gold : '#333b4a'; g.lineWidth = on ? 2 : 1.5; g.stroke();
+    text(n, x + w / 2, 68, 13, on ? C.gold : C.txt, { a: 'center', w: 700 }); }); }
+const MED = { bronze: C.bronze, silver: C.silver, gold: C.goldm };
+function card(c, x, y, w, h) {
+  const open = c.open, bh = 40;
+  rr(x, y, w, h, 12); g.fillStyle = C.card; g.fill();
+  g.save(); rr(x, y, w, h, 12); g.clip(); band(x, y, w, bh); portrait(c, x + w / 2 - 22, y, 44, bh, !open); if (!open) { g.fillStyle = 'rgba(14,17,23,.55)'; g.fillRect(x, y, w, bh); } g.restore();
+  rr(x, y, w, h, 12); g.strokeStyle = c.medal ? C.open : open ? '#6b5a35' : '#2a303c'; g.lineWidth = c.medal ? 2.5 : 1.5; g.stroke();
+  const ink = open ? C.txt : '#6c727d';
+  text(c.n, x + 10, y + bh + 17, 13, ink, { w: 800, fit: w - 20 });
+  if (open) {
+    text('Rematch: less kit', x + 10, y + bh + 33, 11, C.dim, { w: 500 });
+    ['bronze', 'silver', 'gold'].forEach((t, i) => { const won = c.medal && (t === c.medal || (c.medal === 'silver' && t === 'bronze') || c.medal === 'gold'); medal(x + 18 + i * 26, y + h - 16, 8, MED[t], won); });
+    if (c.medal) text('SILVER', x + w - 10, y + h - 12, 10, C.silver, { a: 'right', w: 800 });
+    else text('NOT YET', x + w - 10, y + h - 12, 10, C.dim, { a: 'right', w: 700 });
+  } else {
+    text('Win ' + c.arena + ' to unlock', x + 10, y + bh + 33, 11, '#7f8591', { w: 500, fit: w - 20 });
+    g.fillStyle = '#6c727d'; rr(x + 12, y + h - 20, 12, 9, 2); g.fill(); g.strokeStyle = '#6c727d'; g.lineWidth = 1.6; g.beginPath(); g.arc(x + 18, y + h - 20, 4, Math.PI, 0); g.stroke();
+    text('LOCKED', x + 32, y + h - 11, 10, '#6c727d', { w: 700 });
+  } }
+function tab() {
+  header('9 champions · 1 medal'); tabs(3);
+  const w = (W - 20 - 24) / 4, h = 106;
+  CH.forEach((c, i) => card(c, 10 + (i % 4) * (w + 8), 88 + Math.floor(i / 4) * (h + 8), w, h));
+  // scroll cue: the third row peeks, a thin bar on the right
+  g.fillStyle = 'rgba(255,255,255,.12)'; rr(W - 5, 90, 3, 300, 2); g.fill(); g.fillStyle = C.gold; rr(W - 5, 90, 3, 190, 2); g.fill();
+  const gr = g.createLinearGradient(0, 360, 0, H); gr.addColorStop(0, 'rgba(14,17,23,0)'); gr.addColorStop(1, 'rgba(14,17,23,.85)'); g.fillStyle = gr; g.fillRect(0, 360, W, 42);
+  text('Swipe up for Aquila', W / 2, 394, 10, C.gold, { a: 'center', w: 700 });
+}
+function pick() {
+  const c = CH.find((x) => x.k === WHO); header('9 champions · 1 medal'); tabs(3);
+  // dim the tab behind, panel over it
+  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 84, W, H - 84);
+  const px = 40, py = 92, pw = W - 80, ph = 300; rr(px, py, pw, ph, 16); g.fillStyle = '#141a23'; g.fill(); g.strokeStyle = C.open; g.lineWidth = 2; g.stroke();
+  g.save(); rr(px, py, 210, ph, 16); g.clip(); band(px, py, 210, ph); portrait(c, px + 15, py + 22, 180, 200, false); g.restore();
+  g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(px + 210 - 1, py, 1, ph);
+  text(c.n.toUpperCase(), px + 105, py + 246, 13, C.txt, { a: 'center', w: 800, fit: 190 }); text(c.line, px + 105, py + 266, 11, '#ffe2a6', { a: 'center', w: 500 });
+  const bx = px + 232, bw = pw - 232 - 16; // one line + tiers
+  text('Beat him with less kit', bx, py + 30, 17, C.gold, { w: 800 });
+  text('His full fight. Your medal is the kit you win with.', bx, py + 50, 12, C.dim, { w: 500 });
+  const T = [['bronze', 'BRONZE', 'No armour', 'Weapon and shield', 'Beaten'], ['silver', 'SILVER', 'No shield', 'No armour either', 'Your medal'], ['gold', 'GOLD', 'Fists', 'Nothing else', 'Not yet']];
+  T.forEach((t, i) => { const y = py + 66 + i * 62, h = 54, won = t[0] === 'silver' ? 2 : t[0] === 'bronze' ? 1 : 0;
+    rr(bx, y, bw, h, 12); g.fillStyle = won === 2 ? '#2a2210' : '#1c2330'; g.fill(); g.strokeStyle = won === 2 ? C.gold : '#3a4150'; g.lineWidth = won === 2 ? 2.2 : 1.5; g.stroke();
+    medal(bx + 30, y + h / 2 + 3, 13, MED[t[0]], won > 0);
+    text(t[2], bx + 62, y + 24, 17, C.txt, { w: 800 }); text(t[3], bx + 62, y + 43, 11, C.dim, { w: 500 });
+    text(t[1], bx + bw - 14, y + 24, 11, MED[t[0]], { a: 'right', w: 800 });
+    text(t[4], bx + bw - 14, y + 43, 11, won === 2 ? C.gold : won === 1 ? C.dim : '#6c727d', { a: 'right', w: won === 2 ? 800 : 600 }); });
+  text('Tap a kit to fight', bx + bw / 2, py + ph - 6, 10, '#6c727d', { a: 'center', w: 600 });
+  rr(px + pw - 40, py + 6, 34, 34, 17); g.fillStyle = '#243046'; g.fill(); text('×', px + pw - 23, py + 30, 22, C.txt, { a: 'center', w: 400 });
+}
+function draw() { VIEW === 'pick' ? pick() : tab(); document.title = 'ready'; }
+</script></body></html>
