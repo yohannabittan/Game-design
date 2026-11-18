@@ -24,3 +24,5 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-17,Arena guard: finishing round,fix,claude-opus-5-5,30,yes,50,,hurried axe pushes; yard checks; permanent checks; full suite
 2026-11-17,Arena guard: verifier,verify,claude-opus-5-5,15,yes,,,short kit verifier: strokes table and the hit-stop touch queue
 2026-11-17,Arena guard: verifier's findings,fix,claude-opus-5-5,25,yes,40,,drop the touch queue for a cut-short hit pause; back-to-back overheads
+2026-11-18,Tools: playtest reads trial lines,tool,claude-sonnet-5-5,8,,,,second time trial lines were read by hand
+2026-11-18,Arena: does a Capuan read score,verify,claude-sonnet-5-5,20,,,,0 of 5 in play; no check plays a real read
