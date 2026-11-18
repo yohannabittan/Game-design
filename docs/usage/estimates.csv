@@ -28,3 +28,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-18,Arena: does a Capuan read score,verify,claude-sonnet-5-5,20,yes,,,0 of 5 in play; no check plays a real read
 2026-11-18,Arena sketch: champion trials tab,sketch,claude-sonnet-5-5,12,yes,,,locked and open cards; the three-tier picker
 2026-11-18,Arena: knife trials,build,claude-opus-5-5,50,,80,,T2 part 1: Shrinking Target knives, Knife Work, Knife Board, Wheel
+2026-11-18,Arena sketch: fame ranks and the path,sketch,claude-sonnet-5-5,15,,,,the run-end rank-up and the ludus as a path
