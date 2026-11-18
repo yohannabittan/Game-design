@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Fame Ranks Sketch</title>
+<style>html,body{margin:0;height:100%;background:#0e1117;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style></head><body>
+<canvas id="c" width="1748" height="804"></canvas>
+<script>
+// Throwaway sketch: fame as rank. ?view=runend (default) or ?view=path
+const A = '../../../../games/arena/assets/';
+const VIEW = new URLSearchParams(location.search).get('view') || 'runend';
+const cv = document.getElementById('c'), g = cv.getContext('2d'); g.scale(2, 2);
+const W = 874, H = 402;
+const C = { bg: '#0e1117', card: '#181d26', gold: '#e8c660', txt: '#f3e9d2', dim: '#9aa0ab', faint: '#6c727d', open: '#e0a64a', green: '#86efac',
+  S: '#f1c24a', A: '#c9d0da', B: '#c98a4b' };
+const RANKS = ['Tiro', 'Tiro', 'Quartus palus', 'Quartus palus', 'Tertius palus', 'Tertius palus', 'Secundus palus', 'Secundus palus', 'Primus palus', 'Primus palus', 'Primus palus', 'Rudiarius'];
+const files = ['brutus-proud', 'brutus', 'weapon-sica', 'weapon-trident', 'tailor-crest-gold', 'tailor-cloak-red'];
+const img = {}; let left = files.length;
+files.forEach((k) => { const i = new Image(); i.onload = i.onerror = () => { if (!--left) draw(); }; i.src = A + k + '.webp'; img[k] = i; });
+const rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+function text(s, x, y, size, col, o) { o = o || {}; const f = (z) => (o.w || 600) + ' ' + z + 'px Inter,Helvetica,Arial,sans-serif'; g.font = f(size); g.fillStyle = col; g.textAlign = o.a || 'left'; g.textBaseline = 'alphabetic';
+  if (o.fit) { while (g.measureText(s).width > o.fit && size > 8) { size -= .5; g.font = f(size); } } g.fillText(s, x, y); }
+function wrap(s, x, y, w, size, col, lh, o) { const ws = s.split(' '); let l = ''; g.font = ((o && o.w) || 500) + ' ' + size + 'px Inter,Helvetica,Arial,sans-serif';
+  ws.forEach((t) => { const n = l ? l + ' ' + t : t; if (g.measureText(n).width > w && l) { text(l, x, y, size, col, o); y += lh; l = t; } else l = n; }); text(l, x, y, size, col, o); return y; }
+function cover(k, x, y, w, h, fy) { const i = img[k]; if (!i.naturalWidth) return; g.save(); rr(x, y, w, h, 12); g.clip();
+  const s = Math.max(w / i.naturalWidth, h / i.naturalHeight), sw = w / s, sh = h / s; g.drawImage(i, (i.naturalWidth - sw) / 2, (i.naturalHeight - sh) * (fy || 0), sw, sh, x, y, w, h); g.restore(); }
+function contain(k, x, y, s, dim) { const i = img[k]; if (!i.naturalWidth) return; const r = Math.min(s / i.naturalWidth, s / i.naturalHeight), w = i.naturalWidth * r, h = i.naturalHeight * r;
+  g.save(); g.globalAlpha = dim ? .35 : 1; g.drawImage(i, x + (s - w) / 2, y + (s - h) / 2, w, h); g.restore(); }
+function header(title, sub) { g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+  rr(10, 8, 74, 32, 9); g.fillStyle = '#243046'; g.fill(); g.strokeStyle = '#3a4a66'; g.lineWidth = 1.5; g.stroke(); text('Back', 47, 29, 14, C.txt, { a: 'center', w: 700 });
+  text(title, W / 2, 31, 22, C.gold, { a: 'center', w: 800 }); text(sub, W - 12, 29, 12, C.dim, { a: 'right' }); }
+function chip(x, y, grade) { rr(x, y, 26, 22, 6); g.fillStyle = C[grade]; g.fill(); text(grade, x + 13, y + 16, 14, '#1a1405', { a: 'center', w: 800 }); }
+function bar(x, y, w, h, segs, fill, mark, start) { // segs: [rankLabelLeft..] drawn by caller
+  rr(x, y, w, h, h / 2); g.fillStyle = '#232a36'; g.fill();
+  g.save(); rr(x, y, w, h, h / 2); g.clip(); const gr = g.createLinearGradient(x, 0, x + w, 0); gr.addColorStop(0, '#c98a3e'); gr.addColorStop(1, '#f1c24a'); g.fillStyle = gr; g.fillRect(x, y, w * fill, h);
+  if (start != null) { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x, y, w * start, h); } g.restore(); }
+function flag(x, y, label, on) { g.strokeStyle = on ? C.gold : C.faint; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x, y + 16); g.stroke();
+  g.fillStyle = on ? C.gold : '#2a303c'; g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 22, y - 6); g.lineTo(x + 22, y + 4); g.lineTo(x, y + 4); g.fill(); text(label, x + 11, y + 3, 9, on ? '#1a1405' : C.dim, { a: 'center', w: 800 }); }
+
+function runend() {
+  header('RUN COMPLETE', 'The City · Pompeii');
+  const L = 14, LW = 520;
+  text('FAME EARNED', L, 62, 11, C.dim, { w: 700 });
+  const rows = [['Bout 1', 'Pompeii', 'B', 4], ['Bout 2', 'Pompeii', 'A', 7], ['Bout 3', 'Pompeii', 'A', 8], ['Champion', 'Hermes the Swift', 'S', 30]];
+  rows.forEach((r, i) => { const y = 68 + i * 34, ch = i === 3; rr(L, y, LW, 30, 9); g.fillStyle = ch ? '#2a2210' : C.card; g.fill(); if (ch) { g.strokeStyle = C.gold; g.lineWidth = 2; g.stroke(); }
+    text(r[0], L + 12, y + 20, 14, ch ? C.gold : C.txt, { w: 700 }); text(r[1], L + 100, y + 20, 14, C.dim, { fit: 220 }); chip(L + 360, y + 4, r[2]);
+    text('+' + r[3], L + LW - 14, y + 21, ch ? 20 : 16, ch ? C.gold : C.txt, { a: 'right', w: 800 }); });
+  text('Better grades and harder bouts give more', L, 218, 11, C.faint);
+  text('+49 fame', L + LW, 218, 14, C.green, { a: 'right', w: 800 });
+  // rank bar: 20 -> 69 on a 0..140 scale, mark at 60 (Rank 7)
+  const bx = L + 6, bw = LW - 12, by = 262, sc = (v) => bx + bw * v / 140;
+  text('Tertius palus  6', bx, 246, 12, C.dim, { w: 700 }); text('8  Secundus palus', bx + bw, 246, 12, C.dim, { w: 700, a: 'right' });
+  bar(bx, by, bw, 16, 0, 69 / 140, 60 / 140, 20 / 140);
+  flag(sc(60), by - 2, '7', true); g.fillStyle = C.gold; g.beginPath(); g.arc(sc(69), by + 8, 6, 0, 7); g.fill();
+  text('Run start', sc(20), by + 34, 11, C.dim, { a: 'center' }); text('RANK 7', sc(60), by + 34, 12, C.gold, { a: 'center', w: 800 }); text('9 / 80 to rank 8', bx + bw, by + 34, 11, C.dim, { a: 'right' });
+  rr(L, 326, LW, 66, 10); g.fillStyle = '#141a23'; g.fill();
+  text('Next unlock at rank 8: Trident and net', L + 14, 352, 14, C.txt, { w: 700 }); text('Win one more good run', L + 14, 374, 12, C.dim, { w: 500 });
+  contain('weapon-trident', L + LW - 62, 330, 56, true);
+  // Brutus panel
+  const px = 552, py = 52, pw = W - px - 12, ph = 340;
+  rr(px, py, pw, ph, 16); g.fillStyle = '#141a23'; g.fill(); g.strokeStyle = C.open; g.lineWidth = 2; g.stroke();
+  const gr = g.createLinearGradient(0, py, 0, py + 130); gr.addColorStop(0, '#c98a3e'); gr.addColorStop(1, '#8a5a26'); g.save(); rr(px + 2, py + 2, pw - 4, 128, 14); g.clip(); g.fillStyle = gr; g.fillRect(px, py, pw, 132); g.restore();
+  cover('brutus-proud', px + 12, py + 10, 100, 112, 0.1);
+  text('RANK UP', px + 128, py + 36, 12, '#1a1405', { w: 800 }); text('Rank 7', px + 128, py + 70, 30, '#1a1405', { w: 800 }); text('Secundus palus', px + 128, py + 98, 17, '#2a1a08', { w: 700, fit: pw - 140 });
+  text('Brutus gives you', px + 16, py + 158, 11, C.dim, { w: 700 });
+  rr(px + 12, py + 166, pw - 24, 100, 12); g.fillStyle = '#2a2210'; g.fill(); g.strokeStyle = C.gold; g.lineWidth = 2; g.stroke();
+  contain('tailor-crest-gold', px + 22, py + 180, 56); // stands in for the Trickster's cards (no art yet)
+  text("The Trickster's cards", px + 92, py + 194, 17, C.gold, { w: 800, fit: pw - 110 }); wrap('New cards in your picks: feints and tricks to fool him.', px + 92, py + 216, pw - 112, 13, C.txt, 17);
+  rr(px + 12, py + ph - 52, pw - 24, 40, 12); g.fillStyle = '#243046'; g.fill(); g.strokeStyle = '#3a4a66'; g.lineWidth = 1.5; g.stroke(); text('Fight again', px + pw / 2, py + ph - 26, 16, C.txt, { a: 'center', w: 700 });
+}
+
+function path() {
+  header('THE LUDUS', 'Brutus\'s path');
+  // top: rank card
+  rr(10, 46, W - 20, 82, 14); g.fillStyle = C.card; g.fill();
+  cover('brutus', 18, 54, 58, 66, 0.05);
+  text('Rank 7', 88, 80, 24, C.gold, { w: 800 }); text('Secundus palus', 192, 80, 17, C.txt, { w: 700 });
+  const bx = 88, bw = W - 20 - 88 - 140, by = 90; bar(bx, by, bw, 12, 0, 9 / 80); text('9 / 80 fame to rank 8', bx, by + 28, 11, C.dim); text('Next: Trident and net', bx + bw, by + 28, 11, C.gold, { a: 'right', w: 700 });
+  text('Next title', W - 20, 78, 11, C.dim, { a: 'right', w: 700 }); text('Primus at 9', W - 20, 100, 15, C.txt, { a: 'right', w: 800 });
+  // path: horizontal cards
+  const items = [['Sica', 'sica', 2, 'have'], ['A gladiatrix', null, 3, 'have'], ['Start card', null, 4, 'have'], ['A freed slave', null, 5, 'have'], ['A fourth card', null, 6, 'have'], ['The Trickster', 'tailor-crest-gold', 7, 'have'],
+    ['Trident and net', 'weapon-trident', 8, 'next'], ['A chariot driver', null, 9, 'later'], ['The Showman', null, 10, 'later'], ['Wall scroll', null, 11, 'later']];
+  const vis = [3, 4, 5, 6, 7, 8, 9], cw = 112, gap = 10, x0 = 10, y0 = 150, ch = 214; // first screen: from the 4th, so the lit one sits mid
+  text('THE PATH', 14, 144, 11, C.dim, { w: 700 });
+  g.strokeStyle = '#3a4150'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, y0 + 20); g.lineTo(W, y0 + 20); g.stroke();
+  vis.slice(0, 7).forEach((ix, k) => { const it = items[ix - 3 >= 0 ? ix - 3 : 0]; });
+  const show = items.slice(2, 9);
+  show.forEach((it, k) => { const x = x0 + k * (cw + gap), st = it[3], on = st === 'next';
+    // rank node
+    g.fillStyle = st === 'have' ? C.gold : on ? C.gold : '#2a303c'; g.beginPath(); g.arc(x + cw / 2, y0 + 20, on ? 15 : 12, 0, 7); g.fill(); g.strokeStyle = C.bg; g.lineWidth = 3; g.stroke();
+    text(String(it[2]), x + cw / 2, y0 + 25, on ? 15 : 13, st === 'later' ? C.dim : '#1a1405', { a: 'center', w: 800 });
+    const cy = y0 + 46; rr(x, cy, cw, 150, 12); g.fillStyle = on ? '#2a2210' : st === 'have' ? C.card : '#12161d'; g.fill(); g.strokeStyle = on ? C.gold : '#2e3542'; g.lineWidth = on ? 2.5 : 1.5; g.stroke();
+    if (on) { g.save(); g.shadowColor = C.gold; g.shadowBlur = 14; rr(x, cy, cw, 150, 12); g.strokeStyle = C.gold; g.stroke(); g.restore(); }
+    const dim = st === 'later';
+    if (it[1]) contain(it[1], x + cw / 2 - 28, cy + 10, 56, dim); else { g.fillStyle = dim ? '#1e2530' : '#2a3342'; g.beginPath(); g.arc(x + cw / 2, cy + 38, 26, 0, 7); g.fill(); text('?', x + cw / 2, cy + 48, 26, dim ? '#3a4150' : C.dim, { a: 'center', w: 800 }); }
+    text(it[0], x + cw / 2, cy + 86, 13, dim ? C.faint : C.txt, { a: 'center', w: 700, fit: cw - 12 });
+    if (st === 'have') { text('YOURS', x + cw / 2, cy + 112, 11, C.green, { a: 'center', w: 800 }); g.strokeStyle = C.green; g.lineWidth = 2.5; g.beginPath(); g.moveTo(x + cw / 2 - 8, cy + 128); g.lineTo(x + cw / 2 - 2, cy + 134); g.lineTo(x + cw / 2 + 9, cy + 121); g.stroke(); }
+    if (on) text('NEXT', x + cw / 2, cy + 120, 13, C.gold, { a: 'center', w: 800 });
+    if (dim) text('Rank ' + it[2], x + cw / 2, cy + 120, 12, C.faint, { a: 'center', w: 700 });
+    if (on) text('Rank ' + it[2], x + cw / 2, cy + 138, 11, C.dim, { a: 'center' });
+  });
+  // fade at right edge to show it scrolls
+  const f = g.createLinearGradient(W - 50, 0, W, 0); f.addColorStop(0, 'rgba(14,17,23,0)'); f.addColorStop(1, 'rgba(14,17,23,.95)'); g.fillStyle = f; g.fillRect(W - 50, y0 + 36, 50, 170);
+  text('Swipe left for the rest, up to Rudiarius at 12', W / 2, 382, 13, C.gold, { a: 'center', w: 700 });
+}
+function draw() { if (VIEW === 'path') path(); else runend(); document.title += ' ready'; document.body.dataset.ready = 1; }
+</script></body></html>
