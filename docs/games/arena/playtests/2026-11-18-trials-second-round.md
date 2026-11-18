@@ -26,8 +26,13 @@ The stock fighter has 12 health (halves). Fist trials and Rage score the health 
 - **Weather the Rage's first try timed out:** his rage only comes once he is wounded, so a careful player can run out the clock with no rage at all.
 - No fights since v85: the new guard has not been felt in a run yet.
 
+## The Capuan Feint checked (2026-11-18, Sonnet verifier, 3 min)
+
+- **Reads are possible:** a bot with real taps scored 5 of 5 (fakes left alone, the real blow blocked 0.28 s or less before it lands). Now a permanent check, `tools/checks/arena/capuan.mjs` (9 s).
+- **Why it is hard:** fake 1 and the real blow wind up for the same time (0.81 s), and a fake can come at the same height. A fake's tell is a violet haze and a violet button, but its button starts orange like the real one's; the real blow's only cue is the gold "HIGH NOW" in its last 0.25 s. Any shield raised on a fake is BIT THE FAKE. Sheet: `../sketches/capuan-exchange-sheet.png`.
+- **A feel question for the designer, not a bug:** is it hard in a good way, or unreadable? If unreadable, the cheapest changes are a fake that winds up visibly shorter (`TUNING.champs.varro.fakes`) or the fake's violet from its first frame.
+
 ## Next
 
-- Check that a real Capuan read scores (a bot that lets the fakes pass and perfect-blocks the real blow), and put the read's outcome on the export line.
-- `tools/playtest.mjs` reads `trial` lines (the second time they were read by hand).
+- `tools/playtest.mjs` reads `trial` lines (done 2026-11-18).
 - With the next Trials build: tighten Gap Hunter (about 40 / 25 / 15 s) and Bare Knuckles; fist trials that need skill; trim the trials check.
