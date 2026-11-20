@@ -62,3 +62,18 @@ The designer: "This was interesting, we'll revisit at another time." Nothing her
 - A way to remove ads, or the ad-free version on our site.
 
 **The first games aim at:** replayability, shareability and community. The working pattern is the daily game (Krillion, Dialed, Wordle): one seeded challenge a day, the same for everyone, and a result card to share. ADR-0023 (share card, daily seed, "beat my run" codes, no server) already plans the plumbing. A shared leaderboard or "rare answer" scoring like Krillion's needs a server: a new cost to decide on later.
+
+## Ikigai (draft for the designer to correct, 2026-11-20)
+
+> "I still think we should be planning our strat and figuring out our ikigai."
+
+| Circle | First draft (orchestrator's guess, from this conversation) |
+| --- | --- |
+| What we love | Flash-era skill games; playing Arena and Trials; building with agents |
+| What we're good at | An agent factory that turns a short idea into a polished, offline web game cheaply; the know-how of running that factory |
+| What the world needs | Fun, fair skill games in a market full of ad-stuffed, grindy ones; companies that need help building agent skills and factories |
+| What can pay | Agent and skills consulting (likeliest); portal ads on games that pass the fun gate (small); premium Arena (later, unproven) |
+
+**Candidate centre:** "Prove that agents can make games worth playing (fair, skill-based, made with care), and teach companies to build factories like ours." The games are the proof, consulting is the income, and play is the joy.
+
+**Status:** draft; the designer has not answered yet.
