@@ -16,3 +16,19 @@ Directions they raised:
 - "Research the market, the field, niches, etc. Because we don't have the millions of dollars of marketing of the top games on the Apple Store."
 
 **Status:** under discussion. Not yet decided: which aim leads when they pull apart.
+
+## What the designer added (2026-11-20)
+
+> "krillion.io and perceptio I think it's called and others like the size comparison game are more recent successes of online games that have built a following even if they're not yet very profitable."
+
+> "Definitely exploring what putting our games on platforms would be interesting."
+
+> "Would be good to see what top studios are doing now."
+
+> "We should understand what's needed to be on the App Store."
+
+> "I'd like to see how we could fight the enshittification of the free online games that are all about monetizing and ads and things and just not fun games at all that are grindy idle not skill based etc."
+
+> "Could you find domains [with] the word skill that could be interesting. I'm interested in that for 2 reasons, our games are skill based and also I want to make a consulting firm for building Claude skills for companies."
+
+**Next:** a market research pass (one agent, report to `docs/plans/research-market-2026-11.md`), covering all of the above. Domain checks are part of it: this container cannot look up domains, so the agent checks them on the web.
