@@ -77,3 +77,11 @@ The designer: "This was interesting, we'll revisit at another time." Nothing her
 **Candidate centre:** "Prove that agents can make games worth playing (fair, skill-based, made with care), and teach companies to build factories like ours." The games are the proof, consulting is the income, and play is the joy.
 
 **Status:** draft; the designer has not answered yet.
+
+## Games and the consulting (discussion, 2026-11-20)
+
+The designer asked whether the consulting belongs here, and whether the games should be its portfolio or its traffic, or stay separate. **Orchestrator's recommendation:** separate brands with a one-way bridge. Games (players), then the factory story (builders), then consulting (companies). Links run consulting → factory → games, never the other way. Game traffic doesn't sell consulting; the factory's credibility does. The game project's centre shouldn't depend on the consulting.
+
+> "Another idea is to make games for companies as like fun interactive marketing."
+
+Branded games and playable ads: the Flash era's own business model (sponsored and branded games). It uses exactly what the factory makes (small, touch-first HTML5 games, built fast), is paid per project with no ads needed, and is a legitimate place where the games *are* the portfolio. Risks: client briefs and approvals turn play into duty; sales effort. Suggested guard: client work never touches Arena, and the designer picks only briefs that sound fun. **Not decided.**
