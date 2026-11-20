@@ -32,4 +32,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-18,Arena: fame ranks,build,claude-opus-5-5,60,yes,120,46,one-way: save v21; verifier and a fix round in the live estimate
 2026-11-18,Arena knife trials: fix round,fix,claude-opus-5-5,25,yes,,,no fight HUD; man-sized man; spread on the wheel; knife hits what is there on arrival
 2026-11-18,Arena ranks: verifier,verify,claude-sonnet-5-5,15,yes,,,one-way: save v20 to v21 round trip; ranks never lose an item
-2026-11-20,Arena: trials tuning,build,claude-sonnet-5-5,20,yes,40,,two-way: numbers and the rage-anyway rule
+2026-11-20,Arena: trials tuning,build,claude-sonnet-5-5,20,yes,40,28,two-way: numbers and the rage-anyway rule

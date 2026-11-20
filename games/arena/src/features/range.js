@@ -217,7 +217,7 @@ function newBoard(E) {
 }
 function newWheel(E) {
   const r = state.range, W = TUNING.range.wheel, L = r.lvl, R = Math.max(W.min, W.potR * W.shrink ** L);
-  r.wheel = { th: r.wheel.th, w: W.speed + W.step * Math.min(L, W.steps), dir: L >= 1 && L % 2 ? -1 : 1 };
+  r.wheel = { th: r.wheel.th, w: L ? W.speed + W.step * Math.min(L, W.steps) : W.first, dir: L >= 1 && L % 2 ? -1 : 1 };
   r.pots = W.at.map((a) => { const q = a * Math.PI / 180; return { lx: Math.sin(q) * W.r, ly: -Math.cos(q) * W.r, R, kind: r.rng() < 0.5 ? 'pot-clay' : 'pot-wineskin', alive: true }; });
   r.stuck = [];
   state.knives = TUNING.range.knives;

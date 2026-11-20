@@ -121,15 +121,26 @@ export default async function (t) {
     await g3.close();
   }
 
-  // the rule for every trial: blocking alone, or one stroke over and over, earns at most bronze (Gap Hunter, the Capuan Feint, Weather the Rage)
+  // the rule for every trial: blocking alone, or one stroke over and over, earns at most bronze (Gap Hunter, the Capuan Feint, Weather the Rage by slashing; Weather the Rage by blocking alone can now gold, a rage comes anyway)
   const gb = await t.boot({ w: 844, h: 390, save: VET });
   await gb.frames(30);
   for (const [id, how, name] of [['gaphunter', { block: true }, 'blocking only'], ['gaphunter', { stroke: SLASH }, 'slashing only'], ['capuan', { block: true }, 'blocking every blow'],
-    ['capuan', { stroke: SLASH }, 'slashing only'], ['rage', { block: true }, 'blocking only'], ['rage', { stroke: SLASH }, 'slashing only']]) {
+    ['capuan', { stroke: SLASH }, 'slashing only'], ['rage', { stroke: SLASH }, 'slashing only']]) {
     const e = await bot(gb, id, how);
     t.ok(`${id}: ${name} earns at most bronze`, e && e.medal <= 1, JSON.stringify(e));
   }
   await gb.close();
+
+  // Weather the Rage: a player who never strikes still meets a rage within the anyway time (and a few seconds for his wind-up)
+  const gr = await t.boot({ w: 844, h: 390, save: VET });
+  await gr.frames(30); await start(gr, 'rage');
+  let at = null;
+  for (let f = 0; f < 1700 && at == null; f += 10) {
+    await gr.frames(10);
+    at = await gr.ev(() => { const s = window.__engine.game.scenes.play.state; s.hp = s.maxHp; return (s.specials.rage || [0])[0] >= 1 ? s.trial.t : null; });
+  }
+  t.ok('rage: a player who never strikes meets a rage within the anyway time and a wind-up', at != null && at <= 15 + 8, `first rage at ${at}s`);
+  await gr.close();
 
   // phone held upright: the grid and the end card ask you to turn it, and a tap starts nothing
   const gp = await t.boot({ w: 390, h: 844, save: VET });
@@ -206,7 +217,7 @@ async function range(t) {
       if (id === 'board' || id === 'wheel') {
         // (the wheel held still while the thumb finds a pot: the check is of the line and its result, not of leading the spin)
         const hold = () => g.ev(() => { window.__engine.game.scenes.play.state.range.wheel.w = 0; });
-        if (id === 'wheel') await hold();
+        if (id === 'wheel') { await hold(); await g.ev(() => { window.__engine.game.scenes.play.state.range.wheel.th = 1.7; }); }
         let raised = null;
         const s0 = await rs(g), seen = await throwKnife(g, 'pot', { after: 50, onFrame: async () => { if (raised == null) raised = await armGap(g); } }), s1 = await rs(g);
         t.ok(`${w}x${h}: ${id}: your sword arm on your shoulder with the knife up and after the throw`, raised < 1 && (await armGap(g)) < 1, String([raised, await armGap(g)]));
@@ -234,7 +245,7 @@ async function range(t) {
         t.ok(`${w}x${h}: ${id}: ended, its pots burst recorded as best`, await endCard(g) && (await rec(g, id)).best >= 1, JSON.stringify(await rec(g, id)));
       }
       if (id === 'knifeWork') {
-        await g.ev(() => { const s = window.__engine.game.scenes.play.state; s.foe.hp = 3; s.knifeGaps = 2; s.swingIn = 99; });
+        await g.ev(() => { const s = window.__engine.game.scenes.play.state; s.foe.hp = s.foe.maxHp - 28; s.knifeGaps = 2; s.knifeSkin = 1; s.swingIn = 99; });
         await throwKnife(g, 0, { after: 60 });
         t.ok(`${w}x${h}: knifeWork: a knife fells him; it scores the knives left`, await endCard(g) && (await g.ev(() => window.__engine.game.scenes.trials.end.score)) === 5, JSON.stringify(await g.ev(() => window.__engine.game.scenes.trials.end)));
         await g.ev(() => window.__engine.setScene('play', { trial: 'knifeWork' })); await g.frames(5);

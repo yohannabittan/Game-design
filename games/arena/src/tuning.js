@@ -585,23 +585,23 @@ export const TUNING = {
   // reason). Each trial's medals are [bronze, silver, gold]: a count to reach, or (time) seconds to beat; limit: s before a timed trial is failed.
   // ironwall: his scripted blows wind wind s, x faster after each perfect block, never under min, gap s apart. capuan: Varro's signature (as
   // TUNING.champs, every exchanges between); feints: how many come; a read is his fakes let pass and his real blow perfect-blocked. rage: Marcus's,
-  // his rage coming once your blows since the last reach wound health (below: the mark it dips under then). note: s the read's word shows. fist: his fists, a TUNING.weapons row.
+  // his rage coming once your blows since the last reach wound health (below: the mark it dips under then), or anyway s after the last one. note: s the read's word shows. fist: his fists, a TUNING.weapons row. knifeWork hp: Sextus's health (three gap knives fell him); wheel first: the first wheel's speed rad/s (later ones climb from speed). knuckles' gold is an untouched win (the 12 hearts).
   trials: {
     seed: 20261117, fame: 5, end: 1.4, intro: 1.8, note: 1.4,
     me: { size: 'medium', stat: 3, origin: 'gaul', reason: 'debt' },
     ironwall: { medals: [3, 6, 10], wind: 1.0, faster: 0.93, min: 0.42, gap: 0.6 },
     capuan: { medals: [3, 4, 5], feints: 5, every: 1, chance: 1, sure: 1 },
-    gaphunter: { medals: [70, 45, 30], need: 5, limit: 90 },
+    gaphunter: { medals: [40, 25, 15], need: 5, limit: 90 },
     breaker: { medals: [75, 50, 30], limit: 90 },
-    rage: { medals: [1, 7, 11], rages: 3, every: 1, chance: 1, sure: 1, below: 0.9, wound: 4, limit: 90 },
-    knuckles: { medals: [1, 6, 10] },
+    rage: { medals: [1, 7, 11], rages: 3, every: 1, chance: 1, sure: 1, below: 0.9, wound: 4, anyway: 15, limit: 90 },
+    knuckles: { medals: [1, 6, 12] },
     stagger: { medals: [40, 25, 15], need: 5, limit: 60 },
     brawl: { medals: [1, 5, 9] },
     // step 27b, the range: targets hit, knives left, pots burst
     shrinkKnives: { medals: [4, 8, 12] },
-    knifeWork: { medals: [0, 2, 3], knives: 6 },
-    board: { medals: [5, 10, 16] },
-    wheel: { medals: [4, 9, 14] },
+    knifeWork: { medals: [0, 2, 3], knives: 6, hp: 30 },
+    board: { medals: [15, 30, 50] },
+    wheel: { medals: [4, 9, 14], first: 0.3 },
     fist: { id: 'fist', name: 'FISTS', range: 0.02, strike: -0.18, speed: 0.8, dmg: 0.6, len: 0, moves: { chop: 1, thrust: 3, sweep: 1, combo: 3, feint: 1 }, combo: [2, 3], shield: 0, drain: 0, wear: 1 },
     // the grid: columns, a card's height (x the room under the tabs, at most max px), the tab bar's height; the end card's w x h (at most)
     grid: { cols: 3, gap: 10, max: 180, tab: 44, card: [620, 300] },

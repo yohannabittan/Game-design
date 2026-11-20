@@ -100,7 +100,7 @@ export function startTrial(E, id) {
   state.trial.plates = state.foe.parts.filter((p) => p.armour).length;
   delete state.range;
   if (S.range) startRange(E, id);
-  if (id === 'knifeWork') state.knives = T.knifeWork.knives;
+  if (id === 'knifeWork') { state.knives = T.knifeWork.knives; state.foe.maxHp = state.foe.hp = state.foe.shown = T.knifeWork.hp; }
 }
 
 // One frame of the trial: keep his health (immortal) or his blows (calm) in hand, count toward the goal, and end it when it is decided.
@@ -108,7 +108,7 @@ export function updateTrial(E, dt) {
   const tr = state.trial, T = TUNING.trials, C = T[tr.id], f = state.foe;
   if (tr.done) { if ((tr.endT += dt) >= T.end) showEnd(E); return; }
   tr.t += dt;
-  if (tr.id === 'rage') rageWounds(tr, C, f); else if (tr.immortal) f.hp = f.shown = f.maxHp;
+  if (tr.id === 'rage') rageWounds(tr, C, f, dt); else if (tr.immortal) f.hp = f.shown = f.maxHp;
   if (tr.note && (tr.note.t -= dt) <= 0) tr.note = null;
   if (tr.calm) state.swingIn = Math.max(state.swingIn, 1);
   if (state.stagger > tr.st0 + 0.01) tr.staggers = (tr.staggers || 0) + 1;
@@ -172,12 +172,13 @@ function capuanRead(tr, n) {
   }
 }
 // Red Rage comes as it does in a run, when he is wounded: once your blows since his last rage reach wound, his health dips under below (he can't
-// fall; his health bar stays hidden), and each rage that starts spends them.
-function rageWounds(tr, C, f) {
+// fall; his health bar stays hidden), and each rage that starts spends them. After anyway s without one he rages regardless.
+function rageWounds(tr, C, f, dt) {
   const n = state.specials.rage || [0, 0];
-  if (n[0] > tr.r0) { tr.r0 = n[0]; tr.dealt = 0; }
+  if (n[0] > tr.r0) { tr.r0 = n[0]; tr.dealt = 0; tr.calmT = 0; }
+  tr.calmT = (tr.calmT || 0) + dt;
   tr.dealt += Math.max(0, (tr.set || f.maxHp) - f.hp);
-  f.hp = f.shown = tr.dealt >= C.wound ? f.maxHp * C.below * 0.99 : f.maxHp;
+  f.hp = f.shown = tr.dealt >= C.wound || tr.calmT >= C.anyway ? f.maxHp * C.below * 0.99 : f.maxHp;
   tr.set = f.hp;
 }
 function win(E, score) { finish(E, score, true); }
