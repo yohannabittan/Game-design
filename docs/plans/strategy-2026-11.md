@@ -85,3 +85,20 @@ The designer asked whether the consulting belongs here, and whether the games sh
 > "Another idea is to make games for companies as like fun interactive marketing."
 
 Branded games and playable ads: the Flash era's own business model (sponsored and branded games). It uses exactly what the factory makes (small, touch-first HTML5 games, built fast), is paid per project with no ads needed, and is a legitimate place where the games *are* the portfolio. Risks: client briefs and approvals turn play into duty; sales effort. Suggested guard: client work never touches Arena, and the designer picks only briefs that sound fun. **Not decided.**
+
+## Decided: the shape of the project (the designer, 2026-11-20)
+
+> "So it sounds to me like what we're doing is: the ikigai fun games; separate from the consulting; with content that we create regularly with learnings etc from the software factory that we can share in the context of our consulting potentially; and also have some ad games for viral marketing potential like the guy who vibe coded a fake Ryanair app where you could pay to make your seat lean back; and we could make games like this for brands if they want to advertise like that."
+
+| Strand | What it is | Who it's for |
+| --- | --- | --- |
+| **1. The fun games** | The ikigai: skill games the designer loves; Arena is the flagship; fair ads only (never power) | Players |
+| **2. Factory content** | Regular write-ups, films and learnings from the agent factory | Builders and companies; shared in the consulting's context |
+| **3. Viral stunt games** | Small, funny, topical games made to spread (satire, "what if" toys) | The internet; attention for the factory |
+| **4. Branded games** | The same kind of game, commissioned by brands as interactive marketing | Companies, paid per project |
+
+The consulting is a separate business; strands 2–4 can point to it, and the fun games never do.
+
+**A guard for strand 3:** satire of a real company uses its name and look without permission. That carries trademark and legal risk, and parody pages can be taken down. Prefer an invented brand, a clearly labelled parody, or a commissioned one (strand 4). Check before publishing anything that names a real company.
+
+**Open:** the order (what comes first), and which daily game starts strand 1's community.
