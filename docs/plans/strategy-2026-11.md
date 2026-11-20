@@ -40,3 +40,25 @@ actio.ai, newmail.ai (their company), armada.builders. Candidates found free: sk
 ## Paused (2026-11-20)
 
 The designer: "This was interesting, we'll revisit at another time." Nothing here is decided yet; the build chat carries on with Arena as before. Open when we pick it up: which aim leads when they clash; which name goes to the games, the factory and the consulting firm; whether to try one portal test (CrazyGames Basic Launch); then the original Arena questions (roguelike structure, rank unlocks, champion trial rewards, pace and cost, how we work).
+
+## Aligning the three aims (proposal, 2026-11-20)
+
+> "I think I would be open to having some ads if the game is actually good."
+
+> "Also not ads that give you things that make you better."
+
+> "I'm down to have a first few games with high replay ability, share ability, viral ability and all this for community building."
+
+**Proposed loop (not yet decided):**
+1. The designer is the first gate: a game leaves the house only if they played it because they wanted to.
+2. Portals are the second gate: CrazyGames Basic Launch (free, no ads, 7–21 days) measures whether strangers come back.
+3. Games that pass both get ads on portals; our own site keeps an ad-free version.
+4. The games and the factory story are the portfolio for the consulting idea.
+
+**Fair-ads rules so far:**
+- Ads only at natural breaks, never mid-play, and capped in frequency.
+- **No ad ever gives anything that makes you better** (the designer's rule). An ad reward, if any, is cosmetic only: no power, no revive, no extra try that counts on a board.
+- No timers, energy or grind that push you towards ads.
+- A way to remove ads, or the ad-free version on our site.
+
+**The first games aim at:** replayability, shareability and community. The working pattern is the daily game (Krillion, Dialed, Wordle): one seeded challenge a day, the same for everyone, and a result card to share. ADR-0023 (share card, daily seed, "beat my run" codes, no server) already plans the plumbing. A shared leaderboard or "rare answer" scoring like Krillion's needs a server: a new cost to decide on later.
