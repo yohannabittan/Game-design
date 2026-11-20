@@ -96,3 +96,22 @@ Short or one-word names (skill.games, playskill.com) are the likeliest to be tak
 | **A. Free web release, no ads** | itch.io and Newgrounds with a tip jar; short clips; the factory makes a tiny, clip-friendly game every week or two | Near zero beyond the plan and a domain | Earns little; builds an audience and learning |
 | **B. Portal test** | One small game to CrazyGames Basic Launch (free, no ads), Poki if it does well; an ad-free build stays on our own site | Agent time for each SDK | Conflicts with no ads on those platforms; the only proven money path found |
 | **C. Premium Arena on mobile, later** | Wrap Arena, add native touches, charge once; pitch Apple Arcade | $99 a year Apple, $25 Google, 12 testers for 14 days | 4.2 rejection risk, poor discovery; only after A shows people play Arena unprompted |
+
+## Domain check via the GoDaddy connector (2026-11-20)
+
+Prices are GoDaddy's (USD); other registrars renew some endings cheaper (Porkbun .games about $27).
+
+| Free at normal price | First year | Renewal |
+| --- | --- | --- |
+| skillwright.co | $17.99 | $59.99 |
+| skillwright.games | $9.99 | $57.99 |
+| skillful.games | $9.99 | $57.99 |
+| pureskill.games | $9.99 | $57.99 |
+| skillset.games | $9.99 | $57.99 |
+| onethumb.games | $9.99 | $57.99 |
+| keenhand.games | $9.99 | $57.99 |
+| craftedskill.ai | $209.98 (2-year minimum) | $159.99 |
+
+Premium (for sale): skillfoundry.com $14,995; plainskill.com $8,888; thumbcraft.com $3,499.
+
+Taken: skillwright.com, skillwright.ai, skillsmith.ai, skillsmith.co, skillforge.ai, skillfoundry.ai, skillworks.ai, skillhouse.ai, skill.games, pureskill.com, skillcade.com, playskill.com, onethumb.com, skillyard.com, skillbench.ai.
