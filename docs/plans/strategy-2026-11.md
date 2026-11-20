@@ -115,3 +115,14 @@ Guards:
 - Topical games die in days: keep each one tiny and cheap, and never let one block strand 1.
 
 **Not decided:** whether to set up a "news to game" pipeline (spot a story, sketch in hours, designer's yes or no, ship).
+
+## An X account for the community (the designer, 2026-11-20)
+
+> "I'd like to have an x account where we grow it talking about agents, software factories, games and doing this viral stuff to try to build a community."
+
+Tooling as of today:
+- **Reading X:** not possible from the cloud container (x.com is unreachable), and no X connector turned up in a search of the connector directory. Web search catches some posts.
+- **Posting:** Buffer is connected, but under the NewMail AI organization, whose free plan is already at its 3-channel limit. A separate project account needs its own Buffer channel slot (a paid plan or a second organization) or manual posting.
+- **Rule:** every post is shown to the designer as a draft first; nothing is published without their yes.
+
+**Not decided:** the account name (fits the factory strand: e.g. armada.builders), and the cadence.
