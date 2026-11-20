@@ -102,3 +102,16 @@ The consulting is a separate business; strands 2–4 can point to it, and the fu
 **A guard for strand 3:** satire of a real company uses its name and look without permission. That carries trademark and legal risk, and parody pages can be taken down. Prefer an invented brand, a clearly labelled parody, or a commissioned one (strand 4). Check before publishing anything that names a real company.
 
 **Open:** the order (what comes first), and which daily game starts strand 1's community.
+
+## Hyper-topical games (the designer, 2026-11-20)
+
+> "I think the other thing we should consider doing is hyper topical games on recent hot topics like the Jensen being in or out of Nvidia."
+
+This sits in strand 3 (viral stunt games). It is the old "newsgame" genre, common on Flash portals. **Speed is the whole game here**, and speed is the factory's edge: a playable game within a day or two of a story, while people are still talking about it. Each one also doubles as strand 2 content ("news to game in 24 hours", filmed).
+
+Guards:
+- About real people: play on the public story, not on invented claims about them. Make it clear it's a joke, and keep it kind enough that no one is harmed.
+- Check the story is real before building; fast news is often wrong.
+- Topical games die in days: keep each one tiny and cheap, and never let one block strand 1.
+
+**Not decided:** whether to set up a "news to game" pipeline (spot a story, sketch in hours, designer's yes or no, ship).
