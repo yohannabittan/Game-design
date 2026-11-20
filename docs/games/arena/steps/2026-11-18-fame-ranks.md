@@ -35,3 +35,7 @@ Sketch approved (the designer: "Yeah this is pretty exciting"): `../sketches/fam
 6. For the designer: stills of a run's end with a rank-up and of the ludus at 874x402.
 
 One-way or two-way: **one-way** (the save changes): a verifier and an old-save round trip.
+
+## Open after landing (the designer, 2026-11-20)
+
+"We need to consider what you unlock with rank ups. I don't know if origin is something that you should be unlocking like this." Whether origins (and perhaps fighters, reasons and card families) belong on the rank path, or come another way, goes to the designer's strategy conversation. Nothing changes until then.
