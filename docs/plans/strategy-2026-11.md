@@ -32,3 +32,7 @@ Directions they raised:
 > "Could you find domains [with] the word skill that could be interesting. I'm interested in that for 2 reasons, our games are skill based and also I want to make a consulting firm for building Claude skills for companies."
 
 **Next:** a market research pass (one agent, report to `docs/plans/research-market-2026-11.md`), covering all of the above. Domain checks are part of it: this container cannot look up domains, so the agent checks them on the web.
+
+## Names the designer already owns (2026-11-20)
+
+actio.ai, newmail.ai (their company), armada.builders. Candidates found free: skillwrights.com, skillwright.co/.games/.net/.dev, deft.games, pureskill.games, onethumb.games (details in `research-market-2026-11.md`). **Not decided.**
