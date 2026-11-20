@@ -115,3 +115,11 @@ Prices are GoDaddy's (USD); other registrars renew some endings cheaper (Porkbun
 Premium (for sale): skillfoundry.com $14,995; plainskill.com $8,888; thumbcraft.com $3,499.
 
 Taken: skillwright.com, skillwright.ai, skillsmith.ai, skillsmith.co, skillforge.ai, skillfoundry.ai, skillworks.ai, skillhouse.ai, skill.games, pureskill.com, skillcade.com, playskill.com, onethumb.com, skillyard.com, skillbench.ai.
+
+### Second round (GoDaddy, 2026-11-20)
+
+Free at normal price: skillwrights.com ($12.99, renews $22.99), skillwright.net ($14.99 / $24.99), skillwright.dev ($15.99 / $23.99), skillwright.studio ($21.99 / $79.99), skillsmith.studio ($21.99 / $79.99), onethumb.studio ($21.99 / $79.99), deft.games, skillforge.games, skillcraft.games, skillpath.games, skillfirst.games ($9.99 / $57.99 each), skillworks.io ($59.99 / $89.99), skillmade.ai ($209.98 for 2 years / $159.99), agentskillfoundry.com, agentskillcraft.com, thumbsplay.com ($12.99 / $22.99).
+
+Premium: skilltap.com $39,995; skillmade.com $11,095; skillworks.co $6,995; fingerplay.com $6,999; skillsmiths.com $4,388; skillsmithy.com $3,499; skillarcade.com $3,000.
+
+Taken: skillwright.io, skillsmith.io, skillful.studio, skilled.games, skillshop.ai, skillhaus.ai/.com, skillkit.ai/.co, skillloom.com, skillmill.ai, skilltree.studio, deftly.games, nimble.games, keen.games, thumbskill.com, skillplay.games, arcadeskill.com, pureplay.games, fairplay.games, noads.games, agentskills.co, skillstack.ai.
