@@ -36,3 +36,7 @@ Directions they raised:
 ## Names the designer already owns (2026-11-20)
 
 actio.ai, newmail.ai (their company), armada.builders. Candidates found free: skillwrights.com, skillwright.co/.games/.net/.dev, deft.games, pureskill.games, onethumb.games (details in `research-market-2026-11.md`). **Not decided.**
+
+## Paused (2026-11-20)
+
+The designer: "This was interesting, we'll revisit at another time." Nothing here is decided yet; the build chat carries on with Arena as before. Open when we pick it up: which aim leads when they clash; which name goes to the games, the factory and the consulting firm; whether to try one portal test (CrazyGames Basic Launch); then the original Arena questions (roguelike structure, rank unlocks, champion trial rewards, pace and cost, how we work).
