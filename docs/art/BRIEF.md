@@ -689,6 +689,27 @@ About 9 images for the probe (US$1), 20 more after (US$2 to 3).
 
 **Steps:** three options for `unlock-fourth`, `unlock-trick`, `unlock-trident` and `fighter-sparta` to set the look; one option each for the rest, made to match. (Added after the first session started: the six icons `unlock-sica` to `unlock-cloak`. If they were not made in the first pass, the follow-up session after the designer's picks makes them.) Contact sheet: all at 64 px and 160 px on the ludus card colour (`#1b1a24`), the reused six beside them for comparison. The handoff (`docs/art/HANDOFF-arena-pack33.md`) lists the files. About 26 images, US$2.5 to 3.5.
 
+### Pack 34: Arena, faces by origin and women's bodies (added 2026-11-21)
+
+**For:** `docs/games/arena/steps/2026-11-21-faces-and-women.md`. The designer: "Let's do more faces and women's bodies, let's up the art budget, and please remember the mistakes we made in the past to make sure the women's bodies are correct." Today every fighter has one face, and the women the game already rolls (Lucia, Tullia, Aurelia, the gladiatrix of Sparta, Mevia the Huntress) are drawn as the same man with the beard taken off. Women gladiators were real (the Halicarnassus relief names two, Amazon and Achillia).
+
+**The mistakes not to repeat** (each happened in an earlier pack; check every one on your contact sheet before you hand off):
+1. **One piece or two?** Paint each limb **once, whole and straight**, then cut it at the elbow or knee in code with the rounded overlapping joint ends of Pack 24 (the cut-out method). Never paint upper and lower halves separately: they never matched.
+2. **Joints that meet.** The new torsos keep the **same canvas and the same shoulder, neck and hip points** as the men's torso of the same build (`kit-base-torso-avg`, `-lean`, `kit-base-torso`), so the limbs, the head and every worn plate sit where the rig puts them. List every joint point in px in the handoff.
+3. **Worn, not stuck on.** The chest band, belt and kilt are painted onto the torso, near side only, never a separate hollow object. Then check that today's worn gear (`kit-plate-chest`, `kit-plate-manica`, `kit-plate-greave`, the helmets' `-worn` paintings) still sits right on her: shown on the sheet, not assumed.
+4. **Facing the same way.** Head and chest in the same profile, facing right like the kit; no second arm showing; the head at the kit's scale (1 head = 256 px).
+5. **The same body family.** Skin tone, outline and light match across her torso, limbs and head (Pack 20b's limbs came out redder than their torso).
+6. **Look it up.** A woman gladiator's real look: a strong, trained athlete, the same kit as the men (belt, kilt, wrapped forearm), with a plain chest band (strophium) and hair bound tight or short so a helmet fits. Not sexualised, not a costume.
+
+**A probe first (stop after it for the designer):**
+- **One gladiatrix, average build:** her torso (`kit-base-torso-avg-f`), one whole arm and one whole leg cut into `kit-arm-up-avg-f`, `kit-arm-lo-avg-f`, `kit-leg-up-avg-f`, `kit-leg-lo-avg-f`, and her head (`face-sparta-f`); two options of the torso and the head.
+- **Faces, three origins, a man and a woman each:** `face-gaul-m`, `face-gaul-f`, `face-numidia-m`, `face-numidia-f`, `face-egypt-m`, `face-egypt-f`: bare heads on the kit head's canvas and eye line, each looking like where they are from.
+- **The contact sheet must show her assembled on the rig at game size** (about 120 px tall and at 2x), in the guard pose and with an arm raised, bare and wearing the chest plate, greave and a helmet; and the six faces at game size on the same body. Beside her, today's man of the same build for comparison.
+
+**After the designer's pick:** the lean and muscular builds for women (torso and whole limbs each), and faces for every origin: Gaul, Thrace, Numidia, Egypt, Capua, Ostia, Alexandria and the Circus, a man and a woman each, and Sparta (women only), about 17 faces in all. One option each unless a joint or face doesn't read.
+
+Probe: about 14 images, US$1.5. Full set: about 30 more, US$3 to 4.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
