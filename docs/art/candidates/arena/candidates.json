@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29, 30",
+ "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29, 30, 32",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -645,6 +645,66 @@
   ],
   "knife-board": [
    "knife-board-A.png"
+  ],
+  "rank-01": [
+   "rank-01-A.webp"
+  ],
+  "rank-02": [
+   "rank-02-A.webp"
+  ],
+  "rank-03": [
+   "rank-03-A.webp"
+  ],
+  "rank-04": [
+   "rank-04-A.webp"
+  ],
+  "rank-05": [
+   "rank-05-A.webp"
+  ],
+  "rank-06": [
+   "rank-06-A.webp"
+  ],
+  "rank-07": [
+   "rank-07-A.webp"
+  ],
+  "rank-08": [
+   "rank-08-A.webp"
+  ],
+  "rank-09": [
+   "rank-09-A.webp"
+  ],
+  "rank-10": [
+   "rank-10-A.webp"
+  ],
+  "rank-11": [
+   "rank-11-A.webp"
+  ],
+  "rank-12": [
+   "rank-12-A.webp"
+  ],
+  "rank-13": [
+   "rank-13-A.webp"
+  ],
+  "rank-14": [
+   "rank-14-A.webp"
+  ],
+  "rank-15": [
+   "rank-15-A.webp"
+  ],
+  "rank-16": [
+   "rank-16-A.webp"
+  ],
+  "rank-17": [
+   "rank-17-A.webp"
+  ],
+  "rank-18": [
+   "rank-18-A.webp"
+  ],
+  "rank-19": [
+   "rank-19-A.webp"
+  ],
+  "rank-20": [
+   "rank-20-A.webp"
   ]
  }
 }

@@ -1135,9 +1135,10 @@ export const ludus = {
 };
 // a rank's unlock in words: its item, or the path's pair (the last rank's two scrolls)
 const pathName = (k) => PATH[k - 1].length > 1 ? 'Trickster and Showman scrolls' : LUDUS_ITEM[PATH[k - 1][0]].name;
-// a rank's emblem, s px across, centred at (x, y): a bronze medallion with the rank's number. The artist's rank-01 to rank-20 will take its place here.
+// a rank's emblem, s px across, centred at (x, y): the painted coin (Pack 32), a bronze medallion with the rank's number while it loads.
 function rankEmblem(ctx, r, x, y, s) {
-  const R = s / 2;
+  const R = s / 2, im = artImg(`rank-${String(r).padStart(2, '0')}`);
+  if (im) { ctx.drawImage(im, x - R, y - R, s, s); return; }
   ctx.save(); ctx.fillStyle = r >= PATH.length ? '#ffd24a' : '#b7832f'; ctx.strokeStyle = '#3a2a08'; ctx.lineWidth = Math.max(1.5, s * 0.06);
   ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = 'rgba(58,42,8,0.6)'; ctx.lineWidth = Math.max(1, s * 0.03); ctx.beginPath(); ctx.arc(x, y, R * 0.78, 0, TAU); ctx.stroke();

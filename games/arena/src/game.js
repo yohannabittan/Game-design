@@ -855,7 +855,9 @@ const SHIPPED = new Set([
   // the bow at rest and drawn, and its arrow (Pack 29)
   'weapon-bow weapon-bow-drawn arrow ',
   // the range trials' target, board, wheel and pots (Pack 30)
-  'range-target knife-board knife-wheel pot-clay pot-wineskin'
+  'range-target knife-board knife-wheel pot-clay pot-wineskin ',
+  // the twenty rank coins (Pack 32)
+  'rank-01 rank-02 rank-03 rank-04 rank-05 rank-06 rank-07 rank-08 rank-09 rank-10 rank-11 rank-12 rank-13 rank-14 rank-15 rank-16 rank-17 rank-18 rank-19 rank-20'
 ].join('').split(' '));
 // Pack 27: the helmets and head gear painted onto the head ship as <name>-worn.webp; their old pieces' files are retired
 const WORN = new Set(['kit-helmet-gallic', 'kit-helmet-murmillo', 'kit-helmet-thraex', 'gear-bronze-crest', 'gear-plumed-helm', 'gear-phalanx-helm',

@@ -2,6 +2,7 @@
 // The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
 // then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
 export const NOTES = [
+  { v: 89, date: '21 Nov', lines: ['Every rank has its own painted coin now: iron, bronze, silver, gold, and wood for Free.', 'See yours under the title, and the next one when you rank up.'] },
   { v: 88, date: '20 Nov', lines: ['Trials retuned from your play. Golds now take real work:', 'Knife Work: three knives into gaps. The Knife Board: 50 pots for gold.', 'The Wheel starts slower. Gap Hunter gold is under 15 s.', 'Bare Knuckles gold: win without a scratch. Weather the Rage: he rages even if you hold back.'] },
   { v: 87, date: '18 Nov', lines: ['New in Trials, the Range tab: four knife trials.', 'The Knife Board and The Wheel: burst the wine pots around him. Hit him and it\'s over.', 'On the wheel, lead the spin: the knife hits what\'s there when it arrives.', 'Knife Work: fell him with six knives and your fists.'] },
   { v: 86, date: '18 Nov', lines: ['Fame is your rank now: it only climbs. Each rank hands you the next unlock.', 'Open the Ludus to see the path, from Chained to Free at rank 20.', 'Your old fame and everything you bought count toward your rank.', 'Harder arenas and better grades (S, A) give more fame per bout.'] },
