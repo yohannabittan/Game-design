@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Tea Party and caramel</title></head><body style="margin:0"><script src="lib.js"></script><script>
+const PW=440, PH=Math.round(440*375/667), G=14, COLS=4, LBL=26;
+const ROWS=[
+ ['1. Tea Party you see coming, at the flight’s widest zoom (0.3), then nearer. Look A = tea-house, Look B = teapot house.',[['far-today',0.4,'Today'],['far-A',0.4,'Look A, far'],['far-B',0.4,'Look B, far'],['rise-A',0.4,'Look A, first sight']]],
+ ['',[['near-A',0.4,'Look A, near'],['near-B',0.4,'Look B, near'],['mid-A',0.4,'Look A, zoom 0.5'],['mid-B',0.4,'Look B, zoom 0.5']]],
+ ['2. The arrival beat (about 3 s, mid-flight): slow-mo, she leaps, they meet, hearts burst, they fly on together.',[['arrival',0.4,'t 0.4: widest zoom'],['arrival',1.25,'t 1.25: camera comes in, she spots him'],['arrival',2.05,'t 2.05: they meet'],['arrival',2.8,'t 2.8: flying on together']]],
+ ['3a. Together, option RIDE: she sits on his back, on the wing when he glides.',[['ride',0.5,'launch'],['ride',1.25,'boost'],['ride',2.5,'glide'],['ride',3.2,'descent']]],
+ ['3b. Together, option HOLD HANDS: they spin around each other, level in the glide.',[['hold',0.5,'launch'],['hold',1.25,'boost'],['hold',2.5,'glide'],['hold',3.2,'descent']]],
+ ['4a. Caramel A, STRETCHY CATCH: he sinks, the caramel stretches, snaps and slingshots him on, then he sticks.',[['c1',0.8,'stretch'],['c1',1.08,'snap'],['c1',1.5,'flight on'],['c1',2.7,'sticks, +250 m']]],
+ ['4b. Caramel B, GLORP: he sinks with a comic glorp and pops up with a caramel moustache.',[['c2',0.9,'sinking'],['c2',1.6,'eyes only: glorp'],['c2',2.1,'POP'],['c2-close',2.9,'close-up: the moustache']]],
+ ['4c. Caramel C, STICKY LANDING: he sticks, the caramel pays sugar by how flat he landed.',[['c3',0.6,'impact'],['c3',1.0,'STICKY!'],['c3',1.6,'sugar flies to the counter'],['c3',2.7,'count up done']]],
+];
+const HEAD=44, W=COLS*PW+(COLS+1)*G, rowH=(PH+LBL+G), H=HEAD+ROWS.reduce((a,r)=>a+(r[0]?30:0)+rowH,0)+G;
+const cv=document.createElement('canvas');cv.width=W;cv.height=H;document.body.appendChild(cv);const c=cv.getContext('2d');
+const off=document.createElement('canvas');off.width=667;off.height=375;const oc=off.getContext('2d');
+c.fillStyle='#2d2238';c.fillRect(0,0,W,H);c.fillStyle='#fff6ec';c.font='800 22px system-ui';c.textBaseline='middle';c.fillText('Launch sketch: Tea Party landmark, arrival, together after, caramel endings (throwaway, 2026-11-21)',G,HEAD/2);
+let y=HEAD;
+for(const [title,panels] of ROWS){ if(title){c.fillStyle='#ffd84d';c.font='800 16px system-ui';c.fillText(title,G,y+14);y+=30;}
+ panels.forEach(([n,t,l],i)=>{const x=G+i*(PW+G);oc.clearRect(0,0,667,375);draw(n,t,oc);c.drawImage(off,x,y,PW,PH);c.fillStyle='#cbbfdc';c.font='600 13px system-ui';c.fillText(l,x+2,y+PH+13);});
+ y+=rowH;}
+</script></body></html>

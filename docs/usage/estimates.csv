@@ -38,4 +38,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-21,Arena sketch: bow aim and beast charge,sketch,claude-sonnet-5-5,20,yes,,,touchable page like the knife tester
 2026-11-21,Arena sketch: fall scenes storyboard,sketch,claude-sonnet-5-5,20,yes,,,spared / executed / mauled
 2026-11-21,Arena: bow and beast charge,build,claude-opus-5-5,90,,,,beast charge opening; bow aims like the knife; knives hit the charge; two bow trials
-2026-11-21,Launch sketch: Tea Party and caramel,sketch,claude-sonnet-5-5,30,,,,landmark; arrival; riding together; caramel endings
+2026-11-21,Launch sketch: Tea Party and caramel,sketch,claude-sonnet-5-5,30,yes,,,landmark; arrival; riding together; caramel endings
