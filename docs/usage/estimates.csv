@@ -34,4 +34,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-18,Arena ranks: verifier,verify,claude-sonnet-5-5,15,yes,,,one-way: save v20 to v21 round trip; ranks never lose an item
 2026-11-20,Arena: trials tuning,build,claude-sonnet-5-5,20,yes,40,28,two-way: numbers and the rage-anyway rule
 2026-11-21,Arena: rank coins wired,build,claude-sonnet-5-5,15,yes,30,3,Pack 32 into rankEmblem
-2026-11-21,Arena: knives after every bout,build,claude-sonnet-5-5,20,yes,40,,a knife offer on the between-bout screen
+2026-11-21,Arena: knives after every bout,build,claude-sonnet-5-5,20,yes,40,23,a knife offer on the between-bout screen

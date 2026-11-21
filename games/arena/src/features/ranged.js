@@ -525,6 +525,28 @@ export function knifeBuy(E, tt, more) {
   state.knives += d; tt.kn = (tt.kn || 0) + d; state.gold -= d * K.price;
   E.audio.play(more ? 'coin' : 'tap'); E.haptic(10);
 }
+// step 28: the draft's knife chip, top right: one tap buys one (a miss sound and a shake when full or short, and the chip says which). Returns its rect.
+export function draftKnifeChip(ctx, E, d) {
+  const K = TUNING.knives, [cw, ch] = K.chip, n = state.knives, full = n >= K.max, short = !full && state.gold < K.price, ok = !full && !short;
+  const sh = d.knShake >= 0 && d.t - d.knShake < TUNING.draft.shake ? Math.sin((d.t - d.knShake) * 60) * TUNING.draft.shakePx : 0;
+  const r = { x: E.w - E.safe.right - 12 - cw, y: E.safe.top + 6, w: cw, h: ch };
+  ctx.globalAlpha = d.t > TUNING.draft.delay ? 1 : 0.5;
+  E.roundRect(r.x + sh, r.y, cw, ch, 12, ok ? '#3a2a10' : '#1f1a24', ok ? '#ffd24a' : '#4a4252');
+  drawKnife(ctx, r.x + sh + 20, r.y + ch / 2 + 6, -0.6, 26);
+  E.text(full ? 'Most carried' : short ? 'Need gold' : '+1 knife', r.x + sh + 38, r.y + 14, { size: 14, weight: '800', align: 'left', color: ok ? '#fde68a' : '#9aa4b2' });
+  drawCoin(ctx, r.x + sh + 44, r.y + 32, 5.5);
+  E.text(`${K.price}`, r.x + sh + 53, r.y + 32, { size: 14, weight: '800', align: 'left', color: ok ? '#fbbf24' : '#9aa4b2' });
+  E.text(`${n}/${K.max}`, r.x + sh + cw - 10, r.y + 32, { size: 14, weight: '800', align: 'right', color: n ? '#f0e6cc' : '#9aa4b2' });
+  ctx.globalAlpha = 1;
+  return r;
+}
+// a tap on the draft's knife chip
+export function draftKnifeBuy(E, d) {
+  const K = TUNING.knives;
+  if (state.knives >= K.max || state.gold < K.price) { d.knShake = d.t; E.audio.play('miss'); E.haptic(20); return; }
+  state.knives++; state.gold -= K.price; state.bought.push('knife');
+  E.audio.play('coin'); E.haptic(10);
+}
 // step 22: the tent's and the stall's Knives row, centred at y
 export function tentKnives(ctx, E, y, ready) {
   const K = TUNING.knives, tt = state.tent, w = Math.min(300, E.w - 64);

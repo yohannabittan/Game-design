@@ -15,7 +15,7 @@ import { weaponKey, drawPic, sayLines, sayLine, brutusFaceOn, cardGrow, KIT_HELM
 import { WHEELS, openTo, laurel, champs, tapLive, over } from './scenes.js';
 import { arena, bout, drives, debtLeft, brutusIntro, brutusWon, wornGear, replaces, state, wrap, pidx, has, noDodge, noShield, pickW, kitMe, deriveMe,
   sizeOf, weaponName, foeParts, dualGaps, guardParts, newRack, startCards, saveRun, artV, artImg, artState, artReady, champPic, kitOn } from './game.js';
-import { sideWield, knifeRow, tentKnives, bowAt, rackBow } from './features/ranged.js';
+import { sideWield, knifeRow, tentKnives, draftKnifeChip, bowAt, rackBow } from './features/ranged.js';
 
 // ====== BETWEEN BOUTS: the grade and the draft ======
 // The bout's grade from what this bout added to the run's counts.
@@ -428,6 +428,8 @@ export function drawDraft(ctx, E) {
     ctx.globalAlpha = 1;
     d.spoilBtn = b;
   }
+  // not enumerable: the replay's state dump walks the draft's fields, and a rect there would only restate the layout
+  Object.defineProperty(d, 'knife', { value: draftKnifeChip(ctx, E, d), writable: true, configurable: true, enumerable: false });
   if (d.view || d.helpOn === 4) drawWearing(ctx, E);
   else if (d.helpOn === 1) drawCardHelp(ctx, E, d.cards); else if (d.helpOn === 2) drawDealHelp(ctx, E, held, d.odds); else if (d.helpOn === 3) drawBoutHelp(ctx, E, d);
 }

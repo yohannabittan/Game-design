@@ -394,7 +394,8 @@ export const TUNING = {
   // way to him the dotted line reaches; edge = px from the bottom edge a thumb slid down there cancels at; whip = s at which the arm is forward, at
   // the end of its follow-through, and back on guard; fwd = the hand's reach forward (H from the shoulder along the throw), then its
   // follow-through on (H) and down (H); release = s into the whip the knife leaves the hand
-  knives: { price: 8, max: 6, aim: 0.25, lift: 50, speed: 5, dmg: 12, skin: 4, pad: 4, len: 0.13, fall: 1.2, row: [44, 44],
+  // Between bouts (step 28): chip = the draft's Knife button, w x h px, in the top right corner; one tap buys one at price, up to max
+  knives: { price: 8, max: 6, chip: [136, 44], aim: 0.25, lift: 50, speed: 5, dmg: 12, skin: 4, pad: 4, len: 0.13, fall: 1.2, row: [44, 44],
     snap: 14, rest: 0.6, raise: [-0.12, -0.36], held: 1.4, glow: [0.4, 22],
     gain: [1.1, 0.4], inside: 0.03, at: [0.98, -0.3], pre: 0.6, edge: 8, whip: [0.14, 0.3, 0.65], fwd: [0.3, 0.035, 0.055], release: 0.1 },
   // Step 24, the bow: a sidearm bought in the purse's Sidearm slot at price gold. swap = s the swap to it or back takes (no block, no swing), the shield

@@ -26,7 +26,7 @@ import { yardDue, startYard, endYard, yardFields, yardRelease, updateYard, drawY
 import { startDual, updateDual, dualTouch } from './features/dual.js';
 import { startTrial, updateTrial, drawTrial, trialTap } from './features/trials.js';
 import { drawRange, holdRange } from './features/range.js';
-import { armsTouch, aimDown, aimAt, aimUp, stepArms, bowDown, drawKnives, drawArmsBtns, knifeBuy, lessonDue, startLesson, updateLesson, drawLesson } from './features/ranged.js';
+import { armsTouch, aimDown, aimAt, aimUp, stepArms, bowDown, drawKnives, drawArmsBtns, knifeBuy, draftKnifeBuy, lessonDue, startLesson, updateLesson, drawLesson } from './features/ranged.js';
 
 // ====== JUICE (continued) ======
 // a new pop stacks above (or, at the HUD, below) a live one near it, so simultaneous texts never overlap
@@ -1812,6 +1812,7 @@ export const play = {
       if (d.help && E.hit(d.help, p)) { d.helpOn = 1; E.audio.play('tap'); return; }
       if (d.wear && E.hit(d.wear, p)) { d.view = true; E.audio.play('tap'); return; }
       if (d.reroll && d.reroll.live && E.hit(d.reroll, p)) { rerollDraft(E); return; }
+      if (d.knife && d.t > TUNING.draft.delay && E.hit(d.knife, p)) { draftKnifeBuy(E, d); return; }
       if (d.skip && d.t > TUNING.draft.delay && E.hit(d.skip, p)) { skipDraft(E); return; }
       if (d.spoilBtn && d.t > TUNING.draft.delay && E.hit(d.spoilBtn, p)) { swapSpoil(E); return; }
       const b = d.t > TUNING.draft.delay && d.btns.find((q) => E.hit(q, p)); if (b) tapCard(E, d, b.i); return;
