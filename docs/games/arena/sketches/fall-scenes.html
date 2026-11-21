@@ -1,0 +1,89 @@
+<!doctype html><meta charset=utf-8><title>Arena fall scenes storyboard</title>
+<style>body{margin:0;background:#1a120b;font:14px system-ui,sans-serif;color:#f4e4c1}canvas{display:block}</style>
+<canvas id=c></canvas>
+<script>
+// Storyboard sketch (throwaway). Frames are 874x402 logical, scaled to FW x FH. Real stills (beat 1) from tools/film.mjs; the rest are mocked over the real arena backdrop and the Emperor/Brutus/lion art.
+const FW=340,FH=156,GAP=10,LAB=92,ROWH=FH+46,TOP=34,W=LAB+5*(FW+GAP)+GAP,H=TOP+3*ROWH+8,S=FW/874;
+const cv=document.getElementById('c');cv.width=W;cv.height=H;const g=cv.getContext('2d');
+const names={bg:'arena-grand',emp:'emperor',bru:'brutus',lt:'beast-lion-torso',lh:'beast-lion-head',lf:'beast-lion-fore-up',lb:'beast-lion-hind-up',tail:'beast-lion-tail'};
+const stills={s1:'f-hermes.png',s2:'f-aquila.png',s3:'f-lion.png'};
+const I={};let n=0,tot=0;
+function ld(k,src){tot++;const i=new Image();i.onload=()=>{if(++n==tot)go()};i.src=src;I[k]=i}
+for(const k in names)ld(k,'../../../../games/arena/assets/'+names[k]+'.webp');
+for(const k in stills)ld(k,'stills/'+stills[k]);
+const SKIN='#e8a35c',SKIND='#b8703a',TUN='#d9642a',INK='#2a1608';
+function limb(x1,y1,x2,y2,w,c){g.strokeStyle=INK;g.lineCap='round';g.lineWidth=w+4;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.strokeStyle=c;g.lineWidth=w;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke()}
+// a gladiator: x,y = feet/knee ground point. pose: kneel (0 stand..1 kneel), lean (px), arms 'down'|'up'|'sword'|'drop', face dir 1/-1, tint for the victor
+function man(x,y,o){o=o||{};const d=o.dir||1,k=o.kneel||0,s=o.sc||1,lean=(o.lean||0);g.save();g.translate(x,y);g.scale(s*d,s);
+ const hipY=-70+k*38,shY=hipY-50+(o.slump||0)*0,hx=lean*0.3,sx=lean,hdY=shY-22,col=o.col||TUN,sk=o.skin||SKIN;
+ // legs
+ if(k>0.5){limb(0,hipY,16,-8,16,sk);limb(16,-8,-18,-4,14,sk);limb(0,hipY,-14,-6,16,sk)}else{limb(-4,hipY,-14,0,16,sk);limb(4,hipY,16,0,16,sk)}
+ // torso
+ limb(hx,hipY,sx,shY,34,col);
+ // shield on back / arm
+ const arms=o.arms||'down';
+ if(arms==='down'){limb(sx,shY+4,sx+14,shY+34,12,sk);limb(sx,shY+4,sx-14,shY+30,12,sk)}
+ if(arms==='drop'){limb(sx,shY+4,sx+20,shY+30,12,sk);limb(sx,shY+4,sx+30,shY+44,12,sk)}
+ if(arms==='up'){limb(sx,shY+4,sx+22,shY-26,12,sk);limb(sx,shY+4,sx-22,shY-26,12,sk)}
+ if(arms==='sword'){limb(sx,shY+4,sx+26,shY-10,12,sk);limb(sx+26,shY-10,sx+30,shY-40,12,sk);blade(sx+30,shY-40,-80,o.blade||'#d8dde2',70)}
+ if(arms==='swordhigh'){limb(sx,shY+4,sx+14,shY-22,12,sk);limb(sx+14,shY-22,sx+10,shY-52,12,sk);blade(sx+10,shY-52,-92,o.blade||'#d8dde2',74)}
+ if(arms==='pose'){limb(sx,shY+4,sx+18,shY-28,12,sk);limb(sx+18,shY-28,sx+22,shY-56,12,sk);blade(sx+22,shY-56,-70,o.blade||'#d8dde2',70);limb(sx,shY+4,sx-20,shY-24,12,sk)}
+ // head
+ g.fillStyle=INK;g.beginPath();g.arc(sx+4,hdY,17,0,7);g.fill();g.fillStyle=sk;g.beginPath();g.arc(sx+4,hdY,14,0,7);g.fill();
+ if(o.helm){g.fillStyle='#b8b8c0';g.beginPath();g.arc(sx+4,hdY-2,15,Math.PI,0);g.fill();g.fillStyle='#7a2a20';g.fillRect(sx-4,hdY-26,16,10);g.fillStyle='#555';g.fillRect(sx+4,hdY-2,12,14)}else{g.fillStyle='#3a1f10';g.beginPath();g.arc(sx+2,hdY-4,14,Math.PI,0);g.fill()}
+ if(o.shield){g.fillStyle='#b32a22';g.strokeStyle=INK;g.lineWidth=3;g.beginPath();g.roundRect(sx-34,shY+4,22,44,6);g.fill();g.stroke()}
+ g.restore()}
+function blade(x,y,deg,c,len){const a=deg*Math.PI/180;g.save();g.translate(x,y);g.rotate(a);g.fillStyle=INK;g.fillRect(-4,-5,len+8,10);g.fillStyle=c;g.fillRect(0,-3,len,6);g.fillStyle='#7a5a2a';g.fillRect(-8,-4,10,8);g.restore()}
+function ground(){g.fillStyle='rgba(120,80,40,.0)'}
+function bg(x0,y0,w,h,o){o=o||{};const im=I.bg;const sw=im.width,sh=im.height;const z=o.z||1,cx=o.cx==null?.5:o.cx,cy=o.cy==null?.5:o.cy;
+ const vw=sw/z,vh=vw*h/w;g.drawImage(im,Math.max(0,Math.min(sw-vw,cx*sw-vw/2)),Math.max(0,Math.min(sh-vh,cy*sh-vh/2)),vw,vh,x0,y0,w,h)}
+function dim(a,c){g.fillStyle=c||'#000';g.globalAlpha=a;g.fillRect(0,0,874,402);g.globalAlpha=1}
+function txt(t,x,y,sz,c,al,st){g.font='900 '+sz+'px "Trebuchet MS",system-ui,sans-serif';g.textAlign=al||'center';g.lineJoin='round';g.lineWidth=sz/5;g.strokeStyle=st||'#2a1608';g.strokeText(t,x,y);g.fillStyle=c||'#ffd25a';g.fillText(t,x,y)}
+function sand(){g.fillStyle='rgba(212,170,112,.0)'}
+// thumb on the Emperor: fist is at left-centre of emperor.webp (~ (80,290) of 412x550)
+function thumb(x,y,up,sz){g.save();g.translate(x,y);g.scale(sz,sz);g.rotate(up?0:Math.PI);g.fillStyle=INK;g.beginPath();g.roundRect(-14,-52,28,64,13);g.fill();g.fillStyle=SKIN;g.beginPath();g.roundRect(-10,-48,20,56,10);g.fill();g.fillStyle=SKIND;g.fillRect(-6,-30,12,3);g.restore()}
+function empBox(cx,cy,sc){ // the box: arch + emperor head crop (as the game draws it)
+ const w=412*sc,h=550*sc;g.drawImage(I.emp,cx-w/2,cy-h/2,w,h)}
+function petals(seed,n,w,h,t){let r=seed;const rn=()=>(r=(r*9301+49297)%233280)/233280;for(let i=0;i<n;i++){const x=rn()*w,y=(rn()*h*1.2+t*60)%h,a=rn()*6;g.save();g.translate(x,y);g.rotate(a+t);g.fillStyle=['#f2a0b4','#ffd0d8','#fff0a0','#f58090'][i%4];g.beginPath();g.ellipse(0,0,6,3.4,0,0,7);g.fill();g.restore()}}
+function lion(x,y,o){o=o||{};const s=o.sc||1,rot=o.rot||0;g.save();g.translate(x,y);g.rotate(rot);g.scale((o.dir||1)*s,s);
+ const T=I.lt,w=170,h=T.height/T.width*w;g.drawImage(I.tail,-w*.55,-h*.9,70,70*I.tail.height/I.tail.width);
+ g.drawImage(I.lb,-w*.5,-h*.55,60,60*I.lb.height/I.lb.width);g.drawImage(T,-w/2,-h,w,h);g.drawImage(I.lf,w*.15,-h*.55,60,60*I.lf.height/I.lf.width);
+ const hw=96,hh=I.lh.height/I.lh.width*hw;g.drawImage(I.lh,w*.28,-h-hh*.35,hw,hh);g.restore()}
+function dust(x,y,r,a){for(let i=0;i<9;i++){g.fillStyle='rgba(226,190,130,'+(a*(.5-i*.04))+')';g.beginPath();g.arc(x+Math.sin(i*2.1)*r*.8,y-Math.cos(i*1.3)*r*.4-i*4,r*(.4+i%3*.25),0,7);g.fill()}}
+function grains(x,y,n,sp){for(let i=0;i<n;i++){const a=-Math.PI*(.1+.8*((i*37%n)/n)),d=sp*(.4+(i*53%n)/n);g.fillStyle='#e6c88a';g.fillRect(x+Math.cos(a)*d,y+Math.sin(a)*d+d*.15,4,4)}}
+function vig(){const gr=g.createRadialGradient(437,201,150,437,201,520);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.55)');g.fillStyle=gr;g.fillRect(0,0,874,402)}
+function letterbox(){g.fillStyle='#000';g.fillRect(0,0,874,40);g.fillRect(0,362,874,40)}
+function brutusLine(t,hi){g.fillStyle='rgba(20,10,4,.82)';g.beginPath();g.roundRect(120,288,634,86,14);g.fill();g.strokeStyle='#e0b050';g.lineWidth=3;g.stroke();
+ const b=I.bru;g.drawImage(b,132,282,b.width/b.height*96,96);txt(t,230+ (874-230-120)/2-16,342,26,'#fff2d6',null,'#000')}
+function title(t,c){txt(t,437,176,84,c||'#ffd25a')}
+// ---- frames: each takes (g at logical 874x402)
+const bgF=(o)=>bg(0,0,874,402,o);
+const SAND=y=>{g.fillStyle='rgba(206,160,98,.0)'};
+const rows=[
+ {name:'SPARED',sub:'favour high · any foe',beats:[
+  ['you lose your last heart (real frame)',()=>{g.drawImage(I.s1,0,0)}],
+  ['knee down, blade dropped: music dips',()=>{bgF({z:1.2,cy:.62});dim(.18);g.fillStyle='rgba(150,100,50,.55)';g.fillRect(0,318,874,84);man(430,345,{kneel:1,arms:'drop',shield:1,sc:1.1});blade(520,338,-8,'#d8dde2',90);vig()}],
+  ['cut to the box: thumb up',()=>{g.fillStyle='#2a1a0e';g.fillRect(0,0,874,402);bgF({z:2.2,cy:.26});dim(.45);empBox(437,215,.78);thumb(340,228,1,1.5);txt('THUMB UP',437,380,40,'#9be07a');vig()}],
+  ['crowd roars: petals, you rise',()=>{bgF({z:1.1,cy:.55});dim(.0);man(437,346,{kneel:.2,arms:'up',shield:1,sc:1.1,lean:6});petals(7,48,874,402,.6);txt('ROAR!',437,92,70,'#ffd25a');vig()}],
+  ['"SPARED" card, then the run-end screen',()=>{bgF({z:1.1,cy:.55});dim(.55);title('SPARED');brutusLine('“They liked you. Don’t waste it.”');petals(3,30,874,402,1.4)}]]},
+ {name:'EXECUTED',sub:'favour low · a champion or any foe that "decides"',beats:[
+  ['you lose your last heart (real frame)',()=>{g.drawImage(I.s2,0,0)}],
+  ['you kneel; he steps over, blade up',()=>{bgF({z:1.2,cy:.62});dim(.28);man(360,345,{kneel:1,arms:'drop',shield:1,sc:1.1});man(540,350,{dir:-1,arms:'swordhigh',sc:1.35,col:'#c8a040',skin:'#c0783a',helm:1,blade:'#e8ecf0'});vig()}],
+  ['cut to the box: thumb down, crowd hushes',()=>{g.fillStyle='#2a1a0e';g.fillRect(0,0,874,402);bgF({z:2.2,cy:.26});dim(.6);empBox(437,215,.78);thumb(340,214,0,1.5);txt('THUMB DOWN',437,380,40,'#ff6a50');vig()}],
+  ['the blow: flash to black, one hard "SHK"',()=>{g.fillStyle='#000';g.fillRect(0,0,874,402);g.save();g.translate(437,201);g.rotate(-.5);const gr=g.createLinearGradient(-500,0,500,0);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(.5,'#fff');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(-500,-9,1000,18);g.restore();txt('SHK',437,222,56,'#fff','center','#000')}],
+  ['he raises the weapon to the crowd; you are out of frame',()=>{bgF({z:1.1,cy:.55});dim(.2);man(437,350,{arms:'pose',sc:1.35,col:'#c8a040',skin:'#c0783a',helm:1,blade:'#e8ecf0'});txt('“FELLED.”',437,92,60,'#ffd25a');vig()}]]},
+ {name:'MAULED',sub:'a beast felled you',beats:[
+  ['you lose your last heart (real frame)',()=>{g.drawImage(I.s3,0,0)}],
+  ['the lion crouches then LEAPS at you',()=>{bgF({z:1.2,cy:.62});dim(.15);man(300,346,{arms:'down',shield:1,sc:1.1,lean:-6});lion(560,350,{sc:1.0,dir:-1,rot:.12});txt('!',300,200,64,'#ff6a50');vig()}],
+  ['it lands on you; you go down under it',()=>{bgF({z:1.2,cy:.62});dim(.2);man(360,350,{kneel:1,arms:'up',shield:1,sc:1.1,lean:-30});lion(380,310,{sc:1.15,dir:-1,rot:-.5});dust(330,350,70,1);grains(330,330,22,140);vig()}],
+  ['sand flies, the crowd gasps: zoom on the stands',()=>{bgF({z:2.6,cy:.27});dim(.3);g.fillStyle='rgba(120,20,10,.18)';g.fillRect(0,0,874,402);txt('OOOH!',437,120,76,'#ffe9a0');dust(437,380,160,.9);vig()}],
+  ['fade to black over drifting sand; run-end screen',()=>{bgF({z:1.1,cy:.6});dim(.7);dust(437,390,250,.9);brutusLine('“The beast is hungry. Fight it from afar.”');dim(.35)}]]}
+];
+function go(){g.fillStyle='#1a120b';g.fillRect(0,0,W,H);txt('ARENA fall scenes: storyboard, 5 beats, about 3 s per scene (frame 1 is a real film.mjs still; the rest are mocked)',W/2,24,16,'#f4e4c1','center','#000');
+ rows.forEach((r,ri)=>{const y0=TOP+ri*ROWH;g.font='900 17px system-ui';g.textAlign='left';g.fillStyle='#ffd25a';g.fillText(r.name,10,y0+30);g.font='12px system-ui';g.fillStyle='#d9c59a';wrap(r.sub,10,y0+50,LAB-14,15);
+  r.beats.forEach((b,i)=>{const x0=LAB+GAP+i*(FW+GAP);g.save();g.translate(x0,y0);g.beginPath();g.rect(0,0,FW,FH);g.clip();g.scale(S,S);
+   try{b[1]()}catch(e){g.fillStyle='red';g.fillText(String(e),20,40)}g.restore();g.strokeStyle='#6a4a2a';g.lineWidth=2;g.strokeRect(x0,y0,FW,FH);
+   g.font='bold 12px system-ui';g.fillStyle='#ffd25a';g.textAlign='left';g.fillText((i+1)+'  '+['0.0 s','0.5 s','1.1 s','1.7 s','2.3 s'][i],x0,y0+FH+15);g.font='12px system-ui';g.fillStyle='#f4e4c1';wrap(b[0],x0,y0+FH+29,FW,14)})});
+ document.title='done'}
+function wrap(t,x,y,w,lh){const ws=t.split(' ');let l='';for(const s of ws){if(g.measureText(l+s).width>w&&l){g.fillText(l,x,y);y+=lh;l=''}l+=s+' '}g.fillText(l,x,y)}
+</script>

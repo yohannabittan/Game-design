@@ -36,4 +36,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-21,Arena: rank coins wired,build,claude-sonnet-5-5,15,yes,30,3,Pack 32 into rankEmblem
 2026-11-21,Arena: knives after every bout,build,claude-sonnet-5-5,20,yes,40,23,a knife offer on the between-bout screen
 2026-11-21,Arena sketch: bow aim and beast charge,sketch,claude-sonnet-5-5,20,,,,touchable page like the knife tester
-2026-11-21,Arena sketch: fall scenes storyboard,sketch,claude-sonnet-5-5,20,,,,spared / executed / mauled
+2026-11-21,Arena sketch: fall scenes storyboard,sketch,claude-sonnet-5-5,20,yes,,,spared / executed / mauled
