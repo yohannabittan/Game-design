@@ -1,0 +1,43 @@
+{
+ "pack": "34",
+ "assets": {
+  "kit-base-torso-avg-f": [
+   "kit-base-torso-avg-f-A.png",
+   "kit-base-torso-avg-f-B.png"
+  ],
+  "face-sparta-f": [
+   "face-sparta-f-A.png",
+   "face-sparta-f-B.png"
+  ],
+  "kit-arm-up-avg-f": [
+   "kit-arm-up-avg-f.png"
+  ],
+  "kit-arm-lo-avg-f": [
+   "kit-arm-lo-avg-f.png"
+  ],
+  "kit-leg-up-avg-f": [
+   "kit-leg-up-avg-f.png"
+  ],
+  "kit-leg-lo-avg-f": [
+   "kit-leg-lo-avg-f.png"
+  ],
+  "face-gaul-m": [
+   "face-gaul-m.png"
+  ],
+  "face-gaul-f": [
+   "face-gaul-f.png"
+  ],
+  "face-numidia-m": [
+   "face-numidia-m.png"
+  ],
+  "face-numidia-f": [
+   "face-numidia-f.png"
+  ],
+  "face-egypt-m": [
+   "face-egypt-m.png"
+  ],
+  "face-egypt-f": [
+   "face-egypt-f.png"
+  ]
+ }
+}
