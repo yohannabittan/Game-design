@@ -1061,7 +1061,7 @@ function unlockMark(ctx, q, x, y, r, style) {
 }
 
 // Brutus's ludus (E), since ranks (step 2026-11-18) Brutus's path: your rank and its name, the bar to the next, then the path sideways, one card a rank
-// (its node on the line, its mark, its name, YOURS or the rank it comes at; the next one gilded). Drag it sideways. A tap on a tailor's piece you own steps
+// (its node on the line, its mark, its name, UNLOCKED or the rank it comes at; the next one gilded). Drag it sideways. A tap on a tailor's piece you own steps
 // it through its styles and off; a tap on the Start card picks the card you start with. Principle 11: three text items an element.
 export const ludus = {
   ...SCROLLS,
@@ -1107,7 +1107,7 @@ export const ludus = {
       ids.forEach((id, j) => unlockMark(ctx, LUDUS_ITEM[id], cx + (j - (ids.length - 1) / 2) * ir * 1.9, cy + 14 + ir, ir, st));
       wrapPx(ctx, pathName(k), cw - 12, 14, '800').slice(0, 2).forEach((t, j) => E.text(t, cx, cy + 32 + ir * 2 + j * 17, { size: 14, weight: '800', color: '#f0e6cc' }));
       ctx.restore();
-      const tag = !own ? (next ? 'NEXT' : `Rank ${k}`) : TAILOR[q.id] ? (st >= 0 ? TAILOR[q.id][st][0] : 'Off') : q.id === 'slot' ? (sp ? CARD[sp].name : 'Pick one') : 'YOURS ✓';
+      const tag = !own ? (next ? 'NEXT' : `Rank ${k}`) : TAILOR[q.id] ? (st >= 0 ? TAILOR[q.id][st][0] : 'Off') : q.id === 'slot' ? (sp ? CARD[sp].name : 'Pick one') : 'UNLOCKED ✓';
       const tc = !own ? (next ? '#ffd24a' : '#94a3b8') : TAILOR[q.id] || q.id === 'slot' ? '#c4b5fd' : '#4ade80';
       E.text(clipLine(ctx, tag, cw - 10, 14, '800'), cx, cy + ch - (next ? 34 : 18), { size: 14, weight: '800', color: tc });
       if (next) E.text(`Rank ${k}`, cx, cy + ch - 16, { size: 14, weight: '700', color: '#c4b99a' });

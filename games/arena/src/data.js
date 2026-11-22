@@ -187,9 +187,9 @@ export const LUDUS = [
     { id: 'trident', name: 'Trident and net', line: 'A new weapon for sale before your first bout. Longest reach, slow. Your first well-timed block each bout nets him and slows him.' },
     { id: 'sica', name: 'The sica', line: 'A new weapon for sale before your first bout. A short curved blade: quick, and its slashes cut deep.' }] },
   { id: 'barracks', name: 'The Barracks', line: 'New fighters and new card families', brutus: 'New blood in the barracks. Make room.', items: [
-    { id: 'sparta', name: 'A gladiatrix', line: 'A new fighter on your origin wheel: a Spartan woman. She starts with a Wall card.' },
-    { id: 'egypt', name: 'A freed slave', line: 'A new fighter on your origin wheel, from Egypt. Starts with a Brute card.' },
-    { id: 'circus', name: 'A chariot driver', line: 'A new fighter on your origin wheel, from the Circus. Starts with a Dancer card.' },
+    { id: 'sparta', name: 'From Sparta', line: 'A new fighter on your origin wheel: a Spartan woman. She starts with a Wall card.' },
+    { id: 'egypt', name: 'From Egypt', line: 'A new fighter on your origin wheel, from Egypt. Starts with a Brute card.' },
+    { id: 'circus', name: 'From the Circus', line: 'A new fighter on your origin wheel, from the Circus. Starts with a Dancer card.' },
     { id: 'trick', name: 'The Trickster', line: 'New cards in your picks: feints and tricks to fool him.' },
     { id: 'show', name: 'The Showman', line: 'New cards in your picks: win the crowd, and it fights for you.' }] },
   { id: 'training', name: 'The Training Ground', line: 'A card to start with, and a bigger first pick', brutus: 'Sweat here, so you bleed less out there.', items: [
