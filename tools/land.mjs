@@ -290,7 +290,8 @@ if (goneSet.size) {
 // ---- 3. cache version ----
 step('bump CACHE_VERSION', `${swPath}: ${mv[1]}-v${oldN} -> ${newVer}`);
 touch(swPath);
-write(swPath, swNow.replace(mv[0], `const CACHE_VERSION = '${newVer}'`));
+// re-read after the merge: the builder may have added files to the lists (writing the pre-merge copy dropped them, v87 to v94)
+if (!DRY) write(swPath, read(swPath).replace(/const CACHE_VERSION = '[a-z0-9-]+-v\d+'/, `const CACHE_VERSION = '${newVer}'`));
 
 // ---- 4. notes.js and RULES.md ----
 if (hasNotes) {

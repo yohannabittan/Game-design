@@ -2,6 +2,7 @@
 // The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
 // then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
 export const NOTES = [
+  { v: 95, date: '22 Nov', lines: ['Arena works offline again'] },
   { v: 94, date: '22 Nov', lines: ['Every unlock on the rank path has its own picture'] },
   { v: 93, date: '22 Nov', lines: ['No more blocky fighter before the art arrives'] },
   { v: 92, date: '22 Nov', lines: ['The ARENA logo shows even on a bad connection'] },

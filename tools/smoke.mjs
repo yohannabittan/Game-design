@@ -120,6 +120,20 @@ await browser.close(); server.close();
     }
   }
 }
+// Offline lists: every file under games/<slug>/src and games/<slug>/assets must be named in that game's sw.js, or the
+// game does not load (src) or loses its paintings (assets) offline. Arena missed range.js, charge.js and 68 files (v87 to v94).
+{
+  const { readFileSync, readdirSync, statSync, existsSync } = await import('node:fs');
+  const { relative } = await import('node:path');
+  const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
+  for (const slug of readdirSync(join(ROOT, 'games'))) {
+    const dir = join(ROOT, 'games', slug), swp = join(dir, 'sw.js');
+    if (!existsSync(swp)) continue;
+    const sw = readFileSync(swp, 'utf8'), miss = [];
+    for (const sub of ['src', 'assets']) if (existsSync(join(dir, sub))) for (const f of walk(join(dir, sub))) { const r = './' + relative(dir, f).split('\\').join('/'); if (!sw.includes(`'${r}'`)) miss.push(r); }
+    if (miss.length) { failed++; console.log(`FAIL ${slug}/sw.js does not list ${miss.length} file(s): ${miss.slice(0, 8).join(' ')}${miss.length > 8 ? ' ...' : ''}`); }
+  }
+}
 // The docs check (tools/docs-check.mjs): the repo's documents and tools must still describe the repo.
 {
   const { execFileSync } = await import('node:child_process');
