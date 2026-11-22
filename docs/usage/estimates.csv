@@ -40,5 +40,5 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-21,Arena: bow and beast charge,build,claude-opus-5-5,90,yes,,,beast charge opening; bow aims like the knife; knives hit the charge; two bow trials
 2026-11-21,Launch sketch: Tea Party and caramel,sketch,claude-sonnet-5-5,30,yes,,,landmark; arrival; riding together; caramel endings
 2026-11-22,Arena: bow fix round 1,build,claude-opus-5-5,45,yes,,,archer's hand to the string; beast whole on screen and clear of buttons in the charge
-2026-11-22,Arena: bow verifier,verify,claude-sonnet-5-5,40,,,,independent: try to break the bow, the charge and the bow trials
+2026-11-22,Arena: bow verifier,verify,claude-opus-5-5,40,yes,,,independent: try to break the bow, the charge and the bow trials
 2026-11-22,Launch: Tea Party together and stretchy caramel,build,claude-opus-5-5,75,,,,teapot landmark; arrival beat; ride; caramel slingshot; lessons button
