@@ -1,5 +1,5 @@
 {
- "pack": "34-turn",
+ "pack": "34-turn+full",
  "assets": {
   "kit-base-torso-avg": [
    "kit-base-torso-avg-3q.png",
@@ -12,6 +12,51 @@
   "kit-base-torso-avg-f": [
    "kit-base-torso-avg-f-A-3q.png",
    "kit-base-torso-avg-f-B-3q.png"
+  ],
+  "kit-base-torso-lean-3q": [
+   "kit-base-torso-lean-3q.png"
+  ],
+  "kit-base-torso-3q": [
+   "kit-base-torso-3q.png"
+  ],
+  "kit-base-torso-lean-f-3q": [
+   "kit-base-torso-lean-f-3q.png"
+  ],
+  "kit-base-torso-f-3q": [
+   "kit-base-torso-f-3q.png"
+  ],
+  "kit-plate-chest-f-3q": [
+   "kit-plate-chest-f-3q.png"
+  ],
+  "gear-black-plate-3q": [
+   "gear-black-plate-3q.png"
+  ],
+  "gear-colossus-plate-3q": [
+   "gear-colossus-plate-3q.png"
+  ],
+  "kit-arm-up-lean-f": [
+   "kit-arm-up-lean-f.png"
+  ],
+  "kit-arm-lo-lean-f": [
+   "kit-arm-lo-lean-f.png"
+  ],
+  "kit-leg-up-lean-f": [
+   "kit-leg-up-lean-f.png"
+  ],
+  "kit-leg-lo-lean-f": [
+   "kit-leg-lo-lean-f.png"
+  ],
+  "kit-arm-up-musc-f": [
+   "kit-arm-up-musc-f.png"
+  ],
+  "kit-arm-lo-musc-f": [
+   "kit-arm-lo-musc-f.png"
+  ],
+  "kit-leg-up-musc-f": [
+   "kit-leg-up-musc-f.png"
+  ],
+  "kit-leg-lo-musc-f": [
+   "kit-leg-lo-musc-f.png"
   ]
  }
 }
