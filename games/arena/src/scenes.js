@@ -1016,8 +1016,15 @@ function drawCourtyard(ctx, E) {
 }
 // an unlock's mark in a roundel of radius r: its weapon, a fighter's shape, its family's mark, a vault scroll, the cards, her key, or the tailor's colour
 function unlockMark(ctx, q, x, y, r, style) {
-  const id = q.id;
-  ctx.save(); ctx.fillStyle = id === 'trident' || id === 'sica' ? '#d9cfb4' : '#1a1422'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.strokeStyle = '#e6c866'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+  const id = q.id, fighter = q.station === 'barracks' && !FAMS[id], im = artImg(`${fighter ? 'fighter' : 'unlock'}-${id}`), vault = q.station === 'vault';
+  ctx.save(); ctx.fillStyle = !im && (id === 'trident' || id === 'sica') ? '#d9cfb4' : '#1a1422'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  // a vault scroll's seal is too small to read at this size: its family's colour rings the roundel
+  ctx.strokeStyle = vault ? FAMS[q.fam].col : '#e6c866'; ctx.lineWidth = vault ? 3.5 : 2; ctx.stroke(); ctx.restore();
+  if (im) {
+    if (fighter) { const c = TUNING.art.unlockBust; ctx.save(); ctx.beginPath(); ctx.arc(x, y, r - 1, 0, TAU); ctx.clip(); ctx.drawImage(im, c[0], c[1], c[2], c[2], x - r, y - r, r * 2, r * 2); ctx.restore(); }
+    else { const s = r * 2 * TUNING.art.unlockIcon; ctx.drawImage(im, x - s / 2, y - s / 2, s, s); }
+    return;
+  }
   if (id === 'trident' && !(kitOn() && artImg(weaponArt('trident')))) {
     // a bold trident glyph (the drawn weapon's prongs are hairlines at this size)
     ctx.save(); ctx.translate(x, y); ctx.rotate(0.55); ctx.strokeStyle = '#2a1d12'; ctx.fillStyle = '#2a1d12'; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2.5, r * 0.15);
@@ -1095,7 +1102,7 @@ export const ludus = {
       ctx.fillStyle = k <= r ? '#ffd24a' : next ? '#ffd24a' : '#475569'; ctx.beginPath(); ctx.arc(cx, ly, next ? R.node + 3 : R.node, 0, TAU); ctx.fill();
       E.text(`${k}`, cx, ly + 1, { size: 14, weight: '800', color: k <= r || next ? '#2a1d08' : '#cbd5e1' });
       E.roundRect(x, cy, cw, ch, 12, next ? 'rgba(58,44,14,0.95)' : 'rgba(26,20,30,0.92)', next ? '#ffd24a' : own ? 'rgba(74,222,128,0.6)' : 'rgba(240,230,204,0.22)');
-      const st = TAILOR[q.id] && own ? (T[q.id] != null ? T[q.id] : 0) : 0, ir = Math.min(26, cw * 0.22);
+      const st = TAILOR[q.id] && own ? (T[q.id] != null ? T[q.id] : 0) : 0, ir = Math.min(TUNING.art.pathIcon, cw * 0.27);
       ctx.save(); if (!own && !next) ctx.globalAlpha = 0.45;
       ids.forEach((id, j) => unlockMark(ctx, LUDUS_ITEM[id], cx + (j - (ids.length - 1) / 2) * ir * 1.9, cy + 14 + ir, ir, st));
       wrapPx(ctx, pathName(k), cw - 12, 14, '800').slice(0, 2).forEach((t, j) => E.text(t, cx, cy + 32 + ir * 2 + j * 17, { size: 14, weight: '800', color: '#f0e6cc' }));
@@ -2134,7 +2141,7 @@ export const over = {
   },
   // one rank's unlock: its mark (two for the last rank's scrolls), its name and its line
   unlockBox(ctx, E, k, x, y, w, h) {
-    const ids = PATH[k - 1], q = LUDUS_ITEM[ids[0]], ir = Math.min(22, h * 0.3);
+    const ids = PATH[k - 1], q = LUDUS_ITEM[ids[0]], ir = Math.min(28, h * 0.32);
     E.roundRect(x, y, w, h, 12, 'rgba(26,20,10,0.9)', '#e6c866');
     ids.forEach((id, j) => unlockMark(ctx, LUDUS_ITEM[id], x + 12 + ir + j * ir * 1.2, y + h / 2 - j * ir * 0.5, ir, 0));
     const tx = x + 22 + ir * 2 + (ids.length - 1) * ir * 1.2, tw = x + w - 10 - tx;

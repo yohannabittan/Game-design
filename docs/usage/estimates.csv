@@ -45,4 +45,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-22,Launch: Tea Party verifier,verify,claude-opus-5-5,40,yes,,,independent: caramel catch, arrival beat, lessons button, old saves
 2026-11-22,Arena: art load fallback and title,build,claude-sonnet-5-5,25,yes,,,dev candidate that fails falls back to shipped file; retry; fallback title without inner lines
 2026-11-22,Arena: figures wait for their paint,build,claude-sonnet-5-5,30,yes,,,dev loads shipped files first; figures fade in when painted; blocky only after a timeout
-2026-11-22,Arena: unlock icons wired,build,claude-sonnet-5-5,30,,,,Pack 33 and 33b onto the rank path, run end and rank-up; picks fourth A trick A sparta B trident B
+2026-11-22,Arena: unlock icons wired,build,claude-sonnet-5-5,30,yes,,,Pack 33 and 33b onto the rank path, run end and rank-up; picks fourth A trick A sparta B trident B

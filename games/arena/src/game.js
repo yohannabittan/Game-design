@@ -902,7 +902,9 @@ const SHIPPED = new Set([
   // the range trials' target, board, wheel and pots (Pack 30)
   'range-target knife-board knife-wheel pot-clay pot-wineskin fruit-pumpkin fruit-watermelon fruit-pineapple fruit-pomegranate fruit-apple fruit-seller ',
   // the twenty rank coins (Pack 32)
-  'rank-01 rank-02 rank-03 rank-04 rank-05 rank-06 rank-07 rank-08 rank-09 rank-10 rank-11 rank-12 rank-13 rank-14 rank-15 rank-16 rank-17 rank-18 rank-19 rank-20'
+  'rank-01 rank-02 rank-03 rank-04 rank-05 rank-06 rank-07 rank-08 rank-09 rank-10 rank-11 rank-12 rank-13 rank-14 rank-15 rank-16 rank-17 rank-18 rank-19 rank-20 ',
+  // Pack 33 and 33b: the rank path's unlock icons and the three new fighters' busts
+  'unlock-fourth unlock-trick fighter-sparta unlock-slot unlock-show unlock-promise unlock-vault-wall unlock-vault-blood unlock-vault-dancer unlock-vault-brute unlock-vault-trick unlock-vault-show fighter-egypt fighter-circus unlock-sica unlock-trident unlock-crest unlock-plume unlock-paint unlock-cloak'
 ].join('').split(' '));
 // Pack 27: the helmets and head gear painted onto the head ship as <name>-worn.webp; their old pieces' files are retired
 const WORN = new Set(['kit-helmet-gallic', 'kit-helmet-murmillo', 'kit-helmet-thraex', 'gear-bronze-crest', 'gear-plumed-helm', 'gear-phalanx-helm',

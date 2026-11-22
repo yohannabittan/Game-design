@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29, 30, 32",
+ "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29, 30, 32, 33, 33b",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -705,6 +705,73 @@
   ],
   "rank-20": [
    "rank-20-A.webp"
+  ],
+  "unlock-fourth": [
+   "unlock-fourth-A.webp",
+   "unlock-fourth-B.webp",
+   "unlock-fourth-C.webp"
+  ],
+  "unlock-trick": [
+   "unlock-trick-A.webp",
+   "unlock-trick-B.webp",
+   "unlock-trick-C.webp"
+  ],
+  "fighter-sparta": [
+   "fighter-sparta-A.webp",
+   "fighter-sparta-B.webp",
+   "fighter-sparta-C.webp"
+  ],
+  "unlock-slot": [
+   "unlock-slot-A.webp"
+  ],
+  "unlock-show": [
+   "unlock-show-A.webp"
+  ],
+  "unlock-promise": [
+   "unlock-promise-A.webp"
+  ],
+  "unlock-vault-wall": [
+   "unlock-vault-wall-A.webp"
+  ],
+  "unlock-vault-blood": [
+   "unlock-vault-blood-A.webp"
+  ],
+  "unlock-vault-dancer": [
+   "unlock-vault-dancer-A.webp"
+  ],
+  "unlock-vault-brute": [
+   "unlock-vault-brute-A.webp"
+  ],
+  "unlock-vault-trick": [
+   "unlock-vault-trick-A.webp"
+  ],
+  "unlock-vault-show": [
+   "unlock-vault-show-A.webp"
+  ],
+  "fighter-egypt": [
+   "fighter-egypt-A.webp"
+  ],
+  "fighter-circus": [
+   "fighter-circus-A.webp"
+  ],
+  "unlock-sica": [
+   "unlock-sica-A.webp"
+  ],
+  "unlock-trident": [
+   "unlock-trident-A.webp",
+   "unlock-trident-B.webp"
+  ],
+  "unlock-crest": [
+   "unlock-crest-A.webp"
+  ],
+  "unlock-plume": [
+   "unlock-plume-A.webp"
+  ],
+  "unlock-paint": [
+   "unlock-paint-A.webp"
+  ],
+  "unlock-cloak": [
+   "unlock-cloak-A.webp"
   ]
  }
 }

@@ -162,3 +162,5 @@ To undo a landed build: `node tools/land.mjs arena --revert <commit> --msg "Aren
 - A bent second arm (the bow's drawing hand): drawArm's 'back' and 'front' passes, as the two-blade off arm uses; solveArm straightens past straightAt
 - sw.js ASSETS is hand-kept: add every new src file
 - Where each figure draws (for anything about loading or hiding a figure): drawFighter, drawBeast, drawSwordArm, drawShield, drawEdge, menuFigure, and the intro's hold; artV leaks into replay dumps through look keys, so render caches belong in tools/replay.mjs COSMETIC
+- Every unlock icon is drawn by unlockMark in scenes.js; the engine reads only docs/art/candidates/arena/candidates.json, so a pack in its own folder must be merged in there as -A.webp copies
+- sw.js ART is hand-kept: every name in SHIPPED needs its ./assets/<name>.webp line or it is not offline

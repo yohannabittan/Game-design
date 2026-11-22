@@ -662,7 +662,7 @@ export const TUNING = {
   // ring: the painted laurel (laurel-ring, Pack 26) round a cleared arena's portrait, centred on it: its canvas (w, h) and the portrait height it was
   // painted round (px; HANDOFF-arena-pack26: a 180 x 240 portrait in a 300 x 400 ring)
   pick: { m: 6, rim: 7, focus: 0.5, shade: [0.7, 0.9], fade: [0.28, 0.6], top: 62, bot: 82, lock: 0.5, ring: [300, 400, 240] },
-  art: { wash: 0.28, band: 1.15, bandA: 0.32, face: 30, faceBig: 40, faceCard: 26, gap: 4, cardDrop: 8, crop: [0.2, 0.02, 0.78, 0.46], bust: [60, 80, 10], epi: [96, 128], box: [0, 0.02, 1, 0.62] },
+  art: { wash: 0.28, band: 1.15, bandA: 0.32, face: 30, faceBig: 40, faceCard: 26, gap: 4, cardDrop: 8, crop: [0.2, 0.02, 0.78, 0.46], bust: [60, 80, 10], unlockIcon: 1.12, pathIcon: 34, unlockBust: [48, 0, 416], epi: [96, 128], box: [0, 0.02, 1, 0.62] },
   // The painted cut-out kit (dev-only pilot, a switch on the ART screen): Strength picks the muscle tier (lean up to lean, avg up to avg, the muscular
   // parts above). Each part's joint centres a and b in its PNG (px of size; a tier's image is scaled by its own size), measured from the alpha, and w = the
   // px across it that spans the rig's width (the part's hit width, so the drawn shape stays the hitbox). The torso runs from neck to belt (body units)
