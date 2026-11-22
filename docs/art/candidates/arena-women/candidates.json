@@ -1,5 +1,5 @@
 {
- "pack": "34",
+ "pack": "34+full",
  "assets": {
   "kit-base-torso-avg-f": [
    "kit-base-torso-avg-f-A.png",
@@ -38,6 +38,36 @@
   ],
   "face-egypt-f": [
    "face-egypt-f.png"
+  ],
+  "face-thrace-m": [
+   "face-thrace-m.png"
+  ],
+  "face-thrace-f": [
+   "face-thrace-f.png"
+  ],
+  "face-capua-m": [
+   "face-capua-m.png"
+  ],
+  "face-capua-f": [
+   "face-capua-f.png"
+  ],
+  "face-ostia-m": [
+   "face-ostia-m.png"
+  ],
+  "face-ostia-f": [
+   "face-ostia-f.png"
+  ],
+  "face-alexandria-m": [
+   "face-alexandria-m.png"
+  ],
+  "face-alexandria-f": [
+   "face-alexandria-f.png"
+  ],
+  "face-circus-m": [
+   "face-circus-m.png"
+  ],
+  "face-circus-f": [
+   "face-circus-f.png"
   ]
  }
 }
