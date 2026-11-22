@@ -383,7 +383,7 @@ export function windFoe(E, dur) {
 
 export function updateFoe(dt, E) {
   const f = state.foe, FS = TUNING.foeSta;
-  if (state.fallT > 0 || state.intro) return;
+  if (state.fallT > 0 || state.intro || state.charge) return;
   // the Huntress picks her spear up again
   if (state.spearT > 0 && (state.spearT -= dt) <= 0) { setWeapon(f, TUNING.weapons.find((w) => w.id === 'spear')); state.spearAt = null; swooshSound(E, 0.1); }
   twinCheck(E);

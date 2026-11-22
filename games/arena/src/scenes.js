@@ -1774,8 +1774,8 @@ export const play = {
     // a raised knife: the right thumb aims it (the sword hand stays put), and a dragged thumb's release throws it; in the first-knife lesson the
     // sword thumb waits for the knife
     if (state.aim && p.startX >= E.w / 3) { if (state.aim.id < 0) aimDown(E, p); return; }
-    // step 24: with the bow out the right thumb draws and aims it (never the sword hand); not while it comes up or goes down
-    if (state.bowOut && p.startX >= E.w / 3) { if (state.swapT <= 0) bowDown(E, p); return; }
+    // step 24: with the bow out the right thumb draws and aims it (never the sword hand); a press while it comes up draws once it is up
+    if (state.bowOut && p.startX >= E.w / 3) { bowDown(E, p); return; }
     if (state.kLesson && p.startX >= E.w / 3) return;
     if (p.startX < E.w / 3) {
       if (state.range) return;

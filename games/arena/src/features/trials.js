@@ -18,9 +18,9 @@ import { startRange, updateRange, rangeCount } from './range.js';
 export const TABS = [['range', 'Range'], ['blades', 'Blades'], ['fists', 'Fists'], ['champions', 'Champions']];
 export const TRIALS = [
   { id: 'shrinkKnives', tab: 'range', name: 'Shrinking Target: knives', goal: 'Hit shrinking targets. 3 misses end it.', label: 'TARGETS', icon: 'knives' },
-  { id: 'shrinkBow', tab: 'range', name: 'Shrinking Target: bow', goal: 'The same, with the bow.', label: 'TARGETS', icon: 'bow', soon: true },
+  { id: 'shrinkBow', tab: 'range', name: 'Shrinking Target: bow', goal: 'The same, with the bow.', label: 'TARGETS', icon: 'bow' },
   { id: 'knifeWork', tab: 'range', name: 'Knife Work', goal: 'Fell him with knives alone.', label: 'KNIVES LEFT', icon: 'knives' },
-  { id: 'apple', tab: 'range', name: 'The Apple Shot', goal: 'Shoot the fruit, not the man.', label: 'FRUITS', icon: 'bow', soon: true },
+  { id: 'apple', tab: 'range', name: 'The Apple Shot', goal: 'Shoot the fruit, not the man.', label: 'FRUITS', icon: 'bow', seller: 'Fruits from a land past the edge of the world! Mind the man.' },
   { id: 'board', tab: 'range', name: 'The Knife Board', goal: 'Burst the pots, not the man.', label: 'POTS', icon: 'knives' },
   { id: 'wheel', tab: 'range', name: 'The Wheel', goal: 'Burst the pots as he spins.', label: 'POTS', icon: 'knives' },
   { id: 'ironwall', tab: 'blades', name: 'Iron Wall', goal: 'Perfect blocks in a row.', label: 'STREAK', icon: 'gladius' },
@@ -50,6 +50,9 @@ const SETUP = {
   shrinkKnives: { me: ['gladius', []], bare: true, range: true, foe: { name: 'The man', band: 'medium', weapon: 'fist', set: 'light', stats: [1, 1, 1] }, immortal: true, calm: true },
   board: { me: ['gladius', []], bare: true, range: true, foe: { name: 'The man', band: 'medium', weapon: 'fist', set: 'light', stats: [1, 1, 1] }, immortal: true, calm: true },
   wheel: { me: ['gladius', []], bare: true, range: true, foe: { name: 'The man', band: 'medium', weapon: 'fist', set: 'light', stats: [1, 1, 1] }, immortal: true, calm: true },
+  // 2026-11-21, the bow on the range: the bow in hand (range.js)
+  shrinkBow: { me: ['gladius', []], bare: true, range: true, foe: { name: 'The man', band: 'medium', weapon: 'fist', set: 'light', stats: [1, 1, 1] }, immortal: true, calm: true },
+  apple: { me: ['gladius', []], bare: true, range: true, foe: { name: 'The man', band: 'medium', weapon: 'fist', set: 'light', stats: [1, 1, 1] }, immortal: true, calm: true },
 };
 
 const SAVE = 'trials';
@@ -119,7 +122,7 @@ export function updateTrial(E, dt) {
     case 'gaphunter': if (tr.stabs >= C.need) win(E, tr.t); else if (lost || timeUp) fail(E, timeUp); break;
     case 'breaker': if (!f.parts.some((p) => p.armour)) win(E, tr.t); else if (lost || timeUp) fail(E, timeUp); break;
     case 'stagger': if ((tr.staggers || 0) >= C.need) win(E, tr.t); else if (lost || timeUp) fail(E, timeUp); break;
-    case 'shrinkKnives': case 'board': case 'wheel': { const n = updateRange(E, dt); if (n != null) win(E, n); break; }
+    case 'shrinkKnives': case 'board': case 'wheel': case 'shrinkBow': case 'apple': { const n = updateRange(E, dt); if (n != null) win(E, n); break; }
     case 'knifeWork': knifeWork(E, tr, f); break;
     case 'knuckles': case 'brawl': if (state.felled > 0) win(E, Math.max(0, Math.ceil(state.hp))); else if (lost) fail(E); break;
     case 'capuan': {
@@ -220,7 +223,10 @@ export function drawTrial(ctx, E) {
     // (low in the middle, over the sand: clear of the shield column, the HUD and both fighters' heads)
     const col = shieldBtns(E)[0], x0 = col.x + col.w + 12, x1 = E.w - 16 - E.safe.right, w = Math.min(x1 - x0, 480), cx = (x0 + x1) / 2, y = E.h - E.safe.bottom - 42;
     E.roundRect(cx - w / 2, y - 26, w, 52, 14, 'rgba(18,12,10,0.85)', '#c9a43a');
-    E.text(t.goal, cx, y, { size: fitSize(ctx, t.goal, 24, w - 24), weight: '800', color: '#f0e6cc' });
+    // (the Apple Shot's is the fruit seller's, his bust at the box's left)
+    const im = t.seller && artImg('fruit-seller'), bw = im ? 78 : 0, line = t.seller || t.goal;
+    if (im) ctx.drawImage(im, cx - w / 2 + 4, y + 26 - bw, bw, bw);
+    E.text(line, cx + bw / 2, y, { size: fitSize(ctx, line, 24, w - 24 - bw), weight: '800', color: '#f0e6cc' });
     ctx.globalAlpha = 1;
   }
 }
@@ -233,7 +239,7 @@ function liveCount(tr, C) {
     case 'stagger': return `STAGGERS ${Math.min(tr.staggers || 0, C.need)}/${C.need}  ·  ${left.toFixed(0)}s`;
     case 'capuan': return `READS ${tr.score}/${t.of}`;
     case 'rage': return `RAGES ${Math.min(tr.score, C.rages)}/${C.rages}  ·  ${left.toFixed(0)}s`;
-    case 'shrinkKnives': case 'board': case 'wheel': return rangeCount();
+    case 'shrinkKnives': case 'board': case 'wheel': case 'shrinkBow': case 'apple': return rangeCount();
     case 'knifeWork': return `KNIVES ${state.knives}`;
     case 'brawl': return state.edge && !state.edge.down ? 'FOE 1/2' : 'FOE 2/2';
     default: return '';

@@ -33,8 +33,9 @@ import { boutTally, gradeBout, heldFams, dealable, priceOf, boutLvl, dealDraft, 
 import { menu, story, pickArena, ludus, champs, roll, beginBout, introReady, play, over } from './scenes.js';
 import { YARD, nextYard, endYard, yardFields, tipFor, ghostPath } from './features/yard.js';
 import { startDual, updateDual } from './features/dual.js';
+import { startCharge } from './features/charge.js';
 import { trials } from './features/trials.js';
-import { bowShown, armsBtns, startSwap, startAim, aimAt, knifeAt, aimSnap, swapBow, bowDown, bowRelease, plainGap, arrowLands, knifeLands, knifeBuy,
+import { bowShown, armsBtns, startSwap, startAim, aimAt, knifeAt, swapBow, bowDown, bowRelease, plainGap, arrowLands, knifeLands, knifeBuy,
   startLesson } from './features/ranged.js';
 
 // ====== DATA TABLES (continued) ======
@@ -368,10 +369,11 @@ export function newRack(E) {
   // step 22: your swap, your aim, a knife in flight and one spent in the sand, his swap; step 22b: the first-knife lesson
   Object.assign(state, { swapT: 0, aim: null, knife: null, knifeFall: null, foeSwapT: 0, kLesson: null });
   // step 24: each bout starts with the blade in hand and the shield on the arm
-  Object.assign(state, { bowOut: false, bowSwap: false, arrow: null, arrowFall: null, follow: null });
+  Object.assign(state, { bowOut: false, bowSwap: false, arrow: null, volley: null, arrowFall: null, follow: null });
   state.sh.hits = shieldMax(); state.sh.broken = false; state.sh.cool = 0; state.sh.blocked = false;
-  // both fighters start each bout back on their marks
+  // both fighters start each bout back on their marks (a beast at the far end of the sand, to charge: features/charge.js)
   Object.assign(state.foot, { pos: 0, tgt: 0, v: 1, wallT: -9, foeWallT: -9 });
+  startCharge(E);
   state.mom = 0; state.momT = 0; state.bleed = []; state.bleedT = 0; state.lastTellDodge = -9;
   state.favM = state.m; state.favSum = 0; state.favDur = 0; state.finSel = '';
   state.armed = {}; state.openAll = 0; state.disarm = 0; state.flyW = 0; state.dents = 0; state.cape = 0;
@@ -855,7 +857,7 @@ const SHIPPED = new Set([
   // the bow at rest and drawn, and its arrow (Pack 29)
   'weapon-bow weapon-bow-drawn arrow ',
   // the range trials' target, board, wheel and pots (Pack 30)
-  'range-target knife-board knife-wheel pot-clay pot-wineskin ',
+  'range-target knife-board knife-wheel pot-clay pot-wineskin fruit-pumpkin fruit-watermelon fruit-pineapple fruit-pomegranate fruit-apple fruit-seller ',
   // the twenty rank coins (Pack 32)
   'rank-01 rank-02 rank-03 rank-04 rank-05 rank-06 rank-07 rank-08 rank-09 rank-10 rank-11 rank-12 rank-13 rank-14 rank-15 rank-16 rank-17 rank-18 rank-19 rank-20'
 ].join('').split(' '));
@@ -903,7 +905,7 @@ Object.assign(play, {
   state, lay, foeF, beginBout, youF, toScreen, cardNums, newRack, raiseShield, dodge, fell, blockRun, ZONE, TUNING, rollMe, respinMe, solveArm, windFoe, gapHit, bout,
   walls, gapNow, dealDraft, openDraft, pickCard, rerollDraft, skipDraft, skipPay, pushFoe, CARD, buildMove, startMove, shieldBtns, myBlade, bounce,
   emit, gainMom, addBleed, tellDodge, resolveSwing, strikeOf, zoneAt, foeStrike, HOOKS, openBandage, buyBandage, bandageDue, boutLvl, colossusHearts, famN, baitDrop, endBlow, startBlow, gildedFree, cardOpen, lamed, applyCard, finReady, finList, finBtn, thumbFav, updateFinisher, checkHits, disable, noDodge, noShield, perfectWin, DECK, partCenter, updateBleed, ZONES, heldFams, dealable, boutGold, openTent, buyWare, leaveTent, priceOf,
-  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, swapBow, bowDown, bowRelease, arrowLands, bowShown, shieldMax, plainGap, overReach, inReach, aimAt, knifeAt, startLesson, nextYard, aimSnap, raised, canBlock, glowZones, busy, purseCost, knifeBuy, partCenter,
+  sizeOf, rollFighter, rollStats, wheelList, statTier, PROFILES, GAUNTLET, meSize, kitMe, PLATES, armsBtns, startSwap, startAim, knifeLands, swapBow, bowDown, bowRelease, arrowLands, bowShown, shieldMax, plainGap, overReach, inReach, aimAt, knifeAt, startLesson, nextYard, raised, canBlock, glowZones, busy, purseCost, knifeBuy, partCenter,
   ARENAS, rollGauntlet, gradeBout, boutTally, openDraft, newRound, stepIn, updatePair, favour, bandOf, endingOf, edgeF, land, fakeOut, openNow, finCost, fireFinisher, crowdDrain, planExchange, rollGear, memoryOn, feintRead, startCard, foeLook, startCards, castNet, fameOf, carveChampion, vetMe, vetArenas, fameFromLedger, tailorOf, myLook, LUDUS, PATH, rankOf, rankAt, grantRanks, swapSpoil, spoilOf, wield, driving, saveRun, lookFor, manArt, kitTier, artState, introReady, buildSig, sigOf, champKey, purseCost, updateDual, YARD, endYard, tapCard, ghostPath, tipFor, guardPt, myH, yardFields, sizeOf, newRackAt: (E, i) => { state.rack = i; newRack(E); poseFoe(E, 0.016); },
 });
 // ====== GAME OBJECT: save, migrate, TUNE presets ======

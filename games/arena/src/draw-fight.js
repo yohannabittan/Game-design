@@ -11,7 +11,7 @@ import { perfectWin, finCost, finReady, finLive, finBtn, firstRun } from './card
 import { fitSize, wrapPx } from './screens.js';
 import { ink, over } from './scenes.js';
 import { arena, bg, state, easeOut, wrap, pidx, noDodge, noShield, meSize, meWeapon, ART, artV, ENG, IMGS, artImg, artReady, BACKDROP, kitOn } from './game.js';
-import { bowShown, knifeShown, armsW, drawBow, drawSlung } from './features/ranged.js';
+import { bowShown, knifeShown, armsW, drawBow, drawSlung, drawArmRec } from './features/ranged.js';
 import { offRec } from './features/dual.js';
 
 // ====== DRAWING: the fighters, the arena, the HUD, cards and wheels ======
@@ -2038,6 +2038,8 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
   // your sword arm does, behind you; its weapon and fist are drawn over him (drawShield)
   if (isFoe && fm.dual && !(live && state.disarm > 0)) { ctx.save(); inFrame(ctx, fm.fr.armB, H); drawWeapon(ctx, fm, H, !!lk.kit); ctx.restore(); }
   if (!isFoe && ga === 1 && state.me.dual && state.duo && !slung) { ctx.save(); ctx.setTransform(base); drawArm(ctx, E, offRec(), state.hand.off, 'back'); ctx.restore(); }
+  // (the bow up: your far arm draws its string, bending as an arm does; its fist goes over you with the arrow, drawKnives)
+  else if (slung && ga === 1) { ctx.save(); ctx.setTransform(base); drawArm(ctx, E, drawArmRec(E), false, 'back'); ctx.restore(); }
   else drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
   if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk, Math.min(E.dpr || 1, TUNING.skin.maxDpr)));
   drawPart(ctx, E, P('legs'), H, lk, null);
@@ -2136,12 +2138,13 @@ export function drawSwordArm(ctx, E) {
   }
   drawLookFx(ctx);
 }
-// One arm and its weapon from a hand record (state.hand, or with two weapons the hand off the thumb, state.duo.rest). live: the hand on the thumb,
-// which shows its blow; part: 'all', or the off arm's two passes, 'back' (the arm, behind your body) and 'front' (its weapon and fist, over him)
-function drawArm(ctx, E, h, live, part) {
-  const H = myH(E), locked = h.lock > 0, blade = myBlade(E) * (1 - (h.sl || 0)), wid = state.me.weapon, bare = wid === 'fist';
+// One arm and its weapon from a hand record (state.hand, or with two weapons the hand off the thumb, state.duo.rest, or the bow's drawing arm,
+// h.bare: an empty fist, no arm gear). live: the hand on the thumb, which shows its blow; part: 'all', or the off arm's two passes, 'back' (the
+// arm, behind your body) and 'front' (its weapon and fist, over him)
+export function drawArm(ctx, E, h, live, part) {
+  const H = myH(E), locked = h.lock > 0, blade = myBlade(E) * (1 - (h.sl || 0)), wid = state.me.weapon, bare = wid === 'fist' || !!h.bare;
   const far = part !== 'all', back = part !== 'front', front = part !== 'back';
-  const w = (wid === 'dagger' ? 0.026 : wid === 'sica' ? 0.03 : 0.034) * H, pole = wid === 'spear' || wid === 'axe' || wid === 'trident';
+  const w = (wid === 'dagger' ? 0.026 : wid === 'sica' ? 0.03 : 0.034) * H, pole = !h.bare && (wid === 'spear' || wid === 'axe' || wid === 'trident');
   // step 26: the blade as the blow is classed (drawn only; the hits use the hand's own blade): a jab's snaps into the arm's line, a slash's rolls
   // its edge forward (drawn narrower); the shoulder rides your body's look
   const LB = TUNING.look.blade, kind = live ? blowKind() : null, bw = LOOK.body.w, ph = h.ph + (kind === 'jab' && !locked ? clamp(wrap(h.ang - h.ph), -LB.snap, LB.snap) * bw : 0);
@@ -2166,7 +2169,7 @@ function drawArm(ctx, E, h, live, part) {
   }
   else if (!kit && back) {
     limb(ctx, [[sx, sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
-    liveArmGear(ctx, h, H, lk);
+    if (!h.bare) liveArmGear(ctx, h, H, lk);
     if (!far) { ctx.fillStyle = YOU.tunic; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke(); }
   }
   if (!front) return;
@@ -2259,7 +2262,7 @@ function drawArm(ctx, E, h, live, part) {
   }
   ctx.restore();
   if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 6, 0, 6.28); ctx.fill(); }
-  if (kit) { drawSeg(ctx, { ...kF, J: { ...kF.J, top: kF.J.a[1] + (kF.J.b[1] - kF.J.a[1]) * TUNING.kit.fist } }, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF); liveArmGear(ctx, h, H, lk, aw, kpx); }
+  if (kit) { drawSeg(ctx, { ...kF, J: { ...kF.J, top: kF.J.a[1] + (kF.J.b[1] - kF.J.a[1]) * TUNING.kit.fist } }, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF); if (!h.bare) liveArmGear(ctx, h, H, lk, aw, kpx); }
   else {
     ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
     ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();
@@ -2391,8 +2394,8 @@ function shieldArm(ctx, E, sh, Fy, H, J, lk) {
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
   const kit = lk.kit && kitPic('upperarm', lk.kit.tier) && kitPic('forearm', lk.kit.tier);
   const fist = () => { ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(hx, hy, 0.042 * H, 0, TAU); ctx.fill(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke(); };
-  // step 24: the bow is out: the shield (or the second blade) is away (drawFighter), the far hand reaches for the string
-  if (bowShown()) { if (!kit) { limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin); fist(); } return; }
+  // step 24: the bow is out: the shield (or the second blade) is away and the far arm draws the string (drawFighter, drawKnives)
+  if (bowShown()) return;
   // the painted shield arm is your body's far arm, drawn behind the torso as his is (its fist under the shield), so it is not drawn again here
   if (!kit) limb(ctx, [[sx, sy], [hx, hy]], 0.07 * H, YOU.skin);
   // Untouchable: no shield at all, an empty fist (the kit's far arm ends in one)

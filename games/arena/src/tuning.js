@@ -384,8 +384,7 @@ export const TUNING = {
   // for the run. aim = s to raise the knife (open: no block, no swing) before a release throws it; lift = px the aim point sits above the thumb;
   // speed = flight in H per s; dmg = a knife in a gap, skin = one on bare skin (a plate takes nothing); pad = px of give round a part; len = the knife's drawn length (H); fall = s a spent knife
   // lies in the sand; row = the Knives row's height and its - and + buttons' width (px)
-  // Step 22b (the bow aims this way too): snap = px from a gap's edge within which the aim snaps onto the gap (0: off); rest = where the ring sits
-  // before a thumb is down (H above his feet); raise = where your hand holds the raised knife, drawn back (H from the shoulder, forward and down),
+  // Step 22b: rest = his middle, where an aim with nothing better sits (H above his feet); raise = where your hand holds the raised knife, drawn back (H from the shoulder, forward and down),
   // held = its drawn size there (x len); glow = his open gaps' fill alpha and blur (px) while a knife is up.
   // Step 27 (the throw by angle, one press): at = the line's height where it crosses his middle (his H above his feet) at the top and the bottom of
   // the aim; a press aims at the bare skin nearest his chest (inside = how far into it, as a share of at), and the thumb's slide up or down from
@@ -396,23 +395,37 @@ export const TUNING = {
   // follow-through on (H) and down (H); release = s into the whip the knife leaves the hand
   // Between bouts (step 28): chip = the draft's Knife button, w x h px, in the top right corner; one tap buys one at price, up to max
   knives: { price: 8, max: 6, chip: [136, 44], aim: 0.25, lift: 50, speed: 5, dmg: 12, skin: 4, pad: 4, len: 0.13, fall: 1.2, row: [44, 44],
-    snap: 14, rest: 0.6, raise: [-0.12, -0.36], held: 1.4, glow: [0.4, 22],
+    rest: 0.6, raise: [-0.12, -0.36], held: 1.4, glow: [0.4, 22],
     gain: [1.1, 0.4], inside: 0.03, at: [0.98, -0.3], pre: 0.6, edge: 8, whip: [0.14, 0.3, 0.65], fwd: [0.3, 0.035, 0.055], release: 0.1 },
   // Step 24, the bow: a sidearm bought in the purse's Sidearm slot at price gold. swap = s the swap to it or back takes (no block, no swing), the shield
-  // going to your back (or back to your arm) and the blade away (or back) halfway. While it is out the right thumb works it: down starts the draw, full
-  // after draw s; a release sooner looses nothing (TOO SOON) and the draw starts again. Held on to full s the arrow flies and hits up to power x
-  // harder. speed = its flight (H per s); gap = x the ordinary gap hit (a gladius jab's in a gap, at your Strength); skin = its damage on bare skin,
-  // with a stagger; rush = x his step while it is out (he closes to striking distance), pounce = s at most to a beast's next blow once it is up.
-  // The look: follow = s the arm stays out toward the ring after a loose; len = the bow tip to tip (H); rest = the hand's place with no thumb down (H from the shoulder, forward and down); ring = the aim ring's
-  // radius at the draw's start and at full power (px); fall = s a spent arrow lies in the sand; back = where the slung shield sits on your back
+  // going to your back (or back to your arm) and the blade away (or back) halfway. While it is out the right thumb works it (2026-11-21, aimed like the
+  // knife, the bow sketch's feel): down aims at his chest for a full draw, a slide up or down turns the angle by gain rad per screen height (within ang),
+  // and the release always looses. Its power (0 to 1) grows with the hold: weak at once, mid at draw s (a tick), 1 at full s; it flies at lerp(vMin,
+  // vMax, power) H/s and falls at grav H/s/s, and the dotted line shows that flight pre of the way to him. It hits power x (base + (1 - base) x its
+  // power) as hard: gap = x the ordinary gap hit (a gladius jab's in a gap, at your Strength); skin = its damage on bare skin, with a stagger; inside
+  // his reach close x that. pounce = s at most to a beast's next blow once it is up.
+  // The look: follow = s the arm stays out along the shot after a loose; len = the bow tip to tip (H); rest = the hand's place with no thumb down (H from
+  // the shoulder, forward and down); fall = s a spent arrow lies in the sand; back = where the slung shield sits on your back
   // (body units from your feet), its radius (H), its turn (rad) and its squash across; hip = where the put-away blade hangs (body units, its lean
   // back in rad, its scale); the painted bow (Pack 29): its canvas, the grip pin, the
-  // string's ends at rest and drawn, the drawn point's x (on the grip's row), the rest-to-drawn crossfade (share of the draw); the arrow's canvas,
-  // its nock and tip, and x its thickness drawn
-  bow: { price: 20, swap: 0.7, draw: 0.6, full: 1.2, power: 1.3, speed: 9, gap: 2, skin: 1, rush: 1.8, pounce: 0.6, follow: 0.3,
-    len: 0.55, rest: [0.28, 0.16], ring: [16, 8], fall: 1.2, back: [-0.14, -0.62, 0.15, 0.25, 0.42], hip: [-0.1, -0.52, 0.75, 0.8],
-    art: { size: [454, 1024], grip: [397, 514], rest: [[302, 38], [302, 987]], drawn: [[173, 38], [175, 987]], nock: 44, fade: [0.25, 0.7] },
-    arrow: { size: [410, 32], nock: [0, 12], tip: [409, 14], thick: 1.8 } },
+  // string's ends at rest and drawn, the drawn point's x (on the grip's row), the rest-to-drawn crossfade (share of the draw), and unstring: the
+  // painted string taken out (px wide, from this share in from each tip) and the drawn string's width (painting px); the arrow's canvas, its nock
+  // and tip, x its thickness drawn, len its length (H, about an arm's: a full draw's nock at your cheek, its point past the grip) and slice the
+  // painting's fletching and head ends (px; the shaft between is stroked shaft px wide). 2026-11-22, the drawing arm: anchor = where a full draw's string
+  // hand comes to (your cheek, body units from your feet); reach = the share of the arm's length the far arm reaches out to the string at rest;
+  // elbow = how far (rad) the drawn-back forearm is tipped up from the arrow's line (the elbow behind and above your head)
+  bow: { price: 20, swap: 0.7, draw: 0.6, full: 1.2, power: 1.3, base: 0.35, weak: 0.3, mid: 0.7, vMin: 4.4, vMax: 9.9, grav: 1.5, gain: 1.2, ang: [-0.6, 1.0], pre: 0.6,
+    close: 0.5, gap: 2, skin: 1, pounce: 0.6, follow: 0.3,
+    len: 0.55, rest: [0.28, 0.16], fall: 1.2, back: [-0.14, -0.62, 0.15, 0.25, 0.42], hip: [-0.1, -0.52, 0.75, 0.8],
+    art: { size: [454, 1024], grip: [397, 514], rest: [[302, 38], [302, 987]], drawn: [[173, 38], [175, 987]], nock: 44, fade: [0.25, 0.7], unstring: [16, 0.03, 6] },
+    arrow: { size: [410, 32], nock: [0, 12], tip: [409, 14], thick: 1.8, len: 0.44, slice: [80, 350], shaft: 14 },
+    anchor: [0.1, -0.69], reach: 0.98, elbow: 0.15 },
+  // 2026-11-21, a beast's charge (features/charge.js): its nose dist H beyond its home at the start, there in time s, from v0 of its mean pace and
+  // speeding up. A hit: an arrow takes hit x (weak + (1 - weak) x its power) of its health, a knife knife of it, x head on its head or a gap; it slows
+  // to slow of its pace (back over recover s) and is knocked back kb H/s (fading at kbDecay a s), rearing over stag s. Arrived, its first blow comes in
+  // blow s (once the camera has mostly come to rest from the charge's frame, so nothing slides under its tell). zoom: the camera's least zoom while it runs (it zooms out to show it whole, in again as it comes), the frame slid until your back is clear
+  // px right of the left column; btn: px kept clear left of the round buttons (KNIFE, swap) for the thumb on them, so it never runs under one
+  charge: { dist: 3.0, time: 2.5, v0: 0.4, hit: 0.43, weak: 0.35, knife: 0.25, head: 1.4, slow: 0.15, recover: 1.3, kb: 1.8, kbDecay: 9, stag: 0.5, blow: 0.6, zoom: 0.3, clear: 28, btn: 14 },
   // card effects. The tent's old commons: half hearts, multipliers, bare-hit damage, shield hits. The Wall: shove = paces a perfect block drives him, shoveStun = s stunned
   // at his wall, thorns = blocks that disarm him, thornsDur = s disarmed. Blood: bleed stacks per hit, vein = his wind-up x while he bleeds, bloodlust = stamina per stack
   // per tick, cruel = slot damage per stack. Dancer: sidestep = s winded, matador = s stunned, slip = jab x within slipWin s of a tell dodge, untouch = s all slots open.
@@ -603,6 +616,12 @@ export const TUNING = {
     knifeWork: { medals: [0, 2, 3], knives: 6, hp: 30 },
     board: { medals: [15, 30, 50] },
     wheel: { medals: [4, 9, 14], first: 0.3 },
+    // 2026-11-21, the bow trials: targets hit; fruits burst. The Apple Shot's fruits in order (then apples), px = his heights per 256 px of their
+    // painting (a kit head), sunk = H the base sits into his crown; from the nervous'th fruit (0 is the first) he sways sway[0] rad, sway[1] more each,
+    // sway[2] at most, hz a second; art = each painting's w, h and the base pin (px, Pack 30)
+    shrinkBow: { medals: [4, 8, 12] },
+    apple: { medals: [2, 5, 8], fruits: ['pumpkin', 'watermelon', 'pineapple', 'pomegranate', 'apple'], px: 0.22, sink: 0.012, nervous: 2, sway: [0.035, 0.02, 0.14], hz: 0.7,
+      art: { pumpkin: [256, 223, 128, 222], watermelon: [205, 198, 102, 197], pineapple: [140, 260, 70, 259], pomegranate: [85, 96, 43, 95], apple: [64, 81, 30, 80] } },
     fist: { id: 'fist', name: 'FISTS', range: 0.02, strike: -0.18, speed: 0.8, dmg: 0.6, len: 0, moves: { chop: 1, thrust: 3, sweep: 1, combo: 3, feint: 1 }, combo: [2, 3], shield: 0, drain: 0, wear: 1 },
     // the grid: columns, a card's height (x the room under the tabs, at most max px), the tab bar's height; the end card's w x h (at most)
     grid: { cols: 3, gap: 10, max: 180, tab: 44, card: [620, 300] },

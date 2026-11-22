@@ -2,6 +2,7 @@
 // The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
 // then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
 export const NOTES = [
+  { v: 91, date: '22 Nov', lines: ['The beast charges from far: shoot it with the bow or throw knives before it reaches you', 'The bow: press, slide, let go; it always fires, and a long draw hits harder', 'New trials: Shrinking Target: bow and The Apple Shot'] },
   { v: 90, date: '21 Nov', lines: ['After every bout, tap +1 KNIFE (top right of the card pick) to buy a knife for 8 gold.', 'Up to 6 carried. Your card pick stays open while you shop.'] },
   { v: 89, date: '21 Nov', lines: ['Every rank has its own painted coin now: iron, bronze, silver, gold, and wood for Free.', 'See yours under the title, and the next one when you rank up.'] },
   { v: 88, date: '20 Nov', lines: ['Trials retuned from your play. Golds now take real work:', 'Knife Work: three knives into gaps. The Knife Board: 50 pots for gold.', 'The Wheel starts slower. Gap Hunter gold is under 15 s.', 'Bare Knuckles gold: win without a scratch. Weather the Rage: he rages even if you hold back.'] },

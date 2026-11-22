@@ -1,4 +1,5 @@
-// Arena: Feature: the range trials (step 27b): Shrinking Target: knives, The Knife Board and The Wheel, thrown with the angle knife (step 27).
+// Arena: Feature: the range trials (step 27b): Shrinking Target: knives, The Knife Board and The Wheel, thrown with the angle knife (step 27);
+// Shrinking Target: bow and The Apple Shot, shot with the bow (2026-11-21: ranged.js flies the arrow, rangeArrowAt and rangeArrowLands here).
 // Hooks: trials.js (startRange, updateRange, rangeCount for its three trials), ranged.js (while state.range is set: lineAt, chestK, the throw's
 // point and arc, knifeLands, the knife count), scenes.js play.render (drawRange, behind you). The sparring foe is parked off screen; on the board
 // and the wheel his figure, unarmoured, is the man (drawn and hit in a frame of our own).
@@ -7,22 +8,25 @@ import { TUNING } from '../tuning.js';
 import { lay, youF, foeF, toScreen, toLocal, partLocal, inside, pop, ring, dust, dullSound } from '../fight.js';
 import { drawFighter } from '../draw-fight.js';
 import { state, artImg } from '../game.js';
-import { backPt, drawKnife } from './ranged.js';
+import { backPt, drawKnife, drawArrow, arrowLen, bowScale } from './ranged.js';
 import { PARTS, SHOULDER } from '../data.js';
 
 // ====== THE RANGE ======
 // mode: 'targets', 'board' or 'wheel'. Sizes are the range sketch's px at a 402 px tall screen (sc), the man's offsets his heights (H).
-const MODES = { shrinkKnives: 'targets', board: 'board', wheel: 'wheel' };
+const MODES = { shrinkKnives: 'targets', board: 'board', wheel: 'wheel', shrinkBow: 'targets', apple: 'apple' };
+const BOWS = ['shrinkBow', 'apple'];
 const sc = (E) => E.h / 402;
 export function startRange(E, id) {
   const R = TUNING.range;
   state.range = { mode: MODES[id], rng: makeRng(TUNING.trials.seed ^ hashString(`range-${id}`)), idx: 0, lvl: 0, misses: 0, score: 0, wait: 0, after: null, end: null,
-    hurt: -1, target: null, pots: [], stuck: [], wheel: { th: 0, w: 0, dir: 1 } };
+    hurt: -1, target: null, pots: [], stuck: [], wheel: { th: 0, w: 0, dir: 1 }, bow: BOWS.includes(id), fruit: null };
   for (const p of state.foe.parts) { p.armour = false; p.guard = false; }
   parkFoe(); standYou(E);
   state.knives = R.knives;
   const r = state.range;
-  if (r.mode === 'targets') newTarget(E); else if (r.mode === 'board') newBoard(E); else newWheel(E);
+  // (the bow trials: the bow in hand from the start, and nothing to swap it for)
+  if (r.bow) { state.bowOut = true; state.bowSwap = false; }
+  if (r.mode === 'targets') newTarget(E); else if (r.mode === 'board') newBoard(E); else if (r.mode === 'apple') newFruit(E); else newWheel(E);
 }
 // before the arm is solved each frame (play.update): the man parked, you on your mark
 export function holdRange(E) { parkFoe(); standYou(E); }
@@ -44,9 +48,9 @@ function targetAt(E, t = state.range.target) {
 const manH = (E) => foeF(E).H;
 export function manF(E) {
   const r = state.range, H = manH(E);
-  if (r.mode === 'board') {
-    const k = r.hurt < 0 ? 0 : clamp(r.hurt / TUNING.range.sit, 0, 1);
-    return { x: E.w * TUNING.range.board.x, y: floorY(E) + k * k * 0.3 * H, a: k * 0.3, dir: -1, H };
+  if (r.mode === 'board' || r.mode === 'apple') {
+    const k = r.hurt < 0 ? 0 : clamp(r.hurt / TUNING.range.sit, 0, 1), ap = r.mode === 'apple';
+    return { x: E.w * (ap ? TUNING.range.marks[2] : TUNING.range.board.x), y: floorY(E) + k * k * 0.3 * H, a: k * 0.3 + (ap && k === 0 ? nerves() : 0), dir: -1, H };
   }
   const W = wheelAt(E), F0 = { x: 0, y: 0, a: -r.wheel.th, dir: -1, H }, [mx, my] = toScreen(F0, 0, -TUNING.range.wheel.mid);
   return { ...F0, x: W.x - mx, y: W.y - my };
@@ -125,6 +129,38 @@ function past(E, o, ux, uy) {
   const fy = floorY(E), q = Math.min(uy > 0 ? (fy - o[1]) / uy : 1e9, (E.w + 40 - o[0]) / ux);
   return { x: o[0] + ux * q, y: Math.min(fy, o[1] + uy * q) };
 }
+// ----- the bow on the range -----
+// where a plain press of the bow aims: the target's middle; at the Apple Shot, the man's chest (a plain press is no free hit)
+export function rangeMark(E) {
+  if (state.range.mode === 'targets') { const t = targetAt(E); return [t.x, t.y]; }
+  return toScreen(manF(E), 0, -0.6);
+}
+// what an arrow going from (x0, y0) to (x1, y1) meets: the target's face as it crosses it; the fruit or the man; else null (it flies on)
+export function rangeArrowAt(E, x0, y0, x1, y1) {
+  const r = state.range;
+  if (r.end || r.hurt >= 0) return null;
+  if (r.mode === 'targets') {
+    const t = targetAt(E);
+    if (x0 > t.x || x1 < t.x) return null;
+    const y = y0 + (y1 - y0) * (t.x - x0) / ((x1 - x0) || 1);
+    return Math.abs(y - t.y) <= t.R + TUNING.range.pad ? { over: 'target', x: t.x, y } : null;
+  }
+  if (r.mode === 'apple') {
+    if (onFruit(E, x1, y1)) return { over: 'fruit', x: x1, y: y1 };
+    if (manAt(E, x1, y1)) return { over: 'man', x: x1, y: y1 };
+  }
+  return null;
+}
+// an arrow arrives (m: what rangeArrowAt or the sand found): a target's ring, a fruit burst, the man's OW!, or a miss
+export function rangeArrowLands(E, hit, m) {
+  const r = state.range, ang = Math.atan2(hit.y1 - hit.y0, hit.x1 - hit.x0);
+  if (r.end || r.hurt >= 0) return;
+  if (m.over === 'target') { onTarget(E, m.x, m.y, ang, true); return; }
+  if (m.over === 'fruit') { fruitBurst(E, ang); return; }
+  if (m.over === 'man') { ow(E, m.x, m.y, ang); return; }
+  miss(E, clamp(m.x, 30, E.w - 30), m.y, ang, false, true);
+}
+
 // where a plain press aims: the target's middle; on the board and the wheel, the man's chest (a plain press is no free hit)
 export function rangeK0(E, o) {
   const r = state.range, s = sc(E), [sp0, sp1] = TUNING.range.span, fy = floorY(E);
@@ -144,22 +180,22 @@ export function rangeLands(E, k) {
   if (r.end || r.hurt >= 0) return;
   const o = k.o || [k.x0, k.y0], d0 = Math.hypot(k.x1 - o[0], k.y1 - o[1]) || 1, L = along(E, o, (k.x1 - o[0]) / d0, (k.y1 - o[1]) / d0), x = L.x, y = L.y;
   if (r.mode === 'targets') {
-    const t = targetAt(E), d = Math.min(t.R, Math.hypot(x - t.x, y - t.y));
-    if (L.over === 'target') {
-      const q = d / t.R, pts = q < R.target.rings[0] ? 10 : q < R.target.rings[1] ? 5 : 2;
-      r.stuck.push({ on: 'target', lx: x - t.x, ly: y - t.y, ang }); r.score++;
-      dust(x, y, 6); dullSound(E); E.haptic(14);
-      pop(x, y - 14, String(pts), pts === 10 ? '#ffd24a' : '#ffffff', pts === 10 ? 30 : 24);
-      if (pts === 10 && r.misses > 0) { r.misses--; pop(t.x, t.y - t.R - 18, 'MISS BACK', '#7be07b', 18); E.audio.beep({ freq: 1320, dur: 0.12, type: 'sine', gain: 0.08 }); }
-      r.wait = R.between[0]; r.after = () => { r.idx++; r.stuck = []; newTarget(E); };
-      return;
-    }
-    miss(E, x, y, ang, false);
+    if (L.over === 'target') onTarget(E, x, y, ang, false); else miss(E, x, y, ang, false);
     return;
   }
   if (L.over === 'pot') { burst(E, L.hit, ang); return; }
   if (L.over === 'man') { ow(E, x, y, ang); return; }
   miss(E, x, y, ang, L.over === 'wood');
+}
+// a knife or an arrow in the target at (x, y): its ring's points (a 10 wins a miss back), and the next target after a beat
+function onTarget(E, x, y, ang, arrow) {
+  const r = state.range, R = TUNING.range, t = targetAt(E), d = Math.min(t.R, Math.hypot(x - t.x, y - t.y));
+  const q = d / t.R, pts = q < R.target.rings[0] ? 10 : q < R.target.rings[1] ? 5 : 2;
+  r.stuck.push({ on: 'target', lx: x - t.x, ly: y - t.y, ang, arrow }); r.score++;
+  dust(x, y, 6); dullSound(E); E.haptic(14);
+  pop(x, y - 14, String(pts), pts === 10 ? '#ffd24a' : '#ffffff', pts === 10 ? 30 : 24);
+  if (pts === 10 && r.misses > 0) { r.misses--; pop(t.x, t.y - t.R - 18, 'MISS BACK', '#7be07b', 18); E.audio.beep({ freq: 1320, dur: 0.12, type: 'sine', gain: 0.08 }); }
+  r.wait = R.between[0]; r.after = () => { r.idx++; r.stuck = []; newTarget(E); };
 }
 function burst(E, p, ang) {
   const r = state.range, [x, y] = potAt(E, p), s = sc(E), R = TUNING.range, pr = potR(E, p);
@@ -187,9 +223,11 @@ function ow(E, x, y, ang) {
   E.shake(6, 0.2); E.haptic(30);
 }
 const R_END = { ow: 'ow', misses: 'misses' };
-function miss(E, x, y, ang, wood) {
+function miss(E, x, y, ang, wood, arrow = false) {
   const r = state.range, R = TUNING.range;
   if (wood) { r.stuck.push({ on: r.mode, ...stuckAt(E, x, y), ang: ang - (r.mode === 'wheel' ? r.wheel.th : 0) }); dust(x, y, 5); dullSound(E); }
+  // (an arrow sticks in the sand where it fell)
+  else if (arrow) { if (y >= floorY(E) - 1) state.arrowFall = { x, y: floorY(E) + 2, vx: 0, vy: 0, rot: ang, vr: 0, flat: ang, floor: floorY(E) + 2, life: TUNING.bow.fall }; dust(x, Math.min(y, floorY(E)), 4); E.audio.play('miss'); }
   else { state.knifeFall = { x, y, vx: Math.cos(ang) * 260, vy: Math.sin(ang) * 260 - 60, rot: ang, vr: 12, flat: Math.PI * 0.02, floor: floorY(E) - 2, life: TUNING.knives.fall }; E.audio.play('miss'); }
   r.misses++;
   pop(x, y - 18, 'MISS', '#ff8a70', 20);
@@ -253,7 +291,7 @@ export function updateRange(E, dt) {
 // the trial line's count: what is hit or burst, the board or wheel, and the misses left
 export function rangeCount() {
   const r = state.range, left = Math.max(0, TUNING.range.misses - r.misses), m = `${'●'.repeat(left)}${'○'.repeat(TUNING.range.misses - left)}`;
-  return r.mode === 'targets' ? `HIT ${r.score}  ·  ${m}` : `POTS ${r.score}  ·  ${r.mode === 'board' ? 'BOARD' : 'WHEEL'} ${r.lvl + 1}  ·  ${m}`;
+  return r.mode === 'targets' ? `HIT ${r.score}  ·  ${m}` : r.mode === 'apple' ? `FRUIT ${r.score}  ·  ${m}` : `POTS ${r.score}  ·  ${r.mode === 'board' ? 'BOARD' : 'WHEEL'} ${r.lvl + 1}  ·  ${m}`;
 }
 
 // ----- drawing, behind you and the knife (play.render) -----
@@ -265,7 +303,12 @@ export function drawRange(ctx, E) {
     ctx.fillStyle = on ? 'rgba(255,224,138,0.9)' : 'rgba(240,230,204,0.35)'; ctx.fillRect(x - 14 * s, fy + 6 * s, 28 * s, 3 * s);
   });
   if (r.mode === 'targets') drawTarget(ctx, E);
-  else if (r.mode === 'board') {
+  else if (r.mode === 'apple') {
+    const x = E.w * TUNING.range.marks[2];
+    ctx.fillStyle = 'rgba(255,224,138,0.9)'; ctx.fillRect(x - 14 * s, fy + 6 * s, 28 * s, 3 * s);
+    drawMan(ctx, E);
+    if (r.fruit && !r.fruit.gone) drawFruit(ctx, E);
+  } else if (r.mode === 'board') {
     const B = boardRect(E), im = artImg('knife-board');
     if (im) ctx.drawImage(im, 0, 0, im.width, 1131, B.x, B.y, B.w, B.h);
     else { ctx.fillStyle = '#b5652a'; ctx.fillRect(B.x, B.y, B.w, B.h); ctx.strokeStyle = '#5a2e12'; ctx.lineWidth = 3; ctx.strokeRect(B.x, B.y, B.w, B.h); }
@@ -305,7 +348,7 @@ function drawTarget(ctx, E) {
   else {
     for (const [f, c] of [[1, '#d9c27a'], [0.73, '#f2efe6'], [0.57, '#222'], [0.45, '#c0392b'], [0.16, '#f1c40f']]) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(t.x, t.y, t.R * f, 0, 6.28); ctx.fill(); }
   }
-  for (const q of r.stuck) if (q.on === 'target') drawThrown(ctx, E, t.x + q.lx, t.y + q.ly, q.ang);
+  for (const q of r.stuck) if (q.on === 'target') { if (q.arrow) drawStuck(ctx, E, t.x + q.lx, t.y + q.ly, q.ang); else drawThrown(ctx, E, t.x + q.lx, t.y + q.ly, q.ang); }
 }
 function stuckKnives(ctx, E) {
   const r = state.range;
@@ -325,8 +368,59 @@ function drawPot(ctx, E, p, rot) {
   else { ctx.fillStyle = p.kind === 'pot-clay' ? '#b8643a' : '#7a4a2a'; ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.28); ctx.fill(); ctx.strokeStyle = '#3a2010'; ctx.lineWidth = 2; ctx.stroke(); }
   ctx.restore();
 }
+// an arrow stuck with its point at (x, y), a little in
+function drawStuck(ctx, E, x, y, ang) {
+  const len = arrowLen(E), k = len * 0.9;
+  drawArrow(ctx, x - Math.cos(ang) * k, y - Math.sin(ang) * k, ang, len, bowScale(E));
+}
 // a thrown knife, stuck or falling: the fight's knife drawing
 function drawThrown(ctx, E, x, y, ang) {
   const len = TUNING.knives.len * manH(E);
   drawKnife(ctx, x - Math.cos(ang) * len * 0.55, y - Math.sin(ang) * len * 0.55, ang, len);
+}
+
+// ----- The Apple Shot (step 27b): a man at the far mark with a fruit on his head, a pumpkin down to an apple (TUNING.trials.apple), then apples;
+// from the nervous'th he sways, more with each fruit -----
+const A = () => TUNING.trials.apple;
+const JUICE = { pumpkin: ['#f59e0b', '#ea580c', '#fde68a'], watermelon: ['#ef4444', '#16a34a', '#fca5a5'], pineapple: ['#facc15', '#fde047', '#65a30d'],
+  pomegranate: ['#991b1b', '#dc2626', '#7f1d1d'], apple: ['#dc2626', '#fef3c7', '#16a34a'] };
+function newFruit(E) {
+  const r = state.range, F = A().fruits;
+  r.fruit = { kind: F[Math.min(r.idx, F.length - 1)], gone: false };
+}
+// his lean now (rad): none at first, then a sway that grows with each fruit, at most sway[2]
+function nerves() {
+  const r = state.range, S = A().sway, n = r.idx - A().nervous;
+  if (n < 0) return 0;
+  return Math.sin(state.m * A().hz * Math.PI * 2) * Math.min(S[2], S[0] + n * S[1]);
+}
+// the fruit on his head: its base on the crown (sunk in a little), its size from its painting (px per H), turned as he leans
+function fruitAt(E) {
+  const F = manF(E), [w, h, bx, by] = A().art[state.range.fruit.kind], k = A().px * F.H / 256, [x, y] = toScreen(F, 0.03, -0.88 + A().sink), [ux, uy] = toScreen(F, 0.03, -1.88);
+  return { x, y, w: w * k, h: h * k, bx: bx * k, by: by * k, rot: Math.atan2(ux - x, -(uy - y)) };
+}
+function onFruit(E, x, y) {
+  const r = state.range;
+  if (!r.fruit || r.fruit.gone) return false;
+  const q = fruitAt(E), c = Math.cos(-q.rot), s = Math.sin(-q.rot), dx = x - q.x, dy = y - q.y, lx = dx * c - dy * s, ly = dx * s + dy * c, pad = TUNING.range.pad;
+  return ((lx / (q.w / 2 + pad)) ** 2 + ((ly + q.h / 2) / (q.h / 2 + pad)) ** 2) <= 1;
+}
+function fruitBurst(E, ang) {
+  const r = state.range, q = fruitAt(E), s = sc(E), cs = JUICE[r.fruit.kind], cx = q.x + Math.sin(q.rot) * q.h / 2, cy = q.y - Math.cos(q.rot) * q.h / 2, n = Math.round(10 + q.w / s / 2);
+  r.fruit.gone = true; r.score++;
+  for (let i = 0; i < n; i++) {
+    const a = ang + Math.PI + (Math.random() - 0.5) * 4.2, v = (70 + Math.random() * 220) * s;
+    state.fx.push({ k: 'b', x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120 * s, g: 620, r: (1.5 + Math.random() * 3) * Math.max(0.6, q.w / (40 * s)) * s, life: 0.5 + Math.random() * 0.5, max: 1, c: cs[i % 3] });
+  }
+  ring(cx, cy, q.w * 1.1, cs[0]);
+  E.audio.noise({ dur: 0.14, gain: 0.14 }); E.audio.beep({ freq: 300, dur: 0.1, type: 'square', slide: 0.5, gain: 0.07 }); E.haptic(20);
+  pop(cx, cy - q.h / 2 - 12, 'SPLAT!', cs[0], 24);
+  r.wait = TUNING.range.between[1]; r.after = () => { r.idx++; newFruit(E); };
+}
+function drawFruit(ctx, E) {
+  const q = fruitAt(E), im = artImg(`fruit-${state.range.fruit.kind}`);
+  ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot);
+  if (im) ctx.drawImage(im, -q.bx, -q.by, q.w, q.h);
+  else { ctx.fillStyle = JUICE[state.range.fruit.kind][0]; ctx.beginPath(); ctx.ellipse(0, -q.h / 2, q.w / 2, q.h / 2, 0, 0, 6.28); ctx.fill(); ctx.strokeStyle = '#3a2010'; ctx.lineWidth = 2; ctx.stroke(); }
+  ctx.restore();
 }

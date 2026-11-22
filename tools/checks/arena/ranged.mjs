@@ -59,7 +59,7 @@ export default async function (t) {
   const k2 = await g.ev(() => { const s = window.__engine.game.scenes.play.state; return { knives: s.knives, thrown: s.knivesThrown, aim: !!s.aim }; });
   t.ok('KNIFE held raises a knife and throws nothing while held; the release throws it, and it is spent', k1.knives === 3 && k1.thrown === 0 && k1.aim && k2.knives === 2 && k2.thrown === 1 && !k2.aim, JSON.stringify({ held: k1, released: k2 }));
 
-  // the bow: ⇄ takes 0.7 s, the shield can't come up in it or after it, it needs a full draw, and it won't loose inside his reach
+  // the bow: ⇄ takes 0.7 s, the shield can't come up in it or after it; any release looses (2026-11-21: a short one weaker, inside his reach too)
   await bout(g, { w: 'gladius', side: 'bow', kit: ['chest'], rack: 1 });
   await g.ev(() => { const s = window.__engine.game.scenes.play.state; s.foe.hp = s.foe.maxHp = 999; });
   const home = await g.ev(() => window.__engine.game.scenes.play.state.foe.home + 0.6);
@@ -84,16 +84,16 @@ export default async function (t) {
     return g.ev(() => { const s = window.__engine.game.scenes.play.state; return { loosed: s.arrows - window.__a0, said: s.pops.map((q) => q.s).filter((q) => !/^[\d.+-]/.test(q)).join('|') }; });
   };
   const soon = await draw(Math.round(0.3 * 60)), full = await draw(Math.round(0.75 * 60));
-  t.ok('a release before the full draw looses nothing (TOO SOON); a full draw looses one arrow', soon.loosed === 0 && /TOO SOON/.test(soon.said) && full.loosed === 1, JSON.stringify({ soon, full }));
+  t.ok('a release before the full draw looses an arrow all the same; so does a full draw', soon.loosed === 1 && !/TOO/.test(soon.said) && full.loosed === 1, JSON.stringify({ soon, full }));
   await g.frames(60);
   await still(g, await g.ev(() => window.__engine.game.scenes.play.state.foe.strike - 0.05));
   await g.frames(5);
   const close = await draw(Math.round(0.75 * 60));
-  t.ok('inside his reach a full draw looses nothing (TOO CLOSE)', close.loosed === 0 && /TOO CLOSE/.test(close.said), JSON.stringify(close));
+  t.ok('inside his reach a draw still looses (never TOO CLOSE)', close.loosed === 1 && !/TOO/.test(close.said), JSON.stringify(close));
 
-  // where an arrow lands, at a plain full draw: a gap for bow.gap times the plain gap hit, skin for a stagger, plate for nothing
+  // where an arrow lands, at a full draw: a gap for bow.gap x bow.power times the plain gap hit, skin for a stagger, plate for nothing
   const lands = await g.ev(() => {
-    const E = window.__engine, P = E.game.scenes.play, s = P.state, R = { plainGap: P.plainGap(), mult: P.TUNING.bow.gap };
+    const E = window.__engine, P = E.game.scenes.play, s = P.state, R = { plainGap: P.plainGap(), mult: P.TUNING.bow.gap * P.TUNING.bow.power };
     const one = (what) => {
       const f = s.foe; f.hp = 999; s.stagger = 0; s.openAll = what === 'gap' ? 5 : 0; s.cover = null;
       for (const q of f.parts) { q.cool = 0; if (q.guard) q.guard = false; }
@@ -106,6 +106,6 @@ export default async function (t) {
     for (const w of ['gap', 'skin', 'plate']) R[w] = one(w);
     return R;
   });
-  t.ok('an arrow in a gap does bow.gap times the plain gap hit', lands.gap.dmg > 0 && Math.abs(lands.gap.dmg - lands.plainGap * lands.mult) < 0.01, JSON.stringify(lands));
+  t.ok('an arrow in a gap at full power does bow.gap x bow.power times the plain gap hit', lands.gap.dmg > 0 && Math.abs(lands.gap.dmg - Math.round(lands.plainGap * lands.mult * 2) / 2) < 0.01, JSON.stringify(lands));
   t.ok('an arrow on bare skin staggers him; on plate it does nothing', lands.skin.stagger && lands.skin.dmg > 0 && lands.plate.dmg === 0 && !lands.plate.stagger, JSON.stringify({ skin: lands.skin, plate: lands.plate }));
 }

@@ -14,6 +14,7 @@ import { arenaT, bout, trait, drives, state, easeOut, wrap, ZERO, has, count, no
   nextGap } from './game.js';
 import { yardLand, foeAt } from './features/yard.js';
 import { bowShown, raisePt, bowPt } from './features/ranged.js';
+import { stepCharge, chargeRear } from './features/charge.js';
 import { offFist, poseRest, returnStroke, jabNeed } from './features/dual.js';
 
 // ====== FIGHTER MODEL: layout, your body and sword arm, footwork, defence, the foe's body ======
@@ -40,9 +41,9 @@ function frameAt(E, z, B = frame1(E)) {
 }
 // what the camera must show at rest (px): your back foot and his (at his home), your blade at full reach with the lunge's stride, and his weapon's tip
 function camSpan(E, L) {
-  const f = state.foe, F = TUNING.fighter, k = meSize().scale, B = beastOf(f), kf = f.size ? drawK(f) : 1, yH = L.H * k, fH = L.H * kf;
-  const yx = L.x0 - (k - 1) * F.body * L.H, fx = L.x1 + (f.home || 0) * L.H + (B ? kf * B.front - F.body : (kf - 1) * F.body) * L.H;
-  const yBack = L.x0 + (F.body - (k - 1) * F.body - TUNING.pairs.fbody * k) * L.H, fBack = L.x1 + ((f.home || 0) - F.body + rearOf(f)) * L.H;
+  const f = state.foe, F = TUNING.fighter, k = meSize().scale, B = beastOf(f), kf = f.size ? drawK(f) : 1, yH = L.H * k, fH = L.H * kf, at = state.charge ? state.step.x : f.home || 0;
+  const yx = L.x0 - (k - 1) * F.body * L.H, fx = L.x1 + at * L.H + (B ? kf * B.front - F.body : (kf - 1) * F.body) * L.H;
+  const yBack = L.x0 + (F.body - (k - 1) * F.body - TUNING.pairs.fbody * k) * L.H, fBack = L.x1 + (at - F.body + rearOf(f)) * L.H;
   let yTip = yx + (SHOULDER[0] + TUNING.arm.len * meSize().arm + TUNING.blade.len * meWeapon().reach + TUNING.lunge.stride) * yH;
   // (a long weapon chokes up: its point goes no further than slide.depth past his front)
   if (meWeapon().slide) yTip = Math.min(yTip, fx + TUNING.slide.depth * fH);
@@ -52,12 +53,25 @@ function camSpan(E, L) {
 // the frame the camera eases to: TUNING.camera.rest, zoomed out further until camSpan fits right of the left column with the margin
 const camKey = (E) => `${E.w}x${E.h}|${state.rack}`;
 function camTarget(E) {
-  const C = TUNING.camera, B = frame1(E), R = colRect(E), lo = R.x + R.w + C.margin, hi = E.w - E.safe.right - C.margin;
+  const C = TUNING.camera, B = frame1(E), R = colRect(E), lo = R.x + R.w + C.margin, hi = E.w - E.safe.right - C.margin, zMin = state.charge ? TUNING.charge.zoom : C.min;
   let z = C.rest, L = frameAt(E, z, B);
+  // (a beast's charge: zoomed out until your back and the whole beast, nose to tail with a hit's knock-back to come, fit between the column and the
+  // round buttons' column (armsBtns; kept whether they show yet or not), a thumb's room on them clear; slid so your back sits clear of the left
+  // column. Nothing of it is under a button from its first frame)
+  if (state.charge) {
+    const CH = TUNING.charge, top = Math.min(hi, E.w - E.safe.right - 16 - 2 * TUNING.sidearm.btn.r - CH.btn);
+    const span = (L) => [camSpan(E, L)[0], L.x1 + (state.step.x + state.charge.kb / CH.kbDecay + rearOf(state.foe)) * L.H];
+    const fits = (z) => { const [a, b] = span(frameAt(E, z, B)); return b - a <= top - lo - CH.clear; };
+    if (!fits(z)) { let z0 = zMin, z1 = z; for (let i = 0; i < 14; i++) { const m = (z0 + z1) / 2; if (fits(m)) z0 = m; else z1 = m; } z = z0; }
+    L = frameAt(E, z, B);
+    // (not in a pair: the one waiting stands at the screen's edge, so the frame keeps its place)
+    const d = state.edge ? 0 : span(L)[0] - lo - CH.clear;
+    return { ...L, z, key: camKey(E), ...(d && { cx: L.cx - d, x0: L.x0 - d, x1: L.x1 - d }) };
+  }
   for (let i = 0; i < 3; i++) {
     const [a, b] = camSpan(E, L), k = Math.min(a < lo && a < L.cx ? (L.cx - lo) / (L.cx - a) : 1, b > hi && b > L.cx ? (hi - L.cx) / (b - L.cx) : 1);
-    if (k >= 0.999 || z <= C.min) break;
-    z = Math.max(C.min, z * k); L = frameAt(E, z, B);
+    if (k >= 0.999 || z <= zMin) break;
+    z = Math.max(zMin, z * k); L = frameAt(E, z, B);
   }
   return { ...L, z, key: camKey(E) };
 }
@@ -65,7 +79,9 @@ function camTarget(E) {
 export function camUpdate(E, dt) {
   const t = camTarget(E), c = state.cam, k = 1 - Math.exp(-dt / TUNING.camera.ease);
   if (!c || c.key !== t.key) { state.cam = t; return; }
-  for (const q of ['H', 'g2', 'cx', 'z']) c[q] = Math.abs(t[q] - c[q]) < 0.05 ? t[q] : c[q] + (t[q] - c[q]) * k;
+  // (a charging beast knocked back: the camera widens at once, so it is never under a button while the frame catches up; it eases back in)
+  const kk = state.charge && t.z < c.z ? 1 : k;
+  for (const q of ['H', 'g2', 'cx', 'z']) c[q] = Math.abs(t[q] - c[q]) < 0.05 ? t[q] : c[q] + (t[q] - c[q]) * kk;
   const half = c.g2 + TUNING.fighter.body * c.H;
   c.x0 = c.cx - half; c.x1 = c.cx + half;
 }
@@ -614,9 +630,9 @@ export function poseFoe(E, dt) {
 // Footwork: he drifts around the distance his weapon wants, steps to striking distance just before and while he attacks (and while open),
 // backs off when hurt (if this exchange's mood says so), and sidesteps your lunge once he has read it. No randomness here: the drift is a slow wave.
 export function stepFoe(dt, E) {
-  // step 24: your bow up, a man rushes in to striking distance at TUNING.bow.rush x his step (a beast pounces sooner instead: swapBow)
-  const rush = state.bowOut && !state.intro && !state.foe.beast ? TUNING.bow.rush : 1;
-  const T = TUNING.step, st = state.step, f = state.foe, limp = (lamed('legs') ? TUNING.lame.legs : 1) * netMul(TUNING.me.net.step), tau = T.tau * statMul('spdStep', f.spd) * f.size.step / limp / rush;
+  // a beast's charge runs its own feet (features/charge.js)
+  if (state.charge && !state.intro) { stepCharge(E, dt); return; }
+  const T = TUNING.step, st = state.step, f = state.foe, limp = (lamed('legs') ? TUNING.lame.legs : 1) * netMul(TUNING.me.net.step), tau = T.tau * statMul('spdStep', f.spd) * f.size.step / limp;
   st.dodgeT = Math.max(0, st.dodgeT - dt); st.dodgeCool = Math.max(0, st.dodgeCool - dt);
   const free = !state.sw && state.winded <= 0 && state.stun <= 0 && state.stagger <= 0 && state.fallT <= 0 && !state.intro && state.endT <= 0;
   if (free && state.you.lungeK > 0.5 && st.dodgeCool <= 0 && (lungeRead() || f.spd >= 5)) {
@@ -631,11 +647,11 @@ export function stepFoe(dt, E) {
   // a blow in flight keeps him at striking distance, whatever else he meant to do; a crouching lion gathers itself back, and stays back for a pounce
   const pounce = !!(state.plan && state.plan.q[0] && RANGED[state.plan.q[0].kind]);
   const want = sw ? (sw.pose === 'pounce' ? f.home + TUNING.moves.pounce.back : sw.kind === 'blink' ? f.home + TUNING.champs.hermes.start : RANGED[sw.kind] ? f.home : f.strike) : st.dodgeT > 0 ? f.home + T.dodge : state.retreat > 0 ? f.home + TUNING.retreat.dist
-    : state.chase > 0 || state.open > 0 || rush > 1 || (!state.intro && state.swingIn < T.lead && !pounce) ? f.strike : f.home + wave;
+    : state.chase > 0 || state.open > 0 || (!state.intro && state.swingIn < T.lead && !pounce) ? f.strike : f.home + wave;
   // the same footwork rules as yours: he keeps his distance from where you stand, walks no faster than his legs allow
   // (barely at all while winding up a blow), and stops at the wall behind him
   const FT = TUNING.foot, pos = state.foot.pos, wl = walls(E), lo = pos + gMin(E);
-  const goal = clamp(want + pos, lo, wl.fore), v = FT.foeV / (statMul('spdStep', f.spd) * f.size.step) * (state.sw && state.sw.fin <= 0 ? FT.commit : state.chase > 0 ? FT.chaseV : rush) * limp;
+  const goal = clamp(want + pos, lo, wl.fore), v = FT.foeV / (statMul('spdStep', f.spd) * f.size.step) * (state.sw && state.sw.fin <= 0 ? FT.commit : state.chase > 0 ? FT.chaseV : 1) * limp;
   st.x = clamp(st.x + clamp((goal - st.x) * (1 - Math.exp(-dt / tau)), -v * dt, v * dt), lo, wl.fore);
 }
 // your lunge from beyond his reach: he steps in behind its recovery and strikes soon after, so a missed long lunge leaves you open
@@ -696,6 +712,8 @@ function poseBeast(E, dt) {
       lunge = fin ? S.lunge * 1.9 * easeOut(v) * back : -0.04 * e - 0.005 * shiver(u); q.jaw = 0.3 * (fin ? back : e);
     }
   }
+  const rr = chargeRear();
+  if (rr > 0) { q.rot -= 0.22 * rr; q.jaw = Math.max(q.jaw, 0.6 * rr); q.fore = [-0.6 * rr, -0.7 * rr]; }
   if (fall > 0) { q.y = 0.16 * fall; q.rot = 0.05 * fall; q.dip = 0.1 * fall; q.fore = [null, null]; q.hind = null; q.jaw = 0.3 * fall; q.tail = 0; }
   // walking moves the feet: a little stride cycle from the ground he covers
   const wx = state.step.x; f.walk = (f.walk || 0) + Math.abs(wx - (f.walkX == null ? wx : f.walkX)); f.walkX = wx;

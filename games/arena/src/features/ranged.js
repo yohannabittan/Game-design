@@ -3,15 +3,16 @@
 
 import { clamp, lerp } from '../engine.js';
 import { TUNING } from '../tuning.js';
-import { ARM_LEN, SHOULDER } from '../data.js';
-import { lay, youF, inReach, myH, foeF, toScreen, toLocal, partLocal, partCenter, guardPt, inside, fell, blood, sparks, ring, pop, dmgPop, slotSound,
+import { ARM_LEN, SHOULDER, PARTS } from '../data.js';
+import { lay, youF, inReach, myH, myArm, foeF, toScreen, toLocal, partLocal, partCenter, guardPt, inside, fell, blood, sparks, ring, pop, dmgPop, slotSound,
   dullSound, sliceSound, clangSound, swooshSound, dust, mark, localDir } from '../fight.js';
 import { covered, setCover } from '../foe.js';
 import { staggerFoe, finLive, crowdEvent } from '../cards.js';
-import { weaponKey, artPic, kitPic, TAU, line, lerp2, drawCoin, drawWeapon, shieldFace } from '../draw-fight.js';
+import { weaponKey, artPic, kitPic, TAU, line, lerp2, drawCoin, drawWeapon, shieldFace, drawArm } from '../draw-fight.js';
 import { wield, iconWeapon, weaponTitle } from '../screens.js';
 import { state, noShield, shake, meSize, ENG, kitOn, has, count } from '../game.js';
-import { rangeLine, rangeK0, rangeArc, rangeLands } from './range.js';
+import { rangeLine, rangeK0, rangeArc, rangeLands, rangeMark, rangeArrowAt, rangeArrowLands } from './range.js';
+import { chargeHit } from './charge.js';
 import { YARD, GHOST, yardChime, yardTick, yardPlate, gapRings, ghostThumb, ghostAt } from '../features/yard.js';
 
 // ====== RANGED: the sidearm, knives and the bow ======
@@ -70,20 +71,20 @@ export function startAim(E, p) {
   E.audio.beep({ freq: 880, dur: 0.06, type: 'triangle', gain: 0.08 }); E.haptic(8);
   seenOpen();
 }
-// the bow's draw: the ring lift px above the thumb (a knife's thumb is its own, from the press)
-export function aimDown(E, p) { const a = state.aim; if (!a.bow) return; a.id = p.id; a.sx = p.x; a.sy = p.y; a.drag = 0; aimAt(E, p); }
+// the bow's thumb: where it went down, and its slide up or down from there turns the angle (a knife's thumb is its own, from the press)
+export function aimDown(E, p) { const a = state.aim; if (!a.bow) return; a.id = p.id; a.sx = p.x; a.sy = p.y; a.go = false; aimAt(E, p); }
 export function aimAt(E, p) {
   const a = state.aim;
   if (!a.bow) { a.ty = p.y; return; }
-  a.tx = p.x; a.ty = p.y; a.drag = Math.max(a.drag, Math.hypot(p.x - a.sx, p.y - a.sy));
-  a.rx = clamp(p.x, 10, E.w - 10); a.ry = clamp(p.y - TUNING.knives.lift, E.safe.top + 10, E.h - 10);
-  aimSnap(E);
+  a.tx = p.x; a.ty = p.y;
+  bowAim(E);
 }
 // the thumb lifted: the knife flies along its line, however short the press (once it is up). Only a thumb slid down off the bottom edge puts it
 // away, and says so (back over the button is his chest again, where a plain press aims, so it throws)
 export function aimUp(E, p) {
   const a = state.aim, K = TUNING.knives;
-  if (a.bow) { bowRelease(E); return; }
+  // (a thumb down while the bow comes up draws once it is up; let go before that, it looses then)
+  if (a.bow) { if (p && p.cancelled) state.aim = null; else if (state.swapT > 0) { a.go = true; a.id = -1; } else bowRelease(E); return; }
   a.id = -1;
   if (p && (p.cancelled || (p.y >= E.h - K.edge && p.y > a.sy))) {
     const [hx, hy] = knifeHand();
@@ -103,30 +104,6 @@ export function knifeAt(E, x, y, order = null) {
     if (inside(p.d, qx, qy, K.pad / F.H)) return { p, kind: p.slot && !covered(p) ? 'gap' : covered(p) ? 'plate' : 'skin', lx: qx, ly: qy };
   }
   return { p: null, kind: 'miss' };
-}
-// how far (in his H) a point in a part's own frame lies outside its shape
-function partGapDist(d, lx, ly) {
-  if (d.shape === 'circle') return Math.max(0, Math.hypot(lx - d.x, ly - d.y) - d.r);
-  return Math.hypot(Math.max(0, Math.abs(lx - d.x) - d.w / 2), Math.max(0, Math.abs(ly - d.y) - d.h / 2));
-}
-// the ring: on the thumb's point, or snapped onto the middle of the nearest open gap within TUNING.knives.snap px of its edge; green over a gap
-// (with a soft tick as it turns), red over plate; checked every frame, as he moves
-export function aimSnap(E) {
-  const K = TUNING.knives, a = state.aim, F = foeF(E), fm = state.foe;
-  a.x = a.rx; a.y = a.ry;
-  let t = knifeAt(E, a.x, a.y);
-  if (K.snap > 0 && t.kind !== 'gap' && state.fallT <= 0 && fm.hp > 0 && fm.parts) {
-    const [lx, ly] = toLocal(F, a.rx, a.ry);
-    let best = null, bd = K.snap / F.H;
-    for (const p of fm.parts) {
-      if (!p.slot || covered(p)) continue;
-      const [qx, qy] = partLocal(p, fm, lx, ly), d = partGapDist(p.d, qx, qy);
-      if (d <= bd) { bd = d; best = p; }
-    }
-    if (best) { [a.x, a.y] = partCenter(F, fm, best); t = { p: best, kind: 'gap' }; }
-  }
-  if (t.kind === 'gap' && a.over !== 'gap') E.audio.beep({ freq: 1500, dur: 0.03, type: 'triangle', gain: 0.05 });
-  a.over = t.kind;
 }
 // where the raised knife is held: in your sword hand, drawn back beside your head (moveHand)
 function knifeHand() { return [state.hand.hx, state.hand.hy]; }
@@ -233,18 +210,21 @@ export function stepArms(E, dt) {
   if (state.follow) state.follow.t -= dt;
   const a = state.aim;
   if (a && !armsLive(E)) state.aim = null;
-  else if (a && a.bow) { aimSnap(E); a.draw += dt; }
-  else if (a) { knifeAim(E); if ((a.t += dt) >= TUNING.knives.aim && a.go) throwKnife(E); }
+  else if (a && a.bow) { const B = TUNING.bow, d0 = a.draw; if (state.swapT <= 0) a.draw += dt; if ((d0 < B.draw && a.draw >= B.draw) || (d0 < B.full && a.draw >= B.full)) drawTick(E, a.draw >= B.full); bowAim(E); if (a.go && state.swapT <= 0) bowRelease(E); }
+  // (a knife let go while the last is still in the air leaves the hand as that one lands: one in flight at a time, none lost)
+  else if (a) { knifeAim(E); if ((a.t += dt) >= TUNING.knives.aim && a.go && !state.knife && !(state.whip && !state.whip.out)) throwKnife(E); }
   const w = state.whip;
   if (w) { w.t += dt; if (!w.out && w.t >= TUNING.knives.release) loose(E, w); if (w.t >= TUNING.knives.whip[2]) state.whip = null; }
   const k = state.knife;
   if (k && k.at) [k.x1, k.y1] = toScreen(foeF(E), ...k.at);
   if (k && (k.t += dt) >= k.dur) { state.knife = null; knifeLands(E, k); }
-  const r = state.arrow;
-  if (r && (r.t += dt) >= r.dur) { state.arrow = null; arrowLands(E, r); }
+  // (an arrow loosed while another flies: both fly on and both land, each saying what it hit)
+  const ar = state.arrow, vo = state.volley;
+  if (ar && flyArrow(E, dt, ar) && state.arrow === ar) state.arrow = null;
+  if (vo) for (const r of vo.slice()) if (flyArrow(E, dt, r) && vo.includes(r)) vo.splice(vo.indexOf(r), 1);
   state.knifeFall = fallStep(state.knifeFall, dt);
   state.arrowFall = fallStep(state.arrowFall, dt);
-  if (bowShown()) { const f = bowFrame(E), A = TUNING.bow.art; state.bowNock = toLocal(youF(E), ...f.pt(lerp(A.rest[0][0], A.nock, pullK(state.aim)), A.grip[1])); } else state.bowNock = null;
+  state.bowNock = bowShown() ? toLocal(youF(E), ...stringHand(E)) : null;
 }
 // a spent knife or arrow, falling to the sand and lying there a while
 function fallStep(q, dt) {
@@ -266,37 +246,109 @@ export function swapBow(E) {
   swooshSound(E, 0.1); E.haptic(10);
   seenOpen();
 }
-// the right thumb down with the bow out starts the draw, and aims it as a knife is aimed (the ring lift px above the thumb, its snap onto a gap)
+// the right thumb down with the bow out starts the draw: the angle that puts a full draw's arrow on his chest (the range's mark), the thumb's
+// slide turning it from there
 export function bowDown(E, p) {
-  const F = foeF(E);
-  state.aim = { bow: true, draw: 0, t: 0, id: -1, rx: F.x, ry: F.y - TUNING.knives.rest * F.H, x: F.x, y: F.y, tx: null, ty: null, sx: 0, sy: 0, drag: 0, go: false, over: 'miss' };
+  const mark = state.range ? null : chestMark(E);
+  state.aim = { bow: true, draw: 0, t: 0, id: -1, mark, a0: chestAng(E, { mark }), ang: 0, pw: TUNING.bow.weak, sx: p.x, sy: p.y, tx: p.x, ty: p.y, go: false, over: 'miss', path: [], x: 0, y: 0 };
   aimDown(E, p);
-  E.audio.beep({ freq: 180, dur: TUNING.bow.draw, type: 'triangle', slide: 1.4, gain: 0.05 }); E.haptic(6);
+  E.audio.beep({ freq: 180, dur: TUNING.bow.full, type: 'triangle', slide: 1.4, gain: 0.05 }); E.haptic(6);
 }
-// the draw's share of full (0 to 1), and the hold past it toward full power (0 to 1)
-const pullK = (a) => (a && a.bow ? clamp(a.draw / TUNING.bow.draw, 0, 1) : 0);
-const holdK = (a) => { const B = TUNING.bow; return a && a.bow ? clamp((a.draw - B.draw) / (B.full - B.draw), 0, 1) : 0; };
-// the thumb lifted: a full draw looses (never inside his reach: TOO CLOSE); a short one looses nothing, TOO SOON, and the next draw starts from nothing
+// the bow's power (0 to 1) after a hold of d s: weak at once, mid at the draw's tick, 1 at full
+export function bowPower(d) { const B = TUNING.bow; return d < B.draw ? lerp(B.weak, B.mid, d / B.draw) : lerp(B.mid, 1, clamp((d - B.draw) / (B.full - B.draw), 0, 1)); }
+const arrowV = (E, pw) => lerp(TUNING.bow.vMin, TUNING.bow.vMax, pw) * lay(E).H;
+const grav = (E) => TUNING.bow.grav * lay(E).H;
+// the string's draw (0 to 1): from the string at rest to your cheek at a full draw (TUNING.bow.full), quick at first and settling into it
+const pullK = (a) => (a && a.bow ? Math.sin(Math.PI / 2 * clamp(a.draw / TUNING.bow.full, 0, 1)) : 0);
+function drawTick(E, full) { E.audio.beep({ freq: full ? 1320 : 990, dur: 0.05, type: 'triangle', gain: 0.07 }); E.haptic(full ? 14 : 8); }
+// where a full draw's arrow leaves the bow along ang: its nock at your cheek (the anchor), its point an arrow's length on
+function launchAt(E, ang) {
+  const [sx, sy] = anchorPt(E), r = arrowLen(E);
+  return [sx + Math.cos(ang) * r, sy + Math.sin(ang) * r];
+}
+// the angle whose full-draw flight passes through (x, y) (its drop allowed for): the shot leaves along a line from your cheek, so that is the origin
+function angTo(E, x, y) {
+  const v = arrowV(E, 1), g = grav(E), [sx, sy] = anchorPt(E), r = arrowLen(E), dx = Math.max(1, x - sx);
+  let ang = Math.atan2(y - sy, dx);
+  for (let i = 0; i < 6; i++) { const t = Math.max(0, dx - r * Math.cos(ang)) / (v * Math.cos(ang)); ang = Math.atan2(y - sy - 0.5 * g * t * t, dx); }
+  return clamp(ang, TUNING.bow.ang[0], TUNING.bow.ang[1]);
+}
+// where a plain press aims: the middle of the bare part nearest his chest's that a full draw's flight meets first (his chest, else his belly; a
+// barded beast's foreleg, its plated head and chest standing in front of its belly), never a gap; as a point on him, so the aim stays on it while he
+// moves (a charging beast). With none, his chest's middle (or his belly's when the chest is plated). On the range, its mark (rangeMark), held still
+function chestMark(E) {
+  const fm = state.foe, F = foeF(E), part = (id) => fm && fm.parts && fm.parts.find((q) => q.d.id === id), c = [part('chest'), part('belly')].find((q) => q && !covered(q)) || part('chest');
+  if (!c) return toLocal(F, F.x, F.y - TUNING.knives.rest * F.H);
+  const [cx, cy] = partCenter(F, fm, part('chest') || c), v = arrowV(E, 1);
+  const bare = fm.parts.filter((q) => !q.slot && !covered(q)).map((q) => partCenter(F, fm, q)).sort((a, b) => Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy));
+  for (const at of bare) { const ang = angTo(E, ...at), [x0, y0] = launchAt(E, ang); if (flight(E, x0, y0, Math.cos(ang) * v, Math.sin(ang) * v).over === 'skin') return toLocal(F, ...at); }
+  return toLocal(F, ...partCenter(F, fm, c));
+}
+const chestAng = (E, a) => angTo(E, ...(state.range ? rangeMark(E) : toScreen(foeF(E), ...(a && a.mark || chestMark(E)))));
+// the aim each frame: the angle from the thumb's slide, the power from the hold, and the flight it gives now (a.path, what it meets: a.over at a.x, a.y)
+function bowAim(E) {
+  const B = TUNING.bow, a = state.aim;
+  if (a.mark) a.a0 = chestAng(E, a);
+  a.ang = clamp(a.a0 + (a.ty - a.sy) / E.h * B.gain, B.ang[0], B.ang[1]); a.pw = bowPower(a.draw);
+  const [x0, y0] = bowShown() ? arrowTip(E, a) : launchAt(E, a.ang), v = arrowV(E, a.pw), q = flight(E, x0, y0, Math.cos(a.ang) * v, Math.sin(a.ang) * v);
+  Object.assign(a, { path: q.path, over: q.over, x: q.x, y: q.y });
+}
+// a flight from (x, y) at (vx, vy) px/s, falling: its points, and the first thing it meets (his parts, the range's marks, the sand) or the screen's edge
+function flight(E, x, y, vx, vy) {
+  const L = lay(E), g = grav(E), h = 1 / 120, path = [x, y];
+  for (let i = 0; i < 480; i++) {
+    const px = x, py = y;
+    vy += g * h; x += vx * h; y += vy * h;
+    path.push(x, y);
+    const m = arrowMeets(E, px, py, x, y);
+    if (m) return { path, ...m };
+    if (y >= L.floor) return { path, over: 'sand', x, y: L.floor };
+    if (x > E.w + 40 || x < -40 || y < -E.h) break;
+  }
+  return { path, over: 'miss', x, y };
+}
+// what an arrow going from (x0, y0) to (x1, y1) meets: on the range, its marks; in a fight, the first of his parts (as a knife's point finds them)
+function arrowMeets(E, x0, y0, x1, y1) {
+  if (state.range) return rangeArrowAt(E, x0, y0, x1, y1);
+  const t = knifeAt(E, x1, y1);
+  return t.kind === 'miss' ? null : { over: t.kind, x: x1, y: y1 };
+}
+// the thumb lifted: the arrow always flies, at the power of its hold (inside his reach it bites less: close)
 export function bowRelease(E) {
-  const B = TUNING.bow, a = state.aim, Fy = youF(E), at = [Fy.x + 0.3 * Fy.H, Fy.y - 1.05 * Fy.H];
+  const B = TUNING.bow, a = state.aim, [x0, y0] = arrowTip(E, a), v = arrowV(E, a.pw);
   state.aim = null;
-  if (a.draw < B.draw) { pop(at[0], at[1], 'TOO SOON', '#fdba74', 18); E.audio.beep({ freq: 220, dur: 0.1, type: 'triangle', slide: 0.7, gain: 0.08 }); return; }
-  if (inReach()) { pop(at[0], at[1], 'TOO CLOSE', '#fca5a5', 18); E.audio.beep({ freq: 200, dur: 0.12, type: 'sawtooth', slide: 0.7, gain: 0.07 }); return; }
-  const f = bowFrame(E, a), k = holdK(a), pw = 1 + (B.power - 1) * k, [x0, y0] = f.pt(TUNING.bow.art.nock, f.A.grip[1]), len = arrowLen(E);
-  const tx = x0 + f.ux * len, ty = y0 + f.uy * len, d = Math.hypot(a.x - tx, a.y - ty);
-  state.arrows++; state.follow = { x: a.x, y: a.y, t: B.follow };
-  state.arrow = { x0: tx, y0: ty, x1: a.x, y1: a.y, t: 0, dur: Math.max(0.03, d / (B.speed * pw * youF(E).H)), pw };
+  state.arrows++; state.follow = { ang: a.ang, t: B.follow, dep: nockDep(E, bowFrame(E, a), a) / myH(E) };
+  if (state.arrow) (state.volley || (state.volley = [])).push(state.arrow);
+  state.arrow = { x: x0, y: y0, vx: Math.cos(a.ang) * v, vy: Math.sin(a.ang) * v, pw: a.pw, close: !state.range && inReach() };
   swooshSound(E, 0.12); E.audio.beep({ freq: 140, dur: 0.12, type: 'triangle', slide: 0.5, gain: 0.12 }); E.haptic(14);
+}
+// an arrow in flight, in small steps: it falls, and lands on the first thing in its way as it is now (a charging beast moves while it flies); true once landed
+function flyArrow(E, dt, r) {
+  const L = lay(E), g = grav(E), n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) {
+    const px = r.x, py = r.y;
+    r.vy += g * h; r.x += r.vx * h; r.y += r.vy * h;
+    const m = arrowMeets(E, px, py, r.x, r.y), hit = { x0: px, y0: py, x1: r.x, y1: r.y, pw: r.pw, close: r.close };
+    if (m) { if (state.range) rangeArrowLands(E, hit, m); else arrowLands(E, hit); return true; }
+    if (r.y >= L.floor || r.x > E.w + 40 || r.x < -40 || r.y < -E.h) {
+      if (state.range) rangeArrowLands(E, hit, { over: 'miss', x: r.x, y: Math.min(r.y, L.floor) }); else arrowLands(E, { ...hit, y1: Math.min(r.y, L.floor) });
+      return true;
+    }
+  }
 }
 // the ordinary gap hit: a gladius jab's in a gap, at your Strength and size
 export const plainGap = () => Math.max(1, Math.round(TUNING.attack.jab.dmg * TUNING.me.str[state.me.str - 1] * meSize().dmg * TUNING.me.weapons.gladius.slot));
+// an arrow's bite: power x (base + (1 - base) x its power), and close x that inside his reach
+const arrowK = (r) => { const B = TUNING.bow, pw = r.pw == null ? 1 : r.pw; return B.power * (B.base + (1 - B.base) * pw) * (r.close ? B.close : 1); };
 // what the arrow meets where it arrives: a gap, TUNING.bow.gap x the ordinary gap hit (GAP!); bare skin, a light hit and a stagger (STAGGER); plate or
-// his shield or guard, nothing (PLATE, a clang, it drops); nothing, MISSED, it flies on into the sand. Harder by its hold (pw).
+// his shield or guard, nothing (PLATE, a clang, it drops); nothing, MISSED, it sticks in the sand or flies on. Harder by its power (arrowK). A
+// charging beast takes it by the charge's rules (chargeHit).
 export function arrowLands(E, r) {
-  const B = TUNING.bow, J = TUNING.juice, f = state.foe, at = { x: r.x1, y: r.y1 }, ang = Math.atan2(r.y1 - r.y0, r.x1 - r.x0), { p, kind } = knifeAt(E, r.x1, r.y1), L = lay(E);
+  const B = TUNING.bow, J = TUNING.juice, f = state.foe, at = { x: r.x1, y: r.y1 }, ang = Math.atan2(r.y1 - r.y0, r.x1 - r.x0), { p, kind } = knifeAt(E, r.x1, r.y1), L = lay(E), k = arrowK(r);
   const fall = (vx, vy) => { state.arrowFall = { x: at.x, y: at.y, vx, vy, rot: ang, vr: (Math.random() < 0.5 ? -1 : 1) * 8, flat: Math.PI * (Math.random() < 0.5 ? 0.02 : 0.98), floor: L.floor - 2, life: B.fall }; };
+  if (state.charge && kind !== 'miss') { if (chargeHit(E, p, kind, at, ang, r.pw == null ? 1 : r.pw) === 'PLATE') fall(-Math.cos(ang) * 120, -140); return; }
   if (kind === 'gap') {
-    const dealt = Math.round(plainGap() * B.gap * r.pw * 2) / 2;
+    const dealt = Math.round(plainGap() * B.gap * k * 2) / 2;
     p.cool = TUNING.hit.cool; p.flash = 0.16; state.gapHits++; state.slotHits++; state.arrowGaps++; state.bout.gaps[p.d.id] = (state.bout.gaps[p.d.id] || 0) + 1;
     f.hp -= dealt;
     blood(at.x, at.y, ang, J.blood.slot); ring(at.x, at.y, J.slotRing, '#ef4444'); slotSound(E); sliceSound(E, true);
@@ -307,76 +359,146 @@ export function arrowLands(E, r) {
     return;
   }
   if (kind === 'skin') {
-    const dealt = Math.round(B.skin * r.pw * 2) / 2;
+    const dealt = Math.round(B.skin * k * 2) / 2;
     state.arrowSkin++; f.hp -= dealt;
     blood(at.x, at.y, ang, 6); dullSound(E); pop(at.x, at.y - 30, 'STAGGER', '#fbbf24', 22); dmgPop(E, at, dealt, '#fca5a5'); E.haptic(16);
     if (f.hp <= 0) fell(E); else staggerFoe(E, true);
     return;
   }
   if (kind === 'plate') { state.arrowPlate++; p.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 12); ring(at.x, at.y, 30, '#cbd5e1'); clangSound(E, 0); pop(at.x, at.y - 24, 'PLATE', '#cbd5e1', 20); E.haptic(12); fall(-Math.cos(ang) * 120, -140); return; }
-  state.arrowMiss++; pop(at.x, at.y - 24, 'MISSED', '#e2e8f0', 20); E.audio.play('miss');
-  fall(Math.cos(ang) * 420, Math.sin(ang) * 420 - 80);
+  state.arrowMiss++; pop(clamp(at.x, 40, E.w - 40), clamp(at.y, E.safe.top + 60, L.floor) - 24, 'MISSED', '#e2e8f0', 20); E.audio.play('miss');
+  // (into the sand it sticks where it fell, at its angle)
+  if (at.y >= L.floor - 1) state.arrowFall = { x: at.x, y: L.floor + 2, vx: 0, vy: 0, rot: ang, vr: 0, flat: ang, floor: L.floor + 2, life: B.fall };
 }
-// where the bow sits: its grip in your fist, its belly toward where you aim (or along your arm) and its string toward you; pt maps a point of its
+// where the bow sits: its grip in your fist, its belly along the aim's angle (or along your arm) and its string toward you; pt maps a point of its
 // painting (TUNING.bow.art, px) to the screen
 function bowFrame(E, a = state.aim) {
-  const h = state.hand, A = TUNING.bow.art, k = TUNING.bow.len * myH(E) / (A.rest[1][1] - A.rest[0][1]);
-  let ux = Math.cos(h.ang), uy = Math.sin(h.ang);
-  if (a && a.bow) { const d = Math.hypot(a.x - h.hx, a.y - h.hy); if (d > 1) { ux = (a.x - h.hx) / d; uy = (a.y - h.hy) / d; } }
+  const h = state.hand, A = TUNING.bow.art, k = bowScale(E);
+  const q = a && a.bow ? a : state.follow && state.follow.t > 0 ? state.follow : null, an = q ? q.ang : h.ang, ux = Math.cos(an), uy = Math.sin(an);
   return { A, k, ux, uy, pt: (x, y) => [h.hx + (ux * (x - A.grip[0]) - uy * (y - A.grip[1])) * k, h.hy + (uy * (x - A.grip[0]) + ux * (y - A.grip[1])) * k] };
 }
-// the arrow's drawn length, nock to tip, at the bow painting's scale
-const arrowLen = (E) => { const B = TUNING.bow, R = B.arrow; return (R.tip[0] - R.nock[0]) * B.len * myH(E) / (B.art.rest[1][1] - B.art.rest[0][1]); };
-// where your sword hand holds the bow: the arm straight toward the ring while you draw (and for TUNING.bow.follow s after a loose), low and forward
-// with no thumb down
+// the bow painting's scale (screen px per painting px)
+export const bowScale = (E) => { const A = TUNING.bow.art; return TUNING.bow.len * myH(E) / (A.rest[1][1] - A.rest[0][1]); };
+// your cheek, where a full draw's string comes to (TUNING.bow.anchor, your body's frame)
+const anchorPt = (E) => toScreen(youF(E), ...TUNING.bow.anchor);
+// your far shoulder, where the drawing arm hangs from
+const drawShoulder = (E) => toScreen(youF(E), ...PARTS[4].joint);
+// how far behind the grip (px, along the arrow) the string hand holds the string: at rest where the painted string is, at a full draw at your cheek
+// (the anchor, seen along the arrow), and never beyond what the drawing arm reaches from its shoulder (the string follows the hand)
+function nockDep(E, f, a) {
+  const A = TUNING.bow.art, h = state.hand, rest = (A.grip[0] - A.rest[0][0]) * f.k, [ax, ay] = anchorPt(E), [jx, jy] = drawShoulder(E), R = myArm(E) * TUNING.bow.reach;
+  const full = Math.max(rest, (h.hx - ax) * f.ux + (h.hy - ay) * f.uy), vx = h.hx - jx, vy = h.hy - jy, b = vx * f.ux + vy * f.uy, q = b * b - (vx * vx + vy * vy) + R * R;
+  return Math.max(lerp(rest, full, pullK(a)), q >= 0 ? b - Math.sqrt(q) : b);
+}
+// the string hand now: on the nock while you draw; after a loose it stays back a moment (TUNING.bow.follow, the second half easing it to the string),
+// then rests on the string by the grip
+function stringHand(E) {
+  const a = state.aim && state.aim.bow ? state.aim : null, f = bowFrame(E, a), fo = !a && state.follow && state.follow.t > 0 ? state.follow : null, rest = nockDep(E, f, null);
+  const d = a ? nockDep(E, f, a) : fo ? lerp(rest, fo.dep * myH(E), clamp(fo.t / (TUNING.bow.follow / 2), 0, 1)) : rest;
+  return [state.hand.hx - f.ux * d, state.hand.hy - f.uy * d];
+}
+// the drawing arm (your far arm, drawArm's record): from its shoulder to the string hand. Drawn back, its forearm runs back from the hand along the
+// arrow, tipped up by TUNING.bow.elbow, the elbow behind your head (the upper arm short as it turns toward you); nearer the bow it bends as an arm does
+const DRAW_ARM = { bare: true, lock: 0, sl: 0, ph: 0 };
+export function drawArmRec(E) {
+  const [sx, sy] = drawShoulder(E), [hx, hy] = stringHand(E), U = myArm(E) / 2, q = state.aim && state.aim.bow ? state.aim : state.follow && state.follow.t > 0 ? state.follow : null;
+  const ea = (q ? q.ang : state.hand.ang) + Math.PI + TUNING.bow.elbow;
+  let ex = hx + Math.cos(ea) * U, ey = hy + Math.sin(ea) * U;
+  if (Math.hypot(ex - sx, ey - sy) > U) {
+    const dx = hx - sx, dy = hy - sy, l = Math.hypot(dx, dy) || 1, half = Math.min(l, 2 * U) / 2, bend = Math.sqrt(Math.max(0, U * U - half * half));
+    // (of the two bends, the one with the elbow behind you; down rather than up when the hand is level with the shoulder)
+    const sd = -dy / l - 0.3 * dx / l >= 0 ? 1 : -1;
+    ex = sx + dx / l * half + sd * dy / l * bend; ey = sy + dy / l * half - sd * dx / l * bend;
+  }
+  return Object.assign(DRAW_ARM, { sx, sy, ex, ey, hx, hy, ph: Math.atan2(hy - ey, hx - ex) });
+}
+// the arrow's drawn length, nock to tip (TUNING.bow.arrow.len)
+export const arrowLen = (E) => TUNING.bow.arrow.len * myH(E);
+// the nocked arrow's point now
+function arrowTip(E, a) {
+  const f = bowFrame(E, a), d = nockDep(E, f, a), len = arrowLen(E);
+  return [state.hand.hx + f.ux * (len - d), state.hand.hy + f.uy * (len - d)];
+}
+// where your sword hand holds the bow: while you draw (and for TUNING.bow.follow s after a loose) the arm straight, the grip where the arrow's line
+// from your cheek along the aim's angle meets the arm's reach, so the drawn string comes to your cheek; low and forward with no thumb down
 export function bowPt(E) {
   const H = myH(E), [sx, sy] = toScreen(youF(E), SHOULDER[0], SHOULDER[1]), a = state.aim;
   const q = a && a.bow ? a : state.follow && state.follow.t > 0 ? state.follow : null;
-  if (q) { const d = Math.hypot(q.x - sx, q.y - sy) || 1, r = TUNING.arm.straightAt * H * 1.05; return [sx + (q.x - sx) / d * r, sy + (q.y - sy) / d * r]; }
+  if (q) {
+    const [ax, ay] = anchorPt(E), ux = Math.cos(q.ang), uy = Math.sin(q.ang), wx = ax - sx, wy = ay - sy, b = wx * ux + wy * uy, R = myArm(E) * TUNING.arm.full;
+    const D = -b + Math.sqrt(Math.max(0, b * b - wx * wx - wy * wy + R * R)), gx = wx + ux * D, gy = wy + uy * D, l = Math.hypot(gx, gy) || 1, r = TUNING.arm.straightAt * H * 1.05;
+    return [sx + gx / l * r, sy + gy / l * r];
+  }
   return [sx + TUNING.bow.rest[0] * H, sy + TUNING.bow.rest[1] * H];
 }
-// the arrow, its nock at (x, y) and its point len px along ang: Pack 29's painting, or drawn
-function drawArrow(ctx, x, y, ang, len) {
-  const R = TUNING.bow.arrow, P = kitOn() && artPic('arrow', R, len * Math.min((ENG && ENG.dpr) || 1, TUNING.skin.maxDpr));
+// the arrow, its nock at (x, y) and its point len px along ang: Pack 29's painting, or drawn. ks: the painting's scale; in a fight the bow's, so a
+// long arrow keeps its fletching and head and only its shaft is longer (the rack's is the painting as it is)
+export function drawArrow(ctx, x, y, ang, len, ks = len / (TUNING.bow.arrow.tip[0] - TUNING.bow.arrow.nock[0])) {
+  const R = TUNING.bow.arrow, P = kitOn() && artPic('arrow', R, (R.tip[0] - R.nock[0]) * ks * Math.min((ENG && ENG.dpr) || 1, TUNING.skin.maxDpr));
   ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
   // (drawn thick x R.thick across, or the painted shaft is a hairline at game size)
-  if (P) { const k = len / (R.tip[0] - R.nock[0]); ctx.scale(k, k * R.thick); ctx.drawImage(P.im, -R.nock[0], -R.nock[1], R.size[0], R.size[1]); }
-  else {
-    ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = Math.max(1.5, len * 0.025); line(ctx, 0, 0, len * 0.92, 0);
-    ctx.fillStyle = '#3a3f47'; ctx.beginPath(); ctx.moveTo(len, 0); ctx.lineTo(len * 0.9, -len * 0.035); ctx.lineTo(len * 0.9, len * 0.035); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#e8e2d2'; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(len * 0.02, 0); ctx.lineTo(len * 0.16, 0); ctx.lineTo(len * 0.05, sd * len * 0.04); ctx.closePath(); ctx.fill(); }
+  if (P) {
+    const S = R.slice, im = P.im, kx = P.kx, top = -R.nock[1] * ks * R.thick, h = R.size[1] * ks * R.thick, a = (S[0] - R.nock[0]) * ks, b = len - (R.tip[0] - S[1]) * ks;
+    // (the shaft is stroked, so it reads over an arm or the sand at any length; the fletching and head are the painting's)
+    const sw = Math.max(1.4, R.shaft * ks);
+    ctx.lineCap = 'butt'; ctx.strokeStyle = 'rgba(30,18,8,0.8)'; ctx.lineWidth = sw + 1.4; line(ctx, a - 2, 0, b + 2, 0); ctx.strokeStyle = '#9a6a3a'; ctx.lineWidth = sw; line(ctx, a - 2, 0, b + 2, 0);
+    ctx.drawImage(im, 0, 0, S[0] * kx, im.height, -R.nock[0] * ks, top, S[0] * ks, h);
+    ctx.drawImage(im, S[1] * kx, 0, (R.size[0] - S[1]) * kx, im.height, b, top, (R.size[0] - S[1]) * ks, h);
+  } else {
+    const n = (R.tip[0] - R.nock[0]) * ks;
+    ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = Math.max(1.5, n * 0.025); line(ctx, 0, 0, len - n * 0.08, 0);
+    ctx.fillStyle = '#3a3f47'; ctx.beginPath(); ctx.moveTo(len, 0); ctx.lineTo(len - n * 0.1, -n * 0.035); ctx.lineTo(len - n * 0.1, n * 0.035); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e8e2d2'; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(n * 0.02, 0); ctx.lineTo(n * 0.16, 0); ctx.lineTo(n * 0.05, sd * n * 0.04); ctx.closePath(); ctx.fill(); }
   }
   ctx.restore();
 }
-// the bow in your hand: Pack 29's bow at rest and drawn, crossfading as the draw fills (TUNING.bow.art.fade), its string's point coming back to
-// the drawn point; with no painting, a drawn one
+// the painted bow with its painted string taken out (once per copy), so the string can be drawn to the hand however far it is drawn
+const UNSTRUNG = new WeakMap();
+function unstrung(P, ends, nock) {
+  let c = UNSTRUNG.get(P.im);
+  if (c) return c;
+  const A = TUNING.bow.art, cv = new OffscreenCanvas(P.im.width, P.im.height), g = cv.getContext('2d'), T = A.unstring;
+  g.drawImage(P.im, 0, 0); g.globalCompositeOperation = 'destination-out'; g.scale(P.kx, P.ky); g.lineWidth = T[0]; g.lineCap = 'round';
+  const m = [nock, A.grip[1]], at = (p, q, t) => [lerp(p[0], q[0], t), lerp(p[1], q[1], t)];
+  // (from just inside each tip, so the limbs' ends are untouched)
+  if (nock >= A.rest[0][0] - 1) { g.beginPath(); g.moveTo(...at(ends[0], ends[1], T[1])); g.lineTo(...at(ends[1], ends[0], T[1])); g.stroke(); }
+  else { g.beginPath(); g.moveTo(...at(ends[0], m, T[1])); g.lineTo(...m); g.lineTo(...at(ends[1], m, T[1])); g.stroke(); }
+  c = { im: cv }; UNSTRUNG.set(P.im, c);
+  return c;
+}
+// the bow in your hand: Pack 29's bow at rest and drawn, crossfading as the draw fills (TUNING.bow.art.fade), its string from tip to tip through
+// the string hand while you draw (straight at rest); with no painting, a drawn one
 export function drawBow(ctx, E) {
   const B = TUNING.bow, A = B.art, a = state.aim && state.aim.bow ? state.aim : null, f = bowFrame(E, a), dk = pullK(a), px = (A.rest[1][1] - A.rest[0][1]) * f.k * Math.min(E.dpr || 1, TUNING.skin.maxDpr);
-  const R = kitOn() && artPic('weapon-bow', A, px), D = kitOn() && artPic('weapon-bow-drawn', A, px), nx = lerp(A.rest[0][0], A.nock, dk), ny = A.grip[1];
+  const R = kitOn() && artPic('weapon-bow', A, px), D = kitOn() && artPic('weapon-bow-drawn', A, px), nx = a ? A.grip[0] - nockDep(E, f, a) / f.k : A.rest[0][0], ny = A.grip[1];
+  const x = R && D ? clamp((dk - A.fade[0]) / (A.fade[1] - A.fade[0]), 0, 1) : dk, ends = A.rest.map((q, i) => lerp2(q, A.drawn[i], x));
   if (R && D) {
-    const o = f.pt(0, 0), x = clamp((dk - A.fade[0]) / (A.fade[1] - A.fade[0]), 0, 1), a0 = ctx.globalAlpha;
+    const o = f.pt(0, 0), a0 = ctx.globalAlpha;
     ctx.save(); ctx.transform(f.ux * f.k, f.uy * f.k, -f.uy * f.k, f.ux * f.k, o[0], o[1]);
     // (the grip is the same in both, so it stays solid through the crossfade)
-    const [lo, hi, k] = x <= 0.5 ? [R, D, x * 2] : [D, R, (1 - x) * 2];
-    ctx.drawImage(lo.im, 0, 0, A.size[0], A.size[1]);
-    if (k > 0) { ctx.globalAlpha = a0 * k; ctx.drawImage(hi.im, 0, 0, A.size[0], A.size[1]); ctx.globalAlpha = a0; }
+    const [lo, hi, k] = x <= 0.5 ? [R, D, x * 2] : [D, R, (1 - x) * 2], im = (P) => unstrung(P, P === R ? A.rest : A.drawn, P === R ? A.rest[0][0] : A.nock).im;
+    ctx.drawImage(im(lo), 0, 0, A.size[0], A.size[1]);
+    if (k > 0) { ctx.globalAlpha = a0 * k; ctx.drawImage(im(hi), 0, 0, A.size[0], A.size[1]); ctx.globalAlpha = a0; }
     ctx.restore();
   } else {
-    // drawn: two limbs bent back from the grip, the string from tip to tip through its point
-    const ends = A.rest.map((q, i) => lerp2(q, A.drawn[i], dk)), g = f.pt(...A.grip), t = ends.map((q) => f.pt(...q)), mid = (q) => f.pt(lerp(A.grip[0], q[0], 0.4) + 40, lerp(A.grip[1], q[1], 0.6));
+    // drawn: two limbs bent back from the grip
+    const g = f.pt(...A.grip), t = ends.map((q) => f.pt(...q)), mid = (q) => f.pt(lerp(A.grip[0], q[0], 0.4) + 40, lerp(A.grip[1], q[1], 0.6));
     ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = '#3b2412'; ctx.lineWidth = 0.022 * myH(E) + 2;
     ctx.beginPath(); ctx.moveTo(...t[0]); ctx.quadraticCurveTo(...mid(ends[0]), ...g); ctx.quadraticCurveTo(...mid(ends[1]), ...t[1]); ctx.stroke();
     ctx.strokeStyle = '#7a4a24'; ctx.lineWidth = 0.022 * myH(E); ctx.stroke();
-    ctx.strokeStyle = '#ece4cf'; ctx.lineWidth = 1.5; const s = f.pt(nx, ny); ctx.beginPath(); ctx.moveTo(...t[0]); ctx.lineTo(...s); ctx.lineTo(...t[1]); ctx.stroke();
     ctx.restore();
   }
+  // the string, tip to tip through its point
+  const t = ends.map((q) => f.pt(...q)), s = f.pt(nx, ny), w = Math.max(1.2, A.unstring[2] * f.k);
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(...t[0]); ctx.lineTo(...s); ctx.lineTo(...t[1]);
+  ctx.strokeStyle = 'rgba(40,24,10,0.55)'; ctx.lineWidth = w + 1.2; ctx.stroke(); ctx.strokeStyle = '#ece4cf'; ctx.lineWidth = w; ctx.stroke(); ctx.restore();
 }
-// the arrow nocked on the drawn string, over your forearm (drawKnives, after the arm)
+// the arrow nocked on the drawn string, over your bow arm, and the string hand over its nock (drawKnives, after the arm)
 function drawNocked(ctx, E) {
-  const a = state.aim, A = TUNING.bow.art;
-  if (!a || !a.bow || !bowShown()) return;
-  const f = bowFrame(E, a), [x0, y0] = f.pt(lerp(A.rest[0][0], A.nock, pullK(a)), A.grip[1]);
-  drawArrow(ctx, x0, y0, Math.atan2(f.uy, f.ux), arrowLen(E));
+  const a = state.aim;
+  if (!bowShown()) return;
+  if (a && a.bow) { const f = bowFrame(E, a), d = nockDep(E, f, a); drawArrow(ctx, state.hand.hx - f.ux * d, state.hand.hy - f.uy * d, Math.atan2(f.uy, f.ux), arrowLen(E), bowScale(E)); }
+  drawArm(ctx, E, drawArmRec(E), false, 'front');
 }
 // your kit put away while the bow is out, in your body's frame (drawFighter, before the body): the blade (both, with two blades) hanging back from
 // the hip, and the shield slung on your back
@@ -398,8 +520,10 @@ export function knifeLands(E, k) {
   if (state.range) { rangeLands(E, k); return; }
   const K = TUNING.knives, at = { x: k.x1, y: k.y1 }, ang = Math.atan2(k.y1 - k.y0, k.x1 - k.x0), fm = state.foe, gone = state.fallT > 0 || fm.hp <= 0 || !fm.parts;
   const { p, kind, lx, ly } = k.kind == null ? knifeAt(E, k.x1, k.y1) : gone || !k.p ? { p: null, kind: 'miss' } : { p: k.p, kind: k.kind, ...partAt(E, k.p, k.x1, k.y1) };
-  if (kind === 'gap') { knifeGap(E, p, at, ang); return; }
-  if (kind === 'plate') { state.knifePlate++; p.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 6); dullSound(E); pop(at.x, at.y - 24, 'PLATE', '#cbd5e1', 20); E.haptic(8); }
+  // (a charging beast takes it by the charge's rules; off its plate the knife drops as below)
+  if (state.charge && kind !== 'miss') { if (chargeHit(E, p, kind, at, ang, null) !== 'PLATE') return; }
+  else if (kind === 'gap') { knifeGap(E, p, at, ang); return; }
+  else if (kind === 'plate') { state.knifePlate++; p.clang = 0.25; sparks(at.x, at.y, ang + Math.PI, 6); dullSound(E); pop(at.x, at.y - 24, 'PLATE', '#cbd5e1', 20); E.haptic(8); }
   else if (kind === 'skin') { state.knifeSkin++; knifeSkin(E, p, { ...at, lx, ly }, ang); }
   else { state.knifeMiss++; pop(at.x, at.y - 24, 'MISSED', '#e2e8f0', 20); E.audio.play('miss'); }
   const L = lay(E);
@@ -462,22 +586,33 @@ export function drawKnives(ctx, E) {
     }
   }
   if (a && a.bow) {
-    // (step 24: the bow's ring is grey inside his reach, and tightens from ring[0] to ring[1] px as a full draw is held; a gold arc fills with the draw)
-    const close = inReach(), col = close ? '#9ca3af' : a.over === 'gap' ? '#4ade80' : a.over === 'plate' ? '#f87171' : '#ffd24a';
-    const r = lerp(B.ring[0], B.ring[1], holdK(a)), tx = a.tx == null ? a.rx : a.tx, ty = a.tx == null ? a.ry + K.lift : a.ty;
-    if (pullK(a) < 1) { ctx.save(); ctx.strokeStyle = 'rgba(255,214,110,0.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, r + 6, -Math.PI / 2, -Math.PI / 2 + TAU * pullK(a)); ctx.stroke(); ctx.restore(); }
-    ctx.save(); ctx.strokeStyle = col; ctx.globalAlpha = 0.7; ctx.lineWidth = 1.5; line(ctx, a.x, a.y + r, tx, ty); ctx.restore();
-    if (a.id < 0) { ctx.save(); ctx.globalAlpha = 0.6; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx, ty, 5, 0, TAU); ctx.stroke(); ctx.restore(); }
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4; ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, TAU); ctx.stroke();
-    line(ctx, a.x - r - 6, a.y, a.x - r + 2, a.y); line(ctx, a.x + r - 2, a.y, a.x + r + 6, a.y); line(ctx, a.x, a.y - r - 6, a.x, a.y - r + 2);
-    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, TAU); ctx.fill(); ctx.restore();
+    // (the bow's aim: its real flight as dots, B.pre of the way to where it lands, as the knife's; round the thumb, the draw filling to full with a
+    // tick at the draw's mark)
+    const P = a.path, n = P.length / 2;
+    let run = 0, total = 0;
+    for (let i = 1; i < n; i++) total += Math.hypot(P[2 * i] - P[2 * i - 2], P[2 * i + 1] - P[2 * i - 1]);
+    const lim = Math.max(60, total * B.pre);
+    ctx.save();
+    for (let i = 1, next = 10; i < n && run <= lim; i++) {
+      run += Math.hypot(P[2 * i] - P[2 * i - 2], P[2 * i + 1] - P[2 * i - 1]);
+      if (run < next) continue;
+      next += 13;
+      const r = 3.2 - run / lim, x = P[2 * i], y = P[2 * i + 1];
+      ctx.fillStyle = 'rgba(20,12,6,0.7)'; ctx.beginPath(); ctx.arc(x, y, r + 1.6, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff6c8'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
+    const u = clamp(a.draw / B.full, 0, 1), R = 34, at = -Math.PI / 2 + TAU * B.draw / B.full;
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(20,12,6,0.55)'; ctx.beginPath(); ctx.arc(a.tx, a.ty, R, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = u >= 1 ? '#ffd24a' : '#fde68a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(a.tx, a.ty, R, -Math.PI / 2, -Math.PI / 2 + TAU * u); ctx.stroke();
+    ctx.strokeStyle = '#1b1410'; ctx.lineWidth = 2; line(ctx, a.tx + Math.cos(at) * (R - 5), a.ty + Math.sin(at) * (R - 5), a.tx + Math.cos(at) * (R + 5), a.ty + Math.sin(at) * (R + 5));
+    ctx.restore();
   }
   if (k) { const u = clamp(k.t / k.dur, 0, 1), h = k.arc || 0; drawKnife(ctx, lerp(k.x0, k.x1, u), lerp(k.y0, k.y1, u) - 4 * h * u * (1 - u), Math.atan2(k.y1 - k.y0 - 4 * h * (1 - 2 * u), k.x1 - k.x0), len); }
   if (q) { ctx.globalAlpha = clamp(q.life / 0.3, 0, 1); drawKnife(ctx, q.x, q.y, q.rot, len); ctx.globalAlpha = 1; }
   // step 24: an arrow in flight (its point on the way to the ring), and one spent
-  const r = state.arrow, rq = state.arrowFall, al = arrowLen(E);
-  if (r) { const u = clamp(r.t / r.dur, 0, 1), an = Math.atan2(r.y1 - r.y0, r.x1 - r.x0), x = lerp(r.x0, r.x1, u), y = lerp(r.y0, r.y1, u); drawArrow(ctx, x - Math.cos(an) * al, y - Math.sin(an) * al, an, al); }
-  if (rq) { ctx.globalAlpha = clamp(rq.life / 0.3, 0, 1); drawArrow(ctx, rq.x - Math.cos(rq.rot) * al, rq.y - Math.sin(rq.rot) * al, rq.rot, al); ctx.globalAlpha = 1; }
+  const rq = state.arrowFall, al = arrowLen(E);
+  for (const r of [state.arrow, ...(state.volley || [])]) if (r) { const an = Math.atan2(r.vy, r.vx); drawArrow(ctx, r.x - Math.cos(an) * al, r.y - Math.sin(an) * al, an, al, bowScale(E)); }
+  if (rq) { ctx.globalAlpha = clamp(rq.life / 0.3, 0, 1); drawArrow(ctx, rq.x - Math.cos(rq.rot) * al, rq.y - Math.sin(rq.rot) * al, rq.rot, al, bowScale(E)); ctx.globalAlpha = 1; }
 }
 // the round buttons: ⇄ (its ring fills while you swap) and the knife button with the knives left (red while one is raised)
 export function drawArmsBtns(ctx, E) {

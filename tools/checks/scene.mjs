@@ -206,3 +206,16 @@ export async function throwKnife(g, target = 0, { slide = 14, after = 40, onFram
   for (let i = 0; i < after; i++) { await g.frames(1); if (onFrame) await onFrame(); }
   return seen;
 }
+
+// Loose one arrow with the bow out (2026-11-21): the thumb down at (x, y) (fractions of the screen, default the right side), slid `slide` px (negative =
+// up) over the first `slideF` frames, held `hold` frames in all, then lifted. Returns what the aim showed just before the release ({ over, ang, pw }).
+// Pass `onFrame` to see each frame (a film). Needs the bow out (scene({ side: 'bow' }) and bowUp, or a beast's charge, which starts with it up).
+export async function bowShot(g, { hold = 72, slide = 0, slideF = 12, x = 0.75, y = 0.62, id = 6, after = 0 } = {}) {
+  const x0 = x <= 1 ? g.w * x : x, y0 = y <= 1 ? g.h * y : y;
+  await g.down(x0, y0, id);
+  for (let f = 1; f <= hold; f++) { await g.frames(1); if (slide && f <= slideF) await g.move(x0, y0 + slide * f / slideF, id); }
+  const seen = await g.ev(() => { const a = window.__engine.game.scenes.play.state.aim; return a && a.bow ? { over: a.over, ang: +a.ang.toFixed(3), pw: +a.pw.toFixed(2) } : null; });
+  await g.up(x0, y0 + slide, id); await g.frames(1);
+  if (after) await g.frames(after);
+  return seen;
+}

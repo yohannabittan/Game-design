@@ -158,3 +158,6 @@ To undo a landed build: `node tools/land.mjs arena --revert <commit> --msg "Aren
 - A ludus unlock: LUDUS, LUDUS_LOCK and its place on PATH (data.js); rank names in RANK_NAMES; the rank emblem is drawn by rankEmblem (scenes.js).
 - Anything that moves you must run before moveHand in play.update (the arm keeps its shoulder in state.hand.sx); range trials put you on your mark in holdRange (features/range.js).
 - The replay snapshot dumps all of state.draft: a new field on the draft object moves every replay hash unless it is non-enumerable (screens.js d.knife).
+- Moving the foe far: state.step.x is his place (only stepFoe moves it); the camera reads f.home in camSpan and camTarget zooms out to camera.min, so both need changing (features/charge.js)
+- A bent second arm (the bow's drawing hand): drawArm's 'back' and 'front' passes, as the two-blade off arm uses; solveArm straightens past straightAt
+- sw.js ASSETS is hand-kept: add every new src file

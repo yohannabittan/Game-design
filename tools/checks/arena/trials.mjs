@@ -55,11 +55,12 @@ export default async function (t) {
       counts[tab] = await g.ev(() => { const T = window.__engine.game.scenes.trials; return [T.tab, T.cards.length, T.cards.every((c) => c.w >= 44 && c.h >= 44 && c.y + c.h <= window.__engine.h)]; });
     }
     t.eq(`${w}x${h}: each tab shows its cards, all on screen`, counts, { range: ['range', 6, true], blades: ['blades', 3, true], fists: ['fists', 3, true], champions: ['champions', 2, true] });
-    // a "soon" card starts nothing; a live card starts its trial
+    // a live card starts its trial (2026-11-21: the bow's range cards are live, bow.mjs plays them)
     await g.ev(() => { window.__engine.game.scenes.trials.tab = 'range'; }); await g.frames(2);
     let c = await g.ev(() => window.__engine.game.scenes.trials.cards[1]);
     await g.tap(c.x + c.w / 2, c.y + c.h / 2); await g.frames(3);
-    t.eq(`${w}x${h}: the bow's range card (soon) starts nothing yet`, await scene(g), 'trials');
+    t.eq(`${w}x${h}: the bow's range card starts Shrinking Target: bow`, await g.ev(() => [window.__engine.sceneName, window.__engine.game.scenes.play.state.trial && window.__engine.game.scenes.play.state.trial.id]), ['play', 'shrinkBow']);
+    await g.ev(() => window.__engine.setScene('trials', { tab: 'champions' })); await g.frames(2);
     await g.ev(() => { window.__engine.game.scenes.trials.tab = 'champions'; }); await g.frames(2);
     c = await g.ev(() => window.__engine.game.scenes.trials.cards[0]);
     await g.tap(c.x + c.w / 2, c.y + c.h / 2); await g.frames(3);
