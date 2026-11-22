@@ -588,8 +588,8 @@ export const TUNING = {
   // a speaker's face beside his line (big for a headline), crop = the face's box in a portrait (fractions x0 y0 x1 y1), bust = a champion's on his card
   // (w, h px, gap from the card's corner), box = the Emperor's crop in the imperial box.
   // loading (step 12): par images in flight at once in the background; the boot card waits up to boot s for the menu's paintings and shows only after
-  // show s; a bout's intro card holds a tap up to hold s for its paintings; a painting landing on screen fades in over fade s; the boot bar's w x h px
-  load: { par: 4, retries: 1, retryMs: 4000, boot: 3, show: 0.15, hold: 2, fade: 0.2, bar: [180, 4] },
+  // show s; a bout's intro card holds a tap up to hold s for its paintings; a painting landing on screen fades in over fade s; a figure whose paint is still loading is hidden (its shadow only) for up to wait s, then shows the drawn stand-in; cand candidate images load behind the shipped ones at once (dev channel); the boot bar's w x h px
+  load: { par: 4, retries: 1, retryMs: 4000, boot: 3, show: 0.15, hold: 2, fade: 0.2, bar: [180, 4], wait: 3, cand: 2 },
   // the menu (step 12): seed = the fresh roll's look shown before any run; col = the centre column (share of the width, least, most px), gap px to the
   // sides; title px (least, most, share of the height); backdrop wash and vignette alphas; torches at dx px either side of the title's centre, glow r
   // px, flicker share; dust motes, their px/s drift; the fighter's height (share of the height), the cut at his hips (body units), breath (rise as a share of s, rad/s), cloak sway (body units, rad/s)

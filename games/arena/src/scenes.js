@@ -14,14 +14,14 @@ import { updateFinisher, firstRun, runsDone, updateHints, finTouch, crowdDrain, 
 import { weaponKey, weaponArt, picSprite, drawPic, sayLine, KIT_HELM, meGm, kitTier, kitPic, manArt, beastArt, dollArt, helmArt, gearPic, drawSeg,
   torsoPlate, TAU, GTYPE, lookOf, LEGS, canSprite, shade, lw, line, face, lerp2, hudRow, heartAt, drawHudHeart, drawPips, foeHealth, drawCrowdMeter,
   crowdBar, drawCoin, drawEdge, warmPair, drawEdgeTag, drop, rrect, drawNet, netArt, netK, drapeNet, drawWeapon, blinkGhosts, capuanGhosts,
-  blinkStreaks, readGlow, spearFlight, spearDown, flyingShield, emperorSignal, flyingWeapon, drawFighter, drawSwordArm, drawShield, shieldPaint,
+  blinkStreaks, readGlow, spearFlight, spearDown, flyingShield, emperorSignal, flyingWeapon, drawFighter, figsPending, drawSwordArm, drawShield, shieldPaint,
   drawShieldBtns, drawWalls, drawGuard, drawZone, drawZoneLabel, drawRightHints, drawHint, drawFinBtn, drawCaption, drawBackground } from './draw-fight.js';
 import { openDraft, swapSpoil, buyWare, leaveTent, buyBandage, pickCard, skipDraft, rerollDraft, famGlyph, drawIcon, tapCard, drawDraft, drawTent,
   drawBandage, labTab, drawLab, labTap, tokenButton, heroArm, heroPose, kitIconSprite, armourIcon, weaponIcon, keyIcon, fitSize, wrapPx, drawIntro,
   clipLine, miniCard, TIER_COL, sliceArcs, wheelRest, sliceCol, drawWheel, spinRot, pegsPassed, iconWeapon, drawMeCard, purseOf, drawPurse, noPlate,
   purseNudge, meMini, fameOf, fameFromLedger, carveChampion, vetArenas, ludusOf, startable, startPick, rankOf, rankAt, rankStep, rankName, grantRanks } from './screens.js';
 import { arena, state, easeOut, wrap, pidx, noShield, ME_WHEEL, rollMe, kitMe, wheelList, statTier, deriveMe, respinMe, vetMe, rivalOf, newRack,
-  newRound, saveRun, resumeRun, ART, artV, artImg, artState, artSettled, artFade, shippedArt, BACKDROP, champPic, kitOn } from './game.js';
+  newRound, saveRun, resumeRun, ART, artV, artImg, artState, artSettled, artFade, artWaiting, shippedArt, BACKDROP, champPic, kitOn } from './game.js';
 import { yardDue, startYard, endYard, yardFields, yardRelease, updateYard, drawYard } from './features/yard.js';
 import { startDual, updateDual, dualTouch } from './features/dual.js';
 import { startTrial, updateTrial, drawTrial, trialTap } from './features/trials.js';
@@ -271,9 +271,15 @@ function paintMenu(c, E, o) {
 // doll's paint is in (the drawn blocks once it has failed, or with the kit off); the weapon stays in the still hand. The doll is copied at whole device pixels, the cheapest copy there is,
 // in two pieces cut at the hips: the body above rises and falls a few pixels as he breathes, its lower rows covering the seam. d: the target's pixel
 // ratio; box: only what lies in it is drawn (the cloak always does).
+const MENU_WAIT = {};
 function menuFigure(ctx, E, m, x, y, s, d = E.dpr || 1, box = null) {
   const M = TUNING.menu, t = E.time, pose = heroPose(m.me.weapon), sp = kitOn() && canSprite ? kitIconSprite(E, m.parts, s, m.me.str, m.gm, pose) : null;
-  if (!sp) { armourIcon(ctx, E, m.parts, x, y, s, m.me.str, m.gm); return; }
+  if (!sp) {
+    // his paint is loading: nothing (not the doll in another pose) for up to TUNING.load.wait s, then the doll as it stands
+    if (kitOn() && canSprite && !dollArt(m.parts, m.me.str, m.gm).body.some((n) => artState(n) === 'bad') && artWaiting(MENU_WAIT, false)) return;
+    armourIcon(ctx, E, m.parts, x, y, s, m.me.str, m.gm); return;
+  }
+  artWaiting(MENU_WAIT, true);
   const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), cv = sp.cv, amp = Math.max(1, Math.round(M.breath[0] * s * k));
   const lift = Math.round(amp * (0.5 + 0.5 * Math.sin(t * M.breath[1]))), up = lift / k, sw = M.sway[0] * Math.sin(t * M.sway[1]);
   const X = Math.round((x + sp.x) * d) / d, Y = Math.round((y + sp.y) * d) / d, cut = clamp(Math.round((M.hips * s - sp.y) * k), 1, cv.height - 1);
@@ -1526,7 +1532,9 @@ export const play = {
     // slow time: the open window's brief slow, and the whole of the first feint ever
     if (state.slowT > 0) { state.slowT -= dt; dt *= TUNING.openWin.slow; } else if (state.sw && state.sw.lesson === 'slow') dt *= TUNING.lesson.slow;
     if (state.intro) {
-      if (state.introGo >= 0 && (introReady(E) || E.time - state.introGo >= TUNING.load.hold)) { beginBout(E); return; }
+      // the bout starts once the paintings are in, or after hold s with no figure still hidden (a figure waits at most TUNING.load.wait s for its paint)
+      const hidden = figsPending();
+      if (state.introGo >= 0 && (introReady(E) || (E.time - state.introGo >= TUNING.load.hold && !hidden))) { beginBout(E); return; }
       state.m += dt; state.introT += dt;
       if (state.pop > 0) state.pop = Math.max(0, state.pop - dt * 4);
       poseFoe(E, dt); poseYou(E, dt); moveHand(E, dt); warmPair(E);

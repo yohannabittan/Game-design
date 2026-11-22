@@ -161,3 +161,4 @@ To undo a landed build: `node tools/land.mjs arena --revert <commit> --msg "Aren
 - Moving the foe far: state.step.x is his place (only stepFoe moves it); the camera reads f.home in camSpan and camTarget zooms out to camera.min, so both need changing (features/charge.js)
 - A bent second arm (the bow's drawing hand): drawArm's 'back' and 'front' passes, as the two-blade off arm uses; solveArm straightens past straightAt
 - sw.js ASSETS is hand-kept: add every new src file
+- Where each figure draws (for anything about loading or hiding a figure): drawFighter, drawBeast, drawSwordArm, drawShield, drawEdge, menuFigure, and the intro's hold; artV leaks into replay dumps through look keys, so render caches belong in tools/replay.mjs COSMETIC

@@ -744,22 +744,47 @@ export function resumeRun(E, run) {
 export let ART = null, artV = 0, ENG = null;
 const KIT = { on: false };
 export const IMGS = new Map();
-function artEntry(name, src, tries = 0) {
-  const e = { src, im: new Image(), ok: false, bad: false, v: artV, asked: false, then: [], tries, failAt: 0, fb: false };
+function artEntry(name, src, tries = 0, first = false) {
+  // dev channel, first ask: the shipped file (cached, small) shows at once and the picked candidate loads behind it (candStart)
+  const sh = first && ART !== shippedArt && SHIPPED.has(name) ? shippedSrc(name) : null, staged = !!sh && !src.endsWith(sh);
+  const e = { name, src, use: staged ? sh : src, cand: staged ? src : null, im: new Image(), ok: false, bad: false, v: artV, asked: false, then: [], tries, failAt: 0, fb: false };
   const done = (ok) => {
     e.ok = ok; e.bad = !ok; if (!ok) e.failAt = performance.now();
     if (IMGS.get(name) === e && e.asked) { artFade(); artV++; }
     for (const f of e.then.splice(0)) f();
+    if (ok && e.cand) { CAND.list.push(e); candPump(); }
   };
   e.im.decoding = 'async';
   e.im.onload = () => { (e.im.decode ? e.im.decode() : Promise.resolve()).then(() => done(true), () => done(true)); };
-  // a candidate that will not load (the dev channel's big files, never in the service worker's cache) falls back to the shipped file once
+  // a file that will not load: the staged shipped one falls to the candidate itself; a candidate (the dev channel's big files, never in the service
+  // worker's cache) falls back to the shipped file once
   e.im.onerror = () => {
-    const sh = SHIPPED.has(name) ? shippedSrc(name) : null;
-    if (!e.fb && sh && ART !== shippedArt && !src.endsWith(sh)) { e.fb = true; e.im.src = sh; } else done(false);
+    if (e.cand) { const c = e.cand; e.cand = null; e.fb = true; e.use = c; e.im.src = c; return; }
+    const alt = SHIPPED.has(name) ? shippedSrc(name) : null;
+    if (!e.fb && alt && ART !== shippedArt && !src.endsWith(alt)) { e.fb = true; e.use = alt; e.im.src = alt; } else done(false);
   };
-  e.im.src = src; IMGS.set(name, e);
+  e.im.src = e.use; IMGS.set(name, e);
   return e;
+}
+// the picked candidate behind a shown shipped file: swapped in when it has landed (a screen fade when something asked for it), a failure keeps the shipped file
+const CAND = { list: [], busy: 0 };
+function candStart(e) {
+  const im = new Image(), c = e.cand;
+  const fin = (good) => {
+    CAND.busy--;
+    if (good && IMGS.get(e.name) === e) { e.im = im; e.use = c; e.cand = null; if (e.asked) { artFade(); artV++; } }
+    candPump();
+  };
+  im.decoding = 'async';
+  im.onload = () => { (im.decode ? im.decode() : Promise.resolve()).then(() => fin(true), () => fin(true)); };
+  im.onerror = () => fin(false);
+  im.src = c;
+}
+function candPump() {
+  while (!ASKED.size && CAND.busy < TUNING.load.cand && CAND.list.length) {
+    const e = CAND.list.shift();
+    if (IMGS.get(e.name) === e && e.cand) { CAND.busy++; candStart(e); }
+  }
 }
 // the name's entry, its load started (src re-read only when a load or a pick has bumped artV: images are asked for many times a frame); null when the
 // art has no such name
@@ -771,7 +796,7 @@ function artGet(name) {
   }
   if (e && e.v === artV) return e;
   const raw = artSrc(name), src = raw ? decodeURIComponent(raw) : raw; // E.art.src encodes the whole manifest value, slashes too: decode it so a subfolder loads
-  if (!e || e.src !== src) e = artEntry(name, src);
+  if (!e || e.src !== src) e = artEntry(name, src, 0, !e);
   e.v = artV;
   return e;
 }
@@ -793,6 +818,16 @@ export function artState(name) { const e = artGet(name); if (!e) return 'bad'; i
 export function artSettled(names) { let ok = true; for (const n of names) if (artState(n) === '') ok = false; return ok; }
 // a figure's paint (step 12): its body parts all loaded, and every piece it may wear loaded or failed; never half and half
 export function artReady(A) { let ok = artSettled(A.extra); for (const n of A.body) if (artState(n) !== 'ok') ok = false; return ok; }
+// How long a figure has been waiting for its paint: it is hidden (its shadow only) until the paint is in, and shows the drawn stand-in only once
+// TUNING.load.wait s have passed; ready (or never waited) clears the clock
+const WAITS = new WeakMap();
+export function artWaiting(obj, ready) {
+  if (ready) { WAITS.delete(obj); return false; }
+  const now = performance.now() / 1000;
+  let t = WAITS.get(obj);
+  if (t == null) WAITS.set(obj, t = now);
+  return now - t < TUNING.load.wait;
+}
 // Every name the game can ask for, loaded a few at a time from boot, so later screens find their paintings ready (a pick reloads its own)
 const LOADQ = { list: [], busy: 0 };
 function artPreload() {
@@ -806,6 +841,7 @@ function artPump() {
     if (!e || e.ok || e.bad) continue;
     LOADQ.busy++; e.then.push(() => { LOADQ.busy--; artPump(); });
   }
+  candPump();
 }
 // A painting landing on screen fades in: the frame before it is kept and drawn over the new ones, fading out over TUNING.load.fade (every scene's
 // render ends with artFadeOver; a scene change drops it).

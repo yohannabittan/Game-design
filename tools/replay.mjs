@@ -25,7 +25,7 @@ import { pathToFileURL } from 'node:url';
 import { serve, loadPlaywright, ROOT as HERE } from './drive.mjs';
 
 // Fields that only draw: left out of every dump, wherever they sit.
-export const COSMETIC = ['fx', 'pops', 'streaks', 'trail', 'trails', 'particles', 'dust', 'sparks', 'zfx', 'cv', 'spr', 'sprite', 'img', 'im', 'canvas', 'ghosts'];
+export const COSMETIC = ['fx', 'pops', 'streaks', 'trail', 'trails', 'particles', 'dust', 'sparks', 'zfx', 'cv', 'spr', 'sprite', 'img', 'im', 'canvas', 'ghosts', 'spr2', 'kitL'];
 
 // In the page, before any game code: the fake clock, the frame queue and the seeded Math.random.
 function determinism(seed) {

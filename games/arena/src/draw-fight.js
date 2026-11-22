@@ -10,7 +10,7 @@ import { hesitating, covering, covered, LIMB, lamed, edgeF, poseEdge } from './f
 import { perfectWin, finCost, finReady, finLive, finBtn, firstRun } from './cards.js';
 import { fitSize, wrapPx } from './screens.js';
 import { ink, over } from './scenes.js';
-import { arena, bg, state, easeOut, wrap, pidx, noDodge, noShield, meSize, meWeapon, ART, artV, ENG, IMGS, artImg, artReady, BACKDROP, kitOn } from './game.js';
+import { arena, bg, state, easeOut, wrap, pidx, noDodge, noShield, meSize, meWeapon, ART, artV, ENG, IMGS, artImg, artReady, artState, artWaiting, BACKDROP, kitOn } from './game.js';
 import { bowShown, knifeShown, armsW, drawBow, drawSlung, drawArmRec } from './features/ranged.js';
 import { offRec } from './features/dual.js';
 
@@ -122,6 +122,8 @@ export const meGm = (me) => gmKey((GTYPE[me.weapon] || GTYPE.gladius).helm, hvOf
 const KIT_WRAP = { hoplo: true };
 const KIT_GEAR = { plate: 'kit-plate-chest', manica: 'kit-plate-manica', greave: 'kit-plate-greave', wrap: 'kit-wrap-trousers', galerus: 'kit-galerus' };
 export function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean' : str <= T.avg ? 'avg' : 'musc'; }
+// (the looks whose paint is still loading and may yet arrive: a set kept off the look itself, which the replay dumps hold)
+const PENDING = new WeakSet();
 export function lookFor(fm, isFoe) {
   const lk = lookOf(fm, isFoe);
   if (!kitOn() || fm.beast) return lk;
@@ -129,7 +131,8 @@ export function lookFor(fm, isFoe) {
   const key = `${tier}|${isFoe ? '' : 'y'}|${wk}|${artV}`;
   if (!lk.kitL || lk.kitL.key !== key) {
     // until all of his paint is in (his weapon too, step 14), he keeps the drawn look whole (step 12)
-    if (!artReady(manArt(lk, tier, wk))) { lk.kitL = { key, lk }; return lk; }
+    const A = manArt(lk, tier, wk);
+    if (!artReady(A)) { lk.kitL = { key, lk }; if (!A.body.some((n) => artState(n) === 'bad')) PENDING.add(lk.kitL); return lk; }
     const helm = helmKey(lk), shield = KIT_SHIELD[lk.helm] || 'round', wrap = !!KIT_WRAP[lk.helm];
     // the worn pieces whose paint has loaded (step 6c-2), so a part repaints when one arrives
     const ga = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)] && artImg(gearFile(c))).map((c) => c.id), ...tailorFiles(lk).filter((n) => artImg(n))].join('.');
@@ -137,11 +140,27 @@ export function lookFor(fm, isFoe) {
   }
   return lk.kitL.lk;
 }
+// A figure whose paint is still loading is not drawn (its shadow only) until it is in, and the drawn stand-in shows only if TUNING.load.wait s pass
+// first (or a body part failed to load); the paint then fades in with the screen (artFade). fm: a fighter or beast; isFoe: not you.
+const PEND = new WeakMap();
+export function figPending(fm, isFoe) {
+  if (!kitOn()) return false;
+  if (fm.beast) {
+    if (!ART.has(`beast-${fm.beast}-torso`)) return false;
+    let c = PEND.get(fm);
+    if (!c || c.v !== artV) { const A = beastArt(fm); PEND.set(fm, c = { v: artV, ok: artReady(A), bad: A.extra.some((n) => /-(torso|head)(-young)?$/.test(n) && artState(n) === 'bad') }); }
+    return !c.bad && artWaiting(fm, c.ok);
+  }
+  const k = (lookFor(fm, isFoe), lookOf(fm, isFoe).kitL);
+  return !!k && artWaiting(fm, !PENDING.has(k));
+}
+// any figure of the bout (you, the foe, the waiting one) still waiting for its paint: a bout does not start while one is hidden
+export const figsPending = () => [state.you, state.foe, state.edge].some((f) => f && figPending(f, f !== state.you));
 // An image by name with its joints J (px of J.size: an image at another size scales them; one on J.wide's wider canvas takes J.wide). px > 0: a copy
 // scaled near px across J.w (or its width), cached, for a part drawn live each frame rather than the full image; dark shades that copy (a far leg).
 const KIT_LIVE = new Map();
 // the file a name loads now, without its folder and extension (kit-base-thigh-A): the key of the joints measured per image; a shipped file is the A pick
-function artStem(name) { const e = IMGS.get(name); return e && e.src ? e.src.replace(/^.*\//, '').replace(/\.\w+$/, '') + (e.src.startsWith('assets/') ? '-A' : '') : ''; }
+function artStem(name) { const e = IMGS.get(name), u = e && (e.use || e.src); return u ? u.replace(/^.*\//, '').replace(/\.\w+$/, '') + (u.startsWith('assets/') ? '-A' : '') : ''; }
 // a limb half's joints by file (TUNING.kit.half, TUNING.beastArt.half), its shared width w over its limb's wk
 function halfJ(st) {
   const T = TUNING.kit.half[st] ? TUNING.kit.half : TUNING.beastArt.half[st] ? TUNING.beastArt.half : null;
@@ -2000,6 +2019,7 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
   const fall = live && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath(); ctx.ellipse(F.x, L.floor + 3, H * 0.22, H * 0.035, 0, 0, 6.28); ctx.fill();
+  if (figPending(fm, isFoe)) return;
   const base = ctx.getTransform();
   ctx.save();
   if (who === 'you' && ga === 1) { easeBody(); lookXf(ctx, E); }
@@ -2128,7 +2148,7 @@ function liveArmGear(ctx, h, H, lk, aw = 0, px = 0) {
 // Your weapon arm, in screen space: a gladius or dagger as a leaf blade (broad, tapering to a point), a spear's shaft and head, an axe or a mace.
 export function drawSwordArm(ctx, E) {
   const h = state.hand, main = state.me.dual && state.duo && h.off ? state.duo.rest : h;
-  drawArm(ctx, E, main, main === h, 'all');
+  if (!figPending(state.you, false)) drawArm(ctx, E, main, main === h, 'all');
   if (h.down) {
     ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(h.ax, h.ay, 22, 0, 6.28); ctx.stroke();
@@ -2384,6 +2404,7 @@ function drawLookFx(ctx) {
 // Your off arm and the round shield: hanging at the hip when down, up across the chest when raised, cracked as it wears.
 export function drawShield(ctx, E) {
   const sh = state.sh, Fy = youF(E), H = Fy.H, J = PARTS[4].joint, lk = lookFor(state.you, false);
+  if (figPending(state.you, false)) return;
   // two weapons: no shield; the off hand's weapon and fist (its arm is drawn behind you, in drawFighter)
   if (state.me.dual && state.duo && !bowShown()) { drawArm(ctx, E, offRec(), state.hand.off, 'front'); return; }
   if (sh.broken) return;
@@ -2661,6 +2682,7 @@ export function drawBeast(ctx, E, F, fm, who, ga = 1) {
   const P = (id) => fm.parts.find((r) => r.d.id === id), fall = live && state.fallT > 0 ? Math.pow(clamp(state.fallT / 0.5, 0, 1), 2) : 0;
   const [sx] = toScreen(F, -0.06, 0);
   ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(sx, F.y - (live ? fm.dy : 0) + 3, H * 0.34, H * 0.035, 0, 0, TAU); ctx.fill();
+  if (figPending(fm, true)) return;
   ctx.save();
   ctx.translate(F.x, F.y); ctx.scale(F.dir, 1); ctx.rotate(F.a);
   if (live && (state.stagger > 0 || state.winded > 0)) {
