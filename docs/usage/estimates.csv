@@ -43,4 +43,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-22,Arena: bow verifier,verify,claude-opus-5-5,40,yes,,,independent: try to break the bow, the charge and the bow trials
 2026-11-22,Launch: Tea Party together and stretchy caramel,build,claude-opus-5-5,75,yes,,,teapot landmark; arrival beat; ride; caramel slingshot; lessons button
 2026-11-22,Launch: Tea Party verifier,verify,claude-opus-5-5,40,yes,,,independent: caramel catch, arrival beat, lessons button, old saves
-2026-11-22,Arena: art load fallback and title,build,claude-sonnet-5-5,25,,,,dev candidate that fails falls back to shipped file; retry; fallback title without inner lines
+2026-11-22,Arena: art load fallback and title,build,claude-sonnet-5-5,25,yes,,,dev candidate that fails falls back to shipped file; retry; fallback title without inner lines

@@ -740,20 +740,24 @@ export function resumeRun(E, run) {
 // An image loads when E.art has a candidate for its name (dev channel) or, in the release channel, when its name is in SHIPPED; otherwise the drawn look
 // stays. Step 12: every name starts loading in the background at boot (artPreload, TUNING.load.par at a time) and is decoded before it is first drawn.
 // Only a landing that something has asked for (artImg) bumps artV, which the backdrop's and the sprites' cache keys carry, so they repaint once, and
-// fades the screen from the frame before it (artFade). A failed image keeps the drawn look; it is not asked for again.
+// fades the screen from the frame before it (artFade). A failed image falls back to its shipped file, then keeps the drawn look; it is asked for once more after TUNING.load.retryMs.
 export let ART = null, artV = 0, ENG = null;
 const KIT = { on: false };
 export const IMGS = new Map();
-function artEntry(name, src) {
-  const e = { src, im: new Image(), ok: false, bad: false, v: artV, asked: false, then: [] };
+function artEntry(name, src, tries = 0) {
+  const e = { src, im: new Image(), ok: false, bad: false, v: artV, asked: false, then: [], tries, failAt: 0, fb: false };
   const done = (ok) => {
-    e.ok = ok; e.bad = !ok;
+    e.ok = ok; e.bad = !ok; if (!ok) e.failAt = performance.now();
     if (IMGS.get(name) === e && e.asked) { artFade(); artV++; }
     for (const f of e.then.splice(0)) f();
   };
   e.im.decoding = 'async';
   e.im.onload = () => { (e.im.decode ? e.im.decode() : Promise.resolve()).then(() => done(true), () => done(true)); };
-  e.im.onerror = () => done(false);
+  // a candidate that will not load (the dev channel's big files, never in the service worker's cache) falls back to the shipped file once
+  e.im.onerror = () => {
+    const sh = SHIPPED.has(name) ? shippedSrc(name) : null;
+    if (!e.fb && sh && ART !== shippedArt && !src.endsWith(sh)) { e.fb = true; e.im.src = sh; } else done(false);
+  };
   e.im.src = src; IMGS.set(name, e);
   return e;
 }
@@ -762,6 +766,9 @@ function artEntry(name, src) {
 function artGet(name) {
   if (!ART || !ART.has(name)) return null;
   let e = IMGS.get(name);
+  if (e && e.bad && e.tries < TUNING.load.retries && performance.now() - e.failAt > TUNING.load.retryMs) {
+    const t = e.tries + 1; e = artEntry(name, e.src, t); e.v = artV; return e;
+  }
   if (e && e.v === artV) return e;
   const raw = artSrc(name), src = raw ? decodeURIComponent(raw) : raw; // E.art.src encodes the whole manifest value, slashes too: decode it so a subfolder loads
   if (!e || e.src !== src) e = artEntry(name, src);

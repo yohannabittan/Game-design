@@ -589,7 +589,7 @@ export const TUNING = {
   // (w, h px, gap from the card's corner), box = the Emperor's crop in the imperial box.
   // loading (step 12): par images in flight at once in the background; the boot card waits up to boot s for the menu's paintings and shows only after
   // show s; a bout's intro card holds a tap up to hold s for its paintings; a painting landing on screen fades in over fade s; the boot bar's w x h px
-  load: { par: 4, boot: 3, show: 0.15, hold: 2, fade: 0.2, bar: [180, 4] },
+  load: { par: 4, retries: 1, retryMs: 4000, boot: 3, show: 0.15, hold: 2, fade: 0.2, bar: [180, 4] },
   // the menu (step 12): seed = the fresh roll's look shown before any run; col = the centre column (share of the width, least, most px), gap px to the
   // sides; title px (least, most, share of the height); backdrop wash and vignette alphas; torches at dx px either side of the title's centre, glow r
   // px, flicker share; dust motes, their px/s drift; the fighter's height (share of the height), the cut at his hips (body units), breath (rise as a share of s, rad/s), cloak sway (body units, rad/s)

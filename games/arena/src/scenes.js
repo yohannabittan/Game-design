@@ -165,7 +165,6 @@ function paintTitle(c, ts, w, h, im = null) {
   const g = c.createLinearGradient(0, y - ts * 0.42, 0, y + ts * 0.42);
   g.addColorStop(0, '#fff0c4'); g.addColorStop(0.38, '#e4b264'); g.addColorStop(0.62, '#a8742c'); g.addColorStop(1, '#6a4516');
   c.fillStyle = g; c.fillText(t, x, y);
-  c.lineWidth = 1; c.strokeStyle = 'rgba(255,240,200,0.6)'; c.strokeText(t, x, y - 1);
 }
 // A plaque w x h at (m, m): bronze (a gate's: rivets and bars) or stone, with its rim, a highlight along the top and the label stamped in; pressed, it
 // sits 2 px lower and darker on a shorter shadow
