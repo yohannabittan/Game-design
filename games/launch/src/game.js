@@ -70,6 +70,14 @@ const TUNING = {
   stopSpeed: 25,           // horizontal speed under this for stopTime ends the flight (on the ground, or at the next touch)
   stopTime: 0.5,
   maxFlight: 240,          // seconds: a safety stop only (tools/sim-launch.mjs --stuck: no flight reaches it)
+  // The stretchy catch (2026-11-22 step): the first caramel touch of a flight holds him sunk for catchHold seconds, then the
+  // caramel snaps and slingshots him on at catchAngle with catchKeep of the speed he came in with (at least catchMin); a
+  // caramel touch after catchMax catches ends the flight.
+  catchMax: 1,
+  catchHold: 0.45,
+  catchKeep: 0.5,
+  catchMin: 460,
+  catchAngle: 50,
 
   // Three flight actions (PRD v0.3 B). A press is decided by its first gestureWindow: a swipe up or down of swipeMin CSS px
   // glides (held) or slams, otherwise it boosts (held: until release; a quick tap: tapBurst seconds).
@@ -202,7 +210,10 @@ const TUNING = {
 
   // Presentation
   placeBlend: 400,         // units over which the sky and hills of one place blend into the next (the ground changes at the line)
-  homeAhead: 120,          // the daifuku waits this far past the Home line (units)
+  homeAhead: 120,          // Tea Party's house stands from this far past its line (units)
+  // The teapot house at Tea Party (2026-11-22 step): its centre this far past homeAhead (units); never drawn smaller on
+  // screen than min of its true size (a landmark from far off at the widest zoom).
+  house: { ahead: 120, min: 0.5, rise: 150 }, // rise: how far its steam hearts climb (units at its scale)
   jellyCube: 34,           // design px per jelly cube along a jelly (a long jelly is a row of cubes, never a rail)
   marshPuff: 44,           // design px per marshmallow pillow along a pad
   menuTitleMinH: 344,      // CSS px of safe height the menu needs to show its title above the strip, the best and three goals
@@ -303,7 +314,19 @@ const TUNING = {
     // The combo (I3): the counter pops for pop seconds; a ring of sparks, a shake, a dial glow; the sound rises semis
     // semitones a step from freq, up to maxSteps steps.
     combo: { pop: 0.35, ring: 16, shake: 2.5, shakeTime: 0.1, dial: 0.4, freq: 523, semis: 2, maxSteps: 12, size: 2, sizeMax: 8, life: 1.1 },
-    haptic: { combo: 14, launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, milestone: 20, geyser: 12, cloud: 6, lock: 10, chute: 6, drop: 8, home: [30, 60, 30, 60, 60] },
+    // The arrival beat (2026-11-22 step), real seconds from crossing the Tea Party line on a flight she is waiting: slow-motion
+    // from slow[0] to slow[1] at slowRate (never pausing, never eating a press), the camera eased in to at least zoom from
+    // zoomFrom to zoomTo, she leaps from her window at leap and meets him at meet (a squash, burst hearts), then they fly on.
+    // The slow-motion's rate is never more than slowRate, and slower when he is fast, so he covers at most slowGo units a real
+    // second (and never slower than slowMin): fast or slow, he is still beside the house when she leaps. zoomEase: the
+    // camera's easing (seconds) while it comes in.
+    arrive: { time: 2.0, slow: [0.05, 1.0], slowRate: 0.4, slowGo: 260, slowMin: 0.15, zoom: 0.75, zoomFrom: 0.05, zoomTo: 1.3, zoomEase: 0.3, leap: 0.35, meet: 0.9, arc: 60, hearts: 16, squash: 0.3 },
+    // She rides on his back after the proposal: size of his radius, sat this far down into him (of her radius), bob in px.
+    ride: { size: 0.6, sink: 0.35, bob: 1.5, lean: 0.25 },
+    // The caramel's stretch while he is caught (dip: how far he sinks, of his radius; strands, their width at the start)
+    // and the snap: strands whip back for snap seconds.
+    caramel: { dip: 0.9, strand: 5, snap: 0.35, drops: 8 },
+    haptic: { combo: 14, launch: 12, boost: 6, spring: 10, bird: 8, mud: 30, sling: 16, milestone: 20, geyser: 12, cloud: 6, lock: 10, chute: 6, drop: 8, home: [30, 60, 30, 60, 60] },
   },
   // The story (PRD v0.6): animated cards, every one skippable. tapGap is the seconds before a card takes a tap (so a stray double
   // tap cannot skip it); autoGap the seconds a card waits after its scene before going on; dur and proposalDur each scene's length;
@@ -314,8 +337,9 @@ const TUNING = {
   // runs at rate (flight seconds per real second) for up to wait real seconds or until a thumb touches; it stays until the
   // verb is done. at: the ghost's place as a share of the screen (right of the mochi, above the ground it reads); loop: one pass of its
   // gesture in seconds; swipe: its travel in px; w, h: the thumb; fade: seconds it fades once done; why: seconds a wrong
-  // try's word shows; slamLook: seconds between checks for a jelly a slam would land on; slamUp: the least height for that.
-  lesson: { rate: 0.12, wait: 2.6, at: [0.8, 0.42], loop: 1.5, swipe: 70, w: 34, h: 46, alpha: 0.9, fade: 0.45, why: 1.2, slamLook: 0.1, slamUp: 140 },
+  // try's word shows; slamLook: seconds between checks for a jelly a slam would land on; slamUp: the least height for that;
+  // hints: flights the lessons button also names the two launch beats on.
+  lesson: { hints: 2, rate: 0.12, wait: 2.6, at: [0.8, 0.42], loop: 1.5, swipe: 70, w: 34, h: 46, alpha: 0.9, fade: 0.45, why: 1.2, slamLook: 0.1, slamUp: 140 },
 };
 const T = TUNING;
 const STEP = T.physicsStep;
@@ -543,7 +567,7 @@ function newRun(seed, launch, up = T.upgrades, field = null) {
     chain: 0, chainMax: 0, birds: 0, springs: 0, geysers: 0, clouds: 0, bounces: 0, kicks: 0, kickSum: 0, topSq: 0,
     boosts: 0, boostT: 0, chutes: 0, drops: 0, slams: 0, centred: 0, rockets: 0, crashes: 0, marshes: 0, thermals: 0, freezers: 0, glideT: 0, vent: null, topSpeed: 0, topY: 0,
     coinAcc: 0, nextMark: 10 * T.unitsPerMetre, maxX: x,
-    msIdx: 0, stars: [], slowT: 0, ended: null, timeout: false, boosted: false, boostSprings: 0,
+    msIdx: 0, stars: [], slowT: 0, ended: null, timeout: false, boosted: false, boostSprings: 0, catches: 0, catchT: 0, catchIn: 0,
   };
 }
 
@@ -631,6 +655,14 @@ function touching(g, s) {
 }
 
 function end(r, why) { r.ended = why; r.vx = r.vy = 0; r.boost = r.chute = r.ball = false; r.ev.push({ k: why }); }
+// Caramel: the first catchMax touches of a flight catch him (sunk and held, then slung on: see stepRun); the next one ends it.
+function caramel(r) {
+  r.y = 0;
+  if (r.catches >= T.catchMax) { end(r, 'mud'); return; }
+  r.catchIn = Math.hypot(r.vx, r.vy); r.catches++; r.catchT = 0;
+  r.mode = 'caught'; r.vx = r.vy = 0; r.chain = 0; r.boosted = false; r.ball = false;
+  r.ev.push({ k: 'catch', x: r.x, v: r.catchIn });
+}
 // A jelly, geyser or bird: the chain (the combo) grows. From x2 each step kicks the forward speed and refills fizz, rising with
 // the step and capped (PRD v0.4 I3); the speed never passes maxSpeed.
 function bump(r) {
@@ -731,7 +763,7 @@ function stepRun(r) {
   const f = r.field, st = r.st, t1 = (r.steps + 1) * STEP;
   while (r.q.length && r.q[0].at < t1) applyInput(r, r.q.shift());
   if (r.burstEnd >= 0 && t1 > r.burstEnd) { r.boost = false; r.burstEnd = -1; }
-  const fueled = r.boost && r.fuel > 0;
+  const fueled = r.boost && r.fuel > 0 && r.mode !== 'caught';
   if (fueled) { r.boosted = true; r.boostT += STEP; }
 
   if (r.mode === 'air') {
@@ -759,7 +791,7 @@ function stepRun(r) {
     if (g && g.kind === 'geyser' && !g.spent && r.y < T.geyserH && geyserOn(g, t)) hitGeyser(r, g);
     else if (touching(g, r)) {
       const vyIn = r.vy;
-      if (g && g.kind === 'mud') { r.y = 0; end(r, 'mud'); }
+      if (g && g.kind === 'mud') caramel(r);
       else if (g && g.kind === 'ramp') enterRamp(r, g, Math.hypot(r.vx, r.vy));
       else if (r.ball) slam(r, g);
       else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, vyIn);
@@ -774,7 +806,7 @@ function stepRun(r) {
       r.vx *= st.slideK;
       r.x += r.vx * STEP;
       const g = groundAt(f, r.x);
-      if (g && g.kind === 'mud') end(r, 'mud');
+      if (g && g.kind === 'mud') caramel(r);
       else if (g && g.kind === 'spring' && !g.spent) hitSpring(r, g, 0);
       else if (g && g.kind === 'geyser' && !g.spent && geyserOn(g, t1)) hitGeyser(r, g);
       else if (g && g.kind === 'ramp') enterRamp(r, g, Math.abs(r.vx));
@@ -790,6 +822,14 @@ function stepRun(r) {
     if (r.x >= g.x1) { r.mode = 'air'; r.y = g.h; r.ramp = null; }
     else if (r.x <= g.x0) { r.mode = 'ground'; r.y = 0; r.vy = 0; r.ramp = null; }
     else r.y = surfaceH(g, r.x);
+  } else if (r.mode === 'caught') { // held in the caramel, then slung on
+    r.catchT += STEP;
+    if (r.burstEnd >= 0) r.burstEnd += STEP; // a quick tap while caught keeps its whole burst for the sling
+    if (r.catchT >= T.catchHold - 1e-9) {
+      const sp = clamp(r.catchIn * T.catchKeep, T.catchMin, T.maxSpeed), a = T.catchAngle * DEG;
+      r.mode = 'air'; r.y = 0.01; r.vx = sp * Math.cos(a); r.vy = sp * Math.sin(a); r.slowT = 0;
+      r.ev.push({ k: 'sling', x: r.x, v: sp });
+    }
   } else if (r.mode === 'hill') { // sliding along a hill's face; it flies off where the face curves away faster than gravity holds it
     const g = r.hill, sl = slopeAt(g, r.x), c = 1 / Math.hypot(1, sl);
     r.u = Math.max(T.crashKeep, r.u * st.dragK - T.gravity * sl * c * STEP + (fueled ? st.thrust * STEP : 0));
@@ -816,7 +856,8 @@ function stepRun(r) {
   }
   if (r.ended) return;
   // Slow means horizontally slow: on the ground it ends after stopTime, in the air at the next plain touch.
-  if (Math.abs(r.vx) < T.stopSpeed) { r.slowT += STEP; if (r.mode !== 'air' && r.slowT >= T.stopTime) end(r, 'stop'); }
+  if (r.mode === 'caught') r.slowT = 0;
+  else if (Math.abs(r.vx) < T.stopSpeed) { r.slowT += STEP; if (r.mode !== 'air' && r.slowT >= T.stopTime) end(r, 'stop'); }
   else r.slowT = 0;
   if (!r.ended && flightTime(r) >= T.maxFlight) { r.timeout = true; end(r, 'stop'); }
 }
@@ -1074,7 +1115,8 @@ function squeeze(c) {
 const lift = (c, y) => (c.q === 0 || y <= c.b ? y : c.b + ((c.L - c.b) * Math.log1p((c.q * (y - c.b)) / (c.h - c.b))) / c.lq);
 const unlift = (c, v) => (c.q === 0 || v <= c.b ? v : c.b + ((c.h - c.b) * Math.expm1(((v - c.b) / (c.L - c.b)) * c.lq)) / c.q);
 
-function cameraStep(c, r, vw, dt) {
+// `zIn`: a zoom the camera eases in to at least (the arrival beat), 0 for none, over `zTau` seconds (0: zoomInTime).
+function cameraStep(c, r, vw, dt, zIn = 0, zTau = 0) {
   let zt = 1, at = T.followX;
   const ahead = vw * (1 - T.followX) - T.landMargin;
   if (r && !r.ended) {
@@ -1089,9 +1131,9 @@ function cameraStep(c, r, vw, dt) {
     }
     if (r.vx > 1) zt = Math.min(zt, ahead / (r.vx * T.zoomLook));
   }
-  zt = clamp(zt, T.zoomMin, 1);
+  zt = clamp(Math.max(zt, zIn), T.zoomMin, 1);
   const k = (tau) => 1 - Math.exp(-dt / tau);
-  c.z += (zt - c.z) * k(zt < c.z ? T.zoomOutTime : T.zoomInTime);
+  c.z += (zt - c.z) * k(zt < c.z ? T.zoomOutTime : zTau || T.zoomInTime);
   c.a += (at - c.a) * k(T.zoomOutTime);
   const start = -vw * T.slingScreen;
   c.x = r ? Math.max(start, r.x - (vw * c.a) / c.z) : start;
@@ -1219,14 +1261,13 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
     ctx.globalAlpha = 1;
   }
   // The bakery the mochi is flung from, behind the launcher.
-  if (X(-200) < E.w && X(-60) > 0) shopfront(ctx, X(-190), gy, 110 * z * s, s * z, lw, false);
-  // Home: a cottage and the daifuku waiting at the roadside.
-  const hx = placeFrom(PLACES.length - 1) + T.homeAhead;
-  if (X(hx + 200) > 0 && X(hx - 200) < E.w) {
-    shopfront(ctx, X(hx + 60), gy, 90 * z * s, s * z, lw, true);
-    const hop = S.homeT > 0 ? Math.abs(Math.sin((J.homeTime - S.homeT) * 9)) * 10 * s * sprite : 0;
-    if (!E.save.get('proposed', false)) drawDaifuku(ctx, X(hx), gy - T.critterR * s * sprite - hop, T.critterR * s * sprite, E.time, lw); // after the proposal she is with him
-  }
+  if (X(-200) < E.w && X(-60) > 0) shopfront(ctx, X(-190), gy, 110 * z * s, s * z, lw);
+  // Tea Party: the teapot house, never smaller than house.min of true size so it shows from far off; Daifuku waits at its
+  // window until she has flown with him (after the proposal, and from the arrival beat's leap on).
+  const hk = Math.max(z, T.house.min) * s, hsx = X(houseX()), home = !!r && !S.riding && !(S.arrive && S.arrive.t >= J.arrive.leap);
+  const hop = S.homeT > 0 ? Math.abs(Math.sin((J.homeTime - S.homeT) * 9)) * 10 * s * sprite : 0;
+  if (hsx + 220 * hk > 0 && hsx - 220 * hk < E.w) S.win = drawTeapot(ctx, hsx, gy, hk, E.time, lw, home, hop);
+  else S.win = { x: hsx, y: gy + (TEAPOT_WIN.y + 6) * hk, r: TEAPOT_WIN.her * hk };
 
   // The ground band, each place in its own colours from its line: a top strip, soil, distance ticks and labels.
   for (let i = placeIndex(Math.max(0, c.x)); i < PLACES.length && placeFrom(i) < c.x + span; i++) {
@@ -1256,7 +1297,7 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
     for (const g of f.ground) {
       if (g.x1 < x0 || g.x0 > x1) continue;
       if (g.kind === 'spring') drawJelly(ctx, X(g.x0), gy, g.w * z * s, s, g.spent, S.pops.get(g), E.time + g.x0 * 0.01, lw);
-      else if (g.kind === 'mud') drawMud(ctx, X(g.x0), gy, g.w * z * s, s, E.time + g.x0 * 0.013);
+      else if (g.kind === 'mud') drawMud(ctx, X(g.x0), gy, g.w * z * s, s, E.time + g.x0 * 0.013, gooDip(g, X, T.critterR * s * sprite, r));
       else if (g.kind === 'ramp') drawRamp(ctx, X(g.x0), gy, g.w * z * s, g.h * z * s, s, lw);
       else if (g.kind === 'geyser') drawGeyser(ctx, X(g.x0), gy, g.w * z * s, gy - Y(T.geyserH), s, g, t, E.time, lw);
       else if (g.kind === 'thermal' || g.kind === 'freezer') drawVent(ctx, X(g.x0), gy, g.w * z * s, gy - Y(T.ventH), s, g.kind, E.time + g.x0 * 0.01, lw, S.vents.get(g));
@@ -1298,17 +1339,29 @@ function drawWorld(ctx, E, v, c, r, pre = null, up = S.up || T.upgrades) {
   let sqx = 1, sqy = 1, rot = 0;
   if (S.sq.t > 0) { const k = S.sq.t / J.squashTime, w = S.sq.amt * k * Math.cos((1 - k) * Math.PI * 1.5); sqx = 1 + w; sqy = 1 - w; }
   else if (r && r.ended === 'mud') { sqx = 1 + J.landSquash; sqy = 1 - J.landSquash; }
+  let sunk = 0;
+  if (r && r.mode === 'caught') { // sinking into the caramel as it stretches
+    const k = ease.outCubic(clamp(r.catchT / T.catchHold, 0, 1));
+    sqx = 1 + 0.22 * k; sqy = 1 - 0.28 * k; sunk = rr * (0.35 + 0.9 * J.caramel.dip) * k;
+  }
   else if (r && r.mode === 'air' && !r.chute && !r.ball) { const k = clamp((sp - 350) / 1500, 0, 0.28); sqx = 1 + k; sqy = 1 - k * 0.6; rot = dir; }
   if (r && r.ball && !r.ended) { rr *= 0.8; sqx = 0.95; sqy = 1.05; }
   if (r && r.boost && r.fuel > 0 && !r.ended) drawJet(ctx, sx, sy, rr, dir, E.time, lw);
   const look = r ? dir : -aim * DEG;
   const fuelK = r ? clamp(r.fuel / Math.max(1, r.fuelCap), 0, 1) : 1;
-  drawMochi(ctx, sx, sy + (1 - sqy) * rr, rr, look, sqx, sqy, lw, up, E.time, fuelK, !!(r && r.boost && r.fuel > 0), rot, r ? S.wing.x : 0);
+  const my = sy + (1 - sqy) * rr + sunk, wing = r ? S.wing.x : 0;
+  drawMochi(ctx, sx, my, rr, look, sqx, sqy, lw, up, E.time, fuelK, !!(r && r.boost && r.fuel > 0), rot, wing);
   if (r && r.ball && !r.ended) { // spin marks: a condensed ball
     ctx.strokeStyle = P.ink; ctx.lineWidth = 1.6 * s; ctx.lineCap = 'round'; const a0 = E.time * 14;
     for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(sx, sy, rr * 1.35, a0 + i * 2.1, a0 + i * 2.1 + 0.7); ctx.stroke(); }
     ctx.lineCap = 'butt';
   }
+  if (r && S.goo) drawGoo(ctx, E, r, X, gy, s, sx, my, rr, sprite);
+  // Daifuku on his back (after the proposal, or from the arrival beat's meeting), or leaping to him from her window.
+  const W = wing >= 0 ? wing : wing * J.wing.back, ry = rr * 0.9 * (1 - J.wing.flat * W), oy = (rr - ry) * (1 - clamp(W, 0, 1));
+  const seat = { x: sx - rr * 0.1, y: my + (oy - ry) * sqy, r: rr * J.ride.size };
+  if (S.riding && (r || pre)) drawRider(ctx, E, r, seat, sqx, sqy, lw);
+  else if (r && S.arrive && S.arrive.t >= J.arrive.leap && S.win) drawLeap(ctx, E, seat, lw);
   return { sx, sy, rr, height: cy, lifted: squeezed && cy > c.b, night: sky.night, mx, gy, mk: mk * MACHINE };
 }
 
@@ -1493,16 +1546,18 @@ function jellyCube(ctx, x, y, cw, h, s, lw, spent) {
 // Caramel: a sticky pit sunk into the ground, never a pad (PRD v0.2 C, E): a dark amber glossy body with a slowly rippling top
 // and a deeper middle, short light gloss streaks, slow bubbles that swell and pop, and caramel strands from both rims.
 // It reads as a dark hole in every place's ground band (tools/sim-launch.mjs --contrast), with nothing raised above it.
-function drawMud(ctx, x, gy, w, s, time) {
-  const d = 15 * s, top = (u) => gy + (1.2 + 0.8 * Math.sin(time * 1.3 + u * 9)) * s;
+// `dip`: where the mochi is caught, { x: screen x, d: px the surface sinks there, w: px wide }.
+function drawMud(ctx, x, gy, w, s, time, dip = null) {
+  const sink = (px) => (dip ? dip.d * Math.exp(-(((px - dip.x) / dip.w) ** 2)) : 0), n = dip ? 32 : 8;
+  const d = 15 * s + (dip ? Math.max(0, dip.d) : 0), top = (u) => gy + (1.2 + 0.8 * Math.sin(time * 1.3 + u * 9)) * s + sink(x + w * u);
   ctx.beginPath(); ctx.moveTo(x, gy);
-  for (let i = 1; i <= 8; i++) ctx.lineTo(x + (w * i) / 8, top(i / 8));
+  for (let i = 1; i <= n; i++) ctx.lineTo(x + (w * i) / n, top(i / n));
   ctx.lineTo(x + w, gy + d - 5 * s); ctx.quadraticCurveTo(x + w, gy + d, x + w - 6 * s, gy + d);
   ctx.lineTo(x + 6 * s, gy + d); ctx.quadraticCurveTo(x, gy + d, x, gy + d - 5 * s); ctx.closePath();
   ctx.fillStyle = P.mud; ctx.fill();
   ctx.fillStyle = P.mudDeep; ctx.beginPath(); ctx.ellipse(x + w / 2, gy + d * 0.62, w * 0.4, d * 0.26, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = P.mudSheen; ctx.lineWidth = 1.6 * s; ctx.beginPath(); // an amber sheen just under the surface
-  for (let i = 1; i <= 7; i++) ctx.lineTo(x + (w * i) / 8, top(i / 8) + 3.2 * s);
+  for (let i = 1; i < n; i++) ctx.lineTo(x + (w * i) / n, top(i / n) + 3.2 * s);
   ctx.stroke();
   ctx.strokeStyle = P.mudRim; ctx.lineCap = 'round'; ctx.lineWidth = 1.4 * s; ctx.globalAlpha = 0.7; // glossy streaks, short
   for (const u of [0.22, 0.64]) { ctx.beginPath(); ctx.moveTo(x + w * u, gy + 4 * s); ctx.lineTo(x + w * u + Math.min(10 * s, w * 0.1), gy + 3.4 * s); ctx.stroke(); }
@@ -1520,6 +1575,55 @@ function drawMud(ctx, x, gy, w, s, time) {
     ctx.fillStyle = P.mud; ctx.beginPath(); ctx.arc(ex + dir * dx * 0.35 * s, gy + (dy * 0.75 + 1) * s + sag, 1.4 * s, 0, Math.PI * 2); ctx.fill();
   }
   ctx.lineCap = 'butt';
+}
+
+// The stretchy catch, drawn over the mochi: the caramel he sinks into (the pit redrawn over his lower half), strands from the
+// rims stretched to his sides and thinning as he sinks; once he is slung, the strands snap back and the surface wobbles.
+const gooSnap = () => (S.goo && S.goo.t >= 0 ? S.goo.t / J.caramel.snap : -1);
+function gooDip(g, X, rr, r) {
+  if (!S.goo || S.goo.g !== g || !r) return null;
+  const a = S.goo.t, x = X(S.goo.x), w = rr * 2.4;
+  if (a < 0) return { x, w, d: J.caramel.dip * rr * ease.outCubic(clamp(r.catchT / T.catchHold, 0, 1)) };
+  return { x, w, d: J.caramel.dip * rr * Math.exp(-a * 6) * Math.cos(a * 22) };
+}
+function drawGoo(ctx, E, r, X, gy, s, sx, my, rr, sprite) {
+  const g = S.goo.g, x0 = X(g.x0), x1 = X(g.x1), C = J.caramel;
+  if (S.goo.t < 0) {
+    const k = clamp(r.catchT / T.catchHold, 0, 1), dip = gooDip(g, X, rr, r);
+    ctx.save(); ctx.beginPath(); ctx.rect(sx - rr * 2, gy - 1, rr * 4, rr * 3); ctx.clip(); // the caramel closes over his lower half
+    drawMud(ctx, x0, gy, x1 - x0, s, E.time + g.x0 * 0.013, dip); ctx.restore();
+    const wid = (C.strand - 3.8 * k) * s, sy = my + rr * 0.45; // to his lower half, clear of his face
+    for (const [ax, bx, w] of [[x0 + 2 * s, sx - rr * 1.05, 1], [x1 - 2 * s, sx + rr * 1.05, 1], [Math.max(x0, sx - rr * 3.2), sx - rr * 0.6, 0.8], [Math.min(x1, sx + rr * 3.2), sx + rr * 0.6, 0.8]]) gooStrand(ctx, ax, gy + 1, bx, sy + rr * 0.3 * (1 - w), wid * w, s);
+  } else {
+    const f = gooSnap(); if (f >= 1) return;
+    for (const o of [-1.1, -0.35, 0.35, 1.1]) gooStrand(ctx, X(S.goo.x) + o * rr * 1.3, gy + 2 * s, sx + o * rr * 0.6, my + rr * 0.6, Math.max(0.4, C.strand * (1 - f)) * s, s);
+  }
+}
+// One caramel strand from (ax, ay) to (bx, by), sagging, with a light rim so it reads on the dark caramel.
+function gooStrand(ctx, ax, ay, bx, by, wid, s) {
+  const mx = (ax + bx) / 2, my = Math.max(ay, by) + (10 * s - wid);
+  ctx.lineCap = 'round';
+  for (const [col, w] of [[P.mudRim, wid + 2.2 * s], [P.mud, wid]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(mx, my, bx, by); ctx.stroke(); }
+  ctx.strokeStyle = P.mudSheen; ctx.lineWidth = Math.max(0.6, wid * 0.25); ctx.beginPath(); ctx.moveTo(ax, ay - wid * 0.2); ctx.quadraticCurveTo(mx, my - 2 * s, bx, by - wid * 0.2); ctx.stroke();
+  ctx.lineCap = 'butt';
+}
+
+// Where the teapot house stands (its centre, world units).
+const houseX = () => placeFrom(PLACES.length - 1) + T.homeAhead + T.house.ahead;
+// Daifuku sat on Mochi's back at `seat` (the top of his body, screen px): squashed with him, cheering on a boost, arms out
+// riding the wing in a glide, hanging on in a slam or the caramel.
+function drawRider(ctx, E, r, seat, sqx, sqy, lw) {
+  const R = J.ride, dr = seat.r, boost = r && r.boost && r.fuel > 0 && !r.ended, wing = r ? clamp(S.wing.x, 0, 1) : 0;
+  const tense = r && (r.ball || r.mode === 'caught' || r.ended === 'mud'), bob = r && !r.ended ? Math.sin(E.time * 8) * R.bob * (dr / 8) : 0;
+  const lean = boost ? -R.lean : wing * 0.1, face = tense ? 'wow' : boost || wing > 0.4 ? 'whee' : 'happy';
+  const y = seat.y - dr * (1 - R.sink) + bob;
+  drawDaifuku(ctx, seat.x + lean * dr, y, dr, E.time, Math.max(1, lw * 0.7), false, { face, arms: tense ? 0.2 : Math.max(boost ? 0.6 : 0, wing * 0.9), rot: lean, sx: sqx, sy: sqy });
+}
+// The arrival beat's leap: from her window to his back in an arc, growing from the window's size to the rider's.
+function drawLeap(ctx, E, seat, lw) {
+  const A = J.arrive, u = clamp((S.arrive.t - A.leap) / (A.meet - A.leap), 0, 1), e = ease.inOut(u), w = S.win;
+  const x = w.x + (seat.x - w.x) * e, y = w.y + (seat.y - seat.r * (1 - J.ride.sink) - w.y) * e - Math.sin(u * Math.PI) * A.arc * view(E).s;
+  drawDaifuku(ctx, x, y, w.r + (seat.r - w.r) * e, E.time, Math.max(1, lw * 0.8), false, { face: 'wow', arms: 0.8, rot: (1 - u) * -0.3 });
 }
 
 // A soda geyser: a low vent on the ground line with a teal rim (a good object) and a dark mouth. Before an eruption the vent
@@ -1872,22 +1976,21 @@ function drawGlazeDrum(ctx, x, y, r, lvl, lw) {
   for (let i = 0; i < lvl; i++) { ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x + r * (0.9 - i * 0.35), y + r * 1.25 + i * 2, r * 0.12, 0, Math.PI * 2); ctx.fill(); }
 }
 
-// A shopfront: the bakery the mochi is flung from (or, with `home`, the daifuku's cottage), `w` wide, standing on the ground.
-function drawBakery(ctx, x, gy, w, s, lw, home = false) {
+// A shopfront: the bakery the mochi is flung from, `w` wide, standing on the ground.
+function drawBakery(ctx, x, gy, w, s, lw) {
   const h = w * 0.75, aw = h * 0.2;
   ctx.lineJoin = 'round'; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.globalAlpha = 0.9;
   ctx.fillStyle = P.shopWall; ctx.fillRect(x, gy - h, w, h); ctx.strokeRect(x, gy - h, w, h);
-  if (home) { ctx.fillStyle = P.berry; ctx.beginPath(); ctx.moveTo(x - 6 * s, gy - h); ctx.lineTo(x + w / 2, gy - h - w * 0.4); ctx.lineTo(x + w + 6 * s, gy - h); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  else for (let i = 0; i < 6; i++) { ctx.fillStyle = i % 2 ? P.white : P.awning; ctx.beginPath(); ctx.moveTo(x - 4 * s + (i * (w + 8 * s)) / 6, gy - h); ctx.lineTo(x - 4 * s + ((i + 1) * (w + 8 * s)) / 6, gy - h); ctx.lineTo(x - 4 * s + ((i + 1) * (w + 8 * s)) / 6, gy - h + aw); ctx.arc(x - 4 * s + ((i + 0.5) * (w + 8 * s)) / 6, gy - h + aw, (w + 8 * s) / 12, 0, Math.PI); ctx.closePath(); ctx.fill(); }
+  for (let i = 0; i < 6; i++) { ctx.fillStyle = i % 2 ? P.white : P.awning; ctx.beginPath(); ctx.moveTo(x - 4 * s + (i * (w + 8 * s)) / 6, gy - h); ctx.lineTo(x - 4 * s + ((i + 1) * (w + 8 * s)) / 6, gy - h); ctx.lineTo(x - 4 * s + ((i + 1) * (w + 8 * s)) / 6, gy - h + aw); ctx.arc(x - 4 * s + ((i + 0.5) * (w + 8 * s)) / 6, gy - h + aw, (w + 8 * s) / 12, 0, Math.PI); ctx.closePath(); ctx.fill(); }
   ctx.fillStyle = P.cloudBlue; ctx.fillRect(x + w * 0.12, gy - h * 0.55, w * 0.42, h * 0.3); ctx.strokeRect(x + w * 0.12, gy - h * 0.55, w * 0.42, h * 0.3);
-  ctx.fillStyle = home ? P.heart : P.awning; ctx.fillRect(x + w * 0.66, gy - h * 0.5, w * 0.22, h * 0.5); ctx.strokeRect(x + w * 0.66, gy - h * 0.5, w * 0.22, h * 0.5);
+  ctx.fillStyle = P.awning; ctx.fillRect(x + w * 0.66, gy - h * 0.5, w * 0.22, h * 0.5); ctx.strokeRect(x + w * 0.66, gy - h * 0.5, w * 0.22, h * 0.5);
   ctx.globalAlpha = 1;
 }
 
 // The shopfront as a sprite (it is the same every frame).
-function shopfront(ctx, x, gy, w, s, lw, home) {
+function shopfront(ctx, x, gy, w, s, lw) {
   const x0 = x - 8 * s, y0 = gy - w * 1.2, sw = w + 16 * s, sh = w * 1.2 + 2;
-  cached(ctx, `shop${home}|${lw.toFixed(2)}`, x0, y0, sw, sh, (c) => { c.translate(-x0, -y0); drawBakery(c, x, gy, w, s, lw, home); });
+  cached(ctx, `shop|${lw.toFixed(2)}`, x0, y0, sw, sh, (c) => { c.translate(-x0, -y0); drawBakery(c, x, gy, w, s, lw); });
 }
 
 // A place's line: a candy-cane post with a round sign in the new place's ground colour.
@@ -1899,9 +2002,16 @@ function drawPost(ctx, x, gy, s, col, lw) {
   ctx.fillStyle = col; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.beginPath(); ctx.arc(x, gy - h - 6 * s, 7 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
 
-// The daifuku: a round white-pink dumpling with a strawberry on top, blush and a small smile; her heart beats over her.
-function drawDaifuku(ctx, x, y, r, time, lw, heart = true) {
+// The daifuku: a round white-pink dumpling with a strawberry on top, blush and a small smile; her heart beats over her. `o`:
+// face (happy: closed smiling eyes, whee: and an open mouth, wow: round eyes and an O), arms (0 down to 1 up), wave (one arm
+// waving), rot, sx and sy (a squash).
+function drawDaifuku(ctx, x, y, r, time, lw, heart = true, o = {}) {
   ctx.save(); ctx.translate(x, y); ctx.lineJoin = 'round';
+  if (o.rot) ctx.rotate(o.rot);
+  if (o.sx || o.sy) ctx.scale(o.sx || 1, o.sy || 1);
+  const arm = (side, ang) => { ctx.save(); ctx.translate(side * r * 0.95, r * 0.18); ctx.rotate(ang); ctx.fillStyle = P.dough; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8; ctx.beginPath(); ctx.ellipse(0, -r * 0.3, r * 0.2, r * 0.36, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore(); };
+  if (o.wave) arm(1, -0.5 + Math.sin(time * 9) * 0.55);
+  else if (o.arms) { arm(1, -o.arms * 2.3 + 0.3); arm(-1, o.arms * 2.3 - 0.3); }
   ctx.fillStyle = P.berry; ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.8;
   ctx.beginPath(); ctx.moveTo(-r * 0.45, -r * 0.7); ctx.quadraticCurveTo(0, -r * 1.6, r * 0.45, -r * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = P.leaf; ctx.beginPath(); ctx.ellipse(0, -r * 1.35, r * 0.25, r * 0.1, 0, 0, Math.PI * 2); ctx.fill();
@@ -1910,10 +2020,69 @@ function drawDaifuku(ctx, x, y, r, time, lw, heart = true) {
   ctx.strokeStyle = P.halo; ctx.lineWidth = lw * 3; ctx.stroke();
   ctx.fillStyle = P.dough; ctx.strokeStyle = P.ink; ctx.lineWidth = lw; ctx.fill(); ctx.stroke();
   ctx.fillStyle = P.blush; ctx.beginPath(); ctx.ellipse(-r * 0.5, r * 0.3, r * 0.2, r * 0.13, 0, 0, Math.PI * 2); ctx.ellipse(r * 0.5, r * 0.3, r * 0.2, r * 0.13, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = P.ink; for (const ox of [-0.28, 0.28]) { ctx.beginPath(); ctx.arc(ox * r, 0, r * 0.11, 0, Math.PI * 2); ctx.fill(); }
-  ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1, lw * 0.6); ctx.beginPath(); ctx.arc(0, r * 0.2, r * 0.13, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  ctx.fillStyle = P.ink; ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1, lw * 0.6); ctx.lineCap = 'round';
+  if (o.face === 'happy' || o.face === 'whee') {
+    for (const ox of [-0.28, 0.28]) { ctx.beginPath(); ctx.arc(ox * r, 0.04 * r, r * 0.13, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+    ctx.beginPath(); if (o.face === 'whee') { ctx.arc(0, r * 0.2, r * 0.15, 0, Math.PI); ctx.fill(); } else { ctx.arc(0, r * 0.2, r * 0.13, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
+  } else if (o.face === 'wow') {
+    ctx.beginPath(); for (const ox of [-0.28, 0.28]) { ctx.moveTo(ox * r + r * 0.14, 0); ctx.arc(ox * r, 0, r * 0.14, 0, Math.PI * 2); } ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, r * 0.28, r * 0.09, r * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+  } else {
+    for (const ox of [-0.28, 0.28]) { ctx.beginPath(); ctx.arc(ox * r, 0, r * 0.11, 0, Math.PI * 2); ctx.fill(); }
+    ctx.beginPath(); ctx.arc(0, r * 0.2, r * 0.13, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
   if (heart) { const k = 1 + 0.15 * Math.sin(time * 6); ctx.fillStyle = P.heart; heartPath(ctx, 0, -r * 2.1, r * 0.45 * k); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = lw * 0.6; ctx.stroke(); }
   ctx.restore();
+}
+
+// The teapot house at Tea Party: a giant teapot on a saucer steaming hearts, a door, and a round window where Daifuku waits
+// (`she`: she is home; `hop`: px she hops). `k` is screen px per unit of its own drawing (its body is 264 across). Returns
+// the window: its centre and her radius on screen.
+const TEAPOT_WIN = { x: 0, y: -124, r: 46, her: 30 };
+function drawTeapot(ctx, x, gy, k, time, lw, she, hop = 0) {
+  const l = lw / k, W = TEAPOT_WIN;
+  ctx.save(); ctx.translate(x, gy); ctx.scale(k, k); ctx.lineJoin = 'round';
+  teapotSteam(ctx, -196, -200, time, 5, 0, 11, l); teapotSteam(ctx, 0, -262, time, 3, 0.5, 10, l);
+  ctx.strokeStyle = P.ink; ctx.lineWidth = l;
+  ctx.fillStyle = P.awning; ctx.beginPath(); ctx.ellipse(0, -8, 168, 20, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // the saucer
+  ctx.beginPath(); ctx.moveTo(-118, -128); ctx.bezierCurveTo(-170, -150, -190, -180, -204, -198); ctx.lineTo(-184, -214); ctx.bezierCurveTo(-170, -190, -150, -160, -108, -150); ctx.closePath(); ctx.fillStyle = P.berry; ctx.fill(); ctx.stroke(); // the spout
+  ctx.beginPath(); ctx.arc(118, -112, 52, -Math.PI * 0.55, Math.PI * 0.55); ctx.lineWidth = 24 + l * 2; ctx.stroke(); ctx.lineWidth = 24 - l * 0.5; ctx.strokeStyle = P.berry; ctx.stroke(); // the handle
+  ctx.lineWidth = l; ctx.strokeStyle = P.ink;
+  const body = () => { ctx.beginPath(); ctx.ellipse(0, -112, 132, 100, 0, 0, Math.PI * 2); };
+  body(); ctx.strokeStyle = P.halo; ctx.lineWidth = l * 3; ctx.stroke(); ctx.fillStyle = P.dough; ctx.fill(); // the halo keeps it off the hills
+  ctx.save(); body(); ctx.clip(); ctx.fillStyle = P.berry; ctx.fillRect(-140, -76, 280, 14); ctx.fillStyle = P.blush;
+  for (let i = -4; i <= 4; i++) { heartPath(ctx, i * 30, -44 + (i % 2) * 8, 7); ctx.fill(); }
+  ctx.restore();
+  body(); ctx.strokeStyle = P.ink; ctx.lineWidth = l; ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.arc(W.x, W.y, W.r, 0, Math.PI * 2); ctx.clip(); ctx.fillStyle = P.cloudBlue; ctx.fillRect(-W.r, W.y - W.r, 2 * W.r, 2 * W.r);
+  if (she) drawDaifuku(ctx, W.x, W.y + 6 - hop / k, W.her, time, l * 0.9, false, { face: 'happy', wave: true });
+  else { ctx.fillStyle = P.heart; heartPath(ctx, W.x, W.y + 4, 14); ctx.fill(); }
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(W.x, W.y, W.r, 0, Math.PI * 2); ctx.strokeStyle = P.berry; ctx.lineWidth = l * 3.5; ctx.stroke(); // her window
+  ctx.strokeStyle = P.ink; ctx.lineWidth = l; ctx.beginPath(); ctx.arc(W.x, W.y, W.r + l * 1.75, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = P.heart; ctx.beginPath(); ctx.moveTo(-20, -4); ctx.lineTo(-20, -30); ctx.arc(0, -30, 20, Math.PI, 0); ctx.lineTo(20, -4); ctx.closePath(); ctx.fill(); ctx.stroke(); // the door
+  ctx.fillStyle = P.berry; ctx.beginPath(); ctx.ellipse(0, -204, 72, 22, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // the lid
+  ctx.beginPath(); ctx.ellipse(0, -218, 38, 22, 0, Math.PI, Math.PI * 2); ctx.fill(); ctx.stroke();
+  teapotBerry(ctx, 0, -246, 14, l);
+  ctx.restore();
+  return { x: x + W.x * k, y: gy + (W.y + 6) * k - hop, r: W.her * k };
+}
+// Hearts rising from the spout and lid, each on a white puff of steam so they read as steam, never as a jelly or a bonus.
+function teapotSteam(ctx, tx, ty, time, n, off, size, l) {
+  const rise = T.house.rise;
+  for (let i = 0; i < n; i++) {
+    const p = (time * 0.32 + i / n + off) % 1, x = tx + Math.sin(p * 6 + i * 2.1) * 18 + p * 14, y = ty - p * rise, r = size * (1 + p * 0.8);
+    ctx.globalAlpha = (1 - p * p) * 0.85;
+    ctx.fillStyle = P.white; ctx.beginPath(); ctx.arc(x, y + r * 0.3, r * 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = i % 2 ? P.heart : P.blush; heartPath(ctx, x, y, r); ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = l * 0.8; ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+function teapotBerry(ctx, x, y, r, l) {
+  ctx.beginPath(); ctx.moveTo(x - r, y - r * 0.2); ctx.quadraticCurveTo(x - r * 0.9, y + r * 1.3, x, y + r * 1.4); ctx.quadraticCurveTo(x + r * 0.9, y + r * 1.3, x + r, y - r * 0.2); ctx.quadraticCurveTo(x, y - r * 0.9, x - r, y - r * 0.2);
+  ctx.fillStyle = P.berry; ctx.fill(); ctx.strokeStyle = P.ink; ctx.lineWidth = l; ctx.stroke();
+  ctx.fillStyle = P.leaf; ctx.beginPath(); ctx.ellipse(x, y - r * 0.55, r * 0.7, r * 0.22, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
 
 function heartPath(ctx, x, y, r) {
@@ -2030,6 +2199,9 @@ const SFX = {
   flare: (E) => { E.audio.beep({ freq: 180, dur: 0.18, type: 'sine', slide: 2, gain: 0.12 }); E.audio.noise({ dur: 0.12, gain: 0.06 }); },
   soft: (E) => E.audio.beep({ freq: 230, dur: 0.2, type: 'sine', slide: 0.6, gain: 0.08 }),
   story: (E) => { E.audio.beep({ freq: 880, dur: 0.18, type: 'sine', gain: 0.07 }); E.audio.beep({ freq: 1320, dur: 0.26, type: 'sine', gain: 0.05, delay: 0.09 }); }, // a soft chime on a story card
+  // The stretchy catch: a low gloopy stretch as he sinks, then a rising boing as the caramel slings him on.
+  stretch: (E) => { E.audio.beep({ freq: 180, dur: 0.4, type: 'sine', slide: 0.55, gain: 0.12 }); E.audio.noise({ dur: 0.12, gain: 0.05 }); },
+  sling: (E) => { E.audio.beep({ freq: 140, dur: 0.32, type: 'triangle', slide: 3.6, gain: 0.13 }); E.audio.beep({ freq: 900, dur: 0.08, type: 'sine', slide: 1.4, gain: 0.06, delay: 0.05 }); },
   home: (E) => { [523, 659, 784, 1047].forEach((f, i) => E.audio.beep({ freq: f, dur: 0.22, type: 'triangle', gain: 0.12, delay: i * 0.12 })); },
 };
 
@@ -2180,6 +2352,26 @@ function drawGiftBox(ctx, x, y, found) {
   }
 }
 
+// The lessons button: the lessons' ghost thumb pressing, in a square button; pressing it replays the three first-flight
+// lessons on the next three flights. HINTS: flights left that name the two launch beats (a fresh save's first two do).
+let HINTS = 0;
+function thumbButton(E, cx, cy, size) {
+  const b = btn(E, '', cx, cy, { fill: P.panelSolid, w: size, h: size }), ctx = E.ctx, k = size / 56;
+  const u = (E.time % T.lesson.loop) / T.lesson.loop, dn = u > 0.2 && u < 0.6 ? 1 : 0, tx = cx + 2 * k, ty = cy + 12 * k - (1 - dn) * 4 * k; // the fingertip
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.strokeStyle = P.zones[0]; ctx.lineWidth = 2.2 * k; ctx.globalAlpha = dn ? 1 : 0.35; // the touch ripples
+  for (const rr of [8, 13]) { ctx.beginPath(); ctx.ellipse(tx, cy + 16 * k, rr * k, rr * 0.45 * k, 0, Math.PI * 0.05, Math.PI * 0.95, true); ctx.stroke(); }
+  ctx.globalAlpha = 1; ctx.fillStyle = P.text; ctx.strokeStyle = P.ink; ctx.lineWidth = 2;
+  ctx.beginPath(); // a pointing hand: the finger down to the tip, the knuckles of the fist behind it
+  ctx.moveTo(tx - 5 * k, ty - 1 * k); ctx.lineTo(tx - 5 * k, ty - 16 * k); ctx.quadraticCurveTo(tx - 13 * k, ty - 16 * k, tx - 13 * k, ty - 22 * k);
+  ctx.lineTo(tx - 13 * k, ty - 30 * k); ctx.lineTo(tx + 12 * k, ty - 30 * k); ctx.lineTo(tx + 12 * k, ty - 20 * k); ctx.quadraticCurveTo(tx + 12 * k, ty - 14 * k, tx + 5 * k, ty - 14 * k);
+  ctx.lineTo(tx + 5 * k, ty - 1 * k); ctx.arc(tx, ty - 1 * k, 5 * k, 0, Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = P.textOff; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(tx + 5 * k, ty - 20 * k); ctx.lineTo(tx + 12 * k, ty - 20 * k); ctx.moveTo(tx + 5 * k, ty - 25 * k); ctx.lineTo(tx + 12 * k, ty - 25 * k); ctx.stroke();
+  ctx.fillStyle = P.textDim; ctx.beginPath(); ctx.ellipse(tx, ty - 4 * k, 2.6 * k, 3.2 * k, 0, 0, Math.PI * 2); ctx.fill(); // the nail
+  ctx.restore();
+  return b;
+}
+
 // The menu (principle 11): the journey strip along the top, the title, one headline number (the best distance), the three
 // active goals under it, then Play, Shop and Sound.
 const menu = {
@@ -2206,12 +2398,14 @@ const menu = {
       this.btnShop = btn(E, 'Shop', E.w / 2 - 116, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
       this.btnStory = btn(E, 'Story', E.w / 2, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.md });
       this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 116, py + 58, { fill: P.panelSolid, w: 104, h: 44, size: TY.sm });
+      this.btnLearn = thumbButton(E, E.w / 2 + 148, py, 56);
     } else { // short screens: one row
       const py = Math.min(gy + 8 + 28, bottom - 28);
       this.btnPlay = btn(E, 'Play', E.w / 2, py, { w: 150, h: 56, size: TY.md }); // Shop, Play, Sound, Story: Story on the right, clear of the machine
       this.btnShop = btn(E, 'Shop', E.w / 2 - 126, py, { fill: P.panelSolid, w: 92, h: 48, size: TY.md });
       this.btnMute = btn(E, E.audio.muted ? 'Sound off' : 'Sound on', E.w / 2 + 126, py, { fill: P.panelSolid, w: 92, h: 48, size: TY.sm });
       this.btnStory = btn(E, 'Story', E.w / 2 + 222, py, { fill: P.panelSolid, w: 84, h: 48, size: TY.md });
+      this.btnLearn = thumbButton(E, E.w / 2 - 206, py, 48);
     }
   },
   onTap(p, E) {
@@ -2219,6 +2413,7 @@ const menu = {
     else if (this.btnShop && E.hit(this.btnShop, p)) { E.audio.play('tap'); E.setScene('shop', { from: 'menu' }); }
     else if (this.btnStory && E.hit(this.btnStory, p)) { E.audio.play('tap'); E.setScene('story', { replay: true }); }
     else if (this.btnMute && E.hit(this.btnMute, p)) { E.audio.toggleMute(); E.audio.play('tap'); }
+    else if (this.btnLearn && E.hit(this.btnLearn, p)) { E.audio.play('tap'); E.save.set('lesson', 0); HINTS = T.lesson.hints; E.setScene('play'); } // the three lessons again, from the next flight; nothing else in the save changes
   },
   onKey(k, E) { if (k === ' ' || k === 'Enter') E.setScene('play'); },
 };
@@ -2243,6 +2438,8 @@ const play = {
     if (S.lesson < nL) { E.save.set('lesson', S.lesson); E.save.set('actionsTaught', true); } // the ghost takes the three-action pill's place
     S.lessonOn = false; S.lessonDone = false; S.lessonWait = 0; S.lessonT0 = 0; S.ghostFade = 0; S.why = null; S.slamLook = 0;
     S.teachAct = !E.save.get('actionsTaught', false); S.prevVy = 0; S.quit = false; S.propose = E.save.get('home', false) && !E.save.get('proposed', false); // a save that met her before v0.6 owes the proposal after this flight
+    S.riding = E.save.get('proposed', false); S.arrive = null; S.goo = null; S.win = null; // after the proposal she rides along
+    if (HINTS > 0) { S.hint = true; HINTS--; } // the lessons button names the two beats again, as a fresh save's first two flights do
   },
   // Flight time now: the steps run, the remainder carried, and the real time since this frame began at the current rate.
   stamp(r) { return flightTime(r) + r.acc + Math.min(0.05, Math.max(0, (performance.now() - S.frameReal) / 1000)) * S.rate; },
@@ -2275,6 +2472,14 @@ const play = {
     if (S.why) { S.why.t -= dt; if (S.why.t <= 0) S.why = null; }
     S.rate = S.slowT > 0 ? J.slowMoRate : 1;
     if (S.lessonWait > 0) S.rate = Math.min(S.rate, T.lesson.rate); // the flight waits a beat for the lesson's gesture
+    const A = J.arrive;
+    if (S.arrive) { // the arrival beat: real time, so the slow-motion never stretches it
+      const t0 = S.arrive.t; S.arrive.t += dt;
+      if (!S.arrive.thumb && S.arrive.t > A.slow[0] && S.arrive.t < A.slow[1]) S.rate = Math.min(S.rate, clamp(A.slowGo / Math.max(1, Math.abs(S.run.vx)), A.slowMin, A.slowRate));
+      if (t0 < A.meet && S.arrive.t >= A.meet) this.meet(E);
+      if (S.arrive.t >= A.time) S.arrive = null;
+    }
+    if (S.goo && S.goo.t >= 0) { S.goo.t += dt; if (S.goo.t > J.caramel.snap * 3) S.goo = null; }
     if (S.sq.t > 0) S.sq.t -= dt;
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
     if (S.zonePop) { S.zonePop.t -= dt; if (S.zonePop.t <= 0) S.zonePop = null; }
@@ -2285,7 +2490,8 @@ const play = {
     const open = r && r.chute && !r.ended ? 1 : 0, w = S.wing, n = Math.max(1, Math.ceil(dt / 0.008)), h = dt / n; // the dough glider's spring
     for (let i = 0; i < n; i++) { w.v += (J.wing.k * (open - w.x) - J.wing.c * w.v) * h; w.x += w.v * h; }
     S.needle += ((r ? speedOf(r) : 0) - S.needle) * (1 - Math.exp(-dt / T.speedo.ease));
-    cameraStep(S.cam, r, view(E).vw, dt);
+    const zIn = S.arrive && S.arrive.t > A.zoomFrom && S.arrive.t < A.zoomTo;
+    cameraStep(S.cam, r, view(E).vw, dt, zIn ? A.zoom : 0, zIn ? A.zoomEase : 0);
     if (Math.random() < dt * 1.5) emit('steam', -80 * MACHINE, 76 * MACHINE, 1, { angle: Math.PI / 2, spread: 0.5, speed: 30, g: 20, life: 1.2, size: 3, color: P.steam }); // the chimney idles
     if (!r) return;
     const g = S.gest;
@@ -2309,7 +2515,7 @@ const play = {
     }
     if (r.ended) {
       S.endT += dt;
-      if (S.endT >= S.endWait) {
+      if (S.endT >= S.endWait && !S.arrive) { // the arrival beat always finishes
         const p = finishFlight(E, r);
         if (S.lesson < LESSONS.length && !S.lessonDone) p.tryVerb = LESSONS[S.lesson].say; // the card says what to try, not "New best!"
         E.setScene(S.propose ? 'proposal' : 'over', p);
@@ -2335,6 +2541,13 @@ const play = {
     } else if (S.lessonOn) S.why = { text: ls.why[kind], t: T.lesson.why };
   },
   squash(amt) { S.sq = { amt: Math.min(J.landSquash, amt), t: J.squashTime }; },
+  // The arrival beat's meeting: she lands on his back with a squash and a burst of hearts, and they fly on together.
+  meet(E) {
+    const r = S.run, cx = r.x, cy = r.y + T.critterR * 1.6;
+    S.riding = true; this.squash(J.arrive.squash); SFX.story(E); SFX.spring(E); E.haptic(J.haptic.home);
+    emit('heart', cx, cy, J.arrive.hearts, { spread: Math.PI * 2, speed: 170, vx: r.vx * 0.5, vy: r.vy * 0.5, g: -40, life: 1.2, size: 4, color: P.heart });
+    emit('spark', cx, cy, 8, { spread: Math.PI * 2, speed: 200, vx: r.vx * 0.5, g: 0, life: 0.5, size: 2.6, color: P.white });
+  },
   onEvent(e, E) {
     const r = S.run, cx = r.x, cy = r.y + T.critterR;
     if (e.k === 'spring') {
@@ -2380,7 +2593,16 @@ const play = {
     else if (e.k === 'launch') { SFX.whoosh(E); S.speedT = J.speedLines * 0.6; }
     else if (e.k === 'drop') { SFX.drop(E); E.haptic(J.haptic.drop); this.squash(0.2); emit('puff', cx, cy, 6, { angle: Math.PI / 2, spread: 1.2, speed: 120, g: 0, life: 0.35, size: 2.6, color: P.critterLight }); }
     else if (e.k === 'ramp') this.squash(0.1);
-    else if (e.k === 'mud') {
+    else if (e.k === 'catch') { // the stretchy catch: he sinks and the caramel stretches
+      SFX.stretch(E); E.haptic(J.haptic.mud); this.squash(0.12);
+      emit('splat', cx, 0, J.caramel.drops, { angle: Math.PI / 2, spread: Math.PI * 0.7, speed: 110, g: -400, life: 0.5, size: 2.6, color: P.mud });
+      S.goo = { g: groundAt(r.field, e.x), x: e.x, t: -1 };
+    } else if (e.k === 'sling') { // ... and snaps: BOING, and he flies on
+      SFX.sling(E); E.haptic(J.haptic.sling); this.squash(0.3); S.speedT = J.speedLines;
+      if (S.goo) S.goo.t = 0;
+      emit('splat', cx, T.critterR, J.caramel.drops, { angle: Math.PI / 2, spread: 1.6, speed: 160, g: -450, life: 0.6, size: 3, color: P.mud });
+      word('BOING!', r.x - 30, 110, TY.md, J.boingLife);
+    } else if (e.k === 'mud') {
       E.audio.play('miss'); E.haptic(J.haptic.mud); E.shake(J.mudShake, J.mudShakeTime);
       emit('splat', cx, 0, J.splat, { angle: Math.PI / 2, spread: Math.PI * 0.8, speed: 150, g: -400, life: 0.6, size: 3, color: P.mud });
       if (S.teachMud) { S.teachMud = false; E.save.set('mudTaught', true); S.endWait = T.endDelayTaught; S.callouts.push({ text: 'Stuck! Glide or boost over caramel', arrow: false, wx: cx, wy: cy + 50, t: T.endDelayTaught + 0.2 }); }
@@ -2399,12 +2621,12 @@ const play = {
       S.banner = { text: `★ ${PLACES[i].name}`, t: J.bannerTime };
       if (GIFTS[i] && i > E.save.get('placesSeen', 0)) { E.save.set('placesSeen', i); S.banner = { text: GIFTS[i], t: T.story.arrivalTime }; } // the first time ever: Mochi's gift for Daifuku
       if (home && !E.save.get('proposed', false)) S.propose = true; // the proposal follows this flight
+      if (home && !S.riding && !S.arrive) { S.arrive = { t: 0 }; S.homeT = Math.max(S.homeT, J.homeTime); } // she sees him coming: the arrival beat
       if (home && !E.save.get('home', false)) { // the Tea Party moment: once, the first flight past 5000 m
         E.save.set('home', true); E.ledger.add('home', { flights: E.save.get('flights', 0) + 1, seed: r.seed });
         S.homeT = J.homeTime; SFX.home(E); E.haptic(J.haptic.home);
         S.banner = { text: '♥ Tea Party', t: J.homeTime, color: P.text };
-        const hx = placeFrom(i) + T.homeAhead;
-        emit('heart', hx, 2.6 * T.critterR, J.hearts, { angle: Math.PI / 2, spread: 1.6, speed: 160, g: -60, life: 1.6, size: 4, color: P.heart });
+        emit('heart', houseX(), 10 * T.critterR, J.hearts, { angle: Math.PI / 2, spread: 1.6, speed: 160, g: -60, life: 1.6, size: 4, color: P.heart });
         emit('heart', r.x, r.y + T.critterR, J.hearts / 2, { angle: Math.PI / 2, spread: 2, speed: 120, g: -60, life: 1.4, size: 3.5, color: P.heart });
       }
     } else if (e.k === 'stop') {
@@ -2455,7 +2677,7 @@ const play = {
       return;
     }
     if (r.ended || p.id === S.launchPid) return;
-    S.lessonWait = 0; // a thumb is down: the flight runs on at full speed
+    S.lessonWait = 0; if (S.arrive) S.arrive.thumb = true; // a thumb is down: the flight runs on at full speed
     if (S.gest) this.release(S.gest, this.stamp(r), true, E); // a second thumb takes over
     S.gest = { id: p.id, t0: this.stamp(r), y0: p.y, kind: null };
   },
@@ -2486,7 +2708,7 @@ const play = {
     const r = S.run;
     if (!r) { if (k === ' ' || k === 'Enter') this.onPointerDown({ id: 'key' }, E); return; }
     if (r.ended) return;
-    S.lessonWait = 0;
+    S.lessonWait = 0; if (S.arrive) S.arrive.thumb = true;
     if (k === ' ' && !S.keyDown[' ']) { S.keyDown[' '] = true; queueInput(r, this.stamp(r), 'boostOn'); this.did('boost', E); }
     else if (k === 'ArrowUp' && !S.keyDown.ArrowUp) { S.keyDown.ArrowUp = true; queueInput(r, this.stamp(r), 'chuteOn'); this.did('chute', E); }
     else if (k === 'ArrowDown') { queueInput(r, this.stamp(r), 'condense'); this.did('drop', E); }

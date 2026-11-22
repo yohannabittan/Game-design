@@ -42,7 +42,7 @@ The designer is the first player, not a tester: the game has to be fun enough to
 | Gravity Golf | `gravity-golf-v37` | PRD v0.16. A design discussion is open: Trials (below). |
 | Ink | `ink-v34` | Quiet. |
 | Recoil | `recoil-v33` | Quiet. |
-| Launch | `launch-v19` | Quiet. |
+| Launch | `launch-v20` | Quiet. |
 | Checkpoint | `checkpoint-v13` | Quiet. |
 | Ronin | `ronin-v1` | An exploration (2026-11-17): swipe to dash-slash, one-shot layer 1 from `docs/games/ronin/prd-v0.1.md`. Waiting on the designer's "more" or drop it. |
 
