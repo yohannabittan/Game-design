@@ -710,6 +710,13 @@ About 9 images for the probe (US$1), 20 more after (US$2 to 3).
 
 Probe: about 14 images, US$1.5. Full set: about 30 more, US$3 to 4.
 
+**Added 2026-11-22: turn the torsos to match the profile (a second probe, before the full set).** The designer, looking at the probe's man in plate: "The chest plates are head on, but the character's face and arms act as if we're seeing it from the side. We need to change the chest pieces to match." Today's men's torsos (`kit-base-torso-avg`, `-lean`, `kit-base-torso`), the chest plate (`kit-plate-chest`) and the probe's torsos for her are all painted nearly frontal (both pecs, the whole six-pack, both shoulders square to us), while the head, arms, legs and feet are in profile facing right. That breaks mistake 4. It is common sense, not taste: the body is turned the way the head is.
+- **Probe 2:** the average man's torso and the chest plate, painted turned to face right, in **two options**: (a) **three-quarter** (turned about 60 degrees: the near shoulder forward and round, the far shoulder narrower and partly behind, the chest and abs foreshortened toward the far side), (b) **near profile** (a side view: chest curving forward, back curving behind, one shoulder). Same canvas (384 x 512), the same neck-top and belt rows and the same axis column, so the head and legs still meet; say where the near shoulder (the arm's pin) moves to, in px. The plate fits that torso, worn (straps over the near shoulder), not stuck on. Then her torso (the designer's pick of A or B) turned the same way as the option you recommend.
+- **The sheet** shows each option assembled on the rig at game size and 2x, in the guard pose and with the sword arm raised and swung, bare and in plate, beside today's frontal man; and a 4x close-up of the near shoulder joint (one piece or two, mistake 1).
+- **After the designer's pick:** the lean and muscular men's torsos, her lean and muscular torsos, her chest plate, and any other painting that covers the chest (check `gear-black-plate` and `gear-colossus-plate`, the champions' gear) turned the same way.
+
+Probe 2: about 6 images, US$0.6 to 1. Its full set: about 8 more, US$1.
+
 ### Pack 16: Ink, Ines, Arlo and Rita's finale (added 2026-10-12)
 
 Anchor: `docs/games/ink/style.md`; cast: `docs/games/ink/world.md`; spec: `docs/games/ink/prd-v0.8.md` C and D. The same rules as Pack 11: a **clear, bare, evenly lit patch of skin facing the viewer, about a third of the image wide**, on the client's body part, with no tattoo, jewellery, hair or clothing over it. Use a Pack 11 final (for example `docs/art/final/ink/client-june-happy.png`) as the style reference so the new clients match the six.
