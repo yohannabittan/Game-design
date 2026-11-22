@@ -48,6 +48,25 @@
   ],
   "fighter-circus": [
    "fighter-circus-A.png"
+  ],
+  "unlock-sica": [
+   "unlock-sica-A.png"
+  ],
+  "unlock-trident": [
+   "unlock-trident-A.png",
+   "unlock-trident-B.png"
+  ],
+  "unlock-crest": [
+   "unlock-crest-A.png"
+  ],
+  "unlock-plume": [
+   "unlock-plume-A.png"
+  ],
+  "unlock-paint": [
+   "unlock-paint-A.png"
+  ],
+  "unlock-cloak": [
+   "unlock-cloak-A.png"
   ]
  }
 }
