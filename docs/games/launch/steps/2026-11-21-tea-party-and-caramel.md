@@ -1,4 +1,4 @@
-# Launch step: Tea Party you can't miss, together after, a caramel end worth having, and a new player's lessons (draft, 2026-11-21)
+# Launch step: Tea Party you can't miss, together after, a caramel end worth having, and a new player's lessons (locked 2026-11-22)
 
 **From:** a first-time player's playtest (`../playtests/2026-11-21-first-time-player.md`) and the designer's "go for the Launch modifications".
 
@@ -13,3 +13,13 @@
 ## Before building
 
 A sketch (Sonnet) for the designer's eye: the landmark from far and near, the arrival beat, Daifuku riding along in a flight, and two or three caramel endings. The build follows the designer's picks. (5) is small and rides in the same build.
+
+## Decided (2026-11-22, after the sketch `../sketches/tea-party-and-caramel.png`)
+
+**The designer:** "Stretchy catch please, and the tutorial, when you have it, should always be reachable." The other picks are the sketch's recommendations (the designer can swap them after playing):
+
+1. **Landmark: Look B, the teapot house** steaming hearts, Daifuku waving from its heart window (bigger window than the sketch so she reads). Drawn at a minimum on-screen scale of about 0.5, so it shows from far off at the widest zoom. The steam hearts stay out of the flight path and never read as jellies or bonuses.
+2. **Arrival beat** (`../sketches/arrival-B.gif`): about 2 s, never pausing the flight or eating a boost or glide press: the banner, a brief slow-motion and the camera easing in, she leaps from the window, they meet with a squash and a heart burst, and fly on together. The full proposal scene still plays after that flight, as today, the first time on a save.
+3. **Together: RIDE** (`../sketches/ride.gif`): after the proposal she sits on his back in every flight, about 0.6 of his size, cheering on a boost and riding the wing in a glide. Pure look: no hitbox, no stats; Mochi stays the one body that touches things.
+4. **Caramel: A, the stretchy catch** (`../sketches/c1.gif`): the first caramel touch of a flight sinks him, the caramel stretches and snaps (BOING) and slingshots him on at a fraction of his speed; a second caramel touch ends the flight as today. The strands need a light rim so they read on the dark caramel.
+5. **The lessons are always reachable:** a button on the menu ("How to fly", or a picture of the ghost thumb) replays the three first-flight lessons (boost, glide, slam) on the next three flights, on any save, without touching anything else in it. A fresh save still gets them by itself.
