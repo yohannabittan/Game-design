@@ -1,0 +1,17 @@
+{
+ "pack": "34-turn",
+ "assets": {
+  "kit-base-torso-avg": [
+   "kit-base-torso-avg-3q.png",
+   "kit-base-torso-avg-profile.png"
+  ],
+  "kit-plate-chest": [
+   "kit-plate-chest-3q.png",
+   "kit-plate-chest-profile.png"
+  ],
+  "kit-base-torso-avg-f": [
+   "kit-base-torso-avg-f-A-3q.png",
+   "kit-base-torso-avg-f-B-3q.png"
+  ]
+ }
+}
