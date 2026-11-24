@@ -21,7 +21,8 @@ export default async function (t) {
       return { card: s.card, fit: s.cardFit(cv, E), vs: s.cardItems.map((e) => e.v), seen: s.cardSeen, saved: E.save.get('notesSeen', 0), L: s.cardLay(E) };
     });
     t.eq(`${w}x${h}: a tap on the plaque opens the card`, c.card, 0);
-    t.eq(`${w}x${h}: the first time it shows the five newest, newest first, the newest being the shipped CACHE_VERSION`, c.vs.map((v, i) => v === shipped - i).every(Boolean) && c.vs.length, 5);
+    const all = await g.ev(() => Math.min(window.__engine.game.scenes.menu.cardList(0).length, 999));
+    t.eq(`${w}x${h}: it lists every build in the notes, newest first, the newest being the shipped CACHE_VERSION`, c.vs[0] === shipped && c.vs.every((v, i) => !i || v < c.vs[i - 1]) && c.vs.length, all);
     t.eq(`${w}x${h}: opening it saves the newest build as seen`, c.saved, shipped);
     t.ok(`${w}x${h}: what does not fit can be scrolled to`, c.fit.h <= c.fit.room || c.fit.max > 0, JSON.stringify(c.fit));
     const y0 = c.L.view.y + c.L.view.h / 2;
@@ -33,11 +34,11 @@ export default async function (t) {
     t.eq(`${w}x${h}: Close returns to the menu`, await g.ev(() => window.__engine.game.scenes.menu.card), null);
     await g.tap(m.n.x + m.n.w / 2, m.n.y + m.n.h / 2); await g.frames(3);
     const again = await g.ev(() => { const s = window.__engine.game.scenes.menu; return s.cardItems.length; });
-    t.eq(`${w}x${h}: opened again with nothing new it shows the last 2`, again, 2);
+    t.eq(`${w}x${h}: opened again with nothing new it still lists every build`, again, all);
     await g.tap(c.L.box.x + c.L.box.w / 2, 4); await g.frames(3);
     await g.ev((v) => window.__engine.save.set('notesSeen', v - 3), shipped);
     await g.tap(m.n.x + m.n.w / 2, m.n.y + m.n.h / 2); await g.frames(3);
-    t.eq(`${w}x${h}: with three builds unseen, exactly those three are listed`, await g.ev(() => window.__engine.game.scenes.menu.cardItems.map((e) => e.v)), [shipped, shipped - 1, shipped - 2]);
+    t.eq(`${w}x${h}: with three builds unseen, exactly those three are marked new`, await g.ev(() => { const s = window.__engine.game.scenes.menu; return s.cardItems.filter((e) => e.v > s.cardSeen).map((e) => e.v); }), [shipped, shipped - 1, shipped - 2]);
     await g.tap(c.L.close.x + c.L.close.w / 2, c.L.close.y + c.L.close.h / 2); await g.frames(3);
     await g.tap(m.n.x + m.n.w / 2, m.n.y + m.n.h / 2); await g.frames(3);
     await g.tap(c.L.box.x + c.L.box.w / 2, 4); await g.frames(3);

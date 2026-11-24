@@ -48,3 +48,5 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-22,Arena: unlock icons wired,build,claude-sonnet-5-5,30,yes,,,Pack 33 and 33b onto the rank path, run end and rank-up; picks fourth A trick A sparta B trident B
 2026-11-23,Arena: offline list restored,fix,claude-opus-5-5,15,yes,,,orchestrator: land.mjs bug dropped sw.js list edits; restored and checked in smoke
 2026-11-24,Arena: turned bodies (men),build,claude-opus-5-5,120,,,,three-quarter torsos and plates; shoulder pins re-tuned in every pose
+2026-11-24,Ronin sketch: endless climb,sketch,claude-sonnet-5-5,25,yes,,,touchable page and GIF: kills launch you higher
+2026-11-24,Ronin sketch: dojo slicing,sketch,claude-sonnet-5-5,25,yes,,,touchable page and GIF: slice what is thrown up

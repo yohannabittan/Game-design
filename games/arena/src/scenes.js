@@ -491,7 +491,7 @@ export const menu = {
     const g = ctx.createLinearGradient(0, y, 0, y + bh); g.addColorStop(0, '#f2c477'); g.addColorStop(1, '#8a5a1c');
     ctx.fillStyle = g; ctx.fillRect(x, y, bw * clamp(BOOT.bar, 0, 1), bh);
   },
-  // the "What's new" card: every build since the card was last opened (at least TUNING.notes.min, at most TUNING.notes.shown), newest first in one list that a thumb drag scrolls; Close or a tap outside returns to the menu
+  // the "What's new" card: every build in NOTES up to TUNING.notes.shown (min as many), those since the card was last opened marked new, newest first in one list that a thumb drag scrolls; Close or a tap outside returns to the menu
   cardLay(E) {
     const N = TUNING.notes, w = Math.min(N.card[0], E.w - 2 * (N.margin + E.safe.left + E.safe.right)), h = Math.min(N.card[1], E.h - E.safe.top - E.safe.bottom - 2 * N.margin);
     const x = Math.round((E.w - w) / 2), y = Math.round((E.h - h) / 2), [bw, bh] = N.btn, fy = y + h - N.foot / 2 - bh / 2;

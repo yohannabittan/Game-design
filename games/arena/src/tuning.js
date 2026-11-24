@@ -657,7 +657,7 @@ export const TUNING = {
       over: [2.4, 3.0, 0.3], long: [1.7, 2.4, 0.6], longIds: ['spear', 'trident'], icon: [-0.55, -1.2, 0.5, 0.12] } },
   // the "What's new" plaque and card on the menu: the plaque's size px (w, h; h is at least 44 to touch) and its distance from the bottom (it sits under the two walls, clear of the dev tabs in the top corners), how many builds the card
   // lists, the card's largest size px (w, h) and its margin to the screen, its text size and line height px, the footer row's height px and its buttons' width px
-  notes: { plaque: [112, 44], inset: 8, shown: 5, min: 2, card: [560, 400], margin: 12, text: 16, lh: 20, headH: 28, gap: 8, foot: 54, btn: [104, 44] },
+  notes: { plaque: [112, 44], inset: 8, shown: 40, min: 40, card: [560, 400], margin: 12, text: 16, lh: 20, headH: 28, gap: 8, foot: 54, btn: [104, 44] },
   // Step 13, the arena picker: the plaque's margin and rim (px), the painting's horizontal focus, its dark top and bottom (alpha, and where the clear middle runs, 0-1), the room kept for the name above the champion and for his lines below, and how dark a shut arena is
   // ring: the painted laurel (laurel-ring, Pack 26) round a cleared arena's portrait, centred on it: its canvas (w, h) and the portrait height it was
   // painted round (px; HANDOFF-arena-pack26: a 180 x 240 portrait in a 300 x 400 ring)
