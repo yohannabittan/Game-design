@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'arena-v97';
+const CACHE_VERSION = 'arena-v98';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'arena-v';
 // The painted art (docs/art/final/arena, one webp each); the release channel shows it, the dev channel shows the candidates instead.
@@ -95,6 +95,9 @@ const ART = [
   './assets/emperor.webp',
   './assets/kit-base-torso-lean.webp',
   './assets/kit-base-torso-avg.webp',
+  './assets/kit-base-torso-avg-3q.webp',
+  './assets/kit-base-torso-lean-3q.webp',
+  './assets/kit-base-torso-3q.webp',
   './assets/beast-lion-head.webp',
   './assets/beast-bear-head.webp',
   './assets/beast-lion-tail.webp',
@@ -104,6 +107,7 @@ const ART = [
   './assets/kit-shield-scutum.webp',
   './assets/kit-shield-parma.webp',
   './assets/kit-plate-chest.webp',
+  './assets/kit-plate-chest-3q.webp',
   './assets/kit-plate-manica.webp',
   './assets/kit-plate-greave.webp',
   './assets/kit-wrap-trousers.webp',
@@ -124,6 +128,8 @@ const ART = [
   './assets/gear-bronze-phalerae.webp',
   './assets/gear-ghost-silk.webp',
   './assets/gear-black-plate.webp',
+  './assets/gear-black-plate-3q.webp',
+  './assets/gear-colossus-plate-3q.webp',
   './assets/gear-eye-amulet.webp',
   './assets/gear-gilded-harness.webp',
   './assets/gear-bronze-boots.webp',

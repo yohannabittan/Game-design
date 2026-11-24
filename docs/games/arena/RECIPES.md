@@ -164,3 +164,4 @@ To undo a landed build: `node tools/land.mjs arena --revert <commit> --msg "Aren
 - Where each figure draws (for anything about loading or hiding a figure): drawFighter, drawBeast, drawSwordArm, drawShield, drawEdge, menuFigure, and the intro's hold; artV leaks into replay dumps through look keys, so render caches belong in tools/replay.mjs COSMETIC
 - Every unlock icon is drawn by unlockMark in scenes.js; the engine reads only docs/art/candidates/arena/candidates.json, so a pack in its own folder must be merged in there as -A.webp copies
 - sw.js ART is hand-kept: every name in SHIPPED needs its ./assets/<name>.webp line or it is not offline
+- SHOULDER and the parts' joints are fight geometry (reach, hits): move only the drawing (TUNING.kit.turn); the menu and doll arms are drawn at joint plus or minus 0.11

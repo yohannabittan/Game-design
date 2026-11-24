@@ -874,6 +874,8 @@ const SHIPPED = new Set([
   'champ-hermes champ-carpophorus champ-mevia champ-aquila emperor ',
   // the men: the muscular torso, limb halves of every tier, helmets, shields, plates, the net
   'kit-base-head kit-base-torso kit-helmet-gallic kit-shield-round kit-base-torso-lean kit-base-torso-avg ',
+  // Pack 34: the men's torsos, the chest plate and the champions' chest gear turned three-quarter to face right (as the head and limbs do)
+  'kit-base-torso-avg-3q kit-base-torso-lean-3q kit-base-torso-3q kit-plate-chest-3q gear-black-plate-3q gear-colossus-plate-3q ',
   'kit-helmet-murmillo kit-helmet-thraex kit-galerus kit-shield-scutum kit-shield-parma kit-plate-chest kit-plate-manica ',
   'kit-plate-greave kit-wrap-trousers kit-net-draped kit-arm-up-musc kit-arm-lo-musc kit-leg-up-musc kit-leg-lo-musc kit-arm-up-lean kit-arm-lo-lean kit-leg-up-lean ',
   'kit-leg-lo-lean kit-arm-up-avg kit-arm-lo-avg kit-leg-up-avg kit-leg-lo-avg ',

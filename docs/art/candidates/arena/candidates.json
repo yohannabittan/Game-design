@@ -1,5 +1,5 @@
 {
- "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29, 30, 32, 33, 33b",
+ "pack": "15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26b, 29, 30, 32, 33, 33b, 34",
  "assets": {
   "arena-pit": [
    "arena-pit-A.webp",
@@ -772,6 +772,24 @@
   ],
   "unlock-cloak": [
    "unlock-cloak-A.webp"
+  ],
+  "kit-base-torso-avg-3q": [
+   "kit-base-torso-avg-3q-A.png"
+  ],
+  "kit-base-torso-lean-3q": [
+   "kit-base-torso-lean-3q-A.png"
+  ],
+  "kit-base-torso-3q": [
+   "kit-base-torso-3q-A.png"
+  ],
+  "kit-plate-chest-3q": [
+   "kit-plate-chest-3q-A.png"
+  ],
+  "gear-black-plate-3q": [
+   "gear-black-plate-3q-A.png"
+  ],
+  "gear-colossus-plate-3q": [
+   "gear-colossus-plate-3q-A.png"
   ]
  }
 }

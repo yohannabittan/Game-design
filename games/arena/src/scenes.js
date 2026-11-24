@@ -11,7 +11,7 @@ import { camUpdate, lay, youF, foeF, toScreen, guardPt, poseYou, solveArm, moveH
   heartShatter, ringSound, clangSound, landChime, tickSound, ooh, crowdVerdict } from './fight.js';
 import { lamed, guardJab, sigOf, updateFoe, taunt, stepIn, updatePair, settleFeint } from './foe.js';
 import { updateFinisher, firstRun, runsDone, updateHints, finTouch, crowdDrain, twirl, baitDrop, thumbFav, addBleed, updateBleed } from './cards.js';
-import { weaponKey, weaponArt, picSprite, drawPic, sayLine, KIT_HELM, meGm, kitTier, kitPic, manArt, beastArt, dollArt, helmArt, gearPic, drawSeg,
+import { weaponKey, weaponArt, picSprite, drawPic, sayLine, KIT_HELM, meGm, kitTier, kitPic, manArt, beastArt, dollArt, helmArt, gearPic, drawSeg, nearShoulder, platePic,
   torsoPlate, TAU, GTYPE, lookOf, LEGS, canSprite, shade, lw, line, face, lerp2, hudRow, heartAt, drawHudHeart, drawPips, foeHealth, drawCrowdMeter,
   crowdBar, drawCoin, drawEdge, warmPair, drawEdgeTag, drop, rrect, drawNet, netArt, netK, drapeNet, drawWeapon, blinkGhosts, capuanGhosts,
   blinkStreaks, readGlow, spearFlight, spearDown, flyingShield, emperorSignal, flyingWeapon, drawFighter, figsPending, drawSwordArm, drawShield, shieldPaint,
@@ -87,7 +87,7 @@ function menuBrutus(E) {
 }
 // the menu's own paintings, which the boot card waits for: the backdrop, the fighter's paint (and weapon) and Brutus, and the title
 function menuArt(m) {
-  const D = dollArt(m.parts, m.me.str, m.gm), wk = m.weapon && weaponKey(m.weapon.weapon.id, m.weapon.mace);
+  const D = dollArt(m.parts, m.me.str, m.gm, !!m.me.female), wk = m.weapon && weaponKey(m.weapon.weapon.id, m.weapon.mace);
   return [BACKDROP[m.arena], m.say.pic, 'logo-arena', ...(kitOn() ? [...D.body, ...D.extra, ...(wk && TUNING.kit.weapon[wk] ? [weaponArt(wk)] : [])] : [])];
 }
 // a dev build waits for its art manifest, unless the fetch came back empty-handed
@@ -272,12 +272,14 @@ function paintMenu(c, E, o) {
 // in two pieces cut at the hips: the body above rises and falls a few pixels as he breathes, its lower rows covering the seam. d: the target's pixel
 // ratio; box: only what lies in it is drawn (the cloak always does).
 const MENU_WAIT = {};
+// the near shoulder of a figure posed on its own (the menu's, the story's): a turned torso's painted one (nearShoulder), else the pose's own
+const turnedS = (str, her) => { const S = nearShoulder(kitTier(str), her); return S === SHOULDER ? null : S; };
 function menuFigure(ctx, E, m, x, y, s, d = E.dpr || 1, box = null) {
-  const M = TUNING.menu, t = E.time, pose = heroPose(m.me.weapon), sp = kitOn() && canSprite ? kitIconSprite(E, m.parts, s, m.me.str, m.gm, pose) : null;
+  const M = TUNING.menu, t = E.time, her = !!m.me.female, pose = heroPose(m.me.weapon, turnedS(m.me.str, her)), sp = kitOn() && canSprite ? kitIconSprite(E, m.parts, s, m.me.str, m.gm, pose, her) : null;
   if (!sp) {
     // his paint is loading: nothing (not the doll in another pose) for up to TUNING.load.wait s, then the doll as it stands
-    if (kitOn() && canSprite && !dollArt(m.parts, m.me.str, m.gm).body.some((n) => artState(n) === 'bad') && artWaiting(MENU_WAIT, false)) return;
-    armourIcon(ctx, E, m.parts, x, y, s, m.me.str, m.gm); return;
+    if (kitOn() && canSprite && !dollArt(m.parts, m.me.str, m.gm, her).body.some((n) => artState(n) === 'bad') && artWaiting(MENU_WAIT, false)) return;
+    armourIcon(ctx, E, m.parts, x, y, s, m.me.str, m.gm, her); return;
   }
   artWaiting(MENU_WAIT, true);
   const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), cv = sp.cv, amp = Math.max(1, Math.round(M.breath[0] * s * k));
@@ -559,26 +561,26 @@ const h01 = (i, k = 0) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.54
 // in the menu's hero pose with no shield
 function storyLook(E) {
   const f = menuFighter(E), Y = TUNING.story, B = Y.bowed, W = TUNING.weapons.find((q) => q.id === 'gladius');
-  const me = f.me.idx ? f.me : rollMe(TUNING.menu.seed);
+  const me = f.me.idx ? f.me : rollMe(TUNING.menu.seed), S = turnedS(me.str, !!me.female);
   return {
     me, gm: GTYPE.gladius.helm, weapon: { weapon: W, mace: false },
     parts: Y.kit.map((ids) => PARTS.map((d) => mkPart(d, ids.includes(d.id)))),
-    bowed: { legs: LEGS, chin: B.chin, shield: 0, id: 'bowed', near: heroArm('armF', B.near[0], B.near[1]), farArm: heroArm('armB', B.far[0], B.far[1]) },
-    hero: { ...heroPose('gladius'), shield: 0, id: 'bare-hero' },
+    bowed: { legs: LEGS, chin: B.chin, shield: 0, id: `bowed${S ? 'T' : ''}`, near: heroArm('armF', B.near[0], B.near[1], S), farArm: heroArm('armB', B.far[0], B.far[1]) },
+    hero: { ...heroPose('gladius', S), shield: 0, id: `bare-hero${S ? 'T' : ''}` },
   };
 }
 // what the story draws, which the boot card waits for (with the menu's own, so the menu after it is ready too)
 function storyArt(E, S) {
-  const D = dollArt(S.parts[3], S.me.str, S.gm);
+  const D = dollArt(S.parts[3], S.me.str, S.gm, !!S.me.female);
   return [...new Set([...TUNING.story.back.map((k) => BACKDROP[k]), 'brutus', 'brutus-proud', `champ-${TUNING.story.champ}`, ...D.body, ...D.extra,
     weaponArt('gladius'), ...menuArt(menuLook(E))])];
 }
 // the fighter at (x, y), s px a unit: the painted doll (the drawn one until it loads) tilted about the feet by rot, squashed by sx and sy, faded by
 // alpha; with weapon (rad) the gladius in the near fist at that angle, the fist copied again over its grip
 function storyFig(ctx, E, S, parts, pose, x, y, s, o = {}) {
-  const sp = kitOn() && canSprite ? kitIconSprite(E, parts, s, S.me.str, S.gm, pose) : null;
+  const sp = kitOn() && canSprite ? kitIconSprite(E, parts, s, S.me.str, S.gm, pose, !!S.me.female) : null;
   ctx.save(); ctx.globalAlpha *= o.alpha ?? 1; ctx.translate(x, y); if (o.rot) ctx.rotate(o.rot); ctx.scale(o.sx ?? 1, o.sy ?? 1);
-  if (!sp) { armourIcon(ctx, E, parts, 0, 0, s, S.me.str, S.gm); ctx.restore(); return; }
+  if (!sp) { armourIcon(ctx, E, parts, 0, 0, s, S.me.str, S.gm, !!S.me.female); ctx.restore(); return; }
   ctx.drawImage(sp.cv, sp.x, sp.y, sp.w, sp.h);
   if (o.weapon != null) {
     const fx = pose.near.F[0] * s, fy = pose.near.F[1] * s;
@@ -595,8 +597,8 @@ function storyPiece(ctx, S, k, s, pose) {
     const kh = helmArt(KIT_HELM[S.gm] || 'gallic'), hx = PARTS[pidx('head')].x * s, len = (K.chin - K.top) * s;
     if (kh) drawSeg(ctx, kh, [hx - Math.sin(pose.chin) * len, K.chin * s - Math.cos(pose.chin) * len], [hx, K.chin * s], 0);
   } else if (k === 1) {
-    const PL = gearPic('plate'), T = kitPic('torso', t), B = PARTS[pidx('belly')];
-    if (PL && T) torsoPlate(ctx, PL, s, B.w * s * T.J.k, 'both', (B.y + B.h / 2) * s);
+    const her = !!S.me.female, PL = platePic(her), T = kitPic('torso', t, 0, her), B = PARTS[pidx('belly')];
+    if (PL && T) torsoPlate(ctx, PL, s, B.w * s * T.J.k, 'both', (B.y + B.h / 2) * s, { P: T, w: B.w * s }, false);
   } else if (k === 2) {
     const G = gearPic('greave'), P = (q) => [q[0] * s, q[1] * s];
     if (G) for (const [, knee, ank] of pose.legs) drawSeg(ctx, G, P(lerp2(knee, ank, G.J.from)), P(lerp2(knee, ank, G.J.to)), K.leg * s);
@@ -1476,7 +1478,7 @@ export function introReady(E) {
   if (kitOn()) {
     for (const [f, foe] of [[state.foe, true], [state.you, false], [state.edge, true]]) {
       if (!f) continue;
-      const A = f.beast ? beastArt(f) : manArt(lookOf(f, foe), kitTier(foe ? f.str : state.me.str));
+      const A = f.beast ? beastArt(f) : manArt(lookOf(f, foe), kitTier(foe ? f.str : state.me.str), null, foe ? !!(NEW_CHAMPS[f.ck] && NEW_CHAMPS[f.ck].female) : !!state.me.female);
       names.push(...A.body, ...A.extra);
     }
   }

@@ -10,7 +10,7 @@ import { partCenter, poseFoe, beastRest, knee, clangSound, chantN } from './figh
 import { sigOf } from './foe.js';
 import { C_, famN, growth, firstRun } from './cards.js';
 import { weaponKey, drawPic, sayLines, sayLine, brutusFaceOn, cardGrow, KIT_HELM, KIT_SHIELD, foeGm, meGm, kitTier, kitPic, dollArt, helmArt, gearPic, shieldPic,
-  drawSeg, kitTorso, torsoPlate, plateBoth, TAU, GTYPE, LEGS, canSprite, shade, lw, line, lerp2, paintGuard, kitSlot, kitGuard, drawHeart, drawCoin,
+  platePic, hemCut, nearShoulder, farShoulder, drawSeg, kitTorso, torsoPlate, plateBoth, TAU, GTYPE, LEGS, canSprite, shade, lw, line, lerp2, paintGuard, kitSlot, kitGuard, drawHeart, drawCoin,
   rrect, paintWeapon, zonePic, KIND_WORD, kindSegs, drawWeapon, drawBeast } from './draw-fight.js';
 import { WHEELS, openTo, laurel, champs, tapLive, over } from './scenes.js';
 import { arena, bout, drives, debtLeft, brutusIntro, brutusWon, wornGear, replaces, state, wrap, pidx, has, noDodge, noShield, pickW, kitMe, deriveMe,
@@ -342,7 +342,7 @@ function cardBox(ctx, E, c, x, y, w, h) {
 function draftDoll(ctx, E) {
   const D = TUNING.draft.doll, s = D / 1.08, x = 16 + E.safe.left + 0.4 * s, y = E.safe.top + 6 + D;
   E.roundRect(x - 0.42 * s, y - D - 4, 0.84 * s, D + 8, 8, 'rgba(31,26,36,0.9)', '#4a4252');
-  armourIcon(ctx, E, playerParts({ plates: state.me.plates }), x, y, s, state.me.str, meGm(state.me));
+  armourIcon(ctx, E, playerParts({ plates: state.me.plates }), x, y, s, state.me.str, meGm(state.me), !!state.me.female);
   return { x, y, s };
 }
 // a tap on a draft card takes it: it flies to the doll (play.update picks it when it lands); the gold card without the gold shakes
@@ -647,16 +647,28 @@ const WEAPON_TIP = { gladius: 'fast, loves combos', spear: 'long thrusts, keeps 
 // Strength), the painted body of his muscle tier is the body, and each plated part wears its painted piece as in the fight (step 6e): a plated head
 // his type's painted helmet (gm: his GTYPE's helm), the chest plate (its lower half on a plated belly, one plate over both), the manica, the greaves; his gaps and guards
 // are painted as a painted man's (kitSlot, kitGuard). No flat box or circle is drawn over the painted body.
-function kitIcon(ctx, parts, s, str, gm, pose = null) {
+function kitIcon(ctx, parts, s, str, gm, pose = null, her = false) {
   const K = TUNING.kit, t = kitTier(str), on = (id) => parts.some((q) => q.d.id === id && q.armour), head = parts.find((q) => q.d.id === 'head'), hk = KIT_HELM[gm] || 'gallic';
-  const kh = on('head') && helmArt(hk), Hd = kitPic('head'), T = kitPic('torso', t), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
+  const kh = on('head') && helmArt(hk), Hd = kitPic('head'), T = kitPic('torso', t, 0, her), U = kitPic('upperarm', t), F = kitPic('forearm', t), Th = kitPic('thigh', t), Sh = kitPic('shin', t);
   if (!Hd || !T || !U || !F || !Th || !Sh) return false;
-  const hx = (head ? head.d.x : 0) * s, G = on('legs') && gearPic('greave'), PL = gearPic('plate'), M = gearPic('manica'), B = PARTS[pidx('belly')], bw = B.w * s;
+  const hx = (head ? head.d.x : 0) * s, G = on('legs') && gearPic('greave'), PL = platePic(her), M = gearPic('manica'), B = PARTS[pidx('belly')], bw = B.w * s;
   (pose ? pose.legs : LEGS).forEach(([hip, knee, ank]) => {
     const P = (q) => [q[0] * s, q[1] * s];
     drawSeg(ctx, Th, P(hip), P(knee), K.leg * s); drawSeg(ctx, Sh, P(knee), P(ank), K.leg * s);
     if (G) drawSeg(ctx, G, P(lerp2(knee, ank, G.J.from)), P(lerp2(knee, ank, G.J.to)), K.leg * s);
   });
+  hemCut(ctx, { P: T, w: bw }, s);
+  // Pack 34: on a turned torso the near arm hangs from its painted shoulder and the far one from its far shoulder, in front, behind the chest
+  const turn = !!T.J.sh, ns = turn && nearShoulder(t, her), armX = (q) => (q.d.id === 'armF' ? (turn ? ns[0] : q.d.joint[0] + 0.11) : turn ? farShoulder(ns)[0] : q.d.joint[0] - 0.11);
+  const arm = (q) => {
+    const p = q.d, j = p.joint, el = ARM_LEN / 2 * s;
+    ctx.save(); ctx.translate(armX(q) * s, (turn && p.id === 'armB' ? farShoulder(ns)[1] : j[1]) * s);
+    drawSeg(ctx, U, [0, 0], [0, el], p.w * s); drawSeg(ctx, F, [0, el], [0, ARM_LEN * s], p.w * s);
+    if (q.armour && M) drawSeg(ctx, M, [0, el], [0, el + (ARM_LEN * s - el) * M.J.to], p.w * s);
+    ctx.restore();
+  };
+  if (turn && pose) heroArms(ctx, parts, s, pose, U, F, M, gm, 'far');
+  else if (turn) for (const q of parts) if (q.d.id === 'armB') arm(q);
   kitTorso(ctx, T, K.neck * s, K.belt * s, bw);
   // the plate cut at the waist as the fight cuts it into the chest's and the belly's sprites
   if (PL && plateBoth(parts)) torsoPlate(ctx, PL, s, bw * T.J.k, 'both', (B.y + B.h / 2) * s, { P: T, w: bw });
@@ -671,20 +683,12 @@ function kitIcon(ctx, parts, s, str, gm, pose = null) {
   const ht = pose ? [hx - Math.sin(pose.chin) * (K.chin - K.top) * s, K.chin * s - Math.cos(pose.chin) * (K.chin - K.top) * s] : [hx, K.top * s];
   if (!(kh && kh.J.closed)) drawSeg(ctx, Hd, ht, [hx, K.chin * s], 0);
   if (kh) drawSeg(ctx, kh, ht, [hx, K.chin * s], 0);
-  if (pose) { heroArms(ctx, parts, s, pose, U, F, M, gm); return true; }
-  for (const q of parts) {
-    const p = q.d;
-    if (p.id !== 'armF' && p.id !== 'armB') continue;
-    const j = p.joint, el = ARM_LEN / 2 * s, x0 = (j[0] + (p.id === 'armF' ? 0.11 : -0.11)) * s;
-    ctx.save(); ctx.translate(x0, j[1] * s);
-    drawSeg(ctx, U, [0, 0], [0, el], p.w * s); drawSeg(ctx, F, [0, el], [0, ARM_LEN * s], p.w * s);
-    if (q.armour && M) drawSeg(ctx, M, [0, el], [0, el + (ARM_LEN * s - el) * M.J.to], p.w * s);
-    ctx.restore();
-  }
+  if (pose) { heroArms(ctx, parts, s, pose, U, F, M, gm, turn ? 'near' : 'both'); return true; }
+  for (const q of parts) if (q.d.id === 'armF' || (q.d.id === 'armB' && !turn)) arm(q);
   for (const q of parts) {
     if (!q.slot) continue;
     const j = q.d.frame ? PARTS[pidx(q.d.frame)].joint : [0, 0];
-    ctx.save(); ctx.translate((j[0] + (q.d.frame === 'armF' ? 0.11 : 0)) * s, j[1] * s);
+    ctx.save(); ctx.translate((q.d.frame === 'armF' ? armX(parts.find((r) => r.d.id === 'armF') || { d: PARTS[pidx('armF')] }) : j[0]) * s, j[1] * s);
     if (!q.guard) kitSlot(ctx, q, s); else if (!kitGuard(ctx, q, s)) paintGuard(ctx, q, s, {});
     ctx.restore();
   }
@@ -693,55 +697,58 @@ function kitIcon(ctx, parts, s, str, gm, pose = null) {
 // Step 15, the menu's hero pose (TUNING.menu.hero): each arm's shoulder, elbow and fist (body units) from its two angles off hanging; the shield
 // arm's kind of shield is his type's, as in the fight
 const heroDir = (a) => [Math.sin(a), Math.cos(a)];
-export function heroArm(id, a1, a2) {
-  const j = PARTS[pidx(id)].joint, S = [j[0] + (id === 'armF' ? 0.11 : -0.11), j[1]], el = ARM_LEN / 2, d1 = heroDir(a1), d2 = heroDir(a2);
+export function heroArm(id, a1, a2, S0 = null) {
+  const j = PARTS[pidx(id)].joint, S = S0 || [j[0] + (id === 'armF' ? 0.11 : -0.11), j[1]], el = ARM_LEN / 2, d1 = heroDir(a1), d2 = heroDir(a2);
   const El = [S[0] + d1[0] * el, S[1] + d1[1] * el];
   return { S, E: El, F: [El[0] + d2[0] * el, El[1] + d2[1] * el] };
 }
 const heroShield = (gm) => KIT_SHIELD[gm] || 'round';
-export function heroPose(weaponId) {
-  const M = TUNING.menu.hero, long = M.longIds.includes(weaponId), w = long ? M.long : M.over;
-  return { ...M, id: long ? 'long' : 'over', weapon: w, near: heroArm('armF', w[0], w[1]), farArm: heroArm('armB', M.far[0], M.far[1]) };
+// a foe who is a woman (Mevia), who keeps today's frontal body until hers is wired
+const herOf = (f) => !!(NEW_CHAMPS[f.ck] && NEW_CHAMPS[f.ck].female);
+// (S: the near shoulder, on a turned torso its painted one, nearShoulder)
+export function heroPose(weaponId, S = null) {
+  const M = TUNING.menu.hero, long = M.longIds.includes(weaponId), w = long ? (S ? M.longT : M.long) : S ? M.overT : M.over;
+  return { ...M, id: `${long ? 'long' : 'over'}${S ? 'T' : ''}`, weapon: w, near: heroArm('armF', w[0], w[1], S), farArm: heroArm('armB', M.far[0], M.far[1]) };
 }
 // the far arm (its manica on the forearm) with the painted shield face on at its fist (none at pose.shield 0), then the weapon arm raised; the weapon is the menu's to draw
-function heroArms(ctx, parts, s, pose, U, F, M, gm) {
+function heroArms(ctx, parts, s, pose, U, F, M, gm, which = 'both') {
   const P = (q) => [q[0] * s, q[1] * s], seg = (A, q) => { const w = q.d.w * s; drawSeg(ctx, U, P(A.S), P(A.E), w); drawSeg(ctx, F, P(A.E), P(A.F), w); if (q.armour && M) drawSeg(ctx, M, P(A.E), P(lerp2(A.E, A.F, M.J.to)), w); };
   const fq = parts.find((q) => q.d.id === 'armB'), nq = parts.find((q) => q.d.id === 'armF');
-  if (fq) seg(pose.farArm, fq);
+  if (which !== 'near' && fq) seg(pose.farArm, fq);
   const kind = heroShield(gm), SP = shieldPic(kind), r = pose.shield * s, TL = TUNING.kit.tall;
-  if (SP && r > 0) {
+  if (which !== 'near' && SP && r > 0) {
     const k = SP.J.h ? r * TL[0] / SP.J.h : r / SP.J.r, w = SP.J.size[0] * k, h = SP.J.size[1] * k, [fx, fy] = P(pose.farArm.F);
     ctx.drawImage(SP.im, fx - w / 2, fy - h / 2, w, h);
   }
-  if (nq) seg(pose.near, nq);
+  if (which !== 'far' && nq) seg(pose.near, nq);
 }
 // the painted figure, painted once into a sprite per look, size, screen and art version, so a card blits it each frame; null until its art loads
 const ICONS = new Map();
-export function kitIconSprite(E, parts, s, str, gm, pose = null) {
+export function kitIconSprite(E, parts, s, str, gm, pose = null, her = false) {
   const k = Math.min(E.dpr || 1, TUNING.skin.maxDpr), B = pose ? TUNING.menu.hero.icon : TUNING.kit.iconBox;
-  const key = `${s}|${kitTier(str)}|${gm}|${k}|${artV}|${pose ? pose.id : ''}|${parts.map((q) => `${q.d.id}${q.armour ? 1 : 0}${q.guard ? 'g' : ''}`).join(',')}`;
+  const key = `${s}|${kitTier(str)}|${gm}|${k}|${artV}|${pose ? pose.id : ''}|${her ? 'f' : ''}|${parts.map((q) => `${q.d.id}${q.armour ? 1 : 0}${q.guard ? 'g' : ''}`).join(',')}`;
   let sp = ICONS.get(key);
   if (!sp) {
-    const A = dollArt(parts, str, gm);
+    const A = dollArt(parts, str, gm, her);
     if (pose) A.extra.push(`kit-shield-${heroShield(gm)}`);
     if (!artReady(A)) return null;
     const x = B[0] * s, y = B[1] * s, w = (B[2] - B[0]) * s, h = (B[3] - B[1]) * s, cv = new OffscreenCanvas(Math.ceil(w * k), Math.ceil(h * k)), c = cv.getContext('2d');
     c.imageSmoothingQuality = 'high'; c.scale(k, k); c.translate(-x, -y);
-    if (!kitIcon(c, parts, s, str, gm, pose)) return null;
+    if (!kitIcon(c, parts, s, str, gm, pose, her)) return null;
     sp = { cv, x, y, w, h };
     if (ICONS.size > 24) ICONS.clear();
     ICONS.set(key, sp);
   }
   return sp;
 }
-export function armourIcon(ctx, E, parts, x, y, s, str = 0, gm = null) {
+export function armourIcon(ctx, E, parts, x, y, s, str = 0, gm = null, her = false) {
   ctx.save(); ctx.translate(x, y);
   // a body part that failed to load leaves the drawn doll
-  if (str && kitOn() && !dollArt(parts, str, gm).body.some((n) => artState(n) === 'bad')) {
-    const sp = canSprite && kitIconSprite(E, parts, s, str, gm);
+  if (str && kitOn() && !dollArt(parts, str, gm, her).body.some((n) => artState(n) === 'bad')) {
+    const sp = canSprite && kitIconSprite(E, parts, s, str, gm, null, her);
     if (sp) ctx.drawImage(sp.cv, sp.x, sp.y, sp.w, sp.h);
     // while the paint loads the card shows no figure for a frame or two, never the flat blocks
-    if (!sp && !canSprite) kitIcon(ctx, parts, s, str, gm);
+    if (!sp && !canSprite) kitIcon(ctx, parts, s, str, gm, null, her);
     ctx.restore(); return;
   }
   for (const q of parts) {
@@ -932,7 +939,7 @@ function gapGlow(ctx, cs) {
 }
 // a man's figure on the card (his plates painted, as the fight's), feet at (x, y), s px a body unit, its gaps lit
 function manFigure(ctx, E, f, parts, x, y, s) {
-  armourIcon(ctx, E, parts, x, y, s, f.str, foeGm(f));
+  armourIcon(ctx, E, parts, x, y, s, f.str, foeGm(f), herOf(f));
   gapGlow(ctx, parts.filter((q) => q.slot).map((q) => {
     const p = q.d, j = p.frame ? PARTS[pidx(p.frame)].joint : [0, 0], side = p.frame === 'armF' ? 0.11 : 0;
     return [x + (j[0] + side + p.x) * s, y + (j[1] + p.y) * s, p.w * s / 2, p.h * s / 2, !!q.guard];
@@ -1013,7 +1020,7 @@ function drawIntroFull(ctx, E) {
   E.text(name, cx, y + 46, { size: fitSize(ctx, name, 30, w - 40 - 2 * bw), weight: '800', color: '#f0e6cc' });
   if (sub) E.text(sub, cx, y + 72, { size: bw ? fitSize(ctx, sub, 15, w - 2 * bw - 16) : 15, weight: '800', color: champ ? '#fca5a5' : '#7de3ff' });
   const lx = x + 80, s = 96;
-  armourIcon(ctx, E, guardParts(foeParts(makeRng(d.partSeed), d.set, d.plus || 0, dualGaps(d)), d.guards), lx, y + b + 100, s, d.str, foeGm(d));
+  armourIcon(ctx, E, guardParts(foeParts(makeRng(d.partSeed), d.set, d.plus || 0, dualGaps(d)), d.guards), lx, y + b + 100, s, d.str, foeGm(d), herOf(d));
   E.text(`${d.set.name} ARMOUR`, lx, y + b + 118, { size: 14, weight: '800', color: '#aab3bc' });
   const ng = (d.guards || []).length;
   E.text(ng ? `${d.set.slots - ng} open · ${ng} guarded` : `${d.set.slots} gaps open`, lx, y + b + 134, { size: 14, weight: '700', color: '#c4b99a' });
@@ -1134,7 +1141,7 @@ function pairCol(ctx, E, f, x, y, w, tag, ex) {
   E.text(tag, x + w / 2, y + 6, { size: 14, weight: '800', color: '#c4b99a' });
   const nm = (f.beast ? beastTitle(f) : f.name).toUpperCase();
   E.text(nm, x + w / 2, y + 26, { size: Math.max(14, fitSize(ctx, nm, 18, w - 8)), weight: '800', color: f.champion ? '#ffd24a' : '#f0e6cc' });
-  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, E, f.parts, x + 40, y + 122 + ex / 2, 80, f.str, foeGm(f));
+  if (f.beast) beastIcon(ctx, E, f, x + 40, y + 108 + ex / 2, 76); else armourIcon(ctx, E, f.parts, x + 40, y + 122 + ex / 2, 80, f.str, foeGm(f), herOf(f));
   const rx = x + 84, rw = w - 88, ng = (f.guards || []).length, T = (t, yy, col = '#e2e8f0', wt = '700') => E.text(t, rx, yy, { size: 14, weight: wt, align: 'left', color: col });
   T(clipLine(ctx, f.beast ? `${f.size.name} · ${BEASTS[f.beast].name.toUpperCase()}` : `${f.size.name} · ${f.wname}`, rw), y + 50, '#fde68a', '800');
   profLine(ctx, E, f, rx, y + 69, rw, ex);
@@ -1306,7 +1313,7 @@ export function drawMeCard(ctx, E, me, x, y, w, h, gold) {
   segLine(ctx, E, [[`${TR.name}:`, '#86efac'], [TR.line(), '#cbd5e1']], cx, y + 76, w - 28, 14, { sep: ' ', weight: '700', center: true });
   segLine(ctx, E, [[`${DR.name}:`, '#fbbf24'], [DR.line(), '#cbd5e1']], cx, y + 94, w - 28, 14, { sep: ' ', weight: '700', center: true });
   const dy = 30, lw = w * 0.3, ax = x + 12 + lw / 2, s = Math.min(84, h * 0.3) * sizeOf(me.size, me.vary || 0).scale;
-  armourIcon(ctx, E, playerParts({ plates: [] }), ax, y + 72 + dy + s * 0.95, s, me.str);
+  armourIcon(ctx, E, playerParts({ plates: [] }), ax, y + 72 + dy + s * 0.95, s, me.str, null, !!me.female);
   E.text('NO KIT YET', ax, y + 174 + dy, { size: 14, weight: '800', color: '#aab3bc' });
   const mx = x + 18 + lw, mw = w * 0.36;
   E.text(S.name, mx, y + 84 + dy, { size: 20, weight: '800', align: 'left', color: '#fde68a' });
@@ -1356,7 +1363,7 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
   const box = { head: [x, y, rh], arms: [x, y + rh + g, rh], legs: [x, y + 2 * (rh + g), rh], chest: [rx, y, rh], weapon: [rx, y + rh + g, sd ? rh : 2 * rh + g], side: [rx, y + 2 * (rh + g), rh] };
   // the doll: your painted figure with the plates you wear, feet at the slots' foot
   const fy = y + 3 * rh + 2 * g - 6, s = Math.min((3 * rh + 2 * g - 12) / 1.08, dw / 0.62), dx = x + cw + g + dw / 2;
-  armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, meGm(me));
+  armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, meGm(me), !!me.female);
   // the weapon in its hand, held up as the menu's fighter holds it (step 14); a second blade (step 18) the same in the other hand, leaning the other way
   if (me.weapon !== 'fist') {
     const [hx, lean] = TUNING.kit.weapon.doll;
@@ -1365,7 +1372,7 @@ function drawInventory(ctx, E, x, y, w, h, inv) {
       ctx.save(); ctx.translate(px, py); ctx.rotate(Math.PI + sd * lean); ctx.translate(0, -ARM_LEN * s);
       drawWeapon(ctx, { weapon: iconWeapon(me.weapon), mace: me.mace }, s); ctx.restore();
       ctx.save(); ctx.beginPath(); ctx.arc(px, py, TUNING.kit.weapon.fist * s, 0, TAU); ctx.clip();
-      armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, meGm(me)); ctx.restore();
+      armourIcon(ctx, E, playerParts({ plates: me.plates }), dx, fy, s, me.str, meGm(me), !!me.female); ctx.restore();
     }
   }
   // the sidearm (step 22) at the hip, hanging back

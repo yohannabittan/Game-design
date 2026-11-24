@@ -3,8 +3,8 @@
 
 import { clamp, lerp } from './engine.js';
 import { TUNING } from './tuning.js';
-import { bandOf, TAILOR, DECK, CARD, rarCol, gearOf, PARTS, ARM_LEN, SHOULDER, BEAST_BODY, POSE_NAME, mkPart } from './data.js';
-import { lay, beastOf, rearOf, youF, walls, myH, myBlade, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, canBlock, shieldMax, beastRestQ,
+import { bandOf, TAILOR, DECK, CARD, rarCol, gearOf, PARTS, ARM_LEN, SHOULDER, BEAST_BODY, POSE_NAME, mkPart, NEW_CHAMPS } from './data.js';
+import { lay, beastOf, rearOf, youF, walls, myH, myArm, myBlade, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, canBlock, shieldMax, beastRestQ,
   knee, colRect, shieldBtns, myKey, sand, LOOK } from './fight.js';
 import { hesitating, covering, covered, LIMB, lamed, edgeF, poseEdge } from './foe.js';
 import { perfectWin, finCost, finReady, finLive, finBtn, firstRun } from './cards.js';
@@ -128,15 +128,15 @@ export function lookFor(fm, isFoe) {
   const lk = lookOf(fm, isFoe);
   if (!kitOn() || fm.beast) return lk;
   const tier = kitTier(isFoe ? fm.str : state.me.str), wk = isFoe ? fm.weapon && fm.weapon.id !== 'fist' && weaponKey(fm.weapon.id, fm.mace) : state.me.weapon !== 'fist' && weaponKey(state.me.weapon, state.me.mace);
-  const key = `${tier}|${isFoe ? '' : 'y'}|${wk}|${artV}`;
+  const her = isFoe ? !!(NEW_CHAMPS[fm.ck] && NEW_CHAMPS[fm.ck].female) : !!state.me.female, key = `${tier}|${isFoe ? '' : 'y'}|${wk}|${her ? 'f' : ''}|${artV}`;
   if (!lk.kitL || lk.kitL.key !== key) {
     // until all of his paint is in (his weapon too, step 14), he keeps the drawn look whole (step 12)
-    const A = manArt(lk, tier, wk);
+    const A = manArt(lk, tier, wk, her);
     if (!artReady(A)) { lk.kitL = { key, lk }; if (!A.body.some((n) => artState(n) === 'bad')) PENDING.add(lk.kitL); return lk; }
     const helm = helmKey(lk), shield = KIT_SHIELD[lk.helm] || 'round', wrap = !!KIT_WRAP[lk.helm];
     // the worn pieces whose paint has loaded (step 6c-2), so a part repaints when one arrives
     const ga = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)] && artImg(gearFile(c))).map((c) => c.id), ...tailorFiles(lk).filter((n) => artImg(n))].join('.');
-    lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe, helm, shield, wrap }, id: `${lk.id}|kit${key}|${helm}.${shield}${wrap ? '.wrap' : ''}|ga${ga}` } };
+    lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe, helm, shield, wrap, her }, id: `${lk.id}|kit${key}|${helm}.${shield}${wrap ? '.wrap' : ''}|ga${ga}` } };
   }
   return lk.kitL.lk;
 }
@@ -188,22 +188,25 @@ export function artPic(name, J0, px = 0, dark = 0) {
 const KIT_HALF = { upperarm: 'kit-arm-up', forearm: 'kit-arm-lo', thigh: 'kit-leg-up', shin: 'kit-leg-lo' };
 // a kit part's image for a tier: a limb's half for a lean or average man, the tier's own torso when it has one, else the muscular base (its upper
 // arm the Pack 20 one-segment part when there is one)
-function kitName(part, tier) {
+function kitName(part, tier, her = false) {
   const h = tier && KIT_HALF[part], hn = h && `${h}-${tier}`;
   if (hn && ART && ART.has(hn)) return hn;
-  const t = tier && part === 'torso' ? `kit-base-torso-${tier}` : null, n = t && ART && ART.has(t) ? t : `kit-base-${part}`;
+  const t = tier && part === 'torso' ? `kit-base-torso-${tier}` : null, n0 = t && ART && ART.has(t) ? t : `kit-base-${part}`, n = part === 'torso' ? turned(n0, her) : n0;
   return ART && ART.has(`${n}-seg`) ? `${n}-seg` : n;
 }
-export function kitPic(part, tier, px = 0) {
-  const n = kitName(part, tier), h = KIT_HALF[part];
+// Pack 34: a man wears the torso, the chest plate and the chest gear painted turned three-quarter (<name>-3q, facing right as his head and limbs do);
+// a woman keeps today's frontal ones until hers are wired
+const turned = (n, her) => (!her && ART && ART.has(`${n}-3q`) ? `${n}-3q` : n);
+export function kitPic(part, tier, px = 0, her = false) {
+  const n = kitName(part, tier, her), h = KIT_HALF[part];
   return artPic(n, h && n.startsWith(h) ? { size: TUNING.kit.half.size[h] } : TUNING.kit[part], px);
 }
 const KIT_PARTS = ['head', 'torso', 'upperarm', 'forearm', 'thigh', 'shin'];
 // a man's paint (step 12): the body of his tier, and the pieces he may wear (his type's helmet and shield, the plates, wraps, his card gear)
-export function manArt(lk, tier, wk = null) {
-  const gear = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)]).map(gearFile), ...tailorFiles(lk), ...(wk && TUNING.kit.weapon[wk] ? [weaponArt(wk)] : [])];
+export function manArt(lk, tier, wk = null, her = false) {
+  const gear = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)]).map((c) => wornFile(c, her)), ...tailorFiles(lk), ...(wk && TUNING.kit.weapon[wk] ? [weaponArt(wk)] : [])];
   const tower = lk.gear && lk.gear.shield && lk.gear.shield.id === 'ironwall', wrap = KIT_WRAP[lk.helm] ? [KIT_GEAR.wrap] : [], gal = lk.galerus ? [KIT_GEAR.galerus] : [];
-  return { body: KIT_PARTS.map((p) => kitName(p, tier)), extra: [`kit-helmet-${helmKey(lk)}`, `kit-shield-${tower ? 'scutum' : KIT_SHIELD[lk.helm] || 'round'}`, KIT_GEAR.plate, KIT_GEAR.manica, KIT_GEAR.greave, ...wrap, ...gal, ...gear] };
+  return { body: KIT_PARTS.map((p) => kitName(p, tier, her)), extra: [`kit-helmet-${helmKey(lk)}`, `kit-shield-${tower ? 'scutum' : KIT_SHIELD[lk.helm] || 'round'}`, turned(KIT_GEAR.plate, her), KIT_GEAR.manica, KIT_GEAR.greave, ...wrap, ...gal, ...gear] };
 }
 // a beast's paint: every part beastKit pins (a young beast's own where it has one)
 export function beastArt(fm) {
@@ -212,9 +215,9 @@ export function beastArt(fm) {
     ...(fm.parts && fm.parts.some((q) => q.armour) ? Object.keys(BARD).map((k) => `beast-${fm.beast}-armour-${k}`) : [])] };
 }
 // the painted doll on a card (kitIcon): its body, and the plates it wears
-export function dollArt(parts, str, gm) {
+export function dollArt(parts, str, gm, her = false) {
   const on = (id) => parts.some((q) => q.d.id === id && q.armour);
-  return { body: KIT_PARTS.map((p) => kitName(p, kitTier(str))), extra: [...(on('head') ? [`kit-helmet-${KIT_HELM[gm] || 'gallic'}`] : []), KIT_GEAR.plate, KIT_GEAR.manica, KIT_GEAR.greave] };
+  return { body: KIT_PARTS.map((p) => kitName(p, kitTier(str), her)), extra: [...(on('head') ? [`kit-helmet-${KIT_HELM[gm] || 'gallic'}`] : []), turned(KIT_GEAR.plate, her), KIT_GEAR.manica, KIT_GEAR.greave] };
 }
 // Pack 27: a piece painted onto the head is pinned as the head is (by its top and chin, TUNING.kit.head), moved by its head origin o
 const headJ = (J) => { const h = TUNING.kit.head, [ox, oy] = J.o; return { ...J, a: [h.a[0] + ox, h.a[1] + oy], b: [h.b[0] + ox, h.b[1] + oy] }; };
@@ -230,10 +233,14 @@ function headWear(p, lk) {
   return { helm, piece, hp, closed: !!((helm && helm.J.closed) || (piece && piece.J.closed)) };
 }
 export const gearPic = (piece, px = 0) => artPic(KIT_GEAR[piece], TUNING.kit[piece], px);
+// the chest plate a body wears: the man's turned one (its own joints in TUNING.kit.crop), or hers
+export const platePic = (her, px = 0) => artPic(turned(KIT_GEAR.plate, her), TUNING.kit.plate, px);
+// the file a card's piece is worn as: a man's chest piece turned, when it is painted so
+const wornFile = (c, her) => { const f = gearFile(c), t = turned(f, her); return t !== f && TUNING.kit.gear[t] ? t : f; };
 export const shieldPic = (kind, px = 0) => artPic(`kit-shield-${kind}`, TUNING.kit.shields[kind], px);
 // Step 6c-2: the painted piece a kit look wears in a slot (null: the drawn piece stays); px > 0 a live copy
 function gearArt(lk, slot, px = 0) {
-  const c = lk.kit && lk.gear && lk.gear[slot], f = c && gearFile(c), J = f && TUNING.kit.gear[f];
+  const c = lk.kit && lk.gear && lk.gear[slot], f = c && wornFile(c, lk.kit.her), J = f && TUNING.kit.gear[f];
   return J ? artPic(f, J.o ? headJ(J) : J, px) : null;
 }
 // Step 14: the tailor's looks you wear, painted (TUNING.kit.tailor): their files, and an item's painting on a kit look (null: the drawn look stays)
@@ -270,8 +277,8 @@ export function drawSeg(c, P, A, B, w, flip = false) {
 // J.back); over (what is worn on the torso, returning its bottom) is cut with both. A cut inside the image is outlined J.mine[2] px wide as the
 // painted edge is (on a sprite only: painted live it would land on what is behind).
 export function kitTorso(c, P, y0, y1, w, mine = false, over = null) {
-  const J = P.J, f = !!J.flip, M = mine && J.mine, T = J.trim;
-  if (!M && !T) { drawSeg(c, P, [0, y0], [0, y1], w, f); if (over) over(); return; }
+  const J = P.J, f = !!J.flip, M = mine && J.mine, T = J.trim, ox = torsoX(J, y0 / TUNING.kit.neck);
+  if (!M && !T) { drawSeg(c, P, [ox, y0], [ox, y1], w, f); if (over) over(); return; }
   const sx = w / J.w, big = 4 * (Math.abs(y1 - y0) + w), col = (x) => (x - J.a[0]) * sx * (f ? -1 : 1), span = (a, b) => [col(a), col(b)].sort((p, q) => p - q);
   const H = y0 / TUNING.kit.neck, Bk = J.back || TUNING.kit.back, bx = Bk[0] * H, by = Bk[1] * H, xs = (Bk[0] - Bk[2]) * H;
   const bk = (a = 0, b = TAU) => c.ellipse(bx, by, Bk[2] * H, Bk[3] * H, 0, a, b);
@@ -315,16 +322,54 @@ export function kitTorso(c, P, y0, y1, w, mine = false, over = null) {
 // its lower half from the waist to y1 (the belly's), or one whole plate from the neck to y1 (both, each half drawing its own cut of it); mirrored with
 // the torso when painted turned to his left. T (the torso under it: its pic and width) fills the plate's armhole (J.hole: an ellipse's centre and
 // radii, px) with the torso's own painted shoulder, so the hole shows the arm in it rather than a dark socket.
-export function torsoPlate(c, PL, H, w, on, y1, T = null) {
-  const K = TUNING.kit, J = PL.J, y0 = K.neck * H, yb = on === 'both' ? y1 : K.belt * H, h = J.hole;
-  if (on === 'belly') { drawSeg(c, { ...PL, J: { ...J, a: [J.a[0], J.abs], b: [J.b[0], J.size[1]] } }, [0, K.cut * H], [0, y1], w, !!J.flip); return y1; }
-  drawSeg(c, PL, [0, y0], [0, yb], w, !!J.flip);
-  if (!T || !h) return yb;
-  const sx = w / J.w, sy = (yb - y0) / (J.b[1] - J.a[1]);
-  c.save(); c.beginPath(); c.ellipse((h[0] - J.a[0]) * sx * (J.flip ? -1 : 1), y0 + (h[1] - J.a[1]) * sy, h[2] * sx, h[3] * sy, 0, 0, TAU); c.clip();
-  drawSeg(c, T.P, [0, y0], [0, K.belt * H], T.w, !!T.P.J.flip);
+export function torsoPlate(c, PL, H, w0, on, y1, T = null, fill = true) {
+  const K = TUNING.kit, J = PL.J, y0 = K.neck * H, yb = on === 'both' ? y1 : K.belt * H, h = J.hole, [x, w] = plateAt(PL, T, H, w0);
+  if (on === 'belly') { drawSeg(c, { ...PL, J: { ...J, a: [J.a[0], J.abs], b: [J.b[0], J.size[1]] } }, [x, K.cut * H], [x, y1], w, !!J.flip); return y1; }
+  drawSeg(c, PL, [x, y0], [x, yb], w, !!J.flip);
+  if (!T || !h || !fill) return yb;
+  const sx = w / J.w, sy = (yb - y0) / (J.b[1] - J.a[1]), tx = torsoX(T.P.J, H);
+  c.save(); c.beginPath(); c.ellipse(x + (h[0] - J.a[0]) * sx * (J.flip ? -1 : 1), y0 + (h[1] - J.a[1]) * sy, h[2] * sx, h[3] * sy, 0, 0, TAU); c.clip();
+  drawSeg(c, T.P, [tx, y0], [tx, K.belt * H], T.w, !!T.P.J.flip);
   c.restore();
   return yb;
+}
+// Pack 34: a turned torso (J.sh) stands dx (TUNING.kit.turn, body units) forward of the rig's axis, so its neck is under the head
+const torsoX = (J, H) => (J.sh ? TUNING.kit.turn.dx * H : 0);
+// where the chest plate goes on the torso T ({ P, w }): its axis and its width across J.w. On a turned torso its column 0 lies on the torso's
+// column pl[0], pl[1] of the torso's px to one of its own; otherwise on the torso's axis, w0 across
+function plateAt(PL, T, H, w0) {
+  const L = T && T.P.J.pl;
+  if (!L) return [0, w0];
+  const tj = T.P.J, f = T.w / tj.w;
+  return [torsoX(tj, H) + (L[0] + PL.J.a[0] * L[1] - tj.a[0]) * f, PL.J.w * L[1] * f];
+}
+// The kilt hangs over both thighs: what of the legs drawn so far lies above a turned torso's hem (J.hem: its bottom edge, px, run on level past its
+// ends) is cleared, so no thigh shows beside the kilt and no thigh's cut top shows at all; the kilt is drawn over what is left
+export function hemCut(c, T, H) {
+  const J = T.P.J, K = TUNING.kit, f = T.w / J.w, x0 = torsoX(J, H), big = 8 * H, sy = (K.belt - K.neck) * H / (J.b[1] - J.a[1]);
+  if (!J.hem) return;
+  const pt = (q) => [x0 + (q[0] - J.a[0]) * f, K.neck * H + (q[1] - J.a[1]) * sy], P = J.hem.map(pt);
+  c.save(); c.globalCompositeOperation = 'destination-out'; c.beginPath(); c.moveTo(-big, -big); c.lineTo(-big, P[0][1]);
+  for (const q of P) c.lineTo(q[0], q[1]);
+  c.lineTo(big, P[P.length - 1][1]); c.lineTo(big, -big); c.closePath(); c.fill(); c.restore();
+}
+// a turned torso's far shoulder (body units), from its near one ns
+export const farShoulder = (ns) => { const T = TUNING.kit.turn; return [T.dx + T.far[0], ns[1] + T.far[1]]; };
+// The near shoulder a painted man's weapon arm is drawn from (body units): on a turned torso its painted cap (J.sh, px), where his arm's own round
+// cap covers it, else the rig's. The fight's shoulder (SHOULDER) stays where it is: the fist and weapon are where they were, the arm reaches them.
+export function nearShoulder(tier, her = false) {
+  const P = kitOn() && kitPic('torso', tier, 0, her), J = P && P.J, K = TUNING.kit;
+  if (!J || !J.sh) return SHOULDER;
+  return [K.turn.dx + (J.sh[0] - J.a[0]) * PARTS[pidx('belly')].w / J.w, K.neck + (J.sh[1] - J.a[1]) * (K.belt - K.neck) / (J.b[1] - J.a[1])];
+}
+// the elbow of an arm drawn from S to the fist F, each half L long (straight, stretched, past its reach), bent to the side the arm from S0 through
+// E0 to F bends
+export function reachArm(S, F, S0, E0, L) {
+  const dx = F[0] - S[0], dy = F[1] - S[1], d = Math.hypot(dx, dy) || 1, b = Math.sqrt(Math.max(0, L * L - d * d / 4));
+  let nx = -dy / d, ny = dx / d;
+  const cr = (F[0] - S0[0]) * (E0[1] - S0[1]) - (F[1] - S0[1]) * (E0[0] - S0[0]);
+  if (Math.abs(cr) > 1e-6 ? cr < 0 : -0.3 * nx + ny < 0) { nx = -nx; ny = -ny; }
+  return [S[0] + dx / 2 + nx * b, S[1] + dy / 2 + ny * b];
 }
 // the height of the whole plate's bottom rim (J.rim, px) when it runs from the neck to y1 (body units), where a belt is buckled over it
 const plateRim = (y1) => { const K = TUNING.kit, J = K.plate; return K.neck + (y1 - K.neck) * (J.rim - J.a[1]) / (J.b[1] - J.a[1]); };
@@ -347,7 +392,7 @@ function kitBody(c, p, H, lk) {
     return true;
   }
   if (id === 'chest' || id === 'belly') {
-    const P = kitPic('torso', t), B = BOX[id], PL = p.armour && gearPic('plate'), Bd = PARTS[pidx('belly')], w = Bd.w * H;
+    const P = kitPic('torso', t, 0, lk.kit.her), B = BOX[id], PL = p.armour && platePic(lk.kit.her), Bd = PARTS[pidx('belly')], w = Bd.w * H;
     if (!P) return false;
     c.save(); c.beginPath();
     // (the chest's sprite runs a pixel past the cut, over the belly's, so no seam shows between them)
@@ -356,7 +401,7 @@ function kitBody(c, p, H, lk) {
     const G = gearArt(lk, 'chest'), A = G && G.J.at;
     const over = (PL || G) && (() => {
       const yb = PL ? torsoPlate(c, PL, H, w * P.J.k, p.both ? 'both' : id, (Bd.y + Bd.h / 2) * H, { P, w }) : 0;
-      if (G) wearSeg(c, G, [A[0] * H, A[1] * H], [A[0] * H, A[2] * H], w * P.J.k, !p.armour && !lk.kit.you);
+      if (G) { const gx = (A[0] + (G.J.turn ? TUNING.kit.turn.dx : 0)) * H; wearSeg(c, G, [gx, A[1] * H], [gx, A[2] * H], w * P.J.k, !p.armour && !lk.kit.you); }
       return Math.max(yb, G ? A[2] * H : 0);
     });
     // his near shoulder is cut under his weapon arm's, as yours is under your sword arm's
@@ -390,6 +435,8 @@ function kitBody(c, p, H, lk) {
       if (B) wearSeg(c, B, P(lerp2(knee, ank, B.J.at[0])), P(lerp2(knee, ank, B.J.at[1])), w);
       if (!i) farShade(c, H, BOX.legs);
     });
+    const P = kitPic('torso', t, 0, lk.kit.her);
+    if (P) hemCut(c, { P, w: PARTS[pidx('belly')].w * H }, H);
     return true;
   }
   return false;
@@ -1418,7 +1465,7 @@ function scars(ctx, p, H) {
 // A part in its frame: the sprite, its cuts, a shake and a bright wash while a plate clangs, a flash when hit.
 function drawPart(ctx, E, p, H, lk, fr) {
   ctx.save();
-  if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); }
+  if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); if (fr.k) ctx.scale(1, fr.k); }
   const sh = p.armour && p.clang > 0 ? p.clang / 0.25 : 0;
   if (sh > 0) ctx.translate((Math.random() - 0.5) * 7 * sh, (Math.random() - 0.5) * 7 * sh);
   const s = spriteOf(E, p, H, lk);
@@ -1435,13 +1482,13 @@ function drawPart(ctx, E, p, H, lk, fr) {
 // glint when your tip is near).
 function drawSlots(ctx, E, F, H, fm, lk, live = true) {
   const slots = fm.parts.filter((q) => q.slot);
-  for (const p of slots) drawPart(ctx, E, p, H, lk, p.d.frame ? fm.fr[p.d.frame] : null);
+  for (const p of slots) drawPart(ctx, E, p, H, lk, p.d.frame ? frDrawn(fm, p.d.frame, lk) : null);
   if (live) for (const p of slots) if (!p.guard) slotLight(ctx, F, p, H, fm);
 }
 function slotLight(ctx, F, p, H, fm) {
-  const d = p.d, fr = d.frame ? fm.fr[d.frame] : null;
+  const d = p.d, fr = d.frame ? frDrawn(fm, d.frame, lookFor(fm, fm !== state.you)) : null;
   ctx.save();
-  if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); }
+  if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); if (fr.k) ctx.scale(1, fr.k); }
   path(ctx, d, H);
   if (state.aim && fm === state.foe && p.flash <= 0 && !covered(p)) {
     // a knife raised: every gap it could find glows bright
@@ -1991,8 +2038,8 @@ export function flyingWeapon(ctx, E) {
 function markLamed(ctx, fm, H) {
   for (const p of fm.parts) {
     if (p.slot || !p.cut || !LIMB[p.d.id]) continue;
-    const fr = fm.fr[p.d.id], d = p.d, s = 0.045 * H, y = (d.id === 'legs' ? -0.24 : d.y) * H;
-    ctx.save(); if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); }
+    const fr = frDrawn(fm, p.d.id, lookFor(fm, fm !== state.you)), d = p.d, s = 0.045 * H, y = (d.id === 'legs' ? -0.24 : d.y) * H;
+    ctx.save(); if (fr) { ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot); if (fr.k) ctx.scale(1, fr.k); }
     ctx.lineCap = 'round'; ctx.strokeStyle = '#7f1d1d'; ctx.lineWidth = Math.max(4, 0.026 * H);
     line(ctx, d.x * H - s, y - s, d.x * H + s, y + s); line(ctx, d.x * H + s, y - s, d.x * H - s, y + s);
     ctx.strokeStyle = '#ef4444'; ctx.lineWidth = Math.max(2, 0.013 * H);
@@ -2060,7 +2107,7 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
   if (!isFoe && ga === 1 && state.me.dual && state.duo && !slung) { ctx.save(); ctx.setTransform(base); drawArm(ctx, E, offRec(), state.hand.off, 'back'); ctx.restore(); }
   // (the bow up: your far arm draws its string, bending as an arm does; its fist goes over you with the arrow, drawKnives)
   else if (slung && ga === 1) { ctx.save(); ctx.setTransform(base); drawArm(ctx, E, drawArmRec(E), false, 'back'); ctx.restore(); }
-  else drawPart(ctx, E, P('armB'), H, lk, fm.fr.armB);
+  else drawPart(ctx, E, P('armB'), H, lk, frDrawn(fm, 'armB', lk));
   if (isFoe && fm.shield && !bashing) offHand(ctx, fm.fr.armB, H, () => drawFoeShield(ctx, H, 0.75, lk, Math.min(E.dpr || 1, TUNING.skin.maxDpr)));
   drawPart(ctx, E, P('legs'), H, lk, null);
   drawPart(ctx, E, P('belly'), H, lk, null);
@@ -2071,8 +2118,8 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
   // the foe's weapon arm and club
   if (isFoe) {
     // (a painted weapon goes under his arm, so his fist closes over its grip)
-    const fr = fm.fr.armF, under = !!lk.kit;
-    if (!under) drawPart(ctx, E, P('armF'), H, lk, fr);
+    const fr = fm.fr.armF, under = !!lk.kit, frA = frDrawn(fm, 'armF', lk);
+    if (!under) drawPart(ctx, E, P('armF'), H, lk, frA);
     ctx.save(); ctx.translate(fr.ox * H, fr.oy * H); ctx.rotate(fr.rot);
     if (live && hesitating()) {
       ctx.save(); ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 24; ctx.strokeStyle = `rgba(167,139,250,${0.5 + 0.4 * Math.sin(state.m * 60)})`; ctx.lineWidth = 0.07 * H; ctx.lineCap = 'round';
@@ -2085,7 +2132,7 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
     // step 20: the spearhead glints as she draws it back
     if (live && sw && sw.kind === 'throw' && !thrown && sw.fin <= 0) spearGlint(ctx, 0, (ARM_LEN + fm.weapon.len) * H, TUNING.sigFx.glint * clamp(sw.t / (sw.wind * 0.4), 0, 1) * (0.8 + 0.2 * Math.sin(state.m * 30)));
     ctx.restore();
-    if (under) drawPart(ctx, E, P('armF'), H, lk, fr);
+    if (under) drawPart(ctx, E, P('armF'), H, lk, frA);
     if (live && sw && sw.puppet && sw.fin <= 0) puppetStrings(ctx, fm, H);
     if (live && state.foeNet > 0 && state.fallT <= 0 && netArt()) drapeNet(ctx, E, H, fm, netK(state.foeNet));
     drawSlots(ctx, E, F, H, fm, lk, live);
@@ -2103,6 +2150,16 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
   }
 }
 
+// The frame a limb is drawn in: its own, but a turned man's arms run from his torso's shoulders (the weapon arm from the painted near one,
+// nearShoulder; the far arm from the far one) to the same fists, stretched along their length (k) to reach them; the hits keep the arms' own frames
+export function frDrawn(fm, id, lk) {
+  const fr = fm.fr[id], arm = id === 'armF' || id === 'armB', ns = arm && fr && lk.kit ? nearShoulder(lk.kit.tier, lk.kit.her) : SHOULDER;
+  if (ns === SHOULDER) return fr;
+  // (the far arm from the far shoulder, in front, behind the chest: TUNING.kit.turn)
+  const j = id === 'armF' ? SHOULDER : PARTS[pidx('armB')].joint, S = id === 'armF' ? ns : farShoulder(ns);
+  const ox = fr.ox + S[0] - j[0], oy = fr.oy + S[1] - j[1], fx = fr.ox - Math.sin(fr.rot) * ARM_LEN, fy = fr.oy + Math.cos(fr.rot) * ARM_LEN;
+  return { ox, oy, rot: Math.atan2(ox - fx, fy - oy), k: Math.hypot(fx - ox, fy - oy) / ARM_LEN };
+}
 // Puppeteer: while his marked feint winds up, violet strings come down from above to his head, his shoulder and his sword hand
 function puppetStrings(ctx, fm, H) {
   const fr = fm.fr.armF, hand = [fr.ox - Math.sin(fr.rot) * ARM_LEN, fr.oy + Math.cos(fr.rot) * ARM_LEN];
@@ -2158,6 +2215,14 @@ export function drawSwordArm(ctx, E) {
   }
   drawLookFx(ctx);
 }
+// Pack 34: where your sword arm is drawn (screen px): its shoulder, its elbow, and whether it hangs from a turned torso's painted near shoulder
+// (nearShoulder), reaching the same fist with its elbow bent anew; else the hand record's own
+export function armJoints(E, h, lk = lookFor(state.you, false)) {
+  const [sx0, sy0] = lookPt(E, h.sx, h.sy), ns = lk.kit ? nearShoulder(lk.kit.tier, lk.kit.her) : SHOULDER;
+  if (ns === SHOULDER) return [sx0, sy0, h.ex, h.ey, false];
+  const [sx, sy] = lookPt(E, ...toScreen(youF(E), ns[0], ns[1]));
+  return [sx, sy, ...reachArm([sx, sy], [h.hx, h.hy], [sx0, sy0], [h.ex, h.ey], myArm(E) / 2), true];
+}
 // One arm and its weapon from a hand record (state.hand, or with two weapons the hand off the thumb, state.duo.rest, or the bow's drawing arm,
 // h.bare: an empty fist, no arm gear). live: the hand on the thumb, which shows its blow; part: 'all', or the off arm's two passes, 'back' (the
 // arm, behind your body) and 'front' (its weapon and fist, over him)
@@ -2169,26 +2234,27 @@ export function drawArm(ctx, E, h, live, part) {
   // its edge forward (drawn narrower); the shoulder rides your body's look
   const LB = TUNING.look.blade, kind = live ? blowKind() : null, bw = LOOK.body.w, ph = h.ph + (kind === 'jab' && !locked ? clamp(wrap(h.ang - h.ph), -LB.snap, LB.snap) * bw : 0);
   const bx = Math.cos(ph), by = Math.sin(ph), nx = -by, ny = bx, ux = h.hx + bx * blade, uy = h.hy + by * blade, roll = kind === 'slash' && !bare ? 1 - (1 - LB.roll) * bw : 1;
-  const [sx, sy] = lookPt(E, h.sx, h.sy);
+  const [sx0, sy0] = lookPt(E, h.sx, h.sy);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (live && front) drawBlowTrail(ctx, E, kind, bare, ph, ux, uy);
   const lk = lookFor(state.you, false), G = lk.gear;
+  const [sx, sy, ex, ey, turn] = part === 'all' ? armJoints(E, h, lk) : [sx0, sy0, h.ex, h.ey, false];
   // the kit: the painted upper arm now, the forearm and fist over the grip at the end (with the arm's gear on it)
   const aw = TUNING.kit.arm * H, kpx = aw * Math.min(E.dpr || 1, TUNING.skin.maxDpr), kU = lk.kit && kitPic('upperarm', lk.kit.tier, kpx), kF = lk.kit && kitPic('forearm', lk.kit.tier, kpx), kit = kU && kF;
   // The PNGs face right, their back (-x) to the rear. The arm bends wherever the finger leads, so each half is mirrored when it would face the wrong
   // way: the upper arm's back to the outside of the elbow, the fist's fingers toward the hilt (kept as they were when the arm is straight or the blade
   // runs along the forearm, so they never flicker).
   if (kit && back) {
-    const lu = Math.hypot(h.ex - sx, h.ey - sy) || 1, lf = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, F = TUNING.kit.flip;
-    const u = (-(h.ey - sy) * (h.ex - (sx + h.hx) / 2) + (h.ex - sx) * (h.ey - (sy + h.hy) / 2)) / (lu * lu), f = (-(h.hy - h.ey) * bx + (h.hx - h.ex) * by) / lf;
+    const lu = Math.hypot(ex - sx, ey - sy) || 1, lf = Math.hypot(h.hx - ex, h.hy - ey) || 1, F = TUNING.kit.flip;
+    const u = (-(ey - sy) * (ex - (sx + h.hx) / 2) + (ex - sx) * (ey - (sy + h.hy) / 2)) / (lu * lu), f = (-(h.hy - ey) * bx + (h.hx - ex) * by) / lf;
     if (Math.abs(u) > F[0]) h.flipU = u < 0;
     if (Math.abs(f) > F[1]) h.flipF = f < 0;
     // the forearm under the upper arm, so the muscle at its top runs out of the elbow rather than bulging over it
-    drawSeg(ctx, kF, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF);
-    drawSeg(ctx, kU, [sx, sy], [h.ex, h.ey], aw, !!h.flipU);
+    drawSeg(ctx, kF, [ex, ey], [h.hx, h.hy], aw, !!h.flipF);
+    drawSeg(ctx, kU, [sx, sy], [ex, ey], aw, !!h.flipU);
   }
   else if (!kit && back) {
-    limb(ctx, [[sx, sy], [h.ex, h.ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
+    limb(ctx, [[sx, sy], [ex, ey], [h.hx, h.hy]], 0.075 * H, YOU.skin);
     if (!h.bare) liveArmGear(ctx, h, H, lk);
     if (!far) { ctx.fillStyle = YOU.tunic; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, 0.058 * H, 0, 6.28); ctx.fill(); ctx.stroke(); }
   }
@@ -2213,7 +2279,7 @@ export function drawArm(ctx, E, h, live, part) {
   const a = live ? h.atk : null, hot = a && !a.done && h.sp >= TUNING.hit.minSpeed && !locked;
   const gx = h.hx + bx * 0.05 * H, gy = h.hy + by * 0.05 * H, steel = locked ? '#ff8a7a' : '#dfe6ee';
   // Step 14: fists swing at the fist (its glow round it, its jab spark at the knuckles), never at a blade's length
-  const FW = TUNING.me.weapons.fist, fl = Math.hypot(h.hx - h.ex, h.hy - h.ey) || 1, kn = [h.hx + (h.hx - h.ex) / fl * FW.knuckle * H, h.hy + (h.hy - h.ey) / fl * FW.knuckle * H];
+  const FW = TUNING.me.weapons.fist, fl = Math.hypot(h.hx - ex, h.hy - ey) || 1, kn = [h.hx + (h.hx - ex) / fl * FW.knuckle * H, h.hy + (h.hy - ey) / fl * FW.knuckle * H];
   const tip = bare ? kn : [ux, uy], glow = hot && (a.kind === 'over' ? 'rgba(255,200,90,0.5)' : 'rgba(125,227,255,0.45)');
   if (hot && bare) { ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(h.hx, h.hy, FW.glow * H, 0, TAU); ctx.fill(); }
   else if (hot) { ctx.strokeStyle = glow; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(ux, uy); ctx.stroke(); }
@@ -2282,7 +2348,7 @@ export function drawArm(ctx, E, h, live, part) {
   }
   ctx.restore();
   if (hot && a.kind === 'jab') { ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 6, 0, 6.28); ctx.fill(); }
-  if (kit) { drawSeg(ctx, { ...kF, J: { ...kF.J, top: kF.J.a[1] + (kF.J.b[1] - kF.J.a[1]) * TUNING.kit.fist } }, [h.ex, h.ey], [h.hx, h.hy], aw, !!h.flipF); if (!h.bare) liveArmGear(ctx, h, H, lk, aw, kpx); }
+  if (kit) { drawSeg(ctx, { ...kF, J: { ...kF.J, top: kF.J.a[1] + (kF.J.b[1] - kF.J.a[1]) * TUNING.kit.fist } }, [ex, ey], [h.hx, h.hy], aw, !!h.flipF); if (!h.bare) liveArmGear(ctx, turn ? { ...h, sx, sy, ex, ey } : h, H, lk, aw, kpx); }
   else {
     ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(h.hx, h.hy, 0.042 * H, 0, 6.28); ctx.fill();
     ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke();

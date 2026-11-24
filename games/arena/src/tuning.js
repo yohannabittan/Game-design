@@ -654,7 +654,9 @@ export const TUNING = {
     // upper arm and forearm (rad from hanging, + forward), its shield's radius (body units) at the fist; over = the weapon arm's two angles and the
     // weapon's lean back from upright (rad), a raised fist for fists; long = the same for the weapons in longIds, held up and back; icon = its sprite's box
     hero: { legs: [[[-0.02, -0.37], [-0.12, -0.21], [-0.19, -0.04]], [[0.02, -0.37], [0.12, -0.21], [0.19, -0.04]]], chin: 0.12, far: [0.1, -2.7], shield: 0.14,
-      over: [2.4, 3.0, 0.3], long: [1.7, 2.4, 0.6], longIds: ['spear', 'trident'], icon: [-0.55, -1.2, 0.5, 0.12] } },
+      over: [2.4, 3.0, 0.3], long: [1.7, 2.4, 0.6], longIds: ['spear', 'trident'],
+      // Pack 34: the same from a turned torso's painted near shoulder (at its back), so the raised arm goes up past the back of his head, not his face
+      overT: [3.1, 2.65, 0.3], longT: [1.9, 2.5, 0.6], icon: [-0.55, -1.2, 0.5, 0.12] } },
   // the "What's new" plaque and card on the menu: the plaque's size px (w, h; h is at least 44 to touch) and its distance from the bottom (it sits under the two walls, clear of the dev tabs in the top corners), how many builds the card
   // lists, the card's largest size px (w, h) and its margin to the screen, its text size and line height px, the footer row's height px and its buttons' width px
   notes: { plaque: [112, 44], inset: 8, shown: 40, min: 40, card: [560, 400], margin: 12, text: 16, lh: 20, headH: 28, gap: 8, foot: 54, btn: [104, 44] },
@@ -708,6 +710,10 @@ export const TUNING = {
     // there at row back[1], radii back[2] and back[3], is kept above row back[4], its edge outlined as the painted one is; what is worn on the torso
     // keeps the ellipse and, below its centre, all in front of its back edge, so a plate's side runs on straight down past the far arm
     back: [0, -0.58, 0.095, 0.16, -0.54],
+    // Pack 34: a man's torso turned three-quarter (crop's -3q files, painted facing right, no flip, no cuts) stands dx (body units) forward of the
+    // rig's axis, so its neck sits under the head; far: where its far arm hangs from (body units: forward of its axis, below the near shoulder), in
+    // front, behind the chest, reaching the far fist where the fight has it
+    turn: { dx: 0.03, far: [0.075, 0.03] },
     // an open gap on a painted man in the fight: a soft shadow on the limb, its alpha at the centre (fading to none at the gap's edge)
     gap: 0.5,
     // your painted shield: a scutum's half height and half width per its rim radius r
@@ -733,6 +739,15 @@ export const TUNING = {
       // and limbs painted facing right, so they are drawn mirrored to face where the head faces (their near shoulder is on the image's left)
       'kit-base-torso-lean-A': { flip: true, mine: [40, 384, 8] }, 'kit-base-torso-avg-A': { flip: true, mine: [40, 384, 8] },
       'kit-base-torso-B': { flip: true, mine: [40, 384, 8] }, 'kit-base-torso-lean-B': { flip: true, mine: [40, 384, 8] },
+      // Pack 34 (HANDOFF-arena-pack34-turn, -full): the men's torsos turned three-quarter. sh: the painted near shoulder's cap (px), which his weapon
+      // arm is drawn from (TUNING.kit.turn); pl: where the turned chest plate lies on it, its column 0 on the torso's column pl[0], pl[1] torso px to
+      // its px; k: how much wider the chest gear is drawn on it
+      // hem: the kilt's bottom edge (px, back to front), each end run on level, under which the thighs come out (draw-fight.js hemCut)
+      'kit-base-torso-avg-3q-A': { sh: [72, 100], pl: [35, 1], hem: [[39, 451], [55, 458], [71, 482], [87, 486], [103, 492], [119, 499], [135, 497], [151, 497], [167, 496], [183, 496], [199, 502], [215, 499], [231, 492], [247, 483], [263, 471], [279, 451]] },
+      'kit-base-torso-lean-3q-A': { sh: [72, 100], pl: [12, 1], hem: [[62, 456], [78, 462], [94, 480], [110, 484], [126, 494], [142, 493], [158, 493], [174, 499], [190, 490], [206, 490], [222, 490], [238, 482], [254, 466], [270, 456]] },
+      'kit-base-torso-3q-A': { sh: [118, 112], pl: [24, 1.18], k: 1.1, hem: [[104, 475], [120, 482], [136, 487], [152, 494], [168, 496], [184, 501], [200, 501], [216, 502], [232, 502], [248, 503], [264, 504], [280, 500], [296, 493], [312, 477], [328, 476]] },
+      // the turned chest plate: its near armhole (on the left, at the back) is an ellipse filled with the torso's painted shoulder
+      'kit-plate-chest-3q-A': { flip: false, hole: [70, 95, 38, 55] },
       // the Pack 20 one-segment muscular upper arm, drawn whole: a the shoulder, b the elbow (its end runs on under the forearm's top)
       'kit-base-upperarm-seg-A': { a: [107, 50], b: [30, 294] },
     },
@@ -810,6 +825,9 @@ export const TUNING = {
       'gear-shadow-sandals': { size: [192, 384], a: [41, 70], b: [40, 312], at: [0.09, 1] },
       'gear-wind-ribbons': { size: [160, 240], a: [39, 31], b: [41, 208], w: 64, at: [0.155, 0.29] }, 'gear-crusher-gauntlets': { size: [160, 160], a: [112, 7], b: [74, 152], w: 100, at: [0.21, 0.3] },
       'gear-colossus-plate': { size: [384, 384], a: [186, 36], b: [186, 363], w: 300, at: [0, -0.745, -0.48], bare: 95 },
+      // Pack 34: the champions' chest gear turned three-quarter for a man (turn: on a turned torso, moved forward with it, TUNING.kit.turn)
+      'gear-black-plate-3q': { size: [384, 384], a: [226, 30], b: [226, 372], w: 277, at: [0, -0.745, -0.48], bare: 95, turn: true },
+      'gear-colossus-plate-3q': { size: [384, 384], a: [192, 66], b: [192, 376], w: 277, at: [0, -0.745, -0.48], bare: 95, turn: true },
       'gear-idols-torc': { size: [128, 160], a: [64, 4], b: [64, 155], at: [0.03, -0.745, -0.6] },
     },
     // a round shield face on a tall shield: its rim radius per the tall shield's half width
