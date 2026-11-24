@@ -23,6 +23,16 @@ export const PROFILES = {
 };
 export const NAMES = ['Crixus', 'Priscus', 'Verus', 'Celadus', 'Triumphus', 'Tetraites', 'Spiculus', 'Attilius', 'Oenomaus', 'Gannicus', 'Pugnax', 'Calamus', 'Asteropaeus'];
 const CHAMPIONS = ['Flamma the Unbroken', 'Marcus the Red', 'Varro of Capua', 'Aurelius the Golden'];
+// Build 2 (faces-and-women.md): the origin whose face a foe wears, by his name (a later champion by his key): from history where it is known
+// (Crixus, Oenomaus and Gannicus were Gauls, Celadus a Thracian, Flamma a Syrian, the nearest face Egypt's), else spread over the others; a name
+// not here takes the origin its letters pick (FACE_ORIGINS). Mevia is a woman (NEW_CHAMPS), so hers is that origin's woman's face.
+export const FOE_ORIGIN = {
+  Crixus: 'gaul', Priscus: 'capua', Verus: 'numidia', Celadus: 'thrace', Triumphus: 'circus', Tetraites: 'ostia', Spiculus: 'egypt', Attilius: 'capua',
+  Oenomaus: 'gaul', Gannicus: 'gaul', Pugnax: 'numidia', Calamus: 'ostia', Asteropaeus: 'alexandria',
+  'Flamma the Unbroken': 'egypt', 'Marcus the Red': 'gaul', 'Varro of Capua': 'capua', 'Aurelius the Golden': 'circus',
+  twins: 'thrace', Pollux: 'thrace', hermes: 'alexandria', aquila: 'capua', carpophorus: 'numidia', mevia: 'thrace',
+};
+export const FACE_ORIGINS = ['gaul', 'thrace', 'numidia', 'capua', 'ostia', 'alexandria', 'egypt', 'circus'];
 // The later arenas' champions, each tied to your reason in his own words: the tie on his card and the line he says. The Twins are one pairs bout,
 // Castor first and Pollux waiting.
 export const NEW_CHAMPS = {

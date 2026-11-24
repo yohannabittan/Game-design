@@ -165,3 +165,4 @@ To undo a landed build: `node tools/land.mjs arena --revert <commit> --msg "Aren
 - Every unlock icon is drawn by unlockMark in scenes.js; the engine reads only docs/art/candidates/arena/candidates.json, so a pack in its own folder must be merged in there as -A.webp copies
 - sw.js ART is hand-kept: every name in SHIPPED needs its ./assets/<name>.webp line or it is not offline
 - SHOULDER and the parts' joints are fight geometry (reach, hits): move only the drawing (TUNING.kit.turn); the menu and doll arms are drawn at joint plus or minus 0.11
+- A fighter's face: faceKey, meFace, foeFace in draw-fight.js; foes' origins in FOE_ORIGIN (data.js); skin tint in skinned with TUNING.kit.skin.faces

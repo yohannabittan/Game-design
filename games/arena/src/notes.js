@@ -2,6 +2,7 @@
 // The orchestrator adds an entry on top at every landing: v is the build number (the number in sw.js's CACHE_VERSION; tools/docs-check.mjs keeps them equal),
 // then the date and two to five short lines, each a thing to try, in plain words. Only the newest TUNING.notes.shown entries are shown.
 export const NOTES = [
+  { v: 99, date: '24 Nov', lines: ['Every fighter has the face of where they come from', 'Women have their own bodies and armour'] },
   { v: 98, date: '24 Nov', lines: ['Fighters now turn the way they face: chest, armour and shoulders', 'No more dislocated shoulder on the menu'] },
   { v: 97, date: '24 Nov', lines: ['What\'s new now goes all the way back'] },
   { v: 96, date: '22 Nov', lines: ['Fighter unlocks are named by where they come from'] },

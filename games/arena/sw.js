@@ -1,6 +1,6 @@
 // Offline-first service worker.
 // Bump CACHE_VERSION on every deploy so phones pick up the new build.
-const CACHE_VERSION = 'arena-v98';
+const CACHE_VERSION = 'arena-v99';
 // Only this game's own dev caches are cleaned up; other games and the release channel share the origin.
 const CACHE_PREFIX = 'arena-v';
 // The painted art (docs/art/final/arena, one webp each); the release channel shows it, the dev channel shows the candidates instead.
@@ -130,6 +130,39 @@ const ART = [
   './assets/gear-black-plate.webp',
   './assets/gear-black-plate-3q.webp',
   './assets/gear-colossus-plate-3q.webp',
+  './assets/kit-base-torso-avg-f-3q.webp',
+  './assets/kit-base-torso-lean-f-3q.webp',
+  './assets/kit-base-torso-f-3q.webp',
+  './assets/kit-plate-chest-f-3q.webp',
+  './assets/kit-arm-up-avg-f.webp',
+  './assets/kit-arm-lo-avg-f.webp',
+  './assets/kit-leg-up-avg-f.webp',
+  './assets/kit-leg-lo-avg-f.webp',
+  './assets/kit-arm-up-lean-f.webp',
+  './assets/kit-arm-lo-lean-f.webp',
+  './assets/kit-leg-up-lean-f.webp',
+  './assets/kit-leg-lo-lean-f.webp',
+  './assets/kit-arm-up-musc-f.webp',
+  './assets/kit-arm-lo-musc-f.webp',
+  './assets/kit-leg-up-musc-f.webp',
+  './assets/kit-leg-lo-musc-f.webp',
+  './assets/face-gaul-m.webp',
+  './assets/face-gaul-f.webp',
+  './assets/face-numidia-m.webp',
+  './assets/face-numidia-f.webp',
+  './assets/face-egypt-m.webp',
+  './assets/face-egypt-f.webp',
+  './assets/face-thrace-m.webp',
+  './assets/face-thrace-f.webp',
+  './assets/face-capua-m.webp',
+  './assets/face-capua-f.webp',
+  './assets/face-ostia-m.webp',
+  './assets/face-ostia-f.webp',
+  './assets/face-alexandria-m.webp',
+  './assets/face-alexandria-f.webp',
+  './assets/face-circus-m.webp',
+  './assets/face-circus-f.webp',
+  './assets/face-sparta-f.webp',
   './assets/gear-eye-amulet.webp',
   './assets/gear-gilded-harness.webp',
   './assets/gear-bronze-boots.webp',

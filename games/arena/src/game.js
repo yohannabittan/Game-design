@@ -876,6 +876,11 @@ const SHIPPED = new Set([
   'kit-base-head kit-base-torso kit-helmet-gallic kit-shield-round kit-base-torso-lean kit-base-torso-avg ',
   // Pack 34: the men's torsos, the chest plate and the champions' chest gear turned three-quarter to face right (as the head and limbs do)
   'kit-base-torso-avg-3q kit-base-torso-lean-3q kit-base-torso-3q kit-plate-chest-3q gear-black-plate-3q gear-colossus-plate-3q ',
+  // Build 2 (faces-and-women): her torsos, chest plate and limbs per build, and every origin's face, a man's and a woman's (Sparta's women only)
+  'kit-base-torso-avg-f-3q kit-base-torso-lean-f-3q kit-base-torso-f-3q kit-plate-chest-f-3q kit-arm-up-avg-f kit-arm-lo-avg-f kit-leg-up-avg-f kit-leg-lo-avg-f ',
+  'kit-arm-up-lean-f kit-arm-lo-lean-f kit-leg-up-lean-f kit-leg-lo-lean-f kit-arm-up-musc-f kit-arm-lo-musc-f kit-leg-up-musc-f kit-leg-lo-musc-f ',
+  'face-gaul-m face-gaul-f face-numidia-m face-numidia-f face-egypt-m face-egypt-f face-thrace-m face-thrace-f face-capua-m ',
+  'face-capua-f face-ostia-m face-ostia-f face-alexandria-m face-alexandria-f face-circus-m face-circus-f face-sparta-f ',
   'kit-helmet-murmillo kit-helmet-thraex kit-galerus kit-shield-scutum kit-shield-parma kit-plate-chest kit-plate-manica ',
   'kit-plate-greave kit-wrap-trousers kit-net-draped kit-arm-up-musc kit-arm-lo-musc kit-leg-up-musc kit-leg-lo-musc kit-arm-up-lean kit-arm-lo-lean kit-leg-up-lean ',
   'kit-leg-lo-lean kit-arm-up-avg kit-arm-lo-avg kit-leg-up-avg kit-leg-lo-avg ',

@@ -714,6 +714,15 @@ export const TUNING = {
     // rig's axis, so its neck sits under the head; far: where its far arm hangs from (body units: forward of its axis, below the near shoulder), in
     // front, behind the chest, reaching the far fist where the fight has it
     turn: { dx: 0.03, far: [0.075, 0.03] },
+    // Build 2 (HANDOFF-arena-pack34-full, "Skin per origin"): the body's skin tinted to its face (face key: <origin>-m or -f), per channel: the
+    // face's median skin over the kit head's (234, 140, 69), the head the bodies were painted to match (both measured as test picks skin, on the
+    // cheek and neck); ref: the man's turned torso's median skin (RGB), which a lifted channel is fitted at; test: what is skin (hue degrees h0 to h1,
+    // each edge faded over hs; saturation faded in from s0 to s1; brightness from v0 to v1), so belts, bands, kilts, straps and outlines keep their paint
+    skin: { ref: [246, 141, 45], test: [8, 36, 6, 0.4, 0.55, 0.45, 0.65], faces: {
+      'gaul-m': [1.05, 1.08, 1.22], 'gaul-f': [1.08, 1.31, 1.62], 'numidia-m': [0.69, 0.43, 0.29], 'numidia-f': [0.74, 0.46, 0.41],
+      'egypt-m': [0.93, 0.78, 0.39], 'egypt-f': [0.98, 0.85, 0.58], 'sparta-f': [1.07, 1.11, 0.81], 'thrace-m': [1.01, 0.89, 0.68], 'thrace-f': [1.03, 0.91, 0.64],
+      'capua-m': [0.97, 0.93, 0.97], 'capua-f': [1.05, 1.06, 0.87], 'ostia-m': [0.92, 0.82, 0.80], 'ostia-f': [1.05, 0.94, 0.77],
+      'alexandria-m': [1.00, 0.89, 0.67], 'alexandria-f': [0.99, 0.91, 0.75], 'circus-m': [1.00, 0.91, 0.91], 'circus-f': [0.93, 0.73, 0.57] } },
     // an open gap on a painted man in the fight: a soft shadow on the limb, its alpha at the centre (fading to none at the gap's edge)
     gap: 0.5,
     // your painted shield: a scutum's half height and half width per its rim radius r
@@ -743,11 +752,15 @@ export const TUNING = {
       // arm is drawn from (TUNING.kit.turn); pl: where the turned chest plate lies on it, its column 0 on the torso's column pl[0], pl[1] torso px to
       // its px; k: how much wider the chest gear is drawn on it
       // hem: the kilt's bottom edge (px, back to front), each end run on level, under which the thighs come out (draw-fight.js hemCut)
-      'kit-base-torso-avg-3q-A': { sh: [72, 100], pl: [35, 1], hem: [[39, 451], [55, 458], [71, 482], [87, 486], [103, 492], [119, 499], [135, 497], [151, 497], [167, 496], [183, 496], [199, 502], [215, 499], [231, 492], [247, 483], [263, 471], [279, 451]] },
-      'kit-base-torso-lean-3q-A': { sh: [72, 100], pl: [12, 1], hem: [[62, 456], [78, 462], [94, 480], [110, 484], [126, 494], [142, 493], [158, 493], [174, 499], [190, 490], [206, 490], [222, 490], [238, 482], [254, 466], [270, 456]] },
-      'kit-base-torso-3q-A': { sh: [118, 112], pl: [24, 1.18], k: 1.1, hem: [[104, 475], [120, 482], [136, 487], [152, 494], [168, 496], [184, 501], [200, 501], [216, 502], [232, 502], [248, 503], [264, 504], [280, 500], [296, 493], [312, 477], [328, 476]] },
-      // the turned chest plate: its near armhole (on the left, at the back) is an ellipse filled with the torso's painted shoulder
-      'kit-plate-chest-3q-A': { flip: false, hole: [70, 95, 38, 55] },
+      'kit-base-torso-avg-3q-A': { sh: [72, 100], pl: [35, 1], skin: 268, hem: [[39, 451], [55, 458], [71, 482], [87, 486], [103, 492], [119, 499], [135, 497], [151, 497], [167, 496], [183, 496], [199, 502], [215, 499], [231, 492], [247, 483], [263, 471], [279, 451]] },
+      'kit-base-torso-lean-3q-A': { sh: [72, 100], pl: [12, 1], skin: 273, hem: [[62, 456], [78, 462], [94, 480], [110, 484], [126, 494], [142, 493], [158, 493], [174, 499], [190, 490], [206, 490], [222, 490], [238, 482], [254, 466], [270, 456]] },
+      'kit-base-torso-3q-A': { sh: [118, 112], pl: [24, 1.18], k: 1.1, skin: 267, hem: [[104, 475], [120, 482], [136, 487], [152, 494], [168, 496], [184, 501], [200, 501], [216, 502], [232, 502], [248, 503], [264, 504], [280, 500], [296, 493], [312, 477], [328, 476]] },
+      // Build 2 (HANDOFF-arena-pack34-full): her torsos, turned as his (the leather band, B); skin: the belt's top row, below which nothing is tinted
+      'kit-base-torso-avg-f-3q-A': { sh: [80, 100], pl: [15, 1], skin: 270, hem: [[50, 453], [66, 472], [82, 480], [98, 485], [114, 489], [130, 493], [146, 497], [162, 501], [178, 503], [194, 501], [210, 503], [226, 501], [242, 498], [258, 491], [274, 480], [290, 464]] },
+      'kit-base-torso-lean-f-3q-A': { sh: [80, 100], pl: [34, 0.95], skin: 262, hem: [[62, 448], [78, 469], [94, 476], [110, 490], [126, 494], [142, 498], [158, 499], [174, 499], [190, 496], [206, 497], [222, 493], [238, 487], [254, 478], [270, 466]] },
+      'kit-base-torso-f-3q-A': { sh: [80, 100], pl: [8, 1.1], skin: 264, hem: [[52, 455], [68, 471], [84, 483], [100, 487], [116, 492], [132, 497], [148, 499], [164, 502], [180, 503], [196, 500], [212, 501], [228, 499], [244, 495], [260, 484], [276, 477]] },
+      // the turned chest plate: its near armhole (on the left, at the back) is an ellipse filled with the torso's painted shoulder; hers likewise
+      'kit-plate-chest-3q-A': { flip: false, hole: [70, 95, 38, 55] }, 'kit-plate-chest-f-3q-A': { flip: false, hole: [80, 78, 30, 50] },
       // the Pack 20 one-segment muscular upper arm, drawn whole: a the shoulder, b the elbow (its end runs on under the forearm's top)
       'kit-base-upperarm-seg-A': { a: [107, 50], b: [30, 294] },
     },
@@ -772,6 +785,14 @@ export const TUNING = {
       'kit-arm-up-musc-B': { a: [94.5, 108], b: [79.5, 264], w: 70 }, 'kit-arm-lo-musc-B': { a: [79.5, 24], b: [95, 238], w: 70 },
       'kit-leg-up-musc-A': { a: [92, 128], b: [95, 296], w: 59, top: 188, pad: 9 }, 'kit-leg-lo-musc-A': { a: [95, 24], b: [90, 262], w: 59 },
       'kit-leg-up-musc-B': { a: [60, 134], b: [95.5, 296], w: 57, top: 196, pad: 14 }, 'kit-leg-lo-musc-B': { a: [96, 24], b: [91, 250], w: 57 },
+      // Build 2 (HANDOFF-arena-pack34, -full): her limbs per build (<half>-<tier>-f), painted facing right; w is her painted width at the cut over 0.9,
+      // so she is drawn at 90% of his limb width; her thighs' top below the painted skirt's lowest corner, padded back up as far below the hip as his
+      'kit-arm-up-avg-f-A': { a: [90, 40], b: [79.5, 264], w: 71 }, 'kit-arm-lo-avg-f-A': { a: [79.5, 24], b: [117, 244], w: 71 },
+      'kit-leg-up-avg-f-A': { a: [90, 69], b: [95.5, 296], w: 87, top: 162, pad: 44 }, 'kit-leg-lo-avg-f-A': { a: [95.5, 24], b: [68, 293], w: 87 },
+      'kit-arm-up-lean-f-A': { a: [65.5, 40], b: [64.1, 264], w: 62 }, 'kit-arm-lo-lean-f-A': { a: [64.1, 24], b: [115, 244], w: 62 },
+      'kit-leg-up-lean-f-A': { a: [93, 69], b: [95.6, 296], w: 76, top: 175, pad: 33 }, 'kit-leg-lo-lean-f-A': { a: [90.6, 24], b: [96, 293], w: 76 },
+      'kit-arm-up-musc-f-A': { a: [56.5, 40], b: [52.1, 264], w: 80 }, 'kit-arm-lo-musc-f-A': { a: [52.1, 24], b: [114.5, 244], w: 80 },
+      'kit-leg-up-musc-f-A': { a: [94, 69], b: [95.7, 296], w: 89, top: 122, pad: 14 }, 'kit-leg-lo-musc-f-A': { a: [85.7, 24], b: [102, 293], w: 89 },
     },
     // Step 6c-2, the card gear painted (Pack 20, `gear-<name>`), each piece's pins in its own PNG: a and b land on the rig's points at, w = the px
     // across that spans the part's width (none: drawn in its own shape). arms: at = two heights in the arm's frame (H from the shoulder: the forearm

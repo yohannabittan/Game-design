@@ -510,7 +510,7 @@ export function drawSlung(ctx, E, H, lk) {
   }
   if (me.dual || state.sh.broken || noShield()) return;
   ctx.save(); ctx.translate(B[0] * H, B[1] * H); ctx.rotate(B[3]); ctx.scale(B[4], 1);
-  shieldFace(ctx, E, B[2] * H, H, lk, !!(lk.kit && kitPic('upperarm', lk.kit.tier) && kitPic('forearm', lk.kit.tier)));
+  shieldFace(ctx, E, B[2] * H, H, lk, !!(lk.kit && kitPic('upperarm', lk.kit.tier, 0, lk.kit.fk) && kitPic('forearm', lk.kit.tier, 0, lk.kit.fk)));
   ctx.restore();
 }
 // what the knife meets where it arrives, and the word for it: GAP! (TUNING.knives.dmg); PLATE on plate, his shield or guard (a dull knock, nothing

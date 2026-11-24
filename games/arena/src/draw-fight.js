@@ -3,7 +3,7 @@
 
 import { clamp, lerp } from './engine.js';
 import { TUNING } from './tuning.js';
-import { bandOf, TAILOR, DECK, CARD, rarCol, gearOf, PARTS, ARM_LEN, SHOULDER, BEAST_BODY, POSE_NAME, mkPart, NEW_CHAMPS } from './data.js';
+import { bandOf, TAILOR, DECK, CARD, rarCol, gearOf, PARTS, ARM_LEN, SHOULDER, BEAST_BODY, POSE_NAME, mkPart, NEW_CHAMPS, FOE_ORIGIN, FACE_ORIGINS } from './data.js';
 import { lay, beastOf, rearOf, youF, walls, myH, myArm, myBlade, foeF, toScreen, partCenter, zoneScreenY, openNow, shieldPos, raised, canBlock, shieldMax, beastRestQ,
   knee, colRect, shieldBtns, myKey, sand, LOOK } from './fight.js';
 import { hesitating, covering, covered, LIMB, lamed, edgeF, poseEdge } from './foe.js';
@@ -122,21 +122,33 @@ export const meGm = (me) => gmKey((GTYPE[me.weapon] || GTYPE.gladius).helm, hvOf
 const KIT_WRAP = { hoplo: true };
 const KIT_GEAR = { plate: 'kit-plate-chest', manica: 'kit-plate-manica', greave: 'kit-plate-greave', wrap: 'kit-wrap-trousers', galerus: 'kit-galerus' };
 export function kitTier(str) { const T = TUNING.kit.tier; return str <= T.lean ? 'lean' : str <= T.avg ? 'avg' : 'musc'; }
+// Build 2 (faces-and-women.md): a fighter's face key, <origin>-m or <origin>-f (Sparta's women only): it names the face he or she wears
+// (face-<key>), her body (a woman's: -f) and the skin the body is tinted to (TUNING.kit.skin). '': no origin, the kit's own head and skin.
+export const faceKey = (origin, female) => (!origin ? '' : female ? `${origin}-f` : origin === 'sparta' ? '' : `${origin}-m`);
+export const meFace = (me) => faceKey(me.origin, !!me.female);
+// a foe's: his name's origin (FOE_ORIGIN, a later champion's by his key; else the one his name's letters pick), a woman's for Mevia
+export function foeFace(f) {
+  if (!f || f.beast) return '';
+  const o = FOE_ORIGIN[f.ck] || FOE_ORIGIN[f.name] || FACE_ORIGINS[[...(f.name || '')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % FACE_ORIGINS.length];
+  return faceKey(o, !!(NEW_CHAMPS[f.ck] && NEW_CHAMPS[f.ck].female));
+}
+// a woman's body (her torsos, limbs and plate)
+export const isHer = (fk) => !!fk && fk.endsWith('-f');
 // (the looks whose paint is still loading and may yet arrive: a set kept off the look itself, which the replay dumps hold)
 const PENDING = new WeakSet();
 export function lookFor(fm, isFoe) {
   const lk = lookOf(fm, isFoe);
   if (!kitOn() || fm.beast) return lk;
   const tier = kitTier(isFoe ? fm.str : state.me.str), wk = isFoe ? fm.weapon && fm.weapon.id !== 'fist' && weaponKey(fm.weapon.id, fm.mace) : state.me.weapon !== 'fist' && weaponKey(state.me.weapon, state.me.mace);
-  const her = isFoe ? !!(NEW_CHAMPS[fm.ck] && NEW_CHAMPS[fm.ck].female) : !!state.me.female, key = `${tier}|${isFoe ? '' : 'y'}|${wk}|${her ? 'f' : ''}|${artV}`;
+  const fk = isFoe ? foeFace(fm) : meFace(state.me), key = `${tier}|${isFoe ? '' : 'y'}|${wk}|${fk}|${artV}`;
   if (!lk.kitL || lk.kitL.key !== key) {
     // until all of his paint is in (his weapon too, step 14), he keeps the drawn look whole (step 12)
-    const A = manArt(lk, tier, wk, her);
+    const A = manArt(lk, tier, wk, fk);
     if (!artReady(A)) { lk.kitL = { key, lk }; if (!A.body.some((n) => artState(n) === 'bad')) PENDING.add(lk.kitL); return lk; }
     const helm = helmKey(lk), shield = KIT_SHIELD[lk.helm] || 'round', wrap = !!KIT_WRAP[lk.helm];
     // the worn pieces whose paint has loaded (step 6c-2), so a part repaints when one arrives
     const ga = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)] && artImg(gearFile(c))).map((c) => c.id), ...tailorFiles(lk).filter((n) => artImg(n))].join('.');
-    lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe, helm, shield, wrap, her }, id: `${lk.id}|kit${key}|${helm}.${shield}${wrap ? '.wrap' : ''}|ga${ga}` } };
+    lk.kitL = { key, lk: { ...lk, kitL: null, plain: lk, kit: { tier, you: !isFoe, helm, shield, wrap, fk }, id: `${lk.id}|kit${key}|${helm}.${shield}${wrap ? '.wrap' : ''}|ga${ga}` } };
   }
   return lk.kitL.lk;
 }
@@ -166,13 +178,13 @@ function halfJ(st) {
   const T = TUNING.kit.half[st] ? TUNING.kit.half : TUNING.beastArt.half[st] ? TUNING.beastArt.half : null;
   return T && { ...T[st], w: T[st].w / T.wk[/-(arm|leg|fore|hind)-/.exec(st)[1]] };
 }
-export function artPic(name, J0, px = 0, dark = 0) {
-  const im = artImg(name);
-  if (!im) return null;
-  const st = artStem(name), C = TUNING.kit.crop[st] || halfJ(st), J1 = J0.wide && Math.abs(im.width / im.height - J0.wide.size[0] / J0.wide.size[1]) < 0.03 ? J0.wide : J0; // a wide canvas is told by its shape: a shipped file is scaled down
-  const J = C ? { ...J1, ...C } : J1, sz = J.size;
+export function artPic(name, J0, px = 0, dark = 0, fk = '') {
+  const im0 = artImg(name);
+  if (!im0) return null;
+  const st = artStem(name), C = TUNING.kit.crop[st] || halfJ(st), J1 = J0.wide && Math.abs(im0.width / im0.height - J0.wide.size[0] / J0.wide.size[1]) < 0.03 ? J0.wide : J0; // a wide canvas is told by its shape: a shipped file is scaled down
+  const J = C ? { ...J1, ...C } : J1, sz = J.size, im = fk ? skinned(name, im0, J, fk) : im0;
   if (!px || !canSprite) return { im, J, kx: im.width / sz[0], ky: im.height / sz[1] };
-  const f = Math.min(1, TUNING.kit.live * px / ((J.w || sz[0]) * im.width / sz[0])), key = `${name}|${Math.round(px)}|${dark}|${artV}`;
+  const f = Math.min(1, TUNING.kit.live * px / ((J.w || sz[0]) * im.width / sz[0])), key = `${name}|${Math.round(px)}|${dark}|${fk}|${artV}`;
   let L = KIT_LIVE.get(key);
   if (!L) {
     const cv = new OffscreenCanvas(Math.max(1, Math.round(im.width * f)), Math.max(1, Math.round(im.height * f))), c = cv.getContext('2d');
@@ -184,29 +196,61 @@ export function artPic(name, J0, px = 0, dark = 0) {
   }
   return L;
 }
+// Build 2: a body painting with its skin tinted to the face fk (TUNING.kit.skin), baked once per painting and face. Only skin is tinted (orange,
+// saturated, light: belts, bands, kilts, straps and outlines are not), and none below the torso's row J.skin (its belt and kilt); a channel the face
+// darkens is multiplied, one it lightens (a Gaul's pale skin) is lifted on a curve that keeps highlights under white.
+const SKINNED = new Map();
+function skinned(name, im, J, fk) {
+  const S = TUNING.kit.skin, k = S.faces[fk];
+  if (!k || !canSprite) return im;
+  const key = `${name}|${fk}|${artV}`;
+  let cv = SKINNED.get(key);
+  if (cv) return cv;
+  cv = new OffscreenCanvas(im.width, im.height);
+  const c = cv.getContext('2d', { willReadFrequently: true });
+  c.drawImage(im, 0, 0);
+  const D = c.getImageData(0, 0, cv.width, cv.height), d = D.data, rows = J.skin ? Math.round(J.skin * im.height / J.size[1]) : cv.height;
+  const ex = k.map((r, i) => (r > 1 ? Math.log(1 - Math.min(0.99, S.ref[i] * r / 255)) / Math.log(1 - S.ref[i] / 255) : 0));
+  const ramp = (x, a, b) => Math.max(0, Math.min(1, (x - a) / (b - a))), [h0, h1, hs, s0, s1, v0, v1] = S.test;
+  for (let i = 0, n = rows * cv.width * 4; i < n; i += 4) {
+    if (!d[i + 3]) continue;
+    const r = d[i], g = d[i + 1], b = d[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if (mx !== r || mx === mn) continue;
+    const h = 60 * (g - b) / (mx - mn), w = ramp(h, h0 - hs, h0) * (1 - ramp(h, h1, h1 + hs)) * ramp((mx - mn) / mx, s0, s1) * ramp(mx / 255, v0, v1);
+    if (w <= 0) continue;
+    for (let j = 0; j < 3; j++) { const v = d[i + j], t = k[j] > 1 ? 255 * (1 - Math.pow(1 - v / 255, ex[j])) : v * k[j]; d[i + j] = v + (t - v) * w; }
+  }
+  c.putImageData(D, 0, 0);
+  if (SKINNED.size > 32) SKINNED.clear();
+  SKINNED.set(key, cv);
+  return cv;
+}
 // Step 6d: a lean or average arm or leg is drawn from its two halves of one painting (TUNING.kit.half)
 const KIT_HALF = { upperarm: 'kit-arm-up', forearm: 'kit-arm-lo', thigh: 'kit-leg-up', shin: 'kit-leg-lo' };
 // a kit part's image for a tier: a limb's half for a lean or average man, the tier's own torso when it has one, else the muscular base (its upper
 // arm the Pack 20 one-segment part when there is one)
-function kitName(part, tier, her = false) {
+function kitName(part, tier, fk = '') {
+  if (part === 'head') return fk && ART && ART.has(`face-${fk}`) ? `face-${fk}` : 'kit-base-head';
   const h = tier && KIT_HALF[part], hn = h && `${h}-${tier}`;
+  if (hn && isHer(fk) && ART && ART.has(`${hn}-f`)) return `${hn}-f`;
   if (hn && ART && ART.has(hn)) return hn;
-  const t = tier && part === 'torso' ? `kit-base-torso-${tier}` : null, n0 = t && ART && ART.has(t) ? t : `kit-base-${part}`, n = part === 'torso' ? turned(n0, her) : n0;
+  const t = tier && part === 'torso' ? `kit-base-torso-${tier}` : null, n0 = t && ART && ART.has(t) ? t : `kit-base-${part}`, n = part === 'torso' ? turned(n0, fk) : n0;
   return ART && ART.has(`${n}-seg`) ? `${n}-seg` : n;
 }
-// Pack 34: a man wears the torso, the chest plate and the chest gear painted turned three-quarter (<name>-3q, facing right as his head and limbs do);
-// a woman keeps today's frontal ones until hers are wired
-const turned = (n, her) => (!her && ART && ART.has(`${n}-3q`) ? `${n}-3q` : n);
-export function kitPic(part, tier, px = 0, her = false) {
-  const n = kitName(part, tier, her), h = KIT_HALF[part];
-  return artPic(n, h && n.startsWith(h) ? { size: TUNING.kit.half.size[h] } : TUNING.kit[part], px);
+// Pack 34: the torso, the chest plate and the chest gear painted turned three-quarter (<name>-3q, facing right as the head and limbs do); a woman
+// wears hers (<name>-f-3q) where it is painted, else the man's (the champions' plates)
+const turned = (n, fk) => (!ART ? n : isHer(fk) && ART.has(`${n}-f-3q`) ? `${n}-f-3q` : ART.has(`${n}-3q`) ? `${n}-3q` : n);
+// a body part's painting for a tier and a face (fk: her body, the face's head, the body's skin tinted to it)
+export function kitPic(part, tier, px = 0, fk = '') {
+  const n = kitName(part, tier, fk), h = KIT_HALF[part];
+  return artPic(n, h && n.startsWith(h) ? { size: TUNING.kit.half.size[h] } : TUNING.kit[part], px, 0, part === 'head' ? '' : fk);
 }
 const KIT_PARTS = ['head', 'torso', 'upperarm', 'forearm', 'thigh', 'shin'];
 // a man's paint (step 12): the body of his tier, and the pieces he may wear (his type's helmet and shield, the plates, wraps, his card gear)
-export function manArt(lk, tier, wk = null, her = false) {
-  const gear = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)]).map((c) => wornFile(c, her)), ...tailorFiles(lk), ...(wk && TUNING.kit.weapon[wk] ? [weaponArt(wk)] : [])];
+export function manArt(lk, tier, wk = null, fk = '') {
+  const gear = [...Object.values(lk.gear || {}).filter((c) => TUNING.kit.gear[gearFile(c)]).map((c) => wornFile(c, fk)), ...tailorFiles(lk), ...(wk && TUNING.kit.weapon[wk] ? [weaponArt(wk)] : [])];
   const tower = lk.gear && lk.gear.shield && lk.gear.shield.id === 'ironwall', wrap = KIT_WRAP[lk.helm] ? [KIT_GEAR.wrap] : [], gal = lk.galerus ? [KIT_GEAR.galerus] : [];
-  return { body: KIT_PARTS.map((p) => kitName(p, tier, her)), extra: [`kit-helmet-${helmKey(lk)}`, `kit-shield-${tower ? 'scutum' : KIT_SHIELD[lk.helm] || 'round'}`, turned(KIT_GEAR.plate, her), KIT_GEAR.manica, KIT_GEAR.greave, ...wrap, ...gal, ...gear] };
+  return { body: KIT_PARTS.map((p) => kitName(p, tier, fk)), extra: [`kit-helmet-${helmKey(lk)}`, `kit-shield-${tower ? 'scutum' : KIT_SHIELD[lk.helm] || 'round'}`, turned(KIT_GEAR.plate, fk), KIT_GEAR.manica, KIT_GEAR.greave, ...wrap, ...gal, ...gear] };
 }
 // a beast's paint: every part beastKit pins (a young beast's own where it has one)
 export function beastArt(fm) {
@@ -215,9 +259,9 @@ export function beastArt(fm) {
     ...(fm.parts && fm.parts.some((q) => q.armour) ? Object.keys(BARD).map((k) => `beast-${fm.beast}-armour-${k}`) : [])] };
 }
 // the painted doll on a card (kitIcon): its body, and the plates it wears
-export function dollArt(parts, str, gm, her = false) {
+export function dollArt(parts, str, gm, fk = '') {
   const on = (id) => parts.some((q) => q.d.id === id && q.armour);
-  return { body: KIT_PARTS.map((p) => kitName(p, kitTier(str), her)), extra: [...(on('head') ? [`kit-helmet-${KIT_HELM[gm] || 'gallic'}`] : []), turned(KIT_GEAR.plate, her), KIT_GEAR.manica, KIT_GEAR.greave] };
+  return { body: KIT_PARTS.map((p) => kitName(p, kitTier(str), fk)), extra: [...(on('head') ? [`kit-helmet-${KIT_HELM[gm] || 'gallic'}`] : []), turned(KIT_GEAR.plate, fk), KIT_GEAR.manica, KIT_GEAR.greave] };
 }
 // Pack 27: a piece painted onto the head is pinned as the head is (by its top and chin, TUNING.kit.head), moved by its head origin o
 const headJ = (J) => { const h = TUNING.kit.head, [ox, oy] = J.o; return { ...J, a: [h.a[0] + ox, h.a[1] + oy], b: [h.b[0] + ox, h.b[1] + oy] }; };
@@ -233,14 +277,14 @@ function headWear(p, lk) {
   return { helm, piece, hp, closed: !!((helm && helm.J.closed) || (piece && piece.J.closed)) };
 }
 export const gearPic = (piece, px = 0) => artPic(KIT_GEAR[piece], TUNING.kit[piece], px);
-// the chest plate a body wears: the man's turned one (its own joints in TUNING.kit.crop), or hers
-export const platePic = (her, px = 0) => artPic(turned(KIT_GEAR.plate, her), TUNING.kit.plate, px);
-// the file a card's piece is worn as: a man's chest piece turned, when it is painted so
-const wornFile = (c, her) => { const f = gearFile(c), t = turned(f, her); return t !== f && TUNING.kit.gear[t] ? t : f; };
+// the chest plate a body wears: the man's turned one or hers (their own joints in TUNING.kit.crop)
+export const platePic = (fk, px = 0) => artPic(turned(KIT_GEAR.plate, fk), TUNING.kit.plate, px);
+// the file a card's piece is worn as: a chest piece turned, when it is painted so (the champions' plates: the man's on her too)
+const wornFile = (c, fk) => { const f = gearFile(c), t = turned(f, fk); return t !== f && TUNING.kit.gear[t] ? t : f; };
 export const shieldPic = (kind, px = 0) => artPic(`kit-shield-${kind}`, TUNING.kit.shields[kind], px);
 // Step 6c-2: the painted piece a kit look wears in a slot (null: the drawn piece stays); px > 0 a live copy
 function gearArt(lk, slot, px = 0) {
-  const c = lk.kit && lk.gear && lk.gear[slot], f = c && wornFile(c, lk.kit.her), J = f && TUNING.kit.gear[f];
+  const c = lk.kit && lk.gear && lk.gear[slot], f = c && wornFile(c, lk.kit.fk), J = f && TUNING.kit.gear[f];
   return J ? artPic(f, J.o ? headJ(J) : J, px) : null;
 }
 // Step 14: the tailor's looks you wear, painted (TUNING.kit.tailor): their files, and an item's painting on a kit look (null: the drawn look stays)
@@ -357,8 +401,8 @@ export function hemCut(c, T, H) {
 export const farShoulder = (ns) => { const T = TUNING.kit.turn; return [T.dx + T.far[0], ns[1] + T.far[1]]; };
 // The near shoulder a painted man's weapon arm is drawn from (body units): on a turned torso its painted cap (J.sh, px), where his arm's own round
 // cap covers it, else the rig's. The fight's shoulder (SHOULDER) stays where it is: the fist and weapon are where they were, the arm reaches them.
-export function nearShoulder(tier, her = false) {
-  const P = kitOn() && kitPic('torso', tier, 0, her), J = P && P.J, K = TUNING.kit;
+export function nearShoulder(tier, fk = '') {
+  const P = kitOn() && kitPic('torso', tier, 0, fk), J = P && P.J, K = TUNING.kit;
   if (!J || !J.sh) return SHOULDER;
   return [K.turn.dx + (J.sh[0] - J.a[0]) * PARTS[pidx('belly')].w / J.w, K.neck + (J.sh[1] - J.a[1]) * (K.belt - K.neck) / (J.b[1] - J.a[1])];
 }
@@ -386,13 +430,13 @@ function kitBody(c, p, H, lk) {
   const K = TUNING.kit, id = p.d.id, t = lk.kit.tier;
   if (id === 'cloak') return true;
   if (id === 'head') {
-    const P = kitPic('head');
+    const P = kitPic('head', t, 0, lk.kit.fk);
     if (!P) return false;
     if (!headWear(p, lk).closed) drawSeg(c, P, [p.d.x * H, K.top * H], [p.d.x * H, K.chin * H], 0);
     return true;
   }
   if (id === 'chest' || id === 'belly') {
-    const P = kitPic('torso', t, 0, lk.kit.her), B = BOX[id], PL = p.armour && platePic(lk.kit.her), Bd = PARTS[pidx('belly')], w = Bd.w * H;
+    const P = kitPic('torso', t, 0, lk.kit.fk), B = BOX[id], PL = p.armour && platePic(lk.kit.fk), Bd = PARTS[pidx('belly')], w = Bd.w * H;
     if (!P) return false;
     c.save(); c.beginPath();
     // (the chest's sprite runs a pixel past the cut, over the belly's, so no seam shows between them)
@@ -410,7 +454,7 @@ function kitBody(c, p, H, lk) {
     return true;
   }
   if (id === 'armF' || id === 'armB') {
-    const U = kitPic('upperarm', t), F = kitPic('forearm', t), w = p.d.w * H, el = ARM_LEN / 2 * H, M = p.armour && gearPic('manica');
+    const U = kitPic('upperarm', t, 0, lk.kit.fk), F = kitPic('forearm', t, 0, lk.kit.fk), w = p.d.w * H, el = ARM_LEN / 2 * H, M = p.armour && gearPic('manica');
     if (!U || !F) return false;
     // your far arm's forearm goes under its upper arm, as your sword arm's does
     const under = lk.kit.you && id === 'armB', fore = () => drawSeg(c, F, [0, el], [0, ARM_LEN * H], w);
@@ -425,7 +469,7 @@ function kitBody(c, p, H, lk) {
     return true;
   }
   if (id === 'legs') {
-    const T = kitPic('thigh', t), S = kitPic('shin', t), w = TUNING.kit.leg * H, Wr = lk.kit.wrap && gearPic('wrap'), G = p.armour && gearPic('greave'), B = gearArt(lk, 'legs');
+    const T = kitPic('thigh', t, 0, lk.kit.fk), S = kitPic('shin', t, 0, lk.kit.fk), w = TUNING.kit.leg * H, Wr = lk.kit.wrap && gearPic('wrap'), G = p.armour && gearPic('greave'), B = gearArt(lk, 'legs');
     if (!T || !S) return false;
     LEGS.forEach(([hip, knee, ank], i) => {
       const P = (q) => [q[0] * H, q[1] * H];
@@ -435,7 +479,7 @@ function kitBody(c, p, H, lk) {
       if (B) wearSeg(c, B, P(lerp2(knee, ank, B.J.at[0])), P(lerp2(knee, ank, B.J.at[1])), w);
       if (!i) farShade(c, H, BOX.legs);
     });
-    const P = kitPic('torso', t, 0, lk.kit.her);
+    const P = kitPic('torso', t, 0, lk.kit.fk);
     if (P) hemCut(c, { P, w: PARTS[pidx('belly')].w * H }, H);
     return true;
   }
@@ -2153,7 +2197,7 @@ export function drawFighter(ctx, E, F, fm, who, ga = 1) {
 // The frame a limb is drawn in: its own, but a turned man's arms run from his torso's shoulders (the weapon arm from the painted near one,
 // nearShoulder; the far arm from the far one) to the same fists, stretched along their length (k) to reach them; the hits keep the arms' own frames
 export function frDrawn(fm, id, lk) {
-  const fr = fm.fr[id], arm = id === 'armF' || id === 'armB', ns = arm && fr && lk.kit ? nearShoulder(lk.kit.tier, lk.kit.her) : SHOULDER;
+  const fr = fm.fr[id], arm = id === 'armF' || id === 'armB', ns = arm && fr && lk.kit ? nearShoulder(lk.kit.tier, lk.kit.fk) : SHOULDER;
   if (ns === SHOULDER) return fr;
   // (the far arm from the far shoulder, in front, behind the chest: TUNING.kit.turn)
   const j = id === 'armF' ? SHOULDER : PARTS[pidx('armB')].joint, S = id === 'armF' ? ns : farShoulder(ns);
@@ -2218,7 +2262,7 @@ export function drawSwordArm(ctx, E) {
 // Pack 34: where your sword arm is drawn (screen px): its shoulder, its elbow, and whether it hangs from a turned torso's painted near shoulder
 // (nearShoulder), reaching the same fist with its elbow bent anew; else the hand record's own
 export function armJoints(E, h, lk = lookFor(state.you, false)) {
-  const [sx0, sy0] = lookPt(E, h.sx, h.sy), ns = lk.kit ? nearShoulder(lk.kit.tier, lk.kit.her) : SHOULDER;
+  const [sx0, sy0] = lookPt(E, h.sx, h.sy), ns = lk.kit ? nearShoulder(lk.kit.tier, lk.kit.fk) : SHOULDER;
   if (ns === SHOULDER) return [sx0, sy0, h.ex, h.ey, false];
   const [sx, sy] = lookPt(E, ...toScreen(youF(E), ns[0], ns[1]));
   return [sx, sy, ...reachArm([sx, sy], [h.hx, h.hy], [sx0, sy0], [h.ex, h.ey], myArm(E) / 2), true];
@@ -2240,7 +2284,7 @@ export function drawArm(ctx, E, h, live, part) {
   const lk = lookFor(state.you, false), G = lk.gear;
   const [sx, sy, ex, ey, turn] = part === 'all' ? armJoints(E, h, lk) : [sx0, sy0, h.ex, h.ey, false];
   // the kit: the painted upper arm now, the forearm and fist over the grip at the end (with the arm's gear on it)
-  const aw = TUNING.kit.arm * H, kpx = aw * Math.min(E.dpr || 1, TUNING.skin.maxDpr), kU = lk.kit && kitPic('upperarm', lk.kit.tier, kpx), kF = lk.kit && kitPic('forearm', lk.kit.tier, kpx), kit = kU && kF;
+  const aw = TUNING.kit.arm * H, kpx = aw * Math.min(E.dpr || 1, TUNING.skin.maxDpr), kU = lk.kit && kitPic('upperarm', lk.kit.tier, kpx, lk.kit.fk), kF = lk.kit && kitPic('forearm', lk.kit.tier, kpx, lk.kit.fk), kit = kU && kF;
   // The PNGs face right, their back (-x) to the rear. The arm bends wherever the finger leads, so each half is mirrored when it would face the wrong
   // way: the upper arm's back to the outside of the elbow, the fist's fingers toward the hilt (kept as they were when the arm is straight or the blade
   // runs along the forearm, so they never flicker).
@@ -2479,7 +2523,7 @@ export function drawShield(ctx, E) {
 function shieldArm(ctx, E, sh, Fy, H, J, lk) {
   const [hx, hy] = toScreen(Fy, ...shieldPos());
   const [sx, sy] = toScreen(Fy, J[0], J[1]);
-  const kit = lk.kit && kitPic('upperarm', lk.kit.tier) && kitPic('forearm', lk.kit.tier);
+  const kit = lk.kit && kitPic('upperarm', lk.kit.tier, 0, lk.kit.fk) && kitPic('forearm', lk.kit.tier, 0, lk.kit.fk);
   const fist = () => { ctx.fillStyle = YOU.skin; ctx.beginPath(); ctx.arc(hx, hy, 0.042 * H, 0, TAU); ctx.fill(); ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2; ctx.stroke(); };
   // step 24: the bow is out: the shield (or the second blade) is away and the far arm draws the string (drawFighter, drawKnives)
   if (bowShown()) return;

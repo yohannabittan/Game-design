@@ -2,7 +2,7 @@
 // painted near shoulder in every pose, one arm on one shoulder. For each build, yours across the poses (rest, raised, back, thrust, swing, low, a
 // knife up) and his (rest, his tells high, mid and low): the arm's shoulder lies on the torso's painting, the painted shoulder does not stick out past
 // the arm's round end on its back and top (a second shoulder), the arm is not stretched past what reads as one arm, and the fist is where the fight
-// has it. A woman keeps today's frontal torso until hers is wired.
+// has it. Build 2 (women and faces): the same for a woman, her torso turned as his (yours a Spartan's, his Mevia's).
 import { boot } from '../exact.mjs';
 import { VET } from '../arena.mjs';
 import { scene, knifeUp, release, holdTell, dropTell } from '../scene.mjs';
@@ -18,7 +18,7 @@ const STRETCH = 1.35, RING = 0.2;
 // round it, on the back and top side, the painting covers
 const probe = (g, who, S, r) => g.ev(async ([who, S, r]) => {
   const E = window.__engine, P = E.game.scenes.play, s = P.state, D = await import(new URL('src/draw-fight.js', location.href).href);
-  const T = P.TUNING.kit, fm = who === 'you' ? s.you : s.foe, lk = D.lookFor(fm, who !== 'you'), pic = D.kitPic('torso', lk.kit.tier, 0, lk.kit.her), J = pic.J;
+  const T = P.TUNING.kit, fm = who === 'you' ? s.you : s.foe, lk = D.lookFor(fm, who !== 'you'), pic = D.kitPic('torso', lk.kit.tier, 0, lk.kit.fk), J = pic.J;
   const f = (await import(new URL('src/data.js', location.href).href)).PARTS.find((d) => d.id === 'belly').w / J.w, sy = (T.belt - T.neck) / (J.b[1] - J.a[1]);
   const px = (x, y) => [J.a[0] + (x - T.turn.dx) / f, J.a[1] + (y - T.neck) / sy];
   const cv = new OffscreenCanvas(J.size[0], J.size[1]), c = cv.getContext('2d'); c.drawImage(pic.im, 0, 0, J.size[0], J.size[1]);
@@ -29,10 +29,17 @@ const probe = (g, who, S, r) => g.ev(async ([who, S, r]) => {
 }, [who, S, r]);
 
 export default async function (t) {
-  const g = await boot({ w: 874, h: 402, save: VET });
-  await scene(g, { kit: 'none', foe: 'Gannicus', knives: 3, foeHp: 999 });
+  for (const her of [false, true]) await bodies(t, her);
+}
+async function bodies(t, her) {
+  const g = await boot({ w: 874, h: 402, save: VET }), who = her ? 'her ' : '';
+  await scene(g, { kit: 'none', foe: her ? 'mevia' : 'Gannicus', knives: 3, foeHp: 999 });
   for (const [bn, str] of Object.entries(BUILDS)) {
-    await g.ev((str) => { const s = window.__engine.game.scenes.play.state; s.me.str = str; s.foe.str = str; s.you.lookSig = null; }, str);
+    await g.ev(([str, her]) => {
+      const s = window.__engine.game.scenes.play.state;
+      s.me.str = str; s.foe.str = str; s.you.lookSig = null;
+      if (her) { s.me.female = true; s.me.origin = 'sparta'; }
+    }, [str, her]);
     await g.frames(20);
     // yours: the drawn shoulder (screen px) back in your frame, the drawn upper arm's and forearm's lengths per half an arm, the fist against the hand
     const mine = () => g.ev(async () => {
@@ -56,7 +63,7 @@ export default async function (t) {
       if (d) { await g.up(x0 + d[0] * H, y0 + d[1] * H, 7); await g.frames(30); }
     }
     await knifeUp(g); await g.frames(10); await look('knife up'); await release(g); await g.frames(60);
-    t.ok(`${bn}: your sword arm hangs from the turned torso's painted shoulder, one shoulder, in every pose`, !bad.length, bad.join(' | '));
+    t.ok(`${who}${bn}: your sword arm hangs from the turned torso's painted shoulder, one shoulder, in every pose`, !bad.length, bad.join(' | '));
     // his: the arm's drawn frame from the painted shoulder, reaching the same fist
     const his = () => g.ev(async () => {
       const E = window.__engine, P = E.game.scenes.play, f = P.state.foe, D = await import(new URL('src/draw-fight.js', location.href).href), A = (await import(new URL('src/data.js', location.href).href)).ARM_LEN;
@@ -71,15 +78,15 @@ export default async function (t) {
       if (q.name !== 'turned' || !q.on || q.ring > RING || m.k > STRETCH || m.miss > 1e-6) hb.push(`${z || 'rest'}: ${JSON.stringify({ ...m, ...q })}`);
       if (z) { await dropTell(g); await g.frames(5); }
     }
-    t.ok(`${bn}: his weapon arm hangs from the turned torso's painted shoulder and reaches the same fist, at rest and in each tell`, !hb.length, hb.join(' | '));
+    t.ok(`${who}${bn}: ${her ? 'her' : 'his'} weapon arm hangs from the turned torso's painted shoulder and reaches the same fist, at rest and in each tell`, !hb.length, hb.join(' | '));
   }
-  // a woman keeps today's frontal torso, her arm on the rig's shoulder
-  const her = await g.ev(async () => {
-    const E = window.__engine, P = E.game.scenes.play, s = P.state, D = await import(new URL('src/draw-fight.js', location.href).href);
-    s.me.female = true; s.you.lookSig = null;
-    const lk = D.lookFor(s.you, false), j = D.armJoints(E, s.hand, lk);
-    return { sh: !!D.kitPic('torso', lk.kit.tier, 0, lk.kit.her).J.sh, turn: j[4] };
-  });
-  t.ok('a woman keeps the frontal torso and the rig\'s shoulder (Build 2 turns hers)', !her.sh && !her.turn, JSON.stringify(her));
+  // her body is hers: her turned torso and her limbs, on you and on the foe
+  if (her) {
+    const B = await g.ev(async () => {
+      const s = window.__engine.game.scenes.play.state, D = await import(new URL('src/draw-fight.js', location.href).href);
+      return [D.lookFor(s.you, false), D.lookFor(s.foe, true)].map((lk) => D.manArt(lk, lk.kit.tier, null, lk.kit.fk).body.join(' '));
+    });
+    t.ok('a woman wears her own turned torso and limbs, yours and the foe\'s', B.every((b) => /kit-base-torso(-\w+)?-f-3q/.test(b) && /kit-arm-up-\w+-f/.test(b) && /kit-leg-lo-\w+-f/.test(b)), JSON.stringify(B));
+  }
   await g.close();
 }

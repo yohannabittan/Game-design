@@ -790,6 +790,105 @@
   ],
   "gear-colossus-plate-3q": [
    "gear-colossus-plate-3q-A.png"
+  ],
+  "kit-base-torso-avg-f-3q": [
+   "kit-base-torso-avg-f-3q-A.png"
+  ],
+  "kit-base-torso-lean-f-3q": [
+   "kit-base-torso-lean-f-3q-A.png"
+  ],
+  "kit-base-torso-f-3q": [
+   "kit-base-torso-f-3q-A.png"
+  ],
+  "kit-plate-chest-f-3q": [
+   "kit-plate-chest-f-3q-A.png"
+  ],
+  "kit-arm-up-avg-f": [
+   "kit-arm-up-avg-f-A.png"
+  ],
+  "kit-arm-lo-avg-f": [
+   "kit-arm-lo-avg-f-A.png"
+  ],
+  "kit-leg-up-avg-f": [
+   "kit-leg-up-avg-f-A.png"
+  ],
+  "kit-leg-lo-avg-f": [
+   "kit-leg-lo-avg-f-A.png"
+  ],
+  "kit-arm-up-lean-f": [
+   "kit-arm-up-lean-f-A.png"
+  ],
+  "kit-arm-lo-lean-f": [
+   "kit-arm-lo-lean-f-A.png"
+  ],
+  "kit-leg-up-lean-f": [
+   "kit-leg-up-lean-f-A.png"
+  ],
+  "kit-leg-lo-lean-f": [
+   "kit-leg-lo-lean-f-A.png"
+  ],
+  "kit-arm-up-musc-f": [
+   "kit-arm-up-musc-f-A.png"
+  ],
+  "kit-arm-lo-musc-f": [
+   "kit-arm-lo-musc-f-A.png"
+  ],
+  "kit-leg-up-musc-f": [
+   "kit-leg-up-musc-f-A.png"
+  ],
+  "kit-leg-lo-musc-f": [
+   "kit-leg-lo-musc-f-A.png"
+  ],
+  "face-gaul-m": [
+   "face-gaul-m-A.png"
+  ],
+  "face-gaul-f": [
+   "face-gaul-f-A.png"
+  ],
+  "face-numidia-m": [
+   "face-numidia-m-A.png"
+  ],
+  "face-numidia-f": [
+   "face-numidia-f-A.png"
+  ],
+  "face-egypt-m": [
+   "face-egypt-m-A.png"
+  ],
+  "face-egypt-f": [
+   "face-egypt-f-A.png"
+  ],
+  "face-thrace-m": [
+   "face-thrace-m-A.png"
+  ],
+  "face-thrace-f": [
+   "face-thrace-f-A.png"
+  ],
+  "face-capua-m": [
+   "face-capua-m-A.png"
+  ],
+  "face-capua-f": [
+   "face-capua-f-A.png"
+  ],
+  "face-ostia-m": [
+   "face-ostia-m-A.png"
+  ],
+  "face-ostia-f": [
+   "face-ostia-f-A.png"
+  ],
+  "face-alexandria-m": [
+   "face-alexandria-m-A.png"
+  ],
+  "face-alexandria-f": [
+   "face-alexandria-f-A.png"
+  ],
+  "face-circus-m": [
+   "face-circus-m-A.png"
+  ],
+  "face-circus-f": [
+   "face-circus-f-A.png"
+  ],
+  "face-sparta-f": [
+   "face-sparta-f-A.png"
   ]
  }
 }
