@@ -50,3 +50,4 @@ day,agent,kind,model,estimate_min,done,live_est_min,live_actual_min,note
 2026-11-24,Arena: turned bodies (men),build,claude-opus-5-5,120,yes,,,three-quarter torsos and plates; shoulder pins re-tuned in every pose
 2026-11-24,Ronin sketch: endless climb,sketch,claude-sonnet-5-5,25,yes,,,touchable page and GIF: kills launch you higher
 2026-11-24,Ronin sketch: dojo slicing,sketch,claude-sonnet-5-5,25,yes,,,touchable page and GIF: slice what is thrown up
+2026-11-24,Arena: women and faces,build,claude-opus-5-5,120,,,,her turned bodies and limbs, her plate, faces by origin and sex, skin tint per face
