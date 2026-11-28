@@ -10,8 +10,8 @@
 import { launch } from '../replay.mjs';
 import { ROOT } from './arena.mjs';
 
-export async function boot({ slug = 'arena', w = 844, h = 390, save, raw, seed = 1, root = ROOT } = {}) {
-  const hh = await launch({ slug, w, h, seed, save: raw ? undefined : save, rawSave: raw, start: { scene: 'menu' } }, { root });
+export async function boot({ slug = 'arena', w = 844, h = 390, save, raw, seed = 1, root = ROOT, dpr = 1 } = {}) {
+  const hh = await launch({ slug, w, h, dpr, seed, save: raw ? undefined : save, rawSave: raw, start: { scene: 'menu' } }, { root });
   const page = hh.page;
   const fire = (type, x, y, id) => page.evaluate(([t, x, y, id]) => window.__replay.fire(t, x, y, id), [type, Math.round(x), Math.round(y), id]);
   const g = {

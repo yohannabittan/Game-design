@@ -12,7 +12,7 @@ Read "What every teammate should know" in `docs/team.md` first: the goal, the de
 
 1. **The image key is a network secret on this environment:** the proxy adds it to requests to `api.openai.com`. There is no key in your environment variables, and you send no Authorization header yourself. Confirm it works with `curl -sS -o /dev/null -w "%{http_code}\n" https://api.openai.com/v1/models`, which should print 200. If it doesn't, say so and stop; the designer fixes it in the environment's settings.
 2. **Never print, log, echo, commit or write a key to any file,** and never ask for one in chat.
-3. **PIL is broken in the cloud container.** Resize, cut and build contact sheets in a headless browser (Playwright is installed; use a canvas and `toBlob`).
+3. **Pillow:** the default `python3` may import a broken PIL; `/usr/bin/python3.13 -I` with Pillow and numpy works (checked 2026-11-28), as does ImageMagick `convert` and a headless browser canvas.
 4. Keep your own work lean: small scripts, no long loops.
 5. **If anything in this brief is wrong or out of date,** say so in your handoff, under "The brief". The orchestrator fixes the brief.
 
@@ -387,7 +387,7 @@ The designer, after playing v36: "Still we have issues with the upper lower limb
 - **arm:** from the shoulder to a clenched fist, with a leather wristband;
 - **leg:** from the hip, with the kilt's edge at the top as now, to a sandalled foot.
 
-Then **cut each painting at the elbow or knee** in code (PIL), into two files:
+Then **cut each painting at the elbow or knee** in code (Pillow, see above), into two files:
 - each half keeps a **rounded joint end** about 24 px past the cut, masked as a half-disc, so the two halves overlap at the joint and a bent elbow shows no gap;
 - the upper half ends in a rounded elbow or knee, with no hand and no foot;
 - the lower half starts with a rounded elbow or knee.
@@ -744,7 +744,7 @@ The orchestrator opens one art session per pack, with the pack's name in its fir
 ## Process
 
 1. Generate **three options** per asset at medium quality (cheap), into `docs/art/candidates/<slug>/` (not under `games/`).
-2. Write **`docs/art/candidates/<slug>/candidates.json`** for the pack (ADR-0020): `{ "pack": "<n>", "assets": { "<asset-name>": ["<asset-name>-A.png", "<asset-name>-B.png"] } }`, with the asset names the game uses (the file names in the pack table, without extension). The designer can then pick in the game itself, from the ART tab on the menu (dev channel), and paste you a line like "Art picks, launch, pack 13: daifuku-window B, mochi-ring A". Also make one **contact sheet** per pack (a single PNG grid with each option labelled, for example "gun-pulse-rifle A / B / C") at `docs/art/candidates/<slug>/sheet.png`, commit and push, and give the designer its link: `https://yohannabittan.github.io/Game-design/docs/art/candidates/<slug>/sheet.png` (the branch is published by GitHub Pages; allow a minute after the push).
+2. Add the pack to **`docs/art/candidates/<slug>/candidates.json`** (ADR-0020; keep the entries already there: it is the only manifest the game reads, so never a separate folder per pack): `{ "pack": "<n>", "assets": { "<asset-name>": ["<asset-name>-A.png", "<asset-name>-B.png"] } }`, with the asset names the game uses (the file names in the pack table, without extension). The designer can then pick in the game itself, from the ART tab on the menu (dev channel), and paste you a line like "Art picks, launch, pack 13: daifuku-window B, mochi-ring A". Also make one **contact sheet** per pack (a single PNG grid with each option labelled, for example "gun-pulse-rifle A / B / C") at `docs/art/candidates/<slug>/sheet.png`, commit and push, and give the designer its link: `https://yohannabittan.github.io/Game-design/docs/art/candidates/<slug>/sheet.png` (the branch is published by GitHub Pages; allow a minute after the push).
 3. When they pick, regenerate only the picks at high quality if needed, save them to `docs/art/final/<slug>/` with the file names above, delete the unpicked candidates, update the ledger, commit and push.
 4. Tell the designer it is ready for wiring, and that the orchestrator session builds it into the game (they can tell that session: "the art pack for <game> is in docs/art/final/<slug>").
 
